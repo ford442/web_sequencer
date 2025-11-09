@@ -1,0 +1,5 @@
+
+{
+  "name": "Electribe EA-1 Web Synth",
+  "description": "A sequencer-driven digital audio workstation inspired by the Korg Electribe series. It features two analog-modeling synthesizers and a four-part drum machine, a 16-step sequencer, and controls for waveform, filter, and envelope, all powered by the Web Audio API."
+}
