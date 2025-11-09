@@ -1,0 +1,107 @@
+
+// A self-contained worker for rendering audio in the background.
+// It duplicates some types and functions because it runs in a separate scope.
+
+type Waveform = 'sawtooth' | 'square' | 'triangle' | 'sine';
+
+interface SynthParams {
+  waveform: Waveform;
+  pitch: number;
+  filterCutoff: number;
+  filterResonance: number;
+  attack: number;
+  decay: number;
+  volume: number;
+  delayTime: number;
+  delayFeedback: number;
+  delayMix: number;
+}
+
+interface Note {
+  note: string;
+  velocity: number;
+}
+
+interface PartSequence {
+  steps: (Note | null)[];
+}
+
+const noteFrequencies: { [key: string]: number } = {
+    'C2': 65.41, 'C#2': 69.30, 'D2': 73.42, 'D#2': 77.78, 'E2': 82.41, 'F2': 87.31, 'F#2': 92.50, 'G2': 98.00, 'G#2': 103.83, 'A2': 110.00, 'A#2': 116.54, 'B2': 123.47,
+    'C3': 130.81, 'C#3': 138.59, 'D3': 146.83, 'D#3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'G3': 196.00, 'G#3': 207.65, 'A3': 220.00, 'A#3': 233.08, 'B3': 246.94,
+    'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'D#4': 311.13, 'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'G#4': 415.30, 'A4': 440.00, 'A#4': 466.16, 'B4': 493.88,
+    'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'D#5': 622.25, 'E5': 659.25, 'F5': 698.46, 'F#5': 739.99, 'G5': 783.99, 'G#5': 830.61, 'A5': 880.00, 'A#5': 932.33, 'B5': 987.77,
+};
+
+const noteToFrequency = (note: string): number => {
+    return noteFrequencies[note] || 440.00;
+};
+
+const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, note: string, time: number) => {
+    const destination = context.destination;
+    const baseFreq = noteToFrequency(note);
+    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+    const noteDuration = params.attack + params.decay;
+
+    const osc = context.createOscillator();
+    osc.type = params.waveform;
+    osc.frequency.setValueAtTime(freqWithPitch, time);
+
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(params.filterCutoff, time);
+    filter.Q.setValueAtTime(params.filterResonance, time);
+
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
+    gain.gain.linearRampToValueAtTime(0, time + noteDuration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+
+    if (params.delayMix > 0 && params.delayTime > 0) {
+        const dryGain = context.createGain();
+        const wetGain = context.createGain();
+        const delay = context.createDelay(1.0);
+        const feedback = context.createGain();
+
+        dryGain.gain.setValueAtTime(1.0 - params.delayMix, time);
+        wetGain.gain.setValueAtTime(params.delayMix, time);
+        delay.delayTime.setValueAtTime(params.delayTime, time);
+        feedback.gain.setValueAtTime(params.delayFeedback, time);
+
+        gain.connect(dryGain);
+        dryGain.connect(destination);
+
+        gain.connect(delay);
+        delay.connect(feedback);
+        feedback.connect(delay);
+        delay.connect(wetGain);
+        wetGain.connect(destination);
+    } else {
+        gain.connect(destination);
+    }
+
+    osc.start(time);
+    osc.stop(time + noteDuration + 0.05);
+};
+
+self.onmessage = async (event: MessageEvent<{ params: SynthParams, sequence: PartSequence, tempo: number, sampleRate: number, numSteps: number }>) => {
+    const { params, sequence, tempo, sampleRate, numSteps } = event.data;
+
+    const stepDuration = 60 / tempo / 4;
+    const totalDuration = numSteps * stepDuration;
+    const offlineContext = new OfflineAudioContext(2, Math.ceil(sampleRate * totalDuration), sampleRate);
+
+    sequence.steps.forEach((note, step) => {
+        if (note) {
+            const time = step * stepDuration;
+            playSynthForRender(offlineContext, params, note.note, time);
+        }
+    });
+
+    const renderedBuffer = await offlineContext.startRendering();
+    // Post the buffer back to the main thread. The buffers inside are transferable objects.
+    self.postMessage(renderedBuffer, [renderedBuffer.getChannelData(0).buffer, renderedBuffer.getChannelData(1).buffer]);
+};
