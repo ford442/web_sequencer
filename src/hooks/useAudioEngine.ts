@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
@@ -153,9 +152,7 @@ export const useAudioEngine = () => {
                 rendererWorkerRef.current.terminate();
             }
 
-            // FIX: Use a direct path to the worker script instead of `new URL(...)`
-            // which fails in the sandboxed environment.
-            const worker = new Worker('/workers/renderer.worker.ts', { type: 'module' });
+            const worker = new Worker(new URL('../workers/renderer.worker.ts', import.meta.url), { type: 'module' });
             rendererWorkerRef.current = worker;
 
             worker.onmessage = (event: MessageEvent<AudioBuffer>) => {
