@@ -8,7 +8,7 @@ interface WaveformSelectorProps {
   accentColor: 'cyan' | 'pink';
 }
 
-const waveforms: Waveform[] = ['sawtooth', 'square', 'triangle', 'sine'];
+const waveforms: Waveform[] = ['sawtooth', 'square', 'triangle', 'sine', 'pyodide-saw', 'pyodide-square', 'pyodide-sine'];
 
 const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
   switch (type) {
@@ -18,8 +18,15 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
       return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 18 L0 6 L12 6 L12 18 L24 18 L24 6" /></svg>;
     case 'triangle':
       return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 12 L6 6 L18 18 L24 12" /></svg>;
-    case 'sine':
+  case 'sine':
       return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 12 Q6 0, 12 12 T24 12" /></svg>;
+    // NEW: Pyodide icons
+    case 'pyodide-saw':
+      return <div className="font-bold text-xs leading-none">PY<br/>SAW</div>;
+    case 'pyodide-square':
+      return <div className="font-bold text-xs leading-none">PY<br/>SQR</div>;
+    case 'pyodide-sine':
+      return <div className="font-bold text-xs leading-none">PY<br/>SIN</div>;
     default:
       return null;
   }
