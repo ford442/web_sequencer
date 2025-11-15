@@ -35,7 +35,13 @@ export const useAudioEngine = () => {
       const noteDuration = params.attack + params.decay;
 
       const osc = context.createOscillator();
-      osc.type = params.waveform;
+      // Map possible Waveform values (including 'pyodide-*') to a valid OscillatorType
+      const waveformToOscType = (w: SynthParams['waveform']): OscillatorType => {
+        if (w === 'sawtooth' || w === 'square' || w === 'triangle' || w === 'sine') return w as OscillatorType;
+        // Fall back to sine for non-native (pyodide) waveforms
+        return 'sine';
+      };
+      osc.type = waveformToOscType(params.waveform);
       osc.frequency.setValueAtTime(freqWithPitch, time);
 
       const filter = context.createBiquadFilter();

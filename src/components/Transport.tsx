@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface TransportProps {
@@ -6,10 +5,9 @@ interface TransportProps {
   onPlayClick: () => void;
   tempo: number;
   onTempoChange: (tempo: number) => void;
-  isReady: boolean;
 }
 
-export const Transport: React.FC<TransportProps> = ({ isPlaying, onPlayClick, tempo, onTempoChange, isReady }) => {
+export const Transport: React.FC<TransportProps> = ({ isPlaying, onPlayClick, tempo, onTempoChange }) => {
   return (
     <div className="flex items-center space-x-4 bg-gray-900 p-2 rounded-lg border border-gray-700">
       <button

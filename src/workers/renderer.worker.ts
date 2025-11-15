@@ -1,4 +1,3 @@
-
 // A self-contained worker for rendering audio in the background.
 // It duplicates some types and functions because it runs in a separate scope.
 
@@ -103,5 +102,7 @@ self.onmessage = async (event: MessageEvent<{ params: SynthParams, sequence: Par
 
     const renderedBuffer = await offlineContext.startRendering();
     // Post the buffer back to the main thread. The buffers inside are transferable objects.
-    self.postMessage(renderedBuffer, [renderedBuffer.getChannelData(0).buffer, renderedBuffer.getChannelData(1).buffer]);
+    self.postMessage(renderedBuffer, {
+        transfer: [renderedBuffer.getChannelData(0).buffer, renderedBuffer.getChannelData(1).buffer]
+    });
 };
