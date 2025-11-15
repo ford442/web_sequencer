@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react'; // <-- 1. IMPORT useEffect
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 
@@ -10,6 +10,14 @@ export const useAudioEngine = (pyodide: any) => {
   const ambianceGainNodeRef = useRef<GainNode | null>(null);
   const loadedAmbianceBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
   const rendererWorkerRef = useRef<Worker | null>(null);
+
+  // 2. CREATE A REF to hold the pyodide prop
+  const pyodideRef = useRef(pyodide);
+
+  // 3. UPDATE THE REF whenever the prop changes
+  useEffect(() => {
+    pyodideRef.current = pyodide;
+  }, [pyodide]);
 
   const initializeAudio = useCallback(async () => {
     if (audioEngineRef.current) return;
@@ -42,6 +50,7 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
   // --- Delay (used by both) ---
   let outputNode: AudioNode = destination;
   if (params.delayMix > 0 && params.delayTime > 0) {
+    // ... (delay logic is unchanged)
     const dryGain = context.createGain();
     const wetGain = context.createGain();
     const delay = context.createDelay(1.0);
@@ -61,20 +70,19 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
     delay.connect(wetGain);
     wetGain.connect(destination);
     
-    // The source just needs to connect to 'gain', which then feeds this delay chain
     outputNode = gain; 
   } else {
-    // No delay, just connect gain to destination
     gain.connect(destination);
-    outputNode = gain; // The source just needs to connect to 'gain'
+    outputNode = gain;
   }
 
   // --- Waveform Generation ---
-  if (isPyodideWave && pyodide) {
+  // 5. USE THE REF (pyodideRef.current)
+  if (isPyodideWave && pyodideRef.current) {
     // --- NEW: Pyodide Audio Generation ---
     try {
       // 1. Set sample rate in Python
-      pyodide.globals.get('set_sample_rate')(context.sampleRate);
+      pyodideRef.current.globals.get('set_sample_rate')(context.sampleRate); // <-- Use ref
 
       // 2. Get parameters
       const baseFreq = noteToFrequency(note);
@@ -82,7 +90,7 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
       const pyOscType = params.waveform.split('-')[1]; // 'saw', 'square', 'sine'
       
       // 3. Call Python!
-      let pyProxy = pyodide.globals.get('generate_wave')(
+      let pyProxy = pyodideRef.current.globals.get('generate_wave')( // <-- Use ref
           freqWithPitch,
           noteDuration, // Use AD envelope duration
           pyOscType,
@@ -115,17 +123,18 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
         console.error("Pyodide synth error:", e);
     }
 
-  } else if (isPyodideWave && !pyodide) {
+  // 5. USE THE REF (pyodideRef.current)
+  } else if (isPyodideWave && !pyodideRef.current) {
       console.warn("Pyodide not ready, skipping synth trigger.");
-      // Optionally, fallback to a standard wave
   } else {
     // --- ORIGINAL: Web Audio API Generation ---
+    // ... (this part is unchanged)
     const baseFreq = noteToFrequency(note);
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 
     const osc = context.createOscillator();
     // @ts-ignore
-    osc.type = params.waveform as OscillatorType; // Cast since we've excluded pyodide types
+    osc.type = params.waveform as OscillatorType;
     osc.frequency.setValueAtTime(freqWithPitch, time);
 
     const filter = context.createBiquadFilter();
@@ -133,7 +142,6 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
     filter.frequency.setValueAtTime(params.filterCutoff, time);
     filter.Q.setValueAtTime(params.filterResonance, time);
 
-    // Connect the chain: osc -> filter -> gain (outputNode)
     osc.connect(filter);
     filter.connect(outputNode);
 
@@ -142,18 +150,22 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
   }
 };
 
-    // MODIFIED: playDrum now calls Pyodide
+    // 5. USE THE REF (pyodideRef.current)
     const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
-        if (!pyodide) {
+        // Check the ref
+        if (!pyodideRef.current) {
             console.warn("Pyodide not ready, skipping drum trigger.");
             return;
         }
         
         try {
             let pyProxy;
-            let p = params as any; // Cast to access properties
+            let p = params as any; 
             let bufferLengthSeconds;
             let finalVolume;
+            
+            // Get the current pyodide instance from the ref
+            const pyodide = pyodideRef.current;
 
             switch(sound) {
                 case 'kick':
@@ -187,7 +199,7 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
                     finalVolume = (p as HatParams).volume;
                     break;
                 default:
-                    return; // Should not happen
+                    return;
             }
 
             // --- Common logic for all drum sounds ---
@@ -197,6 +209,7 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
             pyProxy.destroy(); // Free memory
 
             // 2. Create Web Audio Buffer
+            // ... (rest of this function is unchanged)
             const buffer = context.createBuffer(
                 1, 
                 audioSamples.length, 
@@ -204,23 +217,20 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
             );
             buffer.getChannelData(0).set(audioSamples);
 
-            // 3. Create a Gain node for final volume
             const gainNode = context.createGain();
             gainNode.gain.setValueAtTime(finalVolume, time);
             gainNode.connect(context.destination);
 
-            // 4. Create a player (BufferSource) and schedule it
             const source = context.createBufferSource();
             source.buffer = buffer;
-            source.connect(gainNode); // Connect to our gain node
+            source.connect(gainNode);
             source.start(time);
-            source.stop(time + bufferLengthSeconds + 0.05); // Stop buffer playback
+            source.stop(time + bufferLengthSeconds + 0.05);
             
         } catch (e) {
             console.error(`Pyodide drum error (${sound}):`, e);
         }
     };
-
     const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {
         return new Promise((resolve, reject) => {
             if (rendererWorkerRef.current) {
