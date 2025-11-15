@@ -149,7 +149,7 @@ const App: React.FC = () => {
             volume={ambianceVolume}
             onVolumeChange={setAmbianceVolume}
           />
-          <Transport isPlaying={isPlaying} onPlayClick={handlePlayClick} tempo={tempo} onTempoChange={setTempo} isReady={isReady} />
+          <Transport isPlaying={isPlaying} onPlayClick={handlePlayClick} tempo={tempo} onTempoChange={setTempo} />
         </header>
 
         {!isInitialized && (
