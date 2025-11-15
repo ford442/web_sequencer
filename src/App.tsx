@@ -1,214 +1,233 @@
-import React, { useState, useCallback, useEffect } from 'react'
-import { Sequencer } from './components/Sequencer'
-import { SynthPart } from './components/SynthPart'
-import { Transport } from './components/Transport'
-import { DrumMachine } from './components/DrumMachine'
-import { AmbiancePlayer } from './components/AmbiancePlayer'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
+import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
-import { usePyodideEngine } from './hooks/usePyodideEngine';
-
 import {
-  DEFAULT_SYNTH_PARAMS_A,
-  DEFAULT_SYNTH_PARAMS_B,
   INITIAL_PATTERN,
   NUM_STEPS,
   DEFAULT_TEMPO,
-  DEFAULT_KICK_PARAMS,
-  DEFAULT_SNARE_PARAMS,
-  DEFAULT_CLOSED_HAT_PARAMS,
-  DEFAULT_OPEN_HAT_PARAMS,
+  DEFAULT_SYNTH_PARAMS_A,
+  DEFAULT_SYNTH_PARAMS_B,
   AMBIANCE_TRACKS,
 } from './constants'
-import type { Pattern, SynthParams, AllDrumParams, DrumSound, KickParams, SnareParams, HatParams } from './types'
+import type { Pattern, SynthParams } from './types'
 
-type FrozenParts = {
-  A: AudioBuffer | null
-  B: AudioBuffer | null
-}
+// Complete SVG-based App
+const ROWS = [
+  { key: 'partA', label: 'Synth A' },
+  { key: 'partB', label: 'Synth B' },
+  { key: 'kick', label: 'Kick' },
+  { key: 'snare', label: 'Snare' },
+  { key: 'closedHat', label: 'CH' },
+  { key: 'openHat', label: 'OH' },
+] as const
 
-const App: React.FC = () => {
-  const [synthAParams, setSynthAParams] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A)
-  const [synthBParams, setSynthBParams] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_B)
-  const [drumParams, setDrumParams] = useState<AllDrumParams>({
-    kick: DEFAULT_KICK_PARAMS,
-    snare: DEFAULT_SNARE_PARAMS,
-    closedHat: DEFAULT_CLOSED_HAT_PARAMS,
-    openHat: DEFAULT_OPEN_HAT_PARAMS,
-  })
+export const App: React.FC = () => {
+  const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
+  const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide)
+
+  const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
+
   const [pattern, setPattern] = useState<Pattern>(INITIAL_PATTERN)
   const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
   const [isInitialized, setIsInitialized] = useState(false)
-  const [frozenParts, setFrozenParts] = useState<FrozenParts>({ A: null, B: null })
-  const [renderingPart, setRenderingPart] = useState<'A' | 'B' | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentStep, setCurrentStep] = useState(-1)
   const [ambianceUrl, setAmbianceUrl] = useState<string>('')
   const [ambianceVolume, setAmbianceVolume] = useState(0.5)
-  const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine();
+  const synthARef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_A)
+  const synthBRef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_B)
 
-  const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide);
+  // Scheduler callback
+  const onStep = useCallback((step: number) => {
+    if (!audioEngine) return
+    const time = audioEngine.context.currentTime
 
-  const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus); // Ready if audio is on AND pyodide is either ready or still loading/failed
+    // Play frozen parts not implemented here (kept simple)
 
-  const onStep = useCallback(
-    (step: number) => {
-      if (!audioEngine) return
+    // Synths
+    if (pattern.partA.steps[step]) {
+      audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time)
+    }
+    if (pattern.partB.steps[step]) {
+      audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time)
+    }
 
-      const stepTime = audioEngine.context.currentTime
+    // Drums
+    if (pattern.kick.steps[step]) audioEngine.playDrum('kick', { ...pattern.kick } as any, time)
+    if (pattern.snare.steps[step]) audioEngine.playDrum('snare', { ...pattern.snare } as any, time)
+    if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', { ...pattern.openHat } as any, time)
+    else if (pattern.closedHat.steps[step]) audioEngine.playDrum('closedHat', { ...pattern.closedHat } as any, time)
+  }, [audioEngine, pattern])
 
-      if (step === 0) {
-        if (frozenParts.A) audioEngine.playBufferedPart(frozenParts.A, stepTime)
-        if (frozenParts.B) audioEngine.playBufferedPart(frozenParts.B, stepTime)
-      }
+  const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
 
-      if (!frozenParts.A && pattern.partA.steps[step]) {
-      audioEngine.playSynth(synthAParams, pattern.partA.steps[step]!.note, stepTime);
-      }
-      if (!frozenParts.B && pattern.partB.steps[step]) {
-      audioEngine.playSynth(synthBParams, pattern.partB.steps[step]!.note, stepTime);
-      }
+  // Mirror scheduler state to local state for UI
+  useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
+  useEffect(() => setCurrentStep(schedStep), [schedStep])
 
-      if (pattern.kick.steps[step]) audioEngine.playDrum('kick', drumParams.kick, stepTime)
-      if (pattern.snare.steps[step]) audioEngine.playDrum('snare', drumParams.snare, stepTime)
-      if (pattern.openHat.steps[step]) {
-        audioEngine.playDrum('openHat', drumParams.openHat, stepTime)
-      } else if (pattern.closedHat.steps[step]) {
-        audioEngine.playDrum('closedHat', drumParams.closedHat, stepTime)
-      }
-    },
-    [audioEngine, pattern, synthAParams, synthBParams, drumParams, frozenParts]
-  )
-
-  const { isPlaying, currentStep, setIsPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady); // Wait for pyodide to be ready or failed
-
-  const handlePlayClick = async () => {
+  // Transport handlers
+  const handlePlayToggle = async () => {
     if (!isInitialized) {
       await initializeAudio()
       setIsInitialized(true)
     }
-    setIsPlaying(!isPlaying)
+    setSchedPlaying(!schedPlaying)
+  }
+  const handleStop = () => {
+    setSchedPlaying(false)
   }
 
-  const handlePatternChange = useCallback(
-    (part: keyof Pattern, stepIndex: number) => {
-      setPattern(prevPattern => {
-        const newSteps = [...prevPattern[part].steps]
-        newSteps[stepIndex] = newSteps[stepIndex] ? null : { note: 'C2', velocity: 1 }
-        return {
-          ...prevPattern,
-          [part]: {
-            ...prevPattern[part],
-            steps: newSteps,
-          },
-        }
-      })
-    },
-    []
-  )
-
-  const handleDrumParamsChange = useCallback(
-    (sound: DrumSound, newParams: KickParams | SnareParams | HatParams) => {
-      setDrumParams(prev => ({ ...prev, [sound]: newParams }))
-    },
-    []
-  )
-
-  const handleMixdown = async (part: 'A' | 'B') => {
-    if (!audioEngine || renderingPart) return
-    setRenderingPart(part)
-    const params = part === 'A' ? synthAParams : synthBParams
-    const sequence = part === 'A' ? pattern.partA : pattern.partB
-        // NEW: Check if mixing down a pyodide wave
-    if (params.waveform.startsWith('pyodide-')) {
-        console.warn("Mixdown for Pyodide synths is not yet supported.");
-        // Or show a user-facing error
-        setRenderingPart(null); // Stop loading state
-        return;
-    }
-    const buffer = await audioEngine.renderSynthPartToBuffer(params, sequence, tempo)
-    setFrozenParts(prev => ({ ...prev, [part]: buffer }))
-    setRenderingPart(null)
+  // Pattern toggle
+  const toggleStep = (rowKey: keyof Pattern, i: number) => {
+    setPattern(prev => {
+      const copy = JSON.parse(JSON.stringify(prev)) as Pattern
+      const arr = copy[rowKey].steps
+      arr[i] = arr[i] ? null : { note: rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C2', velocity: 1 }
+      return copy
+    })
   }
 
-  const handleUnfreeze = (part: 'A' | 'B') => {
-    setFrozenParts(prev => ({ ...prev, [part]: null }))
+  // Knob logic: tempo and ambiance volume
+  const handleTempoChange = (newTempo: number) => {
+    setTempo(Math.round(newTempo))
   }
+  useEffect(() => {
+    // Nothing else required; scheduler reads tempo prop
+  }, [tempo])
+
+  useEffect(() => {
+    if (audioEngine) audioEngine.setAmbianceVolume(ambianceVolume)
+  }, [ambianceVolume, audioEngine])
 
   useEffect(() => {
     if (audioEngine) {
-      if (ambianceUrl) {
-        audioEngine.playAmbiance(ambianceUrl)
-      } else {
-        audioEngine.stopAmbiance()
-      }
+      if (ambianceUrl) audioEngine.playAmbiance(ambianceUrl)
+      else audioEngine.stopAmbiance()
     }
   }, [ambianceUrl, audioEngine])
 
-  useEffect(() => {
-    if (audioEngine) {
-      audioEngine.setAmbianceVolume(ambianceVolume)
-    }
-  }, [ambianceVolume, audioEngine])
-
+  // Render SVG UI
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-7xl bg-gray-800 border-4 border-gray-700 rounded-xl shadow-2xl p-4 space-y-4">
-        <header className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
-          <h1 className="font-orbitron text-2xl sm:text-3xl font-bold text-cyan-400 tracking-wider">EA-WEB</h1>
-          {pyodideStatus && (
-            <div className="text-yellow-400 text-sm animate-pulse">{pyodideStatus}</div>
-          )}
-          <AmbiancePlayer
-            tracks={AMBIANCE_TRACKS}
-            selectedUrl={ambianceUrl}
-            onSelect={setAmbianceUrl}
-            volume={ambianceVolume}
-            onVolumeChange={setAmbianceVolume}
-          />
-          <Transport isPlaying={isPlaying} onPlayClick={handlePlayClick} tempo={tempo} onTempoChange={setTempo} />
-        </header>
+    <svg viewBox="0 0 1000 700" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ background: '#08140a' }}>
+      <defs>
+        <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.45" />
+        </filter>
+      </defs>
 
-        {!isInitialized && (
-          <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border-2 border-dashed border-gray-600">
-            <h2 className="text-xl font-bold text-yellow-400 mb-2">Audio Engine Offline</h2>
-            <p className="text-center text-gray-400 mb-4">Click the play button to initialize the audio context and start the synth.</p>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728m2.828 9.9a5 5 0 010-7.072" />
-            </svg>
-          </div>
-        )}
+      {/* Title */}
+      <text x="500" y="50" textAnchor="middle" fontFamily="monospace" fontSize="32" fill="#3fa34d">SVG Sequencer</text>
 
-        <main className={`space-y-4 transition-opacity duration-500 ${isInitialized ? 'opacity-100' : 'opacity-30 blur-sm pointer-events-none'}`}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <SynthPart
-              title="Synth Part A"
-              accentColor="cyan"
-              params={synthAParams}
-              onParamsChange={setSynthAParams}
-              isFrozen={!!frozenParts.A}
-              isRendering={renderingPart === 'A'}
-              onMixdown={() => handleMixdown('A')}
-              onUnfreeze={() => handleUnfreeze('A')}
-            />
-            <SynthPart
-              title="Synth Part B"
-              accentColor="pink"
-              params={synthBParams}
-              onParamsChange={setSynthBParams}
-              isFrozen={!!frozenParts.B}
-              isRendering={renderingPart === 'B'}
-              onMixdown={() => handleMixdown('B')}
-              onUnfreeze={() => handleUnfreeze('B')}
-            />
-          </div>
-          <DrumMachine params={drumParams} onParamsChange={handleDrumParamsChange} />
-        </main>
+      {/* Status */}
+      {pyodideStatus && (
+        <text x="500" y="85" textAnchor="middle" fontFamily="monospace" fontSize="14" fill="#d7f3d7">{pyodideStatus}</text>
+      )}
 
-        <footer className={`transition-opacity duration-500 ${isInitialized ? 'opacity-100' : 'opacity-30 blur-sm pointer-events-none'}`}>
-          <Sequencer pattern={pattern} currentStep={currentStep} isPlaying={isPlaying} onPatternChange={handlePatternChange} />
-        </footer>
-      </div>
-    </div>
+      {/* Sequencer grid area */}
+      <g transform="translate(50,120)">
+        {ROWS.map((row, rIdx) => (
+          <g key={row.key} transform={`translate(0, ${rIdx * 90})`} >
+            <text x={-10} y={36} textAnchor="end" fontFamily="monospace" fontSize={18} fill="#fff">{row.label}</text>
+            {Array.from({ length: NUM_STEPS }).map((_, i) => {
+              const x = 20 + i * 48
+              const active = (pattern as any)[row.key].steps[i]
+              const isCurrent = currentStep === i
+              return (
+                <g key={i} transform={`translate(${x}, 0)`}
+                   role="button"
+                   aria-label={`${row.label} step ${i+1}`}
+                   tabIndex={0}
+                   onClick={() => toggleStep(row.key as any, i)}
+                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleStep(row.key as any, i) } }}
+                   cursor="pointer"
+                >
+                  <rect x={0} y={0} width={40} height={60} rx={10}
+                        fill={active ? '#3fa34d' : '#123017'} stroke={isCurrent ? '#fff' : '#2f6f3d'} strokeWidth={isCurrent ? 3 : 2}
+                        />
+                  <text x={20} y={36} textAnchor="middle" fontFamily="monospace" fontSize={18} fill={active ? '#042004' : '#fff'}>{i+1}</text>
+                </g>
+              )
+            })}
+          </g>
+        ))}
+      </g>
+
+      {/* Knobs / controls */}
+      <g transform="translate(80, 640)">
+        {/* Tempo knob (SVG circle + pointer) */}
+      </g>
+
+      {/* Tempo knob component inline */}
+      <Knob x={180} y={510} label="Tempo" min={60} max={200} value={tempo} onChange={handleTempoChange} />
+      <Knob x={320} y={510} label="Volume" min={0} max={100} value={ambianceVolume * 100} onChange={(v)=> setAmbianceVolume(v/100)} />
+
+      {/* Transport buttons */}
+      <g transform="translate(600, 480)">
+        <TransportButton x={0} y={0} label={isPlaying ? 'Pause' : 'Play'} onClick={handlePlayToggle} />
+        <TransportButton x={130} y={0} label={'Stop'} onClick={handleStop} />
+      </g>
+
+      {/* Ambiance selector simple display */}
+      <g transform="translate(520, 580)">
+        <text x={0} y={0} fontFamily="monospace" fontSize={14} fill="#fff">Ambiance:</text>
+        <text x={90} y={0} fontFamily="monospace" fontSize={14} fill="#3fa34d">{ambianceUrl || 'None'}</text>
+      </g>
+    </svg>
   )
 }
 
 export default App
+
+// Small Knob component implemented below (non-exported)
+function Knob({ x, y, label, min, max, value, onChange }:{ x:number y:number label:string min:number max:number value:number onChange:(v:number)=>void }){
+  const radius = 40
+  const [val, setVal] = useState(value)
+  const dragging = useRef(false)
+  const pointerRef = useRef<SVGLineElement|null>(null)
+  useEffect(()=> setVal(value),[value])
+
+  useEffect(()=>{
+    const onMove = (e:MouseEvent)=>{
+      if(!dragging.current) return
+      const svg = document.querySelector('svg')!
+      const rect = svg.getBoundingClientRect()
+      const mx = ((e.clientX - rect.left) / rect.width) * 1000
+      const my = ((e.clientY - rect.top) / rect.height) * 700
+      const dx = mx - x
+      const dy = my - y
+      let angle = Math.atan2(dy, dx) * 180/Math.PI
+      angle = Math.max(-120, Math.min(120, angle))
+      const newVal = min + ((angle + 120) / 240) * (max-min)
+      setVal(newVal)
+      onChange(newVal)
+    }
+    const onUp = ()=>{ dragging.current=false; document.body.style.cursor='' }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return ()=>{ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  },[x,y,min,max,onChange])
+
+  const angle = ((val - min) / (max-min)) * 240 - 120
+  const rad = angle * Math.PI/180
+  const px = x + Math.cos(rad) * (radius-10)
+  const py = y + Math.sin(rad) * (radius-10)
+
+  return (
+    <g transform={`translate(0,0)`}>
+      <circle cx={x} cy={y} r={radius} fill="#123017" stroke="#3fa34d" strokeWidth={3} filter="url(#softShadow)" onMouseDown={()=>{ dragging.current=true; document.body.style.cursor='grabbing' }} />
+      <line ref={pointerRef} x1={x} y1={y} x2={px} y2={py} stroke="#fff" strokeWidth={5} strokeLinecap="round" />
+      <text x={x} y={y+62} textAnchor="middle" fontFamily="monospace" fontSize={14} fill="#fff">{label}</text>
+      <text x={x} y={y+22} textAnchor="middle" fontFamily="monospace" fontSize={14} fill="#3fa34d">{Math.round(val)}</text>
+    </g>
+  )
+}
+
+function TransportButton({ x, y, label, onClick }:{ x:number y:number label:string onClick:()=>void }){
+  return (
+    <g transform={`translate(${x}, ${y})`} onClick={onClick} cursor="pointer" role="button" tabIndex={0} aria-label={label} onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); onClick() } }}>
+      <rect x={0} y={0} width={120} height={54} rx={14} fill="#123017" stroke="#fff" strokeWidth={3} />
+      <text x={60} y={34} textAnchor="middle" fontFamily="monospace" fontSize={20} fill="#fff">{label}</text>
+    </g>
+  )
+}
