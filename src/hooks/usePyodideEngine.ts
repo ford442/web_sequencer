@@ -60,6 +60,110 @@ def generate_wave(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
     final_wave = filtered_wave * 0.5
     
     return final_wave
+
+# --- NEW: Drum Synthesis Functions ---
+
+def generate_kick(pitch, decay, tone, volume):
+    """
+    Generates a kick drum sound.
+    - pitch: Starting frequency in Hz
+    - decay: Duration in seconds
+    - tone: Controls pitch envelope depth (0.0 to 1.0)
+    - volume: Final gain
+    """
+    length = int(SAMPLE_RATE * decay)
+    t = np.linspace(0., decay, length, endpoint=False, dtype=np.float64)
+    
+    # 1. Pitch Envelope: Exponential decay from start pitch to a low-end
+    end_pitch = pitch * (1 - tone * 0.9) # Tone controls how low the pitch drops
+    end_pitch = max(20.0, end_pitch) # Keep it above 20Hz
+    
+    # Generate instantaneous frequency: pitch * exp(-k*t)
+    # We solve for k: end_pitch = pitch * exp(-k*decay) => k = -ln(end_pitch/pitch) / decay
+    k = -np.log(end_pitch / pitch) / decay
+    instant_freq = pitch * np.exp(-k * t)
+    
+    # 2. Convert frequency to phase
+    # (2 * pi * integral(f(t) dt))
+    # integral(pitch * exp(-k*t) dt) = -pitch/k * exp(-k*t)
+    phase = 2 * np.pi * (-pitch / k) * np.exp(-k * t)
+    
+    # 3. Oscillator
+    wave = np.sin(phase)
+    
+    # 4. Amplitude Envelope
+    # Simple exponential decay
+    env = np.exp(-t / (decay * 0.33))
+    
+    kick = (wave * env * volume).astype(np.float64)
+    return kick
+
+def generate_snare(decay, tone_pitch, noise_freq, volume):
+    """
+    Generates a snare drum sound.
+    - decay: Duration in seconds
+    - tone_pitch: Pitch of the 'body'
+    - noise_freq: Cutoff for the noise 'snap'
+    - volume: Final gain
+    """
+    length = int(SAMPLE_RATE * decay * 1.5) # A bit longer for the noise tail
+    t = np.linspace(0., decay * 1.5, length, endpoint=False, dtype=np.float64)
+    
+    # 1. Tonal Component
+    tone_env = np.exp(-t / (decay * 0.5))
+    tone_wave = np.sin(2 * np.pi * tone_pitch * t)
+    tone_comp = tone_wave * tone_env
+    
+    # 2. Noise Component
+    noise_env = np.exp(-t / decay)
+    
+    # Generate white noise
+    white_noise = np.random.uniform(-1, 1, length)
+    
+    # Filter noise
+    try:
+        b, a = signal.butter(2, noise_freq, 'high', fs=SAMPLE_RATE)
+        noise_comp = signal.lfilter(b, a, white_noise).astype(np.float64) * noise_env
+    except Exception as e:
+        noise_comp = white_noise * noise_env # Fallback
+        
+    # 3. Combine
+    snare = (tone_comp * 0.3 + noise_comp * 0.7) * volume
+    
+    # Apply a sharp initial attack
+    attack_len = int(SAMPLE_RATE * 0.005)
+    attack_env = np.linspace(0, 1, attack_len)
+    if length > attack_len:
+        snare[:attack_len] *= attack_env
+        
+    return snare.astype(np.float64)
+
+def generate_hat(pitch_cutoff, decay, volume):
+    """
+    Generates a hi-hat sound.
+    - pitch_cutoff: High-pass filter cutoff
+    - decay: Duration in seconds
+    - volume: Final gain
+    """
+    length = int(SAMPLE_RATE * decay)
+    t = np.linspace(0., decay, length, endpoint=False, dtype=np.float64)
+    
+    # 1. Noise
+    white_noise = np.random.uniform(-1, 1, length)
+    
+    # 2. Filter
+    try:
+        b, a = signal.butter(4, pitch_cutoff, 'high', fs=SAMPLE_RATE)
+        filtered_noise = signal.lfilter(b, a, white_noise).astype(np.float64)
+    except Exception as e:
+        filtered_noise = white_noise # Fallback
+        
+    # 3. Envelope
+    env = np.exp(-t / (decay * 0.33))
+    
+    hat = (filtered_noise * env * volume).astype(np.float64)
+    return hat
+
 `;
 
   // Helper function to dynamically load the Pyodide script
