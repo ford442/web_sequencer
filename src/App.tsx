@@ -6,6 +6,8 @@ import { DrumMachine } from './components/DrumMachine'
 import { AmbiancePlayer } from './components/AmbiancePlayer'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { useScheduler } from './hooks/useScheduler'
+import { usePyodideEngine } from './hooks/usePyodideEngine';
+
 import {
   DEFAULT_SYNTH_PARAMS_A,
   DEFAULT_SYNTH_PARAMS_B,
@@ -41,8 +43,9 @@ const App: React.FC = () => {
   const [renderingPart, setRenderingPart] = useState<'A' | 'B' | null>(null)
   const [ambianceUrl, setAmbianceUrl] = useState<string>('')
   const [ambianceVolume, setAmbianceVolume] = useState(0.5)
+  const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine();
 
-  const { audioEngine, isReady, initializeAudio } = useAudioEngine()
+  const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide);
 
   const onStep = useCallback(
     (step: number) => {
@@ -56,10 +59,10 @@ const App: React.FC = () => {
       }
 
       if (!frozenParts.A && pattern.partA.steps[step]) {
-        audioEngine.playSynth(synthAParams, pattern.partA.steps[step]!.note, stepTime)
+      audioEngine.playSynth(synthAParams, pattern.partA.steps[step]!.note, stepTime);
       }
       if (!frozenParts.B && pattern.partB.steps[step]) {
-        audioEngine.playSynth(synthBParams, pattern.partB.steps[step]!.note, stepTime)
+      audioEngine.playSynth(synthBParams, pattern.partB.steps[step]!.note, stepTime);
       }
 
       if (pattern.kick.steps[step]) audioEngine.playDrum('kick', drumParams.kick, stepTime)
@@ -73,7 +76,7 @@ const App: React.FC = () => {
     [audioEngine, pattern, synthAParams, synthBParams, drumParams, frozenParts]
   )
 
-  const { isPlaying, currentStep, setIsPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isReady)
+  const { isPlaying, currentStep, setIsPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isReady && (isPyodideReady || !pyodideStatus)); // Wait for pyodide to be ready or failed
 
   const handlePlayClick = async () => {
     if (!isInitialized) {
@@ -112,6 +115,13 @@ const App: React.FC = () => {
     setRenderingPart(part)
     const params = part === 'A' ? synthAParams : synthBParams
     const sequence = part === 'A' ? pattern.partA : pattern.partB
+        // NEW: Check if mixing down a pyodide wave
+    if (params.waveform.startsWith('pyodide-')) {
+        console.warn("Mixdown for Pyodide synths is not yet supported.");
+        // Or show a user-facing error
+        setRenderingPart(null); // Stop loading state
+        return;
+    }
     const buffer = await audioEngine.renderSynthPartToBuffer(params, sequence, tempo)
     setFrozenParts(prev => ({ ...prev, [part]: buffer }))
     setRenderingPart(null)
@@ -136,12 +146,16 @@ const App: React.FC = () => {
       audioEngine.setAmbianceVolume(ambianceVolume)
     }
   }, [ambianceVolume, audioEngine])
+  const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus); // Ready if audio is on AND pyodide is either ready or still loading/failed
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col items-center justify-center p-2 sm:p-4">
       <div className="w-full max-w-7xl bg-gray-800 border-4 border-gray-700 rounded-xl shadow-2xl p-4 space-y-4">
         <header className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
           <h1 className="font-orbitron text-2xl sm:text-3xl font-bold text-cyan-400 tracking-wider">EA-WEB</h1>
+          {pyodideStatus && (
+            <div className="text-yellow-400 text-sm animate-pulse">{pyodideStatus}</div>
+          )}
           <AmbiancePlayer
             tracks={AMBIANCE_TRACKS}
             selectedUrl={ambianceUrl}
