@@ -47,6 +47,8 @@ const App: React.FC = () => {
 
   const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide);
 
+  const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus); // Ready if audio is on AND pyodide is either ready or still loading/failed
+
   const onStep = useCallback(
     (step: number) => {
       if (!audioEngine) return
@@ -76,7 +78,7 @@ const App: React.FC = () => {
     [audioEngine, pattern, synthAParams, synthBParams, drumParams, frozenParts]
   )
 
-  const { isPlaying, currentStep, setIsPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isReady && (isPyodideReady || !pyodideStatus)); // Wait for pyodide to be ready or failed
+  const { isPlaying, currentStep, setIsPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady); // Wait for pyodide to be ready or failed
 
   const handlePlayClick = async () => {
     if (!isInitialized) {
@@ -146,7 +148,6 @@ const App: React.FC = () => {
       audioEngine.setAmbianceVolume(ambianceVolume)
     }
   }, [ambianceVolume, audioEngine])
-  const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus); // Ready if audio is on AND pyodide is either ready or still loading/failed
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col items-center justify-center p-2 sm:p-4">

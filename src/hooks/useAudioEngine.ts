@@ -142,66 +142,6 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
   }
 };
 
-    const playKick = (params: KickParams, time: number) => {
-        const osc = context.createOscillator();
-        const gain = context.createGain();
-        osc.connect(gain);
-        gain.connect(context.destination);
-        const endPitch = params.pitch * (1 - params.tone);
-        osc.frequency.setValueAtTime(params.pitch, time);
-        osc.frequency.exponentialRampToValueAtTime(Math.max(0.01, endPitch), time + 0.1);
-        gain.gain.setValueAtTime(params.volume, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + params.decay);
-        osc.start(time);
-        osc.stop(time + params.decay);
-    };
-
-    const playSnare = (params: SnareParams, time: number) => {
-        if (!noiseBufferRef.current) return;
-        const noiseSource = context.createBufferSource();
-        noiseSource.buffer = noiseBufferRef.current;
-        const noiseFilter = context.createBiquadFilter();
-        noiseFilter.type = 'highpass';
-        noiseFilter.frequency.value = params.noise;
-        const noiseGain = context.createGain();
-        noiseSource.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(context.destination);
-        const osc = context.createOscillator();
-        osc.type = 'triangle';
-        const oscGain = context.createGain();
-        osc.connect(oscGain);
-        oscGain.connect(context.destination);
-        osc.frequency.setValueAtTime(params.tone, time);
-        const targetOscGain = 0.01 * params.volume;
-        oscGain.gain.setValueAtTime(0.7 * params.volume, time);
-        oscGain.gain.exponentialRampToValueAtTime(Math.max(0.001, targetOscGain), time + params.decay * 0.8);
-        oscGain.gain.linearRampToValueAtTime(0, time + params.decay);
-        noiseGain.gain.setValueAtTime(params.volume, time);
-        noiseGain.gain.exponentialRampToValueAtTime(0.01, time + params.decay);
-        osc.start(time);
-        noiseSource.start(time);
-        osc.stop(time + params.decay);
-        noiseSource.stop(time + params.decay);
-    };
-
-    const playHat = (params: HatParams, time: number) => {
-        if (!noiseBufferRef.current) return;
-        const noiseSource = context.createBufferSource();
-        noiseSource.buffer = noiseBufferRef.current;
-        const filter = context.createBiquadFilter();
-        filter.type = 'highpass';
-        filter.frequency.value = params.pitch;
-        const gain = context.createGain();
-        noiseSource.connect(filter);
-        filter.connect(gain);
-        gain.connect(context.destination);
-        gain.gain.setValueAtTime(params.volume, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + params.decay);
-        noiseSource.start(time);
-        noiseSource.stop(time + params.decay);
-    };
-
     // MODIFIED: playDrum now calls Pyodide
     const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
         if (!pyodide) {
