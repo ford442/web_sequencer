@@ -29,3 +29,14 @@ npm run build
 ```powershell
 npm run preview
 ```
+
+## Deploy
+```powershell
+npm run deploy
+```
+
+## SVG Demo
+```powershell
+npm run demo
+```
+Or open `svg-demo.html` in your browser to see a pure SVG-based sequencer interface with interactive step buttons, knobs, and transport controls.
