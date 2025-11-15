@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 
-export const useAudioEngine = () => {
+export const useAudioEngine = (pyodide: any) => {
   const [isReady, setIsReady] = useState(false);
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const noiseBufferRef = useRef<AudioBuffer | null>(null);
@@ -29,60 +29,118 @@ export const useAudioEngine = () => {
     }
     noiseBufferRef.current = buffer;
 
-    const playSynth = (params: SynthParams, note: string, time: number, destination: AudioNode = context.destination) => {
+const playSynth = (params: SynthParams, note: string, time: number, destination: AudioNode = context.destination) => {
+  const isPyodideWave = params.waveform.startsWith('pyodide-');
+  const noteDuration = params.attack + params.decay;
+
+  // --- Gain Envelope (used by both) ---
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
+  gain.gain.linearRampToValueAtTime(0, time + noteDuration);
+
+  // --- Delay (used by both) ---
+  let outputNode: AudioNode = destination;
+  if (params.delayMix > 0 && params.delayTime > 0) {
+    const dryGain = context.createGain();
+    const wetGain = context.createGain();
+    const delay = context.createDelay(1.0);
+    const feedback = context.createGain();
+
+    dryGain.gain.setValueAtTime(1.0 - params.delayMix, time);
+    wetGain.gain.setValueAtTime(params.delayMix, time);
+    delay.delayTime.setValueAtTime(params.delayTime, time);
+    feedback.gain.setValueAtTime(params.delayFeedback, time);
+
+    gain.connect(dryGain);
+    dryGain.connect(destination);
+
+    gain.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(wetGain);
+    wetGain.connect(destination);
+    
+    // The source just needs to connect to 'gain', which then feeds this delay chain
+    outputNode = gain; 
+  } else {
+    // No delay, just connect gain to destination
+    gain.connect(destination);
+    outputNode = gain; // The source just needs to connect to 'gain'
+  }
+
+  // --- Waveform Generation ---
+  if (isPyodideWave && pyodide) {
+    // --- NEW: Pyodide Audio Generation ---
+    try {
+      // 1. Set sample rate in Python
+      pyodide.globals.get('set_sample_rate')(context.sampleRate);
+
+      // 2. Get parameters
       const baseFreq = noteToFrequency(note);
       const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-      const noteDuration = params.attack + params.decay;
+      const pyOscType = params.waveform.split('-')[1]; // 'saw', 'square', 'sine'
+      
+      // 3. Call Python!
+      let pyProxy = pyodide.globals.get('generate_wave')(
+          freqWithPitch,
+          noteDuration, // Use AD envelope duration
+          pyOscType,
+          params.filterCutoff,
+          params.filterResonance
+      );
 
-      const osc = context.createOscillator();
-      // Map possible Waveform values (including 'pyodide-*') to a valid OscillatorType
-      const waveformToOscType = (w: SynthParams['waveform']): OscillatorType => {
-        if (w === 'sawtooth' || w === 'square' || w === 'triangle' || w === 'sine') return w as OscillatorType;
-        // Fall back to sine for non-native (pyodide) waveforms
-        return 'sine';
-      };
-      osc.type = waveformToOscType(params.waveform);
-      osc.frequency.setValueAtTime(freqWithPitch, time);
+      // 4. Copy data from Python (64-bit) to JS (32-bit)
+      const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+      pyProxy.destroy(); // Free memory
 
-      const filter = context.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(params.filterCutoff, time);
-      filter.Q.setValueAtTime(params.filterResonance, time);
+      // 5. Create Web Audio Buffer
+      const buffer = context.createBuffer(
+          1, 
+          audioSamples.length, 
+          context.sampleRate
+      );
+      buffer.getChannelData(0).set(audioSamples);
 
-      const gain = context.createGain();
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
-      gain.gain.linearRampToValueAtTime(0, time + noteDuration);
+      // 6. Create a player (BufferSource) and schedule it
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      
+      // 7. Connect to the envelope and schedule playback
+      source.connect(outputNode); // Connect to our 'gain' node
+      source.start(time);
+      source.stop(time + noteDuration + 0.05); // Stop buffer playback
+      
+    } catch (e) {
+        console.error("Pyodide synth error:", e);
+    }
 
-      osc.connect(filter);
-      filter.connect(gain);
+  } else if (isPyodideWave && !pyodide) {
+      console.warn("Pyodide not ready, skipping synth trigger.");
+      // Optionally, fallback to a standard wave
+  } else {
+    // --- ORIGINAL: Web Audio API Generation ---
+    const baseFreq = noteToFrequency(note);
+    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 
-      if (params.delayMix > 0 && params.delayTime > 0) {
-        const dryGain = context.createGain();
-        const wetGain = context.createGain();
-        const delay = context.createDelay(1.0);
-        const feedback = context.createGain();
+    const osc = context.createOscillator();
+    // @ts-ignore
+    osc.type = params.waveform as OscillatorType; // Cast since we've excluded pyodide types
+    osc.frequency.setValueAtTime(freqWithPitch, time);
 
-        dryGain.gain.setValueAtTime(1.0 - params.delayMix, time);
-        wetGain.gain.setValueAtTime(params.delayMix, time);
-        delay.delayTime.setValueAtTime(params.delayTime, time);
-        feedback.gain.setValueAtTime(params.delayFeedback, time);
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(params.filterCutoff, time);
+    filter.Q.setValueAtTime(params.filterResonance, time);
 
-        gain.connect(dryGain);
-        dryGain.connect(destination);
+    // Connect the chain: osc -> filter -> gain (outputNode)
+    osc.connect(filter);
+    filter.connect(outputNode);
 
-        gain.connect(delay);
-        delay.connect(feedback);
-        feedback.connect(delay);
-        delay.connect(wetGain);
-        wetGain.connect(destination);
-      } else {
-        gain.connect(destination);
-      }
-
-      osc.start(time);
-      osc.stop(time + noteDuration + 0.05);
-    };
+    osc.start(time);
+    osc.stop(time + noteDuration + 0.05);
+  }
+};
 
     const playKick = (params: KickParams, time: number) => {
         const osc = context.createOscillator();
@@ -144,11 +202,82 @@ export const useAudioEngine = () => {
         noiseSource.stop(time + params.decay);
     };
 
+    // MODIFIED: playDrum now calls Pyodide
     const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
-        switch(sound) {
-            case 'kick': playKick(params as KickParams, time); break;
-            case 'snare': playSnare(params as SnareParams, time); break;
-            case 'closedHat': case 'openHat': playHat(params as HatParams, time); break;
+        if (!pyodide) {
+            console.warn("Pyodide not ready, skipping drum trigger.");
+            return;
+        }
+        
+        try {
+            let pyProxy;
+            let p = params as any; // Cast to access properties
+            let bufferLengthSeconds;
+            let finalVolume;
+
+            switch(sound) {
+                case 'kick':
+                    pyProxy = pyodide.globals.get('generate_kick')(
+                        p.pitch,
+                        p.decay,
+                        p.tone,
+                        p.volume
+                    );
+                    bufferLengthSeconds = p.decay;
+                    finalVolume = p.volume;
+                    break;
+                case 'snare':
+                    pyProxy = pyodide.globals.get('generate_snare')(
+                        p.decay,
+                        p.tone,     // tone_pitch
+                        p.noise,    // noise_freq
+                        p.volume
+                    );
+                    bufferLengthSeconds = p.decay * 1.5;
+                    finalVolume = p.volume;
+                    break;
+                case 'closedHat':
+                case 'openHat':
+                    pyProxy = pyodide.globals.get('generate_hat')(
+                        (p as HatParams).pitch,
+                        (p as HatParams).decay,
+                        (p as HatParams).volume
+                    );
+                    bufferLengthSeconds = (p as HatParams).decay;
+                    finalVolume = (p as HatParams).volume;
+                    break;
+                default:
+                    return; // Should not happen
+            }
+
+            // --- Common logic for all drum sounds ---
+
+            // 1. Copy data from Python (64-bit) to JS (32-bit)
+            const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+            pyProxy.destroy(); // Free memory
+
+            // 2. Create Web Audio Buffer
+            const buffer = context.createBuffer(
+                1, 
+                audioSamples.length, 
+                context.sampleRate
+            );
+            buffer.getChannelData(0).set(audioSamples);
+
+            // 3. Create a Gain node for final volume
+            const gainNode = context.createGain();
+            gainNode.gain.setValueAtTime(finalVolume, time);
+            gainNode.connect(context.destination);
+
+            // 4. Create a player (BufferSource) and schedule it
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(gainNode); // Connect to our gain node
+            source.start(time);
+            source.stop(time + bufferLengthSeconds + 0.05); // Stop buffer playback
+            
+        } catch (e) {
+            console.error(`Pyodide drum error (${sound}):`, e);
         }
     };
 
