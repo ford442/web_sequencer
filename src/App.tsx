@@ -8,13 +8,17 @@ import {
   DEFAULT_TEMPO,
   DEFAULT_SYNTH_PARAMS_A,
   DEFAULT_SYNTH_PARAMS_B,
-  AMBIANCE_TRACKS, //
+  // Import Drum Defaults
+  DEFAULT_KICK_PARAMS,
+  DEFAULT_SNARE_PARAMS,
+  DEFAULT_CLOSED_HAT_PARAMS,
+  DEFAULT_OPEN_HAT_PARAMS,
+  AMBIANCE_TRACKS,
 } from './constants'
 import type { Pattern, SynthParams } from './types'
 
 // --- 1. MEMOIZED COMPONENTS (Prevents full re-renders) ---
 
-// A single step in the grid
 const SvgStep = memo(({ 
   stepIndex, 
   active, 
@@ -59,7 +63,6 @@ const SvgStep = memo(({
   )
 })
 
-// A row of steps
 const SequencerRow = memo(({ 
   rowKey, 
   label, 
@@ -116,19 +119,25 @@ export const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentStep, setCurrentStep] = useState(-1)
   
-  // State for Ambiance
   const [ambianceUrl, setAmbianceUrl] = useState<string>('')
   const [ambianceVolume, setAmbianceVolume] = useState(0.5)
   
+  // --- AUDIO PARAMETER REFS ---
+  // These hold the actual sound settings (pitch, decay, etc.)
+  // Using refs avoids re-renders when audio params change, which is better for performance.
   const synthARef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_A)
   const synthBRef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_B)
+  const kickRef = useRef(DEFAULT_KICK_PARAMS)
+  const snareRef = useRef(DEFAULT_SNARE_PARAMS)
+  const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS)
+  const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS)
 
   // Scheduler callback
   const onStep = useCallback((step: number) => {
     if (!audioEngine) return
     const time = audioEngine.context.currentTime
 
-    // Play Sounds
+    // Play Synths
     if (pattern.partA.steps[step]) {
       audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time)
     }
@@ -136,10 +145,19 @@ export const App: React.FC = () => {
       audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time)
     }
 
-    if (pattern.kick.steps[step]) audioEngine.playDrum('kick', { ...pattern.kick } as any, time)
-    if (pattern.snare.steps[step]) audioEngine.playDrum('snare', { ...pattern.snare } as any, time)
-    if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', { ...pattern.openHat } as any, time)
-    else if (pattern.closedHat.steps[step]) audioEngine.playDrum('closedHat', { ...pattern.closedHat } as any, time)
+    // Play Drums (Fixed: Passing refs instead of pattern parts)
+    if (pattern.kick.steps[step]) {
+        audioEngine.playDrum('kick', kickRef.current, time)
+    }
+    if (pattern.snare.steps[step]) {
+        audioEngine.playDrum('snare', snareRef.current, time)
+    }
+    if (pattern.openHat.steps[step]) {
+        audioEngine.playDrum('openHat', openHatRef.current, time)
+    } else if (pattern.closedHat.steps[step]) {
+        // Exclusive logic: OH cuts off CH, or they don't play together
+        audioEngine.playDrum('closedHat', closedHatRef.current, time)
+    }
   }, [audioEngine, pattern]) 
 
   const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
@@ -159,12 +177,10 @@ export const App: React.FC = () => {
     setSchedPlaying(false)
   }
 
-  // Memoize toggle to keep row renders stable
   const toggleStep = useCallback((rowKey: keyof Pattern, i: number) => {
     setPattern(prev => {
       const copy = JSON.parse(JSON.stringify(prev)) as Pattern
       const arr = copy[rowKey].steps
-      // Simple toggle logic
       arr[i] = arr[i] ? null : { note: rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C2', velocity: 1 }
       return copy
     })
@@ -174,7 +190,6 @@ export const App: React.FC = () => {
     setTempo(Math.round(newTempo))
   }, [])
 
-  // --- Ambiance Logic (Fixes TS6133) ---
   const handleAmbianceCycle = useCallback(() => {
     const currentIndex = AMBIANCE_TRACKS.findIndex(t => t.url === ambianceUrl)
     const nextIndex = (currentIndex + 1) % AMBIANCE_TRACKS.length
@@ -212,7 +227,7 @@ export const App: React.FC = () => {
         <text x="500" y="85" textAnchor="middle" fontFamily="monospace" fontSize="14" fill="#d7f3d7">{pyodideStatus}</text>
       )}
 
-      {/* Sequencer grid area - Using Memoized Rows */}
+      {/* Sequencer grid area */}
       <g transform="translate(50,120)">
         {ROWS.map((row, rIdx) => (
           <SequencerRow 
@@ -237,7 +252,7 @@ export const App: React.FC = () => {
         <TransportButton x={130} y={0} label={'Stop'} onClick={handleStop} />
       </g>
 
-      {/* Ambiance selector - Now Clickable */}
+      {/* Ambiance selector */}
       <g transform="translate(520, 580)" 
          onClick={handleAmbianceCycle} 
          cursor="pointer"
@@ -255,13 +270,11 @@ export default App
 
 // --- 3. UTILITY COMPONENTS ---
 
-// Memoized Knob
 const Knob = memo(function Knob({ x, y, label, min, max, value, onChange }:{ x:number, y:number, label:string, min:number, max:number, value:number, onChange:(v:number)=>void }){
   const radius = 40
   const [localVal, setLocalVal] = useState(value)
   const dragging = useRef(false)
   
-  // Sync external value if it changes programmatically
   useEffect(()=> setLocalVal(value),[value])
 
   useEffect(()=>{
@@ -269,21 +282,17 @@ const Knob = memo(function Knob({ x, y, label, min, max, value, onChange }:{ x:n
       if(!dragging.current) return
       const svg = document.querySelector('svg')!
       const rect = svg.getBoundingClientRect()
-      // Normalize to viewBox
       const mx = ((e.clientX - rect.left) / rect.width) * 1000
       const my = ((e.clientY - rect.top) / rect.height) * 700
-      
       const dx = mx - x
       const dy = my - y
       let angle = Math.atan2(dy, dx) * 180/Math.PI
       angle = Math.max(-120, Math.min(120, angle))
       const newVal = min + ((angle + 120) / 240) * (max-min)
-      
       setLocalVal(newVal)
       onChange(newVal)
     }
     const onUp = ()=>{ dragging.current=false; document.body.style.cursor='' }
-    
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return ()=>{ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
