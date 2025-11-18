@@ -8,7 +8,6 @@ interface MagicKnobProps {
     label?: string;
     size?: number;
     onChange?: (val: number) => void;
-    imgUrl?: string; // URL for the static bezel image
 }
 
 export const MagicKnob: React.FC<MagicKnobProps> = ({
@@ -18,7 +17,6 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
                                                         label = "PLASMA",
                                                         size = 100,
                                                         onChange,
-                                                        imgUrl
                                                     }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
