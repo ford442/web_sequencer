@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, memo } from 'react'
+import React, { useCallback, useEffect, useRef, useState, memo, useMemo } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -8,6 +8,7 @@ import {
   DEFAULT_TEMPO,
   DEFAULT_SYNTH_PARAMS_A,
   DEFAULT_SYNTH_PARAMS_B,
+  AMBIANCE_TRACKS, //
 } from './constants'
 import type { Pattern, SynthParams } from './types'
 
@@ -36,7 +37,7 @@ const SvgStep = memo(({
        onClick={onClick}
        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
        cursor="pointer"
-       style={{ outline: 'none' }} // SVG focus ring handling often needs custom CSS
+       style={{ outline: 'none' }}
     >
       <rect 
         x={0} y={0} width={40} height={60} rx={10}
@@ -50,7 +51,7 @@ const SvgStep = memo(({
         fontFamily="monospace" 
         fontSize={18} 
         fill={active ? '#042004' : '#fff'}
-        pointerEvents="none" // Improves click targets
+        pointerEvents="none"
       >
         {stepIndex+1}
       </text>
@@ -114,6 +115,8 @@ export const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentStep, setCurrentStep] = useState(-1)
+  
+  // State for Ambiance
   const [ambianceUrl, setAmbianceUrl] = useState<string>('')
   const [ambianceVolume, setAmbianceVolume] = useState(0.5)
   
@@ -137,7 +140,7 @@ export const App: React.FC = () => {
     if (pattern.snare.steps[step]) audioEngine.playDrum('snare', { ...pattern.snare } as any, time)
     if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', { ...pattern.openHat } as any, time)
     else if (pattern.closedHat.steps[step]) audioEngine.playDrum('closedHat', { ...pattern.closedHat } as any, time)
-  }, [audioEngine, pattern]) // Dependencies are minimal
+  }, [audioEngine, pattern]) 
 
   const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
 
@@ -170,6 +173,17 @@ export const App: React.FC = () => {
   const handleTempoChange = useCallback((newTempo: number) => {
     setTempo(Math.round(newTempo))
   }, [])
+
+  // --- Ambiance Logic (Fixes TS6133) ---
+  const handleAmbianceCycle = useCallback(() => {
+    const currentIndex = AMBIANCE_TRACKS.findIndex(t => t.url === ambianceUrl)
+    const nextIndex = (currentIndex + 1) % AMBIANCE_TRACKS.length
+    setAmbianceUrl(AMBIANCE_TRACKS[nextIndex].url)
+  }, [ambianceUrl])
+
+  const currentAmbianceName = useMemo(() => {
+    return AMBIANCE_TRACKS.find(t => t.url === ambianceUrl)?.name || 'None'
+  }, [ambianceUrl])
 
   useEffect(() => {
     if (audioEngine) audioEngine.setAmbianceVolume(ambianceVolume)
@@ -223,10 +237,15 @@ export const App: React.FC = () => {
         <TransportButton x={130} y={0} label={'Stop'} onClick={handleStop} />
       </g>
 
-      {/* Ambiance selector simple display */}
-      <g transform="translate(520, 580)">
+      {/* Ambiance selector - Now Clickable */}
+      <g transform="translate(520, 580)" 
+         onClick={handleAmbianceCycle} 
+         cursor="pointer"
+         role="button"
+         aria-label="Change Ambiance"
+      >
         <text x={0} y={0} fontFamily="monospace" fontSize={14} fill="#fff">Ambiance:</text>
-        <text x={90} y={0} fontFamily="monospace" fontSize={14} fill="#3fa34d">{ambianceUrl || 'None'}</text>
+        <text x={90} y={0} fontFamily="monospace" fontSize={14} fill="#3fa34d">{currentAmbianceName} ▶</text>
       </g>
     </svg>
   )
