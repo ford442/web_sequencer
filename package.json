@@ -27,6 +27,7 @@
     "@types/react-dom": "^19.2.2",
     "@types/web": "^0.0.162",
     "@vitejs/plugin-react": "^4.3.4",
+    "@webgpu/types": "^0.1.66",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",

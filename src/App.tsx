@@ -16,6 +16,7 @@ import {
   AMBIANCE_TRACKS,
 } from './constants'
 import type { Pattern, SynthParams } from './types'
+import { MagicKnob } from './components/MagicKnob'
 
 // --- 1. MEMOIZED COMPONENTS (Prevents full re-renders) ---
 
@@ -212,57 +213,66 @@ export const App: React.FC = () => {
   }, [ambianceUrl, audioEngine])
 
   return (
-    <svg viewBox="0 0 1000 700" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ background: '#08140a' }}>
-      <defs>
-        <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.45" />
-        </filter>
-      </defs>
+    <div>
+      <svg viewBox="0 0 1000 700" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ background: '#08140a' }}>
+        <defs>
+          <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.45" />
+          </filter>
+        </defs>
 
-      {/* Title */}
-      <text x="500" y="50" textAnchor="middle" fontFamily="monospace" fontSize="32" fill="#3fa34d">SVG Sequencer</text>
+        {/* Title */}
+        <text x="500" y="50" textAnchor="middle" fontFamily="monospace" fontSize="32" fill="#3fa34d">SVG Sequencer</text>
 
-      {/* Status */}
-      {pyodideStatus && (
-        <text x="500" y="85" textAnchor="middle" fontFamily="monospace" fontSize="14" fill="#d7f3d7">{pyodideStatus}</text>
-      )}
+        {/* Status */}
+        {pyodideStatus && (
+          <text x="500" y="85" textAnchor="middle" fontFamily="monospace" fontSize="14" fill="#d7f3d7">{pyodideStatus}</text>
+        )}
 
-      {/* Sequencer grid area */}
-      <g transform="translate(50,120)">
-        {ROWS.map((row, rIdx) => (
-          <SequencerRow 
-            key={row.key}
-            rowKey={row.key}
-            label={row.label}
-            rowIndex={rIdx}
-            steps={(pattern as any)[row.key].steps}
-            currentStep={currentStep}
-            onToggle={toggleStep}
-          />
-        ))}
-      </g>
+        {/* Sequencer grid area */}
+        <g transform="translate(50,120)">
+          {ROWS.map((row, rIdx) => (
+            <SequencerRow
+              key={row.key}
+              rowKey={row.key}
+              label={row.label}
+              rowIndex={rIdx}
+              steps={(pattern as any)[row.key].steps}
+              currentStep={currentStep}
+              onToggle={toggleStep}
+            />
+          ))}
+        </g>
 
-      {/* Knobs / controls */}
-      <Knob x={180} y={510} label="Tempo" min={60} max={200} value={tempo} onChange={handleTempoChange} />
-      <Knob x={320} y={510} label="Volume" min={0} max={100} value={ambianceVolume * 100} onChange={(v)=> setAmbianceVolume(v/100)} />
+        {/* Knobs / controls */}
+        <MagicKnob
+          value={tempo}
+          min={40}
+          max={240}
+          label="Tempo"
+          size={150}
+          onChange={(newTempo) => setTempo(newTempo)}
+        />
+        <Knob x={320} y={510} label="Volume" min={0} max={100} value={ambianceVolume * 100} onChange={(v)=> setAmbianceVolume(v/100)} />
 
-      {/* Transport buttons */}
-      <g transform="translate(600, 480)">
-        <TransportButton x={0} y={0} label={isPlaying ? 'Pause' : 'Play'} onClick={handlePlayToggle} />
-        <TransportButton x={130} y={0} label={'Stop'} onClick={handleStop} />
-      </g>
+        {/* Transport buttons */}
+        <g transform="translate(600, 480)">
+          <TransportButton x={0} y={0} label={isPlaying ? 'Pause' : 'Play'} onClick={handlePlayToggle} />
+          <TransportButton x={130} y={0} label={'Stop'} onClick={handleStop} />
+        </g>
 
-      {/* Ambiance selector */}
-      <g transform="translate(520, 580)" 
-         onClick={handleAmbianceCycle} 
-         cursor="pointer"
-         role="button"
-         aria-label="Change Ambiance"
-      >
-        <text x={0} y={0} fontFamily="monospace" fontSize={14} fill="#fff">Ambiance:</text>
-        <text x={90} y={0} fontFamily="monospace" fontSize={14} fill="#3fa34d">{currentAmbianceName} ▶</text>
-      </g>
-    </svg>
+        {/* Ambiance selector */}
+        <g transform="translate(520, 580)"
+           onClick={handleAmbianceCycle}
+           cursor="pointer"
+           role="button"
+           aria-label="Change Ambiance"
+        >
+          <text x={0} y={0} fontFamily="monospace" fontSize={14} fill="#fff">Ambiance:</text>
+          <text x={90} y={0} fontFamily="monospace" fontSize={14} fill="#3fa34d">{currentAmbianceName} ▶</text>
+        </g>
+      </svg>
+    </div>
   )
 }
 
