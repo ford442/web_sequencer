@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import bezelImg from './assets/knob-bezel.png';
+let bezelImg = './web-sequencer/assets/knob-bezel-CPib8hRm.png';
 
 interface MagicKnobProps {
     value: number; // 0.0 to 1.0
