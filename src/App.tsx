@@ -362,7 +362,7 @@ export const App: React.FC = () => {
 
                 <text x="500" y="50" textAnchor="middle" fontFamily="monospace" fontSize="32" fill="#3fa34d">Electribe Shader Synth</text>
                 {pyodideStatus && (
-                    <text x="500" y="85" textAnchor="middle" fontFamily="monospace" fontSize={14" fill="#d7f3d7">{pyodideStatus}</text>
+                    <text x="500" y="85" textAnchor="middle" fontFamily="monospace" fontSize={14} fill="#d7f3d7">{pyodideStatus}</text>
                 )}
 
                 {/* Grid */}
@@ -390,7 +390,7 @@ export const App: React.FC = () => {
 
                 {/* Ambiance Selector */}
                 <g transform="translate(800, 640)" onClick={handleAmbianceCycle} cursor="pointer" role="button">
-                    <text x={0} y={0} fontFamily="monospace" fontSize={14" fill="#fff" textAnchor="end">Ambiance: {currentAmbianceName} ▶</text>
+                    <text x={0} y={0} fontFamily="monospace" fontSize={14} fill="#fff" textAnchor="end">Ambiance: {currentAmbianceName} ▶</text>
                 </g>
             </svg>
 
