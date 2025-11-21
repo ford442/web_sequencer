@@ -16,7 +16,7 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     AMBIANCE_TRACKS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, HatParams } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams } from './types'
 
 // --- 1. MEMOIZED SEQUENCER COMPONENTS ---
 
@@ -318,6 +318,18 @@ export const App: React.FC = () => {
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
 
+    const getClosedHatControls = (params: typeof DEFAULT_CLOSED_HAT_PARAMS): KnobConfig[] => [
+        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
+        { id: 'tone', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.tone },
+        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+    ];
+
+    const getOpenHatControls = (params: typeof DEFAULT_OPEN_HAT_PARAMS): KnobConfig[] => [
+        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
+        { id: 'tone', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.tone },
+        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+    ];
+
     const handleSynthChange = (isA: boolean, id: string, val: number) => {
         const updater = isA ? updateSynthA : updateSynthB;
         let realVal = val;
@@ -345,6 +357,14 @@ export const App: React.FC = () => {
         updateSnare({ [id]: realVal });
     };
 
+    const handleClosedHatChange = (id: string, val: number) => {
+        updateClosedHat({ [id]: val });
+    };
+
+    const handleOpenHatChange = (id: string, val: number) => {
+        updateOpenHat({ [id]: val });
+    };
+
 
     const renderModulePanel = () => {
         if (selectedTrack === 'partA') {
@@ -358,6 +378,12 @@ export const App: React.FC = () => {
         }
         if (selectedTrack === 'snare') {
             return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
+        }
+        if (selectedTrack === 'closedHat') {
+            return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
+        }
+        if (selectedTrack === 'openHat') {
+            return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
         }
         return (
             <div className="flex items-center justify-center h-full text-gray-500 font-orbitron">
