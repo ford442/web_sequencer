@@ -2,9 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, memo, useMemo } from '
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
-import { MagicKnob } from './components/MagicKnob'
-import { HardwareModule } from './components/HardwareModule';
-import type { KnobConfig } from './components/HardwareModule';
+import { HardwareModule, KnobConfig } from './components/HardwareModule' // Ensure this path matches your file structure
 import {
     INITIAL_PATTERN,
     NUM_STEPS,
@@ -17,7 +15,7 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     AMBIANCE_TRACKS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, Waveform } from './types'
 
 // --- 1. MEMOIZED SEQUENCER COMPONENTS ---
 
@@ -34,7 +32,8 @@ const SvgStep = memo(({
     rowLabel: string,
     onClick: () => void
 }) => {
-    const x = 20 + stepIndex * 48
+    // Reduced horizontal spacing slightly
+    const x = 20 + stepIndex * 44 
     return (
         <g transform={`translate(${x}, 0)`}
            role="button"
@@ -46,18 +45,20 @@ const SvgStep = memo(({
            style={{ outline: 'none' }}
         >
             <rect
-                x={0} y={0} width={40} height={60} rx={10}
-                fill={active ? '#3fa34d' : '#123017'}
-                stroke={isCurrent ? '#fff' : '#2f6f3d'}
-                strokeWidth={isCurrent ? 3 : 2}
+                x={0} y={0} width={38} height={54} rx={6}
+                fill={active ? '#3fa34d' : '#111f15'}
+                stroke={isCurrent ? '#fff' : '#234a2e'}
+                strokeWidth={isCurrent ? 2 : 1}
+                className="transition-colors duration-150"
             />
             <text
-                x={20} y={36}
+                x={19} y={32}
                 textAnchor="middle"
                 fontFamily="monospace"
-                fontSize={18}
-                fill={active ? '#042004' : '#fff'}
+                fontSize={16}
+                fill={active ? '#042004' : '#4a6b52'}
                 pointerEvents="none"
+                style={{ userSelect: 'none' }}
             >
                 {stepIndex+1}
             </text>
@@ -84,25 +85,39 @@ const SequencerRow = memo(({
     onToggle: (k: any, i: number) => void,
     onSelectRow: (k: any) => void
 }) => {
+    // Tighter vertical spacing (70px instead of 90px)
     return (
-        <g transform={`translate(0, ${rowIndex * 90})`}>
+        <g transform={`translate(0, ${rowIndex * 70})`}>
             {/* Row Label / Selector Button */}
             <g 
                 onClick={() => onSelectRow(rowKey)} 
                 cursor="pointer"
-                style={{ opacity: isSelected ? 1 : 0.6 }}
+                className="group"
             >
-                <rect x={-120} y={10} width={110} height={40} rx={8} fill={isSelected ? '#3fa34d' : 'transparent'} />
+                {/* Active Indicator Bar */}
+                {isSelected && (
+                    <rect x={-140} y={10} width={4} height={40} fill="#3fa34d" rx={2} />
+                )}
+                
+                {/* Label Background (Hover effect via CSS class not strictly possible in pure SVG without CSS file, using fill opacity) */}
+                <rect 
+                    x={-130} y={10} width={120} height={40} rx={6} 
+                    fill={isSelected ? '#1a2e20' : 'transparent'} 
+                    stroke={isSelected ? '#3fa34d' : 'transparent'}
+                    strokeWidth={1}
+                />
+                
                 <text 
-                    x={-10} 
+                    x={-25} 
                     y={36} 
                     textAnchor="end" 
-                    fontFamily="monospace" 
-                    fontSize={18} 
-                    fill={isSelected ? '#08140a' : '#fff'}
+                    fontFamily="Orbitron, monospace" 
+                    fontSize={14} 
+                    fill={isSelected ? '#3fa34d' : '#8fa394'}
                     fontWeight={isSelected ? 'bold' : 'normal'}
+                    style={{ letterSpacing: '1px', userSelect: 'none' }}
                 >
-                    {label}
+                    {label.toUpperCase()}
                 </text>
             </g>
 
@@ -120,15 +135,14 @@ const SequencerRow = memo(({
     )
 })
 
-
 // --- 2. MAIN APP COMPONENT ---
 
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat';
 
 const ROWS = [
-    { key: 'partA', label: 'Synth A' },
-    { key: 'partB', label: 'Synth B' },
-    { key: 'kick', label: 'Kick' },
+    { key: 'partA', label: 'Lead Synth' },
+    { key: 'partB', label: 'Bass Synth' },
+    { key: 'kick', label: 'Kick Drum' },
     { key: 'snare', label: 'Snare' },
     { key: 'closedHat', label: 'Closed Hat' },
     { key: 'openHat', label: 'Open Hat' },
@@ -152,7 +166,6 @@ export const App: React.FC = () => {
     const [ambianceVolume, setAmbianceVolume] = useState(0.5)
 
     // --- INSTRUMENT STATE & REFS ---
-    // We use State for the UI (Knobs) and Refs for the Audio Engine (avoiding closure staleness in loop)
     
     // Synth A
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
@@ -190,10 +203,22 @@ export const App: React.FC = () => {
         snareRef.current = newState;
     };
 
-    // Hats (Shared logic for Open/Closed usually, but we treat them somewhat independently in params)
-    // We will just store them individually as per constants structure
+    // Hats
+    const [closedHat, setClosedHat] = useState<HatParams>(DEFAULT_CLOSED_HAT_PARAMS);
     const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS);
+    const updateClosedHat = (updates: Partial<HatParams>) => {
+        const newState = { ...closedHat, ...updates };
+        setClosedHat(newState);
+        closedHatRef.current = newState;
+    };
+
+    const [openHat, setOpenHat] = useState<HatParams>(DEFAULT_OPEN_HAT_PARAMS);
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
+    const updateOpenHat = (updates: Partial<HatParams>) => {
+        const newState = { ...openHat, ...updates };
+        setOpenHat(newState);
+        openHatRef.current = newState;
+    };
 
 
     // --- SEQUENCER LOOP ---
@@ -240,14 +265,10 @@ export const App: React.FC = () => {
     }, [])
 
     // --- UI HANDLERS ---
-    const handleTempoChange = useCallback((newTempo: number) => {
-        setTempo(Math.round(newTempo))
+    const handleTempoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setTempo(Math.max(40, Math.min(240, Number(e.target.value))))
     }, [])
-
-    const handleVolumeChange = useCallback((newVol: number) => {
-        setAmbianceVolume(newVol / 100)
-    }, [])
-
+    
     const handleAmbianceCycle = useCallback(() => {
         const currentIndex = AMBIANCE_TRACKS.findIndex(t => t.url === ambianceUrl)
         const nextIndex = (currentIndex + 1) % AMBIANCE_TRACKS.length
@@ -270,192 +291,166 @@ export const App: React.FC = () => {
     }, [ambianceUrl, audioEngine])
 
 
-    // --- HELPER: Create Knob Configs for the Modules ---
-const getSynthControls = (params: SynthParams): KnobConfig[] => [
-    { id: 'pitch', label: 'PITCH', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48 },
-    { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.35, size: 0.12, value: params.filterCutoff / 8000 },
-    { id: 'filterResonance', label: 'RES', x: 0.55, y: 0.35, size: 0.08, value: params.filterResonance / 20 },
-    { id: 'attack', label: 'ATTACK', x: 0.75, y: 0.35, size: 0.08, value: params.attack },
-    { id: 'decay', label: 'DECAY', x: 0.15, y: 0.75, size: 0.08, value: params.decay / 2 },
-    { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.75, size: 0.08, value: params.volume },
-];
+    // --- MODULE CONFIGURATIONS ---
+    const getSynthControls = (params: SynthParams): KnobConfig[] => [
+        { id: 'pitch', label: 'TUNE', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48 },
+        { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.35, size: 0.12, value: params.filterCutoff / 8000 },
+        { id: 'filterResonance', label: 'RES', x: 0.55, y: 0.35, size: 0.08, value: params.filterResonance / 20 },
+        { id: 'attack', label: 'ATK', x: 0.75, y: 0.35, size: 0.08, value: params.attack },
+        { id: 'decay', label: 'DEC', x: 0.15, y: 0.75, size: 0.08, value: params.decay / 2 },
+        { id: 'delayMix', label: 'DLY MIX', x: 0.35, y: 0.75, size: 0.08, value: params.delayMix },
+        { id: 'delayTime', label: 'DLY TIME', x: 0.55, y: 0.75, size: 0.08, value: params.delayTime },
+        { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.55, size: 0.11, value: params.volume },
+    ];
 
-const getKickControls = (params: KickParams): KnobConfig[] => [
-    { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.4, size: 0.12, value: (params.pitch - 20) / 130 },
-    { id: 'decay', label: 'DECAY', x: 0.5, y: 0.4, size: 0.12, value: params.decay },
-    { id: 'tone', label: 'SNAP', x: 0.8, y: 0.4, size: 0.12, value: params.tone },
-    { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.8, size: 0.08, value: params.volume },
-];
+    const getKickControls = (params: KickParams): KnobConfig[] => [
+        { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
+        { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay },
+        { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone },
+        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+    ];
 
-const getSnareControls = (params: SnareParams): KnobConfig[] => [
-    { id: 'tone', label: 'TUNE', x: 0.25, y: 0.4, size: 0.12, value: (params.tone - 100) / 300 },
-    { id: 'noise', label: 'NOISE', x: 0.5, y: 0.4, size: 0.12, value: (params.noise - 1000) / 7000 },
-    { id: 'decay', label: 'DECAY', x: 0.75, y: 0.4, size: 0.10, value: params.decay * 2 },
-    { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.8, size: 0.08, value: params.volume },
-];
+    const getSnareControls = (params: SnareParams): KnobConfig[] => [
+        { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300 },
+        { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000 },
+        { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2 },
+        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+    ];
 
-const handleSynthChange = (isA: boolean, id: string, val: number) => {
-    const updater = isA ? updateSynthA : updateSynthB;
-    let realVal = val;
-    if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
-    if (id === 'filterCutoff') realVal = val * 8000;
-    if (id === 'filterResonance') realVal = val * 20;
-    if (id === 'decay') realVal = val * 2;
-    updater({ [id]: realVal });
-};
+    const handleSynthChange = (isA: boolean, id: string, val: number) => {
+        const updater = isA ? updateSynthA : updateSynthB;
+        let realVal = val;
+        // Mapping normalization back to real values
+        if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
+        else if (id === 'filterCutoff') realVal = val * 8000;
+        else if (id === 'filterResonance') realVal = val * 20;
+        else if (id === 'decay') realVal = val * 2;
+        // attack, delayMix, delayTime, volume are typically 0-1 or close enough to leave as val for now
+        
+        updater({ [id]: realVal });
+    };
 
-const handleKickChange = (id: string, val: number) => {
-    let realVal = val;
-    if (id === 'pitch') realVal = val * 130 + 20;
-    updateKick({ [id]: realVal });
-};
+    const handleKickChange = (id: string, val: number) => {
+        let realVal = val;
+        if (id === 'pitch') realVal = val * 130 + 20;
+        updateKick({ [id]: realVal });
+    };
 
-const handleSnareChange = (id: string, val: number) => {
-    let realVal = val;
-    if (id === 'tone') realVal = val * 300 + 100;
-    if (id === 'noise') realVal = val * 7000 + 1000;
-    if (id === 'decay') realVal = val / 2;
-    updateSnare({ [id]: realVal });
-};
+    const handleSnareChange = (id: string, val: number) => {
+        let realVal = val;
+        if (id === 'tone') realVal = val * 300 + 100;
+        else if (id === 'noise') realVal = val * 7000 + 1000;
+        else if (id === 'decay') realVal = val * 0.5;
+        updateSnare({ [id]: realVal });
+    };
 
-const renderModulePanel = () => {
-    if (selectedTrack === 'partA') {
+
+    const renderModulePanel = () => {
+        if (selectedTrack === 'partA') {
+            return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)} />;
+        }
+        if (selectedTrack === 'partB') {
+            return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)} />;
+        }
+        if (selectedTrack === 'kick') {
+            return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} />;
+        }
+        if (selectedTrack === 'snare') {
+            return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
+        }
         return (
-            <HardwareModule
-                title="SYNTH A // LEAD"
-                colorHex={[0.0, 0.9, 1.0]}
-                controls={getSynthControls(synthA)}
-                onParamChange={(id, val) => handleSynthChange(true, id, val)}
-            />
+            <div className="flex items-center justify-center h-full text-gray-500 font-orbitron">
+                NO EDITABLE PARAMETERS
+            </div>
         );
-    }
-    if (selectedTrack === 'partB') {
-        return (
-            <HardwareModule
-                title="SYNTH B // BASS"
-                colorHex={[1.0, 0.2, 0.8]}
-                controls={getSynthControls(synthB)}
-                onParamChange={(id, val) => handleSynthChange(false, id, val)}
-            />
-        );
-    }
-    if (selectedTrack === 'kick') {
-        return (
-            <HardwareModule
-                title="KICK DRUM"
-                colorHex={[1.0, 0.6, 0.0]}
-                controls={getKickControls(kick)}
-                onParamChange={handleKickChange}
-            />
-        );
-    }
-    if (selectedTrack === 'snare') {
-        return (
-            <HardwareModule
-                title="SNARE DRUM"
-                colorHex={[0.7, 0.7, 1.0]}
-                controls={getSnareControls(snare)}
-                onParamChange={handleSnareChange}
-            />
-        );
-    }
-    return <div className="text-white p-4">Select a track to edit parameters</div>;
-};
+    };
 
+    // Main App Render
     return (
-        <div style={{ width: '100vw', height: '100vh', background: '#08140a', position: 'relative', overflow: 'hidden' }}>
-            {/* 1. SVG SEQUENCER LAYER */}
-            <svg viewBox="0 0 1000 700" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ position: 'absolute', top:0, left:0, zIndex: 1 }}>
-                <defs>
-                    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.45" />
-                    </filter>
-                </defs>
+        <div className="flex flex-col h-screen w-screen bg-[#080a0b] text-gray-200 overflow-hidden font-sans">
+            
+            {/* --- TOP HEADER (Transport & Globals) --- */}
+            <header className="h-16 flex items-center justify-between px-6 bg-[#0b0d10] border-b border-gray-800 z-20 shadow-md">
+                <div className="flex items-center gap-4">
+                    <h1 className="text-xl font-bold font-orbitron text-cyan-500 tracking-wider">ELECTRIBE<span className="text-white">WEB</span></h1>
+                    {pyodideStatus && <span className="text-xs text-green-500 animate-pulse">● ENGINE READY</span>}
+                </div>
 
-                <text x="500" y="50" textAnchor="middle" fontFamily="monospace" fontSize="32" fill="#3fa34d">Electribe Shader Synth</text>
-                {pyodideStatus && (
-                    <text x="500" y="85" textAnchor="middle" fontFamily="monospace" fontSize={14} fill="#d7f3d7">{pyodideStatus}</text>
-                )}
+                <div className="flex items-center gap-6">
+                    {/* Ambiance */}
+                    <div 
+                        className="flex items-center gap-2 text-xs font-mono cursor-pointer hover:text-cyan-400 transition-colors"
+                        onClick={handleAmbianceCycle}
+                    >
+                        <span className="opacity-50">AMBIANCE</span>
+                        <span className="text-cyan-300 font-bold bg-gray-900 px-2 py-1 rounded border border-gray-700">{currentAmbianceName}</span>
+                    </div>
 
-                {/* Grid */}
-                <g transform="translate(120,120)">
-                    {ROWS.map((row, rIdx) => (
-                        <SequencerRow
-                            key={row.key}
-                            rowKey={row.key}
-                            label={row.label}
-                            rowIndex={rIdx}
-                            steps={(pattern as any)[row.key].steps}
-                            currentStep={currentStep}
-                            isSelected={selectedTrack === row.key}
-                            onToggle={toggleStep}
-                            onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
+                    {/* Tempo */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono opacity-50">BPM</span>
+                        <input 
+                            type="number" 
+                            value={tempo} 
+                            onChange={handleTempoChange}
+                            className="w-16 bg-gray-900 border border-gray-700 text-center text-cyan-300 font-mono text-sm py-1 rounded focus:outline-none focus:border-cyan-500"
                         />
-                    ))}
-                </g>
+                    </div>
 
-                {/* Transport Buttons */}
-                <g transform="translate(650, 40)">
-                    <TransportButton x={0} y={0} label={isPlaying ? 'Pause' : 'Play'} onClick={handlePlayToggle} />
-                    <TransportButton x={130} y={0} label={'Stop'} onClick={handleStop} />
-                </g>
-
-                {/* Ambiance Selector */}
-                <g transform="translate(800, 640)" onClick={handleAmbianceCycle} cursor="pointer" role="button">
-                    <text x={0} y={0} fontFamily="monospace" fontSize={14} fill="#fff" textAnchor="end">Ambiance: {currentAmbianceName} ▶</text>
-                </g>
-            </svg>
-
-            {/* 2. HTML/REACT LAYER FOR MAGIC KNOBS (Overlay) */}
-            <div 
-                className="bg-gray-900/80 border-t-2 border-cyan-800 backdrop-blur-sm"
-                style={{ 
-                    position: 'absolute', 
-                    bottom: 0, 
-                    left: 0, 
-                    width: '100%', 
-                    height: '180px', 
-                    zIndex: 2, 
-                    display: 'flex', 
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '20px',
-                    padding: '0 40px'
-                }}
-            >
-                {/* Global Controls */}
-                <div className="flex items-center gap-4 border-r border-gray-700 pr-8 mr-4">
-                    <MagicKnob label="TEMPO" value={tempo} min={60} max={200} onChange={handleTempoChange} size={70} />
-                    <MagicKnob label="AMB VOL" value={ambianceVolume * 100} min={0} max={100} onChange={handleVolumeChange} size={70} />
+                    {/* Transport Buttons */}
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={handlePlayToggle}
+                            className={`px-6 py-1.5 rounded font-orbitron text-sm font-bold tracking-wide transition-all ${isPlaying ? 'bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-900' : 'bg-green-900/30 text-green-400 border border-green-800 hover:bg-green-900/50'}`}
+                        >
+                            {isPlaying ? 'PAUSE' : 'PLAY'}
+                        </button>
+                        <button 
+                            onClick={handleStop}
+                            className="px-4 py-1.5 rounded font-orbitron text-sm font-bold tracking-wide bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-400"
+                        >
+                            STOP
+                        </button>
+                    </div>
                 </div>
+            </header>
 
-                {/* Dynamic Track Controls */}
-                <div className="flex items-center gap-6 overflow-x-auto pb-2">
-                   {/* {renderControlKnobs()} */}
+            {/* --- MAIN SEQUENCER AREA --- */}
+            <main className="flex-1 relative bg-[#08140a] shadow-inner flex flex-col justify-start pt-8">
+                {/* SVG SEQUENCER */}
+                <div className="w-full max-w-5xl mx-auto h-[480px]">
+                    <svg viewBox="0 0 1000 500" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+                        {/* Grid Group */}
+                        <g transform="translate(150, 40)">
+                            {ROWS.map((row, rIdx) => (
+                                <SequencerRow
+                                    key={row.key}
+                                    rowKey={row.key}
+                                    label={row.label}
+                                    rowIndex={rIdx}
+                                    steps={(pattern as any)[row.key].steps}
+                                    currentStep={currentStep}
+                                    isSelected={selectedTrack === row.key}
+                                    onToggle={toggleStep}
+                                    onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
+                                />
+                            ))}
+                        </g>
+                    </svg>
+                </div>
+            </main>
+
+            {/* --- BOTTOM HARDWARE MODULE --- */}
+            <div className="h-[340px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-10">
+                <div className="w-full h-full max-w-5xl mx-auto p-4 flex items-center justify-center">
+                    <div className="w-full h-full rounded-xl overflow-hidden border border-gray-800 shadow-2xl bg-black">
+                        {renderModulePanel()}
+                    </div>
                 </div>
             </div>
 
-            {/* Hardware Module Rack (Bottom) */}
-            <div
-                className="absolute bottom-0 left-0 w-full h-[320px] bg-[#0b0e11] border-t-4 border-gray-800 p-4 shadow-2xl z-10 flex justify-center items-center"
-            >
-                <div className="w-full max-w-4xl h-full">
-                   {renderModulePanel()}
-                </div>
-            </div>
         </div>
     )
 }
 
 export default App
-
-// --- 3. SVG UTILITIES ---
-
-const TransportButton = memo(function TransportButton({ x, y, label, onClick }:{ x:number, y:number, label:string, onClick:()=>void }){
-    return (
-        <g transform={`translate(${x}, ${y})`} onClick={onClick} cursor="pointer" role="button" tabIndex={0} onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); onClick() } }}>
-            <rect x={0} y={0} width={120} height={40} rx={8} fill="#123017" stroke="#3fa34d" strokeWidth={2} />
-            <text x={60} y={26} textAnchor="middle" fontFamily="monospace" fontSize={18} fill="#fff">{label}</text>
-        </g>
-    )
-})
