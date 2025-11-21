@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-let bezelImg = './assets/knob-bezel-CPib8hRm.png';
+import bezelImg from './assets/knob-bezel.png'; // Corrected import
 
 interface MagicKnobProps {
     value: number; // 0.0 to 1.0
@@ -20,52 +20,75 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
                                                     }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // --- Interaction Logic (Kept simple for brevity, same as before) ---
+    // --- 1. REFS FOR STATE (Persist without re-rendering) ---
+    // We use refs so event listeners can access the latest values without
+    // needing to be removed/re-added when these values change.
+    const stateRef = useRef({
+        isDragging: false,
+        startY: 0,
+        startVal: 0
+    });
+
+    const valueRef = useRef(value);
+    const onChangeRef = useRef(onChange);
+
+    // Update refs whenever props change
+    useEffect(() => { valueRef.current = value; }, [value]);
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+
+    // --- 2. INTERACTION LOGIC ---
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || !onChange) return;
+        if (!canvas) return;
 
-        let isDragging = false;
-        let startY = 0;
-        let startVal = 0;
-
+        // Handlers
         const onDown = (e: MouseEvent) => {
-            isDragging = true;
-            startY = e.clientY;
-            startVal = value;
+            e.preventDefault(); // Prevent text selection
+            stateRef.current.isDragging = true;
+            stateRef.current.startY = e.clientY;
+            stateRef.current.startVal = valueRef.current; // Use current value from ref
             document.body.style.cursor = 'ns-resize';
         };
 
         const onMove = (e: MouseEvent) => {
-            if (!isDragging) return;
-            const dy = startY - e.clientY;
+            if (!stateRef.current.isDragging) return;
+
+            const dy = stateRef.current.startY - e.clientY;
             const range = max - min;
+            // Sensitivity: 200px pixel movement = full range change
             const delta = (dy / 200) * range;
-            let newVal = startVal + delta;
+
+            let newVal = stateRef.current.startVal + delta;
             newVal = Math.max(min, Math.min(max, newVal));
-            onChange(newVal);
+
+            if (onChangeRef.current) {
+                onChangeRef.current(newVal);
+            }
         };
 
         const onUp = () => {
-            isDragging = false;
+            stateRef.current.isDragging = false;
             document.body.style.cursor = 'default';
         };
 
-        // Attach listeners to the container or overlay
-        // Here we attach to canvas, but since image is on top,
-        // we might need to attach to the parent div or set pointer-events: none on image
-        canvas.parentElement?.addEventListener('mousedown', onDown);
+        // Attach listeners
+        // We attach mousedown to the parent div (the container) to catch clicks on the image too
+        const container = canvas.parentElement;
+        container?.addEventListener('mousedown', onDown);
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
 
+        // Cleanup
         return () => {
-            canvas.parentElement?.removeEventListener('mousedown', onDown);
+            container?.removeEventListener('mousedown', onDown);
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
         };
-    }, [value, min, max, onChange]);
+    }, [min, max]); // Only re-run if range changes, NOT when value changes
 
-    // --- WebGPU Rendering Logic (Optimized: Plasma Only) ---
+
+    // --- 3. WEBGPU RENDERING LOGIC (Unchanged) ---
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -83,9 +106,8 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
             device = await adapter.requestDevice();
             context = canvas.getContext('webgpu') as GPUCanvasContext;
             const format = navigator.gpu.getPreferredCanvasFormat();
-            context.configure({ device, format, alphaMode: 'premultiplied' }); // Enable transparency
+            context.configure({ device, format, alphaMode: 'premultiplied' });
 
-            // --- SIMPLIFIED SHADER: No Bezel Math ---
             const shaderCode = `
         struct Uniforms {
           time: f32,
@@ -112,7 +134,6 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
           return output;
         }
 
-        // Simple noise (same as before)
         fn hash(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(12.9898, 78.233))) * 43758.5453); }
         fn noise(p: vec2f) -> f32 {
           let i = floor(p); let f = fract(p); let u = f * f * (3.0 - 2.0 * f);
@@ -131,12 +152,8 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
           var uv = in.uv;
           let dist = length(uv);
           
-          // Optimization: If outside the "glass" area, discard immediately
-          if (dist > 0.68) {
-             discard;
-          }
+          if (dist > 0.68) { discard; }
 
-          // --- Plasma Core ---
           let t = u.time * 0.5;
           var q = vec2f(0.0);
           q.x = fbm( uv + vec2f(0.0,0.0) );
@@ -153,11 +170,9 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
           var plasma = mix(c1, c2, f);
           plasma = mix(plasma, c3, length(r));
           
-          // Inner shadow / Vignette for depth
           let vignette = smoothstep(0.7, 0.2, dist);
           var color = plasma * vignette * 1.5;
 
-          // --- Indicator Line ---
           let val_norm = u.value;
           let val_angle = mix(-2.356, 2.356, val_norm) - 1.5708;
           let needle_uv = vec2f(cos(val_angle), sin(val_angle));
@@ -220,7 +235,7 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
 
         init().then(() => render());
         return () => cancelAnimationFrame(animationId);
-    }, [value, min, max]);
+    }, [value, min, max]); // This effect handles rendering, so it SHOULD depend on value
 
     return (
         <div className="flex flex-col items-center select-none" style={{ cursor: 'pointer' }}>
@@ -241,8 +256,20 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
                     }}
                 />
 
-                <img src={bezelImg} style={{ width: '100%', height: '100%', position: 'absolute', top:0, left:0, zIndex: 1, pointerEvents: 'none' }} />
-
+                {/* Layer 2: Bezel Image (Top, pointer-events none so clicks fall through to container) */}
+                <img
+                    src={bezelImg}
+                    alt="knob bezel"
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        zIndex: 1,
+                        pointerEvents: 'none'
+                    }}
+                />
             </div>
             <span className="text-xs font-orbitron text-cyan-400 mt-1">{label}</span>
         </div>
