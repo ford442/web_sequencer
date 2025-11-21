@@ -320,13 +320,15 @@ export const App: React.FC = () => {
 
     const getClosedHatControls = (params: typeof DEFAULT_CLOSED_HAT_PARAMS): KnobConfig[] => [
         { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'tone', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.tone },
+        // Use 'pitch' here (normalized) because HatParams defines `pitch` (Hz) rather than `tone`.
+        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
 
     const getOpenHatControls = (params: typeof DEFAULT_OPEN_HAT_PARAMS): KnobConfig[] => [
         { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'tone', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.tone },
+        // Use 'pitch' here (normalized) because HatParams defines `pitch` (Hz) rather than `tone`.
+        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
 
