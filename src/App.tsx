@@ -3,6 +3,8 @@ import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
 import { MagicKnob } from './components/MagicKnob'
+import { HardwareModule } from './components/HardwareModule';
+import type { KnobConfig } from './components/HardwareModule';
 import {
     INITIAL_PATTERN,
     NUM_STEPS,
@@ -15,7 +17,7 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     AMBIANCE_TRACKS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, Waveform } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, HatParams } from './types'
 
 // --- 1. MEMOIZED SEQUENCER COMPONENTS ---
 
@@ -192,19 +194,9 @@ export const App: React.FC = () => {
     // We will just store them individually as per constants structure
     const [closedHat, setClosedHat] = useState<HatParams>(DEFAULT_CLOSED_HAT_PARAMS);
     const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS);
-    const updateClosedHat = (updates: Partial<HatParams>) => {
-        const newState = { ...closedHat, ...updates };
-        setClosedHat(newState);
-        closedHatRef.current = newState;
-    };
 
     const [openHat, setOpenHat] = useState<HatParams>(DEFAULT_OPEN_HAT_PARAMS);
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
-    const updateOpenHat = (updates: Partial<HatParams>) => {
-        const newState = { ...openHat, ...updates };
-        setOpenHat(newState);
-        openHatRef.current = newState;
-    };
 
 
     // --- SEQUENCER LOOP ---
@@ -281,74 +273,97 @@ export const App: React.FC = () => {
     }, [ambianceUrl, audioEngine])
 
 
-    // --- RENDER HELPERS ---
-    const renderControlKnobs = () => {
-        // Helper to render Synth Knobs
-        if (selectedTrack === 'partA' || selectedTrack === 'partB') {
-            const params = selectedTrack === 'partA' ? synthA : synthB;
-            const update = selectedTrack === 'partA' ? updateSynthA : updateSynthB;
-            
-            return (
-                <>
-                    <div className="flex flex-col gap-1 items-center mr-4">
-                        <span className="text-xs text-cyan-400 mb-1 font-orbitron">WAVEFORM</span>
-                        <div className="grid grid-cols-2 gap-1">
-                            {['sawtooth', 'square', 'sine', 'triangle'].map(w => (
-                                <button 
-                                    key={w}
-                                    onClick={() => update({ waveform: w as Waveform })}
-                                    className={`w-8 h-8 text-[8px] rounded border ${params.waveform === w ? 'bg-cyan-600 border-cyan-300 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'}`}
-                                >
-                                    {w.substring(0,3).toUpperCase()}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <MagicKnob label="PITCH" value={params.pitch} min={-24} max={24} onChange={(v) => update({ pitch: v })} />
-                    <MagicKnob label="CUTOFF" value={params.filterCutoff} min={100} max={8000} onChange={(v) => update({ filterCutoff: v })} />
-                    <MagicKnob label="RES" value={params.filterResonance} min={0} max={20} onChange={(v) => update({ filterResonance: v })} />
-                    <MagicKnob label="ATTACK" value={params.attack} min={0.01} max={1.0} onChange={(v) => update({ attack: v })} />
-                    <MagicKnob label="DECAY" value={params.decay} min={0.1} max={2.0} onChange={(v) => update({ decay: v })} />
-                    <MagicKnob label="VOL" value={params.volume * 100} min={0} max={100} onChange={(v) => update({ volume: v / 100 })} />
-                </>
-            );
-        } 
-        
-        if (selectedTrack === 'kick') {
-            return (
-                <>
-                     <MagicKnob label="PITCH" value={kick.pitch} min={30} max={150} onChange={(v) => updateKick({ pitch: v })} />
-                     <MagicKnob label="DECAY" value={kick.decay} min={0.1} max={1.0} onChange={(v) => updateKick({ decay: v })} />
-                     <MagicKnob label="TONE" value={kick.tone * 100} min={0} max={100} onChange={(v) => updateKick({ tone: v / 100 })} />
-                     <MagicKnob label="VOL" value={kick.volume * 100} min={0} max={100} onChange={(v) => updateKick({ volume: v / 100 })} />
-                </>
-            )
-        }
+    // --- HELPER: Create Knob Configs for the Modules ---
+const getSynthControls = (params: SynthParams): KnobConfig[] => [
+    { id: 'pitch', label: 'PITCH', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48 },
+    { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.35, size: 0.12, value: params.filterCutoff / 8000 },
+    { id: 'filterResonance', label: 'RES', x: 0.55, y: 0.35, size: 0.08, value: params.filterResonance / 20 },
+    { id: 'attack', label: 'ATTACK', x: 0.75, y: 0.35, size: 0.08, value: params.attack },
+    { id: 'decay', label: 'DECAY', x: 0.15, y: 0.75, size: 0.08, value: params.decay / 2 },
+    { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.75, size: 0.08, value: params.volume },
+];
 
-        if (selectedTrack === 'snare') {
-            return (
-                <>
-                     <MagicKnob label="DECAY" value={snare.decay} min={0.05} max={0.5} onChange={(v) => updateSnare({ decay: v })} />
-                     <MagicKnob label="TONE" value={snare.tone} min={100} max={400} onChange={(v) => updateSnare({ tone: v })} />
-                     <MagicKnob label="NOISE" value={snare.noise} min={1000} max={8000} onChange={(v) => updateSnare({ noise: v })} />
-                     <MagicKnob label="VOL" value={snare.volume * 100} min={0} max={100} onChange={(v) => updateSnare({ volume: v / 100 })} />
-                </>
-            )
-        }
+const getKickControls = (params: KickParams): KnobConfig[] => [
+    { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.4, size: 0.12, value: (params.pitch - 20) / 130 },
+    { id: 'decay', label: 'DECAY', x: 0.5, y: 0.4, size: 0.12, value: params.decay },
+    { id: 'tone', label: 'SNAP', x: 0.8, y: 0.4, size: 0.12, value: params.tone },
+    { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.8, size: 0.08, value: params.volume },
+];
 
-        if (selectedTrack === 'closedHat' || selectedTrack === 'openHat') {
-            const params = selectedTrack === 'closedHat' ? closedHat : openHat;
-            const update = selectedTrack === 'closedHat' ? updateClosedHat : updateOpenHat;
-            return (
-                <>
-                     <MagicKnob label="PITCH" value={params.pitch} min={1000} max={15000} onChange={(v) => update({ pitch: v })} />
-                     <MagicKnob label="DECAY" value={params.decay} min={0.05} max={1.0} onChange={(v) => update({ decay: v })} />
-                     <MagicKnob label="VOL" value={params.volume * 100} min={0} max={100} onChange={(v) => update({ volume: v / 100 })} />
-                </>
-            )
-        }
-        return null;
-    };
+const getSnareControls = (params: SnareParams): KnobConfig[] => [
+    { id: 'tone', label: 'TUNE', x: 0.25, y: 0.4, size: 0.12, value: (params.tone - 100) / 300 },
+    { id: 'noise', label: 'NOISE', x: 0.5, y: 0.4, size: 0.12, value: (params.noise - 1000) / 7000 },
+    { id: 'decay', label: 'DECAY', x: 0.75, y: 0.4, size: 0.10, value: params.decay * 2 },
+    { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.8, size: 0.08, value: params.volume },
+];
+
+const handleSynthChange = (isA: boolean, id: string, val: number) => {
+    const updater = isA ? updateSynthA : updateSynthB;
+    let realVal = val;
+    if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
+    if (id === 'filterCutoff') realVal = val * 8000;
+    if (id === 'filterResonance') realVal = val * 20;
+    if (id === 'decay') realVal = val * 2;
+    updater({ [id]: realVal });
+};
+
+const handleKickChange = (id: string, val: number) => {
+    let realVal = val;
+    if (id === 'pitch') realVal = val * 130 + 20;
+    updateKick({ [id]: realVal });
+};
+
+const handleSnareChange = (id: string, val: number) => {
+    let realVal = val;
+    if (id === 'tone') realVal = val * 300 + 100;
+    if (id === 'noise') realVal = val * 7000 + 1000;
+    if (id === 'decay') realVal = val / 2;
+    updateSnare({ [id]: realVal });
+};
+
+const renderModulePanel = () => {
+    if (selectedTrack === 'partA') {
+        return (
+            <HardwareModule
+                title="SYNTH A // LEAD"
+                colorHex={[0.0, 0.9, 1.0]}
+                controls={getSynthControls(synthA)}
+                onParamChange={(id, val) => handleSynthChange(true, id, val)}
+            />
+        );
+    }
+    if (selectedTrack === 'partB') {
+        return (
+            <HardwareModule
+                title="SYNTH B // BASS"
+                colorHex={[1.0, 0.2, 0.8]}
+                controls={getSynthControls(synthB)}
+                onParamChange={(id, val) => handleSynthChange(false, id, val)}
+            />
+        );
+    }
+    if (selectedTrack === 'kick') {
+        return (
+            <HardwareModule
+                title="KICK DRUM"
+                colorHex={[1.0, 0.6, 0.0]}
+                controls={getKickControls(kick)}
+                onParamChange={handleKickChange}
+            />
+        );
+    }
+    if (selectedTrack === 'snare') {
+        return (
+            <HardwareModule
+                title="SNARE DRUM"
+                colorHex={[0.7, 0.7, 1.0]}
+                controls={getSnareControls(snare)}
+                onParamChange={handleSnareChange}
+            />
+        );
+    }
+    return <div className="text-white p-4">Select a track to edit parameters</div>;
+};
 
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#08140a', position: 'relative', overflow: 'hidden' }}>
@@ -419,7 +434,16 @@ export const App: React.FC = () => {
 
                 {/* Dynamic Track Controls */}
                 <div className="flex items-center gap-6 overflow-x-auto pb-2">
-                   {renderControlKnobs()}
+                   {/* {renderControlKnobs()} */}
+                </div>
+            </div>
+
+            {/* Hardware Module Rack (Bottom) */}
+            <div
+                className="absolute bottom-0 left-0 w-full h-[320px] bg-[#0b0e11] border-t-4 border-gray-800 p-4 shadow-2xl z-10 flex justify-center items-center"
+            >
+                <div className="w-full max-w-4xl h-full">
+                   {renderModulePanel()}
                 </div>
             </div>
         </div>
