@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState, memo, useMemo } from '
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
-import { HardwareModule, KnobConfig } from './components/HardwareModule' // Ensure this path matches your file structure
+import { HardwareModule } from './components/HardwareModule';
+import type { KnobConfig } from './components/HardwareModule';
 import {
     INITIAL_PATTERN,
     NUM_STEPS,
@@ -15,7 +16,7 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     AMBIANCE_TRACKS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, Waveform } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, HatParams } from './types'
 
 // --- 1. MEMOIZED SEQUENCER COMPONENTS ---
 
@@ -163,7 +164,6 @@ export const App: React.FC = () => {
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
 
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
-    const [ambianceVolume, setAmbianceVolume] = useState(0.5)
 
     // --- INSTRUMENT STATE & REFS ---
     
@@ -201,23 +201,6 @@ export const App: React.FC = () => {
         const newState = { ...snare, ...updates };
         setSnare(newState);
         snareRef.current = newState;
-    };
-
-    // Hats
-    const [closedHat, setClosedHat] = useState<HatParams>(DEFAULT_CLOSED_HAT_PARAMS);
-    const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS);
-    const updateClosedHat = (updates: Partial<HatParams>) => {
-        const newState = { ...closedHat, ...updates };
-        setClosedHat(newState);
-        closedHatRef.current = newState;
-    };
-
-    const [openHat, setOpenHat] = useState<HatParams>(DEFAULT_OPEN_HAT_PARAMS);
-    const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
-    const updateOpenHat = (updates: Partial<HatParams>) => {
-        const newState = { ...openHat, ...updates };
-        setOpenHat(newState);
-        openHatRef.current = newState;
     };
 
 
@@ -280,8 +263,8 @@ export const App: React.FC = () => {
     }, [ambianceUrl])
 
     useEffect(() => {
-        if (audioEngine) audioEngine.setAmbianceVolume(ambianceVolume)
-    }, [ambianceVolume, audioEngine])
+        if (audioEngine) audioEngine.setAmbianceVolume(0.5)
+    }, [audioEngine])
 
     useEffect(() => {
         if (audioEngine) {
