@@ -15,13 +15,15 @@ interface HardwareModuleProps {
     colorHex: [number, number, number]; // e.g. [0.0, 0.8, 1.0] for Cyan
     controls: KnobConfig[];
     onParamChange: (id: string, value: number) => void;
+    children?: React.ReactNode; // <-- allow overlaying custom React UI (e.g., WaveformSelector)
 }
 
 export const HardwareModule: React.FC<HardwareModuleProps> = ({ 
     title, 
     colorHex, 
     controls, 
-    onParamChange 
+    onParamChange,
+    children
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -384,6 +386,14 @@ export const HardwareModule: React.FC<HardwareModuleProps> = ({
                     </div>
                 ))}
             </div>
+
+            {/* Custom Children (e.g., Waveform Selector) */}
+            {children && (
+                <div className="absolute inset-0 pointer-events-none">
+                    {/* Children wrapper - specific children should opt into pointer-events-auto so they can receive input */}
+                    {children}
+                </div>
+            )}
         </div>
     );
 };
