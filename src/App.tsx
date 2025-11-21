@@ -4,6 +4,7 @@ import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
 import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
+import { WaveformSelector } from './components/WaveformSelector';
 import {
     INITIAL_PATTERN,
     NUM_STEPS,
@@ -269,7 +270,11 @@ export const App: React.FC = () => {
     const handleTempoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setTempo(Math.max(40, Math.min(240, Number(e.target.value))))
     }, [])
-    
+
+    const adjustTempo = useCallback((delta: number) => {
+        setTempo(t => Math.max(40, Math.min(240, t + delta)));
+    }, []);
+
     const handleAmbianceCycle = useCallback(() => {
         const currentIndex = AMBIANCE_TRACKS.findIndex(t => t.url === ambianceUrl)
         const nextIndex = (currentIndex + 1) % AMBIANCE_TRACKS.length
@@ -370,10 +375,22 @@ export const App: React.FC = () => {
 
     const renderModulePanel = () => {
         if (selectedTrack === 'partA') {
-            return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)} />;
+            return (
+                <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}>
+                    <div className="absolute top-4 right-6 pointer-events-auto">
+                        <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
+                    </div>
+                </HardwareModule>
+            );
         }
         if (selectedTrack === 'partB') {
-            return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)} />;
+            return (
+                <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}>
+                    <div className="absolute top-4 right-6 pointer-events-auto">
+                        <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
+                    </div>
+                </HardwareModule>
+            );
         }
         if (selectedTrack === 'kick') {
             return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} />;
@@ -418,12 +435,11 @@ export const App: React.FC = () => {
                     {/* Tempo */}
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-mono opacity-50">BPM</span>
-                        <input 
-                            type="number" 
-                            value={tempo} 
-                            onChange={handleTempoChange}
-                            className="w-16 bg-gray-900 border border-gray-700 text-center text-cyan-300 font-mono text-sm py-1 rounded focus:outline-none focus:border-cyan-500"
-                        />
+                        <div className="flex items-center bg-gray-900 rounded border border-gray-700">
+                            <button onClick={() => adjustTempo(-1)} className="px-3 py-1 hover:bg-gray-800 text-cyan-500 font-bold border-r border-gray-700">-</button>
+                            <span className="w-12 text-center font-mono text-cyan-300 text-lg">{tempo}</span>
+                            <button onClick={() => adjustTempo(1)} className="px-3 py-1 hover:bg-gray-800 text-cyan-500 font-bold border-l border-gray-700">+</button>
+                        </div>
                     </div>
 
                     {/* Transport Buttons */}
