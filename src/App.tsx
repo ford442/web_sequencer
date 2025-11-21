@@ -17,7 +17,7 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     AMBIANCE_TRACKS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, HatParams } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams } from './types'
 
 // --- 1. MEMOIZED SEQUENCER COMPONENTS ---
 
@@ -192,10 +192,7 @@ export const App: React.FC = () => {
 
     // Hats (Shared logic for Open/Closed usually, but we treat them somewhat independently in params)
     // We will just store them individually as per constants structure
-    const [closedHat, setClosedHat] = useState<HatParams>(DEFAULT_CLOSED_HAT_PARAMS);
     const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS);
-
-    const [openHat, setOpenHat] = useState<HatParams>(DEFAULT_OPEN_HAT_PARAMS);
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
 
 
