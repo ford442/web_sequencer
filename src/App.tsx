@@ -203,6 +203,24 @@ export const App: React.FC = () => {
         snareRef.current = newState;
     };
 
+    // Closed Hat
+    const [closedHat, setClosedHat] = useState(DEFAULT_CLOSED_HAT_PARAMS);
+    const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS);
+    const updateClosedHat = (updates: Partial<typeof DEFAULT_CLOSED_HAT_PARAMS>) => {
+        const newState = { ...closedHat, ...updates };
+        setClosedHat(newState);
+        closedHatRef.current = newState;
+    };
+
+    // Open Hat
+    const [openHat, setOpenHat] = useState(DEFAULT_OPEN_HAT_PARAMS);
+    const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
+    const updateOpenHat = (updates: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => {
+        const newState = { ...openHat, ...updates };
+        setOpenHat(newState);
+        openHatRef.current = newState;
+    };
+
 
     // --- SEQUENCER LOOP ---
     const onStep = useCallback((step: number) => {
