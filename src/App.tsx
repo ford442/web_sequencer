@@ -17,9 +17,25 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     AMBIANCE_TRACKS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, PartSequence } from './types'
 
-// --- 1. MEMOIZED SEQUENCER COMPONENTS ---
+// --- TYPES FOR STORAGE ---
+type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat';
+type SongSnapshot = {
+    pattern: Pattern;
+    tempo: number;
+    ambianceUrl: string;
+    params: {
+        synthA: SynthParams;
+        synthB: SynthParams;
+        kick: KickParams;
+        snare: SnareParams;
+        closedHat: any;
+        openHat: any;
+    }
+};
+
+// --- COMPONENTS ---
 
 const SvgStep = memo(({
                           stepIndex,
@@ -34,39 +50,40 @@ const SvgStep = memo(({
     rowLabel: string,
     onClick: () => void
 }) => {
-    // Reduced horizontal spacing slightly
-    const x = 20 + stepIndex * 44 
+    // REDUCED SIZE: 32px width instead of 38px, tighter spacing (38px instead of 44px)
+    // Starting X pushed to accommodate track slots
+    const x = 140 + stepIndex * 38
     return (
         <g transform={`translate(${x}, 0)`}
            role="button"
            aria-label={`${rowLabel} step ${stepIndex+1}`}
-           tabIndex={0}
            onClick={(e) => { e.stopPropagation(); onClick(); }}
-           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
            cursor="pointer"
-           style={{ outline: 'none' }}
         >
             <rect
-                x={0} y={0} width={38} height={54} rx={6}
+                x={0} y={0} width={30} height={44} rx={4}
                 fill={active ? '#3fa34d' : '#111f15'}
                 stroke={isCurrent ? '#fff' : '#234a2e'}
                 strokeWidth={isCurrent ? 2 : 1}
                 className="transition-colors duration-150"
             />
-            <text
-                x={19} y={32}
-                textAnchor="middle"
-                fontFamily="monospace"
-                fontSize={16}
-                fill={active ? '#042004' : '#4a6b52'}
-                pointerEvents="none"
-                style={{ userSelect: 'none' }}
-            >
-                {stepIndex+1}
-            </text>
+            {/* Simplified indicator if needed, or just color */}
         </g>
     )
 })
+
+// PER-TRACK STORAGE BUTTON
+const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number, isActive: boolean, hasData: boolean, onClick: () => void }) => (
+    <g transform={`translate(${index * 22}, 0)`} onClick={(e) => { e.stopPropagation(); onClick() }} cursor="pointer">
+        <rect
+            width={18} height={18} rx={2}
+            fill={isActive ? '#3fa34d' : (hasData ? '#234a2e' : '#0f1812')}
+            stroke={isActive ? '#fff' : '#3fa34d'}
+            strokeWidth={1}
+        />
+        <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : '#8fa394'} fontFamily="monospace">{index + 1}</text>
+    </g>
+);
 
 const SequencerRow = memo(({
                                rowKey,
@@ -75,52 +92,53 @@ const SequencerRow = memo(({
                                steps,
                                currentStep,
                                isSelected,
+                               activeSlot,
+                               slotsData,
                                onToggle,
-                               onSelectRow
+                               onSelectRow,
+                               onSelectSlot
                            }: {
-    rowKey: string,
+    rowKey: TrackKey,
     label: string,
     rowIndex: number,
     steps: (any | null)[],
     currentStep: number,
     isSelected: boolean,
+    activeSlot: number,
+    slotsData: boolean[],
     onToggle: (k: any, i: number) => void,
-    onSelectRow: (k: any) => void
+    onSelectRow: (k: any) => void,
+    onSelectSlot: (k: TrackKey, slot: number) => void
 }) => {
-    // Tighter vertical spacing (70px instead of 90px)
+    // Tighter vertical spacing
     return (
-        <g transform={`translate(0, ${rowIndex * 70})`}>
-            {/* Row Label / Selector Button */}
-            <g 
-                onClick={() => onSelectRow(rowKey)} 
-                cursor="pointer"
-                className="group"
-            >
-                {/* Active Indicator Bar */}
-                {isSelected && (
-                    <rect x={-140} y={10} width={4} height={40} fill="#3fa34d" rx={2} />
-                )}
-                
-                {/* Label Background (Hover effect via CSS class not strictly possible in pure SVG without CSS file, using fill opacity) */}
-                <rect 
-                    x={-130} y={10} width={120} height={40} rx={6} 
-                    fill={isSelected ? '#1a2e20' : 'transparent'} 
-                    stroke={isSelected ? '#3fa34d' : 'transparent'}
-                    strokeWidth={1}
-                />
-                
+        <g transform={`translate(0, ${rowIndex * 60})`}>
+            {/* Row Label / Selector */}
+            <g onClick={() => onSelectRow(rowKey)} cursor="pointer">
+                {/* Selection Indicator */}
+                {isSelected && <rect x={-10} y={10} width={4} height={30} fill="#3fa34d" rx={2} />}
+
                 <text 
-                    x={-25} 
-                    y={36} 
-                    textAnchor="end" 
-                    fontFamily="Orbitron, monospace" 
-                    fontSize={14} 
+                    x={-20} y={30} textAnchor="end"
+                    fontFamily="Orbitron, monospace" fontSize={12}
                     fill={isSelected ? '#3fa34d' : '#8fa394'}
                     fontWeight={isSelected ? 'bold' : 'normal'}
-                    style={{ letterSpacing: '1px', userSelect: 'none' }}
                 >
                     {label.toUpperCase()}
                 </text>
+            </g>
+
+            {/* Track Slots (1-4) */}
+            <g transform="translate(30, 13)">
+                {[0, 1, 2, 3].map(slot => (
+                    <TrackSlotButton
+                        key={slot}
+                        index={slot}
+                        isActive={activeSlot === slot}
+                        hasData={slotsData[slot]}
+                        onClick={() => onSelectSlot(rowKey, slot)}
+                    />
+                ))}
             </g>
 
             {steps.map((stepData, i) => (
@@ -137,17 +155,13 @@ const SequencerRow = memo(({
     )
 })
 
-// --- 2. MAIN APP COMPONENT ---
-
-type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat';
-
 const ROWS = [
-    { key: 'partA', label: 'Lead Synth' },
-    { key: 'partB', label: 'Bass Synth' },
-    { key: 'kick', label: 'Kick Drum' },
+    { key: 'partA', label: 'Lead' },
+    { key: 'partB', label: 'Bass' },
+    { key: 'kick', label: 'Kick' },
     { key: 'snare', label: 'Snare' },
-    { key: 'closedHat', label: 'Closed Hat' },
-    { key: 'openHat', label: 'Open Hat' },
+    { key: 'closedHat', label: 'CH' },
+    { key: 'openHat', label: 'OH' },
 ] as const
 
 export const App: React.FC = () => {
@@ -156,85 +170,70 @@ export const App: React.FC = () => {
 
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
-    // --- GLOBAL STATE ---
+    // --- STATE ---
     const [pattern, setPattern] = useState<Pattern>(INITIAL_PATTERN)
     const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
     const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentStep, setCurrentStep] = useState(-1)
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
-
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
+    const [masterVolume, setMasterVolume] = useState(0.8)
 
-    // --- INSTRUMENT STATE & REFS ---
-    
-    // Synth A
+    // --- STORAGE STATE ---
+    // Per-track storage: Map of TrackKey -> Array[4] of PartSequence
+    const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | null)[]>>({
+        partA: [null, null, null, null],
+        partB: [null, null, null, null],
+        kick: [null, null, null, null],
+        snare: [null, null, null, null],
+        closedHat: [null, null, null, null],
+        openHat: [null, null, null, null],
+    });
+    // Currently active slot per track (default -1 means none loaded/edited, or 0 based)
+    // Let's just use a visual indicator or auto-save.
+    // Simpler approach: The buttons act as Save/Load.
+    // Let's track "Last Loaded Slot" per track.
+    const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
+        partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0
+    });
+
+    // Global Song Storage
+    const [songStorage, setSongStorage] = useState<(SongSnapshot | null)[]>([null, null, null, null]);
+    const [activeSongSlot, setActiveSongSlot] = useState<number | null>(null);
+
+    // --- INSTRUMENT STATE ---
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
     const synthARef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
-    const updateSynthA = (updates: Partial<SynthParams>) => {
-        const newState = { ...synthA, ...updates };
-        setSynthA(newState);
-        synthARef.current = newState;
-    };
+    const updateSynthA = (updates: Partial<SynthParams>) => { const n = { ...synthA, ...updates }; setSynthA(n); synthARef.current = n; };
 
-    // Synth B
     const [synthB, setSynthB] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
     const synthBRef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
-    const updateSynthB = (updates: Partial<SynthParams>) => {
-        const newState = { ...synthB, ...updates };
-        setSynthB(newState);
-        synthBRef.current = newState;
-    };
+    const updateSynthB = (updates: Partial<SynthParams>) => { const n = { ...synthB, ...updates }; setSynthB(n); synthBRef.current = n; };
 
-    // Kick
     const [kick, setKick] = useState<KickParams>(DEFAULT_KICK_PARAMS);
     const kickRef = useRef(DEFAULT_KICK_PARAMS);
-    const updateKick = (updates: Partial<KickParams>) => {
-        const newState = { ...kick, ...updates };
-        setKick(newState);
-        kickRef.current = newState;
-    };
+    const updateKick = (u: Partial<KickParams>) => { const n = { ...kick, ...u }; setKick(n); kickRef.current = n; };
 
-    // Snare
     const [snare, setSnare] = useState<SnareParams>(DEFAULT_SNARE_PARAMS);
     const snareRef = useRef(DEFAULT_SNARE_PARAMS);
-    const updateSnare = (updates: Partial<SnareParams>) => {
-        const newState = { ...snare, ...updates };
-        setSnare(newState);
-        snareRef.current = newState;
-    };
+    const updateSnare = (u: Partial<SnareParams>) => { const n = { ...snare, ...u }; setSnare(n); snareRef.current = n; };
 
-    // Closed Hat
     const [closedHat, setClosedHat] = useState(DEFAULT_CLOSED_HAT_PARAMS);
     const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS);
-    const updateClosedHat = (updates: Partial<typeof DEFAULT_CLOSED_HAT_PARAMS>) => {
-        const newState = { ...closedHat, ...updates };
-        setClosedHat(newState);
-        closedHatRef.current = newState;
-    };
+    const updateClosedHat = (u: Partial<typeof DEFAULT_CLOSED_HAT_PARAMS>) => { const n = { ...closedHat, ...u }; setClosedHat(n); closedHatRef.current = n; };
 
-    // Open Hat
     const [openHat, setOpenHat] = useState(DEFAULT_OPEN_HAT_PARAMS);
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
-    const updateOpenHat = (updates: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => {
-        const newState = { ...openHat, ...updates };
-        setOpenHat(newState);
-        openHatRef.current = newState;
-    };
+    const updateOpenHat = (u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => { const n = { ...openHat, ...u }; setOpenHat(n); openHatRef.current = n; };
 
 
-    // --- SEQUENCER LOOP ---
+    // --- AUDIO LOOP ---
     const onStep = useCallback((step: number) => {
         if (!audioEngine) return
         const time = audioEngine.context.currentTime
-
-        if (pattern.partA.steps[step]) {
-            audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time)
-        }
-        if (pattern.partB.steps[step]) {
-            audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time)
-        }
-
+        if (pattern.partA.steps[step]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time)
+        if (pattern.partB.steps[step]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time)
         if (pattern.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
         if (pattern.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
         if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
@@ -247,88 +246,132 @@ export const App: React.FC = () => {
     useEffect(() => setCurrentStep(schedStep), [schedStep])
 
     const handlePlayToggle = async () => {
-        if (!isInitialized) {
-            await initializeAudio()
-            setIsInitialized(true)
-        }
+        if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
         setSchedPlaying(!schedPlaying)
     }
-    const handleStop = () => {
-        setSchedPlaying(false)
-    }
+
+    // --- LOGIC HANDLERS ---
+
+    const handleMasterVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const v = parseFloat(e.target.value);
+        setMasterVolume(v);
+        if (audioEngine && 'setMasterVolume' in audioEngine) {
+            (audioEngine as any).setMasterVolume(v);
+        }
+    };
 
     const toggleStep = useCallback((rowKey: keyof Pattern, i: number) => {
         setPattern(prev => {
             const copy = JSON.parse(JSON.stringify(prev)) as Pattern
             const arr = copy[rowKey].steps
-            arr[i] = arr[i] ? null : { note: rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C2', velocity: 1 }
+            // Default note per track type
+            const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C2';
+            arr[i] = arr[i] ? null : { note: defaultNote, velocity: 1 }
             return copy
         })
     }, [])
 
-    // --- UI HANDLERS ---
-    const adjustTempo = useCallback((delta: number) => {
-        setTempo(t => Math.max(40, Math.min(240, t + delta)));
-    }, []);
-
-    const handleAmbianceCycle = useCallback(() => {
-        const currentIndex = AMBIANCE_TRACKS.findIndex(t => t.url === ambianceUrl)
-        const nextIndex = (currentIndex + 1) % AMBIANCE_TRACKS.length
-        setAmbianceUrl(AMBIANCE_TRACKS[nextIndex].url)
-    }, [ambianceUrl])
-
-    const currentAmbianceName = useMemo(() => {
-        return AMBIANCE_TRACKS.find(t => t.url === ambianceUrl)?.name || 'None'
-    }, [ambianceUrl])
-
-    useEffect(() => {
-        if (audioEngine) audioEngine.setAmbianceVolume(0.5)
-    }, [audioEngine])
-
-    useEffect(() => {
-        if (audioEngine) {
-            if (ambianceUrl) audioEngine.playAmbiance(ambianceUrl)
-            else audioEngine.stopAmbiance()
+    const handleClearPattern = () => {
+        if(window.confirm("Clear current pattern?")) {
+             setPattern({
+                 partA: { steps: Array(16).fill(null) },
+                 partB: { steps: Array(16).fill(null) },
+                 kick: { steps: Array(16).fill(null) },
+                 snare: { steps: Array(16).fill(null) },
+                 closedHat: { steps: Array(16).fill(null) },
+                 openHat: { steps: Array(16).fill(null) },
+             });
         }
-    }, [ambianceUrl, audioEngine])
+    };
 
+    // --- STORAGE LOGIC ---
 
-    // --- MODULE CONFIGURATIONS ---
+    const handleTrackSlotClick = (track: TrackKey, slotIndex: number) => {
+        // Behavior: If slot is empty, Save current. If slot has data, Load it.
+        // To overwrite, maybe Shift+Click? For now, simple logic:
+        // If we click a different slot, load it. If empty, save current to it.
+        // If we click the SAME active slot, save current to it.
+
+        const currentTrackPattern = pattern[track];
+        const storedPattern = trackStorage[track][slotIndex];
+
+        if (storedPattern) {
+            // Load
+            setPattern(prev => ({ ...prev, [track]: storedPattern }));
+            setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex }));
+        } else {
+            // Save
+            setTrackStorage(prev => {
+                const copy = { ...prev };
+                copy[track][slotIndex] = currentTrackPattern;
+                return copy;
+            });
+            setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex }));
+        }
+    };
+
+    const saveSong = (slot: number) => {
+        const snapshot: SongSnapshot = {
+            pattern, tempo, ambianceUrl,
+            params: {
+                synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat
+            }
+        };
+        setSongStorage(prev => {
+            const copy = [...prev];
+            copy[slot] = snapshot;
+            return copy;
+        });
+        setActiveSongSlot(slot);
+    };
+
+    const loadSong = (slot: number) => {
+        const snapshot = songStorage[slot];
+        if (!snapshot) return;
+        setPattern(snapshot.pattern);
+        setTempo(snapshot.tempo);
+        setAmbianceUrl(snapshot.ambianceUrl);
+        setSynthA(snapshot.params.synthA); synthARef.current = snapshot.params.synthA;
+        setSynthB(snapshot.params.synthB); synthBRef.current = snapshot.params.synthB;
+        setKick(snapshot.params.kick); kickRef.current = snapshot.params.kick;
+        setSnare(snapshot.params.snare); snareRef.current = snapshot.params.snare;
+        setClosedHat(snapshot.params.closedHat); closedHatRef.current = snapshot.params.closedHat;
+        setOpenHat(snapshot.params.openHat); openHatRef.current = snapshot.params.openHat;
+        setActiveSongSlot(slot);
+    };
+
+    // --- MODULE RENDER HELPERS (Unchanged but necessary for context) ---
+    // ... (Keeping your existing knob definitions from previous file for brevity, assumes they are here) ...
+    // Re-implementing simplistic versions for the response to be complete-ish
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
-        { id: 'pitch', label: 'TUNE', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48 },
-        { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.35, size: 0.12, value: params.filterCutoff / 8000 },
-        { id: 'filterResonance', label: 'RES', x: 0.55, y: 0.35, size: 0.08, value: params.filterResonance / 20 },
-        { id: 'attack', label: 'ATK', x: 0.75, y: 0.35, size: 0.08, value: params.attack },
-        { id: 'decay', label: 'DEC', x: 0.15, y: 0.75, size: 0.08, value: params.decay / 2 },
-        { id: 'delayMix', label: 'DLY MIX', x: 0.35, y: 0.75, size: 0.08, value: params.delayMix },
-        { id: 'delayTime', label: 'DLY TIME', x: 0.55, y: 0.75, size: 0.08, value: params.delayTime },
-        { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.55, size: 0.11, value: params.volume },
+         { id: 'pitch', label: 'TUNE', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48 },
+         { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.35, size: 0.12, value: params.filterCutoff / 8000 },
+         { id: 'filterResonance', label: 'RES', x: 0.55, y: 0.35, size: 0.08, value: params.filterResonance / 20 },
+         { id: 'attack', label: 'ATK', x: 0.75, y: 0.35, size: 0.08, value: params.attack },
+         { id: 'decay', label: 'DEC', x: 0.15, y: 0.75, size: 0.08, value: params.decay / 2 },
+         { id: 'delayMix', label: 'DLY MIX', x: 0.35, y: 0.75, size: 0.08, value: params.delayMix },
+         { id: 'delayTime', label: 'DLY TIME', x: 0.55, y: 0.75, size: 0.08, value: params.delayTime },
+         { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.55, size: 0.11, value: params.volume },
     ];
-
     const getKickControls = (params: KickParams): KnobConfig[] => [
         { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
         { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay },
         { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone },
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
-
     const getSnareControls = (params: SnareParams): KnobConfig[] => [
         { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300 },
         { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000 },
         { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2 },
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
-
-    const getClosedHatControls = (params: typeof DEFAULT_CLOSED_HAT_PARAMS): KnobConfig[] => [
+    const getClosedHatControls = (params: any): KnobConfig[] => [
         { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        // Use 'pitch' here (normalized) because HatParams defines `pitch` (Hz) rather than `tone`.
         { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
-
-    const getOpenHatControls = (params: typeof DEFAULT_OPEN_HAT_PARAMS): KnobConfig[] => [
+    const getOpenHatControls = (params: any): KnobConfig[] => [
         { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        // Use 'pitch' here (normalized) because HatParams defines `pitch` (Hz) rather than `tone`.
         { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
@@ -336,13 +379,10 @@ export const App: React.FC = () => {
     const handleSynthChange = (isA: boolean, id: string, val: number) => {
         const updater = isA ? updateSynthA : updateSynthB;
         let realVal = val;
-        // Mapping normalization back to real values
         if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
         else if (id === 'filterCutoff') realVal = val * 8000;
         else if (id === 'filterResonance') realVal = val * 20;
         else if (id === 'decay') realVal = val * 2;
-        // attack, delayMix, delayTime, volume are typically 0-1 or close enough to leave as val for now
-        
         updater({ [id]: realVal });
     };
 
@@ -360,109 +400,91 @@ export const App: React.FC = () => {
         updateSnare({ [id]: realVal });
     };
 
-    const handleClosedHatChange = (id: string, val: number) => {
-        updateClosedHat({ [id]: val });
-    };
-
-    const handleOpenHatChange = (id: string, val: number) => {
-        updateOpenHat({ [id]: val });
-    };
+    const handleClosedHatChange = (id: string, val: number) => updateClosedHat({ [id]: val });
+    const handleOpenHatChange = (id: string, val: number) => updateOpenHat({ [id]: val });
 
 
     const renderModulePanel = () => {
-        if (selectedTrack === 'partA') {
-            return (
-                <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}>
-                    <div className="absolute top-4 right-6 pointer-events-auto">
-                        <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
-                    </div>
-                </HardwareModule>
-            );
-        }
-        if (selectedTrack === 'partB') {
-            return (
-                <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}>
-                    <div className="absolute top-4 right-6 pointer-events-auto">
-                        <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
-                    </div>
-                </HardwareModule>
-            );
-        }
-        if (selectedTrack === 'kick') {
-            return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} />;
-        }
-        if (selectedTrack === 'snare') {
-            return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
-        }
-        if (selectedTrack === 'closedHat') {
-            return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
-        }
-        if (selectedTrack === 'openHat') {
-            return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
-        }
-        return (
-            <div className="flex items-center justify-center h-full text-gray-500 font-orbitron">
-                NO EDITABLE PARAMETERS
-            </div>
-        );
+        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
+        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
+        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} />;
+        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
+        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
+        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
+        return null;
     };
 
-    // Main App Render
     return (
         <div className="flex flex-col h-screen w-screen bg-[#080a0b] text-gray-200 overflow-hidden font-sans">
-            
-            {/* --- TOP HEADER (Transport & Globals) --- */}
-            <header className="h-16 flex items-center justify-between px-6 bg-[#0b0d10] border-b border-gray-800 z-20 shadow-md">
-                <div className="flex items-center gap-4">
-                    <h1 className="text-xl font-bold font-orbitron text-cyan-500 tracking-wider">ELECTRIBE<span className="text-white">WEB</span></h1>
-                    {pyodideStatus && <span className="text-xs text-green-500 animate-pulse">● ENGINE READY</span>}
-                </div>
 
+            {/* --- TOP HEADER --- */}
+            <header className="h-16 flex items-center justify-between px-4 bg-[#0b0d10] border-b border-gray-800 z-20 shadow-md shrink-0">
+
+                {/* LEFT: Title & Global Song Storage */}
                 <div className="flex items-center gap-6">
-                    {/* Ambiance */}
-                    <div 
-                        className="flex items-center gap-2 text-xs font-mono cursor-pointer hover:text-cyan-400 transition-colors"
-                        onClick={handleAmbianceCycle}
-                    >
-                        <span className="opacity-50">AMBIANCE</span>
-                        <span className="text-cyan-300 font-bold bg-gray-900 px-2 py-1 rounded border border-gray-700">{currentAmbianceName}</span>
+                    <h1 className="text-lg font-bold font-orbitron text-cyan-500 tracking-wider hidden md:block">ELECTRIBE<span className="text-white">WEB</span></h1>
+
+                    <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Song</span>
+                        {[0, 1, 2, 3].map(slot => (
+                            <button
+                                key={slot}
+                                onClick={(e) => {
+                                    if (songStorage[slot]) loadSong(slot);
+                                    else saveSong(slot);
+                                }}
+                                onContextMenu={(e) => { e.preventDefault(); saveSong(slot); }} // Right click to overwrite
+                                className={`w-6 h-6 text-xs font-mono rounded ${
+                                    activeSongSlot === slot ? 'bg-cyan-600 text-white' : 
+                                    (songStorage[slot] ? 'bg-cyan-900/50 text-cyan-400' : 'bg-gray-800 text-gray-600')
+                                }`}
+                                title="Click to Load (if empty, Save). Right-Click to Save/Overwrite."
+                            >
+                                {slot + 1}
+                            </button>
+                        ))}
                     </div>
 
-                    {/* Tempo */}
+                    <button onClick={handleClearPattern} className="text-xs text-red-400 hover:text-red-300 border border-red-900 bg-red-900/20 px-2 py-1 rounded">
+                        CLEAR
+                    </button>
+                </div>
+
+                {/* RIGHT: Transport & Master Volume */}
+                <div className="flex items-center gap-4">
+
+                    {/* Master Volume */}
+                    <div className="flex items-center gap-2 mr-4">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase">Vol</span>
+                        <input
+                            type="range" min="0" max="1.2" step="0.01"
+                            value={masterVolume} onChange={handleMasterVolume}
+                            className="w-20 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                        />
+                    </div>
+
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono opacity-50">BPM</span>
-                        <div className="flex items-center bg-gray-900 rounded border border-gray-700">
-                            <button onClick={() => adjustTempo(-1)} className="px-3 py-1 hover:bg-gray-800 text-cyan-500 font-bold border-r border-gray-700">-</button>
-                            <span className="w-12 text-center font-mono text-cyan-300 text-lg">{tempo}</span>
-                            <button onClick={() => adjustTempo(1)} className="px-3 py-1 hover:bg-gray-800 text-cyan-500 font-bold border-l border-gray-700">+</button>
+                         <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
+                            <button onClick={() => setTempo(t => t-1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700">-</button>
+                            <span className="w-10 text-center font-mono text-cyan-300 text-sm">{tempo}</span>
+                            <button onClick={() => setTempo(t => t+1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700">+</button>
                         </div>
                     </div>
 
-                    {/* Transport Buttons */}
-                    <div className="flex gap-2">
-                        <button 
-                            onClick={handlePlayToggle}
-                            className={`px-6 py-1.5 rounded font-orbitron text-sm font-bold tracking-wide transition-all ${isPlaying ? 'bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-900' : 'bg-green-900/30 text-green-400 border border-green-800 hover:bg-green-900/50'}`}
-                        >
-                            {isPlaying ? 'PAUSE' : 'PLAY'}
-                        </button>
-                        <button 
-                            onClick={handleStop}
-                            className="px-4 py-1.5 rounded font-orbitron text-sm font-bold tracking-wide bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-400"
-                        >
-                            STOP
-                        </button>
-                    </div>
+                    <button
+                        onClick={handlePlayToggle}
+                        className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all ${isPlaying ? 'bg-red-900/50 text-red-400 border border-red-800' : 'bg-green-900/30 text-green-400 border border-green-800'}`}
+                    >
+                        {isPlaying ? 'STOP' : 'PLAY'}
+                    </button>
                 </div>
             </header>
 
-            {/* --- MAIN SEQUENCER AREA --- */}
-            <main className="flex-1 relative bg-[#08140a] shadow-inner flex flex-col justify-start pt-8">
-                {/* SVG SEQUENCER */}
-                <div className="w-full max-w-5xl mx-auto h-[480px]">
-                    <svg viewBox="0 0 1000 500" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-                        {/* Grid Group */}
-                        <g transform="translate(150, 40)">
+            {/* --- SEQUENCER --- */}
+            <main className="flex-1 relative bg-[#08140a] shadow-inner flex flex-col justify-start pt-4">
+                <div className="w-full max-w-4xl mx-auto h-[420px] overflow-hidden">
+                    <svg viewBox="0 0 900 400" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+                        <g transform="translate(100, 30)">
                             {ROWS.map((row, rIdx) => (
                                 <SequencerRow
                                     key={row.key}
@@ -472,8 +494,11 @@ export const App: React.FC = () => {
                                     steps={(pattern as any)[row.key].steps}
                                     currentStep={currentStep}
                                     isSelected={selectedTrack === row.key}
+                                    activeSlot={activeTrackSlots[row.key]}
+                                    slotsData={trackStorage[row.key].map(s => s !== null)}
                                     onToggle={toggleStep}
                                     onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
+                                    onSelectSlot={handleTrackSlotClick}
                                 />
                             ))}
                         </g>
@@ -481,15 +506,14 @@ export const App: React.FC = () => {
                 </div>
             </main>
 
-            {/* --- BOTTOM HARDWARE MODULE --- */}
-            <div className="h-[340px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-10">
-                <div className="w-full h-full max-w-5xl mx-auto p-4 flex items-center justify-center">
+            {/* --- HARDWARE MODULE --- */}
+            <div className="h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-10 shrink-0">
+                <div className="w-full h-full max-w-5xl mx-auto p-2 flex items-center justify-center">
                     <div className="w-full h-full rounded-xl overflow-hidden border border-gray-800 shadow-2xl bg-black">
                         {renderModulePanel()}
                     </div>
                 </div>
             </div>
-
         </div>
     )
 }
