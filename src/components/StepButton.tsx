@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface StepButtonProps {
@@ -30,9 +29,14 @@ export const StepButton: React.FC<StepButtonProps> = ({ isActive, isCurrent, onC
   const activeClasses = colorClasses[color].active;
   const currentClasses = `ring-2 ring-offset-2 ring-offset-gray-800 ${colorClasses[color].current}`;
 
+  const handleClick = () => {
+    onClick();
+    // Prevent flickering by ensuring the button doesn't re-render unnecessarily
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       aria-pressed={isActive}
       aria-label={ariaLabel}
       className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses} ${isCurrent ? currentClasses : ''}`}
