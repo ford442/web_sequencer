@@ -375,7 +375,7 @@ export const App: React.FC = () => {
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
 
-    const handleSynthChange = (isA: boolean, id: string, val: number) => {
+    const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => {
         const updater = isA ? updateSynthA : updateSynthB;
         let realVal = val;
         if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
@@ -383,24 +383,24 @@ export const App: React.FC = () => {
         else if (id === 'filterResonance') realVal = val * 20;
         else if (id === 'decay') realVal = val * 2;
         updater({ [id]: realVal });
-    };
+    }, []);
 
-    const handleKickChange = (id: string, val: number) => {
+    const handleKickChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'pitch') realVal = val * 130 + 20;
         updateKick({ [id]: realVal });
-    };
+    }, []);
 
-    const handleSnareChange = (id: string, val: number) => {
+    const handleSnareChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'tone') realVal = val * 300 + 100;
         else if (id === 'noise') realVal = val * 7000 + 1000;
         else if (id === 'decay') realVal = val * 0.5;
         updateSnare({ [id]: realVal });
-    };
+    }, []);
 
-    const handleClosedHatChange = (id: string, val: number) => updateClosedHat({ [id]: val });
-    const handleOpenHatChange = (id: string, val: number) => updateOpenHat({ [id]: val });
+    const handleClosedHatChange = useCallback((id: string, val: number) => updateClosedHat({ [id]: val }), []);
+    const handleOpenHatChange = useCallback((id: string, val: number) => updateOpenHat({ [id]: val }), []);
 
 
     // Memoize controls for each module to prevent unnecessary re-renders
@@ -411,15 +411,23 @@ export const App: React.FC = () => {
     const closedHatControls = useMemo(() => getClosedHatControls(closedHat), [closedHat]);
     const openHatControls = useMemo(() => getOpenHatControls(openHat), [openHat]);
 
-    const renderModulePanel = () => {
-        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={synthAControls} onParamChange={(id, v) => handleSynthChange(true, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
-        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={synthBControls} onParamChange={(id, v) => handleSynthChange(false, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
-        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={kickControls} onParamChange={(id, v) => handleKickChange(id, v)} />;
-        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={snareControls} onParamChange={(id, v) => handleSnareChange(id, v)} />;
+    const handleSynthAChange = useCallback((id: string, val: number) => {
+        handleSynthChange(true, id, val);
+    }, [handleSynthChange]);
+
+    const handleSynthBChange = useCallback((id: string, val: number) => {
+        handleSynthChange(false, id, val);
+    }, [handleSynthChange]);
+
+    const renderModulePanel = useMemo(() => {
+        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={synthAControls} onParamChange={handleSynthAChange}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
+        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={synthBControls} onParamChange={handleSynthBChange}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
+        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={kickControls} onParamChange={handleKickChange} />;
+        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={snareControls} onParamChange={handleSnareChange} />;
         if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={closedHatControls} onParamChange={handleClosedHatChange} />;
         if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={openHatControls} onParamChange={handleOpenHatChange} />;
         return null;
-    };
+    }, [selectedTrack, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, handleSynthAChange, handleSynthBChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, synthA.waveform, synthB.waveform]);
 
     return (
         <div className="flex flex-col h-screen w-screen bg-[#080a0b] text-gray-200 overflow-hidden font-sans">
@@ -517,7 +525,7 @@ export const App: React.FC = () => {
             <div className="h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-10 shrink-0">
                 <div className="w-full h-full max-w-5xl mx-auto p-2 flex items-center justify-center">
                     <div className="w-full h-full rounded-xl overflow-hidden border border-gray-800 shadow-2xl bg-black">
-                        {renderModulePanel()}
+                        {renderModulePanel}
                     </div>
                 </div>
             </div>
