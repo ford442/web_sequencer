@@ -18,13 +18,14 @@ interface HardwareModuleProps {
     children?: React.ReactNode; // <-- allow overlaying custom React UI (e.g., WaveformSelector)
 }
 
-export const HardwareModule: React.FC<HardwareModuleProps> = ({ 
-    title, 
+export const HardwareModule = React.memo(
+  ({
+    title,
     colorHex, 
     controls, 
     onParamChange,
     children
-}) => {
+  }: HardwareModuleProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     
@@ -396,5 +397,5 @@ export const HardwareModule: React.FC<HardwareModuleProps> = ({
             )}
         </div>
     );
-};
-
+  }
+);
