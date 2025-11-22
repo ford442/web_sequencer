@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, memo, useMemo } from 'react'
+import React, { useCallback, useEffect, useRef, useState, memo } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -15,7 +15,6 @@ import {
     DEFAULT_SNARE_PARAMS,
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
-    AMBIANCE_TRACKS,
 } from './constants'
 import type { Pattern, SynthParams, KickParams, SnareParams, PartSequence } from './types'
 
@@ -429,7 +428,7 @@ export const App: React.FC = () => {
                         {[0, 1, 2, 3].map(slot => (
                             <button
                                 key={slot}
-                                onClick={(e) => {
+                                onClick={() => {
                                     if (songStorage[slot]) loadSong(slot);
                                     else saveSong(slot);
                                 }}
