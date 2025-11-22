@@ -267,10 +267,6 @@ export const App: React.FC = () => {
     }, [])
 
     // --- UI HANDLERS ---
-    const handleTempoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        setTempo(Math.max(40, Math.min(240, Number(e.target.value))))
-    }, [])
-
     const adjustTempo = useCallback((delta: number) => {
         setTempo(t => Math.max(40, Math.min(240, t + delta)));
     }, []);
