@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 interface KnobProps {
@@ -55,10 +54,12 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'grabbing';
     } else {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     }
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
@@ -98,6 +99,10 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
         aria-valuemax={max}
         aria-valuenow={value}
         aria-orientation="vertical"
+        style={{
+          transform: `rotate(${rotation}deg)`,
+          transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+        }}
       >
         <div
           className="w-12 h-12 bg-gray-800 rounded-full relative shadow-inner"

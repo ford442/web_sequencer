@@ -2,8 +2,38 @@
   font-family: 'Roboto Mono', monospace;
   background-color: #111827;
   color: #e5e7eb;
+
+  /* Adding subtle animations and transitions */
+  --transition-duration: 0.3s;
+  --hover-scale: 1.05;
 }
 
 body {
   margin: 0;
+}
+
+button {
+  transition: transform var(--transition-duration), box-shadow var(--transition-duration);
+}
+
+button:hover {
+  transform: scale(var(--hover-scale));
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.knob {
+  transition: transform var(--transition-duration);
+}
+
+.knob:active {
+  transform: scale(0.95);
+}
+
+.step-button {
+  transition: background-color var(--transition-duration), transform var(--transition-duration);
+}
+
+.step-button:hover {
+  background-color: #374151;
+  transform: scale(var(--hover-scale));
 }
