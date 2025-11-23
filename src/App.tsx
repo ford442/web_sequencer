@@ -675,13 +675,6 @@ export const App: React.FC = () => {
                                 <stop offset="0%" stopColor="white" stopOpacity="0.5" />
                                 <stop offset="100%" stopColor="white" stopOpacity="0" />
                             </linearGradient>
-                            <filter id="glow">
-                                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-                                <feMerge>
-                                    <feMergeNode in="coloredBlur"/>
-                                    <feMergeNode in="SourceGraphic"/>
-                                </feMerge>
-                            </filter>
                         </defs>
 
                         <g transform="translate(100, 40)">
