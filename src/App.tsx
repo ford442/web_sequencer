@@ -417,7 +417,7 @@ export const App: React.FC = () => {
                     : a
             ));
         }
-    }, [isPlaying, songStructure.currentSongStep]);
+    }, [isPlaying, songStructure.currentSongStep, updateSynthA, updateSynthB]);
 
     const handleKickChange = useCallback((id: string, val: number) => {
         let realVal = val;
