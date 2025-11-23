@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'; // <-- 1. IMPORT useEffect
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
+import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 
 export const useAudioEngine = (pyodide: any) => {
   const [isReady, setIsReady] = useState(false);
@@ -10,6 +11,7 @@ export const useAudioEngine = (pyodide: any) => {
   const ambianceGainNodeRef = useRef<GainNode | null>(null);
   const loadedAmbianceBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
   const rendererWorkerRef = useRef<Worker | null>(null);
+  const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
 
   // 2. CREATE A REF to hold the pyodide prop
   const pyodideRef = useRef(pyodide);
@@ -24,6 +26,11 @@ export const useAudioEngine = (pyodide: any) => {
 
     const context = new (window.AudioContext || (window as any).webkitAudioContext)();
     
+    // Initialize GPU Engine
+    const gpuEngine = new WebGpuOscillator();
+    await gpuEngine.init();
+    gpuEngineRef.current = gpuEngine;
+
     if (context.state === 'suspended') {
       await context.resume();
     }
@@ -37,8 +44,9 @@ export const useAudioEngine = (pyodide: any) => {
     }
     noiseBufferRef.current = buffer;
 
-const playSynth = (params: SynthParams, note: string, time: number, destination: AudioNode = context.destination) => {
+const playSynth = async (params: SynthParams, note: string, time: number, destination: AudioNode = context.destination) => {
   const isPyodideWave = params.waveform.startsWith('pyodide-');
+  const isWgslWave = params.waveform.startsWith('wgsl-');
   const noteDuration = params.attack + params.decay;
 
   // --- Gain Envelope (used by both) ---
@@ -77,8 +85,49 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
   }
 
   // --- Waveform Generation ---
+
+  if (isWgslWave && gpuEngineRef.current?.isSupported) {
+    // --- WGSL GPU PATH ---
+    try {
+        const baseFreq = noteToFrequency(note);
+        const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+
+        // Extract type: 'wgsl-saw' -> 'saw'
+        const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
+
+        // Generate Buffer
+        const rawData = await gpuEngineRef.current.generate(
+            freqWithPitch,
+            noteDuration + 0.1,
+            context.sampleRate,
+            type
+        );
+
+        if (rawData) {
+            const buffer = context.createBuffer(1, rawData.length, context.sampleRate);
+            buffer.getChannelData(0).set(rawData);
+
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+
+            // Create Filter Node specifically for this voice
+            const filter = context.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(params.filterCutoff, time);
+            filter.Q.setValueAtTime(params.filterResonance, time);
+
+            // Connect Chain
+            source.connect(filter);
+            filter.connect(outputNode); // outputNode is the Envelope Gain
+
+            source.start(time);
+        }
+    } catch (e) {
+        console.error("WGSL Render Error:", e);
+    }
+
   // 5. USE THE REF (pyodideRef.current)
-  if (isPyodideWave && pyodideRef.current) {
+  } else if (isPyodideWave && pyodideRef.current) {
     // --- NEW: Pyodide Audio Generation ---
     try {
       // 1. Set sample rate in Python
@@ -133,8 +182,16 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 
     const osc = context.createOscillator();
+
+    // FALLBACK MAPPING: If we are here with a wgsl- waveform (e.g. GPU not supported), map to standard
+    let waveType = params.waveform;
+    if (waveType === 'wgsl-saw') waveType = 'sawtooth';
+    if (waveType === 'wgsl-sqr') waveType = 'square';
+    if (waveType === 'wgsl-tri') waveType = 'triangle';
+    if (waveType === 'wgsl-sin') waveType = 'sine';
+
     // @ts-ignore
-    osc.type = params.waveform as OscillatorType;
+    osc.type = waveType as OscillatorType;
     osc.frequency.setValueAtTime(freqWithPitch, time);
 
     const filter = context.createBiquadFilter();

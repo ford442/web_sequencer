@@ -8,7 +8,11 @@ interface WaveformSelectorProps {
   accentColor: 'cyan' | 'pink';
 }
 
-const waveforms: Waveform[] = ['sawtooth', 'square', 'triangle', 'sine', 'pyodide-saw', 'pyodide-square', 'pyodide-sine'];
+const waveforms: Waveform[] = [
+  'sawtooth', 'square', 'triangle', 'sine',
+  'pyodide-saw', 'pyodide-square', 'pyodide-sine',
+  'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'
+];
 
 const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
   switch (type) {
@@ -27,6 +31,15 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
       return <div className="font-bold text-xs leading-none">PY<br/>SQR</div>;
     case 'pyodide-sine':
       return <div className="font-bold text-xs leading-none">PY<br/>SIN</div>;
+    // NEW: WGSL icons
+    case 'wgsl-saw':
+      return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>SAW</div>;
+    case 'wgsl-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>SQR</div>;
+    case 'wgsl-tri':
+      return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>TRI</div>;
+    case 'wgsl-sin':
+      return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>SIN</div>;
     default:
       return null;
   }
