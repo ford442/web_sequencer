@@ -8,6 +8,7 @@ export interface KnobConfig {
     y: number; // 0.0 to 1.0
     size: number; // radius relative to canvas width
     value: number; // current value 0.0 to 1.0
+    isRecording?: boolean; // Whether this knob is in record mode
 }
 
 interface HardwareModuleProps {
@@ -15,6 +16,7 @@ interface HardwareModuleProps {
     colorHex: [number, number, number]; // e.g. [0.0, 0.8, 1.0] for Cyan
     controls: KnobConfig[];
     onParamChange: (id: string, value: number) => void;
+    onRecordToggle?: (id: string) => void; // Callback when record button is clicked
     children?: React.ReactNode; // <-- allow overlaying custom React UI (e.g., WaveformSelector)
 }
 
@@ -24,6 +26,7 @@ export const HardwareModule = React.memo(
     colorHex, 
     controls, 
     onParamChange,
+    onRecordToggle,
     children
   }: HardwareModuleProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -385,6 +388,34 @@ export const HardwareModule = React.memo(
                             {c.id.includes('freq') || c.id.includes('cutoff') ? Math.round(c.value * 8000) : Math.round(c.value * 100)}
                         </div>
                     </div>
+                ))}
+                {/* Record buttons for each knob */}
+                {onRecordToggle && controls.map((c) => (
+                    <button
+                        key={`rec-${c.id}`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onRecordToggle(c.id);
+                        }}
+                        className="absolute pointer-events-auto transform -translate-x-1/2 transition-all"
+                        style={{
+                            left: `${c.x * 100}%`,
+                            top: `${(c.y - c.size * 1.3) * 100}%`,
+                            width: '16px',
+                            height: '16px',
+                        }}
+                        title={`${c.isRecording ? 'Stop' : 'Start'} recording ${c.label}`}
+                    >
+                        <div 
+                            className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                                c.isRecording 
+                                    ? 'bg-red-600 text-white shadow-lg shadow-red-500/50 animate-pulse' 
+                                    : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'
+                            }`}
+                        >
+                            R
+                        </div>
+                    </button>
                 ))}
             </div>
 

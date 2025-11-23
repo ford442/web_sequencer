@@ -76,3 +76,27 @@ export interface AudioEngine {
   stopAmbiance: () => void;
   setAmbianceVolume: (volume: number) => void;
 }
+
+// Automation recording types
+export interface AutomationPoint {
+  step: number; // Song step when this value should be applied
+  value: number; // The parameter value (0-1)
+}
+
+export interface KnobAutomation {
+  paramId: string; // e.g., 'pitch', 'filterCutoff'
+  trackKey: string; // e.g., 'partA', 'kick'
+  points: AutomationPoint[];
+  isRecording: boolean;
+}
+
+// Song structure types
+export interface SongStep {
+  patternIndex: number; // Which pattern slot (0-3) to play at this step
+}
+
+export interface SongStructure {
+  length: number; // Total number of song steps (1-64)
+  steps: SongStep[]; // Array of song steps defining which pattern plays when
+  currentSongStep: number; // Current position in the song
+}
