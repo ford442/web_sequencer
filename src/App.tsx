@@ -49,10 +49,10 @@ const SvgStep = memo(({
     rowLabel: string,
     onClick: () => void
 }) => {
-    // VISUAL: Smaller buttons, tighter spacing
-    const width = 30;
-    const height = 44;
-    const gap = 8;
+    // VISUAL: Hardware style buttons
+    const width = 34;
+    const height = 50;
+    const gap = 6;
     const x = 140 + stepIndex * (width + gap); // Offset for Track Controls
 
     return (
@@ -61,19 +61,32 @@ const SvgStep = memo(({
            aria-label={`${rowLabel} step ${stepIndex+1}`}
            onClick={() => onClick()}
            cursor="pointer"
+           style={{ transition: 'all 0.1s ease' }}
         >
-            {/* Glow Effect for Active Steps */}
-            {active && <rect x={-2} y={-2} width={width+4} height={height+4} rx={6} fill="rgba(63, 163, 77, 0.4)" filter="blur(4px)" />}
+            {/* Outer Glow for Active Steps */}
+            {active && <rect x={-4} y={-4} width={width+8} height={height+8} rx={6} fill={isCurrent ? "rgba(255, 255, 255, 0.3)" : "rgba(6, 182, 212, 0.2)"} filter="blur(6px)" />}
 
+            {/* Main Button Body - Beveled Look */}
             <rect
-                x={0} y={0} width={width} height={height} rx={4}
-                fill={active ? '#3fa34d' : '#111f15'}
-                stroke={isCurrent ? '#ffffff' : (active ? '#234a2e' : '#1a261e')}
-                strokeWidth={isCurrent ? 2 : 1}
-                className="transition-colors duration-150"
+                x={0} y={0} width={width} height={height} rx={3}
+                fill={active ? '#0e2a1b' : '#080c10'}
+                stroke={isCurrent ? '#ffffff' : (active ? '#06b6d4' : '#1e293b')}
+                strokeWidth={isCurrent ? 2 : (active ? 1.5 : 1)}
             />
-            {/* LED Indicator at bottom of button */}
-            <rect x={width/2 - 6} y={height - 6} width={12} height={3} rx={1} fill={isCurrent ? '#ff3333' : (active ? '#ccffcc' : '#1a261e')} />
+
+            {/* Inner "Light" Area */}
+            <rect
+                x={4} y={4} width={width-8} height={height-18} rx={1}
+                fill={active ? '#06b6d4' : '#0f1720'}
+                fillOpacity={active ? 0.8 : 1}
+                className="transition-colors duration-100"
+            />
+
+            {/* Bottom LED Strip */}
+            <rect
+                x={6} y={height - 8} width={width - 12} height={4} rx={1}
+                fill={isCurrent ? '#ff3333' : (active ? '#a5f3fc' : '#1a2332')}
+            />
         </g>
     )
 })
@@ -188,6 +201,30 @@ export const App: React.FC = () => {
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
+
+    // --- ANIMATION LOOP FOR LOADING ---
+    const [loadingTick, setLoadingTick] = useState(0);
+    useEffect(() => {
+        if (isPyodideReady) return; // Stop animation when ready
+        const interval = setInterval(() => {
+            setLoadingTick(t => (t + 1) % 1000);
+        }, 100);
+        return () => clearInterval(interval);
+    }, [isPyodideReady]);
+
+    const getLoadingStepData = (rIdx: number) => {
+         return Array(16).fill(null).map((_, i) => {
+             // Specific Geometric Pattern: "Digital Scanner" + Diagonal
+             // 1. Diagonal sweep
+             const diag = (i + rIdx + loadingTick) % 8 === 0;
+             // 2. Scanner ping (left to right)
+             const scanPos = loadingTick % 32;
+             const scanner = (i === scanPos) || (i === 31 - scanPos);
+
+             const active = diag || scanner;
+             return active ? { note: 'C4', velocity: 1 } : null;
+         });
+    }
 
     // --- STORAGE STATE ---
     // Per-track storage: Map of TrackKey -> Array[4] of PartSequence
@@ -495,24 +532,39 @@ export const App: React.FC = () => {
             </header>
 
             {/* --- SEQUENCER --- */}
-            <main className="flex-1 relative bg-[#08140a] shadow-inner flex flex-col justify-start pt-4">
-                <div className="w-full max-w-4xl mx-auto h-[420px] overflow-hidden">
-                    <svg viewBox="0 0 900 400" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+            <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 pb-4">
+                {/* Sequencer Container with Hardware finish */}
+                <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
+
+                    {/* Decorative screws */}
+                    <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                    <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                    <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                    <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+
+                    <svg viewBox="0 0 920 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
                         <defs>
                             <linearGradient id="trackGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" stopColor="#0b1015" stopOpacity="1" />
                                 <stop offset="100%" stopColor="#0b1015" stopOpacity="0" />
                             </linearGradient>
+                            <filter id="glow">
+                                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                                <feMerge>
+                                    <feMergeNode in="coloredBlur"/>
+                                    <feMergeNode in="SourceGraphic"/>
+                                </feMerge>
+                            </filter>
                         </defs>
 
-                        <g transform="translate(100, 30)">
+                        <g transform="translate(100, 40)">
                             {ROWS.map((row, rIdx) => (
                                 <SequencerRow
                                     key={row.key}
                                     rowKey={row.key}
                                     label={row.label}
                                     rowIndex={rIdx}
-                                    steps={(pattern as any)[row.key].steps}
+                                    steps={!isPyodideReady ? getLoadingStepData(rIdx) : (pattern as any)[row.key].steps}
                                     currentStep={currentStep}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
