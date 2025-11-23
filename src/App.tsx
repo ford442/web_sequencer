@@ -361,6 +361,53 @@ export const App: React.FC = () => {
         setActiveSongSlot(slot);
     };
 
+    // --- AUTOMATION RECORDING ---
+    const recordAutomation = useCallback((trackKey: TrackKey, paramId: string, val: number) => {
+        const automation = automationsRef.current.find(a => a.trackKey === trackKey && a.paramId === paramId);
+        if (automation && automation.isRecording && isPlaying) {
+            // Only record if value changed or it's a new step (performance optimization)
+            const lastPoint = automation.points[automation.points.length - 1];
+            const shouldRecord = !lastPoint || 
+                                lastPoint.step !== songStructure.currentSongStep || 
+                                Math.abs(lastPoint.value - val) > 0.001;
+            
+            if (shouldRecord) {
+                setAutomations(prev => prev.map(a => 
+                    a.trackKey === trackKey && a.paramId === paramId
+                        ? { ...a, points: [...a.points, { step: songStructure.currentSongStep, value: val }] }
+                        : a
+                ));
+            }
+        }
+    }, [isPlaying, songStructure.currentSongStep]);
+
+    const handleRecordToggle = useCallback((trackKey: TrackKey, paramId: string) => {
+        setAutomations(prev => {
+            const existing = prev.find(a => a.trackKey === trackKey && a.paramId === paramId);
+            if (existing) {
+                // Toggle recording state
+                return prev.map(a => 
+                    a.trackKey === trackKey && a.paramId === paramId
+                        ? { ...a, isRecording: !a.isRecording }
+                        : a
+                );
+            } else {
+                // Create new automation
+                return [...prev, {
+                    paramId,
+                    trackKey,
+                    points: [],
+                    isRecording: true
+                }];
+            }
+        });
+    }, []);
+
+    const getKnobRecordingState = useCallback((trackKey: TrackKey, paramId: string): boolean => {
+        const automation = automations.find(a => a.trackKey === trackKey && a.paramId === paramId);
+        return automation?.isRecording ?? false;
+    }, [automations]);
+
     // --- MODULE RENDER HELPERS ---
     const getSynthControls = (params: SynthParams, trackKey: TrackKey): KnobConfig[] => [
          { id: 'pitch', label: 'TUNE', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48, isRecording: getKnobRecordingState(trackKey, 'pitch') },
@@ -404,35 +451,15 @@ export const App: React.FC = () => {
         else if (id === 'filterResonance') realVal = val * 20;
         else if (id === 'decay') realVal = val * 2;
         updater({ [id]: realVal });
-        
-        // Record automation if recording is active
-        const automation = automationsRef.current.find(a => a.trackKey === trackKey && a.paramId === id);
-        if (automation && automation.isRecording && isPlaying) {
-            setAutomations(prev => prev.map(a => 
-                a.trackKey === trackKey && a.paramId === id
-                    ? { 
-                        ...a, 
-                        points: [...a.points, { step: songStructure.currentSongStep, value: val }]
-                      }
-                    : a
-            ));
-        }
-    }, [isPlaying, songStructure.currentSongStep, updateSynthA, updateSynthB]);
+        recordAutomation(trackKey, id, val);
+    }, [updateSynthA, updateSynthB, recordAutomation]);
 
     const handleKickChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'pitch') realVal = val * 130 + 20;
         updateKick({ [id]: realVal });
-        
-        const automation = automationsRef.current.find(a => a.trackKey === 'kick' && a.paramId === id);
-        if (automation && automation.isRecording && isPlaying) {
-            setAutomations(prev => prev.map(a => 
-                a.trackKey === 'kick' && a.paramId === id
-                    ? { ...a, points: [...a.points, { step: songStructure.currentSongStep, value: val }] }
-                    : a
-            ));
-        }
-    }, [isPlaying, songStructure.currentSongStep]);
+        recordAutomation('kick', id, val);
+    }, [recordAutomation]);
 
     const handleSnareChange = useCallback((id: string, val: number) => {
         let realVal = val;
@@ -440,78 +467,26 @@ export const App: React.FC = () => {
         else if (id === 'noise') realVal = val * 7000 + 1000;
         else if (id === 'decay') realVal = val * 0.5;
         updateSnare({ [id]: realVal });
-        
-        const automation = automationsRef.current.find(a => a.trackKey === 'snare' && a.paramId === id);
-        if (automation && automation.isRecording && isPlaying) {
-            setAutomations(prev => prev.map(a => 
-                a.trackKey === 'snare' && a.paramId === id
-                    ? { ...a, points: [...a.points, { step: songStructure.currentSongStep, value: val }] }
-                    : a
-            ));
-        }
-    }, [isPlaying, songStructure.currentSongStep]);
+        recordAutomation('snare', id, val);
+    }, [recordAutomation]);
 
     const handleClosedHatChange = useCallback((id: string, val: number) => {
         updateClosedHat({ [id]: val });
-        
-        const automation = automationsRef.current.find(a => a.trackKey === 'closedHat' && a.paramId === id);
-        if (automation && automation.isRecording && isPlaying) {
-            setAutomations(prev => prev.map(a => 
-                a.trackKey === 'closedHat' && a.paramId === id
-                    ? { ...a, points: [...a.points, { step: songStructure.currentSongStep, value: val }] }
-                    : a
-            ));
-        }
-    }, [isPlaying, songStructure.currentSongStep]);
+        recordAutomation('closedHat', id, val);
+    }, [recordAutomation]);
     
     const handleOpenHatChange = useCallback((id: string, val: number) => {
         updateOpenHat({ [id]: val });
-        
-        const automation = automationsRef.current.find(a => a.trackKey === 'openHat' && a.paramId === id);
-        if (automation && automation.isRecording && isPlaying) {
-            setAutomations(prev => prev.map(a => 
-                a.trackKey === 'openHat' && a.paramId === id
-                    ? { ...a, points: [...a.points, { step: songStructure.currentSongStep, value: val }] }
-                    : a
-            ));
-        }
-    }, [isPlaying, songStructure.currentSongStep]);
-
-    // --- AUTOMATION RECORDING ---
-    const handleRecordToggle = useCallback((trackKey: TrackKey, paramId: string) => {
-        setAutomations(prev => {
-            const existing = prev.find(a => a.trackKey === trackKey && a.paramId === paramId);
-            if (existing) {
-                // Toggle recording state
-                return prev.map(a => 
-                    a.trackKey === trackKey && a.paramId === paramId
-                        ? { ...a, isRecording: !a.isRecording }
-                        : a
-                );
-            } else {
-                // Create new automation
-                return [...prev, {
-                    paramId,
-                    trackKey,
-                    points: [],
-                    isRecording: true
-                }];
-            }
-        });
-    }, []);
-
-    const getKnobRecordingState = useCallback((trackKey: TrackKey, paramId: string): boolean => {
-        const automation = automations.find(a => a.trackKey === trackKey && a.paramId === paramId);
-        return automation?.isRecording ?? false;
-    }, [automations]);
+        recordAutomation('openHat', id, val);
+    }, [recordAutomation]);
 
     // Memoize controls for each module to prevent unnecessary re-renders
-    const synthAControls = useMemo(() => getSynthControls(synthA, 'partA'), [synthA, automations]);
-    const synthBControls = useMemo(() => getSynthControls(synthB, 'partB'), [synthB, automations]);
-    const kickControls = useMemo(() => getKickControls(kick), [kick, automations]);
-    const snareControls = useMemo(() => getSnareControls(snare), [snare, automations]);
-    const closedHatControls = useMemo(() => getClosedHatControls(closedHat), [closedHat, automations]);
-    const openHatControls = useMemo(() => getOpenHatControls(openHat), [openHat, automations]);
+    const synthAControls = useMemo(() => getSynthControls(synthA, 'partA'), [synthA, getKnobRecordingState]);
+    const synthBControls = useMemo(() => getSynthControls(synthB, 'partB'), [synthB, getKnobRecordingState]);
+    const kickControls = useMemo(() => getKickControls(kick), [kick, getKnobRecordingState]);
+    const snareControls = useMemo(() => getSnareControls(snare), [snare, getKnobRecordingState]);
+    const closedHatControls = useMemo(() => getClosedHatControls(closedHat), [closedHat, getKnobRecordingState]);
+    const openHatControls = useMemo(() => getOpenHatControls(openHat), [openHat, getKnobRecordingState]);
 
     const handleSynthAChange = useCallback((id: string, val: number) => {
         handleSynthChange(true, id, val);
@@ -578,11 +553,13 @@ export const App: React.FC = () => {
                             </button>
                             <span className="w-10 text-center font-mono text-cyan-300 text-xs">{songStructure.length}</span>
                             <button 
-                                onClick={() => setSongStructure(s => ({ 
-                                    ...s, 
-                                    length: Math.min(64, s.length + 1),
-                                    steps: [...s.steps, { patternIndex: 0 }].slice(0, Math.min(64, s.length + 1))
-                                }))} 
+                                onClick={() => setSongStructure(s => {
+                                    const newLength = Math.min(64, s.length + 1);
+                                    const newSteps = newLength > s.steps.length 
+                                        ? [...s.steps, { patternIndex: 0 }]
+                                        : s.steps;
+                                    return { ...s, length: newLength, steps: newSteps };
+                                })} 
                                 className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800"
                             >
                                 +
