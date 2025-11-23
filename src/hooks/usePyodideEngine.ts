@@ -206,7 +206,10 @@ def generate_hat(pitch_cutoff, decay, volume):
         setTimeout(() => setPyodideStatus(''), 2000); // Clear status after 2s
       } catch (e) {
         console.error("Failed to load Pyodide:", e);
-        setPyodideStatus('Python Engine Failed to Load.');
+        setPyodideStatus('Python Engine Failed to Load (Simulating Mode).');
+        // Fallback: Allow UI to be interactive even if engine fails (e.g. offline dev)
+        // We set ready to true so the UI exits loading state.
+        setIsPyodideReady(true);
       }
     };
 
