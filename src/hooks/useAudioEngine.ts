@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'; // <-- 1. IMPORT useEffect
-import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, PartSequence } from '../types';
+import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 
 export const useAudioEngine = (pyodide: any) => {
@@ -231,6 +231,56 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
             console.error(`Pyodide drum error (${sound}):`, e);
         }
     };
+
+    const loadSampleToEngine = (name: string, buffer: AudioBuffer) => {
+        if (!pyodideRef.current) return;
+
+        // Convert AudioBuffer to float array (mono)
+        const channelData = buffer.getChannelData(0); // Use first channel
+
+        // Pass to Python
+        try {
+           pyodideRef.current.globals.get('load_sample')(name, Array.from(channelData));
+        } catch(e) {
+            console.error("Error sending sample to Python:", e);
+        }
+    };
+
+    const playSampler = (params: SamplerParams, note: string, time: number) => {
+        if (!pyodideRef.current) return;
+
+        try {
+             // Calculate pitch ratio relative to C4 (Middle C)
+             // If note is C4, ratio is 1.0.
+             // If note is C5, ratio is 2.0 (faster).
+             // If note is C3, ratio is 0.5 (slower).
+             const baseFreq = noteToFrequency('C4');
+             const targetFreq = noteToFrequency(note);
+             const ratio = targetFreq / baseFreq * params.playbackSpeed;
+
+             const pyProxy = pyodideRef.current.globals.get('generate_sampler')(
+                 params.sampleName,
+                 ratio,
+                 params.volume
+             );
+
+             const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+             pyProxy.destroy();
+
+             if (audioSamples.length === 0) return;
+
+             const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+             buffer.getChannelData(0).set(audioSamples);
+
+             const source = context.createBufferSource();
+             source.buffer = buffer;
+             source.connect(context.destination);
+             source.start(time);
+        } catch(e) {
+            console.error("Pyodide sampler error:", e);
+        }
+    };
+
     const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {
         return new Promise((resolve, reject) => {
             if (rendererWorkerRef.current) {
@@ -316,7 +366,7 @@ const playSynth = (params: SynthParams, note: string, time: number, destination:
         }
     };
 
-    audioEngineRef.current = { context, playSynth, playDrum, renderSynthPartToBuffer, playBufferedPart, playAmbiance, stopAmbiance, setAmbianceVolume };
+    audioEngineRef.current = { context, playSynth, playDrum, playSampler, loadSampleToEngine, renderSynthPartToBuffer, playBufferedPart, playAmbiance, stopAmbiance, setAmbianceVolume };
     setIsReady(true);
   }, []);
 

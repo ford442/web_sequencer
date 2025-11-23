@@ -36,6 +36,12 @@ export interface HatParams {
   volume: number;
 }
 
+export interface SamplerParams {
+  sampleName: string; // The key used in Python SAMPLES dict
+  playbackSpeed: number; // 1.0 = normal
+  volume: number;
+}
+
 export interface AllDrumParams {
     kick: KickParams;
     snare: SnareParams;
@@ -59,6 +65,7 @@ export interface Pattern {
   snare: PartSequence;
   closedHat: PartSequence;
   openHat: PartSequence;
+  sampler: PartSequence;
 }
 
 export interface AmbianceTrack {
@@ -70,6 +77,8 @@ export interface AudioEngine {
   context: AudioContext;
   playSynth: (params: SynthParams, note: string, time: number, destination?: AudioNode) => void;
   playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
+  playSampler: (params: SamplerParams, note: string, time: number) => void;
+  loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
   renderSynthPartToBuffer: (params: SynthParams, sequence: PartSequence, tempo: number) => Promise<AudioBuffer>;
   playBufferedPart: (buffer: AudioBuffer, time: number) => void;
   playAmbiance: (url: string) => Promise<void>;

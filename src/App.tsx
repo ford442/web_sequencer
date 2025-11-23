@@ -6,6 +6,8 @@ import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
+import { LiveKeyboard } from './components/LiveKeyboard';
+import { SamplerPanel } from './components/SamplerPanel';
 import { getNoteColor } from './utils/noteColors';
 import {
     INITIAL_PATTERN,
@@ -17,11 +19,12 @@ import {
     DEFAULT_SNARE_PARAMS,
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
+    DEFAULT_SAMPLER_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, PartSequence } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence } from './types'
 
 // --- TYPES FOR STORAGE ---
-type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat';
+type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -33,6 +36,7 @@ type SongSnapshot = {
         snare: SnareParams;
         closedHat: any;
         openHat: any;
+        sampler: SamplerParams;
     }
 };
 
@@ -76,27 +80,46 @@ const SvgStep = memo(({
             {/* Outer Glow for Active Steps */}
             {active && <rect x={-4} y={-4} width={width+8} height={height+8} rx={6} fill={isCurrent ? "rgba(255, 255, 255, 0.3)" : color} fillOpacity={0.4} filter="blur(6px)" />}
 
-            {/* Main Button Body - Beveled Look */}
+            {/* --- 3D BEVEL BASE --- */}
+            {/* Shadow/Base Offset */}
+            <rect x={0} y={0} width={width} height={height} rx={3} fill="#050505" />
+
+            {/* Main Body Gradient Background */}
             <rect
-                x={0} y={0} width={width} height={height} rx={3}
-                fill={active ? '#0e2a1b' : '#080c10'}
-                stroke={isCurrent ? '#ffffff' : (active ? color : '#1e293b')}
-                strokeWidth={isCurrent ? 2 : (active ? 1.5 : 1)}
+                x={1} y={1} width={width-2} height={height-2} rx={2}
+                fill={active ? '#0d1f15' : '#14181c'}
+                strokeWidth={0}
             />
 
-            {/* Inner "Light" Area */}
+            {/* Top/Left Highlight (Bevel Light) */}
+            <path d={`M 2 2 L ${width-2} 2 L ${width-4} 4 L 4 4 L 4 ${height-4} L 2 ${height-2} Z`} fill="rgba(255,255,255,0.2)" />
+
+            {/* Bottom/Right Shadow (Bevel Dark) */}
+            <path d={`M ${width-2} 2 L ${width-2} ${height-2} L 2 ${height-2} L 4 ${height-4} L ${width-4} ${height-4} L ${width-4} 4 Z`} fill="rgba(0,0,0,0.5)" />
+
+            {/* Inner "Cap" / Surface */}
             <rect
-                x={4} y={4} width={width-8} height={height-18} rx={1}
-                fill={active ? color : '#0f1720'}
-                fillOpacity={active ? 0.8 : 1}
-                className="transition-colors duration-100"
+                x={4} y={4} width={width-8} height={height-8} rx={1}
+                fill={active ? color : '#1a2026'}
+                fillOpacity={active ? 0.6 : 1}
+                stroke={isCurrent ? '#ffffff' : (active ? color : 'none')}
+                strokeWidth={isCurrent ? 2 : (active ? 1 : 0)}
             />
 
-            {/* Bottom LED Strip */}
+            {/* Glassy Highlight on Cap */}
             <rect
-                x={6} y={height - 8} width={width - 12} height={4} rx={1}
-                fill={isCurrent ? '#ff3333' : (active ? color : '#1a2332')}
-                fillOpacity={isCurrent ? 1 : 0.5}
+                x={5} y={5} width={width-10} height={(height-10)/2} rx={1}
+                fill="url(#glassGrad)"
+                fillOpacity={0.3}
+                pointerEvents="none"
+            />
+
+            {/* Bottom LED / Status Light (Inside the cap) */}
+            <rect
+                x={8} y={height - 10} width={width - 16} height={3} rx={1}
+                fill={isCurrent ? '#ff3333' : (active ? '#ccffcc' : '#000')}
+                fillOpacity={isCurrent ? 1 : (active ? 0.8 : 0.2)}
+                filter={active || isCurrent ? "url(#glow)" : "none"}
             />
         </g>
     )
@@ -199,6 +222,7 @@ const ROWS = [
     { key: 'snare', label: 'Snare' },
     { key: 'closedHat', label: 'CH' },
     { key: 'openHat', label: 'OH' },
+    { key: 'sampler', label: 'SMP' },
 ] as const
 
 export const App: React.FC = () => {
@@ -212,6 +236,7 @@ export const App: React.FC = () => {
     const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
     const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
+    const [isRecording, setIsRecording] = useState(false)
     const [currentStep, setCurrentStep] = useState(-1)
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
@@ -253,11 +278,12 @@ export const App: React.FC = () => {
         snare: [null, null, null, null],
         closedHat: [null, null, null, null],
         openHat: [null, null, null, null],
+        sampler: [null, null, null, null],
     });
 
     // Active slot visual tracking
     const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
-        partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0
+        partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
     });
 
     // Global Song Storage (Slots A-D)
@@ -289,6 +315,10 @@ export const App: React.FC = () => {
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
     const updateOpenHat = (u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => { const n = { ...openHat, ...u }; setOpenHat(n); openHatRef.current = n; };
 
+    const [sampler, setSampler] = useState(DEFAULT_SAMPLER_PARAMS);
+    const samplerRef = useRef(DEFAULT_SAMPLER_PARAMS);
+    const updateSampler = (u: Partial<SamplerParams>) => { const n = { ...sampler, ...u }; setSampler(n); samplerRef.current = n; };
+
     // --- AUDIO LOOP ---
     const onStep = useCallback((step: number) => {
         if (!audioEngine) return
@@ -299,6 +329,7 @@ export const App: React.FC = () => {
         if (pattern.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
         if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
         else if (pattern.closedHat.steps[step]) audioEngine.playDrum('closedHat', closedHatRef.current, time)
+        if (pattern.sampler.steps[step]) audioEngine.playSampler(samplerRef.current, pattern.sampler.steps[step]!.note, time)
     }, [audioEngine, pattern])
 
     const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
@@ -326,11 +357,35 @@ export const App: React.FC = () => {
             const copy = JSON.parse(JSON.stringify(prev)) as Pattern
             const arr = copy[rowKey].steps
             // Default note per track type
-            const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C2';
+            const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
             arr[i] = arr[i] ? null : { note: defaultNote, velocity: 1 }
             return copy
         })
     }, [])
+
+    const handleKeyboardPlay = (note: string) => {
+        if (!audioEngine) return;
+        const time = audioEngine.context.currentTime;
+
+        // 1. Play Sound Immediately
+        if (selectedTrack === 'partA') audioEngine.playSynth(synthARef.current, note, time);
+        else if (selectedTrack === 'partB') audioEngine.playSynth(synthBRef.current, note, time);
+        else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time); // Fixed pitch for now or vary?
+        else if (selectedTrack === 'snare') audioEngine.playDrum('snare', snareRef.current, time);
+        else if (selectedTrack === 'closedHat') audioEngine.playDrum('closedHat', closedHatRef.current, time);
+        else if (selectedTrack === 'openHat') audioEngine.playDrum('openHat', openHatRef.current, time);
+        else if (selectedTrack === 'sampler') audioEngine.playSampler(samplerRef.current, note, time);
+
+        // 2. Record if enabled
+        if (isRecording && isPlaying && currentStep >= 0) {
+            // Quantize to current step
+            setPattern(prev => {
+                const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+                copy[selectedTrack].steps[currentStep] = { note, velocity: 1 };
+                return copy;
+            });
+        }
+    };
 
     const handleRightClickStep = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => {
         const stepData = pattern[track].steps[step];
@@ -362,6 +417,7 @@ export const App: React.FC = () => {
                  snare: { steps: Array(16).fill(null) },
                  closedHat: { steps: Array(16).fill(null) },
                  openHat: { steps: Array(16).fill(null) },
+                 sampler: { steps: Array(16).fill(null) },
              });
         }
     };
@@ -401,7 +457,7 @@ export const App: React.FC = () => {
         const snapshot: SongSnapshot = {
             pattern, tempo, ambianceUrl,
             params: {
-                synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat
+                synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler
             }
         };
         setSongStorage(prev => {
@@ -424,6 +480,7 @@ export const App: React.FC = () => {
         setSnare(snapshot.params.snare); snareRef.current = snapshot.params.snare;
         setClosedHat(snapshot.params.closedHat); closedHatRef.current = snapshot.params.closedHat;
         setOpenHat(snapshot.params.openHat); openHatRef.current = snapshot.params.openHat;
+        setSampler(snapshot.params.sampler); samplerRef.current = snapshot.params.sampler;
         setActiveSongSlot(slot);
     };
 
@@ -487,7 +544,7 @@ export const App: React.FC = () => {
 
     const handleClosedHatChange = (id: string, val: number) => updateClosedHat({ [id]: val });
     const handleOpenHatChange = (id: string, val: number) => updateOpenHat({ [id]: val });
-
+    const handleSamplerChange = (u: Partial<SamplerParams>) => updateSampler(u);
 
     const renderModulePanel = () => {
         if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
@@ -496,6 +553,7 @@ export const App: React.FC = () => {
         if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
         if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
         if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
+        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => {}}><SamplerPanel params={sampler} onChange={handleSamplerChange} onLoadSample={(n, b) => audioEngine?.loadSampleToEngine(n, b)} audioContext={audioEngine?.context!} /></HardwareModule>;
         return null;
     };
 
@@ -557,6 +615,19 @@ export const App: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* REC BUTTON */}
+                     <button
+                        onClick={() => setIsRecording(!isRecording)}
+                        className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${
+                            isRecording
+                            ? 'bg-red-600 text-white border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)] animate-pulse'
+                            : 'bg-gray-800 text-red-700 border border-gray-700 hover:bg-gray-700'
+                        }`}
+                        title="Enable Recording (Input notes from keyboard will be saved to pattern)"
+                    >
+                        REC
+                    </button>
+
                     <button
                         onClick={handlePlayToggle}
                         className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg ${
@@ -600,13 +671,10 @@ export const App: React.FC = () => {
                                 <stop offset="0%" stopColor="#0b1015" stopOpacity="1" />
                                 <stop offset="100%" stopColor="#0b1015" stopOpacity="0" />
                             </linearGradient>
-                            <filter id="glow">
-                                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-                                <feMerge>
-                                    <feMergeNode in="coloredBlur"/>
-                                    <feMergeNode in="SourceGraphic"/>
-                                </feMerge>
-                            </filter>
+                            <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="white" stopOpacity="0.5" />
+                                <stop offset="100%" stopColor="white" stopOpacity="0" />
+                            </linearGradient>
                         </defs>
 
                         <g transform="translate(100, 40)">
@@ -629,6 +697,19 @@ export const App: React.FC = () => {
                             ))}
                         </g>
                     </svg>
+                </div>
+
+                {/* --- LIVE KEYBOARD --- */}
+                <div className="shrink-0 pb-4">
+                     <LiveKeyboard
+                        onPlayNote={handleKeyboardPlay}
+                        activeTrackColor={
+                            selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') :
+                            selectedTrack === 'kick' ? '#f97316' :
+                            selectedTrack === 'snare' ? '#22c55e' :
+                            selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
+                        }
+                     />
                 </div>
             </main>
 
