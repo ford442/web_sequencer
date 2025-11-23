@@ -45,13 +45,6 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                         <stop offset="0%" stopColor="white" stopOpacity="0.3" />
                         <stop offset="100%" stopColor="white" stopOpacity="0" />
                     </linearGradient>
-                     <filter id="keyGlow">
-                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                        <feMerge>
-                            <feMergeNode in="coloredBlur"/>
-                            <feMergeNode in="SourceGraphic"/>
-                        </feMerge>
-                    </filter>
                 </defs>
 
                 {OCTAVES.map((octave, rowIndex) => (
@@ -127,7 +120,6 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                                          <rect
                                             x={6} y={keyHeight - 5} width={keyWidth - 12} height={2} rx={1}
                                             fill="#fff"
-                                            filter="url(#keyGlow)"
                                          />
                                     )}
                                 </g>
