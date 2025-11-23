@@ -4,8 +4,18 @@ import { describe, it, expect } from 'vitest';
 import App from '../App';
 
 describe('App', () => {
-  it('renders EA-WEB heading', () => {
+  it('renders ELECTRIBE heading', () => {
     render(<App />);
-    expect(screen.getByRole('heading', { name: /EA-WEB/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/ELECTRIBE/i);
+  });
+
+  it('renders song length control', () => {
+    render(<App />);
+    expect(screen.getByText(/Length/i)).toBeInTheDocument();
+  });
+
+  it('renders song step indicator', () => {
+    render(<App />);
+    expect(screen.getByText(/Song:/i)).toBeInTheDocument();
   });
 });

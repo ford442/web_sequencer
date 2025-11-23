@@ -16,7 +16,7 @@ import {
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, PartSequence } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, PartSequence, KnobAutomation, SongStructure } from './types'
 
 // --- TYPES FOR STORAGE ---
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat';
@@ -226,18 +226,40 @@ export const App: React.FC = () => {
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
     const updateOpenHat = (u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => { const n = { ...openHat, ...u }; setOpenHat(n); openHatRef.current = n; };
 
+    // --- SONG STRUCTURE & AUTOMATION ---
+    const [songStructure, setSongStructure] = useState<SongStructure>({
+        length: 16,
+        steps: Array(16).fill(null).map(() => ({ patternIndex: 0 })),
+        currentSongStep: 0
+    });
+    
+    const [automations, setAutomations] = useState<KnobAutomation[]>([]);
+    const automationsRef = useRef<KnobAutomation[]>([]);
+    
+    useEffect(() => {
+        automationsRef.current = automations;
+    }, [automations]);
 
     // --- AUDIO LOOP ---
     const onStep = useCallback((step: number) => {
         if (!audioEngine) return
         const time = audioEngine.context.currentTime
+        
+        // Advance song step every 16 steps (one full pattern)
+        if (step === 0 && isPlaying) {
+            setSongStructure(s => {
+                const nextStep = (s.currentSongStep + 1) % s.length;
+                return { ...s, currentSongStep: nextStep };
+            });
+        }
+        
         if (pattern.partA.steps[step]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time)
         if (pattern.partB.steps[step]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time)
         if (pattern.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
         if (pattern.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
         if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
         else if (pattern.closedHat.steps[step]) audioEngine.playDrum('closedHat', closedHatRef.current, time)
-    }, [audioEngine, pattern])
+    }, [audioEngine, pattern, isPlaying])
 
     const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
 
@@ -339,57 +361,105 @@ export const App: React.FC = () => {
         setActiveSongSlot(slot);
     };
 
-    // --- MODULE RENDER HELPERS (Unchanged but necessary for context) ---
-    // ... (Keeping your existing knob definitions from previous file for brevity, assumes they are here) ...
-    // Re-implementing simplistic versions for the response to be complete-ish
-    const getSynthControls = (params: SynthParams): KnobConfig[] => [
-         { id: 'pitch', label: 'TUNE', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48 },
-         { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.35, size: 0.12, value: params.filterCutoff / 8000 },
-         { id: 'filterResonance', label: 'RES', x: 0.55, y: 0.35, size: 0.08, value: params.filterResonance / 20 },
-         { id: 'attack', label: 'ATK', x: 0.75, y: 0.35, size: 0.08, value: params.attack },
-         { id: 'decay', label: 'DEC', x: 0.15, y: 0.75, size: 0.08, value: params.decay / 2 },
-         { id: 'delayMix', label: 'DLY MIX', x: 0.35, y: 0.75, size: 0.08, value: params.delayMix },
-         { id: 'delayTime', label: 'DLY TIME', x: 0.55, y: 0.75, size: 0.08, value: params.delayTime },
-         { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.55, size: 0.11, value: params.volume },
+    // --- AUTOMATION RECORDING ---
+    const recordAutomation = useCallback((trackKey: TrackKey, paramId: string, val: number) => {
+        const automation = automationsRef.current.find(a => a.trackKey === trackKey && a.paramId === paramId);
+        if (automation && automation.isRecording && isPlaying) {
+            // Only record if value changed or it's a new step (performance optimization)
+            const lastPoint = automation.points[automation.points.length - 1];
+            const shouldRecord = !lastPoint || 
+                                lastPoint.step !== songStructure.currentSongStep || 
+                                Math.abs(lastPoint.value - val) > 0.001;
+            
+            if (shouldRecord) {
+                setAutomations(prev => prev.map(a => 
+                    a.trackKey === trackKey && a.paramId === paramId
+                        ? { ...a, points: [...a.points, { step: songStructure.currentSongStep, value: val }] }
+                        : a
+                ));
+            }
+        }
+    }, [isPlaying, songStructure.currentSongStep]);
+
+    const handleRecordToggle = useCallback((trackKey: TrackKey, paramId: string) => {
+        setAutomations(prev => {
+            const existing = prev.find(a => a.trackKey === trackKey && a.paramId === paramId);
+            if (existing) {
+                // Toggle recording state
+                return prev.map(a => 
+                    a.trackKey === trackKey && a.paramId === paramId
+                        ? { ...a, isRecording: !a.isRecording }
+                        : a
+                );
+            } else {
+                // Create new automation
+                return [...prev, {
+                    paramId,
+                    trackKey,
+                    points: [],
+                    isRecording: true
+                }];
+            }
+        });
+    }, []);
+
+    const getKnobRecordingState = useCallback((trackKey: TrackKey, paramId: string): boolean => {
+        const automation = automations.find(a => a.trackKey === trackKey && a.paramId === paramId);
+        return automation?.isRecording ?? false;
+    }, [automations]);
+
+    // --- MODULE RENDER HELPERS ---
+    const getSynthControls = (params: SynthParams, trackKey: TrackKey): KnobConfig[] => [
+         { id: 'pitch', label: 'TUNE', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48, isRecording: getKnobRecordingState(trackKey, 'pitch') },
+         { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.35, size: 0.12, value: params.filterCutoff / 8000, isRecording: getKnobRecordingState(trackKey, 'filterCutoff') },
+         { id: 'filterResonance', label: 'RES', x: 0.55, y: 0.35, size: 0.08, value: params.filterResonance / 20, isRecording: getKnobRecordingState(trackKey, 'filterResonance') },
+         { id: 'attack', label: 'ATK', x: 0.75, y: 0.35, size: 0.08, value: params.attack, isRecording: getKnobRecordingState(trackKey, 'attack') },
+         { id: 'decay', label: 'DEC', x: 0.15, y: 0.75, size: 0.08, value: params.decay / 2, isRecording: getKnobRecordingState(trackKey, 'decay') },
+         { id: 'delayMix', label: 'DLY MIX', x: 0.35, y: 0.75, size: 0.08, value: params.delayMix, isRecording: getKnobRecordingState(trackKey, 'delayMix') },
+         { id: 'delayTime', label: 'DLY TIME', x: 0.55, y: 0.75, size: 0.08, value: params.delayTime, isRecording: getKnobRecordingState(trackKey, 'delayTime') },
+         { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.55, size: 0.11, value: params.volume, isRecording: getKnobRecordingState(trackKey, 'volume') },
     ];
     const getKickControls = (params: KickParams): KnobConfig[] => [
-        { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
-        { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+        { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130, isRecording: getKnobRecordingState('kick', 'pitch') },
+        { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay, isRecording: getKnobRecordingState('kick', 'decay') },
+        { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone, isRecording: getKnobRecordingState('kick', 'tone') },
+        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, isRecording: getKnobRecordingState('kick', 'volume') },
     ];
     const getSnareControls = (params: SnareParams): KnobConfig[] => [
-        { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300 },
-        { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000 },
-        { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+        { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300, isRecording: getKnobRecordingState('snare', 'tone') },
+        { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000, isRecording: getKnobRecordingState('snare', 'noise') },
+        { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2, isRecording: getKnobRecordingState('snare', 'decay') },
+        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, isRecording: getKnobRecordingState('snare', 'volume') },
     ];
     const getClosedHatControls = (params: any): KnobConfig[] => [
-        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay, isRecording: getKnobRecordingState('closedHat', 'decay') },
+        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000, isRecording: getKnobRecordingState('closedHat', 'pitch') },
+        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, isRecording: getKnobRecordingState('closedHat', 'volume') },
     ];
     const getOpenHatControls = (params: any): KnobConfig[] => [
-        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay, isRecording: getKnobRecordingState('openHat', 'decay') },
+        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000, isRecording: getKnobRecordingState('openHat', 'pitch') },
+        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, isRecording: getKnobRecordingState('openHat', 'volume') },
     ];
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => {
         const updater = isA ? updateSynthA : updateSynthB;
+        const trackKey = isA ? 'partA' : 'partB';
         let realVal = val;
         if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
         else if (id === 'filterCutoff') realVal = val * 8000;
         else if (id === 'filterResonance') realVal = val * 20;
         else if (id === 'decay') realVal = val * 2;
         updater({ [id]: realVal });
-    }, []);
+        recordAutomation(trackKey, id, val);
+    }, [updateSynthA, updateSynthB, recordAutomation]);
 
     const handleKickChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'pitch') realVal = val * 130 + 20;
         updateKick({ [id]: realVal });
-    }, []);
+        recordAutomation('kick', id, val);
+    }, [recordAutomation]);
 
     const handleSnareChange = useCallback((id: string, val: number) => {
         let realVal = val;
@@ -397,19 +467,26 @@ export const App: React.FC = () => {
         else if (id === 'noise') realVal = val * 7000 + 1000;
         else if (id === 'decay') realVal = val * 0.5;
         updateSnare({ [id]: realVal });
-    }, []);
+        recordAutomation('snare', id, val);
+    }, [recordAutomation]);
 
-    const handleClosedHatChange = useCallback((id: string, val: number) => updateClosedHat({ [id]: val }), []);
-    const handleOpenHatChange = useCallback((id: string, val: number) => updateOpenHat({ [id]: val }), []);
-
+    const handleClosedHatChange = useCallback((id: string, val: number) => {
+        updateClosedHat({ [id]: val });
+        recordAutomation('closedHat', id, val);
+    }, [recordAutomation]);
+    
+    const handleOpenHatChange = useCallback((id: string, val: number) => {
+        updateOpenHat({ [id]: val });
+        recordAutomation('openHat', id, val);
+    }, [recordAutomation]);
 
     // Memoize controls for each module to prevent unnecessary re-renders
-    const synthAControls = useMemo(() => getSynthControls(synthA), [synthA]);
-    const synthBControls = useMemo(() => getSynthControls(synthB), [synthB]);
-    const kickControls = useMemo(() => getKickControls(kick), [kick]);
-    const snareControls = useMemo(() => getSnareControls(snare), [snare]);
-    const closedHatControls = useMemo(() => getClosedHatControls(closedHat), [closedHat]);
-    const openHatControls = useMemo(() => getOpenHatControls(openHat), [openHat]);
+    const synthAControls = useMemo(() => getSynthControls(synthA, 'partA'), [synthA, getKnobRecordingState]);
+    const synthBControls = useMemo(() => getSynthControls(synthB, 'partB'), [synthB, getKnobRecordingState]);
+    const kickControls = useMemo(() => getKickControls(kick), [kick, getKnobRecordingState]);
+    const snareControls = useMemo(() => getSnareControls(snare), [snare, getKnobRecordingState]);
+    const closedHatControls = useMemo(() => getClosedHatControls(closedHat), [closedHat, getKnobRecordingState]);
+    const openHatControls = useMemo(() => getOpenHatControls(openHat), [openHat, getKnobRecordingState]);
 
     const handleSynthAChange = useCallback((id: string, val: number) => {
         handleSynthChange(true, id, val);
@@ -420,14 +497,14 @@ export const App: React.FC = () => {
     }, [handleSynthChange]);
 
     const renderModulePanel = useMemo(() => {
-        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={synthAControls} onParamChange={handleSynthAChange}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
-        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={synthBControls} onParamChange={handleSynthBChange}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
-        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={kickControls} onParamChange={handleKickChange} />;
-        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={snareControls} onParamChange={handleSnareChange} />;
-        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={closedHatControls} onParamChange={handleClosedHatChange} />;
-        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={openHatControls} onParamChange={handleOpenHatChange} />;
+        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={synthAControls} onParamChange={handleSynthAChange} onRecordToggle={(id) => handleRecordToggle('partA', id)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
+        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={synthBControls} onParamChange={handleSynthBChange} onRecordToggle={(id) => handleRecordToggle('partB', id)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
+        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={kickControls} onParamChange={handleKickChange} onRecordToggle={(id) => handleRecordToggle('kick', id)} />;
+        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={snareControls} onParamChange={handleSnareChange} onRecordToggle={(id) => handleRecordToggle('snare', id)} />;
+        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={closedHatControls} onParamChange={handleClosedHatChange} onRecordToggle={(id) => handleRecordToggle('closedHat', id)} />;
+        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={openHatControls} onParamChange={handleOpenHatChange} onRecordToggle={(id) => handleRecordToggle('openHat', id)} />;
         return null;
-    }, [selectedTrack, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, handleSynthAChange, handleSynthBChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, synthA.waveform, synthB.waveform]);
+    }, [selectedTrack, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, handleSynthAChange, handleSynthBChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleRecordToggle, synthA.waveform, synthB.waveform]);
 
     return (
         <div className="flex flex-col h-screen w-screen bg-[#080a0b] text-gray-200 overflow-hidden font-sans">
@@ -463,6 +540,32 @@ export const App: React.FC = () => {
                     <button onClick={handleClearPattern} className="text-xs text-red-400 hover:text-red-300 border border-red-900 bg-red-900/20 px-2 py-1 rounded">
                         CLEAR
                     </button>
+
+                    {/* Song Length Control */}
+                    <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Length</span>
+                        <div className="flex items-center">
+                            <button 
+                                onClick={() => setSongStructure(s => ({ ...s, length: Math.max(1, s.length - 1) }))} 
+                                className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800"
+                            >
+                                -
+                            </button>
+                            <span className="w-10 text-center font-mono text-cyan-300 text-xs">{songStructure.length}</span>
+                            <button 
+                                onClick={() => setSongStructure(s => {
+                                    const newLength = Math.min(64, s.length + 1);
+                                    const newSteps = newLength > s.steps.length 
+                                        ? [...s.steps, { patternIndex: 0 }]
+                                        : s.steps;
+                                    return { ...s, length: newLength, steps: newSteps };
+                                })} 
+                                className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800"
+                            >
+                                +
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* RIGHT: Transport & Master Volume */}
@@ -497,6 +600,28 @@ export const App: React.FC = () => {
 
             {/* --- SEQUENCER --- */}
             <main className="flex-1 relative bg-[#08140a] shadow-inner flex flex-col justify-start pt-4">
+                {/* Song Step Indicator */}
+                <div className="w-full max-w-4xl mx-auto mb-2 px-4">
+                    <div className="flex items-center gap-1 bg-gray-900/50 p-2 rounded border border-gray-800">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase mr-2">Song:</span>
+                        <div className="flex gap-1 overflow-x-auto">
+                            {Array.from({ length: songStructure.length }).map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => setSongStructure(s => ({ ...s, currentSongStep: idx }))}
+                                    className={`min-w-[24px] h-6 text-[10px] font-mono rounded transition-all ${
+                                        songStructure.currentSongStep === idx 
+                                            ? 'bg-cyan-500 text-black font-bold' 
+                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                    }`}
+                                    title={`Song step ${idx + 1} - Pattern ${songStructure.steps[idx]?.patternIndex + 1 || 1}`}
+                                >
+                                    {songStructure.steps[idx]?.patternIndex + 1 || 1}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
                 <div className="w-full max-w-4xl mx-auto h-[420px] overflow-hidden">
                     <svg viewBox="0 0 900 400" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
                         <g transform="translate(100, 30)">
