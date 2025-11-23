@@ -5,6 +5,8 @@ import { useScheduler } from './hooks/useScheduler'
 import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
+import { NoteSelector } from './components/NoteSelector';
+import { getNoteColor } from './utils/noteColors';
 import {
     INITIAL_PATTERN,
     NUM_STEPS,
@@ -39,15 +41,19 @@ type SongSnapshot = {
 const SvgStep = memo(({
                           stepIndex,
                           active,
+                          note,
                           isCurrent,
                           rowLabel,
-                          onClick
+                          onClick,
+                          onContextMenu
                       }: {
     stepIndex: number,
     active: boolean,
+    note?: string | null,
     isCurrent: boolean,
     rowLabel: string,
-    onClick: () => void
+    onClick: () => void,
+    onContextMenu: (e: React.MouseEvent) => void
 }) => {
     // VISUAL: Hardware style buttons
     const width = 34;
@@ -55,29 +61,33 @@ const SvgStep = memo(({
     const gap = 6;
     const x = 140 + stepIndex * (width + gap); // Offset for Track Controls
 
+    // Determine color based on note or default cyan
+    const color = note ? getNoteColor(note) : '#06b6d4';
+
     return (
         <g transform={`translate(${x}, 0)`}
            role="button"
            aria-label={`${rowLabel} step ${stepIndex+1}`}
            onClick={() => onClick()}
+           onContextMenu={(e) => { e.preventDefault(); onContextMenu(e as any); }}
            cursor="pointer"
            style={{ transition: 'all 0.1s ease' }}
         >
             {/* Outer Glow for Active Steps */}
-            {active && <rect x={-4} y={-4} width={width+8} height={height+8} rx={6} fill={isCurrent ? "rgba(255, 255, 255, 0.3)" : "rgba(6, 182, 212, 0.2)"} filter="blur(6px)" />}
+            {active && <rect x={-4} y={-4} width={width+8} height={height+8} rx={6} fill={isCurrent ? "rgba(255, 255, 255, 0.3)" : color} fillOpacity={0.4} filter="blur(6px)" />}
 
             {/* Main Button Body - Beveled Look */}
             <rect
                 x={0} y={0} width={width} height={height} rx={3}
                 fill={active ? '#0e2a1b' : '#080c10'}
-                stroke={isCurrent ? '#ffffff' : (active ? '#06b6d4' : '#1e293b')}
+                stroke={isCurrent ? '#ffffff' : (active ? color : '#1e293b')}
                 strokeWidth={isCurrent ? 2 : (active ? 1.5 : 1)}
             />
 
             {/* Inner "Light" Area */}
             <rect
                 x={4} y={4} width={width-8} height={height-18} rx={1}
-                fill={active ? '#06b6d4' : '#0f1720'}
+                fill={active ? color : '#0f1720'}
                 fillOpacity={active ? 0.8 : 1}
                 className="transition-colors duration-100"
             />
@@ -85,7 +95,8 @@ const SvgStep = memo(({
             {/* Bottom LED Strip */}
             <rect
                 x={6} y={height - 8} width={width - 12} height={4} rx={1}
-                fill={isCurrent ? '#ff3333' : (active ? '#a5f3fc' : '#1a2332')}
+                fill={isCurrent ? '#ff3333' : (active ? color : '#1a2332')}
+                fillOpacity={isCurrent ? 1 : 0.5}
             />
         </g>
     )
@@ -116,6 +127,7 @@ const SequencerRow = memo(({
                                activeSlot,
                                slotsData,
                                onToggle,
+                               onRightClickStep,
                                onSelectRow,
                                onSelectSlot
                            }: {
@@ -128,6 +140,7 @@ const SequencerRow = memo(({
     activeSlot: number,
     slotsData: boolean[],
     onToggle: (k: any, i: number) => void,
+    onRightClickStep: (k: TrackKey, i: number, e: any) => void,
     onSelectRow: (k: any) => void,
     onSelectSlot: (k: TrackKey, slot: number) => void
 }) => {
@@ -168,9 +181,11 @@ const SequencerRow = memo(({
                     key={i}
                     stepIndex={i}
                     active={!!stepData}
+                    note={stepData ? stepData.note : null}
                     isCurrent={currentStep === i}
                     rowLabel={label}
                     onClick={() => onToggle(rowKey, i)}
+                    onContextMenu={(e) => onRightClickStep(rowKey, i, e)}
                 />
             ))}
         </g>
@@ -201,6 +216,9 @@ export const App: React.FC = () => {
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
+
+    // --- CONTEXT MENU STATE ---
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
 
     // --- ANIMATION LOOP FOR LOADING ---
     const [loadingTick, setLoadingTick] = useState(0);
@@ -313,6 +331,27 @@ export const App: React.FC = () => {
             return copy
         })
     }, [])
+
+    const handleRightClickStep = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => {
+        const stepData = pattern[track].steps[step];
+        // Only show menu if step is active
+        if (stepData) {
+            setContextMenu({ x: e.clientX, y: e.clientY, track, step });
+        }
+    }, [pattern]);
+
+    const handleNoteSelect = (note: string) => {
+        if (!contextMenu) return;
+        setPattern(prev => {
+            const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+            const stepData = copy[contextMenu.track].steps[contextMenu.step];
+            if (stepData) {
+                stepData.note = note;
+            }
+            return copy;
+        });
+        setContextMenu(null);
+    };
 
     const handleClearPattern = () => {
         if(window.confirm("Clear current pattern?")) {
@@ -533,6 +572,19 @@ export const App: React.FC = () => {
 
             {/* --- SEQUENCER --- */}
             <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 pb-4">
+
+                {contextMenu && (
+                    <NoteSelector
+                        x={contextMenu.x}
+                        y={contextMenu.y}
+                        trackType={contextMenu.track.startsWith('part') ? 'synth' : 'drum'}
+                        currentNote={pattern[contextMenu.track].steps[contextMenu.step]?.note || ''}
+                        onSelect={handleNoteSelect}
+                        onClose={() => setContextMenu(null)}
+                        getNoteColor={getNoteColor}
+                    />
+                )}
+
                 {/* Sequencer Container with Hardware finish */}
                 <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
 
@@ -570,6 +622,7 @@ export const App: React.FC = () => {
                                     activeSlot={activeTrackSlots[row.key]}
                                     slotsData={trackStorage[row.key].map(s => s !== null)}
                                     onToggle={toggleStep}
+                                    onRightClickStep={handleRightClickStep}
                                     onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
                                     onSelectSlot={handleTrackSlotClick}
                                 />
