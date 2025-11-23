@@ -9,13 +9,13 @@ describe('App', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/ELECTRIBE/i);
   });
 
-  it('renders song length control', () => {
+  it('renders volume control', () => {
     render(<App />);
-    expect(screen.getByText(/Length/i)).toBeInTheDocument();
+    expect(screen.getByText(/Vol/i)).toBeInTheDocument();
   });
 
   it('renders song step indicator', () => {
     render(<App />);
-    expect(screen.getByText(/Song:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Song/i)).toBeInTheDocument();
   });
 });
