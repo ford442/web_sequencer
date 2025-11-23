@@ -1,5 +1,4 @@
-import React, { useState, useRef } from 'react';
-import { getNoteColor } from '../utils/noteColors';
+import React, { useState } from 'react';
 
 interface LiveKeyboardProps {
     onPlayNote: (note: string) => void;
