@@ -164,6 +164,56 @@ def generate_hat(pitch_cutoff, decay, volume):
     hat = (filtered_noise * env * volume).astype(np.float64)
     return hat
 
+# --- NEW: Sampler Functions ---
+
+SAMPLES = {}
+
+def load_sample(name, data):
+    """
+    Loads a float32 array into the global samples dict.
+    Data is expected to be already at SAMPLE_RATE.
+    """
+    try:
+        # Convert JS Proxy/List to Numpy array
+        SAMPLES[name] = np.array(data, dtype=np.float64)
+        print(f"Sample '{name}' loaded. Length: {len(SAMPLES[name])}")
+    except Exception as e:
+        print(f"Error loading sample {name}: {e}")
+
+def generate_sampler(name, pitch_ratio, volume):
+    """
+    Resamples the stored sample to a new pitch.
+    - name: key in SAMPLES
+    - pitch_ratio: 1.0 = original speed, 2.0 = octave up (half duration)
+    - volume: gain
+    """
+    if name not in SAMPLES:
+        print(f"Sample {name} not found")
+        return np.zeros(128, dtype=np.float64) # Return silence
+
+    original = SAMPLES[name]
+    orig_len = len(original)
+
+    # Calculate new length
+    # Higher pitch = faster playback = shorter length
+    new_len = int(orig_len / pitch_ratio)
+
+    if new_len < 1:
+        return np.zeros(128, dtype=np.float64)
+
+    # Interpolation
+    # We want to map [0 ... new_len-1] to [0 ... orig_len-1]
+    x_new = np.linspace(0, orig_len - 1, new_len)
+    x_original = np.arange(orig_len)
+
+    # Linear interpolation is fast and sounds "okay"
+    resampled = np.interp(x_new, x_original, original)
+
+    # Apply volume
+    final_wave = resampled * volume
+
+    return final_wave.astype(np.float64)
+
 `;
 
   // Helper function to dynamically load the Pyodide script

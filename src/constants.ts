@@ -33,7 +33,10 @@ export const DEFAULT_SYNTH_PARAMS_B: SynthParams = {
 export const DEFAULT_KICK_PARAMS: KickParams = { pitch: 60, decay: 0.4, tone: 0.9, volume: 1 };
 export const DEFAULT_SNARE_PARAMS: SnareParams = { decay: 0.2, tone: 150, noise: 5000, volume: 0.8 };
 export const DEFAULT_CLOSED_HAT_PARAMS: HatParams = { pitch: 9000, decay: 0.05, volume: 0.4 };
+import type { SamplerParams } from './types';
+
 export const DEFAULT_OPEN_HAT_PARAMS: HatParams = { pitch: 7000, decay: 0.4, volume: 0.4 };
+export const DEFAULT_SAMPLER_PARAMS: SamplerParams = { sampleName: 'default', playbackSpeed: 1.0, volume: 0.8 };
 
 export const INITIAL_PATTERN: Pattern = {
   partA: {
@@ -83,6 +86,9 @@ export const INITIAL_PATTERN: Pattern = {
       null, null, { note: 'C2', velocity: 0.8 }, null,
       null, null, null, null,
     ]
+  },
+  sampler: {
+    steps: Array(16).fill(null)
   }
 };
 
