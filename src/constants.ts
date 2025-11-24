@@ -1,4 +1,3 @@
-
 import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, AmbianceTrack } from './types';
 import type { SamplerParams } from './types';
 
@@ -43,8 +42,6 @@ export const DEFAULT_CLOSED_HAT_PARAMS: HatParams = { pitch: 9000, decay: 0.05, 
 
 export const DEFAULT_OPEN_HAT_PARAMS: HatParams = { pitch: 7000, decay: 0.4, volume: 0.4 };
 export const DEFAULT_SAMPLER_PARAMS: SamplerParams = { sampleName: 'default', playbackSpeed: 1.0, volume: 0.8 };
-
-const emptyPattern = Array(NUM_STEPS).fill(null);
 
 export const INITIAL_PATTERN: Pattern = {
   partA: {
