@@ -90,6 +90,8 @@ export interface AudioEngine {
   playAmbiance: (url: string) => Promise<void>;
   stopAmbiance: () => void;
   setAmbianceVolume: (volume: number) => void;
+  setMasterVolume: (volume: number) => void;
+  setMasterPan: (pan: number) => void;
 }
 
 // Automation recording types
