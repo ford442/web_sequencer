@@ -47,13 +47,32 @@ export const useAudioEngine = (pyodide: any) => {
 const playSynth = async (params: SynthParams, note: string, time: number, destination: AudioNode = context.destination) => {
   const isPyodideWave = params.waveform.startsWith('pyodide-');
   const isWgslWave = params.waveform.startsWith('wgsl-');
-  const noteDuration = params.attack + params.decay;
+
+  // ADSR Logic
+  const gateTime = params.length || 0.25; // Gate time
+  const totalDuration = gateTime + params.release; // When to stop sound completely
 
   // --- Gain Envelope (used by both) ---
   const gain = context.createGain();
   gain.gain.setValueAtTime(0, time);
+
+  // Attack
   gain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
-  gain.gain.linearRampToValueAtTime(0, time + noteDuration);
+
+  // Decay to Sustain
+  const sustainLevel = params.volume * params.sustain;
+  // If Attack + Decay is shorter than Gate, we decay to sustain.
+  // If not, we might cut it short, but standard behavior is usually to just finish decay or interrupt.
+  // We'll assume decay completes before gate normally, but if not:
+  // We want to reach Sustain Level at (time + attack + decay).
+  gain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
+
+  // Sustain holds until 'gateTime' (time + length)
+  gain.gain.setValueAtTime(sustainLevel, time + gateTime);
+
+  // Release
+  gain.gain.linearRampToValueAtTime(0, time + gateTime + params.release);
+
 
   // --- Delay (used by both) ---
   let outputNode: AudioNode = destination;
@@ -98,7 +117,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
         // Generate Buffer
         const rawData = await gpuEngineRef.current.generate(
             freqWithPitch,
-            noteDuration + 0.1,
+            totalDuration + 0.1,
             context.sampleRate,
             type
         );
@@ -141,7 +160,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
       // 3. Call Python!
       let pyProxy = pyodideRef.current.globals.get('generate_wave')( // <-- Use ref
           freqWithPitch,
-          noteDuration, // Use AD envelope duration
+          totalDuration, // Use total duration (Gate + Release)
           pyOscType,
           params.filterCutoff,
           params.filterResonance
@@ -166,7 +185,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
       // 7. Connect to the envelope and schedule playback
       source.connect(outputNode); // Connect to our 'gain' node
       source.start(time);
-      source.stop(time + noteDuration + 0.05); // Stop buffer playback
+      source.stop(time + totalDuration + 0.05); // Stop buffer playback
       
     } catch (e) {
         console.error("Pyodide synth error:", e);
@@ -203,7 +222,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
     filter.connect(outputNode);
 
     osc.start(time);
-    osc.stop(time + noteDuration + 0.05);
+    osc.stop(time + totalDuration + 0.05);
   }
 };
 

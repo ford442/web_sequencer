@@ -1,7 +1,8 @@
 
 import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, AmbianceTrack } from './types';
+import type { SamplerParams } from './types';
 
-export const NUM_STEPS = 16;
+export const NUM_STEPS = 32;
 export const DEFAULT_TEMPO = 120;
 
 export const DEFAULT_SYNTH_PARAMS_A: SynthParams = {
@@ -11,6 +12,9 @@ export const DEFAULT_SYNTH_PARAMS_A: SynthParams = {
   filterResonance: 5,
   attack: 0.01,
   decay: 0.2,
+  sustain: 0.5,
+  release: 0.1,
+  length: 0.25,
   volume: 0.5,
   delayTime: 0.3,
   delayFeedback: 0.4,
@@ -24,6 +28,9 @@ export const DEFAULT_SYNTH_PARAMS_B: SynthParams = {
   filterResonance: 8,
   attack: 0.02,
   decay: 0.3,
+  sustain: 0.4,
+  release: 0.1,
+  length: 0.25,
   volume: 0.4,
   delayTime: 0.0,
   delayFeedback: 0.0,
@@ -33,10 +40,11 @@ export const DEFAULT_SYNTH_PARAMS_B: SynthParams = {
 export const DEFAULT_KICK_PARAMS: KickParams = { pitch: 60, decay: 0.4, tone: 0.9, volume: 1 };
 export const DEFAULT_SNARE_PARAMS: SnareParams = { decay: 0.2, tone: 150, noise: 5000, volume: 0.8 };
 export const DEFAULT_CLOSED_HAT_PARAMS: HatParams = { pitch: 9000, decay: 0.05, volume: 0.4 };
-import type { SamplerParams } from './types';
 
 export const DEFAULT_OPEN_HAT_PARAMS: HatParams = { pitch: 7000, decay: 0.4, volume: 0.4 };
 export const DEFAULT_SAMPLER_PARAMS: SamplerParams = { sampleName: 'default', playbackSpeed: 1.0, volume: 0.8 };
+
+const emptyPattern = Array(NUM_STEPS).fill(null);
 
 export const INITIAL_PATTERN: Pattern = {
   partA: {
@@ -45,6 +53,7 @@ export const INITIAL_PATTERN: Pattern = {
       { note: 'E4', velocity: 1 }, null, null, null,
       { note: 'G4', velocity: 1 }, null, null, null,
       { note: 'E4', velocity: 1 }, null, null, null,
+      ...Array(16).fill(null)
     ],
   },
   partB: {
@@ -53,6 +62,7 @@ export const INITIAL_PATTERN: Pattern = {
       null, null, { note: 'C3', velocity: 0.8 }, null,
       null, null, { note: 'D3', velocity: 0.8 }, null,
       null, null, { note: 'C3', velocity: 0.8 }, null,
+      ...Array(16).fill(null)
     ],
   },
   kick: {
@@ -61,6 +71,7 @@ export const INITIAL_PATTERN: Pattern = {
       { note: 'C2', velocity: 1 }, null, null, null,
       { note: 'C2', velocity: 1 }, null, null, null, 
       { note: 'C2', velocity: 1 }, null, null, null,
+      ...Array(16).fill(null)
     ]
   },
   snare: {
@@ -69,6 +80,7 @@ export const INITIAL_PATTERN: Pattern = {
       { note: 'C2', velocity: 1 }, null, null, null,
       null, null, null, null, 
       { note: 'C2', velocity: 1 }, null, null, null,
+      ...Array(16).fill(null)
     ]
   },
   closedHat: {
@@ -77,6 +89,7 @@ export const INITIAL_PATTERN: Pattern = {
       { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 },
       { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 },
       { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 },
+      ...Array(16).fill(null)
     ]
   },
   openHat: {
@@ -85,10 +98,11 @@ export const INITIAL_PATTERN: Pattern = {
       null, null, null, null,
       null, null, { note: 'C2', velocity: 0.8 }, null,
       null, null, null, null,
+      ...Array(16).fill(null)
     ]
   },
   sampler: {
-    steps: Array(16).fill(null)
+    steps: Array(NUM_STEPS).fill(null)
   }
 };
 
