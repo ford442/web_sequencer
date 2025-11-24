@@ -11,6 +11,9 @@ export interface SynthParams {
   filterResonance: number; // Q factor
   attack: number; // seconds
   decay: number; // seconds
+  sustain: number; // 0-1 (level)
+  release: number; // seconds
+  length: number; // seconds (gate time)
   volume: number; // 0-1
   delayTime: number; // seconds
   delayFeedback: number; // 0-1

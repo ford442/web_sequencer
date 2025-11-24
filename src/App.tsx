@@ -59,10 +59,10 @@ const SvgStep = memo(({
     onClick: () => void,
     onContextMenu: (e: React.MouseEvent) => void
 }) => {
-    // VISUAL: Hardware style buttons
-    const width = 34;
+    // VISUAL: Hardware style buttons (Smaller for 32 steps)
+    const width = 18;
     const height = 50;
-    const gap = 6;
+    const gap = 4;
     const x = 140 + stepIndex * (width + gap); // Offset for Track Controls
 
     // Determine color based on note or default cyan
@@ -99,7 +99,7 @@ const SvgStep = memo(({
 
             {/* Inner "Cap" / Surface */}
             <rect
-                x={4} y={4} width={width-8} height={height-8} rx={1}
+                x={3} y={4} width={width-6} height={height-8} rx={1}
                 fill={active ? color : '#1a2026'}
                 fillOpacity={active ? 0.6 : 1}
                 stroke={isCurrent ? '#ffffff' : (active ? color : 'none')}
@@ -108,7 +108,7 @@ const SvgStep = memo(({
 
             {/* Glassy Highlight on Cap */}
             <rect
-                x={5} y={5} width={width-10} height={(height-10)/2} rx={1}
+                x={4} y={5} width={width-8} height={(height-10)/2} rx={1}
                 fill="url(#glassGrad)"
                 fillOpacity={0.3}
                 pointerEvents="none"
@@ -116,7 +116,7 @@ const SvgStep = memo(({
 
             {/* Bottom LED / Status Light (Inside the cap) */}
             <rect
-                x={8} y={height - 10} width={width - 16} height={3} rx={1}
+                x={5} y={height - 10} width={width - 10} height={3} rx={1}
                 fill={isCurrent ? '#ff3333' : (active ? '#ccffcc' : '#000')}
                 fillOpacity={isCurrent ? 1 : (active ? 0.8 : 0.2)}
                 filter={active || isCurrent ? "url(#glow)" : "none"}
@@ -256,7 +256,7 @@ export const App: React.FC = () => {
     }, [isPyodideReady]);
 
     const getLoadingStepData = (rIdx: number) => {
-         return Array(16).fill(null).map((_, i) => {
+         return Array(32).fill(null).map((_, i) => {
              // Specific Geometric Pattern: "Digital Scanner" + Diagonal
              // 1. Diagonal sweep
              const diag = (i + rIdx + loadingTick) % 8 === 0;
@@ -486,14 +486,24 @@ export const App: React.FC = () => {
 
     // --- MODULE RENDER HELPERS ---
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
-         { id: 'pitch', label: 'TUNE', x: 0.15, y: 0.35, size: 0.10, value: (params.pitch + 24) / 48 },
-         { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.35, size: 0.12, value: params.filterCutoff / 8000 },
-         { id: 'filterResonance', label: 'RES', x: 0.55, y: 0.35, size: 0.08, value: params.filterResonance / 20 },
-         { id: 'attack', label: 'ATK', x: 0.75, y: 0.35, size: 0.08, value: params.attack },
-         { id: 'decay', label: 'DEC', x: 0.15, y: 0.75, size: 0.08, value: params.decay / 2 },
-         { id: 'delayMix', label: 'DLY MIX', x: 0.35, y: 0.75, size: 0.08, value: params.delayMix },
-         { id: 'delayTime', label: 'DLY TIME', x: 0.55, y: 0.75, size: 0.08, value: params.delayTime },
-         { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.55, size: 0.11, value: params.volume },
+         // Row 1: ADSR (Smaller)
+         { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
+         { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
+         { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
+         { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
+
+         // Row 2: Filter (Larger)
+         { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
+         { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
+
+         // Sides:
+         { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
+         { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 }, // Max 2s
+
+         // Output / FX
+         { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
+         { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
+         { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
     ];
     const getKickControls = (params: KickParams): KnobConfig[] => [
         { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
@@ -525,6 +535,8 @@ export const App: React.FC = () => {
         else if (id === 'filterCutoff') realVal = val * 8000;
         else if (id === 'filterResonance') realVal = val * 20;
         else if (id === 'decay') realVal = val * 2;
+        else if (id === 'release') realVal = val * 2;
+        else if (id === 'length') realVal = val * 2;
         updater({ [id]: realVal });
     };
 
@@ -714,7 +726,7 @@ export const App: React.FC = () => {
             </main>
 
             {/* --- HARDWARE MODULE --- */}
-            <div className="h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-10 shrink-0">
+            <div className="h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-30 shrink-0 fixed bottom-0 w-full">
                 <div className="w-full h-full max-w-5xl mx-auto p-2 flex items-center justify-center">
                     <div className="w-full h-full rounded-xl overflow-hidden border border-gray-800 shadow-2xl bg-black">
                         {renderModulePanel()}
