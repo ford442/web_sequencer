@@ -3,8 +3,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 export const useScheduler = (
   tempo: number,
   steps: number,
-  onStep: (step: number) => void,
-  isAudioReady: boolean
+  onStep: (step: number, time: number) => void,
+  isAudioReady: boolean,
+  getCurrentTime: () => number
 ) => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentStep, setCurrentStep] = useState(-1)
@@ -12,9 +13,12 @@ export const useScheduler = (
   // Use refs for values that change often but shouldn't restart the loop logic.
   const onStepRef = useRef(onStep)
   const tempoRef = useRef(tempo)
-  const animationFrameId = useRef<number | null>(null)
   const nextStepTime = useRef(0)
   const currentStepRef = useRef(-1)
+  const workerRef = useRef<Worker | null>(null);
+
+  // Ref to hold the latest processing function to avoid stale closures in Worker callback
+  const processTickRef = useRef<() => void>(() => {});
 
   // Keep refs updated with the latest props
   useEffect(() => {
@@ -25,62 +29,86 @@ export const useScheduler = (
     tempoRef.current = tempo
   }, [tempo])
 
-  // The main animation loop. It's a stable useCallback.
-  const loop = useCallback((time: number) => {
-    if (!isAudioReady) return
+  // Initialize Worker
+  useEffect(() => {
+      const worker = new Worker(new URL('../workers/clock.worker.ts', import.meta.url), { type: 'module' });
+      workerRef.current = worker;
 
-    const now = time / 1000
-    const stepDuration = 60 / tempoRef.current / 4 // 16th notes
+      worker.onmessage = (e) => {
+          if (e.data === 'tick') {
+             // Call the latest version of processTick
+             processTickRef.current();
+          }
+      };
 
-    // If the scheduler is more than a full beat behind (e.g., 4 steps),
-    // it's likely the tab was inactive or the main thread was blocked.
-    // Reset the next step time to now to avoid a "catch-up" burst of notes
-    // that can overload the audio engine and cause it to get stuck.
-    if (now > nextStepTime.current + stepDuration * 4) {
-      nextStepTime.current = now
-    }
+      return () => {
+          worker.terminate();
+      };
+  }, []); // Run once on mount
 
-    // The while loop is still good for handling minor timing inconsistencies.
-    while (now >= nextStepTime.current) {
-      currentStepRef.current = (currentStepRef.current + 1) % steps
-      const stepToPlay = currentStepRef.current
+  const processTick = useCallback(() => {
+      if (!isAudioReady || !isPlaying) return;
 
-      // Update the UI state for the visual indicator
-      setCurrentStep(stepToPlay)
+      // Lookahead: 100ms
+      const lookahead = 0.1;
+      const now = getCurrentTime();
 
-      // Trigger the audio callback with the correct step
-      onStepRef.current(stepToPlay)
+      // Safety check: if getCurrentTime returns 0 (e.g. context suspended/not ready), abort
+      if (now === 0) return;
 
-      // Advance the time for the next step
-      nextStepTime.current += stepDuration
-    }
+      const stepDuration = 60 / tempoRef.current / 4; // 16th notes
 
-    animationFrameId.current = requestAnimationFrame(loop)
-  }, [isAudioReady, steps])
+      // Catch-up logic: If we are significantly behind (e.g. > 200ms),
+      // resync nextStepTime to 'now' to avoid playing a burst of old notes.
+      if (nextStepTime.current < now - 0.2) {
+          nextStepTime.current = now;
+      }
+
+      // Schedule all notes that fall within the lookahead window
+      while (nextStepTime.current < now + lookahead) {
+          currentStepRef.current = (currentStepRef.current + 1) % steps;
+          const stepToPlay = currentStepRef.current;
+
+          // Lookahead Scheduling:
+          // We pass the calculated 'future' time to onStep.
+          // App.tsx will use this time to schedule the oscillator start.
+          onStepRef.current(stepToPlay, nextStepTime.current)
+
+          // Update UI immediately (or close enough)
+          // Since we are scheduling only ~100ms ahead, updating UI now is acceptable
+          // and feels responsive. For perfect UI sync, we'd need a separate
+          // requestAnimationFrame loop to update UI when time matches,
+          // but that adds complexity. This is the standard simple approach.
+          setCurrentStep(stepToPlay)
+
+          nextStepTime.current += stepDuration;
+      }
+  }, [isPlaying, isAudioReady, steps, getCurrentTime]);
+
+  // Keep the ref updated
+  useEffect(() => {
+      processTickRef.current = processTick;
+  }, [processTick]);
+
 
   useEffect(() => {
     if (isPlaying && isAudioReady) {
-      // Start the loop when play is pressed.
-      currentStepRef.current = -1
-      // Use performance.now() for the initial time to align with requestAnimationFrame.
-      nextStepTime.current = window.performance.now() / 1000
-      animationFrameId.current = requestAnimationFrame(loop)
-    } else {
-      // Stop the loop.
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current)
-        animationFrameId.current = null
-      }
-      setCurrentStep(-1) // Reset the visual indicator
-    }
+      // Start
+      currentStepRef.current = -1;
 
-    // The cleanup function is crucial for stopping the loop when the component unmounts.
-    return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current)
-      }
+      // Initialize nextStepTime.
+      // Important: Add a small buffer (e.g. 0.1s) so the first note isn't "in the past"
+      // by the time the message loop runs.
+      const now = getCurrentTime();
+      nextStepTime.current = now + 0.1;
+
+      workerRef.current?.postMessage('start');
+    } else {
+      // Stop
+      workerRef.current?.postMessage('stop');
+      setCurrentStep(-1)
     }
-  }, [isPlaying, isAudioReady, loop])
+  }, [isPlaying, isAudioReady, getCurrentTime])
 
   return { isPlaying, currentStep, setIsPlaying }
 }

@@ -241,6 +241,7 @@ export const App: React.FC = () => {
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
+    const [masterPan, setMasterPan] = useState(0)
 
     // --- CONTEXT MENU STATE ---
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
@@ -320,9 +321,13 @@ export const App: React.FC = () => {
     const updateSampler = (u: Partial<SamplerParams>) => { const n = { ...sampler, ...u }; setSampler(n); samplerRef.current = n; };
 
     // --- AUDIO LOOP ---
-    const onStep = useCallback((step: number) => {
+    const getCurrentTime = useCallback(() => {
+        return audioEngine?.context.currentTime || 0;
+    }, [audioEngine]);
+
+    const onStep = useCallback((step: number, scheduledTime?: number) => {
         if (!audioEngine) return
-        const time = audioEngine.context.currentTime
+        const time = scheduledTime || audioEngine.context.currentTime
         if (pattern.partA.steps[step]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time)
         if (pattern.partB.steps[step]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time)
         if (pattern.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
@@ -332,7 +337,7 @@ export const App: React.FC = () => {
         if (pattern.sampler.steps[step]) audioEngine.playSampler(samplerRef.current, pattern.sampler.steps[step]!.note, time)
     }, [audioEngine, pattern])
 
-    const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
+    const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, getCurrentTime)
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
     useEffect(() => setCurrentStep(schedStep), [schedStep])
@@ -347,8 +352,19 @@ export const App: React.FC = () => {
     const handleMasterVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
         const v = parseFloat(e.target.value);
         setMasterVolume(v);
-        if (audioEngine && 'setMasterVolume' in audioEngine) {
-            (audioEngine as any).setMasterVolume(v);
+        if (audioEngine) {
+            audioEngine.setMasterVolume(v);
+        }
+    };
+
+    const handleMasterPan = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let v = parseFloat(e.target.value);
+        // Center Snap
+        if (v > -0.1 && v < 0.1) v = 0;
+
+        setMasterPan(v);
+        if (audioEngine) {
+            audioEngine.setMasterPan(v);
         }
     };
 
@@ -608,6 +624,17 @@ export const App: React.FC = () => {
 
                 {/* RIGHT: Transport & Master Volume */}
                 <div className="flex items-center gap-4">
+
+                    {/* Master Pan */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase">Pan</span>
+                        <input
+                            type="range" min="-1" max="1" step="0.01"
+                            value={masterPan} onChange={handleMasterPan}
+                            className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            title="Global Pan (Left/Right)"
+                        />
+                    </div>
 
                     {/* Master Volume */}
                     <div className="flex items-center gap-2 mr-4">

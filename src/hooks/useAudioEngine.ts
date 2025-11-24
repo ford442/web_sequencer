@@ -12,6 +12,8 @@ export const useAudioEngine = (pyodide: any) => {
   const loadedAmbianceBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
   const rendererWorkerRef = useRef<Worker | null>(null);
   const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
+  const masterGainNodeRef = useRef<GainNode | null>(null);
+  const masterPannerNodeRef = useRef<StereoPannerNode | null>(null);
 
   // 2. CREATE A REF to hold the pyodide prop
   const pyodideRef = useRef(pyodide);
@@ -35,6 +37,17 @@ export const useAudioEngine = (pyodide: any) => {
       await context.resume();
     }
 
+    // Create Master Chain
+    const masterGain = context.createGain();
+    masterGainNodeRef.current = masterGain;
+
+    const masterPanner = context.createStereoPanner();
+    masterPannerNodeRef.current = masterPanner;
+
+    masterGain.connect(masterPanner);
+    masterPanner.connect(context.destination);
+
+
     // Create a white noise buffer
     const bufferSize = context.sampleRate * 2;
     const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
@@ -44,7 +57,9 @@ export const useAudioEngine = (pyodide: any) => {
     }
     noiseBufferRef.current = buffer;
 
-const playSynth = async (params: SynthParams, note: string, time: number, destination: AudioNode = context.destination) => {
+const playSynth = async (params: SynthParams, note: string, time: number, destination: AudioNode | null = null) => {
+  const outputDest = destination || masterGainNodeRef.current || context.destination;
+
   const isPyodideWave = params.waveform.startsWith('pyodide-');
   const isWgslWave = params.waveform.startsWith('wgsl-');
 
@@ -75,7 +90,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
 
 
   // --- Delay (used by both) ---
-  let outputNode: AudioNode = destination;
+  let outputNode: AudioNode = outputDest;
   if (params.delayMix > 0 && params.delayTime > 0) {
     // ... (delay logic is unchanged)
     const dryGain = context.createGain();
@@ -89,17 +104,17 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
     feedback.gain.setValueAtTime(params.delayFeedback, time);
 
     gain.connect(dryGain);
-    dryGain.connect(destination);
+    dryGain.connect(outputDest);
 
     gain.connect(delay);
     delay.connect(feedback);
     feedback.connect(delay);
     delay.connect(wetGain);
-    wetGain.connect(destination);
+    wetGain.connect(outputDest);
     
     outputNode = gain; 
   } else {
-    gain.connect(destination);
+    gain.connect(outputDest);
     outputNode = gain;
   }
 
@@ -295,7 +310,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
 
             const gainNode = context.createGain();
             gainNode.gain.setValueAtTime(finalVolume, time);
-            gainNode.connect(context.destination);
+            gainNode.connect(masterGainNodeRef.current || context.destination);
 
             const source = context.createBufferSource();
             source.buffer = buffer;
@@ -350,7 +365,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
 
              const source = context.createBufferSource();
              source.buffer = buffer;
-             source.connect(context.destination);
+             source.connect(masterGainNodeRef.current || context.destination);
              source.start(time);
         } catch(e) {
             console.error("Pyodide sampler error:", e);
@@ -392,7 +407,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
     const playBufferedPart = (buffer: AudioBuffer, time: number) => {
         const source = context.createBufferSource();
         source.buffer = buffer;
-        source.connect(context.destination);
+        source.connect(masterGainNodeRef.current || context.destination);
         source.start(time);
     };
 
@@ -418,7 +433,7 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
 
         if (!ambianceGainNodeRef.current) {
             ambianceGainNodeRef.current = context.createGain();
-            ambianceGainNodeRef.current.connect(context.destination);
+            ambianceGainNodeRef.current.connect(masterGainNodeRef.current || context.destination);
         }
 
         const source = context.createBufferSource();
@@ -442,7 +457,19 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
         }
     };
 
-    audioEngineRef.current = { context, playSynth, playDrum, playSampler, loadSampleToEngine, renderSynthPartToBuffer, playBufferedPart, playAmbiance, stopAmbiance, setAmbianceVolume };
+    const setMasterVolume = (volume: number) => {
+        if (masterGainNodeRef.current) {
+            masterGainNodeRef.current.gain.setValueAtTime(volume, context.currentTime);
+        }
+    };
+
+    const setMasterPan = (pan: number) => {
+        if (masterPannerNodeRef.current) {
+            masterPannerNodeRef.current.pan.setValueAtTime(pan, context.currentTime);
+        }
+    }
+
+    audioEngineRef.current = { context, playSynth, playDrum, playSampler, loadSampleToEngine, renderSynthPartToBuffer, playBufferedPart, playAmbiance, stopAmbiance, setAmbianceVolume, setMasterVolume, setMasterPan };
     setIsReady(true);
   }, []);
 
