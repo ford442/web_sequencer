@@ -74,6 +74,11 @@ export interface Pattern {
   sampler: PartSequence;
 }
 
+export interface LoadedSample {
+    name: string;
+    buffer: AudioBuffer;
+}
+
 export interface AmbianceTrack {
   name: string;
   url: string;
