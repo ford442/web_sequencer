@@ -21,7 +21,7 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     DEFAULT_SAMPLER_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence, LoadedSample } from './types'
 
 // --- TYPES FOR STORAGE ---
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
