@@ -5,15 +5,25 @@ interface SamplerPanelProps {
     params: SamplerParams;
     onChange: (updates: Partial<SamplerParams>) => void;
     onLoadSample: (name: string, buffer: AudioBuffer) => void;
-    audioContext: AudioContext;
+    onTuneSample: () => Promise<void>;
+    audioContext?: AudioContext;
+    initializeAudio: () => Promise<any>;
 }
 
-export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, onLoadSample, audioContext }) => {
+export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, onLoadSample, onTuneSample, audioContext, initializeAudio }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
     const [status, setStatus] = useState<string>('');
+    const [isSampleLoaded, setIsSampleLoaded] = useState(false);
+    const [tuneStatus, setTuneStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+    const loadAudioBuffer = async (buffer: AudioBuffer) => {
+        onLoadSample(params.sampleName, buffer);
+        setIsSampleLoaded(true);
+        setStatus('Sample Loaded.');
+    };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -21,10 +31,14 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
 
         setStatus('Loading...');
         try {
+            let context = audioContext;
+            if (!context) {
+                const newEngine = await initializeAudio();
+                context = newEngine.context;
+            }
             const arrayBuffer = await file.arrayBuffer();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            onLoadSample(params.sampleName, audioBuffer);
-            setStatus(`Loaded: ${file.name}`);
+            const audioBuffer = await context.decodeAudioData(arrayBuffer);
+            loadAudioBuffer(audioBuffer);
         } catch (err) {
             console.error(err);
             setStatus('Error loading file');
@@ -33,13 +47,16 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
 
     const toggleRecording = async () => {
         if (isRecording) {
-            // Stop recording
             mediaRecorderRef.current?.stop();
             setIsRecording(false);
             setStatus('Processing...');
         } else {
-            // Start recording
             try {
+                let context = audioContext;
+                if (!context) {
+                    const newEngine = await initializeAudio();
+                    context = newEngine.context;
+                }
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const mediaRecorder = new MediaRecorder(stream);
                 mediaRecorderRef.current = mediaRecorder;
@@ -53,14 +70,12 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                     const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
                     const arrayBuffer = await blob.arrayBuffer();
                     try {
-                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                        onLoadSample(params.sampleName, audioBuffer);
-                        setStatus('Recorded Sample Loaded');
-                    } catch(e) {
-                         console.error(e);
-                         setStatus('Decode Error');
+                        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+                        loadAudioBuffer(audioBuffer);
+                    } catch (e) {
+                        console.error(e);
+                        setStatus('Decode Error');
                     }
-                    // Stop all tracks
                     stream.getTracks().forEach(track => track.stop());
                 };
 
@@ -71,6 +86,20 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                 console.error("Mic access denied:", err);
                 setStatus('Mic Error');
             }
+        }
+    };
+
+    const handleAutoTune = async () => {
+        setStatus('Tuning...');
+        setTuneStatus('idle');
+        try {
+            await onTuneSample();
+            setStatus('Auto-Tune Complete!');
+            setTuneStatus('success');
+        } catch (error) {
+            setStatus('Auto-Tune Failed.');
+            setTuneStatus('error');
+            setTimeout(() => setTuneStatus('idle'), 1000);
         }
     };
 
@@ -108,7 +137,27 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                      </button>
                  </div>
 
-                 <div className="ml-4 text-white italic">{status}</div>
+                 <div className="flex flex-col gap-1">
+                     <label
+                        className={`font-bold ${!isSampleLoaded ? 'text-gray-600' : 'text-green-500'}`}
+                     >
+                        AUTO-TUNE
+                     </label>
+                     <button
+                        onClick={handleAutoTune}
+                        disabled={!isSampleLoaded}
+                        className={`px-3 py-2 border rounded transition-all ${
+                            !isSampleLoaded ? 'bg-gray-900 border-gray-700 text-gray-600 cursor-not-allowed' :
+                            tuneStatus === 'error' ? 'bg-red-900 text-red-200 border-red-500' :
+                            tuneStatus === 'success' ? 'bg-green-900 text-green-200 border-green-500' :
+                            'bg-gray-800 border-gray-600 hover:bg-gray-700'
+                        }`}
+                     >
+                        TUNE TO C4
+                     </button>
+                 </div>
+
+                 <div className="ml-4 text-white italic self-end pb-1">{status}</div>
              </div>
 
              <div className="flex gap-8 mt-2">

@@ -469,8 +469,39 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
         }
     }
 
-    audioEngineRef.current = { context, playSynth, playDrum, playSampler, loadSampleToEngine, renderSynthPartToBuffer, playBufferedPart, playAmbiance, stopAmbiance, setAmbianceVolume, setMasterVolume, setMasterPan };
+    const analyzeAndTuneSample = async (buffer: AudioBuffer): Promise<number | null> => {
+        if (!pyodideRef.current) {
+            console.error("Pyodide not ready for analysis");
+            return null;
+        }
+
+        try {
+            const audioData = buffer.getChannelData(0);
+            const resultProxy = pyodideRef.current.globals.get('analyze_sample')(
+                audioData,
+                buffer.sampleRate
+            );
+            const avgPitch = resultProxy.toJs()[0];
+            resultProxy.destroy();
+
+            if (avgPitch > 0) {
+                const targetFreq = noteToFrequency('C4');
+                const playbackSpeed = targetFreq / avgPitch;
+                console.log(`Sample auto-tuned: Detected ${avgPitch.toFixed(2)}Hz, setting speed to ${playbackSpeed.toFixed(3)}`);
+                return playbackSpeed;
+            } else {
+                console.warn("Pitch analysis returned 0 Hz, cannot auto-tune.");
+                return null;
+            }
+        } catch (e) {
+            console.error("Error during sample analysis:", e);
+            return null;
+        }
+    };
+
+    audioEngineRef.current = { context, playSynth, playDrum, playSampler, loadSampleToEngine, analyzeAndTuneSample, renderSynthPartToBuffer, playBufferedPart, playAmbiance, stopAmbiance, setAmbianceVolume, setMasterVolume, setMasterPan };
     setIsReady(true);
+    return audioEngineRef.current;
   }, []);
 
   return { audioEngine: audioEngineRef.current, isReady, initializeAudio };

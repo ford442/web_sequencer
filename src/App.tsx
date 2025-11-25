@@ -320,6 +320,24 @@ export const App: React.FC = () => {
     const samplerRef = useRef(DEFAULT_SAMPLER_PARAMS);
     const updateSampler = (u: Partial<SamplerParams>) => { const n = { ...sampler, ...u }; setSampler(n); samplerRef.current = n; };
 
+    const [loadedSampleBuffer, setLoadedSampleBuffer] = useState<AudioBuffer | null>(null);
+
+    const handleTuneSample = (): Promise<void> => {
+        return new Promise(async (resolve, reject) => {
+            if (audioEngine && loadedSampleBuffer) {
+                const newSpeed = await audioEngine.analyzeAndTuneSample(loadedSampleBuffer);
+                if (newSpeed) {
+                    updateSampler({ playbackSpeed: newSpeed });
+                    resolve();
+                } else {
+                    reject(new Error("Analysis failed"));
+                }
+            } else {
+                reject(new Error("Audio engine or sample not ready."));
+            }
+        });
+    };
+
     // --- AUDIO LOOP ---
     const getCurrentTime = useCallback(() => {
         return audioEngine?.context.currentTime || 0;
@@ -581,7 +599,7 @@ export const App: React.FC = () => {
         if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
         if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
         if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
-        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => {}}><SamplerPanel params={sampler} onChange={handleSamplerChange} onLoadSample={(n, b) => audioEngine?.loadSampleToEngine(n, b)} audioContext={audioEngine?.context!} /></HardwareModule>;
+        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => {}}><SamplerPanel params={sampler} onChange={handleSamplerChange} onLoadSample={(n, b) => { audioEngine?.loadSampleToEngine(n, b); setLoadedSampleBuffer(b); }} onTuneSample={handleTuneSample} audioContext={audioEngine?.context} initializeAudio={initializeAudio} /></HardwareModule>;
         return null;
     };
 

@@ -85,6 +85,7 @@ export interface AudioEngine {
   playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
   playSampler: (params: SamplerParams, note: string, time: number) => void;
   loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
+  analyzeAndTuneSample: (buffer: AudioBuffer) => Promise<number | null>;
   renderSynthPartToBuffer: (params: SynthParams, sequence: PartSequence, tempo: number) => Promise<AudioBuffer>;
   playBufferedPart: (buffer: AudioBuffer, time: number) => void;
   playAmbiance: (url: string) => Promise<void>;
