@@ -227,7 +227,16 @@ const ROWS = [
 
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
-    const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide)
+    const {
+        audioEngine,
+        isReady,
+        initializeAudio,
+        role,
+        setRole,
+        remoteTracks,
+        toggleRemoteTrack,
+    } = useAudioEngine(pyodide);
+
 
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
@@ -328,8 +337,8 @@ export const App: React.FC = () => {
     const onStep = useCallback((step: number, scheduledTime?: number) => {
         if (!audioEngine) return
         const time = scheduledTime || audioEngine.context.currentTime
-        if (pattern.partA.steps[step]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time)
-        if (pattern.partB.steps[step]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time)
+        if (pattern.partA.steps[step]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time, undefined, 'partA', step);
+        if (pattern.partB.steps[step]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time, undefined, 'partB', step);
         if (pattern.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
         if (pattern.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
         if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
@@ -337,7 +346,8 @@ export const App: React.FC = () => {
         if (pattern.sampler.steps[step]) audioEngine.playSampler(samplerRef.current, pattern.sampler.steps[step]!.note, time)
     }, [audioEngine, pattern])
 
-    const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, getCurrentTime)
+    const lookahead = role === 'master' ? 0.4 : 0.1;
+    const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, getCurrentTime, lookahead);
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
     useEffect(() => setCurrentStep(schedStep), [schedStep])
@@ -575,8 +585,11 @@ export const App: React.FC = () => {
     const handleSamplerChange = (u: Partial<SamplerParams>) => updateSampler(u);
 
     const renderModulePanel = () => {
-        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
-        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
+        const isPartA = selectedTrack === 'partA';
+        const isPartB = selectedTrack === 'partB';
+
+        if (isPartA) return <HardwareModule trackId="partA" isRemote={remoteTracks['partA']} onToggleRemote={toggleRemoteTrack} title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
+        if (isPartB) return <HardwareModule trackId="partB" isRemote={remoteTracks['partB']} onToggleRemote={toggleRemoteTrack} title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
         if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} />;
         if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
         if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
@@ -587,6 +600,23 @@ export const App: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen w-screen bg-[#080a0b] text-gray-200 overflow-hidden font-sans">
+
+            {/* --- ROLE SWITCHER UI --- */}
+            <div className="fixed bottom-[310px] right-4 z-40 bg-gray-900/50 backdrop-blur-sm border border-gray-700 rounded p-1 flex items-center gap-1">
+                <button
+                    onClick={() => setRole('master')}
+                    className={`px-3 py-1 text-xs font-bold rounded ${role === 'master' ? 'bg-cyan-500 text-black' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                >
+                    MASTER
+                </button>
+                <button
+                    onClick={() => setRole('renderer')}
+                    className={`px-3 py-1 text-xs font-bold rounded ${role === 'renderer' ? 'bg-purple-500 text-black' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                >
+                    RENDERER
+                </button>
+            </div>
+
 
             {/* --- TOP HEADER --- */}
             <header className="h-16 flex items-center justify-between px-4 bg-[#0b0d10] border-b border-gray-800 z-20 shadow-md shrink-0">
@@ -697,6 +727,16 @@ export const App: React.FC = () => {
 
                 {/* Sequencer Container with Hardware finish */}
                 <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
+
+                    {/* --- RENDERER MODE OVERLAY --- */}
+                    {role === 'renderer' && (
+                        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-10 flex items-center justify-center">
+                            <div className="text-center">
+                                <h2 className="text-2xl font-bold text-purple-400 font-orbitron">RENDERING MODE</h2>
+                                <p className="text-gray-400">Waiting for Master to send audio jobs...</p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Decorative screws */}
                     <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>

@@ -81,7 +81,7 @@ export interface AmbianceTrack {
 
 export interface AudioEngine {
   context: AudioContext;
-  playSynth: (params: SynthParams, note: string, time: number, destination?: AudioNode) => void;
+  playSynth: (params: SynthParams, note: string, time: number, destination?: AudioNode, trackId?: string, stepId?: number) => void;
   playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
   playSampler: (params: SamplerParams, note: string, time: number) => void;
   loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
