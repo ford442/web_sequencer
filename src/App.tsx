@@ -25,6 +25,10 @@ import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, Part
 
 // --- TYPES FOR STORAGE ---
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+type LoadedSample = {
+    name: string;
+    buffer: AudioBuffer;
+};
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
