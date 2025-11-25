@@ -99,7 +99,7 @@ export const useScheduler = (
       // Important: Add a small buffer (e.g. 0.1s) so the first note isn't "in the past"
       // by the time the message loop runs.
       const now = getCurrentTime();
-      nextStepTime.current = now + lookahead;
+      nextStepTime.current = now;
 
       workerRef.current?.postMessage('start');
     } else {
