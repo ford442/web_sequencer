@@ -2,7 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
-import { useDistributedAudio, RenderRequest } from './useDistributedAudio';
+import { useDistributedAudio, type RenderRequest, type AudioResponse } from './useDistributedAudio';
+
 
 export const useAudioEngine = (pyodide: any) => {
   const { role, setRole, sendRenderRequest, setRenderRequestHandler, setAudioReceivedHandler } = useDistributedAudio();
@@ -17,6 +18,22 @@ export const useAudioEngine = (pyodide: any) => {
   const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
   const masterGainNodeRef = useRef<GainNode | null>(null);
   const masterPannerNodeRef = useRef<StereoPannerNode | null>(null);
+  const essentiaRef = useRef<any | null>(null);
+
+  // Helper function to dynamically load a script
+  const loadScript = (src: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load script ${src}`));
+      document.head.appendChild(script);
+    });
+  };
 
   // 2. CREATE A REF to hold the pyodide prop
   const pyodideRef = useRef(pyodide);
@@ -31,12 +48,6 @@ export const useAudioEngine = (pyodide: any) => {
   useEffect(() => {
     if (!isReady || !audioEngineRef.current) return;
     const { context } = audioEngineRef.current;
-
-    // Renderer: Set up handler to generate audio upon request
-    setRenderRequestHandler(async (req: RenderRequest) => {
-      const { params, note, duration } = req;
-      return await generateRawAudio(params, note, duration);
-    });
 
     // Master: Set up handler to play received audio
     setAudioReceivedHandler((res: AudioResponse) => {
@@ -114,6 +125,17 @@ const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: 
     await gpuEngine.init();
     gpuEngineRef.current = gpuEngine;
 
+    // Load Essentia.js
+    try {
+      await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js');
+      await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js');
+      // @ts-ignore
+      essentiaRef.current = new Essentia(EssentiaWASM);
+      console.log('Essentia.js Initialized. Version:', essentiaRef.current.version);
+    } catch (e) {
+      console.error("Failed to load Essentia.js:", e);
+    }
+
     if (context.state === 'suspended') {
       await context.resume();
     }
@@ -138,11 +160,11 @@ const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: 
     }
     noiseBufferRef.current = buffer;
 
-const generateRawAudio = async (params: SynthParams, note: string, duration: number): Promise<Float32Array | null> => {
-  if (!audioEngineRef.current) return null;
-  const { context } = audioEngineRef.current;
+    const generateRawAudio = async (params: SynthParams, note: string, duration: number): Promise<Float32Array | null> => {
+      if (!audioEngineRef.current) return null;
+      const { context } = audioEngineRef.current;
 
-  const isPyodideWave = params.waveform.startsWith('pyodide-');
+      const isPyodideWave = params.waveform.startsWith('pyodide-');
   const isWgslWave = params.waveform.startsWith('wgsl-');
 
   const baseFreq = noteToFrequency(note);
@@ -248,6 +270,11 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
   source.connect(gain);
   source.start(time);
 };
+    // Renderer: Set up handler to generate audio upon request
+    setRenderRequestHandler(async (req: RenderRequest) => {
+      const { params, note, duration } = req;
+      return await generateRawAudio(params, note, duration);
+    });
 
     // 5. USE THE REF (pyodideRef.current)
     const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
@@ -478,33 +505,40 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
     }
 
     const analyzeAndTuneSample = async (buffer: AudioBuffer): Promise<number | null> => {
-        if (!pyodideRef.current) {
-            console.error("Pyodide not ready for analysis");
-            return null;
-        }
+      if (!essentiaRef.current) {
+        console.error("Essentia.js not ready for analysis");
+        return null;
+      }
 
-        try {
-            const audioData = buffer.getChannelData(0);
-            const resultProxy = pyodideRef.current.globals.get('analyze_sample')(
-                audioData,
-                buffer.sampleRate
-            );
-            const avgPitch = resultProxy.toJs()[0];
-            resultProxy.destroy();
+      try {
+        const audioData = buffer.getChannelData(0);
+        // Essentia.js expects a Float32Array
+        const essentiaVector = essentiaRef.current.arrayToVector(audioData);
+        const pitch = essentiaRef.current.PitchYinProbabilistic(essentiaVector);
 
-            if (avgPitch > 0) {
-                const targetFreq = noteToFrequency('C4');
-                const playbackSpeed = targetFreq / avgPitch;
-                console.log(`Sample auto-tuned: Detected ${avgPitch.toFixed(2)}Hz, setting speed to ${playbackSpeed.toFixed(3)}`);
-                return playbackSpeed;
-            } else {
-                console.warn("Pitch analysis returned 0 Hz, cannot auto-tune.");
-                return null;
+        // Find the most likely pitch
+        let avgPitch = pitch.pitch;
+        let maxConfidence = 0;
+        for (let i = 0; i < pitch.pitch.length; i++) {
+            if (pitch.pitchConfidence[i] > maxConfidence) {
+                maxConfidence = pitch.pitchConfidence[i];
+                avgPitch = pitch.pitch[i];
             }
-        } catch (e) {
-            console.error("Error during sample analysis:", e);
+        }
+
+        if (avgPitch > 0) {
+            const targetFreq = noteToFrequency('C4');
+            const playbackSpeed = targetFreq / avgPitch;
+            console.log(`Sample auto-tuned: Detected ${avgPitch.toFixed(2)}Hz, setting speed to ${playbackSpeed.toFixed(3)}`);
+            return playbackSpeed;
+        } else {
+            console.warn("Pitch analysis returned 0 Hz, cannot auto-tune.");
             return null;
         }
+      } catch (e) {
+          console.error("Error during sample analysis:", e);
+          return null;
+      }
     };
 
     audioEngineRef.current = { context, playSynth, playDrum, playSampler, loadSampleToEngine, analyzeAndTuneSample, renderSynthPartToBuffer, playBufferedPart, playAmbiance, stopAmbiance, setAmbianceVolume, setMasterVolume, setMasterPan };
