@@ -17,7 +17,7 @@ interface SamplerPanelProps {
   initializeAudio: () => Promise<any>;
 }
 
-export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, onLoadSample, onTuneSample, audioContext, initializeAudio }) => {
+export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, loadedSamples, onLoadSample, onTuneSample, audioContext, initializeAudio }) => {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);

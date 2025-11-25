@@ -2,7 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
-import { useDistributedAudio, RenderRequest } from './useDistributedAudio';
+import { useDistributedAudio, type RenderRequest, type AudioResponse } from './useDistributedAudio';
+
 
 export const useAudioEngine = (pyodide: any) => {
   const { role, setRole, sendRenderRequest, setRenderRequestHandler, setAudioReceivedHandler } = useDistributedAudio();
@@ -31,12 +32,6 @@ export const useAudioEngine = (pyodide: any) => {
   useEffect(() => {
     if (!isReady || !audioEngineRef.current) return;
     const { context } = audioEngineRef.current;
-
-    // Renderer: Set up handler to generate audio upon request
-    setRenderRequestHandler(async (req: RenderRequest) => {
-      const { params, note, duration } = req;
-      return await generateRawAudio(params, note, duration);
-    });
 
     // Master: Set up handler to play received audio
     setAudioReceivedHandler((res: AudioResponse) => {
@@ -138,11 +133,11 @@ const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: 
     }
     noiseBufferRef.current = buffer;
 
-const generateRawAudio = async (params: SynthParams, note: string, duration: number): Promise<Float32Array | null> => {
-  if (!audioEngineRef.current) return null;
-  const { context } = audioEngineRef.current;
+    const generateRawAudio = async (params: SynthParams, note: string, duration: number): Promise<Float32Array | null> => {
+      if (!audioEngineRef.current) return null;
+      const { context } = audioEngineRef.current;
 
-  const isPyodideWave = params.waveform.startsWith('pyodide-');
+      const isPyodideWave = params.waveform.startsWith('pyodide-');
   const isWgslWave = params.waveform.startsWith('wgsl-');
 
   const baseFreq = noteToFrequency(note);
@@ -248,6 +243,11 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
   source.connect(gain);
   source.start(time);
 };
+    // Renderer: Set up handler to generate audio upon request
+    setRenderRequestHandler(async (req: RenderRequest) => {
+      const { params, note, duration } = req;
+      return await generateRawAudio(params, note, duration);
+    });
 
     // 5. USE THE REF (pyodideRef.current)
     const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
