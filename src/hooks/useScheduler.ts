@@ -5,7 +5,8 @@ export const useScheduler = (
   steps: number,
   onStep: (step: number, time: number) => void,
   isAudioReady: boolean,
-  getCurrentTime: () => number
+  getCurrentTime: () => number,
+  lookahead: number = 0.1 // Default to 100ms
 ) => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentStep, setCurrentStep] = useState(-1)
@@ -49,8 +50,6 @@ export const useScheduler = (
   const processTick = useCallback(() => {
       if (!isAudioReady || !isPlaying) return;
 
-      // Lookahead: 100ms
-      const lookahead = 0.1;
       const now = getCurrentTime();
 
       // Safety check: if getCurrentTime returns 0 (e.g. context suspended/not ready), abort
@@ -100,7 +99,7 @@ export const useScheduler = (
       // Important: Add a small buffer (e.g. 0.1s) so the first note isn't "in the past"
       // by the time the message loop runs.
       const now = getCurrentTime();
-      nextStepTime.current = now + 0.1;
+      nextStepTime.current = now + lookahead;
 
       workerRef.current?.postMessage('start');
     } else {

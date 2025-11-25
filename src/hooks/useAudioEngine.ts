@@ -1,10 +1,13 @@
-import { useState, useCallback, useRef, useEffect } from 'react'; // <-- 1. IMPORT useEffect
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
+import { useDistributedAudio, RenderRequest } from './useDistributedAudio';
 
 export const useAudioEngine = (pyodide: any) => {
+  const { role, setRole, sendRenderRequest, setRenderRequestHandler, setAudioReceivedHandler } = useDistributedAudio();
   const [isReady, setIsReady] = useState(false);
+  const [remoteTracks, setRemoteTracks] = useState<Record<string, boolean>>({});
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const noiseBufferRef = useRef<AudioBuffer | null>(null);
   const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
@@ -18,10 +21,88 @@ export const useAudioEngine = (pyodide: any) => {
   // 2. CREATE A REF to hold the pyodide prop
   const pyodideRef = useRef(pyodide);
 
+  const pendingRenderRequests = useRef<Map<string, { targetTime: number, params: SynthParams }>>(new Map());
+
   // 3. UPDATE THE REF whenever the prop changes
   useEffect(() => {
     pyodideRef.current = pyodide;
   }, [pyodide]);
+
+  useEffect(() => {
+    if (!isReady || !audioEngineRef.current) return;
+    const { context } = audioEngineRef.current;
+
+    // Renderer: Set up handler to generate audio upon request
+    setRenderRequestHandler(async (req: RenderRequest) => {
+      const { params, note, duration } = req;
+      return await generateRawAudio(params, note, duration);
+    });
+
+    // Master: Set up handler to play received audio
+    setAudioReceivedHandler((res: AudioResponse) => {
+      if (!audioEngineRef.current) return;
+      const { track, stepId, audioData } = res;
+      const key = `${track}-${stepId}`;
+      const requestData = pendingRenderRequests.current.get(key);
+
+      if (requestData) {
+        const { targetTime, params } = requestData;
+
+        const buffer = context.createBuffer(1, audioData.length, context.sampleRate);
+        buffer.getChannelData(0).set(audioData);
+
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+
+        // Re-apply ADSR envelope on the master context
+        const gain = context.createGain();
+        const gateTime = params.length || 0.25;
+        const totalDuration = gateTime + params.release;
+
+        gain.gain.setValueAtTime(0, targetTime);
+        gain.gain.linearRampToValueAtTime(params.volume, targetTime + params.attack);
+        const sustainLevel = params.volume * params.sustain;
+        gain.gain.linearRampToValueAtTime(sustainLevel, targetTime + params.attack + params.decay);
+        gain.gain.setValueAtTime(sustainLevel, targetTime + gateTime);
+        gain.gain.linearRampToValueAtTime(0, targetTime + totalDuration);
+
+  const finalNode = createDelayEffect(context, gain, params, targetTime);
+  finalNode.connect(masterGainNodeRef.current || context.destination);
+
+        source.connect(gain);
+        source.start(targetTime);
+
+        pendingRenderRequests.current.delete(key);
+      }
+    });
+  }, [isReady, setRenderRequestHandler, setAudioReceivedHandler]);
+
+const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: SynthParams, time: number): AudioNode => {
+    if (params.delayMix > 0 && params.delayTime > 0) {
+      const dryGain = context.createGain();
+      const wetGain = context.createGain();
+      const delay = context.createDelay(1.0);
+      const feedback = context.createGain();
+      const output = context.createGain();
+
+      dryGain.gain.setValueAtTime(1.0 - params.delayMix, time);
+      wetGain.gain.setValueAtTime(params.delayMix, time);
+      delay.delayTime.setValueAtTime(params.delayTime, time);
+      feedback.gain.setValueAtTime(params.delayFeedback, time);
+
+      inputNode.connect(dryGain);
+      dryGain.connect(output);
+
+      inputNode.connect(delay);
+      delay.connect(feedback);
+      feedback.connect(delay);
+      delay.connect(wetGain);
+      wetGain.connect(output);
+
+      return output;
+    }
+    return inputNode;
+};
 
   const initializeAudio = useCallback(async () => {
     if (audioEngineRef.current) return;
@@ -57,188 +138,115 @@ export const useAudioEngine = (pyodide: any) => {
     }
     noiseBufferRef.current = buffer;
 
-const playSynth = async (params: SynthParams, note: string, time: number, destination: AudioNode | null = null) => {
-  const outputDest = destination || masterGainNodeRef.current || context.destination;
+const generateRawAudio = async (params: SynthParams, note: string, duration: number): Promise<Float32Array | null> => {
+  if (!audioEngineRef.current) return null;
+  const { context } = audioEngineRef.current;
 
   const isPyodideWave = params.waveform.startsWith('pyodide-');
   const isWgslWave = params.waveform.startsWith('wgsl-');
 
-  // ADSR Logic
-  const gateTime = params.length || 0.25; // Gate time
-  const totalDuration = gateTime + params.release; // When to stop sound completely
-
-  // --- Gain Envelope (used by both) ---
-  const gain = context.createGain();
-  gain.gain.setValueAtTime(0, time);
-
-  // Attack
-  gain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
-
-  // Decay to Sustain
-  const sustainLevel = params.volume * params.sustain;
-  // If Attack + Decay is shorter than Gate, we decay to sustain.
-  // If not, we might cut it short, but standard behavior is usually to just finish decay or interrupt.
-  // We'll assume decay completes before gate normally, but if not:
-  // We want to reach Sustain Level at (time + attack + decay).
-  gain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
-
-  // Sustain holds until 'gateTime' (time + length)
-  gain.gain.setValueAtTime(sustainLevel, time + gateTime);
-
-  // Release
-  gain.gain.linearRampToValueAtTime(0, time + gateTime + params.release);
-
-
-  // --- Delay (used by both) ---
-  let outputNode: AudioNode = outputDest;
-  if (params.delayMix > 0 && params.delayTime > 0) {
-    // ... (delay logic is unchanged)
-    const dryGain = context.createGain();
-    const wetGain = context.createGain();
-    const delay = context.createDelay(1.0);
-    const feedback = context.createGain();
-
-    dryGain.gain.setValueAtTime(1.0 - params.delayMix, time);
-    wetGain.gain.setValueAtTime(params.delayMix, time);
-    delay.delayTime.setValueAtTime(params.delayTime, time);
-    feedback.gain.setValueAtTime(params.delayFeedback, time);
-
-    gain.connect(dryGain);
-    dryGain.connect(outputDest);
-
-    gain.connect(delay);
-    delay.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(wetGain);
-    wetGain.connect(outputDest);
-    
-    outputNode = gain; 
-  } else {
-    gain.connect(outputDest);
-    outputNode = gain;
-  }
-
-  // --- Waveform Generation ---
+  const baseFreq = noteToFrequency(note);
+  const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+  const totalDuration = duration + 0.1; // Add padding
 
   if (isWgslWave && gpuEngineRef.current?.isSupported) {
-    // --- WGSL GPU PATH ---
     try {
-        const baseFreq = noteToFrequency(note);
-        const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-
-        // Extract type: 'wgsl-saw' -> 'saw'
-        const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
-
-        // Generate Buffer
-        const rawData = await gpuEngineRef.current.generate(
-            freqWithPitch,
-            totalDuration + 0.1,
-            context.sampleRate,
-            type
-        );
-
-        if (rawData) {
-            const buffer = context.createBuffer(1, rawData.length, context.sampleRate);
-            buffer.getChannelData(0).set(rawData);
-
-            const source = context.createBufferSource();
-            source.buffer = buffer;
-
-            // Create Filter Node specifically for this voice
-            const filter = context.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(params.filterCutoff, time);
-            filter.Q.setValueAtTime(params.filterResonance, time);
-
-            // Connect Chain
-            source.connect(filter);
-            filter.connect(outputNode); // outputNode is the Envelope Gain
-
-            source.start(time);
-        }
+      const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
+      return await gpuEngineRef.current.generate(freqWithPitch, totalDuration, context.sampleRate, type);
     } catch (e) {
-        console.error("WGSL Render Error:", e);
+      console.error("WGSL Render Error:", e);
+      return null;
     }
-
-  // 5. USE THE REF (pyodideRef.current)
   } else if (isPyodideWave && pyodideRef.current) {
-    // --- NEW: Pyodide Audio Generation ---
     try {
-      // 1. Set sample rate in Python
-      pyodideRef.current.globals.get('set_sample_rate')(context.sampleRate); // <-- Use ref
-
-      // 2. Get parameters
-      const baseFreq = noteToFrequency(note);
-      const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-      const pyOscType = params.waveform.split('-')[1]; // 'saw', 'square', 'sine'
-      
-      // 3. Call Python!
-      let pyProxy = pyodideRef.current.globals.get('generate_wave')( // <-- Use ref
-          freqWithPitch,
-          totalDuration, // Use total duration (Gate + Release)
-          pyOscType,
-          params.filterCutoff,
-          params.filterResonance
+      pyodideRef.current.globals.get('set_sample_rate')(context.sampleRate);
+      const pyOscType = params.waveform.split('-')[1];
+      const pyProxy = pyodideRef.current.globals.get('generate_wave')(
+        freqWithPitch,
+        duration,
+        pyOscType,
+        params.filterCutoff,
+        params.filterResonance
       );
-
-      // 4. Copy data from Python (64-bit) to JS (32-bit)
       const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
-      pyProxy.destroy(); // Free memory
-
-      // 5. Create Web Audio Buffer
-      const buffer = context.createBuffer(
-          1, 
-          audioSamples.length, 
-          context.sampleRate
-      );
-      buffer.getChannelData(0).set(audioSamples);
-
-      // 6. Create a player (BufferSource) and schedule it
-      const source = context.createBufferSource();
-      source.buffer = buffer;
-      
-      // 7. Connect to the envelope and schedule playback
-      source.connect(outputNode); // Connect to our 'gain' node
-      source.start(time);
-      source.stop(time + totalDuration + 0.05); // Stop buffer playback
-      
+      pyProxy.destroy();
+      return audioSamples;
     } catch (e) {
-        console.error("Pyodide synth error:", e);
+      console.error("Pyodide synth error:", e);
+      return null;
     }
-
-  // 5. USE THE REF (pyodideRef.current)
-  } else if (isPyodideWave && !pyodideRef.current) {
-      console.warn("Pyodide not ready, skipping synth trigger.");
   } else {
-    // --- ORIGINAL: Web Audio API Generation ---
-    // ... (this part is unchanged)
-    const baseFreq = noteToFrequency(note);
-    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+    // Fallback to OfflineAudioContext for standard Web Audio API oscillators
+    const offlineContext = new OfflineAudioContext(1, context.sampleRate * totalDuration, context.sampleRate);
+    const osc = offlineContext.createOscillator();
 
-    const osc = context.createOscillator();
-
-    // FALLBACK MAPPING: If we are here with a wgsl- waveform (e.g. GPU not supported), map to standard
     let waveType = params.waveform;
     if (waveType === 'wgsl-saw') waveType = 'sawtooth';
     if (waveType === 'wgsl-sqr') waveType = 'square';
     if (waveType === 'wgsl-tri') waveType = 'triangle';
     if (waveType === 'wgsl-sin') waveType = 'sine';
-
     // @ts-ignore
     osc.type = waveType as OscillatorType;
-    osc.frequency.setValueAtTime(freqWithPitch, time);
+    osc.frequency.value = freqWithPitch;
 
-    const filter = context.createBiquadFilter();
+    const filter = offlineContext.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(params.filterCutoff, time);
-    filter.Q.setValueAtTime(params.filterResonance, time);
+    filter.frequency.value = params.filterCutoff;
+    filter.Q.value = params.filterResonance;
 
     osc.connect(filter);
-    filter.connect(outputNode);
+    filter.connect(offlineContext.destination);
+    osc.start(0);
 
-    osc.start(time);
-    osc.stop(time + totalDuration + 0.05);
+    const renderedBuffer = await offlineContext.startRendering();
+    return renderedBuffer.getChannelData(0);
   }
+};
+
+const playSynth = async (params: SynthParams, note: string, time: number, destination: AudioNode | null = null, trackId?: string, stepId?: number) => {
+  if (!audioEngineRef.current) return;
+  const { context } = audioEngineRef.current;
+  const outputDest = destination || masterGainNodeRef.current || context.destination;
+
+  const gateTime = params.length || 0.25;
+  const totalDuration = gateTime + params.release;
+
+  if (role === 'master' && trackId && remoteTracks[trackId] && stepId !== undefined) {
+    const key = `${trackId}-${stepId}`;
+    pendingRenderRequests.current.set(key, { targetTime: time, params });
+    sendRenderRequest({
+      stepId,
+      track: trackId,
+      note,
+      params,
+      duration: totalDuration,
+      targetTime: time,
+    });
+    return;
+  }
+
+  const rawAudio = await generateRawAudio(params, note, totalDuration);
+  if (!rawAudio) return;
+
+  const audioBuffer = context.createBuffer(1, rawAudio.length, context.sampleRate);
+  audioBuffer.getChannelData(0).set(rawAudio);
+
+  const source = context.createBufferSource();
+  source.buffer = audioBuffer;
+
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
+  const sustainLevel = params.volume * params.sustain;
+  gain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
+  gain.gain.setValueAtTime(sustainLevel, time + gateTime);
+  gain.gain.linearRampToValueAtTime(0, time + totalDuration);
+
+  const finalNode = createDelayEffect(context, gain, params, time);
+  finalNode.connect(outputDest);
+
+  source.connect(gain);
+  source.start(time);
 };
 
     // 5. USE THE REF (pyodideRef.current)
@@ -473,5 +481,17 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
     setIsReady(true);
   }, []);
 
-  return { audioEngine: audioEngineRef.current, isReady, initializeAudio };
+  const toggleRemoteTrack = useCallback((trackId: string) => {
+    setRemoteTracks(prev => ({ ...prev, [trackId]: !prev[trackId] }));
+  }, []);
+
+  return {
+    audioEngine: audioEngineRef.current,
+    isReady,
+    initializeAudio,
+    role,
+    setRole,
+    remoteTracks,
+    toggleRemoteTrack
+  };
 };

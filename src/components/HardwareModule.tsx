@@ -18,6 +18,9 @@ interface HardwareModuleProps {
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void; // Callback when record button is clicked
     children?: React.ReactNode; // <-- allow overlaying custom React UI (e.g., WaveformSelector)
+    trackId?: string;
+    isRemote?: boolean;
+    onToggleRemote?: (trackId: string) => void;
 }
 
 export const HardwareModule = React.memo(
@@ -27,7 +30,10 @@ export const HardwareModule = React.memo(
     controls, 
     onParamChange,
     onRecordToggle,
-    children
+    children,
+    trackId,
+    isRemote,
+    onToggleRemote
   }: HardwareModuleProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -368,9 +374,28 @@ export const HardwareModule = React.memo(
             
             {/* HTML Overlay for Labels (Accessibility + Sharp Text) */}
             <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">
+                <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1" style={{width: 'calc(100% - 150px)'}}>
                     {title.toUpperCase()}
                 </div>
+
+                {/* --- REMOTE TOGGLE --- */}
+                {trackId && onToggleRemote && (
+                    <div className="absolute top-2 right-20 pointer-events-auto flex items-center gap-2">
+                        <span className={`text-xs font-bold font-mono ${isRemote ? 'text-purple-400' : 'text-gray-500'}`}>
+                            REMOTE
+                        </span>
+                        <button
+                            onClick={() => onToggleRemote(trackId)}
+                            className={`w-12 h-6 rounded-full p-1 transition-colors ${isRemote ? 'bg-purple-600' : 'bg-gray-700'}`}
+                        >
+                            <div
+                                className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${isRemote ? 'translate-x-6' : 'translate-x-0'}`}
+                            />
+                        </button>
+                    </div>
+                )}
+
+
                 {controls.map((c) => (
                     <div 
                         key={c.id}
