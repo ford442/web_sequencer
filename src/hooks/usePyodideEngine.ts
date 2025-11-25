@@ -252,7 +252,6 @@ def generate_sampler(name, pitch_ratio, volume):
 
         setPyodideStatus('Loading Audio Analysis Engine...');
         await pyodideInstance.loadPackage('micropip');
-        const micropip = pyodideInstance.pyimport('micropip');
         
         setPyodideStatus('Loading Python synth code...');
         await pyodideInstance.runPythonAsync(pythonCode);
