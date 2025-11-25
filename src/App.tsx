@@ -25,6 +25,10 @@ import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, Part
 
 // --- TYPES FOR STORAGE ---
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+type LoadedSample = {
+    name: string;
+    buffer: AudioBuffer;
+};
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -329,14 +333,18 @@ export const App: React.FC = () => {
     const samplerRef = useRef(DEFAULT_SAMPLER_PARAMS);
     const updateSampler = (u: Partial<SamplerParams>) => { const n = { ...sampler, ...u }; setSampler(n); samplerRef.current = n; };
 
-    const [loadedSampleBuffer, setLoadedSampleBuffer] = useState<AudioBuffer | null>(null);
+    const [loadedSamples, setLoadedSamples] = useState<LoadedSample[]>([]);
 
-    const handleTuneSample = (): Promise<void> => {
+    const handleTuneSample = (sampleName: string): Promise<void> => {
         return new Promise(async (resolve, reject) => {
-            if (audioEngine && loadedSampleBuffer) {
-                const newSpeed = await audioEngine.analyzeAndTuneSample(loadedSampleBuffer);
+            const sample = loadedSamples.find(s => s.name === sampleName);
+            if (audioEngine && sample) {
+                const newSpeed = await audioEngine.analyzeAndTuneSample(sample.buffer);
                 if (newSpeed) {
-                    updateSampler({ playbackSpeed: newSpeed });
+                    // This is a tricky one. Do we store the tuned speed globally
+                    // or just apply it to the current sampler settings?
+                    // For now, let's apply to the current sampler.
+                    updateSampler({ playbackSpeed: newSpeed, sampleName: sample.name });
                     resolve();
                 } else {
                     reject(new Error("Analysis failed"));
@@ -612,7 +620,19 @@ export const App: React.FC = () => {
         if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
         if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
         if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
-        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => {}}><SamplerPanel params={sampler} onChange={handleSamplerChange} onLoadSample={(n, b) => { audioEngine?.loadSampleToEngine(n, b); setLoadedSampleBuffer(b); }} onTuneSample={handleTuneSample} audioContext={audioEngine?.context} initializeAudio={initializeAudio} /></HardwareModule>;
+        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => {}}><SamplerPanel
+            params={sampler}
+            onChange={handleSamplerChange}
+            loadedSamples={loadedSamples}
+            onLoadSample={(name, buffer) => {
+                audioEngine?.loadSampleToEngine(name, buffer);
+                setLoadedSamples(prev => [...prev, { name, buffer }]);
+                updateSampler({ sampleName: name }); // Auto-select the new sample
+            }}
+            onTuneSample={() => handleTuneSample(sampler.sampleName)}
+            audioContext={audioEngine?.context}
+            initializeAudio={initializeAudio}
+        /></HardwareModule>;
         return null;
     };
 
