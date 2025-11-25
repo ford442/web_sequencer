@@ -1,27 +1,27 @@
 import React, { useRef, useState } from 'react';
-import type { SamplerParams } from '../types';
+import type { SamplerParams, LoadedSample } from '../types';
 
 interface SamplerPanelProps {
   params: SamplerParams;
   onChange: (updates: Partial<SamplerParams>) => void;
+  loadedSamples: LoadedSample[];
   onLoadSample: (name: string, buffer: AudioBuffer) => void;
   onTuneSample: () => Promise<void>;
   audioContext?: AudioContext;
   initializeAudio: () => Promise<any>;
 }
 
-export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, onLoadSample, onTuneSample, audioContext, initializeAudio }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, loadedSamples, onLoadSample, onTuneSample, audioContext, initializeAudio }) => {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const [status, setStatus] = useState<string>('');
-  const [isSampleLoaded, setIsSampleLoaded] = useState(false);
   const [tuneStatus, setTuneStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  const loadAudioBuffer = async (buffer: AudioBuffer) => {
-    onLoadSample(params.sampleName, buffer);
-    setIsSampleLoaded(true);
+  const loadAudioBuffer = async (buffer: AudioBuffer, fileName: string) => {
+    // Basic unique name generation
+    const name = `${fileName.split('.')[0]}_${Date.now()}`;
+    onLoadSample(name, buffer);
     setStatus('Sample Loaded.');
   };
 
@@ -46,7 +46,7 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
       const safeCtx = ctx; // capture non-null context for subsequent awaits
       const arrayBuffer = await file.arrayBuffer();
       const audioBuffer = await safeCtx.decodeAudioData(arrayBuffer);
-      loadAudioBuffer(audioBuffer);
+      loadAudioBuffer(audioBuffer, file.name);
     } catch (err) {
       console.error(err);
       setStatus('Error loading file');
@@ -89,7 +89,7 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
         const arrayBuffer = await blob.arrayBuffer();
         try {
           const audioBuffer = await safeCtx.decodeAudioData(arrayBuffer);
-          loadAudioBuffer(audioBuffer);
+          loadAudioBuffer(audioBuffer, 'recording.webm');
         } catch (e) {
           console.error(e);
           setStatus('Decode Error');
@@ -120,55 +120,93 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
     }
   };
 
+  const isSampleLoaded = loadedSamples.length > 0 && loadedSamples.some(s => s.name === params.sampleName);
+
   return (
     <div className="flex flex-col gap-4 p-4 text-xs font-mono text-gray-400">
-      <div className="flex items-center gap-4">
+      <div className="grid grid-cols-4 gap-4 items-start">
+        {/* Col 1: File Loading */}
         <div className="flex flex-col gap-1">
-          <label className="text-cyan-500 font-bold">LOAD SAMPLE</label>
-          <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-2 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 active:bg-gray-600 transition-colors"
+          <label className="text-cyan-500 font-bold">LOAD</label>
+          <input type="file" id="sampler-file-upload" accept="audio/*" onChange={handleFileChange} className="hidden" />
+          <label
+            htmlFor="sampler-file-upload"
+            className="px-3 py-2 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 active:bg-gray-600 transition-colors cursor-pointer text-center"
           >
-            CHOOSE FILE
-          </button>
+            FILE
+          </label>
         </div>
 
+        {/* Col 2: Recording */}
         <div className="flex flex-col gap-1">
-          <label className="text-red-500 font-bold">RECORD MIC</label>
+          <label className="text-red-500 font-bold">RECORD</label>
           <button
             onClick={toggleRecording}
             className={`px-3 py-2 border rounded transition-all ${
               isRecording ? 'bg-red-900 text-red-200 border-red-500 animate-pulse' : 'bg-gray-800 border-gray-600 hover:bg-gray-700'
             }`}
           >
-            {isRecording ? 'STOP REC' : 'START REC'}
+            {isRecording ? 'STOP' : 'MIC'}
           </button>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className={`font-bold ${!isSampleLoaded ? 'text-gray-600' : 'text-green-500'}`}>AUTO-TUNE</label>
-          <button
-            onClick={handleAutoTune}
-            disabled={!isSampleLoaded}
-            className={`px-3 py-2 border rounded transition-all ${
-              !isSampleLoaded
-                ? 'bg-gray-900 border-gray-700 text-gray-600 cursor-not-allowed'
-                : tuneStatus === 'error'
-                ? 'bg-red-900 text-red-200 border-red-500'
-                : tuneStatus === 'success'
-                ? 'bg-green-900 text-green-200 border-green-500'
-                : 'bg-gray-800 border-gray-600 hover:bg-gray-700'
-            }`}
-          >
-            TUNE TO C4
-          </button>
+        {/* Col 3: Sample Selector */}
+        <div className="flex flex-col gap-1 col-span-2">
+           <label className="text-purple-400 font-bold">ACTIVE SAMPLE</label>
+            <select
+                value={params.sampleName}
+                onChange={(e) => onChange({ sampleName: e.target.value })}
+                className="px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white font-mono"
+                disabled={loadedSamples.length === 0}
+            >
+                {loadedSamples.length === 0 && <option>-- Load a sample --</option>}
+                {loadedSamples.map(sample => (
+                    <option key={sample.name} value={sample.name}>{sample.name}</option>
+                ))}
+            </select>
         </div>
 
+
+      </div>
+
+       <div className="flex items-center gap-4 mt-2">
+         <div className="flex flex-col gap-1">
+          <label className={`font-bold ${!isSampleLoaded ? 'text-gray-600' : 'text-green-500'}`}>PITCH & SPEED</label>
+          <div className="flex items-center gap-2">
+            <button
+                onClick={handleAutoTune}
+                disabled={!isSampleLoaded}
+                className={`px-3 py-2 border rounded transition-all ${
+                  !isSampleLoaded
+                    ? 'bg-gray-900 border-gray-700 text-gray-600 cursor-not-allowed'
+                    : tuneStatus === 'error'
+                    ? 'bg-red-900 text-red-200 border-red-500'
+                    : tuneStatus === 'success'
+                    ? 'bg-green-900 text-green-200 border-green-500'
+                    : 'bg-gray-800 border-gray-600 hover:bg-gray-700'
+                }`}
+              >
+                AUTO-TUNE
+              </button>
+              <button
+                onClick={() => onChange({ playbackSpeed: 1.0 })}
+                disabled={!isSampleLoaded || params.playbackSpeed === 1.0}
+                title="Reset playback speed to 1.0x"
+                className={`px-3 py-2 border rounded transition-all ${
+                    !isSampleLoaded || params.playbackSpeed === 1.0
+                        ? 'bg-gray-900 border-gray-700 text-gray-600 cursor-not-allowed'
+                        : 'bg-gray-800 border-gray-600 hover:bg-gray-700'
+                }`}
+            >
+                RESET
+            </button>
+          </div>
+        </div>
         <div className="ml-4 text-white italic self-end pb-1">{status}</div>
       </div>
 
-      <div className="flex gap-8 mt-2">
+
+      <div className="flex gap-8 mt-4 border-t border-gray-700 pt-4">
         <div className="flex flex-col items-center gap-2">
           <label>VOLUME</label>
           <input

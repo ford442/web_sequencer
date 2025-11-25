@@ -216,9 +216,6 @@ def generate_sampler(name, pitch_ratio, volume):
 
 # --- NEW: Analysis Functions ---
 # The analyze_sample function is now provided by the audio_proc wheel.
-import audio_proc
-from audio_proc import analyze_sample
-print("audio_proc module loaded, analyze_sample is available.")
 `;
 
   // Helper function to dynamically load the Pyodide script
@@ -255,13 +252,6 @@ print("audio_proc module loaded, analyze_sample is available.")
 
         setPyodideStatus('Loading Audio Analysis Engine...');
         await pyodideInstance.loadPackage('micropip');
-        const micropip = pyodideInstance.pyimport('micropip');
-
-        // Found a new URL for a compatible essentia wheel
-        await micropip.install('https://files.pythonhosted.org/packages/be/e0/b3065213426c11b13b3152a4b3b1e3229b1328a30a174c82b0b1f23d1d57/essentia-2.1b6.dev1129-cp312-cp312-emscripten_3_1_58_wasm32.whl');
-
-        // Install the local audio_proc wheel
-        await micropip.install('/audio_proc-0.1.0-cp312-cp312-pyodide_2024_0_wasm32.whl');
         
         setPyodideStatus('Loading Python synth code...');
         await pyodideInstance.runPythonAsync(pythonCode);
