@@ -1,7 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Pattern, SongStructure } from '../types';
+import type { Pattern, SongStructure, PartSequence } from '../types';
 
 type PlayMode = 'pattern' | 'song';
 

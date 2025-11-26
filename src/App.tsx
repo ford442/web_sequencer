@@ -13,7 +13,6 @@ import { SamplerPanel } from './components/SamplerPanel';
 import { getNoteColor } from './utils/noteColors';
 import {
     INITIAL_PATTERN,
-    NUM_STEPS,
     DEFAULT_TEMPO,
     DEFAULT_SYNTH_PARAMS_A,
     DEFAULT_SYNTH_PARAMS_B,
@@ -23,14 +22,10 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     DEFAULT_SAMPLER_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence, LoadedSample } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence, LoadedSample, SongStructure } from './types'
 
 // --- TYPES FOR STORAGE ---
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
-type LoadedSample = {
-    name: string;
-    buffer: AudioBuffer;
-};
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -470,7 +465,7 @@ export const App: React.FC = () => {
         if (viewMode === 'pattern') {
             setCurrentStep(currentSubStep);
         } else {
-            setSong(s => ({ ...s, currentSongStep }));
+            setSong((s: SongStructure) => ({ ...s, currentSongStep }));
         }
     }, [currentSubStep, currentSongStep, viewMode]);
 
@@ -500,7 +495,7 @@ export const App: React.FC = () => {
         }
     };
 
-    const toggleStep = useCallback((rowKey: keyof Pattern, i: number) => {
+    const toggleStep = useCallback((rowKey: TrackKey, i: number) => {
         setPattern(prev => {
             const copy = JSON.parse(JSON.stringify(prev)) as Pattern
             const arr = copy[rowKey].steps
@@ -562,7 +557,7 @@ export const App: React.FC = () => {
 
     const handlePatternSelect = (patternIndex: number) => {
         if (!patternSelector) return;
-        setSong(prev => {
+        setSong((prev: SongStructure) => {
             const newSteps = prev.steps.map(track => [...track]);
             newSteps[patternSelector.trackIndex][patternSelector.stepIndex] = {
                 patternIndex: patternIndex === -1 ? null : patternIndex
@@ -980,9 +975,9 @@ export const App: React.FC = () => {
                         scroll={songScroll}
                         onZoomChange={setSongZoom}
                         onScrollChange={setSongScroll}
-                        onLengthChange={(l) => setSong(s => ({ ...s, length: l }))}
-                        onLoopLengthChange={(l) => setSong(s => ({ ...s, loopLength: l }))}
-                        onLoopToggle={() => setSong(s => ({ ...s, loop: !s.loop }))}
+                        onLengthChange={(l) => setSong((s: SongStructure) => ({ ...s, length: l }))}
+                        onLoopLengthChange={(l) => setSong((s: SongStructure) => ({ ...s, loopLength: l }))}
+                        onLoopToggle={() => setSong((s: SongStructure) => ({ ...s, loop: !s.loop }))}
                         onStepRightClick={handleSongStepRightClick}
                     />
                 )}

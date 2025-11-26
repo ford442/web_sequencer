@@ -1,12 +1,6 @@
 import React, { useRef, useState } from 'react';
 import type { SamplerParams, LoadedSample } from '../types';
 
-// Duplicating type here to avoid circular dependency issues if we were to import from App.tsx
-type LoadedSample = {
-    name: string;
-    buffer: AudioBuffer;
-};
-
 interface SamplerPanelProps {
   params: SamplerParams;
   onChange: (updates: Partial<SamplerParams>) => void;
