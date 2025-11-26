@@ -72,6 +72,7 @@ export interface Pattern {
   closedHat: PartSequence;
   openHat: PartSequence;
   sampler: PartSequence;
+  length: number;
 }
 
 export interface LoadedSample {
@@ -115,11 +116,13 @@ export interface KnobAutomation {
 
 // Song structure types
 export interface SongStep {
-  patternIndex: number; // Which pattern slot (0-3) to play at this step
+  patternIndex: number | null; // Which pattern slot (0-31) to play at this step
 }
 
 export interface SongStructure {
-  length: number; // Total number of song steps (1-64)
-  steps: SongStep[]; // Array of song steps defining which pattern plays when
+  length: number; // Total number of song steps (1-128)
+  loop: boolean;
+  loopLength: number;
+  steps: SongStep[][]; // 7 tracks, 128 steps each
   currentSongStep: number; // Current position in the song
 }

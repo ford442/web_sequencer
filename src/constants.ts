@@ -44,6 +44,7 @@ export const DEFAULT_OPEN_HAT_PARAMS: HatParams = { pitch: 7000, decay: 0.4, vol
 export const DEFAULT_SAMPLER_PARAMS: SamplerParams = { sampleName: 'default', playbackSpeed: 1.0, volume: 0.8 };
 
 export const INITIAL_PATTERN: Pattern = {
+  length: NUM_STEPS,
   partA: {
     steps: [
       { note: 'C4', velocity: 1 }, null, null, null,

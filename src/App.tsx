@@ -7,6 +7,8 @@ import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
+import { SongMode } from './components/SongMode';
+import { PatternSelector } from './components/PatternSelector';
 import { SamplerPanel } from './components/SamplerPanel';
 import { getNoteColor } from './utils/noteColors';
 import {
@@ -44,6 +46,10 @@ type SongSnapshot = {
     }
 };
 
+const NUM_BANKS = 4;
+const PATTERNS_PER_BANK = 8;
+const TOTAL_PATTERN_SLOTS = NUM_BANKS * PATTERNS_PER_BANK;
+
 // --- COMPONENTS ---
 
 const SvgStep = memo(({
@@ -52,6 +58,7 @@ const SvgStep = memo(({
                           note,
                           isCurrent,
                           rowLabel,
+                          zoom,
                           onClick,
                           onContextMenu
                       }: {
@@ -60,11 +67,13 @@ const SvgStep = memo(({
     note?: string | null,
     isCurrent: boolean,
     rowLabel: string,
+    zoom: number,
     onClick: () => void,
     onContextMenu: (e: React.MouseEvent) => void
 }) => {
     // VISUAL: Hardware style buttons (Smaller for 32 steps)
-    const width = 18;
+    const baseWidth = 18;
+    const width = baseWidth * zoom;
     const height = 50;
     const gap = 4;
     const x = 140 + stepIndex * (width + gap); // Offset for Track Controls
@@ -129,20 +138,30 @@ const SvgStep = memo(({
     )
 })
 
-// PER-TRACK STORAGE BUTTON (1-4)
-const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number, isActive: boolean, hasData: boolean, onClick: () => void }) => (
-    <g transform={`translate(${index * 22}, 0)`} onClick={() => onClick()} cursor="pointer">
-        <rect
-            width={18} height={18} rx={2}
-            fill={isActive ? '#3fa34d' : (hasData ? '#234a2e' : '#0f1812')}
-            stroke={isActive ? '#fff' : '#3fa34d'}
-            strokeWidth={1}
-        />
-        <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : '#8fa394'} fontFamily="monospace" fontWeight="bold">
-            {index + 1}
-        </text>
-    </g>
-);
+// PER-TRACK STORAGE BUTTON (1-8 per bank)
+const bankColors = [
+    ['#3fa34d', '#234a2e', '#8fa394'], // Bank A (Green)
+    ['#3f8fa3', '#233d4a', '#8fb2c0'], // Bank B (Cyan)
+    ['#a33f8f', '#4a233d', '#c08fb2'], // Bank C (Magenta)
+    ['#a38f3f', '#4a3d23', '#c0b28f'], // Bank D (Yellow)
+];
+
+const TrackSlotButton = ({ bank, index, isActive, hasData, onClick }: { bank: number, index: number, isActive: boolean, hasData: boolean, onClick: () => void }) => {
+    const [activeColor, hasDataColor, textColor] = bankColors[bank];
+    return (
+        <g transform={`translate(${index * 22}, 0)`} onClick={() => onClick()} cursor="pointer">
+            <rect
+                width={18} height={18} rx={2}
+                fill={isActive ? activeColor : (hasData ? hasDataColor : '#0f1812')}
+                stroke={isActive ? '#fff' : activeColor}
+                strokeWidth={1}
+            />
+            <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : textColor} fontFamily="monospace" fontWeight="bold">
+                {index + 1}
+            </text>
+        </g>
+    );
+};
 
 const SequencerRow = memo(({
                                rowKey,
@@ -153,6 +172,8 @@ const SequencerRow = memo(({
                                isSelected,
                                activeSlot,
                                slotsData,
+                               zoom,
+                               activeBank,
                                onToggle,
                                onRightClickStep,
                                onSelectRow,
@@ -166,12 +187,15 @@ const SequencerRow = memo(({
     isSelected: boolean,
     activeSlot: number,
     slotsData: boolean[],
+    zoom: number,
+    activeBank: number,
     onToggle: (k: any, i: number) => void,
     onRightClickStep: (k: TrackKey, i: number, e: any) => void,
     onSelectRow: (k: any) => void,
     onSelectSlot: (k: TrackKey, slot: number) => void
 }) => {
     // Tighter vertical spacing
+    const stepsToShow = 32 / zoom;
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
             {/* Row Label / Selector */}
@@ -190,20 +214,24 @@ const SequencerRow = memo(({
                 </text>
             </g>
 
-            {/* Track Pattern Slots (1-4) */}
-            <g transform="translate(30, 16)">
-                {[0, 1, 2, 3].map(slot => (
-                    <TrackSlotButton
-                        key={slot}
-                        index={slot}
-                        isActive={activeSlot === slot}
-                        hasData={slotsData[slot]}
-                        onClick={() => onSelectSlot(rowKey, slot)}
-                    />
-                ))}
+            {/* Track Pattern Slots (1-8) */}
+            <g transform="translate(-80, 16)">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map(slotInBank => {
+                    const absoluteSlotIndex = activeBank * PATTERNS_PER_BANK + slotInBank;
+                    return (
+                        <TrackSlotButton
+                            key={slotInBank}
+                            bank={activeBank}
+                            index={slotInBank}
+                            isActive={activeSlot === absoluteSlotIndex}
+                            hasData={slotsData[absoluteSlotIndex]}
+                            onClick={() => onSelectSlot(rowKey, slotInBank)}
+                        />
+                    );
+                })}
             </g>
 
-            {steps.map((stepData, i) => (
+            {steps.slice(0, stepsToShow).map((stepData, i) => (
                 <SvgStep
                     key={i}
                     stepIndex={i}
@@ -211,6 +239,7 @@ const SequencerRow = memo(({
                     note={stepData ? stepData.note : null}
                     isCurrent={currentStep === i}
                     rowLabel={label}
+                    zoom={zoom}
                     onClick={() => onToggle(rowKey, i)}
                     onContextMenu={(e) => onRightClickStep(rowKey, i, e)}
                 />
@@ -219,7 +248,7 @@ const SequencerRow = memo(({
     )
 })
 
-const ROWS = [
+export const ROWS = [
     { key: 'partA', label: 'Lead' },
     { key: 'partB', label: 'Bass' },
     { key: 'kick', label: 'Kick' },
@@ -252,12 +281,15 @@ export const App: React.FC = () => {
     const [isRecording, setIsRecording] = useState(false)
     const [currentStep, setCurrentStep] = useState(-1)
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
+    const [zoom, setZoom] = useState(1);
+    const [viewMode, setViewMode] = useState<'pattern' | 'song'>('pattern');
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
     const [masterPan, setMasterPan] = useState(0)
 
     // --- CONTEXT MENU STATE ---
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
+    const [patternSelector, setPatternSelector] = useState<{ x: number, y: number, trackIndex: number, stepIndex: number } | null>(null);
 
     // --- ANIMATION LOOP FOR LOADING ---
     const [loadingTick, setLoadingTick] = useState(0);
@@ -284,18 +316,20 @@ export const App: React.FC = () => {
     }
 
     // --- STORAGE STATE ---
-    // Per-track storage: Map of TrackKey -> Array[4] of PartSequence
+    const [activeBank, setActiveBank] = useState(0);
+
+    // Per-track storage: Map of TrackKey -> Array[32] of PartSequence
     const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | null)[]>>({
-        partA: [null, null, null, null],
-        partB: [null, null, null, null],
-        kick: [null, null, null, null],
-        snare: [null, null, null, null],
-        closedHat: [null, null, null, null],
-        openHat: [null, null, null, null],
-        sampler: [null, null, null, null],
+        partA: Array(TOTAL_PATTERN_SLOTS).fill(null),
+        partB: Array(TOTAL_PATTERN_SLOTS).fill(null),
+        kick: Array(TOTAL_PATTERN_SLOTS).fill(null),
+        snare: Array(TOTAL_PATTERN_SLOTS).fill(null),
+        closedHat: Array(TOTAL_PATTERN_SLOTS).fill(null),
+        openHat: Array(TOTAL_PATTERN_SLOTS).fill(null),
+        sampler: Array(TOTAL_PATTERN_SLOTS).fill(null),
     });
 
-    // Active slot visual tracking
+    // Active slot visual tracking (stores the absolute index 0-31)
     const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
         partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
     });
@@ -303,6 +337,17 @@ export const App: React.FC = () => {
     // Global Song Storage (Slots A-D)
     const [songStorage, setSongStorage] = useState<(SongSnapshot | null)[]>([null, null, null, null]);
     const [activeSongSlot, setActiveSongSlot] = useState<number | null>(null);
+
+    // --- SONG MODE STATE ---
+    const [song, setSong] = useState<SongStructure>({
+        length: 128,
+        loop: true,
+        loopLength: 16,
+        steps: Array(7).fill(null).map(() => Array(128).fill({ patternIndex: null })),
+        currentSongStep: -1,
+    });
+    const [songZoom, setSongZoom] = useState(1);
+    const [songScroll, setSongScroll] = useState(0);
 
     // --- INSTRUMENT STATE ---
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
@@ -360,23 +405,74 @@ export const App: React.FC = () => {
         return audioEngine?.context.currentTime || 0;
     }, [audioEngine]);
 
-    const onStep = useCallback((step: number, scheduledTime?: number) => {
-        if (!audioEngine) return
-        const time = scheduledTime || audioEngine.context.currentTime
-        if (pattern.partA.steps[step]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time, undefined, 'partA', step);
-        if (pattern.partB.steps[step]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time, undefined, 'partB', step);
-        if (pattern.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
-        if (pattern.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
-        if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
-        else if (pattern.closedHat.steps[step]) audioEngine.playDrum('closedHat', closedHatRef.current, time)
-        if (pattern.sampler.steps[step]) audioEngine.playSampler(samplerRef.current, pattern.sampler.steps[step]!.note, time)
-    }, [audioEngine, pattern])
+    const onStep = useCallback((step: { songStep: number, subStep: number }, scheduledTime?: number) => {
+        if (!audioEngine) return;
+        const time = scheduledTime || audioEngine.context.currentTime;
+
+        if (viewMode === 'pattern') {
+            if (pattern.partA.steps[step.subStep]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step.subStep]!.note, time, undefined, 'partA', step.subStep);
+            if (pattern.partB.steps[step.subStep]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step.subStep]!.note, time, undefined, 'partB', step.subStep);
+            if (pattern.kick.steps[step.subStep]) audioEngine.playDrum('kick', kickRef.current, time);
+            if (pattern.snare.steps[step.subStep]) audioEngine.playDrum('snare', snareRef.current, time);
+            if (pattern.openHat.steps[step.subStep]) audioEngine.playDrum('openHat', openHatRef.current, time);
+            else if (pattern.closedHat.steps[step.subStep]) audioEngine.playDrum('closedHat', closedHatRef.current, time);
+            if (pattern.sampler.steps[step.subStep]) audioEngine.playSampler(samplerRef.current, pattern.sampler.steps[step.subStep]!.note, time);
+        } else {
+            // Song Mode playback
+            if (step.songStep < 0) return;
+            ROWS.forEach((row, trackIndex) => {
+                const patternIndex = song.steps[trackIndex][step.songStep]?.patternIndex;
+                if (patternIndex !== null && patternIndex !== undefined) {
+                    const patternToPlay = trackStorage[row.key][patternIndex];
+                    if (patternToPlay) {
+                        const partSequence = patternToPlay;
+                        if (partSequence && partSequence.steps[step.subStep]) {
+                            const note = partSequence.steps[step.subStep]!.note;
+                            switch (row.key) {
+                                case 'partA': audioEngine.playSynth(synthARef.current, note, time, undefined, 'partA', step.subStep); break;
+                                case 'partB': audioEngine.playSynth(synthBRef.current, note, time, undefined, 'partB', step.subStep); break;
+                                case 'kick': audioEngine.playDrum('kick', kickRef.current, time); break;
+                                case 'snare': audioEngine.playDrum('snare', snareRef.current, time); break;
+                                case 'openHat': audioEngine.playDrum('openHat', openHatRef.current, time); break;
+                                case 'closedHat':
+                                    // Find if there is an open hat on this step for the openHat track
+                                    const openHatTrackIndex = ROWS.findIndex(r => r.key === 'openHat');
+                                    const openHatPatternIndex = song.steps[openHatTrackIndex][step.songStep]?.patternIndex;
+                                    if (openHatPatternIndex !== null && openHatPatternIndex !== undefined) {
+                                        const openHatPattern = trackStorage['openHat'][openHatPatternIndex];
+                                        if (!openHatPattern?.steps[step.subStep]) {
+                                            audioEngine.playDrum('closedHat', closedHatRef.current, time);
+                                        }
+                                    } else {
+                                        audioEngine.playDrum('closedHat', closedHatRef.current, time);
+                                    }
+                                    break;
+                                case 'sampler': audioEngine.playSampler(samplerRef.current, note, time); break;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }, [audioEngine, pattern, viewMode, song.steps, trackStorage]);
 
     const lookahead = role === 'master' ? 0.4 : 0.1;
-    const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, getCurrentTime, lookahead);
+    const schedulerConfig = {
+        mode: viewMode,
+        pattern: pattern,
+        song: song,
+        trackStorage: trackStorage,
+    };
+    const { isPlaying: schedPlaying, currentSubStep, currentSongStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, schedulerConfig, onStep, isEngineReady, getCurrentTime, lookahead);
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
-    useEffect(() => setCurrentStep(schedStep), [schedStep])
+    useEffect(() => {
+        if (viewMode === 'pattern') {
+            setCurrentStep(currentSubStep);
+        } else {
+            setSong(s => ({ ...s, currentSongStep }));
+        }
+    }, [currentSubStep, currentSongStep, viewMode]);
 
     const handlePlayToggle = async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
@@ -460,49 +556,72 @@ export const App: React.FC = () => {
         setContextMenu(null);
     };
 
+    const handleSongStepRightClick = (trackIndex: number, stepIndex: number, e: React.MouseEvent) => {
+        setPatternSelector({ x: e.clientX, y: e.clientY, trackIndex, stepIndex });
+    };
+
+    const handlePatternSelect = (patternIndex: number) => {
+        if (!patternSelector) return;
+        setSong(prev => {
+            const newSteps = prev.steps.map(track => [...track]);
+            newSteps[patternSelector.trackIndex][patternSelector.stepIndex] = {
+                patternIndex: patternIndex === -1 ? null : patternIndex
+            };
+            return { ...prev, steps: newSteps };
+        });
+        setPatternSelector(null);
+    };
+
     const handleClearPattern = () => {
-        if(window.confirm("Clear current pattern?")) {
-             setPattern({
-                 partA: { steps: Array(16).fill(null) },
-                 partB: { steps: Array(16).fill(null) },
-                 kick: { steps: Array(16).fill(null) },
-                 snare: { steps: Array(16).fill(null) },
-                 closedHat: { steps: Array(16).fill(null) },
-                 openHat: { steps: Array(16).fill(null) },
-                 sampler: { steps: Array(16).fill(null) },
-             });
+        if (window.confirm("Clear current pattern?")) {
+            setPattern({
+                length: 32,
+                partA: { steps: Array(32).fill(null) },
+                partB: { steps: Array(32).fill(null) },
+                kick: { steps: Array(32).fill(null) },
+                snare: { steps: Array(32).fill(null) },
+                closedHat: { steps: Array(32).fill(null) },
+                openHat: { steps: Array(32).fill(null) },
+                sampler: { steps: Array(32).fill(null) },
+            });
         }
     };
 
     // --- STORAGE LOGIC ---
 
-    const handleTrackSlotClick = (track: TrackKey, slotIndex: number) => {
-        // Behavior: If slot is empty or shift held -> Save current. If slot has data -> Load it.
-        // For simplicity: If current active is different, LOAD. If current active is same, SAVE.
+    const handleTrackSlotClick = (track: TrackKey, slotIndexInBank: number) => {
+        const absoluteSlotIndex = activeBank * PATTERNS_PER_BANK + slotIndexInBank;
 
-        const currentTrackPattern = pattern[track];
-        const storedPattern = trackStorage[track][slotIndex];
+        const storedPartSequence = trackStorage[track][absoluteSlotIndex];
 
-        // Logic: Load if data exists and we aren't already on this slot
-        // Save if we are on this slot (update) or if it's empty
-
-        // Simple behavior for now:
-        // 1. If slot has data -> Load it into current pattern
-        // 2. If slot empty -> Save current pattern there
-        // 3. Right click (context menu) to Force Save? (handled via UI usually, but lets do basic toggle)
-
-        if (storedPattern) {
-            setPattern(prev => ({ ...prev, [track]: storedPattern }));
-            setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex }));
+        if (storedPartSequence) {
+            // If the slot is not empty, ask for confirmation to overwrite
+            if (window.confirm(`Overwrite pattern ${String.fromCharCode(65 + activeBank)}${slotIndexInBank + 1} for ${track}?`)) {
+                // Save the current track's part sequence into the slot
+                setTrackStorage(prev => {
+                    const newStorage = { ...prev };
+                    newStorage[track] = [...prev[track]];
+                    newStorage[track][absoluteSlotIndex] = pattern[track];
+                    return newStorage;
+                });
+            } else {
+                // Load the stored part sequence into the current pattern for that track
+                setPattern(prev => ({
+                    ...prev,
+                    [track]: storedPartSequence,
+                }));
+            }
         } else {
+            // Save the current track's part sequence into the empty slot
             setTrackStorage(prev => {
-                const copy = { ...prev };
-                copy[track] = [...prev[track]];
-                copy[track][slotIndex] = currentTrackPattern;
-                return copy;
+                const newStorage = { ...prev };
+                newStorage[track] = [...prev[track]];
+                newStorage[track][absoluteSlotIndex] = pattern[track];
+                return newStorage;
             });
-            setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex }));
         }
+        // Always set the clicked slot as active
+        setActiveTrackSlots(prev => ({ ...prev, [track]: absoluteSlotIndex }));
     };
 
     const saveSong = (slot: number) => {
@@ -663,6 +782,30 @@ export const App: React.FC = () => {
                 <div className="flex items-center gap-6">
                     <h1 className="text-lg font-bold font-orbitron text-cyan-500 tracking-wider hidden md:block">ELECTRIBE<span className="text-white">WEB</span></h1>
 
+                        {/* Bank Selectors */}
+                        <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
+                            <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Bank</span>
+                            {[0, 1, 2, 3].map(bankIdx => {
+                                const color = bankColors[bankIdx][0];
+                                return (
+                                    <button
+                                        key={bankIdx}
+                                        onClick={() => setActiveBank(bankIdx)}
+                                        className={`w-6 h-6 text-xs font-mono rounded transition-all border`}
+                                        style={{
+                                            backgroundColor: activeBank === bankIdx ? color : '#1a2026',
+                                            borderColor: color,
+                                            color: activeBank === bankIdx ? 'black' : color,
+                                            boxShadow: activeBank === bankIdx ? `0 0 10px ${color}` : 'none'
+                                        }}
+                                        title={`Select Pattern Bank ${String.fromCharCode(65 + bankIdx)}`}
+                                    >
+                                        {String.fromCharCode(65 + bankIdx)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
                     {/* Global Song Snapshots */}
                     <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
                         <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Song</span>
@@ -688,6 +831,12 @@ export const App: React.FC = () => {
                     <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-red-900/10 hover:bg-red-900/30 px-3 py-1 rounded transition-all">
                         CLEAR
                     </button>
+
+                    {/* View Mode Toggle */}
+                    <div className="flex items-center bg-gray-900 rounded border border-gray-700 p-1">
+                        <button onClick={() => setViewMode('pattern')} className={`px-3 py-1 text-xs rounded ${viewMode === 'pattern' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>PATTERN</button>
+                        <button onClick={() => setViewMode('song')} className={`px-3 py-1 text-xs rounded ${viewMode === 'song' ? 'bg-purple-500 text-black' : 'hover:bg-gray-800'}`}>SONG</button>
+                    </div>
                 </div>
 
                 {/* RIGHT: Transport & Master Volume */}
@@ -719,6 +868,20 @@ export const App: React.FC = () => {
                             <button onClick={() => setTempo(t => t-1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800">-</button>
                             <span className="w-12 text-center font-mono text-cyan-300 text-sm">{tempo}</span>
                             <button onClick={() => setTempo(t => t+1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800">+</button>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
+                            <button onClick={() => setPattern(p => ({...p, length: Math.max(1, p.length - 1)}))} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800">-</button>
+                            <span className="w-12 text-center font-mono text-cyan-300 text-sm">{pattern.length} STEPS</span>
+                            <button onClick={() => setPattern(p => ({...p, length: Math.min(32, p.length + 1)}))} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800">+</button>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
+                            <button onClick={() => setZoom(z => Math.max(1, z / 2))} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800">-</button>
+                            <span className="w-12 text-center font-mono text-cyan-300 text-sm">ZOOM {zoom}x</span>
+                            <button onClick={() => setZoom(z => Math.min(4, z * 2))} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800">+</button>
                         </div>
                     </div>
 
@@ -763,58 +926,66 @@ export const App: React.FC = () => {
                     />
                 )}
 
-                {/* Sequencer Container with Hardware finish */}
-                <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
+                {patternSelector && (
+                    <PatternSelector
+                        x={patternSelector.x}
+                        y={patternSelector.y}
+                        onSelect={handlePatternSelect}
+                        onClose={() => setPatternSelector(null)}
+                    />
+                )}
 
-                    {/* --- RENDERER MODE OVERLAY --- */}
-                    {role === 'renderer' && (
-                        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-10 flex items-center justify-center">
-                            <div className="text-center">
-                                <h2 className="text-2xl font-bold text-purple-400 font-orbitron">RENDERING MODE</h2>
-                                <p className="text-gray-400">Waiting for Master to send audio jobs...</p>
-                            </div>
-                        </div>
-                    )}
+                {viewMode === 'pattern' ? (
+                    <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
+                        {/* Decorative screws */}
+                        <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                        <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                        <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                        <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
 
-                    {/* Decorative screws */}
-                    <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                    <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                    <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                    <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-
-                    <svg viewBox="0 0 920 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
-                        <defs>
-                            <linearGradient id="trackGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stopColor="#0b1015" stopOpacity="1" />
-                                <stop offset="100%" stopColor="#0b1015" stopOpacity="0" />
-                            </linearGradient>
-                            <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" stopColor="white" stopOpacity="0.5" />
-                                <stop offset="100%" stopColor="white" stopOpacity="0" />
-                            </linearGradient>
-                        </defs>
-
-                        <g transform="translate(100, 40)">
-                            {ROWS.map((row, rIdx) => (
-                                <SequencerRow
-                                    key={row.key}
-                                    rowKey={row.key}
-                                    label={row.label}
-                                    rowIndex={rIdx}
-                                    steps={!isPyodideReady ? getLoadingStepData(rIdx) : (pattern as any)[row.key].steps}
-                                    currentStep={currentStep}
-                                    isSelected={selectedTrack === row.key}
-                                    activeSlot={activeTrackSlots[row.key]}
-                                    slotsData={trackStorage[row.key].map(s => s !== null)}
-                                    onToggle={toggleStep}
-                                    onRightClickStep={handleRightClickStep}
-                                    onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
-                                    onSelectSlot={handleTrackSlotClick}
-                                />
-                            ))}
-                        </g>
-                    </svg>
-                </div>
+                        <svg viewBox="0 0 920 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
+                            <defs>
+                                <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stopColor="white" stopOpacity="0.5" />
+                                    <stop offset="100%" stopColor="white" stopOpacity="0" />
+                                </linearGradient>
+                            </defs>
+                            <g transform="translate(100, 40)">
+                                {ROWS.map((row, rIdx) => (
+                                    <SequencerRow
+                                        key={row.key}
+                                        rowKey={row.key}
+                                        label={row.label}
+                                        rowIndex={rIdx}
+                                        steps={!isPyodideReady ? getLoadingStepData(rIdx) : (pattern as any)[row.key].steps}
+                                        currentStep={currentStep}
+                                        isSelected={selectedTrack === row.key}
+                                        activeSlot={activeTrackSlots[row.key]}
+                                        slotsData={trackStorage[row.key].map(s => s !== null)}
+                                        zoom={zoom}
+                                        activeBank={activeBank}
+                                        onToggle={toggleStep}
+                                        onRightClickStep={handleRightClickStep}
+                                        onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
+                                        onSelectSlot={handleTrackSlotClick}
+                                    />
+                                ))}
+                            </g>
+                        </svg>
+                    </div>
+                ) : (
+                    <SongMode
+                        song={song}
+                        zoom={songZoom}
+                        scroll={songScroll}
+                        onZoomChange={setSongZoom}
+                        onScrollChange={setSongScroll}
+                        onLengthChange={(l) => setSong(s => ({ ...s, length: l }))}
+                        onLoopLengthChange={(l) => setSong(s => ({ ...s, loopLength: l }))}
+                        onLoopToggle={() => setSong(s => ({ ...s, loop: !s.loop }))}
+                        onStepRightClick={handleSongStepRightClick}
+                    />
+                )}
 
                 {/* --- LIVE KEYBOARD --- */}
                 <div className="shrink-0 pb-4">

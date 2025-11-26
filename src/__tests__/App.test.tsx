@@ -16,6 +16,6 @@ describe('App', () => {
 
   it('renders song step indicator', () => {
     render(<App />);
-    expect(screen.getByText(/Song/i)).toBeInTheDocument();
+    expect(screen.getByText('Song', { selector: 'span' })).toBeInTheDocument();
   });
 });

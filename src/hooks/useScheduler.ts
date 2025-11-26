@@ -1,113 +1,141 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-export const useScheduler = (
-  tempo: number,
-  steps: number,
-  onStep: (step: number, time: number) => void,
-  isAudioReady: boolean,
-  getCurrentTime: () => number,
-  lookahead: number = 0.1 // Default to 100ms
-) => {
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [currentStep, setCurrentStep] = useState(-1)
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type { Pattern, SongStructure } from '../types';
 
-  // Use refs for values that change often but shouldn't restart the loop logic.
-  const onStepRef = useRef(onStep)
-  const tempoRef = useRef(tempo)
-  const nextStepTime = useRef(0)
-  const currentStepRef = useRef(-1)
-  const workerRef = useRef<Worker | null>(null);
+type PlayMode = 'pattern' | 'song';
 
-  // Ref to hold the latest processing function to avoid stale closures in Worker callback
-  const processTickRef = useRef<() => void>(() => {});
-
-  // Keep refs updated with the latest props
-  useEffect(() => {
-    onStepRef.current = onStep
-  }, [onStep])
-
-  useEffect(() => {
-    tempoRef.current = tempo
-  }, [tempo])
-
-  // Initialize Worker
-  useEffect(() => {
-      const worker = new Worker(new URL('../workers/clock.worker.ts', import.meta.url), { type: 'module' });
-      workerRef.current = worker;
-
-      worker.onmessage = (e) => {
-          if (e.data === 'tick') {
-             // Call the latest version of processTick
-             processTickRef.current();
-          }
-      };
-
-      return () => {
-          worker.terminate();
-      };
-  }, []); // Run once on mount
-
-  const processTick = useCallback(() => {
-      if (!isAudioReady || !isPlaying) return;
-
-      const now = getCurrentTime();
-
-      // Safety check: if getCurrentTime returns 0 (e.g. context suspended/not ready), abort
-      if (now === 0) return;
-
-      const stepDuration = 60 / tempoRef.current / 4; // 16th notes
-
-      // Catch-up logic: If we are significantly behind (e.g. > 200ms),
-      // resync nextStepTime to 'now' to avoid playing a burst of old notes.
-      if (nextStepTime.current < now - 0.2) {
-          nextStepTime.current = now;
-      }
-
-      // Schedule all notes that fall within the lookahead window
-      while (nextStepTime.current < now + lookahead) {
-          currentStepRef.current = (currentStepRef.current + 1) % steps;
-          const stepToPlay = currentStepRef.current;
-
-          // Lookahead Scheduling:
-          // We pass the calculated 'future' time to onStep.
-          // App.tsx will use this time to schedule the oscillator start.
-          onStepRef.current(stepToPlay, nextStepTime.current)
-
-          // Update UI immediately (or close enough)
-          // Since we are scheduling only ~100ms ahead, updating UI now is acceptable
-          // and feels responsive. For perfect UI sync, we'd need a separate
-          // requestAnimationFrame loop to update UI when time matches,
-          // but that adds complexity. This is the standard simple approach.
-          setCurrentStep(stepToPlay)
-
-          nextStepTime.current += stepDuration;
-      }
-  }, [isPlaying, isAudioReady, steps, getCurrentTime]);
-
-  // Keep the ref updated
-  useEffect(() => {
-      processTickRef.current = processTick;
-  }, [processTick]);
-
-
-  useEffect(() => {
-    if (isPlaying && isAudioReady) {
-      // Start
-      currentStepRef.current = -1;
-
-      // Initialize nextStepTime.
-      // Important: Add a small buffer (e.g. 0.1s) so the first note isn't "in the past"
-      // by the time the message loop runs.
-      const now = getCurrentTime();
-      nextStepTime.current = now;
-
-      workerRef.current?.postMessage('start');
-    } else {
-      // Stop
-      workerRef.current?.postMessage('stop');
-      setCurrentStep(-1)
-    }
-  }, [isPlaying, isAudioReady, getCurrentTime])
-
-  return { isPlaying, currentStep, setIsPlaying }
+interface SchedulerConfig {
+    mode: PlayMode;
+    pattern: Pattern;
+    song: SongStructure;
+    trackStorage: Record<string, (PartSequence | null)[]>;
 }
+
+export const useScheduler = (
+    tempo: number,
+    config: SchedulerConfig,
+    onStep: (step: { songStep: number, subStep: number }, time: number) => void,
+    isAudioReady: boolean,
+    getCurrentTime: () => number,
+    lookahead: number = 0.1
+) => {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentSubStep, setCurrentSubStep] = useState(-1);
+    const [currentSongStep, setCurrentSongStep] = useState(-1);
+
+    const onStepRef = useRef(onStep);
+    const tempoRef = useRef(tempo);
+    const configRef = useRef(config);
+    const nextStepTime = useRef(0);
+    const subStepRef = useRef(-1);
+    const songStepRef = useRef(-1);
+    const workerRef = useRef<Worker | null>(null);
+    const currentPatternLength = useRef(16);
+
+    const processTickRef = useRef<() => void>(() => {});
+
+    useEffect(() => { onStepRef.current = onStep; }, [onStep]);
+    useEffect(() => { tempoRef.current = tempo; }, [tempo]);
+    useEffect(() => { configRef.current = config; }, [config]);
+
+    useEffect(() => {
+        const worker = new Worker(new URL('../workers/clock.worker.ts', import.meta.url), { type: 'module' });
+        workerRef.current = worker;
+        worker.onmessage = (e) => {
+            if (e.data === 'tick') {
+                processTickRef.current();
+            }
+        };
+        return () => { worker.terminate(); };
+    }, []);
+
+    const processTick = useCallback(() => {
+        if (!isAudioReady || !isPlaying) return;
+
+        const now = getCurrentTime();
+        if (now === 0) return;
+
+        const stepDuration = 60 / tempoRef.current / 4; // 16th notes
+
+        if (nextStepTime.current < now - 0.2) {
+            nextStepTime.current = now;
+        }
+
+        while (nextStepTime.current < now + lookahead) {
+            const { mode, pattern, song, trackStorage } = configRef.current;
+
+            if (mode === 'song' && subStepRef.current === -1) {
+                // First step of a new song position
+                songStepRef.current++;
+                if (songStepRef.current >= song.loopLength) {
+                    if (song.loop) {
+                        songStepRef.current = 0;
+                    } else {
+                        setIsPlaying(false);
+                        return;
+                    }
+                }
+
+                // Determine the max length of patterns in the current song step
+                let maxLength = 0;
+                song.steps.forEach((track, trackIndex) => {
+                    const trackKey = Object.keys(trackStorage)[trackIndex];
+                    const patternIndex = track[songStepRef.current]?.patternIndex;
+                    if (patternIndex !== null && patternIndex !== undefined) {
+                        const pattern = trackStorage[trackKey]?.[patternIndex];
+                        if (pattern && pattern.steps.length > maxLength) {
+                            maxLength = pattern.steps.length;
+                        }
+                    }
+                });
+                currentPatternLength.current = maxLength > 0 ? maxLength : 16;
+            }
+
+            subStepRef.current++;
+
+            if (mode === 'pattern') {
+                if (subStepRef.current >= pattern.length) {
+                    subStepRef.current = 0;
+                }
+            } else { // Song Mode
+                if (subStepRef.current >= currentPatternLength.current) {
+                    subStepRef.current = -1; // Reset to trigger next song step logic
+                    continue; // Re-run the loop for the new song step immediately
+                }
+            }
+
+            const step = {
+                songStep: songStepRef.current,
+                subStep: subStepRef.current
+            };
+
+            onStepRef.current(step, nextStepTime.current);
+
+            // Update UI state
+            setCurrentSubStep(step.subStep);
+            setCurrentSongStep(step.songStep);
+
+            nextStepTime.current += stepDuration;
+        }
+    }, [isPlaying, isAudioReady, getCurrentTime, lookahead]);
+
+    useEffect(() => {
+        processTickRef.current = processTick;
+    }, [processTick]);
+
+    useEffect(() => {
+        if (isPlaying && isAudioReady) {
+            subStepRef.current = -1;
+            songStepRef.current = config.mode === 'song' ? -1 : 0; // Start before the first step
+            nextStepTime.current = getCurrentTime();
+            workerRef.current?.postMessage('start');
+        } else {
+            workerRef.current?.postMessage('stop');
+            setCurrentSubStep(-1);
+            setCurrentSongStep(-1);
+        }
+    }, [isPlaying, isAudioReady, getCurrentTime, config.mode]);
+
+    return { isPlaying, currentSubStep, currentSongStep, setIsPlaying };
+};
