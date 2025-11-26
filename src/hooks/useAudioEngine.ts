@@ -130,7 +130,11 @@ const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: 
       await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js');
       await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js');
       // @ts-ignore
-      essentiaRef.current = new Essentia(EssentiaWASM);
+        const wasmModule = await EssentiaWASM(); // note: *call* it, it's not a class
+
+// 3. Create Essentia instance from the module
+// @ts-ignore
+        essentiaRef.current = new Essentia(wasmModule);
       console.log('Essentia.js Initialized. Version:', essentiaRef.current.version);
     } catch (e) {
       console.error("Failed to load Essentia.js:", e);
