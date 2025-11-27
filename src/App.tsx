@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, memo } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
+import { useWebGpuDevice } from './hooks/useWebGpuDevice'
 import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
@@ -254,6 +255,7 @@ export const ROWS = [
 
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
+    const { status: gpuStatus, error: gpuError, retry: retryGpu } = useWebGpuDevice()
     const {
         audioEngine,
         isReady,
@@ -266,6 +268,8 @@ export const App: React.FC = () => {
 
 
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
+    const showGpuWarning = gpuStatus === 'error'
+    const gpuErrorMessage = gpuError ?? 'WebGPU failed to initialize.'
 
     // --- STATE ---
     const [pattern, setPattern] = useState<Pattern>(INITIAL_PATTERN)
@@ -985,6 +989,24 @@ export const App: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* --- GPU WARNING --- */}
+            {showGpuWarning && (
+                <div className="fixed inset-x-4 top-[90px] z-50 px-4 py-3 rounded-xl bg-yellow-400/95 text-black shadow-xl border border-yellow-600/70 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div className="text-sm font-bold">WebGPU Beta Warning</div>
+                    <div className="text-[13px] leading-snug text-gray-900">{gpuErrorMessage}</div>
+                    <div className="self-start md:self-auto flex gap-2">
+                        <button
+                            onClick={retryGpu}
+                            className="px-3 py-1 rounded bg-black text-white text-xs font-bold border border-white/50 hover:bg-white hover:text-black transition"
+                        >Retry</button>
+                        <button
+                            onClick={() => setIsInitialized(true)}
+                            className="px-3 py-1 rounded bg-black/80 text-white text-xs font-bold border border-white/50 hover:bg-white hover:text-black transition"
+                        >Dismiss</button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

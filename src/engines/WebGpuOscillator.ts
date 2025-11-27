@@ -1,4 +1,3 @@
-
 export class WebGpuOscillator {
     device: GPUDevice | null = null;
     pipeline: GPUComputePipeline | null = null;
@@ -63,18 +62,34 @@ export class WebGpuOscillator {
         }
     `;
 
-    async init() {
-        if (!navigator.gpu) {
-            console.warn("WebGPU not supported in this browser.");
+    async init(device?: GPUDevice) {
+        if (device) {
+            this.device = device;
+        }
+
+        if (!this.device) {
+            if (!navigator.gpu) {
+                console.warn("WebGPU not supported in this browser.");
+                return;
+            }
+
+            try {
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) throw new Error("No GPU adapter found.");
+
+                this.device = await adapter.requestDevice();
+            } catch (e) {
+                console.error("Failed to init WebGPU Audio:", e);
+                return;
+            }
+        }
+
+        if (!this.device) {
+            console.warn("WebGPU device unavailable.");
             return;
         }
 
         try {
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) throw new Error("No GPU adapter found.");
-
-            this.device = await adapter.requestDevice();
-
             const shaderModule = this.device.createShaderModule({
                 code: this.SHADER_CODE
             });
@@ -96,6 +111,7 @@ export class WebGpuOscillator {
         } catch (e) {
             console.error("Failed to init WebGPU Audio:", e);
         }
+        return;
     }
 
     async generate(frequency: number, duration: number, sampleRate: number, type: 'saw' | 'sqr' | 'tri' | 'sin'): Promise<Float32Array | null> {

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
+import { acquireSharedWebGpuDevice } from './useWebGpuDevice';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { useDistributedAudio, type RenderRequest, type AudioResponse } from './useDistributedAudio';
 
@@ -122,9 +123,13 @@ const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: 
     
     // Initialize GPU Engine
     if (!gpuEngineRef.current) {
+      const sharedDevice = await acquireSharedWebGpuDevice();
       const gpuEngine = new WebGpuOscillator();
-      await gpuEngine.init();
+      await gpuEngine.init(sharedDevice ?? undefined);
       gpuEngineRef.current = gpuEngine;
+      if (!gpuEngine.isSupported) {
+        console.warn("WebGPU oscillator not supported - falling back to offline generation.");
+      }
     }
 
     // Load Essentia.js
