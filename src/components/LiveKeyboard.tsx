@@ -6,7 +6,7 @@ interface LiveKeyboardProps {
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const OCTAVES = [5, 4, 3, 2]; // Top to bottom
+const OCTAVES = [2, 3, 4, 5]; // Left to right
 
 export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTrackColor }) => {
     const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set());
@@ -30,16 +30,19 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
         }
     };
 
-    // Width calculations
-    const totalWidth = 920;
-    const gap = 4;
-    const keyWidth = (totalWidth - (11 * gap)) / 12;
-    const keyHeight = 40;
-    const rowGap = 6;
+    // New vertical layout calculations
+    const totalWidth = 380;
+    const totalHeight = 460;
+    const colGap = 8;
+    const rowGap = 5;
+
+    const keyWidth = (totalWidth - (OCTAVES.length - 1) * colGap) / OCTAVES.length;
+    const keyHeight = (totalHeight - (NOTES.length - 1) * rowGap) / NOTES.length;
+
 
     return (
-        <div className="w-full max-w-[920px] mx-auto mt-4 select-none">
-             <svg viewBox={`0 0 ${totalWidth} ${keyHeight * 4 + rowGap * 3}`} className="w-full drop-shadow-lg">
+        <div className="w-full h-full p-2 select-none">
+             <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} className="w-full h-full drop-shadow-lg">
                 <defs>
                     <linearGradient id="keyGlass" x1="0%" y1="0%" x2="0%" y2="100%">
                         <stop offset="0%" stopColor="white" stopOpacity="0.3" />
@@ -47,18 +50,17 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                     </linearGradient>
                 </defs>
 
-                {OCTAVES.map((octave, rowIndex) => (
-                    <g key={octave} transform={`translate(0, ${rowIndex * (keyHeight + rowGap)})`}>
-                        {NOTES.map((noteName, colIndex) => {
+                {NOTES.map((noteName, rowIndex) => (
+                    <g key={noteName} transform={`translate(0, ${rowIndex * (keyHeight + rowGap)})`}>
+                        {OCTAVES.map((octave, colIndex) => {
                             const fullNote = `${noteName}${octave}`;
                             const isBlack = noteName.includes('#');
                             const isActive = activeKeys.has(fullNote);
 
-                            // Visuals
-                            const baseColor = isBlack ? '#080a0c' : '#151a21'; // Dark vs Light(er) Dark
+                            const baseColor = isBlack ? '#080a0c' : '#151a21';
                             const activeColor = activeTrackColor || '#06b6d4';
 
-                            const x = colIndex * (keyWidth + gap);
+                            const x = colIndex * (keyWidth + colGap);
 
                             return (
                                 <g
@@ -71,22 +73,13 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                                     onTouchEnd={(e) => { e.preventDefault(); handleMouseUp(fullNote); }}
                                     cursor="pointer"
                                 >
-                                    {/* Base / Bevel Shadow */}
                                     <rect width={keyWidth} height={keyHeight} rx={4} fill="#000" />
-
-                                    {/* Main Body */}
                                     <rect
                                         x={1} y={1} width={keyWidth-2} height={keyHeight-2} rx={3}
                                         fill={isActive ? '#1f2e25' : baseColor}
                                     />
-
-                                    {/* Top Highlight (Bevel) */}
                                     <path d={`M 2 2 L ${keyWidth-2} 2 L ${keyWidth-4} 4 L 4 4 Z`} fill="rgba(255,255,255,0.2)" />
-
-                                    {/* Bottom Shadow (Bevel) */}
                                     <path d={`M 2 ${keyHeight-2} L ${keyWidth-2} ${keyHeight-2} L ${keyWidth-4} ${keyHeight-4} L 4 ${keyHeight-4} Z`} fill="rgba(0,0,0,0.6)" />
-
-                                    {/* Inner Cap */}
                                     <rect
                                         x={3} y={3} width={keyWidth-6} height={keyHeight-6} rx={2}
                                         fill={isActive ? activeColor : (isBlack ? '#111' : '#222')}
@@ -94,19 +87,16 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                                         stroke={isActive ? activeColor : 'none'}
                                         strokeWidth={1}
                                     />
-
-                                    {/* Glassy Shine */}
                                     <rect
                                         x={4} y={4} width={keyWidth-8} height={(keyHeight-8)/2} rx={2}
                                         fill="url(#keyGlass)"
                                         pointerEvents="none"
                                     />
-
-                                    {/* Label */}
                                     <text
-                                        x={keyWidth/2} y={keyHeight - 8}
+                                        x={keyWidth/2} y={keyHeight / 2}
                                         textAnchor="middle"
-                                        fontSize={10}
+                                        dominantBaseline="middle"
+                                        fontSize={11}
                                         fontFamily="monospace"
                                         fontWeight="bold"
                                         fill={isActive ? '#fff' : (isBlack ? '#555' : '#888')}
@@ -114,8 +104,6 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                                     >
                                         {fullNote}
                                     </text>
-
-                                    {/* Active LED Glow */}
                                     {isActive && (
                                          <rect
                                             x={6} y={keyHeight - 5} width={keyWidth - 12} height={2} rx={1}
