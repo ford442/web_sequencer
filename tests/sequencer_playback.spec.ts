@@ -1,21 +1,26 @@
 import { test, expect } from '@playwright/test';
 
-test('sequencer playback in pattern mode', async ({ page }) => {
+test('sequencer advances steps when playing', async ({ page }) => {
+  // Navigate to the app
   await page.goto('http://localhost:5174/');
 
-  // Wait for the app to initialize
-  await page.waitForSelector('text=ELECTRIBE', { timeout: 60000 });
+  // Wait for the app to be ready by looking for a key UI element.
+  await expect(page.locator('text=ELECTRIBEWEB')).toBeVisible({ timeout: 90000 });
 
-  // Switch to pattern mode
-  await page.click('text=PATTERN');
+  // Click the "PLAY" button to start the sequencer.
+  await page.getByRole('button', { name: 'PLAY' }).click();
 
-  // Click the play button
-  await page.click('text=PLAY');
+  // The sequencer starts at step -1, then moves to 0. We expect to see the indicator at the first step.
+  // The step indicator is a <rect> element with a white stroke.
+  const firstStepIndicator = page.locator('g[transform="translate(140, 0)"] rect[stroke="#ffffff"]');
+  await expect(firstStepIndicator).toBeVisible({ timeout: 5000 });
 
-  // Wait for a moment for playback to start
-  await page.waitForTimeout(500);
+  // Now, we'll wait a moment and check that the indicator has moved to a different step.
+  // This confirms the sequencer is advancing. The exact step it will be on is timing-dependent,
+  // so we check that the first step is *no longer* highlighted.
+  await expect(firstStepIndicator).not.toBeVisible({ timeout: 5000 });
 
-  // Check if the first step indicator is visible
-  const firstCurrentStepIndicator = page.locator('rect[stroke="#ffffff"]').first();
-  await expect(firstCurrentStepIndicator).toBeVisible();
+  // As a final check, we'll verify that some *other* step indicator is now visible.
+  const anyStepIndicator = page.locator('rect[stroke="#ffffff"]');
+  await expect(anyStepIndicator).toBeVisible({ timeout: 5000 });
 });

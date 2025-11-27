@@ -7,13 +7,8 @@ const interval = 25.0; // milliseconds
 self.onmessage = (e: MessageEvent) => {
     if (e.data === 'start') {
         if (timerID) clearInterval(timerID);
-
-        // Start the timer
-        timerID = self.setInterval(() => {
-            self.postMessage('tick');
-        }, interval);
-    }
-    else if (e.data === 'stop') {
+        timerID = self.setInterval(() => self.postMessage('tick'), interval);
+    } else if (e.data === 'stop') {
         if (timerID) {
             clearInterval(timerID);
             timerID = null;

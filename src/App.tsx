@@ -854,10 +854,6 @@ export const App: React.FC = () => {
                     <button onClick={() => setIsKeyboardVisible(!isKeyboardVisible)} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 bg-cyan-900/10 hover:bg-cyan-900/30 px-3 py-1 rounded transition-all">
                         {isKeyboardVisible ? 'HIDE' : 'SHOW'} KEYBOARD
                     </button>
-
-                    <button onClick={() => setIsKeyboardVisible(!isKeyboardVisible)} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 bg-cyan-900/10 hover:bg-cyan-900/30 px-3 py-1 rounded transition-all">
-                        {isKeyboardVisible ? 'HIDE' : 'SHOW'} KEYBOARD
-                    </button>
                 </div>
 
                 {/* RIGHT: Transport & Master Volume */}
