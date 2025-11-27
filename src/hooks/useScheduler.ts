@@ -52,11 +52,11 @@ export const useScheduler = (
         const now = getCurrentTime();
         if (now === 0) return;
 
-        const stepDuration = 60 / tempoRef.current / 4; // 16th notes
-
-        if (nextStepTime.current < now - 0.2) {
+        if (nextStepTime.current === 0) {
             nextStepTime.current = now;
         }
+
+        const stepDuration = 60 / tempoRef.current / 4; // 16th notes
 
         while (nextStepTime.current < now + lookahead) {
             const { mode, pattern, song, trackStorage } = configRef.current;
@@ -123,7 +123,7 @@ export const useScheduler = (
     useEffect(() => {
         if (isPlaying && isAudioReady) {
             subStepRef.current = -1;
-            songStepRef.current = config.mode === 'song' ? -1 : 0; // Start before the first step
+            songStepRef.current = config.mode === 'song' ? -1 : 0;
             nextStepTime.current = getCurrentTime();
             workerRef.current?.postMessage('start');
         } else {
@@ -131,7 +131,7 @@ export const useScheduler = (
             setCurrentSubStep(-1);
             setCurrentSongStep(-1);
         }
-    }, [isPlaying, isAudioReady, getCurrentTime, config.mode]);
+    }, [isPlaying, isAudioReady, config.mode]);
 
     return { isPlaying, currentSubStep, currentSongStep, setIsPlaying };
 };
