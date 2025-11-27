@@ -140,7 +140,7 @@ export const useAudioEngine = (pyodide: any) => {
         if (response.ok) {
             const buffer = await response.arrayBuffer();
             wamModuleRef.current = await WebAssembly.compile(buffer);
-            await context.audioWorklet.addModule('/wam-processor.js');
+            await context.audioWorklet.addModule('./wam-processor.js');
             isWamReadyRef.current = true;
             console.log("WAM Oscillator loaded.");
         } else {
