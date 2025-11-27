@@ -136,7 +136,7 @@ export const useAudioEngine = (pyodide: any) => {
 
     // Initialize WAM (Fetch WASM and register worklet)
     try {
-        const response = await fetch('/wam_oscillator.wasm');
+        const response = await fetch('./wam_oscillator.wasm');
         if (response.ok) {
             const buffer = await response.arrayBuffer();
             wamModuleRef.current = await WebAssembly.compile(buffer);
