@@ -116,14 +116,16 @@ const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: 
 };
 
   const initializeAudio = useCallback(async () => {
-    if (audioEngineRef.current) return;
+    if (audioEngineRef.current) return audioEngineRef.current;
 
     const context = new (window.AudioContext || (window as any).webkitAudioContext)();
     
     // Initialize GPU Engine
-    const gpuEngine = new WebGpuOscillator();
-    await gpuEngine.init();
-    gpuEngineRef.current = gpuEngine;
+    if (!gpuEngineRef.current) {
+      const gpuEngine = new WebGpuOscillator();
+      await gpuEngine.init();
+      gpuEngineRef.current = gpuEngine;
+    }
 
     // Load Essentia.js
     try {

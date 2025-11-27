@@ -277,7 +277,6 @@ export const App: React.FC = () => {
     const [currentStep, setCurrentStep] = useState(-1)
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [zoom, setZoom] = useState(1);
-    const [viewMode, setViewMode] = useState<'pattern' | 'song'>('pattern');
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
     const [masterPan, setMasterPan] = useState(0)
@@ -404,56 +403,46 @@ export const App: React.FC = () => {
         if (!audioEngine) return;
         const time = scheduledTime || audioEngine.context.currentTime;
 
-        if (viewMode === 'pattern') {
-            if (pattern.partA.steps[step.subStep]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step.subStep]!.note, time, undefined, 'partA', step.subStep);
-            if (pattern.partB.steps[step.subStep]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step.subStep]!.note, time, undefined, 'partB', step.subStep);
-            if (pattern.kick.steps[step.subStep]) audioEngine.playDrum('kick', kickRef.current, time);
-            if (pattern.snare.steps[step.subStep]) audioEngine.playDrum('snare', snareRef.current, time);
-            if (pattern.openHat.steps[step.subStep]) audioEngine.playDrum('openHat', openHatRef.current, time);
-            else if (pattern.closedHat.steps[step.subStep]) audioEngine.playDrum('closedHat', closedHatRef.current, time);
-            if (pattern.sampler.steps[step.subStep]) audioEngine.playSampler(samplerRef.current, pattern.sampler.steps[step.subStep]!.note, time);
-        } else {
-            // Song Mode playback
-            if (step.songStep < 0) return;
-            ROWS.forEach((row, trackIndex) => {
-                const patternIndex = song.steps[trackIndex][step.songStep]?.patternIndex;
-                if (patternIndex !== null && patternIndex !== undefined) {
-                    const patternToPlay = trackStorage[row.key][patternIndex];
-                    if (patternToPlay) {
-                        const partSequence = patternToPlay;
-                        if (partSequence && partSequence.steps[step.subStep]) {
-                            const note = partSequence.steps[step.subStep]!.note;
-                            switch (row.key) {
-                                case 'partA': audioEngine.playSynth(synthARef.current, note, time, undefined, 'partA', step.subStep); break;
-                                case 'partB': audioEngine.playSynth(synthBRef.current, note, time, undefined, 'partB', step.subStep); break;
-                                case 'kick': audioEngine.playDrum('kick', kickRef.current, time); break;
-                                case 'snare': audioEngine.playDrum('snare', snareRef.current, time); break;
-                                case 'openHat': audioEngine.playDrum('openHat', openHatRef.current, time); break;
-                                case 'closedHat':
-                                    // Find if there is an open hat on this step for the openHat track
-                                    const openHatTrackIndex = ROWS.findIndex(r => r.key === 'openHat');
-                                    const openHatPatternIndex = song.steps[openHatTrackIndex][step.songStep]?.patternIndex;
-                                    if (openHatPatternIndex !== null && openHatPatternIndex !== undefined) {
-                                        const openHatPattern = trackStorage['openHat'][openHatPatternIndex];
-                                        if (!openHatPattern?.steps[step.subStep]) {
-                                            audioEngine.playDrum('closedHat', closedHatRef.current, time);
-                                        }
-                                    } else {
+        // Song Mode playback
+        if (step.songStep < 0) return;
+        ROWS.forEach((row, trackIndex) => {
+            const patternIndex = song.steps[trackIndex][step.songStep]?.patternIndex;
+            if (patternIndex !== null && patternIndex !== undefined) {
+                const patternToPlay = trackStorage[row.key][patternIndex];
+                if (patternToPlay) {
+                    const partSequence = patternToPlay;
+                    if (partSequence && partSequence.steps[step.subStep]) {
+                        const note = partSequence.steps[step.subStep]!.note;
+                        switch (row.key) {
+                            case 'partA': audioEngine.playSynth(synthARef.current, note, time, undefined, 'partA', step.subStep); break;
+                            case 'partB': audioEngine.playSynth(synthBRef.current, note, time, undefined, 'partB', step.subStep); break;
+                            case 'kick': audioEngine.playDrum('kick', kickRef.current, time); break;
+                            case 'snare': audioEngine.playDrum('snare', snareRef.current, time); break;
+                            case 'openHat': audioEngine.playDrum('openHat', openHatRef.current, time); break;
+                            case 'closedHat':
+                                // Find if there is an open hat on this step for the openHat track
+                                const openHatTrackIndex = ROWS.findIndex(r => r.key === 'openHat');
+                                const openHatPatternIndex = song.steps[openHatTrackIndex][step.songStep]?.patternIndex;
+                                if (openHatPatternIndex !== null && openHatPatternIndex !== undefined) {
+                                    const openHatPattern = trackStorage['openHat'][openHatPatternIndex];
+                                    if (!openHatPattern?.steps[step.subStep]) {
                                         audioEngine.playDrum('closedHat', closedHatRef.current, time);
                                     }
-                                    break;
-                                case 'sampler': audioEngine.playSampler(samplerRef.current, note, time); break;
-                            }
+                                } else {
+                                    audioEngine.playDrum('closedHat', closedHatRef.current, time);
+                                }
+                                break;
+                            case 'sampler': audioEngine.playSampler(samplerRef.current, note, time); break;
                         }
                     }
                 }
-            });
-        }
-    }, [audioEngine, pattern, viewMode, song.steps, trackStorage]);
+            }
+        });
+    }, [audioEngine, pattern, song.steps, trackStorage]);
 
     const lookahead = role === 'master' ? 0.4 : 0.1;
     const schedulerConfig = {
-        mode: viewMode,
+        mode: 'song',
         pattern: pattern,
         song: song,
         trackStorage: trackStorage,
@@ -462,12 +451,9 @@ export const App: React.FC = () => {
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
     useEffect(() => {
-        if (viewMode === 'pattern') {
-            setCurrentStep(currentSubStep);
-        } else {
-            setSong((s: SongStructure) => ({ ...s, currentSongStep }));
-        }
-    }, [currentSubStep, currentSongStep, viewMode]);
+        setCurrentStep(currentSubStep);
+        setSong((s: SongStructure) => ({ ...s, currentSongStep }));
+    }, [currentSubStep, currentSongStep]);
 
     const handlePlayToggle = async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
@@ -826,12 +812,6 @@ export const App: React.FC = () => {
                     <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-red-900/10 hover:bg-red-900/30 px-3 py-1 rounded transition-all">
                         CLEAR
                     </button>
-
-                    {/* View Mode Toggle */}
-                    <div className="flex items-center bg-gray-900 rounded border border-gray-700 p-1">
-                        <button onClick={() => setViewMode('pattern')} className={`px-3 py-1 text-xs rounded ${viewMode === 'pattern' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>PATTERN</button>
-                        <button onClick={() => setViewMode('song')} className={`px-3 py-1 text-xs rounded ${viewMode === 'song' ? 'bg-purple-500 text-black' : 'hover:bg-gray-800'}`}>SONG</button>
-                    </div>
                 </div>
 
                 {/* RIGHT: Transport & Master Volume */}
@@ -907,7 +887,7 @@ export const App: React.FC = () => {
             </header>
 
             {/* --- SEQUENCER --- */}
-            <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 pb-4">
+            <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 pb-4 gap-4">
 
                 {contextMenu && (
                     <NoteSelector
@@ -930,45 +910,47 @@ export const App: React.FC = () => {
                     />
                 )}
 
-                {viewMode === 'pattern' ? (
-                    <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
-                        {/* Decorative screws */}
-                        <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                        <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                        <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                        <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                {/* --- PATTERN SEQUENCER --- */}
+                <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
+                    {/* Decorative screws */}
+                    <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                    <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                    <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                    <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
 
-                        <svg viewBox="0 0 920 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
-                            <defs>
-                                <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="white" stopOpacity="0.5" />
-                                    <stop offset="100%" stopColor="white" stopOpacity="0" />
-                                </linearGradient>
-                            </defs>
-                            <g transform="translate(100, 40)">
-                                {ROWS.map((row, rIdx) => (
-                                    <SequencerRow
-                                        key={row.key}
-                                        rowKey={row.key}
-                                        label={row.label}
-                                        rowIndex={rIdx}
-                                        steps={!isPyodideReady ? getLoadingStepData(rIdx) : (pattern as any)[row.key].steps}
-                                        currentStep={currentStep}
-                                        isSelected={selectedTrack === row.key}
-                                        activeSlot={activeTrackSlots[row.key]}
-                                        slotsData={trackStorage[row.key].map(s => s !== null)}
-                                        zoom={zoom}
-                                        activeBank={activeBank}
-                                        onToggle={toggleStep}
-                                        onRightClickStep={handleRightClickStep}
-                                        onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
-                                        onSelectSlot={handleTrackSlotClick}
-                                    />
-                                ))}
-                            </g>
-                        </svg>
-                    </div>
-                ) : (
+                    <svg viewBox="0 0 920 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
+                        <defs>
+                            <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="white" stopOpacity="0.5" />
+                                <stop offset="100%" stopColor="white" stopOpacity="0" />
+                            </linearGradient>
+                        </defs>
+                        <g transform="translate(100, 40)">
+                            {ROWS.map((row, rIdx) => (
+                                <SequencerRow
+                                    key={row.key}
+                                    rowKey={row.key}
+                                    label={row.label}
+                                    rowIndex={rIdx}
+                                    steps={!isPyodideReady ? getLoadingStepData(rIdx) : (pattern as any)[row.key].steps}
+                                    currentStep={currentStep}
+                                    isSelected={selectedTrack === row.key}
+                                    activeSlot={activeTrackSlots[row.key]}
+                                    slotsData={trackStorage[row.key].map(s => s !== null)}
+                                    zoom={zoom}
+                                    activeBank={activeBank}
+                                    onToggle={toggleStep}
+                                    onRightClickStep={handleRightClickStep}
+                                    onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
+                                    onSelectSlot={handleTrackSlotClick}
+                                />
+                            ))}
+                        </g>
+                    </svg>
+                </div>
+
+                {/* --- SONG MODE --- */}
+                <div className="w-full max-w-[920px] mx-auto">
                     <SongMode
                         song={song}
                         zoom={songZoom}
@@ -980,7 +962,8 @@ export const App: React.FC = () => {
                         onLoopToggle={() => setSong((s: SongStructure) => ({ ...s, loop: !s.loop }))}
                         onStepRightClick={handleSongStepRightClick}
                     />
-                )}
+                </div>
+
 
                 {/* --- LIVE KEYBOARD --- */}
                 <div className="shrink-0 pb-4">
