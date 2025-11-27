@@ -299,17 +299,17 @@ export const App: React.FC = () => {
     }, [isPyodideReady]);
 
     const getLoadingStepData = (rIdx: number) => {
-         return Array(32).fill(null).map((_, i) => {
-             // Specific Geometric Pattern: "Digital Scanner" + Diagonal
-             // 1. Diagonal sweep
-             const diag = (i + rIdx + loadingTick) % 8 === 0;
-             // 2. Scanner ping (left to right)
-             const scanPos = loadingTick % 32;
-             const scanner = (i === scanPos) || (i === 31 - scanPos);
+        return Array(32).fill(null).map((_, i) => {
+            // Specific Geometric Pattern: "Digital Scanner" + Diagonal
+            // 1. Diagonal sweep
+            const diag = (i + rIdx + loadingTick) % 8 === 0;
+            // 2. Scanner ping (left to right)
+            const scanPos = loadingTick % 32;
+            const scanner = (i === scanPos) || (i === 31 - scanPos);
 
-             const active = diag || scanner;
-             return active ? { note: 'C4', velocity: 1 } : null;
-         });
+            const active = diag || scanner;
+            return active ? { note: 'C4', velocity: 1 } : null;
+        });
     }
 
     // --- STORAGE STATE ---
@@ -345,7 +345,8 @@ export const App: React.FC = () => {
     });
     const [songZoom, setSongZoom] = useState(1);
     const [songScroll, setSongScroll] = useState(0);
-    const [playMode, setPlayMode] = useState<PlayMode>('song');
+    // CHANGED: Default mode is now 'pattern' so the sequencer plays the visible pattern by default
+    const [playMode, setPlayMode] = useState<PlayMode>('pattern');
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
     const [isSongModeVisible, setIsSongModeVisible] = useState(true);
 
@@ -414,17 +415,17 @@ export const App: React.FC = () => {
                 const partSequence = pattern[row.key];
                 if (partSequence && partSequence.steps[step.subStep]) {
                     const note = partSequence.steps[step.subStep]!.note;
-                     switch (row.key) {
+                    switch (row.key) {
                         case 'partA': audioEngine.playSynth(synthARef.current, note, time, undefined, 'partA', step.subStep); break;
                         case 'partB': audioEngine.playSynth(synthBRef.current, note, time, undefined, 'partB', step.subStep); break;
                         case 'kick': audioEngine.playDrum('kick', kickRef.current, time); break;
                         case 'snare': audioEngine.playDrum('snare', snareRef.current, time); break;
                         case 'openHat': audioEngine.playDrum('openHat', openHatRef.current, time); break;
                         case 'closedHat':
-                             const openHatStep = pattern.openHat.steps[step.subStep];
-                             if (!openHatStep) {
+                            const openHatStep = pattern.openHat.steps[step.subStep];
+                            if (!openHatStep) {
                                 audioEngine.playDrum('closedHat', closedHatRef.current, time);
-                             }
+                            }
                             break;
                         case 'sampler': audioEngine.playSampler(samplerRef.current, note, time); break;
                     }
@@ -665,24 +666,24 @@ export const App: React.FC = () => {
 
     // --- MODULE RENDER HELPERS ---
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
-         // Row 1: ADSR (Smaller)
-         { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
-         { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
-         { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
-         { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
+        // Row 1: ADSR (Smaller)
+        { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
+        { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
+        { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
+        { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
 
-         // Row 2: Filter (Larger)
-         { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
-         { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
+        // Row 2: Filter (Larger)
+        { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
+        { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
 
-         // Sides:
-         { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
-         { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 }, // Max 2s
+        // Sides:
+        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
+        { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 }, // Max 2s
 
-         // Output / FX
-         { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
-         { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
-         { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
+        // Output / FX
+        { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
+        { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
+        { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
     ];
     const getKickControls = (params: KickParams): KnobConfig[] => [
         { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
@@ -797,29 +798,29 @@ export const App: React.FC = () => {
                         <button className="px-3 py-1 text-xs rounded bg-gray-800 text-gray-600 cursor-not-allowed">MIXER</button>
                     </div>
 
-                        {/* Bank Selectors */}
-                        <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
-                            <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Bank</span>
-                            {[0, 1, 2, 3].map(bankIdx => {
-                                const color = bankColors[bankIdx][0];
-                                return (
-                                    <button
-                                        key={bankIdx}
-                                        onClick={() => setActiveBank(bankIdx)}
-                                        className={`w-6 h-6 text-xs font-mono rounded transition-all border`}
-                                        style={{
-                                            backgroundColor: activeBank === bankIdx ? color : '#1a2026',
-                                            borderColor: color,
-                                            color: activeBank === bankIdx ? 'black' : color,
-                                            boxShadow: activeBank === bankIdx ? `0 0 10px ${color}` : 'none'
-                                        }}
-                                        title={`Select Pattern Bank ${String.fromCharCode(65 + bankIdx)}`}
-                                    >
-                                        {String.fromCharCode(65 + bankIdx)}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                    {/* Bank Selectors */}
+                    <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Bank</span>
+                        {[0, 1, 2, 3].map(bankIdx => {
+                            const color = bankColors[bankIdx][0];
+                            return (
+                                <button
+                                    key={bankIdx}
+                                    onClick={() => setActiveBank(bankIdx)}
+                                    className={`w-6 h-6 text-xs font-mono rounded transition-all border`}
+                                    style={{
+                                        backgroundColor: activeBank === bankIdx ? color : '#1a2026',
+                                        borderColor: color,
+                                        color: activeBank === bankIdx ? 'black' : color,
+                                        boxShadow: activeBank === bankIdx ? `0 0 10px ${color}` : 'none'
+                                    }}
+                                    title={`Select Pattern Bank ${String.fromCharCode(65 + bankIdx)}`}
+                                >
+                                    {String.fromCharCode(65 + bankIdx)}
+                                </button>
+                            );
+                        })}
+                    </div>
 
                     {/* Global Song Snapshots */}
                     <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
@@ -833,8 +834,8 @@ export const App: React.FC = () => {
                                 }}
                                 onContextMenu={(e) => { e.preventDefault(); saveSong(slot); }} // Right click to overwrite
                                 className={`w-6 h-6 text-xs font-mono rounded transition-all ${
-                                    activeSongSlot === slot ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 
-                                    (songStorage[slot] ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')
+                                    activeSongSlot === slot ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' :
+                                        (songStorage[slot] ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')
                                 }`}
                                 title="Click to Load (if empty, Save). Right-Click to Save/Overwrite."
                             >
@@ -881,7 +882,7 @@ export const App: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                         <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
+                        <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
                             <button onClick={() => setTempo(t => t-1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800">-</button>
                             <span className="w-12 text-center font-mono text-cyan-300 text-sm">{tempo}</span>
                             <button onClick={() => setTempo(t => t+1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800">+</button>
@@ -903,12 +904,12 @@ export const App: React.FC = () => {
                     </div>
 
                     {/* REC BUTTON */}
-                     <button
+                    <button
                         onClick={() => setIsRecording(!isRecording)}
                         className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${
                             isRecording
-                            ? 'bg-red-600 text-white border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)] animate-pulse'
-                            : 'bg-gray-800 text-red-700 border border-gray-700 hover:bg-gray-700'
+                                ? 'bg-red-600 text-white border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)] animate-pulse'
+                                : 'bg-gray-800 text-red-700 border border-gray-700 hover:bg-gray-700'
                         }`}
                         title="Enable Recording (Input notes from keyboard will be saved to pattern)"
                     >
@@ -918,9 +919,9 @@ export const App: React.FC = () => {
                     <button
                         onClick={handlePlayToggle}
                         className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg ${
-                            isPlaying 
-                            ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' 
-                            : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
+                            isPlaying
+                                ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                                : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
                         }`}
                     >
                         {isPlaying ? 'STOP' : 'PLAY'}
@@ -1012,15 +1013,15 @@ export const App: React.FC = () => {
 
                 {/* --- LIVE KEYBOARD --- */}
                 <div data-testid="keyboard-container" className={`transition-all duration-500 ease-in-out ${isKeyboardVisible ? 'w-[400px] opacity-100' : 'w-0 opacity-0'}`}>
-                     <LiveKeyboard
+                    <LiveKeyboard
                         onPlayNote={handleKeyboardPlay}
                         activeTrackColor={
                             selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') :
-                            selectedTrack === 'kick' ? '#f97316' :
-                            selectedTrack === 'snare' ? '#22c55e' :
-                            selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
+                                selectedTrack === 'kick' ? '#f97316' :
+                                    selectedTrack === 'snare' ? '#22c55e' :
+                                        selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
                         }
-                     />
+                    />
                 </div>
 
             </main>
