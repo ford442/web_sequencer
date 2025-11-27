@@ -345,6 +345,8 @@ export const App: React.FC = () => {
     });
     const [songZoom, setSongZoom] = useState(1);
     const [songScroll, setSongScroll] = useState(0);
+    const [playMode, setPlayMode] = useState<PlayMode>('song');
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
     // --- INSTRUMENT STATE ---
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
@@ -406,46 +408,68 @@ export const App: React.FC = () => {
         if (!audioEngine) return;
         const time = scheduledTime || audioEngine.context.currentTime;
 
-        // Song Mode playback
-        if (step.songStep < 0) return;
-        ROWS.forEach((row, trackIndex) => {
-            const patternIndex = song.steps[trackIndex][step.songStep]?.patternIndex;
-            if (patternIndex !== null && patternIndex !== undefined) {
-                const patternToPlay = trackStorage[row.key][patternIndex];
-                if (patternToPlay) {
-                    const partSequence = patternToPlay;
-                    if (partSequence && partSequence.steps[step.subStep]) {
-                        const note = partSequence.steps[step.subStep]!.note;
-                        switch (row.key) {
-                            case 'partA': audioEngine.playSynth(synthARef.current, note, time, undefined, 'partA', step.subStep); break;
-                            case 'partB': audioEngine.playSynth(synthBRef.current, note, time, undefined, 'partB', step.subStep); break;
-                            case 'kick': audioEngine.playDrum('kick', kickRef.current, time); break;
-                            case 'snare': audioEngine.playDrum('snare', snareRef.current, time); break;
-                            case 'openHat': audioEngine.playDrum('openHat', openHatRef.current, time); break;
-                            case 'closedHat':
-                                // Find if there is an open hat on this step for the openHat track
-                                const openHatTrackIndex = ROWS.findIndex(r => r.key === 'openHat');
-                                const openHatPatternIndex = song.steps[openHatTrackIndex][step.songStep]?.patternIndex;
-                                if (openHatPatternIndex !== null && openHatPatternIndex !== undefined) {
-                                    const openHatPattern = trackStorage['openHat'][openHatPatternIndex];
-                                    if (!openHatPattern?.steps[step.subStep]) {
+        if (playMode === 'pattern') {
+            ROWS.forEach(row => {
+                const partSequence = pattern[row.key];
+                if (partSequence && partSequence.steps[step.subStep]) {
+                    const note = partSequence.steps[step.subStep]!.note;
+                     switch (row.key) {
+                        case 'partA': audioEngine.playSynth(synthARef.current, note, time, undefined, 'partA', step.subStep); break;
+                        case 'partB': audioEngine.playSynth(synthBRef.current, note, time, undefined, 'partB', step.subStep); break;
+                        case 'kick': audioEngine.playDrum('kick', kickRef.current, time); break;
+                        case 'snare': audioEngine.playDrum('snare', snareRef.current, time); break;
+                        case 'openHat': audioEngine.playDrum('openHat', openHatRef.current, time); break;
+                        case 'closedHat':
+                             const openHatStep = pattern.openHat.steps[step.subStep];
+                             if (!openHatStep) {
+                                audioEngine.playDrum('closedHat', closedHatRef.current, time);
+                             }
+                            break;
+                        case 'sampler': audioEngine.playSampler(samplerRef.current, note, time); break;
+                    }
+                }
+            });
+        } else { // Song Mode playback
+            if (step.songStep < 0) return;
+            ROWS.forEach((row, trackIndex) => {
+                const patternIndex = song.steps[trackIndex][step.songStep]?.patternIndex;
+                if (patternIndex !== null && patternIndex !== undefined) {
+                    const patternToPlay = trackStorage[row.key][patternIndex];
+                    if (patternToPlay) {
+                        const partSequence = patternToPlay;
+                        if (partSequence && partSequence.steps[step.subStep]) {
+                            const note = partSequence.steps[step.subStep]!.note;
+                            switch (row.key) {
+                                case 'partA': audioEngine.playSynth(synthARef.current, note, time, undefined, 'partA', step.subStep); break;
+                                case 'partB': audioEngine.playSynth(synthBRef.current, note, time, undefined, 'partB', step.subStep); break;
+                                case 'kick': audioEngine.playDrum('kick', kickRef.current, time); break;
+                                case 'snare': audioEngine.playDrum('snare', snareRef.current, time); break;
+                                case 'openHat': audioEngine.playDrum('openHat', openHatRef.current, time); break;
+                                case 'closedHat':
+                                    // Find if there is an open hat on this step for the openHat track
+                                    const openHatTrackIndex = ROWS.findIndex(r => r.key === 'openHat');
+                                    const openHatPatternIndex = song.steps[openHatTrackIndex][step.songStep]?.patternIndex;
+                                    if (openHatPatternIndex !== null && openHatPatternIndex !== undefined) {
+                                        const openHatPattern = trackStorage['openHat'][openHatPatternIndex];
+                                        if (!openHatPattern?.steps[step.subStep]) {
+                                            audioEngine.playDrum('closedHat', closedHatRef.current, time);
+                                        }
+                                    } else {
                                         audioEngine.playDrum('closedHat', closedHatRef.current, time);
                                     }
-                                } else {
-                                    audioEngine.playDrum('closedHat', closedHatRef.current, time);
-                                }
-                                break;
-                            case 'sampler': audioEngine.playSampler(samplerRef.current, note, time); break;
+                                    break;
+                                case 'sampler': audioEngine.playSampler(samplerRef.current, note, time); break;
+                            }
                         }
                     }
                 }
-            }
-        });
-    }, [audioEngine, pattern, song.steps, trackStorage]);
+            });
+        }
+    }, [audioEngine, pattern, song.steps, trackStorage, playMode]);
 
     const lookahead = role === 'master' ? 0.4 : 0.1;
     const { isPlaying: schedPlaying, currentSubStep, currentSongStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, {
-        mode: 'song' as PlayMode,
+        mode: playMode,
         pattern: pattern,
         song: song,
         trackStorage: trackStorage as Record<string, (PartSequence | null)[]>,
@@ -765,6 +789,13 @@ export const App: React.FC = () => {
                 <div className="flex items-center gap-6">
                     <h1 className="text-lg font-bold font-orbitron text-cyan-500 tracking-wider hidden md:block">ELECTRIBE<span className="text-white">WEB</span></h1>
 
+                    {/* Mode Switcher */}
+                    <div className="flex items-center gap-1 bg-gray-900 p-1 rounded border border-gray-700">
+                        <button onClick={() => setPlayMode('pattern')} className={`px-3 py-1 text-xs rounded ${playMode === 'pattern' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>PATTERN</button>
+                        <button onClick={() => setPlayMode('song')} className={`px-3 py-1 text-xs rounded ${playMode === 'song' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>SONG</button>
+                        <button className="px-3 py-1 text-xs rounded bg-gray-800 text-gray-600 cursor-not-allowed">MIXER</button>
+                    </div>
+
                         {/* Bank Selectors */}
                         <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
                             <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Bank</span>
@@ -813,6 +844,10 @@ export const App: React.FC = () => {
 
                     <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-red-900/10 hover:bg-red-900/30 px-3 py-1 rounded transition-all">
                         CLEAR
+                    </button>
+
+                    <button onClick={() => setIsKeyboardVisible(!isKeyboardVisible)} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 bg-cyan-900/10 hover:bg-cyan-900/30 px-3 py-1 rounded transition-all">
+                        {isKeyboardVisible ? 'HIDE' : 'SHOW'} KEYBOARD
                     </button>
                 </div>
 
@@ -889,7 +924,7 @@ export const App: React.FC = () => {
             </header>
 
             {/* --- SEQUENCER --- */}
-            <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 pb-4 gap-4">
+            <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 gap-4">
 
                 {contextMenu && (
                     <NoteSelector
@@ -968,7 +1003,7 @@ export const App: React.FC = () => {
 
 
                 {/* --- LIVE KEYBOARD --- */}
-                <div className="shrink-0 pb-4">
+                <div data-testid="keyboard-container" className={`shrink-0 transition-all duration-500 ease-in-out ${isKeyboardVisible ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
                      <LiveKeyboard
                         onPlayNote={handleKeyboardPlay}
                         activeTrackColor={
@@ -979,10 +1014,11 @@ export const App: React.FC = () => {
                         }
                      />
                 </div>
+
             </main>
 
             {/* --- HARDWARE MODULE --- */}
-            <div className="h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-30 shrink-0 fixed bottom-0 w-full">
+            <div className={`h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-30 shrink-0 w-full ${isKeyboardVisible ? 'relative' : 'fixed bottom-0'}`}>
                 <div className="w-full h-full max-w-5xl mx-auto p-2 flex items-center justify-center">
                     <div className="w-full h-full rounded-xl overflow-hidden border border-gray-800 shadow-2xl bg-black">
                         {renderModulePanel()}
