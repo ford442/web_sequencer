@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Waveform } from '../types';
 
@@ -11,35 +10,64 @@ interface WaveformSelectorProps {
 const waveforms: Waveform[] = [
   'sawtooth', 'square', 'triangle', 'sine',
   'pyodide-saw', 'pyodide-square', 'pyodide-sine',
-  'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'
+  'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin',
+  'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'
 ];
 
 const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
   switch (type) {
     case 'sawtooth':
-      return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 18 L12 6 L12 18 L24 6 L24 18" /></svg>;
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M0 18 L12 6 L12 18 L24 6 L24 18" />
+        </svg>
+      );
     case 'square':
-      return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 18 L0 6 L12 6 L12 18 L24 18 L24 6" /></svg>;
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M0 18 L0 6 L12 6 L12 18 L24 18 L24 6" />
+        </svg>
+      );
     case 'triangle':
-      return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 12 L6 6 L18 18 L24 12" /></svg>;
-  case 'sine':
-      return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 12 Q6 0, 12 12 T24 12" /></svg>;
-    // NEW: Pyodide icons
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M0 12 L6 6 L18 18 L24 12" />
+        </svg>
+      );
+    case 'sine':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M0 12 Q6 0, 12 12 T24 12" />
+        </svg>
+      );
+    // Pyodide icons
     case 'pyodide-saw':
-      return <div className="font-bold text-xs leading-none">PY<br/>SAW</div>;
+      return <div className="font-bold text-[10px] leading-none text-center">PYSAW</div>;
     case 'pyodide-square':
-      return <div className="font-bold text-xs leading-none">PY<br/>SQR</div>;
+      return <div className="font-bold text-[10px] leading-none text-center">PYSQR</div>;
     case 'pyodide-sine':
-      return <div className="font-bold text-xs leading-none">PY<br/>SIN</div>;
-    // NEW: WGSL icons
+      return <div className="font-bold text-[10px] leading-none text-center">PYSIN</div>;
+
+    // WGSL icons
     case 'wgsl-saw':
-      return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>SAW</div>;
+      return <div className="font-bold text-[10px] leading-none text-center">GPUSAW</div>;
     case 'wgsl-sqr':
-      return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>SQR</div>;
+      return <div className="font-bold text-[10px] leading-none text-center">GPUSQR</div>;
     case 'wgsl-tri':
-      return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>TRI</div>;
+      return <div className="font-bold text-[10px] leading-none text-center">GPUTRI</div>;
     case 'wgsl-sin':
-      return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>SIN</div>;
+      return <div className="font-bold text-[10px] leading-none text-center">GPUSIN</div>;
+
+    // WAM icons
+    case 'wam-saw':
+      return <div className="font-bold text-[10px] leading-none text-center">WAMSAW</div>;
+    case 'wam-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center">WAMSQR</div>;
+    case 'wam-tri':
+      return <div className="font-bold text-[10px] leading-none text-center">WAMTRI</div>;
+    case 'wam-sin':
+      return <div className="font-bold text-[10px] leading-none text-center">WAMSIN</div>;
+
     default:
       return null;
   }
@@ -52,7 +80,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
   };
 
   return (
-    <div className="flex justify-around items-center bg-gray-800 rounded-md p-1">
+    <div className="flex flex-wrap justify-around items-center bg-gray-800 rounded-md p-1 gap-1">
       {waveforms.map((wave) => (
         <button
           key={wave}
