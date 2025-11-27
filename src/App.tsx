@@ -22,10 +22,9 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     DEFAULT_SAMPLER_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence, LoadedSample, SongStructure } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence, LoadedSample, SongStructure, PlayMode, TrackKey } from './types'
 
 // --- TYPES FOR STORAGE ---
-type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -441,13 +440,12 @@ export const App: React.FC = () => {
     }, [audioEngine, pattern, song.steps, trackStorage]);
 
     const lookahead = role === 'master' ? 0.4 : 0.1;
-    const schedulerConfig = {
-        mode: 'song',
+    const { isPlaying: schedPlaying, currentSubStep, currentSongStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, {
+        mode: 'song' as PlayMode,
         pattern: pattern,
         song: song,
-        trackStorage: trackStorage,
-    };
-    const { isPlaying: schedPlaying, currentSubStep, currentSongStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, schedulerConfig, onStep, isEngineReady, getCurrentTime, lookahead);
+        trackStorage: trackStorage as Record<string, (PartSequence | null)[]>,
+    } as any, onStep, isEngineReady, getCurrentTime, lookahead);
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
     useEffect(() => {
