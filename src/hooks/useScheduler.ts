@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Pattern, SongStructure, PartSequence } from '../types';
+import type { Pattern, SongStructure, PartSequence, PlayMode, TrackKey } from '../types';
 
-type PlayMode = 'pattern' | 'song';
-
-interface SchedulerConfig {
+export interface SchedulerConfig {
     mode: PlayMode;
     pattern: Pattern;
     song: SongStructure;
-    trackStorage: Record<string, (PartSequence | null)[]>;
+    trackStorage: Record<TrackKey, (PartSequence | null)[]>;
 }
 
 export const useScheduler = (
@@ -81,7 +79,7 @@ export const useScheduler = (
                     const trackKey = Object.keys(trackStorage)[trackIndex];
                     const patternIndex = track[songStepRef.current]?.patternIndex;
                     if (patternIndex !== null && patternIndex !== undefined) {
-                        const pattern = trackStorage[trackKey]?.[patternIndex];
+                        const pattern = (trackStorage as Record<string, (PartSequence | null)[]>)[trackKey]?.[patternIndex];
                         if (pattern && pattern.steps.length > maxLength) {
                             maxLength = pattern.steps.length;
                         }

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, memo } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
+import { useWebGpuDevice } from './hooks/useWebGpuDevice'
 import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
@@ -22,10 +23,9 @@ import {
     DEFAULT_OPEN_HAT_PARAMS,
     DEFAULT_SAMPLER_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence, LoadedSample, SongStructure } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, PartSequence, LoadedSample, SongStructure, PlayMode, TrackKey } from './types'
 
 // --- TYPES FOR STORAGE ---
-type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -255,6 +255,7 @@ export const ROWS = [
 
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
+    const { status: gpuStatus, error: gpuError, retry: retryGpu } = useWebGpuDevice()
     const {
         audioEngine,
         isReady,
@@ -267,6 +268,8 @@ export const App: React.FC = () => {
 
 
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
+    const showGpuWarning = gpuStatus === 'error'
+    const gpuErrorMessage = gpuError ?? 'WebGPU failed to initialize.'
 
     // --- STATE ---
     const [pattern, setPattern] = useState<Pattern>(INITIAL_PATTERN)
@@ -277,7 +280,6 @@ export const App: React.FC = () => {
     const [currentStep, setCurrentStep] = useState(-1)
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [zoom, setZoom] = useState(1);
-    const [viewMode, setViewMode] = useState<'pattern' | 'song'>('pattern');
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
     const [masterPan, setMasterPan] = useState(0)
@@ -343,6 +345,9 @@ export const App: React.FC = () => {
     });
     const [songZoom, setSongZoom] = useState(1);
     const [songScroll, setSongScroll] = useState(0);
+    const [playMode, setPlayMode] = useState<PlayMode>('song');
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    const [isSongModeVisible, setIsSongModeVisible] = useState(true);
 
     // --- INSTRUMENT STATE ---
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
@@ -404,16 +409,28 @@ export const App: React.FC = () => {
         if (!audioEngine) return;
         const time = scheduledTime || audioEngine.context.currentTime;
 
-        if (viewMode === 'pattern') {
-            if (pattern.partA.steps[step.subStep]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step.subStep]!.note, time, undefined, 'partA', step.subStep);
-            if (pattern.partB.steps[step.subStep]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step.subStep]!.note, time, undefined, 'partB', step.subStep);
-            if (pattern.kick.steps[step.subStep]) audioEngine.playDrum('kick', kickRef.current, time);
-            if (pattern.snare.steps[step.subStep]) audioEngine.playDrum('snare', snareRef.current, time);
-            if (pattern.openHat.steps[step.subStep]) audioEngine.playDrum('openHat', openHatRef.current, time);
-            else if (pattern.closedHat.steps[step.subStep]) audioEngine.playDrum('closedHat', closedHatRef.current, time);
-            if (pattern.sampler.steps[step.subStep]) audioEngine.playSampler(samplerRef.current, pattern.sampler.steps[step.subStep]!.note, time);
-        } else {
-            // Song Mode playback
+        if (playMode === 'pattern') {
+            ROWS.forEach(row => {
+                const partSequence = pattern[row.key];
+                if (partSequence && partSequence.steps[step.subStep]) {
+                    const note = partSequence.steps[step.subStep]!.note;
+                     switch (row.key) {
+                        case 'partA': audioEngine.playSynth(synthARef.current, note, time, undefined, 'partA', step.subStep); break;
+                        case 'partB': audioEngine.playSynth(synthBRef.current, note, time, undefined, 'partB', step.subStep); break;
+                        case 'kick': audioEngine.playDrum('kick', kickRef.current, time); break;
+                        case 'snare': audioEngine.playDrum('snare', snareRef.current, time); break;
+                        case 'openHat': audioEngine.playDrum('openHat', openHatRef.current, time); break;
+                        case 'closedHat':
+                             const openHatStep = pattern.openHat.steps[step.subStep];
+                             if (!openHatStep) {
+                                audioEngine.playDrum('closedHat', closedHatRef.current, time);
+                             }
+                            break;
+                        case 'sampler': audioEngine.playSampler(samplerRef.current, note, time); break;
+                    }
+                }
+            });
+        } else { // Song Mode playback
             if (step.songStep < 0) return;
             ROWS.forEach((row, trackIndex) => {
                 const patternIndex = song.steps[trackIndex][step.songStep]?.patternIndex;
@@ -449,25 +466,21 @@ export const App: React.FC = () => {
                 }
             });
         }
-    }, [audioEngine, pattern, viewMode, song.steps, trackStorage]);
+    }, [audioEngine, pattern, song.steps, trackStorage, playMode]);
 
     const lookahead = role === 'master' ? 0.4 : 0.1;
-    const schedulerConfig = {
-        mode: viewMode,
+    const { isPlaying: schedPlaying, currentSubStep, currentSongStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, {
+        mode: playMode,
         pattern: pattern,
         song: song,
-        trackStorage: trackStorage,
-    };
-    const { isPlaying: schedPlaying, currentSubStep, currentSongStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, schedulerConfig, onStep, isEngineReady, getCurrentTime, lookahead);
+        trackStorage: trackStorage as Record<string, (PartSequence | null)[]>,
+    } as any, onStep, isEngineReady, getCurrentTime, lookahead);
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
     useEffect(() => {
-        if (viewMode === 'pattern') {
-            setCurrentStep(currentSubStep);
-        } else {
-            setSong((s: SongStructure) => ({ ...s, currentSongStep }));
-        }
-    }, [currentSubStep, currentSongStep, viewMode]);
+        setCurrentStep(currentSubStep);
+        setSong((s: SongStructure) => ({ ...s, currentSongStep }));
+    }, [currentSubStep, currentSongStep]);
 
     const handlePlayToggle = async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
@@ -777,6 +790,13 @@ export const App: React.FC = () => {
                 <div className="flex items-center gap-6">
                     <h1 className="text-lg font-bold font-orbitron text-cyan-500 tracking-wider hidden md:block">ELECTRIBE<span className="text-white">WEB</span></h1>
 
+                    {/* Mode Switcher */}
+                    <div className="flex items-center gap-1 bg-gray-900 p-1 rounded border border-gray-700">
+                        <button onClick={() => setPlayMode('pattern')} className={`px-3 py-1 text-xs rounded ${playMode === 'pattern' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>PATTERN</button>
+                        <button onClick={() => setPlayMode('song')} className={`px-3 py-1 text-xs rounded ${playMode === 'song' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>SONG</button>
+                        <button className="px-3 py-1 text-xs rounded bg-gray-800 text-gray-600 cursor-not-allowed">MIXER</button>
+                    </div>
+
                         {/* Bank Selectors */}
                         <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
                             <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Bank</span>
@@ -824,14 +844,20 @@ export const App: React.FC = () => {
                     </div>
 
                     <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-red-900/10 hover:bg-red-900/30 px-3 py-1 rounded transition-all">
-                        CLEAR
+                        CLEAR PATTERN
                     </button>
 
-                    {/* View Mode Toggle */}
-                    <div className="flex items-center bg-gray-900 rounded border border-gray-700 p-1">
-                        <button onClick={() => setViewMode('pattern')} className={`px-3 py-1 text-xs rounded ${viewMode === 'pattern' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>PATTERN</button>
-                        <button onClick={() => setViewMode('song')} className={`px-3 py-1 text-xs rounded ${viewMode === 'song' ? 'bg-purple-500 text-black' : 'hover:bg-gray-800'}`}>SONG</button>
-                    </div>
+                    <button onClick={() => setIsSongModeVisible(!isSongModeVisible)} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 bg-cyan-900/10 hover:bg-cyan-900/30 px-3 py-1 rounded transition-all">
+                        {isSongModeVisible ? 'HIDE' : 'SHOW'} SONG
+                    </button>
+
+                    <button onClick={() => setIsKeyboardVisible(!isKeyboardVisible)} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 bg-cyan-900/10 hover:bg-cyan-900/30 px-3 py-1 rounded transition-all">
+                        {isKeyboardVisible ? 'HIDE' : 'SHOW'} KEYBOARD
+                    </button>
+
+                    <button onClick={() => setIsKeyboardVisible(!isKeyboardVisible)} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 bg-cyan-900/10 hover:bg-cyan-900/30 px-3 py-1 rounded transition-all">
+                        {isKeyboardVisible ? 'HIDE' : 'SHOW'} KEYBOARD
+                    </button>
                 </div>
 
                 {/* RIGHT: Transport & Master Volume */}
@@ -907,7 +933,7 @@ export const App: React.FC = () => {
             </header>
 
             {/* --- SEQUENCER --- */}
-            <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 pb-4">
+            <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex justify-start pt-8 gap-4">
 
                 {contextMenu && (
                     <NoteSelector
@@ -930,7 +956,8 @@ export const App: React.FC = () => {
                     />
                 )}
 
-                {viewMode === 'pattern' ? (
+                <div className="flex-grow">
+                    {/* --- PATTERN SEQUENCER --- */}
                     <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
                         {/* Decorative screws */}
                         <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
@@ -968,22 +995,27 @@ export const App: React.FC = () => {
                             </g>
                         </svg>
                     </div>
-                ) : (
-                    <SongMode
-                        song={song}
-                        zoom={songZoom}
-                        scroll={songScroll}
-                        onZoomChange={setSongZoom}
-                        onScrollChange={setSongScroll}
-                        onLengthChange={(l) => setSong((s: SongStructure) => ({ ...s, length: l }))}
-                        onLoopLengthChange={(l) => setSong((s: SongStructure) => ({ ...s, loopLength: l }))}
-                        onLoopToggle={() => setSong((s: SongStructure) => ({ ...s, loop: !s.loop }))}
-                        onStepRightClick={handleSongStepRightClick}
-                    />
-                )}
+
+                    {/* --- SONG MODE --- */}
+                    <div data-testid="song-mode-container" className={`transition-all duration-500 ease-in-out ${isSongModeVisible ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                        <div className="w-full max-w-[920px] mx-auto">
+                            <SongMode
+                                song={song}
+                                zoom={songZoom}
+                                scroll={songScroll}
+                                onZoomChange={setSongZoom}
+                                onScrollChange={setSongScroll}
+                                onLengthChange={(l) => setSong((s: SongStructure) => ({ ...s, length: l }))}
+                                onLoopLengthChange={(l) => setSong((s: SongStructure) => ({ ...s, loopLength: l }))}
+                                onLoopToggle={() => setSong((s: SongStructure) => ({ ...s, loop: !s.loop }))}
+                                onStepRightClick={handleSongStepRightClick}
+                            />
+                        </div>
+                    </div>
+                </div>
 
                 {/* --- LIVE KEYBOARD --- */}
-                <div className="shrink-0 pb-4">
+                <div data-testid="keyboard-container" className={`transition-all duration-500 ease-in-out ${isKeyboardVisible ? 'w-[400px] opacity-100' : 'w-0 opacity-0'}`}>
                      <LiveKeyboard
                         onPlayNote={handleKeyboardPlay}
                         activeTrackColor={
@@ -994,16 +1026,35 @@ export const App: React.FC = () => {
                         }
                      />
                 </div>
+
             </main>
 
             {/* --- HARDWARE MODULE --- */}
-            <div className="h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-30 shrink-0 fixed bottom-0 w-full">
+            <div className={`h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-30 shrink-0 w-full fixed bottom-0`}>
                 <div className="w-full h-full max-w-5xl mx-auto p-2 flex items-center justify-center">
                     <div className="w-full h-full rounded-xl overflow-hidden border border-gray-800 shadow-2xl bg-black">
                         {renderModulePanel()}
                     </div>
                 </div>
             </div>
+
+            {/* --- GPU WARNING --- */}
+            {showGpuWarning && (
+                <div className="fixed inset-x-4 top-[90px] z-50 px-4 py-3 rounded-xl bg-yellow-400/95 text-black shadow-xl border border-yellow-600/70 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div className="text-sm font-bold">WebGPU Beta Warning</div>
+                    <div className="text-[13px] leading-snug text-gray-900">{gpuErrorMessage}</div>
+                    <div className="self-start md:self-auto flex gap-2">
+                        <button
+                            onClick={retryGpu}
+                            className="px-3 py-1 rounded bg-black text-white text-xs font-bold border border-white/50 hover:bg-white hover:text-black transition"
+                        >Retry</button>
+                        <button
+                            onClick={() => setIsInitialized(true)}
+                            className="px-3 py-1 rounded bg-black/80 text-white text-xs font-bold border border-white/50 hover:bg-white hover:text-black transition"
+                        >Dismiss</button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
