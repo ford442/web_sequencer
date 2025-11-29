@@ -164,7 +164,9 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
             freqWithPitch,
             totalDuration + 0.1, // Matches WGSL logic to ensure coverage
             context.sampleRate,
-            type
+            type,
+            params.filterCutoff,   // Pass filter param
+            params.filterResonance // Pass resonance param
         );
 
         if (rawData) {
@@ -174,14 +176,9 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
             const source = context.createBufferSource();
             source.buffer = buffer;
 
-             // Create Filter Node specifically for this voice
-            const filter = context.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(params.filterCutoff, time);
-            filter.Q.setValueAtTime(params.filterResonance, time);
-
-            source.connect(filter);
-            filter.connect(outputNode);
+            // DIRECT CONNECTION: Source -> Envelope
+            // We skip the Web Audio filter because WASM already did it
+            source.connect(outputNode);
 
             source.start(time);
         }
