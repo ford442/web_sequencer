@@ -20,6 +20,14 @@ export const useAudioEngine = (pyodide: any) => {
   const masterPannerNodeRef = useRef<StereoPannerNode | null>(null);
   const essentiaRef = useRef<any | null>(null);
 
+  // Helper to timeout promises to prevent hanging
+  const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+    ]);
+  };
+
   // Helper function to dynamically load a script
   const loadScript = (src: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -116,7 +124,7 @@ const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: 
 };
 
   const initializeAudio = useCallback(async () => {
-    if (audioEngineRef.current) return;
+    if (audioEngineRef.current) return audioEngineRef.current;
 
     const context = new (window.AudioContext || (window as any).webkitAudioContext)();
     
@@ -125,15 +133,15 @@ const createDelayEffect = (context: AudioContext, inputNode: AudioNode, params: 
     await gpuEngine.init();
     gpuEngineRef.current = gpuEngine;
 
-    // Load Essentia.js
+    // Load Essentia.js (with timeout to prevent hanging on blocked networks)
     try {
-      await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js');
-      await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js');
+      await withTimeout(loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js'), 5000);
+      await withTimeout(loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js'), 5000);
       // @ts-ignore
       essentiaRef.current = new Essentia(EssentiaWASM);
       console.log('Essentia.js Initialized. Version:', essentiaRef.current.version);
     } catch (e) {
-      console.error("Failed to load Essentia.js:", e);
+      console.warn("Failed to load Essentia.js (optional feature):", e);
     }
 
     if (context.state === 'suspended') {
