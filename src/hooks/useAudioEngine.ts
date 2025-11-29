@@ -123,51 +123,66 @@ export const useAudioEngine = (pyodide: any) => {
 
     const context = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-    // Initialize GPU Engine
-    if (!gpuEngineRef.current) {
-      const sharedDevice = await acquireSharedWebGpuDevice();
-      const gpuEngine = new WebGpuOscillator();
-      await gpuEngine.init(sharedDevice ?? undefined);
-      gpuEngineRef.current = gpuEngine;
-      if (!gpuEngine.isSupported) {
-        console.warn("WebGPU oscillator not supported - falling back to offline generation.");
-      }
-    }
+    // Parallel initialization of subsystems to prevent one failure from blocking the whole engine
+    await Promise.allSettled([
+      // 1. Initialize GPU Engine
+      (async () => {
+        if (!gpuEngineRef.current) {
+          try {
+            const sharedDevice = await acquireSharedWebGpuDevice();
+            const gpuEngine = new WebGpuOscillator();
+            await gpuEngine.init(sharedDevice ?? undefined);
+            gpuEngineRef.current = gpuEngine;
+            if (!gpuEngine.isSupported) {
+              console.warn("WebGPU oscillator not supported - falling back to offline generation.");
+            }
+          } catch (e) {
+            console.warn("WebGPU Init failed:", e);
+          }
+        }
+      })(),
 
-    // Initialize WAM (Fetch WASM and register worklet)
-    try {
-        const response = await fetch('./wam_oscillator.wasm');
-        if (response.ok) {
+      // 2. Initialize WAM (Fetch WASM and register worklet)
+      (async () => {
+        try {
+          const response = await fetch('./wam_oscillator.wasm');
+          if (response.ok) {
             const buffer = await response.arrayBuffer();
             wamModuleRef.current = await WebAssembly.compile(buffer);
             await context.audioWorklet.addModule('./wam-processor.js');
             isWamReadyRef.current = true;
             console.log("WAM Oscillator loaded.");
-        } else {
+          } else {
             console.warn("wam_oscillator.wasm not found (did you run emcc?).");
+          }
+        } catch (e) {
+          console.warn("Failed to load WAM:", e);
         }
-    } catch (e) {
-        console.error("Failed to load WAM:", e);
-    }
+      })(),
 
-    // Load Essentia.js
-    try {
-      await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js');
-      await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js');
+      // 3. Load Essentia.js
+      (async () => {
+        try {
+          await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js');
+          await loadScript('https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js');
 
-      // @ts-ignore
-      const wasmModule = await EssentiaWASM(); // note: *call* it, it's not a class
-      // 3. Create Essentia instance from the module
-      // @ts-ignore
-      essentiaRef.current = new Essentia(wasmModule);
-      console.log('Essentia.js Initialized. Version:', essentiaRef.current.version);
-
-    } catch (e) {
-      console.error("Failed to load Essentia.js:", e);
-    }
+          // @ts-ignore
+          const wasmModule = await EssentiaWASM();
+          // @ts-ignore
+          essentiaRef.current = new Essentia(wasmModule);
+          console.log('Essentia.js Initialized. Version:', essentiaRef.current.version);
+        } catch (e) {
+          console.warn("Failed to load Essentia.js:", e);
+        }
+      })()
+    ]);
 
     if (context.state === 'suspended') {
-      await context.resume();
+      try {
+        await context.resume();
+      } catch (e) {
+        console.error("Audio Context Resume failed:", e);
+      }
     }
 
     // Create Master Chain
@@ -196,10 +211,6 @@ export const useAudioEngine = (pyodide: any) => {
 
       const isPyodideWave = params.waveform.startsWith('pyodide-');
       const isWgslWave = params.waveform.startsWith('wgsl-');
-
-      // For offline rendering (export), we could reuse WAM by instantiating it here,
-      // but for now let's focus on live playback for WAM.
-      // Fallback to standard for WAM during offline render unless we implement Array generation from the WASM module.
 
       const baseFreq = noteToFrequency(note);
       const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
@@ -368,9 +379,7 @@ export const useAudioEngine = (pyodide: any) => {
       return await generateRawAudio(params, note, duration);
     });
 
-    // 5. USE THE REF (pyodideRef.current)
     const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
-        // Check the ref
         if (!pyodideRef.current) {
             console.warn("Pyodide not ready, skipping drum trigger.");
             return;
@@ -382,7 +391,6 @@ export const useAudioEngine = (pyodide: any) => {
             let bufferLengthSeconds;
             let finalVolume;
             
-            // Get the current pyodide instance from the ref
             const pyodide = pyodideRef.current;
 
             switch(sound) {
@@ -420,14 +428,9 @@ export const useAudioEngine = (pyodide: any) => {
                     return;
             }
 
-            // --- Common logic for all drum sounds ---
-
-            // 1. Copy data from Python (64-bit) to JS (32-bit)
             const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
-            pyProxy.destroy(); // Free memory
+            pyProxy.destroy();
 
-            // 2. Create Web Audio Buffer
-            // ... (rest of this function is unchanged)
             const buffer = context.createBuffer(
                 1, 
                 audioSamples.length, 
@@ -453,10 +456,8 @@ export const useAudioEngine = (pyodide: any) => {
     const loadSampleToEngine = (name: string, buffer: AudioBuffer) => {
         if (!pyodideRef.current) return;
 
-        // Convert AudioBuffer to float array (mono)
-        const channelData = buffer.getChannelData(0); // Use first channel
+        const channelData = buffer.getChannelData(0);
 
-        // Pass to Python
         try {
            pyodideRef.current.globals.get('load_sample')(name, Array.from(channelData));
         } catch(e) {
@@ -468,10 +469,6 @@ export const useAudioEngine = (pyodide: any) => {
         if (!pyodideRef.current) return;
 
         try {
-             // Calculate pitch ratio relative to C4 (Middle C)
-             // If note is C4, ratio is 1.0.
-             // If note is C5, ratio is 2.0 (faster).
-             // If note is C3, ratio is 0.5 (slower).
              const baseFreq = noteToFrequency('C4');
              const targetFreq = noteToFrequency(note);
              const ratio = targetFreq / baseFreq * params.playbackSpeed;
