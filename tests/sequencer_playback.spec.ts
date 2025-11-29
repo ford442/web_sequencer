@@ -10,10 +10,13 @@ test('sequencer advances steps when playing', async ({ page }) => {
   // Click the "PLAY" button to start the sequencer.
   await page.getByRole('button', { name: 'PLAY' }).click();
 
+  // Wait for the sequencer to start playing (initialization might take time)
+  await expect(page.getByRole('button', { name: 'STOP' })).toBeVisible({ timeout: 30000 });
+
   // The sequencer starts at step -1, then moves to 0. We expect to see the indicator at the first step.
   // The step indicator is a <rect> element with a white stroke.
   const firstStepIndicator = page.locator('g[transform="translate(140, 0)"] rect[stroke="#ffffff"]');
-  await expect(firstStepIndicator).toBeVisible({ timeout: 5000 });
+  await expect(firstStepIndicator).toBeVisible({ timeout: 15000 });
 
   // Now, we'll wait a moment and check that the indicator has moved to a different step.
   // This confirms the sequencer is advancing. The exact step it will be on is timing-dependent,

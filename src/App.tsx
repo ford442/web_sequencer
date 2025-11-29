@@ -275,6 +275,7 @@ export const App: React.FC = () => {
     const [pattern, setPattern] = useState<Pattern>(INITIAL_PATTERN)
     const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
     const [isInitialized, setIsInitialized] = useState(false)
+    const [isInitializing, setIsInitializing] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
     const [currentStep, setCurrentStep] = useState(-1)
@@ -484,7 +485,18 @@ export const App: React.FC = () => {
     }, [currentSubStep, currentSongStep]);
 
     const handlePlayToggle = async () => {
-        if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
+        if (!isInitialized) {
+            if (isInitializing) return;
+            try {
+                setIsInitializing(true);
+                await initializeAudio();
+                setIsInitialized(true);
+            } catch (e) {
+                console.error("Audio Initialization Failed:", e);
+            } finally {
+                setIsInitializing(false);
+            }
+        }
         setSchedPlaying(!schedPlaying)
     }
 
@@ -918,13 +930,16 @@ export const App: React.FC = () => {
 
                     <button
                         onClick={handlePlayToggle}
+                        disabled={isInitializing}
                         className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg ${
-                            isPlaying
-                                ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
-                                : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
+                            isInitializing
+                                ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-500 cursor-wait'
+                                : isPlaying
+                                    ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                                    : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
                         }`}
                     >
-                        {isPlaying ? 'STOP' : 'PLAY'}
+                        {isInitializing ? 'LOADING...' : (isPlaying ? 'STOP' : 'PLAY')}
                     </button>
                 </div>
             </header>
