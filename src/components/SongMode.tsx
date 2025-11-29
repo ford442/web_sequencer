@@ -43,7 +43,21 @@ interface SongModeProps {
     onStepRightClick: (trackIndex: number, stepIndex: number, e: React.MouseEvent) => void;
 }
 
-export const SongMode: React.FC<SongModeProps> = ({ song, zoom, scroll, onZoomChange, onScrollChange, onLengthChange, onLoopLengthChange, onLoopToggle, onStepRightClick }) => {
+interface SongModeProps {
+    song: SongStructure;
+    zoom: number;
+    scroll: number;
+    isPlaying: boolean;
+    onPlayToggle: () => void;
+    onZoomChange: (zoom: number) => void;
+    onScrollChange: (scroll: number) => void;
+    onLengthChange: (length: number) => void;
+    onLoopLengthChange: (length: number) => void;
+    onLoopToggle: () => void;
+    onStepRightClick: (trackIndex: number, stepIndex: number, e: React.MouseEvent) => void;
+}
+
+export const SongMode: React.FC<SongModeProps> = ({ song, zoom, scroll, isPlaying, onPlayToggle, onZoomChange, onScrollChange, onLengthChange, onLoopLengthChange, onLoopToggle, onStepRightClick }) => {
     const stepsPerView = 128 / zoom;
     const stepWidth = 22 * zoom;
 
@@ -51,7 +65,19 @@ export const SongMode: React.FC<SongModeProps> = ({ song, zoom, scroll, onZoomCh
         <div className="w-full h-full bg-[#080a0c] flex flex-col p-4 text-white">
             {/* Header Controls */}
             <div className="flex items-center justify-between mb-4 shrink-0">
-                <h2 className="text-xl font-orbitron text-cyan-400">SONG MODE</h2>
+                <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-orbitron text-cyan-400">SONG MODE</h2>
+                    <button
+                        onClick={onPlayToggle}
+                        className={`w-20 py-1 rounded font-orbitron text-xs font-bold tracking-wide transition-all shadow-lg ${
+                            isPlaying
+                                ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                                : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
+                        }`}
+                    >
+                        {isPlaying ? 'STOP' : 'PLAY'}
+                    </button>
+                </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center bg-gray-900 rounded border border-gray-700">
                         <button onClick={() => onZoomChange(Math.max(1, zoom / 2))} className="px-3 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800">-</button>
