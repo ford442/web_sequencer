@@ -56,6 +56,11 @@ export const useScheduler = (
             nextStepTime.current = now;
         }
 
+        // Failsafe: If nextStepTime fell too far behind (e.g. tab backgrounded), reset it to avoid "catch-up" bursts
+        if (nextStepTime.current < now - 0.5) {
+             nextStepTime.current = now;
+        }
+
         const stepDuration = 60 / tempoRef.current / 4; // 16th notes
 
         while (nextStepTime.current < now + lookahead) {
@@ -124,6 +129,7 @@ export const useScheduler = (
         if (isPlaying && isAudioReady) {
             subStepRef.current = -1;
             songStepRef.current = config.mode === 'song' ? -1 : 0;
+            // Ensure we get a valid time. If context is weird, default to 0 and let processTick fix it.
             nextStepTime.current = getCurrentTime();
             workerRef.current?.postMessage('start');
         } else {

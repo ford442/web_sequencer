@@ -484,7 +484,7 @@ export const App: React.FC = () => {
         setSong((s: SongStructure) => ({ ...s, currentSongStep }));
     }, [currentSubStep, currentSongStep]);
 
-    const handlePlayToggle = async () => {
+    const ensureAudioInitialized = async () => {
         if (!isInitialized) {
             if (isInitializing) return;
             try {
@@ -497,8 +497,38 @@ export const App: React.FC = () => {
                 setIsInitializing(false);
             }
         }
-        setSchedPlaying(!schedPlaying)
-    }
+    };
+
+    const handlePlayPattern = async () => {
+        await ensureAudioInitialized();
+        if (playMode === 'song' && isPlaying) {
+            // Stop song, start pattern
+            setPlayMode('pattern');
+            // Wait for effect to propagate? Not needed if we control schedPlaying
+            setSchedPlaying(true);
+        } else if (playMode === 'pattern') {
+            setSchedPlaying(!schedPlaying);
+        } else {
+            // Was in song mode but stopped, switch to pattern
+            setPlayMode('pattern');
+            setSchedPlaying(true);
+        }
+    };
+
+    const handlePlaySong = async () => {
+        await ensureAudioInitialized();
+        if (playMode === 'pattern' && isPlaying) {
+            // Stop pattern, start song
+            setPlayMode('song');
+            setSchedPlaying(true);
+        } else if (playMode === 'song') {
+            setSchedPlaying(!schedPlaying);
+        } else {
+            // Was in pattern mode but stopped, switch to song
+            setPlayMode('song');
+            setSchedPlaying(true);
+        }
+    };
 
     // --- LOGIC HANDLERS ---
 
@@ -803,13 +833,6 @@ export const App: React.FC = () => {
                 <div className="flex items-center gap-6">
                     <h1 className="text-lg font-bold font-orbitron text-cyan-500 tracking-wider hidden md:block">ELECTRIBE<span className="text-white">WEB</span></h1>
 
-                    {/* Mode Switcher */}
-                    <div className="flex items-center gap-1 bg-gray-900 p-1 rounded border border-gray-700">
-                        <button onClick={() => setPlayMode('pattern')} className={`px-3 py-1 text-xs rounded ${playMode === 'pattern' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>PATTERN</button>
-                        <button onClick={() => setPlayMode('song')} className={`px-3 py-1 text-xs rounded ${playMode === 'song' ? 'bg-cyan-500 text-black' : 'hover:bg-gray-800'}`}>SONG</button>
-                        <button className="px-3 py-1 text-xs rounded bg-gray-800 text-gray-600 cursor-not-allowed">MIXER</button>
-                    </div>
-
                     {/* Bank Selectors */}
                     <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
                         <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Bank</span>
@@ -928,19 +951,7 @@ export const App: React.FC = () => {
                         REC
                     </button>
 
-                    <button
-                        onClick={handlePlayToggle}
-                        disabled={isInitializing}
-                        className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg ${
-                            isInitializing
-                                ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-500 cursor-wait'
-                                : isPlaying
-                                    ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
-                                    : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
-                        }`}
-                    >
-                        {isInitializing ? 'LOADING...' : (isPlaying ? 'STOP' : 'PLAY')}
-                    </button>
+                    <div className="w-4"></div>
                 </div>
             </header>
 
@@ -970,6 +981,23 @@ export const App: React.FC = () => {
 
                 <div className="flex-grow">
                     {/* --- PATTERN SEQUENCER --- */}
+                    <div className="w-full max-w-[920px] mx-auto mb-2 flex justify-between items-end">
+                        <h2 className="text-sm font-bold text-gray-500 ml-2">PATTERN SEQUENCER</h2>
+                        <button
+                            onClick={handlePlayPattern}
+                            disabled={isInitializing}
+                            className={`w-24 py-1 rounded font-orbitron text-xs font-bold tracking-wide transition-all shadow-lg ${
+                                isInitializing
+                                    ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-500 cursor-wait'
+                                    : (isPlaying && playMode === 'pattern')
+                                        ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                                        : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
+                            }`}
+                        >
+                            {isInitializing ? 'LOADING' : ((isPlaying && playMode === 'pattern') ? 'STOP' : 'PLAY')}
+                        </button>
+                    </div>
+
                     <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
                         {/* Decorative screws */}
                         <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
@@ -1015,6 +1043,8 @@ export const App: React.FC = () => {
                                 song={song}
                                 zoom={songZoom}
                                 scroll={songScroll}
+                                isPlaying={isPlaying && playMode === 'song'}
+                                onPlayToggle={handlePlaySong}
                                 onZoomChange={setSongZoom}
                                 onScrollChange={setSongScroll}
                                 onLengthChange={(l) => setSong((s: SongStructure) => ({ ...s, length: l }))}
