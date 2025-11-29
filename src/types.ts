@@ -2,7 +2,8 @@
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
   | 'pyodide-saw' | 'pyodide-square' | 'pyodide-sine'
-  | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin';
+  | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin'
+  | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin';
 
 export interface SynthParams {
   waveform: Waveform;

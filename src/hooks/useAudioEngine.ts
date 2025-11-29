@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'; // <-- 1. IMPO
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
+import { WasmOscillator } from '../engines/WasmOscillator';
 
 export const useAudioEngine = (pyodide: any) => {
   const [isReady, setIsReady] = useState(false);
@@ -12,6 +13,7 @@ export const useAudioEngine = (pyodide: any) => {
   const loadedAmbianceBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
   const rendererWorkerRef = useRef<Worker | null>(null);
   const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
+  const wasmEngineRef = useRef<WasmOscillator | null>(null);
 
   // 2. CREATE A REF to hold the pyodide prop
   const pyodideRef = useRef(pyodide);
@@ -31,6 +33,11 @@ export const useAudioEngine = (pyodide: any) => {
     await gpuEngine.init();
     gpuEngineRef.current = gpuEngine;
 
+    // Initialize Wasm Engine
+    const wasmEngine = new WasmOscillator();
+    await wasmEngine.init();
+    wasmEngineRef.current = wasmEngine;
+
     if (context.state === 'suspended') {
       await context.resume();
     }
@@ -47,6 +54,7 @@ export const useAudioEngine = (pyodide: any) => {
 const playSynth = async (params: SynthParams, note: string, time: number, destination: AudioNode = context.destination) => {
   const isPyodideWave = params.waveform.startsWith('pyodide-');
   const isWgslWave = params.waveform.startsWith('wgsl-');
+  const isWasmWave = params.waveform.startsWith('wam-');
 
   // ADSR Logic
   const gateTime = params.length || 0.25; // Gate time
@@ -143,6 +151,42 @@ const playSynth = async (params: SynthParams, note: string, time: number, destin
         }
     } catch (e) {
         console.error("WGSL Render Error:", e);
+    }
+
+  } else if (isWasmWave && wasmEngineRef.current?.isReady) {
+    // --- NEW: Wasm Audio Generation ---
+    try {
+        const baseFreq = noteToFrequency(note);
+        const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+        const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
+
+        const rawData = wasmEngineRef.current.generate(
+            freqWithPitch,
+            totalDuration + 0.1, // Matches WGSL logic to ensure coverage
+            context.sampleRate,
+            type
+        );
+
+        if (rawData) {
+            const buffer = context.createBuffer(1, rawData.length, context.sampleRate);
+            buffer.getChannelData(0).set(rawData);
+
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+
+             // Create Filter Node specifically for this voice
+            const filter = context.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(params.filterCutoff, time);
+            filter.Q.setValueAtTime(params.filterResonance, time);
+
+            source.connect(filter);
+            filter.connect(outputNode);
+
+            source.start(time);
+        }
+    } catch(e) {
+        console.error("Wasm Render Error:", e);
     }
 
   // 5. USE THE REF (pyodideRef.current)
