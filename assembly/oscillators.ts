@@ -8,17 +8,20 @@ export function generate(
   freq: f32,
   duration: f32,
   type: i32,
-  cutoff: f32,    // <--- NEW PARAMETER
-  resonance: f32  // <--- NEW PARAMETER (Q)
+  cutoff: f32,
+  resonance: f32
 ): i32 {
   let totalSamples: i32 = i32(sampleRate * duration);
 
   // --- FILTER COEFFICIENT CALCULATION (BiQuad Lowpass) ---
-  // Standard Audio EQ Cookbook formula for 2nd order LPF
-  // w0 = 2 * PI * cutoff / sampleRate
-  let w0: f32 = 2.0 * PI * cutoff / sampleRate;
-  let cosW0: f32 = f32(Math.cos(w0));
-  let alpha: f32 = f32(Math.sin(w0)) / (2.0 * resonance);
+  // Ensure cutoff is within Nyquist and positive
+  let safeCutoff: f32 = max(20.0, min(cutoff, sampleRate / 2.1));
+  let safeRes: f32 = max(0.1, resonance);
+
+  let w0: f32 = 2.0 * PI * safeCutoff / sampleRate;
+  let cosW0: f32 = f32(Math.cos(f64(w0)));
+  let sinW0: f32 = f32(Math.sin(f64(w0)));
+  let alpha: f32 = sinW0 / (2.0 * safeRes);
 
   // Coefficients
   let b0: f32 = (1.0 - cosW0) / 2.0;
@@ -28,7 +31,7 @@ export function generate(
   let a1: f32 = -2.0 * cosW0;
   let a2: f32 = 1.0 - alpha;
 
-  // Normalize by a0 (so we divide everything by a0)
+  // Normalize by a0
   let invA0: f32 = 1.0 / a0;
   b0 *= invA0;
   b1 *= invA0;
@@ -37,10 +40,10 @@ export function generate(
   a2 *= invA0;
 
   // Filter State History
-  let x1: f32 = 0.0; // x[n-1]
-  let x2: f32 = 0.0; // x[n-2]
-  let y1: f32 = 0.0; // y[n-1]
-  let y2: f32 = 0.0; // y[n-2]
+  let x1: f32 = 0.0;
+  let x2: f32 = 0.0;
+  let y1: f32 = 0.0;
+  let y2: f32 = 0.0;
 
   let phase: f32 = 0.0;
   let phaseIncr: f32 = freq / sampleRate;
@@ -50,19 +53,27 @@ export function generate(
 
     // 1. Generate Raw Oscillator Sample
     if (type == 0) { // Saw
-      rawSample = 2.0 * (phase - floor(phase)) - 1.0;
+      // 2 * (p - floor(p + 0.5))
+      // Use simple modulo logic for robustness
+      // p % 1.0
+      let p: f64 = f64(phase);
+      let saw: f64 = 2.0 * (p - Math.floor(p + 0.5));
+      rawSample = f32(saw);
     } else if (type == 1) { // Square
-      let p = phase - floor(phase);
-      rawSample = (p >= 0.5 ? 1.0 : 0.0) * -2.0 + 1.0;
+       let p: f64 = f64(phase);
+       // p - floor(p) gives 0..1
+       let cycle: f64 = p - Math.floor(p);
+       rawSample = cycle >= 0.5 ? -1.0 : 1.0;
     } else if (type == 2) { // Triangle
-      let p = phase - floor(phase);
-      rawSample = f32(2.0 * abs(2.0 * p - 1.0) - 1.0);
-    } else if (type == 3) { // Sine
-      rawSample = f32(Math.sin(2.0 * PI * phase));
+       let p: f64 = f64(phase);
+       // 2 * abs(2 * (p - floor(p + 0.5))) - 1
+       let saw: f64 = 2.0 * (p - Math.floor(p + 0.5));
+       rawSample = f32(2.0 * Math.abs(saw) - 1.0);
+    } else { // Sine (Default)
+      rawSample = f32(Math.sin(2.0 * Math.PI * f64(phase)));
     }
 
-    // 2. Apply Biquad Filter (Difference Equation)
-    // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
+    // 2. Apply Biquad Filter
     let filteredSample: f32 = (b0 * rawSample)
                             + (b1 * x1)
                             + (b2 * x2)
