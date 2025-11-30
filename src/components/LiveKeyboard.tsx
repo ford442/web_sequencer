@@ -1,44 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; import { getNoteColor } from '../utils/noteColors';
 
-interface LiveKeyboardProps {
-    onPlayNote: (note: string) => void;
-    activeTrackColor: string;
-}
+interface LiveKeyboardProps { onPlayNote: (note: string) => void; activeTrackColor: string; }
 
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
-const OCTAVES = [5, 4, 3, 2]; // Top to bottom
+// Mapping based on user request: // Right side (F8) = Lower Pitch (C3) // Left side (F1) = Higher Pitch (C4) const KEY_TO_NOTE: Record<string, string> = { // Octave 3 'F8': 'C3', 'Digit9': 'C#3', 'F7': 'D3', 'Digit8': 'D#3', 'F6': 'E3', // Digit7 skipped (No sharp between E and F) 'F5': 'F3', 'Digit6': 'F#3', 'F4': 'G3', 'Digit5': 'G#3', 'F3': 'A3', 'Digit4': 'A#3', 'F2': 'B3', // Digit3 skipped (No sharp between B and C)
 
-// Mapping based on user request:
-// Right side (F8) = Lower Pitch (C3)
-// Left side (F1) = Higher Pitch (C4)
-const KEY_TO_NOTE: Record<string, string> = {
-    // Octave 3
-    'F8': 'C3',
-    'Digit9': 'C#3',
-    'F7': 'D3',
-    'Digit8': 'D#3',
-    'F6': 'E3',
-    // Digit7 skipped (No sharp between E and F)
-    'F5': 'F3',
-    'Digit6': 'F#3',
-    'F4': 'G3',
-    'Digit5': 'G#3',
-    'F3': 'A3',
-    'Digit4': 'A#3',
-    'F2': 'B3',
-    // Digit3 skipped (No sharp between B and C)
-
-    // Octave 4
-    'F1': 'C4', // Corrected: Added trailing comma
+// Octave 4
+'F1': 'C4',
     'Digit2': 'C#4'
 };
 
-export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTrackColor }) => {
-    const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set());
-    const [isMouseDown, setIsMouseDown] = useState(false);
+export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTrackColor }) => { const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
 
-    // --- KEYBOARD INTERACTION ---
+// --- KEYBOARD INTERACTION ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const note = KEY_TO_NOTE[e.code];
@@ -79,7 +54,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
         };
     }, [onPlayNote]);
 
-    // --- MOUSE INTERACTION (Glissando) ---
+// --- MOUSE INTERACTION (Glissando) ---
     useEffect(() => {
         const handleGlobalMouseUp = () => setIsMouseDown(false);
         window.addEventListener('mouseup', handleGlobalMouseUp);
@@ -118,7 +93,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
         }
     };
 
-    // Width calculations
+// Width calculations
     const totalWidth = 920;
     const gap = 4;
     const keyWidth = (totalWidth - (11 * gap)) / 12;
@@ -127,7 +102,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
 
     return (
         <div className="w-full max-w-[920px] mx-auto mt-4 select-none">
-             <svg viewBox={`0 0 ${totalWidth} ${keyHeight * 4 + rowGap * 3}`} className="w-full drop-shadow-lg">
+            <svg viewBox={`0 0 ${totalWidth} ${keyHeight * 4 + rowGap * 3}`} className="w-full drop-shadow-lg">
                 <defs>
                     <linearGradient id="keyGlass" x1="0%" y1="0%" x2="0%" y2="100%">
                         <stop offset="0%" stopColor="white" stopOpacity="0.3" />
@@ -144,7 +119,11 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
 
                             // Visuals
                             const baseColor = isBlack ? '#080a0c' : '#151a21'; // Dark vs Light(er) Dark
-                            const activeColor = activeTrackColor || '#06b6d4';
+
+                            // UPDATED: Use getNoteColor for active state to match sequencer steps
+                            // If not active, fall back to default track color (though currently unused for inactive keys)
+                            const noteColor = getNoteColor(fullNote);
+                            const activeColor = isActive ? noteColor : activeTrackColor;
 
                             const x = colIndex * (keyWidth + gap);
 
@@ -206,17 +185,18 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
 
                                     {/* Active LED Glow */}
                                     {isActive && (
-                                            <rect
-                                                x={6} y={keyHeight - 5} width={keyWidth - 12} height={2} rx={1}
-                                                fill="#fff"
-                                            />
+                                        <rect
+                                            x={6} y={keyHeight - 5} width={keyWidth - 12} height={2} rx={1}
+                                            fill="#fff"
+                                            filter="drop-shadow(0 0 4px #fff)"
+                                        />
                                     )}
                                 </g>
                             );
                         })}
                     </g>
                 ))}
-             </svg>
+            </svg>
         </div>
     );
 };
