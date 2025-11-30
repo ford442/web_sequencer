@@ -241,6 +241,7 @@ export const App: React.FC = () => {
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
+    const [globalPan, setGlobalPan] = useState(0) // <-- NEW: Global Pan
 
     // --- CONTEXT MENU STATE ---
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
@@ -349,6 +350,16 @@ export const App: React.FC = () => {
         setMasterVolume(v);
         if (audioEngine && 'setMasterVolume' in audioEngine) {
             (audioEngine as any).setMasterVolume(v);
+        }
+    };
+
+    const handleGlobalPan = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const p = parseFloat(e.target.value);
+        // Center snap
+        const val = (p > -0.1 && p < 0.1) ? 0 : p;
+        setGlobalPan(val);
+        if (audioEngine && 'setGlobalPan' in audioEngine) {
+            (audioEngine as any).setGlobalPan(val);
         }
     };
 
@@ -615,6 +626,16 @@ export const App: React.FC = () => {
                         <input
                             type="range" min="0" max="1.2" step="0.01"
                             value={masterVolume} onChange={handleMasterVolume}
+                            className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                        />
+                    </div>
+
+                    {/* Global Pan */}
+                    <div className="flex items-center gap-2 mr-4">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase">Pan</span>
+                        <input
+                            type="range" min="-1" max="1" step="0.01"
+                            value={globalPan} onChange={handleGlobalPan}
                             className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                         />
                     </div>
