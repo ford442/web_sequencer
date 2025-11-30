@@ -4,9 +4,57 @@ interface LiveKeyboardProps { onPlayNote: (note: string) => void; activeTrackCol
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
+// Mapping based on user request: Reverse F-keys for White, Numbers for Black // F8=C3, 9=C#3, F7=D3, 8=D#3, F6=E3, F5=F3, 6=F#3... const KEY_TO_NOTE: Record<string, string> = { // Octave 3 'F8': 'C3', 'Digit9': 'C#3', 'F7': 'D3', 'Digit8': 'D#3', 'F6': 'E3', // Digit7 skipped (No sharp between E and F) 'F5': 'F3', 'Digit6': 'F#3', 'F4': 'G3', 'Digit5': 'G#3', 'F3': 'A3', 'Digit4': 'A#3', 'F2': 'B3', // Digit3 skipped (No sharp between B and C)
+
+// Octave 4
+'F1': 'C4',
+'Digit2': 'C#4'
+};
+
 export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTrackColor }) => { const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
 
-// Global mouse up to ensure drag state ends even if mouse is released outside the component
+// --- KEYBOARD INTERACTION ---
+useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        const note = KEY_TO_NOTE[e.code];
+        if (note) {
+            // Prevent default browser actions for F-keys (Help, Find, Refresh, etc.)
+            e.preventDefault();
+
+            // Prevent repeat triggers if key is held down
+            if (!e.repeat) {
+                setActiveKeys(prev => {
+                    const next = new Set(prev);
+                    next.add(note);
+                    return next;
+                });
+                onPlayNote(note);
+            }
+        }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+        const note = KEY_TO_NOTE[e.code];
+        if (note) {
+            e.preventDefault();
+            setActiveKeys(prev => {
+                const next = new Set(prev);
+                next.delete(note);
+                return next;
+            });
+        }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+    };
+}, [onPlayNote]);
+
+// --- MOUSE INTERACTION (Glissando) ---
 useEffect(() => {
     const handleGlobalMouseUp = () => setIsMouseDown(false);
     window.addEventListener('mouseup', handleGlobalMouseUp);
