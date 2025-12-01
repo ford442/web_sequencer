@@ -2,7 +2,7 @@ import {
     createModule, createPattern, createInstrument, createSample, addSampleToInstrument,
     XMWriter, noteNameToValue
 } from './xm_save_lib/index';
-import type { PartSequence } from '../types';
+import type { PartSequence, Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams } from '../types';
 import { renderSynthToBuffer, renderDrumToBuffer } from './renderAudio';
 
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
@@ -33,9 +33,10 @@ export const exportSongToXM = async (
     songStructure: { [key in TrackKey]: number | null }[],
     trackStorage: Record<TrackKey, (PartSequence | null)[]>,
     params: {
-        synthA: any, synthB: any, kick: any, snare: any, closedHat: any, openHat: any, sampler: any
+        synthA: SynthParams, synthB: SynthParams, kick: KickParams, snare: SnareParams, closedHat: HatParams, openHat: HatParams, sampler: SamplerParams
     },
-    tempo: number
+    tempo: number,
+    currentPattern?: Pattern
 ) => {
     console.log("Starting XM Export...");
 
@@ -138,7 +139,7 @@ export const exportSongToXM = async (
 
     mod.header.numberOfInstruments = mod.instruments.length;
 
-// FIX: Only export measures up to the last one that contains actual data.
+    // Check if song structure has any active measures
     let lastActiveMeasure = -1;
     for (let i = songStructure.length - 1; i >= 0; i--) {
         const measure = songStructure[i];
@@ -148,6 +149,9 @@ export const exportSongToXM = async (
         }
     }
 
+    // Determine if we should use the current pattern as fallback
+    const useFallbackPattern = lastActiveMeasure === -1 && currentPattern;
+    
     // Export measures up to lastActiveMeasure + 1 (or at least 1 if the whole song is empty).
     const activeLength = Math.max(1, lastActiveMeasure + 1);
 
@@ -175,46 +179,68 @@ export const exportSongToXM = async (
         'sampler': { inst: 7, chan: 6 }
     };
 
+    // Helper to fill pattern data from a sequence
+    const fillPatternFromSequence = (xmPat: ReturnType<typeof createPattern>, sequence: PartSequence, trackKey: TrackKey) => {
+        const { inst, chan } = trackMap[trackKey];
+        
+        sequence.steps.forEach((stepData, row) => {
+            if (stepData && row < 32) {
+                const note = xmPat.data[row][chan];
 
-    for (let m = 0; m < activeLength; m++) {
-        const measure = songStructure[m];
-
-        // Create new XM pattern
-        const xmPat = createPattern(32, 8);
-
-        // Fill pattern data
-        // Iterate over tracks
-        (Object.keys(trackMap) as TrackKey[]).forEach(trackKey => {
-            const slotIndex = measure[trackKey];
-            if (slotIndex === null) return; // Empty track for this measure
-
-            const sequence = trackStorage[trackKey][slotIndex];
-            if (!sequence) return;
-
-            const { inst, chan } = trackMap[trackKey];
-
-            // Fill rows 0..31
-            sequence.steps.forEach((stepData, row) => {
-                if (stepData && row < 32) {
-                    const note = xmPat.data[row][chan];
-
-                    if (trackKey.startsWith('part') || trackKey === 'sampler') {
-                        // Melodic
-                        const nVal = noteNameToValue(stepData.note);
-                        note.note = nVal;
-                    } else {
-                        // Drums (Fixed note C-4 usually for sampled drums)
-                        note.note = 49; // C-4
-                    }
-
-                    note.instrument = inst;
-                    note.volume = 64; // Max vol
+                if (trackKey.startsWith('part') || trackKey === 'sampler') {
+                    // Melodic
+                    const nVal = noteNameToValue(stepData.note);
+                    note.note = nVal;
+                } else {
+                    // Drums (Fixed note C-4 usually for sampled drums)
+                    note.note = 49; // C-4
                 }
-            });
-        });
 
+                note.instrument = inst;
+                note.volume = 64; // Max vol
+            }
+        });
+    };
+
+    if (useFallbackPattern) {
+        // Song structure is empty - export the current pattern as a single measure
+        console.log("Song structure is empty, exporting current pattern...");
+        
+        const xmPat = createPattern(32, 8);
+        
+        // Fill from current pattern
+        (Object.keys(trackMap) as TrackKey[]).forEach(trackKey => {
+            const sequence = currentPattern[trackKey];
+            if (sequence) {
+                fillPatternFromSequence(xmPat, sequence, trackKey);
+            }
+        });
+        
         mod.patterns.push(xmPat);
-        patternOrderTable.push(m);
+        patternOrderTable.push(0);
+    } else {
+        // Use song structure
+        for (let m = 0; m < activeLength; m++) {
+            const measure = songStructure[m];
+
+            // Create new XM pattern
+            const xmPat = createPattern(32, 8);
+
+            // Fill pattern data
+            // Iterate over tracks
+            (Object.keys(trackMap) as TrackKey[]).forEach(trackKey => {
+                const slotIndex = measure[trackKey];
+                if (slotIndex === null) return; // Empty track for this measure
+
+                const sequence = trackStorage[trackKey][slotIndex];
+                if (!sequence) return;
+
+                fillPatternFromSequence(xmPat, sequence, trackKey);
+            });
+
+            mod.patterns.push(xmPat);
+            patternOrderTable.push(m);
+        }
     }
 
     mod.header.numberOfPatterns = mod.patterns.length;
