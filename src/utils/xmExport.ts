@@ -60,7 +60,7 @@ export const exportSongToXM = async (
         loopType: 1, // Forward loop
         loopStart: 20000, // Approximate loop point near end? Or just One Shot?
         loopLength: bufA.length - 20000,
-        relativeNoteNumber: 0 // C4
+        relativeNoteNumber: 12 // FIX: Set relative note to +12
     });
     // Fix loop for simple synth: just loop the whole thing if it's long?
     // Actually, for XM synth samples, usually you want a short loop.
@@ -77,7 +77,7 @@ export const exportSongToXM = async (
         name: 'Bass',
         data: floatTo16BitPCM(bufB.getChannelData(0)),
         volume: 64,
-        relativeNoteNumber: 0
+        relativeNoteNumber: 12
     });
     sampleB.header.type = 0x10;
     const instB = createInstrument('Bass Synth');
@@ -89,7 +89,8 @@ export const exportSongToXM = async (
     const sampleKick = createSample({
         name: 'Kick',
         data: floatTo16BitPCM(bufKick.getChannelData(0)),
-        volume: 64
+        volume: 64,
+        relativeNoteNumber: 12 // FIX: Set relative note to +12
     });
     sampleKick.header.type = 0x10;
     const instKick = createInstrument('Kick');
@@ -101,7 +102,8 @@ export const exportSongToXM = async (
     const sampleSnare = createSample({
         name: 'Snare',
         data: floatTo16BitPCM(bufSnare.getChannelData(0)),
-        volume: 64
+        volume: 64,
+        relativeNoteNumber: 12 // FIX: Set relative note to +12
     });
     sampleSnare.header.type = 0x10;
     const instSnare = createInstrument('Snare');
@@ -113,7 +115,8 @@ export const exportSongToXM = async (
     const sampleCH = createSample({
         name: 'Closed Hat',
         data: floatTo16BitPCM(bufCH.getChannelData(0)),
-        volume: 64
+        volume: 64,
+        relativeNoteNumber: 12 // FIX: Set relative note to +12
     });
     sampleCH.header.type = 0x10;
     const instCH = createInstrument('Closed Hat');
@@ -125,7 +128,8 @@ export const exportSongToXM = async (
     const sampleOH = createSample({
         name: 'Open Hat',
         data: floatTo16BitPCM(bufOH.getChannelData(0)),
-        volume: 64
+        volume: 64,
+        relativeNoteNumber: 12 // FIX: Set relative note to +12
     });
     sampleOH.header.type = 0x10;
     const instOH = createInstrument('Open Hat');
