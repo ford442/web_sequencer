@@ -8,6 +8,8 @@ import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
 import { SamplerPanel } from './components/SamplerPanel';
+import { SongMode } from './components/SongMode';
+import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import {
     INITIAL_PATTERN,
@@ -63,7 +65,7 @@ const SvgStep = memo(({
     const width = 18;
     const height = 50;
     const gap = 4;
-    const x = 140 + stepIndex * (width + gap); // Offset for Track Controls
+    const x = 220 + stepIndex * (width + gap); // Offset for Track Controls (Increased for 8 slots)
 
     // Determine color based on note or default cyan
     const color = note ? getNoteColor(note) : '#06b6d4';
@@ -186,9 +188,9 @@ const SequencerRow = memo(({
                 </text>
             </g>
 
-            {/* Track Pattern Slots (1-4) */}
+            {/* Track Pattern Slots (1-8) */}
             <g transform="translate(30, 16)">
-                {[0, 1, 2, 3].map(slot => (
+                {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (
                     <TrackSlotButton
                         key={slot}
                         index={slot}
@@ -243,6 +245,16 @@ export const App: React.FC = () => {
     const [masterVolume, setMasterVolume] = useState(0.8)
     const [globalPan, setGlobalPan] = useState(0) // <-- NEW: Global Pan
 
+    // --- SONG MODE STATE ---
+    const [isSongModeOpen, setIsSongModeOpen] = useState(false);
+    const [isSongModeActive, setIsSongModeActive] = useState(false); // Playback toggle
+    const [songStructure, setSongStructure] = useState<({ [key in TrackKey]: number | null })[]>(
+        Array(16).fill(null).map(() => ({
+            partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null
+        }))
+    );
+    const [currentSongMeasure, setCurrentSongMeasure] = useState(0);
+
     // --- CONTEXT MENU STATE ---
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
 
@@ -271,15 +283,15 @@ export const App: React.FC = () => {
     }
 
     // --- STORAGE STATE ---
-    // Per-track storage: Map of TrackKey -> Array[4] of PartSequence
+    // Per-track storage: Map of TrackKey -> Array[8] of PartSequence
     const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | null)[]>>({
-        partA: [null, null, null, null],
-        partB: [null, null, null, null],
-        kick: [null, null, null, null],
-        snare: [null, null, null, null],
-        closedHat: [null, null, null, null],
-        openHat: [null, null, null, null],
-        sampler: [null, null, null, null],
+        partA: Array(8).fill(null),
+        partB: Array(8).fill(null),
+        kick: Array(8).fill(null),
+        snare: Array(8).fill(null),
+        closedHat: Array(8).fill(null),
+        openHat: Array(8).fill(null),
+        sampler: Array(8).fill(null),
     });
 
     // Active slot visual tracking
@@ -321,22 +333,117 @@ export const App: React.FC = () => {
     const updateSampler = (u: Partial<SamplerParams>) => { const n = { ...sampler, ...u }; setSampler(n); samplerRef.current = n; };
 
     // --- AUDIO LOOP ---
+    // Ref-based access for Audio Loop to avoid closure staleness without re-creating callback
+    const patternRef = useRef(pattern);
+    useEffect(() => { patternRef.current = pattern; }, [pattern]);
+
+    const songStructureRef = useRef(songStructure);
+    useEffect(() => { songStructureRef.current = songStructure; }, [songStructure]);
+
+    const isSongModeActiveRef = useRef(isSongModeActive);
+    useEffect(() => { isSongModeActiveRef.current = isSongModeActive; }, [isSongModeActive]);
+
+    const trackStorageRef = useRef(trackStorage);
+    useEffect(() => { trackStorageRef.current = trackStorage; }, [trackStorage]);
+
+    // Track current measure index for playback
+    const songMeasureRef = useRef(0);
+
     const onStep = useCallback((step: number) => {
         if (!audioEngine) return
         const time = audioEngine.context.currentTime
-        if (pattern.partA.steps[step]) audioEngine.playSynth(synthARef.current, pattern.partA.steps[step]!.note, time)
-        if (pattern.partB.steps[step]) audioEngine.playSynth(synthBRef.current, pattern.partB.steps[step]!.note, time)
-        if (pattern.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
-        if (pattern.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
-        if (pattern.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
-        else if (pattern.closedHat.steps[step]) audioEngine.playDrum('closedHat', closedHatRef.current, time)
-        if (pattern.sampler.steps[step]) audioEngine.playSampler(samplerRef.current, pattern.sampler.steps[step]!.note, time)
-    }, [audioEngine, pattern])
+
+        // 1. Determine Source Pattern
+        let activePattern = patternRef.current;
+
+        if (isSongModeActiveRef.current) {
+            // Calculate which measure we are in
+            // step goes 0..31. We need to increment measure every time step wraps or calculate global time?
+            // The scheduler resets step 0..31.
+            // We need a way to advance the song pointer.
+            // Standard approach: The scheduler just gives 0..31.
+            // We can detect wrap-around (step 0) to advance measure.
+
+            if (step === 0) {
+                if (isFirstStepRef.current) {
+                    isFirstStepRef.current = false;
+                } else {
+                   // This is start of NEXT measure
+                   const nextM = songMeasureRef.current + 1;
+                   if (nextM < songStructureRef.current.length) {
+                       songMeasureRef.current = nextM;
+                       // Sync UI
+                       // Note: This is hacky. The UI update might be delayed.
+                       // Ideally useScheduler should support measures.
+                       // For now, trigger UI update slightly later to align with audio
+                       setTimeout(() => setCurrentSongMeasure(nextM), 0);
+                   } else {
+                       // Loop song or stop? Let's loop song
+                       songMeasureRef.current = 0;
+                       setTimeout(() => setCurrentSongMeasure(0), 0);
+                   }
+                }
+            }
+
+            const currentMeasureIdx = songMeasureRef.current;
+            const measureData = songStructureRef.current[currentMeasureIdx];
+
+            // Construct a composite pattern for this step
+            if (measureData) {
+                // We need to look up the stored patterns for each track
+                // If measureData.partA is null, we play silence? or continue last?
+                // Let's assume NULL = Silence / Empty Pattern
+
+                const getSeq = (key: TrackKey) => {
+                    const slot = measureData[key];
+                    if (slot === null) return { steps: Array(32).fill(null) }; // Empty
+                    const stored = trackStorageRef.current[key][slot];
+                    return stored || { steps: Array(32).fill(null) };
+                };
+
+                activePattern = {
+                    partA: getSeq('partA'),
+                    partB: getSeq('partB'),
+                    kick: getSeq('kick'),
+                    snare: getSeq('snare'),
+                    closedHat: getSeq('closedHat'),
+                    openHat: getSeq('openHat'),
+                    sampler: getSeq('sampler'),
+                } as Pattern; // Casting safe here due to structure
+            }
+        }
+
+        const p = activePattern;
+
+        if (p.partA.steps[step]) audioEngine.playSynth(synthARef.current, p.partA.steps[step]!.note, time)
+        if (p.partB.steps[step]) audioEngine.playSynth(synthBRef.current, p.partB.steps[step]!.note, time)
+        if (p.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
+        if (p.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
+        if (p.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
+        else if (p.closedHat.steps[step]) audioEngine.playDrum('closedHat', closedHatRef.current, time)
+        if (p.sampler.steps[step]) audioEngine.playSampler(samplerRef.current, p.sampler.steps[step]!.note, time)
+    }, [audioEngine]) // No dependencies needed thanks to Refs!
 
     const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
     useEffect(() => setCurrentStep(schedStep), [schedStep])
+
+    const isFirstStepRef = useRef(true);
+
+    // Reset on stop
+    useEffect(() => {
+        if (!schedPlaying) {
+            songMeasureRef.current = 0;
+            setCurrentSongMeasure(0);
+            isFirstStepRef.current = true;
+        }
+    }, [schedPlaying]);
+
+    // Inject logic into onStep (Redefining it here for clarity, will replace previous onStep block in merge)
+    // Actually, I will merge the Ref logic into the `onStep` I wrote above.
+
+    // Let's rewrite the onStep block in the merge below to include the measure advancement.
 
     const handlePlayToggle = async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
@@ -662,6 +769,22 @@ export const App: React.FC = () => {
                     </button>
 
                     <button
+                        onClick={() => { setIsSongModeOpen(!isSongModeOpen); }}
+                        className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${
+                            isSongModeOpen
+                            ? 'bg-purple-900/40 text-purple-300 border border-purple-500'
+                            : 'bg-gray-800 text-gray-400 border border-gray-700'
+                        }`}
+                    >
+                        SONG
+                    </button>
+
+                    <div className="flex items-center gap-2 mr-2">
+                        <label className="text-[10px] text-gray-500 font-mono uppercase">Song Mode</label>
+                        <input type="checkbox" checked={isSongModeActive} onChange={(e) => setIsSongModeActive(e.target.checked)} />
+                    </div>
+
+                    <button
                         onClick={handlePlayToggle}
                         className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg ${
                             isPlaying 
@@ -673,6 +796,32 @@ export const App: React.FC = () => {
                     </button>
                 </div>
             </header>
+
+            <SongMode
+                isVisible={isSongModeOpen}
+                songStructure={songStructure}
+                currentSongStep={currentSongMeasure}
+                onToggle={() => setIsSongModeOpen(!isSongModeOpen)}
+                onUpdateStep={(idx, key, val) => {
+                    setSongStructure(prev => {
+                        const copy = [...prev];
+                        copy[idx] = { ...copy[idx], [key]: val };
+                        return copy;
+                    });
+                }}
+                onAddMeasure={() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }])}
+                onRemoveMeasure={() => setSongStructure(prev => prev.slice(0, -1))}
+                onExportXM={() => {
+                    exportSongToXM(
+                        songStructure,
+                        trackStorage,
+                        {
+                            synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler
+                        },
+                        tempo
+                    );
+                }}
+            />
 
             {/* --- SEQUENCER --- */}
             <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 pb-4">
