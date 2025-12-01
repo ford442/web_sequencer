@@ -1,13 +1,20 @@
-import React, { useState, useEffect } from 'react'; import { getNoteColor } from '../utils/noteColors';
+import React, { useState, useEffect } from 'react';
+import { getNoteColor } from '../utils/noteColors';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; activeTrackColor: string; }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
-// Mapping based on user request: // Right side (F8) = Lower Pitch (C3) // Left side (F1) = Higher Pitch (C4) const KEY_TO_NOTE: Record<string, string> = { // Octave 3 'F8': 'C3', 'Digit9': 'C#3', 'F7': 'D3', 'Digit8': 'D#3', 'F6': 'E3', // Digit7 skipped (No sharp between E and F) 'F5': 'F3', 'Digit6': 'F#3', 'F4': 'G3', 'Digit5': 'G#3', 'F3': 'A3', 'Digit4': 'A#3', 'F2': 'B3', // Digit3 skipped (No sharp between B and C)
+// Mapping based on user request: // Right side (F8) = Lower Pitch (C3) // Left side (F1) = Higher Pitch (C4)
+const KEY_TO_NOTE: Record<string, string> = {
+    // Octave 3
+    'F8': 'C3', 'Digit9': 'C#3', 'F7': 'D3', 'Digit8': 'D#3', 'F6': 'E3',
+    // Digit7 skipped (No sharp between E and F)
+    'F5': 'F3', 'Digit6': 'F#3', 'F4': 'G3', 'Digit5': 'G#3', 'F3': 'A3', 'Digit4': 'A#3', 'F2': 'B3',
+    // Digit3 skipped (No sharp between B and C)
 
-// Octave 4
-'F1': 'C4',
+    // Octave 4
+    'F1': 'C4',
     'Digit2': 'C#4'
 };
 
