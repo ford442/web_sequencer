@@ -42,6 +42,27 @@ type SongSnapshot = {
     }
 };
 
+// New helper function: initialize per-track storage with INITIAL_PATTERN cloned into slot 0
+const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (PartSequence | null)[]> => {
+    const storage: Record<TrackKey, (PartSequence | null)[]> = {
+        partA: Array(8).fill(null),
+        partB: Array(8).fill(null),
+        kick: Array(8).fill(null),
+        snare: Array(8).fill(null),
+        closedHat: Array(8).fill(null),
+        openHat: Array(8).fill(null),
+        sampler: Array(8).fill(null),
+    };
+
+    // Deep clone initial pattern into slot 0 for each track so future live edits don't mutate stored slot
+    (Object.keys(storage) as TrackKey[]).forEach(key => {
+        // initialPattern[key] is a PartSequence; clone it
+        storage[key][0] = JSON.parse(JSON.stringify(initialPattern[key]));
+    });
+
+    return storage;
+};
+
 // --- COMPONENTS ---
 
 const SvgStep = memo(({
@@ -284,15 +305,9 @@ export const App: React.FC = () => {
 
     // --- STORAGE STATE ---
     // Per-track storage: Map of TrackKey -> Array[8] of PartSequence
-    const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | null)[]>>({
-        partA: Array(8).fill(null),
-        partB: Array(8).fill(null),
-        kick: Array(8).fill(null),
-        snare: Array(8).fill(null),
-        closedHat: Array(8).fill(null),
-        openHat: Array(8).fill(null),
-        sampler: Array(8).fill(null),
-    });
+    const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | null)[]>>(
+        getInitialTrackStorage(INITIAL_PATTERN)
+    );
 
     // Active slot visual tracking
     const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
