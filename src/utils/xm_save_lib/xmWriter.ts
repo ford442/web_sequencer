@@ -211,7 +211,7 @@ export class XMWriter {
         const note = pattern.data[row]?.[channel] || {
           note: 0,
           instrument: 0,
-          volume: 0,
+         // volume: 0,
           effectType: 0,
           effectParam: 0,
         };
