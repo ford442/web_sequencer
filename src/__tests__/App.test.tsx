@@ -14,8 +14,16 @@ describe('App', () => {
     expect(screen.getByText(/Vol/i)).toBeInTheDocument();
   });
 
-  it('renders song step indicator', () => {
+  it('renders song controls', () => {
     render(<App />);
-    expect(screen.getByText(/Song/i)).toBeInTheDocument();
+    // Check for multiple occurrences of "Song" related UI
+    const songElements = screen.getAllByText(/Song/i);
+    expect(songElements.length).toBeGreaterThan(0);
+
+    // Check for the new Song Mode toggle
+    expect(screen.getByText('Song Mode')).toBeInTheDocument();
+
+    // Check for the Song button
+    expect(screen.getByRole('button', { name: 'SONG' })).toBeInTheDocument();
   });
 });
