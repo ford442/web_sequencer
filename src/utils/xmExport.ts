@@ -138,6 +138,18 @@ export const exportSongToXM = async (
 
     mod.header.numberOfInstruments = mod.instruments.length;
 
+// FIX: Only export measures up to the last one that contains actual data.
+    let lastActiveMeasure = -1;
+    for (let i = songStructure.length - 1; i >= 0; i--) {
+        const measure = songStructure[i];
+        if (Object.values(measure).some(slot => slot !== null)) {
+            lastActiveMeasure = i;
+            break;
+        }
+    }
+
+    // Export measures up to lastActiveMeasure + 1 (or at least 1 if the whole song is empty).
+    const activeLength = Math.max(1, lastActiveMeasure + 1);
 
     // 3. Generate Patterns
     // SongStructure is: [ { partA: 0, partB: 1 ... }, { partA: 0, ... } ]
@@ -163,8 +175,6 @@ export const exportSongToXM = async (
         'sampler': { inst: 7, chan: 6 }
     };
 
-    // Filter out empty trailing measures
-    const activeLength = songStructure.length; // Or find last non-null? Let's export all.
 
     for (let m = 0; m < activeLength; m++) {
         const measure = songStructure[m];
