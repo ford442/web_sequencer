@@ -833,7 +833,8 @@ export const App: React.FC = () => {
                         {
                             synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler
                         },
-                        tempo
+                        tempo,
+                        pattern
                     );
                 }}
             />
