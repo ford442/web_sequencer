@@ -91,7 +91,8 @@ export async function renderDrumToBuffer(
     if (sound === 'kick') {
         const p = params as KickParams;
         const osc = offlineCtx.createOscillator();
-        osc.frequency.setValueAtTime(150, time);
+        // Use params.pitch if available (KickParams has pitch)
+        osc.frequency.setValueAtTime(p.pitch, time);
         osc.frequency.exponentialRampToValueAtTime(0.01, time + p.decay);
 
         const env = offlineCtx.createGain();
@@ -116,16 +117,30 @@ export async function renderDrumToBuffer(
         noiseSrc.buffer = buffer;
 
         const noiseEnv = offlineCtx.createGain();
-        noiseEnv.gain.setValueAtTime(p.volume, time);
+        // Mix noise based on p.noise
+        // p.noise is roughly 1000..8000. Let's map it to a mix level (0..1)
+        // or just use it as is if it's meant to be amplitude?
+        // Looking at App.tsx: id === 'noise', val * 7000 + 1000.
+        // It seems to be a frequency or amount?
+        // In the engine, it might be a filter cutoff or gain.
+        // Let's assume it balances Noise vs Tone.
+        // Higher p.noise = More Noise Gain.
+        // Normalize 1000-8000 to 0.2 - 1.0
+        const noiseMix = Math.min(1, Math.max(0, (p.noise - 1000) / 7000));
+
+        noiseEnv.gain.setValueAtTime(p.volume * noiseMix, time);
         noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + p.decay);
 
         // Tone
         const osc = offlineCtx.createOscillator();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(180, time); // Fixed snare tone freq approx
+        // Use p.tone for frequency
+        osc.frequency.setValueAtTime(p.tone, time);
 
         const toneEnv = offlineCtx.createGain();
-        toneEnv.gain.setValueAtTime(p.volume * 0.5, time);
+        // Tone volume inverse to noise? Or independent?
+        // Let's keep it independent but scaled
+        toneEnv.gain.setValueAtTime(p.volume * (1 - noiseMix * 0.5), time);
         toneEnv.gain.exponentialRampToValueAtTime(0.01, time + p.decay * 0.5);
 
         noiseSrc.connect(noiseEnv);
@@ -153,7 +168,10 @@ export async function renderDrumToBuffer(
         // Highpass
         const filter = offlineCtx.createBiquadFilter();
         filter.type = 'highpass';
-        filter.frequency.value = 8000;
+        // Use p.pitch to adjust filter cutoff? HatParams has pitch.
+        // Assuming pitch affects brightness/cutoff.
+        // Base 8000 + pitch offset?
+        filter.frequency.value = Math.max(1000, 8000 + (p.pitch || 0));
 
         const env = offlineCtx.createGain();
         env.gain.setValueAtTime(p.volume, time);
