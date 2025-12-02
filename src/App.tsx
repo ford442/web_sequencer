@@ -485,6 +485,17 @@ export const App: React.FC = () => {
         }
     };
 
+    // Refactor: Logic to update storage for a specific track and slot
+    // This helper avoids duplication in the various handlers
+    const updateStorageForTrack = (track: TrackKey, sequence: PartSequence) => {
+        setTrackStorage(prev => {
+            const copy = { ...prev };
+            copy[track] = [...copy[track]];
+            copy[track][activeTrackSlots[track]] = sequence;
+            return copy;
+        });
+    };
+
     const toggleStep = useCallback((rowKey: keyof Pattern, i: number) => {
         setPattern(prev => {
             const copy = JSON.parse(JSON.stringify(prev)) as Pattern
@@ -492,9 +503,13 @@ export const App: React.FC = () => {
             // Default note per track type
             const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
             arr[i] = arr[i] ? null : { note: defaultNote, velocity: 1 }
+
+            // Sync to storage
+            updateStorageForTrack(rowKey, copy[rowKey]);
+
             return copy
         })
-    }, [])
+    }, [activeTrackSlots])
 
     const handleKeyboardPlay = (note: string) => {
         if (!audioEngine) return;
@@ -515,6 +530,10 @@ export const App: React.FC = () => {
             setPattern(prev => {
                 const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
                 copy[selectedTrack].steps[currentStep] = { note, velocity: 1 };
+
+                // Sync to storage
+                updateStorageForTrack(selectedTrack, copy[selectedTrack]);
+
                 return copy;
             });
         }
@@ -536,6 +555,10 @@ export const App: React.FC = () => {
             if (stepData) {
                 stepData.note = note;
             }
+
+            // Sync to storage
+            updateStorageForTrack(contextMenu.track, copy[contextMenu.track]);
+
             return copy;
         });
         setContextMenu(null);
@@ -543,14 +566,26 @@ export const App: React.FC = () => {
 
     const handleClearPattern = () => {
         if(window.confirm("Clear current pattern?")) {
-             setPattern({
-                 partA: { steps: Array(16).fill(null) },
-                 partB: { steps: Array(16).fill(null) },
-                 kick: { steps: Array(16).fill(null) },
-                 snare: { steps: Array(16).fill(null) },
-                 closedHat: { steps: Array(16).fill(null) },
-                 openHat: { steps: Array(16).fill(null) },
-                 sampler: { steps: Array(16).fill(null) },
+             const emptyPattern = {
+                 partA: { steps: Array(32).fill(null) },
+                 partB: { steps: Array(32).fill(null) },
+                 kick: { steps: Array(32).fill(null) },
+                 snare: { steps: Array(32).fill(null) },
+                 closedHat: { steps: Array(32).fill(null) },
+                 openHat: { steps: Array(32).fill(null) },
+                 sampler: { steps: Array(32).fill(null) },
+             } as Pattern; // Cast to ensure type compatibility
+
+             setPattern(emptyPattern);
+
+             // Sync all tracks to storage
+             setTrackStorage(prevStorage => {
+                 const storageCopy = { ...prevStorage };
+                 (Object.keys(storageCopy) as TrackKey[]).forEach(key => {
+                     storageCopy[key] = [...storageCopy[key]];
+                     storageCopy[key][activeTrackSlots[key]] = emptyPattern[key];
+                 });
+                 return storageCopy;
              });
         }
     };
