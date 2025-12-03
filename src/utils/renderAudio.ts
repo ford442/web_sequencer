@@ -1,5 +1,6 @@
 import type { SynthParams, KickParams, SnareParams, HatParams } from '../types';
 import { noteToFrequency } from '../constants';
+import type { PyodideWorkerApi } from '../hooks/usePyodideEngine';
 
 /**
  * Renders a synth sound to an AudioBuffer.
@@ -12,7 +13,7 @@ export async function renderSynthToBuffer(
     engines?: {
         webGpuEngine?: any,
         wasmEngine?: any,
-        pyodide?: any
+        pyodide?: PyodideWorkerApi
     }
 ): Promise<AudioBuffer> {
     const sampleRate = 44100;
@@ -25,7 +26,7 @@ export async function renderSynthToBuffer(
 
     let sourceNode: AudioScheduledSourceNode | null = null;
     let customBuffer: AudioBuffer | null = null;
-    let skipFilter = false; // Engines like Wasm might apply filter internally
+    let skipFilter = false;
 
     // Check for Custom Engines first
     if (params.waveform.startsWith('wgsl-') && engines?.webGpuEngine?.isSupported) {
@@ -64,19 +65,18 @@ export async function renderSynthToBuffer(
         } catch(e) { console.error("WASM Export Error", e); }
     }
     else if (params.waveform.startsWith('pyodide-') && engines?.pyodide) {
-        // Pyodide
+        // Pyodide (Async Worker)
         try {
-            engines.pyodide.globals.get('set_sample_rate')(sampleRate);
             const pyOscType = params.waveform.split('-')[1];
-            let pyProxy = engines.pyodide.globals.get('generate_wave')(
-                freqWithPitch,
+            // Use worker api
+            const audioSamples = await engines.pyodide.generateWave({
+                freq: freqWithPitch,
                 duration,
-                pyOscType,
-                params.filterCutoff,
-                params.filterResonance
-            );
-            const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
-            pyProxy.destroy();
+                oscType: pyOscType,
+                cutoff: params.filterCutoff,
+                resonance: params.filterResonance,
+                sampleRate
+            });
 
             if (audioSamples) {
                 customBuffer = offlineCtx.createBuffer(1, audioSamples.length, sampleRate);
@@ -179,7 +179,7 @@ export async function renderSynthToBuffer(
 export async function renderDrumToBuffer(
     sound: 'kick' | 'snare' | 'closedHat' | 'openHat',
     params: any,
-    pyodide?: any
+    pyodide?: PyodideWorkerApi
 ): Promise<AudioBuffer> {
     const sampleRate = 44100;
     // Estimate duration based on params or defaults
@@ -193,31 +193,23 @@ export async function renderDrumToBuffer(
     // Try Pyodide Generation first
     if (pyodide) {
         try {
-            let pyProxy;
+            let bufferData;
             if (sound === 'kick') {
                 const p = params as KickParams;
-                pyProxy = pyodide.globals.get('generate_kick')(p.pitch, p.decay, p.tone, p.volume);
+                bufferData = await pyodide.generateDrum('kick', { ...p, sampleRate });
             } else if (sound === 'snare') {
                 const p = params as SnareParams;
-                pyProxy = pyodide.globals.get('generate_snare')(p.decay, p.tone, p.noise, p.volume);
+                bufferData = await pyodide.generateDrum('snare', { ...p, sampleRate });
             } else {
                 // Hats
                 const p = params as HatParams;
-                pyProxy = pyodide.globals.get('generate_hat')(p.pitch, p.decay, p.volume);
+                bufferData = await pyodide.generateDrum('hat', { ...p, sampleRate });
             }
 
-            const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
-            pyProxy.destroy();
-
-            if (audioSamples && audioSamples.length > 0) {
-                 // Return directly (Offline context not strictly needed if we just want the buffer,
-                 // but existing code returns Promise<AudioBuffer>)
-                 // We can construct an AudioBuffer from the float array.
-                 // We need an AudioContext to createBuffer. Since we are in browser, we can use offline one or main one.
-                 // Let's use OfflineAudioContext just to create the buffer object cleanly.
-                 const ctx = new OfflineAudioContext(1, audioSamples.length, sampleRate);
-                 const buffer = ctx.createBuffer(1, audioSamples.length, sampleRate);
-                 buffer.getChannelData(0).set(audioSamples);
+            if (bufferData && bufferData.length > 0) {
+                 const ctx = new OfflineAudioContext(1, bufferData.length, sampleRate);
+                 const buffer = ctx.createBuffer(1, bufferData.length, sampleRate);
+                 buffer.getChannelData(0).set(bufferData);
                  return buffer;
             }
         } catch (e) {
