@@ -45,21 +45,27 @@ export const SongMode = memo(({
 
     return (
         <div
-            className={`fixed left-0 top-16 bottom-0 z-40 bg-[#080a0b] border-r border-gray-800 transition-all duration-300 overflow-hidden flex flex-col shadow-2xl ${isVisible ? 'w-[800px] opacity-100' : 'w-0 opacity-0'}`}
+            className={`fixed left-0 top-16 bottom-[320px] z-40 bg-gradient-to-br from-[#0a0d10] to-[#080a0b] border-r-2 border-cyan-900/30 transition-all duration-300 overflow-hidden flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] backdrop-blur-sm ${isVisible ? 'w-[850px] opacity-100' : 'w-0 opacity-0'}`}
         >
+            {/* Decorative edge line */}
+            <div className="absolute top-0 bottom-0 right-0 w-px bg-gradient-to-b from-cyan-500/30 via-transparent to-cyan-500/30 pointer-events-none"></div>
+            
             {/* Header */}
-            <div className="h-12 bg-[#0b0d10] border-b border-gray-800 flex items-center justify-between px-4 shrink-0">
-                <h2 className="font-orbitron font-bold text-cyan-500 tracking-wider">SONG ARRANGER</h2>
-                <div className="flex gap-2">
-                    <button onClick={onRemoveMeasure} className="px-2 py-1 bg-gray-800 text-gray-400 text-xs rounded hover:bg-gray-700">- BAR</button>
-                    <button onClick={onAddMeasure} className="px-2 py-1 bg-gray-800 text-cyan-400 text-xs rounded hover:bg-gray-700">+ BAR</button>
-                    <button onClick={onExportXM} className="ml-4 px-3 py-1 bg-cyan-900/40 text-cyan-400 text-xs font-bold border border-cyan-800 rounded hover:bg-cyan-900/60">EXPORT XM</button>
-                    <button onClick={onToggle} className="ml-2 text-gray-500 hover:text-white">✕</button>
+            <div className="h-14 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 flex items-center justify-between px-6 shrink-0 shadow-lg relative">
+                {/* Decorative line */}
+                <div className="absolute bottom-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent"></div>
+                
+                <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest drop-shadow-[0_0_8px_rgba(6,182,212,0.4)]">SONG ARRANGER</h2>
+                <div className="flex gap-3">
+                    <button onClick={onRemoveMeasure} className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all">- BAR</button>
+                    <button onClick={onAddMeasure} className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all">+ BAR</button>
+                    <button onClick={onExportXM} className="ml-2 px-4 py-1.5 bg-gradient-to-r from-cyan-900/40 to-cyan-800/40 text-cyan-400 text-xs font-bold border border-cyan-700/50 rounded-lg hover:from-cyan-800/60 hover:to-cyan-700/60 shadow-lg transition-all">EXPORT XM</button>
+                    <button onClick={onToggle} className="ml-2 text-gray-400 hover:text-white text-lg transition-colors">✕</button>
                 </div>
             </div>
 
             {/* Grid Container */}
-            <div className="flex-1 overflow-auto p-4 custom-scrollbar">
+            <div className="flex-1 overflow-auto p-6 custom-scrollbar bg-gradient-to-b from-[#0a0d10] to-[#080a0b]">
                 <div className="relative" style={{ width: Math.max(totalWidth, 760), height: totalHeight }}>
 
                     {/* Time Ruler */}
