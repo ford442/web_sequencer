@@ -738,17 +738,34 @@ export const App: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-screen w-screen bg-[#080a0b] text-gray-200 overflow-hidden font-sans">
+        <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative">
+            
+            {/* --- DECORATIVE BACKGROUND FRAME --- */}
+            <div className="fixed inset-0 pointer-events-none z-0">
+                {/* Corner decorations */}
+                <div className="absolute top-0 left-0 w-32 h-32 border-l-2 border-t-2 border-cyan-900/20"></div>
+                <div className="absolute top-0 right-0 w-32 h-32 border-r-2 border-t-2 border-cyan-900/20"></div>
+                <div className="absolute bottom-0 left-0 w-32 h-32 border-l-2 border-b-2 border-cyan-900/20"></div>
+                <div className="absolute bottom-0 right-0 w-32 h-32 border-r-2 border-b-2 border-cyan-900/20"></div>
+                
+                {/* Edge lines */}
+                <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-900/30 to-transparent"></div>
+                <div className="absolute bottom-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-900/30 to-transparent"></div>
+                <div className="absolute left-0 top-1/4 bottom-1/4 w-px bg-gradient-to-b from-transparent via-cyan-900/30 to-transparent"></div>
+                <div className="absolute right-0 top-1/4 bottom-1/4 w-px bg-gradient-to-b from-transparent via-cyan-900/30 to-transparent"></div>
+            </div>
 
             {/* --- TOP HEADER --- */}
-            <header className="h-16 flex items-center justify-between px-4 bg-[#0b0d10] border-b border-gray-800 z-20 shadow-md shrink-0">
+            <header className="h-16 flex items-center justify-between px-6 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 z-20 shadow-2xl shrink-0 relative backdrop-blur-sm">
 
                 {/* LEFT: Title & Global Song Storage */}
                 <div className="flex items-center gap-6">
-                    <h1 className="text-lg font-bold font-orbitron text-cyan-500 tracking-wider hidden md:block">ELECTRIBE<span className="text-white">WEB</span></h1>
+                    <h1 className="text-xl font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
+                        ELECTRIBE<span className="text-white">WEB</span>
+                    </h1>
 
                     {/* Global Song Snapshots */}
-                    <div className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
+                    <div className="flex items-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 p-2 rounded-lg border border-cyan-900/30 shadow-lg">
                         <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Song</span>
                         {[0, 1, 2, 3].map(slot => (
                             <button
@@ -769,7 +786,7 @@ export const App: React.FC = () => {
                         ))}
                     </div>
 
-                    <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-red-900/10 hover:bg-red-900/30 px-3 py-1 rounded transition-all">
+                    <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-gradient-to-r from-red-900/10 to-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded-lg transition-all shadow-md">
                         CLEAR
                     </button>
                 </div>
@@ -875,7 +892,7 @@ export const App: React.FC = () => {
             />
 
             {/* --- SEQUENCER --- */}
-            <main className="flex-1 relative bg-gradient-to-b from-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-8 pb-4">
+            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
 
                 {contextMenu && (
                     <NoteSelector
@@ -890,13 +907,27 @@ export const App: React.FC = () => {
                 )}
 
                 {/* Sequencer Container with Hardware finish */}
-                <div className="w-full max-w-[920px] mx-auto h-[460px] border border-gray-800 rounded-lg bg-[#080a0c] relative shadow-[0_0_60px_rgba(0,0,0,0.8)_inset] overflow-hidden">
+                <div className="w-full max-w-[1000px] mx-auto h-[480px] border-2 border-gray-700 rounded-xl bg-gradient-to-br from-[#0a0d10] to-[#080a0c] relative shadow-[0_0_80px_rgba(0,0,0,0.9)_inset,0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden">
+
+                    {/* Outer decorative frame */}
+                    <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
+                    
+                    {/* Inner shadow frame */}
+                    <div className="absolute inset-2 rounded-lg border border-gray-800/50 pointer-events-none shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)]"></div>
 
                     {/* Decorative screws */}
-                    <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                    <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                    <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
-                    <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center"><div className="w-full h-[1px] bg-gray-900 rotate-45"></div></div>
+                    <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600">
+                        <div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div>
+                    </div>
+                    <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600">
+                        <div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div>
+                    </div>
+                    <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600">
+                        <div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div>
+                    </div>
+                    <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600">
+                        <div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div>
+                    </div>
 
                     <svg viewBox="0 0 920 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
                         <defs>
@@ -933,23 +964,30 @@ export const App: React.FC = () => {
                 </div>
 
                 {/* --- LIVE KEYBOARD --- */}
-                <div className="shrink-0 pb-4">
-                     <LiveKeyboard
-                        onPlayNote={handleKeyboardPlay}
-                        activeTrackColor={
-                            selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') :
-                            selectedTrack === 'kick' ? '#f97316' :
-                            selectedTrack === 'snare' ? '#22c55e' :
-                            selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
-                        }
-                     />
+                <div className="shrink-0 pb-4 mt-6 max-w-[1000px] mx-auto w-full">
+                    <div className="border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl bg-gradient-to-b from-[#0d1015] to-[#080a0c]">
+                        <LiveKeyboard
+                            onPlayNote={handleKeyboardPlay}
+                            activeTrackColor={
+                                selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') :
+                                selectedTrack === 'kick' ? '#f97316' :
+                                selectedTrack === 'snare' ? '#22c55e' :
+                                selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
+                            }
+                        />
+                    </div>
                 </div>
             </main>
 
             {/* --- HARDWARE MODULE --- */}
-            <div className="h-[300px] bg-[#0f1215] border-t border-gray-800 relative shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-30 shrink-0 fixed bottom-0 w-full">
-                <div className="w-full h-full max-w-5xl mx-auto p-2 flex items-center justify-center">
-                    <div className="w-full h-full rounded-xl overflow-hidden border border-gray-800 shadow-2xl bg-black">
+            <div className="h-[320px] bg-gradient-to-b from-[#0d0f12] to-[#0f1215] border-t-2 border-cyan-900/30 relative shadow-[0_-10px_60px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(6,182,212,0.1)] z-30 shrink-0 fixed bottom-0 w-full">
+                {/* Decorative top line */}
+                <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
+                
+                <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
+                    <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-gray-700 shadow-[0_0_40px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(0,0,0,0.5)] bg-gradient-to-br from-black to-[#0a0c0f] relative">
+                        {/* Inner decorative frame */}
+                        <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
                         {renderModulePanel()}
                     </div>
                 </div>
