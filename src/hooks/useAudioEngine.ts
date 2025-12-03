@@ -78,8 +78,8 @@ export const useAudioEngine = (pyodide: any) => {
     };
 
     const [sawBuf, sqrBuf] = await Promise.all([
-        loadWav('/saw.wav'),
-        loadWav('/square.wav')
+        loadWav('./assets/saw.wav'),
+        loadWav('./assets/square.wav')
     ]);
     wavSawBufferRef.current = sawBuf;
     wavSqrBufferRef.current = sqrBuf;
