@@ -929,7 +929,7 @@ export const App: React.FC = () => {
                         <div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div>
                     </div>
 
-                    <svg viewBox="0 0 920 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
+                    <svg viewBox="0 0 1050 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
                         <defs>
                             <linearGradient id="trackGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" stopColor="#0b1015" stopOpacity="1" />
