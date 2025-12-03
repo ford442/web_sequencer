@@ -36,9 +36,14 @@ export const exportSongToXM = async (
         synthA: SynthParams, synthB: SynthParams, kick: KickParams, snare: SnareParams, closedHat: HatParams, openHat: HatParams, sampler: SamplerParams
     },
     tempo: number,
-    currentPattern?: Pattern
+    currentPattern?: Pattern,
+    engines?: {
+        webGpuEngine?: any,
+        wasmEngine?: any,
+        pyodide?: any
+    }
 ) => {
-    console.log("Starting XM Export...");
+    console.log("Starting XM Export with engines:", engines);
 
     // 1. Create Module
     const mod = createModule({
@@ -52,7 +57,7 @@ export const exportSongToXM = async (
     // Mapping: 1=SynthA, 2=SynthB, 3=Kick, 4=Snare, 5=CH, 6=OH, 7=Sampler
 
     // Synth A
-    const bufA = await renderSynthToBuffer(params.synthA, 'C4', 1.0);
+    const bufA = await renderSynthToBuffer(params.synthA, 'C4', 1.0, engines);
     const sampleA = createSample({
         name: 'Lead',
         data: floatTo16BitPCM(bufA.getChannelData(0)),
@@ -72,7 +77,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instA);
 
     // Synth B
-    const bufB = await renderSynthToBuffer(params.synthB, 'C4', 1.0);
+    const bufB = await renderSynthToBuffer(params.synthB, 'C4', 1.0, engines);
     const sampleB = createSample({
         name: 'Bass',
         data: floatTo16BitPCM(bufB.getChannelData(0)),
@@ -85,7 +90,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instB);
 
     // Kick
-    const bufKick = await renderDrumToBuffer('kick', params.kick);
+    const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide);
     const sampleKick = createSample({
         name: 'Kick',
         data: floatTo16BitPCM(bufKick.getChannelData(0)),
@@ -98,7 +103,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instKick);
 
     // Snare
-    const bufSnare = await renderDrumToBuffer('snare', params.snare);
+    const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide);
     const sampleSnare = createSample({
         name: 'Snare',
         data: floatTo16BitPCM(bufSnare.getChannelData(0)),
@@ -111,7 +116,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instSnare);
 
     // CH
-    const bufCH = await renderDrumToBuffer('closedHat', params.closedHat);
+    const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide);
     const sampleCH = createSample({
         name: 'Closed Hat',
         data: floatTo16BitPCM(bufCH.getChannelData(0)),
@@ -124,7 +129,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instCH);
 
     // OH
-    const bufOH = await renderDrumToBuffer('openHat', params.openHat);
+    const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
     const sampleOH = createSample({
         name: 'Open Hat',
         data: floatTo16BitPCM(bufOH.getChannelData(0)),
