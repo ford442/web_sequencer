@@ -15,6 +15,10 @@ export const useAudioEngine = (pyodide: any) => {
   const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
   const wasmEngineRef = useRef<WasmOscillator | null>(null);
 
+  // Native WAV buffers
+  const wavSawBufferRef = useRef<AudioBuffer | null>(null);
+  const wavSqrBufferRef = useRef<AudioBuffer | null>(null);
+
   // Master Volume & Pan
   const masterGainRef = useRef<GainNode | null>(null);
   const masterPannerRef = useRef<StereoPannerNode | null>(null);
@@ -60,6 +64,26 @@ export const useAudioEngine = (pyodide: any) => {
     await wasmEngine.init();
     wasmEngineRef.current = wasmEngine;
 
+    // Load WAV Files (Native Engine)
+    const loadWav = async (url: string) => {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const arrayBuf = await res.arrayBuffer();
+            return await context.decodeAudioData(arrayBuf);
+        } catch (e) {
+            console.error(`Failed to load ${url}`, e);
+            return null;
+        }
+    };
+
+    const [sawBuf, sqrBuf] = await Promise.all([
+        loadWav('./assets/saw.wav'),
+        loadWav('./assets/square.wav')
+    ]);
+    wavSawBufferRef.current = sawBuf;
+    wavSqrBufferRef.current = sqrBuf;
+
     if (context.state === 'suspended') {
       await context.resume();
     }
@@ -82,6 +106,7 @@ export const useAudioEngine = (pyodide: any) => {
       const isPyodideWave = params.waveform.startsWith('pyodide-');
       const isWgslWave = params.waveform.startsWith('wgsl-');
       const isWasmWave = params.waveform.startsWith('wam-');
+      const isWavWave = params.waveform.startsWith('wav-');
 
       // ADSR Logic
       const gateTime = params.length || 0.25;
@@ -126,7 +151,36 @@ export const useAudioEngine = (pyodide: any) => {
       }
 
       // --- Waveform Generation ---
-      if (isWgslWave && gpuEngineRef.current?.isSupported) {
+      if (isWavWave) {
+          const buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
+
+          if (buffer) {
+              const source = context.createBufferSource();
+              source.buffer = buffer;
+              source.loop = true;
+
+              const baseFreq = noteToFrequency(note);
+              const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+
+              // Determine sample root frequency based on user spec
+              // saw.wav: 32.86 Hz, square.wav: 65.72 Hz
+              const sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
+
+              source.playbackRate.setValueAtTime(freqWithPitch / sampleRootFreq, time);
+
+              const filter = context.createBiquadFilter();
+              filter.type = 'lowpass';
+              filter.frequency.setValueAtTime(params.filterCutoff, time);
+              filter.Q.setValueAtTime(params.filterResonance, time);
+
+              source.connect(filter);
+              filter.connect(outputNode);
+
+              source.start(time);
+              // Stop slightly after release to prevent clicking
+              source.stop(time + totalDuration + 0.1);
+          }
+      } else if (isWgslWave && gpuEngineRef.current?.isSupported) {
         try {
             const baseFreq = noteToFrequency(note);
             const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
