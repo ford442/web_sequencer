@@ -81,8 +81,17 @@ export interface AmbianceTrack {
   url: string;
 }
 
+// Import engine types to avoid circular dependency issues if possible, or use 'any' if types are not exported here.
+// But ideally we import them.
+// Since WebGpuOscillator and WasmOscillator are classes, we can use them as types if we import them or use 'any'.
+// To avoid circular imports (since engines might import types), we can use basic structural typing or `any` for now,
+// or better, move engine interfaces to types.ts.
+// For now, I'll add them as optional properties to AudioEngine.
+
 export interface AudioEngine {
   context: AudioContext;
+  webGpuEngine?: any; // WebGpuOscillator
+  wasmEngine?: any; // WasmOscillator
   playSynth: (params: SynthParams, note: string, time: number, destination?: AudioNode) => void;
   playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
   playSampler: (params: SamplerParams, note: string, time: number) => void;

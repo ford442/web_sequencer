@@ -8,7 +8,12 @@ import { noteToFrequency } from '../constants';
 export async function renderSynthToBuffer(
     params: SynthParams,
     note: string = 'C4',
-    duration: number = 2.0
+    duration: number = 2.0,
+    engines?: {
+        webGpuEngine?: any,
+        wasmEngine?: any,
+        pyodide?: any
+    }
 ): Promise<AudioBuffer> {
     const sampleRate = 44100;
     const offlineCtx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
@@ -18,10 +23,76 @@ export async function renderSynthToBuffer(
     // Apply pitch shift from params
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 
-    let sourceNode: AudioScheduledSourceNode;
+    let sourceNode: AudioScheduledSourceNode | null = null;
+    let customBuffer: AudioBuffer | null = null;
+    let skipFilter = false; // Engines like Wasm might apply filter internally
 
+    // Check for Custom Engines first
+    if (params.waveform.startsWith('wgsl-') && engines?.webGpuEngine?.isSupported) {
+        // WebGPU
+        try {
+            const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
+            const rawData = await engines.webGpuEngine.generate(
+                freqWithPitch,
+                duration,
+                sampleRate,
+                type
+            );
+            if (rawData) {
+                customBuffer = offlineCtx.createBuffer(1, rawData.length, sampleRate);
+                customBuffer.getChannelData(0).set(rawData);
+            }
+        } catch(e) { console.error("WebGPU Export Error", e); }
+    }
+    else if (params.waveform.startsWith('wam-') && engines?.wasmEngine?.isReady) {
+        // WASM
+        try {
+            const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
+            const rawData = engines.wasmEngine.generate(
+                freqWithPitch,
+                duration,
+                sampleRate,
+                type,
+                params.filterCutoff,
+                params.filterResonance
+            );
+            if (rawData) {
+                customBuffer = offlineCtx.createBuffer(1, rawData.length, sampleRate);
+                customBuffer.getChannelData(0).set(rawData);
+                skipFilter = true; // WASM engine applies filter
+            }
+        } catch(e) { console.error("WASM Export Error", e); }
+    }
+    else if (params.waveform.startsWith('pyodide-') && engines?.pyodide) {
+        // Pyodide
+        try {
+            engines.pyodide.globals.get('set_sample_rate')(sampleRate);
+            const pyOscType = params.waveform.split('-')[1];
+            let pyProxy = engines.pyodide.globals.get('generate_wave')(
+                freqWithPitch,
+                duration,
+                pyOscType,
+                params.filterCutoff,
+                params.filterResonance
+            );
+            const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+            pyProxy.destroy();
+
+            if (audioSamples) {
+                customBuffer = offlineCtx.createBuffer(1, audioSamples.length, sampleRate);
+                customBuffer.getChannelData(0).set(audioSamples);
+                skipFilter = true; // Pyodide engine applies filter
+            }
+        } catch(e) { console.error("Pyodide Export Error", e); }
+    }
+
+    if (customBuffer) {
+        const bufferSource = offlineCtx.createBufferSource();
+        bufferSource.buffer = customBuffer;
+        sourceNode = bufferSource;
+    }
     // Handle Sample-Based Waveforms
-    if (params.waveform === 'wav-saw' || params.waveform === 'wav-sqr') {
+    else if (params.waveform === 'wav-saw' || params.waveform === 'wav-sqr') {
         const bufferSource = offlineCtx.createBufferSource();
         const url = params.waveform === 'wav-saw' ? './assets/saw.wav' : './assets/square.wav';
         const rootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
@@ -29,11 +100,6 @@ export async function renderSynthToBuffer(
         try {
             const response = await fetch(url);
             const arrayBuffer = await response.arrayBuffer();
-            // Use a temporary context to decode since offlineCtx might not support decodeAudioData in all envs immediately?
-            // Standard Web Audio API says context.decodeAudioData.
-            // OfflineAudioContext inherits from BaseAudioContext which has decodeAudioData.
-            // However, we can't await decodeAudioData on the offline context *while* rendering?
-            // Actually we are setting up BEFORE startRendering.
             const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
 
             bufferSource.buffer = audioBuffer;
@@ -46,14 +112,14 @@ export async function renderSynthToBuffer(
             sourceNode = bufferSource;
         } catch (e) {
             console.error(`Failed to load wav buffer for ${params.waveform}`, e);
-            // Fallback to oscillator
+            // Fallback
             const osc = offlineCtx.createOscillator();
             osc.type = params.waveform === 'wav-saw' ? 'sawtooth' : 'square';
             osc.frequency.setValueAtTime(freqWithPitch, time);
             sourceNode = osc;
         }
     } else {
-        // Standard Waveforms
+        // Standard Waveforms Fallback
         const osc = offlineCtx.createOscillator();
         let type: OscillatorType = 'sawtooth';
         if (params.waveform.includes('sqr')) type = 'square';
@@ -64,11 +130,20 @@ export async function renderSynthToBuffer(
         sourceNode = osc;
     }
 
+    // Connect Graph
+    // Source -> (Filter?) -> VCA -> Dest
+
     // Filter
-    const filter = offlineCtx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(params.filterCutoff, time);
-    filter.Q.setValueAtTime(params.filterResonance, time);
+    let nextNode: AudioNode = sourceNode;
+
+    if (!skipFilter) {
+        const filter = offlineCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(params.filterCutoff, time);
+        filter.Q.setValueAtTime(params.filterResonance, time);
+        sourceNode.connect(filter);
+        nextNode = filter;
+    }
 
     // VCA (Envelope)
     const gain = offlineCtx.createGain();
@@ -84,12 +159,16 @@ export async function renderSynthToBuffer(
     gain.gain.setValueAtTime(sustain, duration - release);
     gain.gain.linearRampToValueAtTime(0, duration);
 
-    sourceNode.connect(filter);
-    filter.connect(gain);
+    nextNode.connect(gain);
     gain.connect(offlineCtx.destination);
 
     sourceNode.start(time);
-    sourceNode.stop(time + duration);
+    // For buffer sources we don't strictly need stop if buffer matches duration, but safe practice
+    if (sourceNode instanceof OscillatorNode) {
+        sourceNode.stop(time + duration);
+    } else if (customBuffer) {
+        // Stop is implied by buffer length usually, but just in case
+    }
 
     return await offlineCtx.startRendering();
 }
@@ -99,20 +178,60 @@ export async function renderSynthToBuffer(
  */
 export async function renderDrumToBuffer(
     sound: 'kick' | 'snare' | 'closedHat' | 'openHat',
-    params: any
+    params: any,
+    pyodide?: any
 ): Promise<AudioBuffer> {
     const sampleRate = 44100;
     // Estimate duration based on params or defaults
-    const duration = sound === 'snare' ? 0.5 : (sound === 'kick' ? 0.5 : 0.3);
+    let duration = sound === 'snare' ? 0.5 : (sound === 'kick' ? 0.5 : 0.3);
+
+    // If we have decay param, use it to ensure buffer is long enough
+    if (params.decay) {
+        duration = Math.max(duration, params.decay * (sound === 'snare' ? 1.5 : 1.2));
+    }
+
+    // Try Pyodide Generation first
+    if (pyodide) {
+        try {
+            let pyProxy;
+            if (sound === 'kick') {
+                const p = params as KickParams;
+                pyProxy = pyodide.globals.get('generate_kick')(p.pitch, p.decay, p.tone, p.volume);
+            } else if (sound === 'snare') {
+                const p = params as SnareParams;
+                pyProxy = pyodide.globals.get('generate_snare')(p.decay, p.tone, p.noise, p.volume);
+            } else {
+                // Hats
+                const p = params as HatParams;
+                pyProxy = pyodide.globals.get('generate_hat')(p.pitch, p.decay, p.volume);
+            }
+
+            const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+            pyProxy.destroy();
+
+            if (audioSamples && audioSamples.length > 0) {
+                 // Return directly (Offline context not strictly needed if we just want the buffer,
+                 // but existing code returns Promise<AudioBuffer>)
+                 // We can construct an AudioBuffer from the float array.
+                 // We need an AudioContext to createBuffer. Since we are in browser, we can use offline one or main one.
+                 // Let's use OfflineAudioContext just to create the buffer object cleanly.
+                 const ctx = new OfflineAudioContext(1, audioSamples.length, sampleRate);
+                 const buffer = ctx.createBuffer(1, audioSamples.length, sampleRate);
+                 buffer.getChannelData(0).set(audioSamples);
+                 return buffer;
+            }
+        } catch (e) {
+            console.error(`Pyodide drum export error (${sound}):`, e);
+            // Fallthrough to approximation
+        }
+    }
+
+    // Fallback Approximation (Existing Code)
     const offlineCtx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
     const time = 0;
 
     const gain = offlineCtx.createGain();
     gain.connect(offlineCtx.destination);
-
-    // Very simplified recreation of the Pyodide generation logic using Web Audio
-    // because we cannot easily run Pyodide in OfflineAudioContext without a lot of hacks.
-    // This is a "Best Effort" approximation for the export.
 
     if (sound === 'kick') {
         const p = params as KickParams;
@@ -144,14 +263,6 @@ export async function renderDrumToBuffer(
 
         const noiseEnv = offlineCtx.createGain();
         // Mix noise based on p.noise
-        // p.noise is roughly 1000..8000. Let's map it to a mix level (0..1)
-        // or just use it as is if it's meant to be amplitude?
-        // Looking at App.tsx: id === 'noise', val * 7000 + 1000.
-        // It seems to be a frequency or amount?
-        // In the engine, it might be a filter cutoff or gain.
-        // Let's assume it balances Noise vs Tone.
-        // Higher p.noise = More Noise Gain.
-        // Normalize 1000-8000 to 0.2 - 1.0
         const noiseMix = Math.min(1, Math.max(0, (p.noise - 1000) / 7000));
 
         noiseEnv.gain.setValueAtTime(p.volume * noiseMix, time);
@@ -165,7 +276,6 @@ export async function renderDrumToBuffer(
 
         const toneEnv = offlineCtx.createGain();
         // Tone volume inverse to noise? Or independent?
-        // Let's keep it independent but scaled
         toneEnv.gain.setValueAtTime(p.volume * (1 - noiseMix * 0.5), time);
         toneEnv.gain.exponentialRampToValueAtTime(0.01, time + p.decay * 0.5);
 
@@ -194,9 +304,6 @@ export async function renderDrumToBuffer(
         // Highpass
         const filter = offlineCtx.createBiquadFilter();
         filter.type = 'highpass';
-        // Use p.pitch to adjust filter cutoff? HatParams has pitch.
-        // Assuming pitch affects brightness/cutoff.
-        // Base 8000 + pitch offset?
         filter.frequency.value = Math.max(1000, 8000 + (p.pitch || 0));
 
         const env = offlineCtx.createGain();
