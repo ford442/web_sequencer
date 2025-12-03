@@ -477,6 +477,8 @@ export const useAudioEngine = (pyodide: any) => {
 
     audioEngineRef.current = {
         context,
+        webGpuEngine: gpuEngineRef.current,
+        wasmEngine: wasmEngineRef.current,
         playSynth,
         playDrum,
         playSampler,
