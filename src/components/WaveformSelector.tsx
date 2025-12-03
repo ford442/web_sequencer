@@ -10,6 +10,7 @@ interface WaveformSelectorProps {
 
 const waveforms: Waveform[] = [
   'sawtooth', 'square', 'triangle', 'sine',
+  'wav-saw', 'wav-sqr',
   'pyodide-saw', 'pyodide-square', 'pyodide-sine',
   'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin',
   'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'
@@ -23,8 +24,23 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
       return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 18 L0 6 L12 6 L12 18 L24 18 L24 6" /></svg>;
     case 'triangle':
       return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 12 L6 6 L18 18 L24 12" /></svg>;
-  case 'sine':
+    case 'sine':
       return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 12 Q6 0, 12 12 T24 12" /></svg>;
+    // Native WAV icons
+    case 'wav-saw':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <text x="0" y="8" fontSize="8" fill="currentColor" stroke="none">WAV</text>
+          <path d="M0 20 L12 10 L12 20 L24 10 L24 20" transform="translate(0, 0)" />
+        </svg>
+      );
+    case 'wav-sqr':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <text x="0" y="8" fontSize="8" fill="currentColor" stroke="none">WAV</text>
+          <path d="M0 20 L0 10 L12 10 L12 20 L24 20 L24 10" transform="translate(0, 0)" />
+        </svg>
+      );
     // NEW: Pyodide icons
     case 'pyodide-saw':
       return <div className="font-bold text-xs leading-none">PY<br/>SAW</div>;
