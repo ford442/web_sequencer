@@ -23,7 +23,7 @@ export async function renderSynthToBuffer(
     // Handle Sample-Based Waveforms
     if (params.waveform === 'wav-saw' || params.waveform === 'wav-sqr') {
         const bufferSource = offlineCtx.createBufferSource();
-        const url = params.waveform === 'wav-saw' ? '/saw.wav' : '/square.wav';
+        const url = params.waveform === 'wav-saw' ? './assets/saw.wav' : './assets/square.wav';
         const rootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
 
         try {
