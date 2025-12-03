@@ -249,8 +249,9 @@ const ROWS = [
 ] as const
 
 export const App: React.FC = () => {
-    const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
-    const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide)
+    // Note: pyodide object is now the worker API wrapper
+    const { pyodideWorker, isPyodideReady, pyodideStatus } = usePyodideEngine()
+    const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodideWorker)
 
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
@@ -364,21 +365,15 @@ export const App: React.FC = () => {
     // Track current measure index for playback
     const songMeasureRef = useRef(0);
 
-    const onStep = useCallback((step: number) => {
+    const onStep = useCallback((step: number, time: number) => {
         if (!audioEngine) return
-        const time = audioEngine.context.currentTime
+        // Note: time is now passed from the scheduler!
 
         // 1. Determine Source Pattern
         let activePattern = patternRef.current;
 
         if (isSongModeActiveRef.current) {
             // Calculate which measure we are in
-            // step goes 0..31. We need to increment measure every time step wraps or calculate global time?
-            // The scheduler resets step 0..31.
-            // We need a way to advance the song pointer.
-            // Standard approach: The scheduler just gives 0..31.
-            // We can detect wrap-around (step 0) to advance measure.
-
             if (step === 0) {
                 if (isFirstStepRef.current) {
                     isFirstStepRef.current = false;
@@ -387,13 +382,9 @@ export const App: React.FC = () => {
                    const nextM = songMeasureRef.current + 1;
                    if (nextM < songStructureRef.current.length) {
                        songMeasureRef.current = nextM;
-                       // Sync UI
-                       // Note: This is hacky. The UI update might be delayed.
-                       // Ideally useScheduler should support measures.
-                       // For now, trigger UI update slightly later to align with audio
                        setTimeout(() => setCurrentSongMeasure(nextM), 0);
                    } else {
-                       // Loop song or stop? Let's loop song
+                       // Loop song
                        songMeasureRef.current = 0;
                        setTimeout(() => setCurrentSongMeasure(0), 0);
                    }
@@ -403,12 +394,7 @@ export const App: React.FC = () => {
             const currentMeasureIdx = songMeasureRef.current;
             const measureData = songStructureRef.current[currentMeasureIdx];
 
-            // Construct a composite pattern for this step
             if (measureData) {
-                // We need to look up the stored patterns for each track
-                // If measureData.partA is null, we play silence? or continue last?
-                // Let's assume NULL = Silence / Empty Pattern
-
                 const getSeq = (key: TrackKey) => {
                     const slot = measureData[key];
                     if (slot === null) return { steps: Array(32).fill(null) }; // Empty
@@ -424,12 +410,13 @@ export const App: React.FC = () => {
                     closedHat: getSeq('closedHat'),
                     openHat: getSeq('openHat'),
                     sampler: getSeq('sampler'),
-                } as Pattern; // Casting safe here due to structure
+                } as Pattern;
             }
         }
 
         const p = activePattern;
 
+        // Use the Scheduled Time for playback
         if (p.partA.steps[step]) audioEngine.playSynth(synthARef.current, p.partA.steps[step]!.note, time)
         if (p.partB.steps[step]) audioEngine.playSynth(synthBRef.current, p.partB.steps[step]!.note, time)
         if (p.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
@@ -437,7 +424,7 @@ export const App: React.FC = () => {
         if (p.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
         else if (p.closedHat.steps[step]) audioEngine.playDrum('closedHat', closedHatRef.current, time)
         if (p.sampler.steps[step]) audioEngine.playSampler(samplerRef.current, p.sampler.steps[step]!.note, time)
-    }, [audioEngine]) // No dependencies needed thanks to Refs!
+    }, [audioEngine])
 
     const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
 
@@ -454,11 +441,6 @@ export const App: React.FC = () => {
             isFirstStepRef.current = true;
         }
     }, [schedPlaying]);
-
-    // Inject logic into onStep (Redefining it here for clarity, will replace previous onStep block in merge)
-    // Actually, I will merge the Ref logic into the `onStep` I wrote above.
-
-    // Let's rewrite the onStep block in the merge below to include the measure advancement.
 
     const handlePlayToggle = async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
@@ -485,8 +467,6 @@ export const App: React.FC = () => {
         }
     };
 
-    // Refactor: Logic to update storage for a specific track and slot
-    // This helper avoids duplication in the various handlers
     const updateStorageForTrack = (track: TrackKey, sequence: PartSequence) => {
         setTrackStorage(prev => {
             const copy = { ...prev };
@@ -500,13 +480,9 @@ export const App: React.FC = () => {
         setPattern(prev => {
             const copy = JSON.parse(JSON.stringify(prev)) as Pattern
             const arr = copy[rowKey].steps
-            // Default note per track type
             const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
             arr[i] = arr[i] ? null : { note: defaultNote, velocity: 1 }
-
-            // Sync to storage
             updateStorageForTrack(rowKey, copy[rowKey]);
-
             return copy
         })
     }, [activeTrackSlots])
@@ -515,25 +491,19 @@ export const App: React.FC = () => {
         if (!audioEngine) return;
         const time = audioEngine.context.currentTime;
 
-        // 1. Play Sound Immediately
         if (selectedTrack === 'partA') audioEngine.playSynth(synthARef.current, note, time);
         else if (selectedTrack === 'partB') audioEngine.playSynth(synthBRef.current, note, time);
-        else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time); // Fixed pitch for now or vary?
+        else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
         else if (selectedTrack === 'snare') audioEngine.playDrum('snare', snareRef.current, time);
         else if (selectedTrack === 'closedHat') audioEngine.playDrum('closedHat', closedHatRef.current, time);
         else if (selectedTrack === 'openHat') audioEngine.playDrum('openHat', openHatRef.current, time);
         else if (selectedTrack === 'sampler') audioEngine.playSampler(samplerRef.current, note, time);
 
-        // 2. Record if enabled
         if (isRecording && isPlaying && currentStep >= 0) {
-            // Quantize to current step
             setPattern(prev => {
                 const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
                 copy[selectedTrack].steps[currentStep] = { note, velocity: 1 };
-
-                // Sync to storage
                 updateStorageForTrack(selectedTrack, copy[selectedTrack]);
-
                 return copy;
             });
         }
@@ -541,7 +511,6 @@ export const App: React.FC = () => {
 
     const handleRightClickStep = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => {
         const stepData = pattern[track].steps[step];
-        // Only show menu if step is active
         if (stepData) {
             setContextMenu({ x: e.clientX, y: e.clientY, track, step });
         }
@@ -555,10 +524,7 @@ export const App: React.FC = () => {
             if (stepData) {
                 stepData.note = note;
             }
-
-            // Sync to storage
             updateStorageForTrack(contextMenu.track, copy[contextMenu.track]);
-
             return copy;
         });
         setContextMenu(null);
@@ -574,11 +540,9 @@ export const App: React.FC = () => {
                  closedHat: { steps: Array(32).fill(null) },
                  openHat: { steps: Array(32).fill(null) },
                  sampler: { steps: Array(32).fill(null) },
-             } as Pattern; // Cast to ensure type compatibility
+             } as Pattern;
 
              setPattern(emptyPattern);
-
-             // Sync all tracks to storage
              setTrackStorage(prevStorage => {
                  const storageCopy = { ...prevStorage };
                  (Object.keys(storageCopy) as TrackKey[]).forEach(key => {
@@ -590,22 +554,9 @@ export const App: React.FC = () => {
         }
     };
 
-    // --- STORAGE LOGIC ---
-
     const handleTrackSlotClick = (track: TrackKey, slotIndex: number) => {
-        // Behavior: If slot is empty or shift held -> Save current. If slot has data -> Load it.
-        // For simplicity: If current active is different, LOAD. If current active is same, SAVE.
-
         const currentTrackPattern = pattern[track];
         const storedPattern = trackStorage[track][slotIndex];
-
-        // Logic: Load if data exists and we aren't already on this slot
-        // Save if we are on this slot (update) or if it's empty
-
-        // Simple behavior for now:
-        // 1. If slot has data -> Load it into current pattern
-        // 2. If slot empty -> Save current pattern there
-        // 3. Right click (context menu) to Force Save? (handled via UI usually, but lets do basic toggle)
 
         if (storedPattern) {
             setPattern(prev => ({ ...prev, [track]: storedPattern }));
@@ -652,23 +603,16 @@ export const App: React.FC = () => {
         setActiveSongSlot(slot);
     };
 
-    // --- MODULE RENDER HELPERS ---
+    // ... Controls helpers remain same ...
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
-         // Row 1: ADSR (Smaller)
          { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
          { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
          { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
          { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
-
-         // Row 2: Filter (Larger)
          { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
          { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
-
-         // Sides:
          { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
-         { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 }, // Max 2s
-
-         // Output / FX
+         { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 },
          { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
          { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
          { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
@@ -696,36 +640,6 @@ export const App: React.FC = () => {
         { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
     ];
 
-    const handleSynthChange = (isA: boolean, id: string, val: number) => {
-        const updater = isA ? updateSynthA : updateSynthB;
-        let realVal = val;
-        if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
-        else if (id === 'filterCutoff') realVal = val * 8000;
-        else if (id === 'filterResonance') realVal = val * 20;
-        else if (id === 'decay') realVal = val * 2;
-        else if (id === 'release') realVal = val * 2;
-        else if (id === 'length') realVal = val * 2;
-        updater({ [id]: realVal });
-    };
-
-    const handleKickChange = (id: string, val: number) => {
-        let realVal = val;
-        if (id === 'pitch') realVal = val * 130 + 20;
-        updateKick({ [id]: realVal });
-    };
-
-    const handleSnareChange = (id: string, val: number) => {
-        let realVal = val;
-        if (id === 'tone') realVal = val * 300 + 100;
-        else if (id === 'noise') realVal = val * 7000 + 1000;
-        else if (id === 'decay') realVal = val * 0.5;
-        updateSnare({ [id]: realVal });
-    };
-
-    const handleClosedHatChange = (id: string, val: number) => updateClosedHat({ [id]: val });
-    const handleOpenHatChange = (id: string, val: number) => updateOpenHat({ [id]: val });
-    const handleSamplerChange = (u: Partial<SamplerParams>) => updateSampler(u);
-
     const renderModulePanel = () => {
         if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
         if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
@@ -739,32 +653,23 @@ export const App: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative">
-            
-            {/* --- DECORATIVE BACKGROUND FRAME --- */}
             <div className="fixed inset-0 pointer-events-none z-0">
-                {/* Corner decorations */}
                 <div className="absolute top-0 left-0 w-32 h-32 border-l-2 border-t-2 border-cyan-900/20"></div>
                 <div className="absolute top-0 right-0 w-32 h-32 border-r-2 border-t-2 border-cyan-900/20"></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 border-l-2 border-b-2 border-cyan-900/20"></div>
                 <div className="absolute bottom-0 right-0 w-32 h-32 border-r-2 border-b-2 border-cyan-900/20"></div>
                 
-                {/* Edge lines */}
                 <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-900/30 to-transparent"></div>
                 <div className="absolute bottom-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-900/30 to-transparent"></div>
                 <div className="absolute left-0 top-1/4 bottom-1/4 w-px bg-gradient-to-b from-transparent via-cyan-900/30 to-transparent"></div>
                 <div className="absolute right-0 top-1/4 bottom-1/4 w-px bg-gradient-to-b from-transparent via-cyan-900/30 to-transparent"></div>
             </div>
 
-            {/* --- TOP HEADER --- */}
             <header className="h-16 flex items-center justify-between px-6 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 z-20 shadow-2xl shrink-0 relative backdrop-blur-sm">
-
-                {/* LEFT: Title & Global Song Storage */}
                 <div className="flex items-center gap-6">
                     <h1 className="text-xl font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
                         ELECTRIBE<span className="text-white">WEB</span>
                     </h1>
-
-                    {/* Global Song Snapshots */}
                     <div className="flex items-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 p-2 rounded-lg border border-cyan-900/30 shadow-lg">
                         <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Song</span>
                         {[0, 1, 2, 3].map(slot => (
@@ -774,7 +679,7 @@ export const App: React.FC = () => {
                                     if (songStorage[slot]) loadSong(slot);
                                     else saveSong(slot);
                                 }}
-                                onContextMenu={(e) => { e.preventDefault(); saveSong(slot); }} // Right click to overwrite
+                                onContextMenu={(e) => { e.preventDefault(); saveSong(slot); }}
                                 className={`w-6 h-6 text-xs font-mono rounded transition-all ${
                                     activeSongSlot === slot ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 
                                     (songStorage[slot] ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')
@@ -791,10 +696,7 @@ export const App: React.FC = () => {
                     </button>
                 </div>
 
-                {/* RIGHT: Transport & Master Volume */}
                 <div className="flex items-center gap-4">
-
-                    {/* Master Volume */}
                     <div className="flex items-center gap-2 mr-4">
                         <span className="text-[10px] text-gray-500 font-mono uppercase">Vol</span>
                         <input
@@ -803,8 +705,6 @@ export const App: React.FC = () => {
                             className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                         />
                     </div>
-
-                    {/* Global Pan */}
                     <div className="flex items-center gap-2 mr-4">
                         <span className="text-[10px] text-gray-500 font-mono uppercase">Pan</span>
                         <input
@@ -822,7 +722,6 @@ export const App: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* REC BUTTON */}
                      <button
                         onClick={() => setIsRecording(!isRecording)}
                         className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${
@@ -890,13 +789,12 @@ export const App: React.FC = () => {
                         {
                             webGpuEngine: audioEngine?.webGpuEngine,
                             wasmEngine: audioEngine?.wasmEngine,
-                            pyodide: pyodide
+                            pyodide: pyodideWorker
                         }
                     );
                 }}
             />
 
-            {/* --- SEQUENCER --- */}
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
 
                 {contextMenu && (
@@ -911,16 +809,11 @@ export const App: React.FC = () => {
                     />
                 )}
 
-                {/* Sequencer Container with Hardware finish */}
                 <div className="w-full max-w-[1000px] mx-auto h-[480px] border-2 border-gray-700 rounded-xl bg-gradient-to-br from-[#0a0d10] to-[#080a0c] relative shadow-[0_0_80px_rgba(0,0,0,0.9)_inset,0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden">
 
-                    {/* Outer decorative frame */}
                     <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
-                    
-                    {/* Inner shadow frame */}
                     <div className="absolute inset-2 rounded-lg border border-gray-800/50 pointer-events-none shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)]"></div>
 
-                    {/* Decorative screws */}
                     <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600">
                         <div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div>
                     </div>
@@ -968,7 +861,6 @@ export const App: React.FC = () => {
                     </svg>
                 </div>
 
-                {/* --- LIVE KEYBOARD --- */}
                 <div className="shrink-0 pb-4 mt-6 max-w-[1000px] mx-auto w-full">
                     <div className="border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl bg-gradient-to-b from-[#0d1015] to-[#080a0c]">
                         <LiveKeyboard
@@ -984,14 +876,11 @@ export const App: React.FC = () => {
                 </div>
             </main>
 
-            {/* --- HARDWARE MODULE --- */}
             <div className="h-[320px] bg-gradient-to-b from-[#0d0f12] to-[#0f1215] border-t-2 border-cyan-900/30 relative shadow-[0_-10px_60px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(6,182,212,0.1)] z-30 shrink-0 fixed bottom-0 w-full">
-                {/* Decorative top line */}
                 <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
                 
                 <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
                     <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-gray-700 shadow-[0_0_40px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(0,0,0,0.5)] bg-gradient-to-br from-black to-[#0a0c0f] relative">
-                        {/* Inner decorative frame */}
                         <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
                         {renderModulePanel()}
                     </div>
