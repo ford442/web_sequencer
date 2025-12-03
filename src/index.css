@@ -37,3 +37,28 @@ button:hover {
   background-color: #374151;
   transform: scale(var(--hover-scale));
 }
+
+/* Custom scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #0d1117;
+  border-radius: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #1e3a4a, #164e63);
+  border-radius: 5px;
+  border: 2px solid #0d1117;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #2563eb, #06b6d4);
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: #0d1117;
+}
