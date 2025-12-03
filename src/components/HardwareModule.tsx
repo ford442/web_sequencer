@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { WebGpuManager } from '../utils/WebGpuManager';
 
 // --- Types ---
 export interface KnobConfig {
@@ -109,21 +110,15 @@ export const HardwareModule = React.memo(
         let animationId: number;
 
         const init = async () => {
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) return;
-            device = await adapter.requestDevice();
+            // Use shared device
+            const sharedDevice = await WebGpuManager.getInstance().getDevice();
+            if (!sharedDevice) return;
+            device = sharedDevice;
+
             context = canvas.getContext('webgpu') as GPUCanvasContext;
             const format = navigator.gpu.getPreferredCanvasFormat();
             context.configure({ device, format, alphaMode: 'premultiplied' });
 
-            // Max 8 knobs per module for this shader implementation
-            // Uniform structure:
-            // vec4 time_res_padding_padding
-            // vec4 color_rgb_padding
-            // vec4 knob_values_1_4  (x,y,z,w)
-            // vec4 knob_values_5_8  (x,y,z,w)
-            // array<vec4, 8> knob_positions (x, y, size, padding) 
-            
             const shaderCode = `
                 struct Uniforms {
                     time: f32,
@@ -157,10 +152,6 @@ export const HardwareModule = React.memo(
                 fn get_knob_val(idx: i32) -> f32 {
                     if (idx < 4) { return u.vals1[idx]; }
                     return u.vals2[idx - 4];
-                }
-
-                fn sdCircle(p: vec2f, r: f32) -> f32 {
-                    return length(p) - r;
                 }
 
                 @fragment

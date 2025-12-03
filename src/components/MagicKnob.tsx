@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import bezelImg from './assets/knob-bezel.png';
+import { WebGpuManager } from '../utils/WebGpuManager';
 
 interface MagicKnobProps {
     value: number; // 0.0 to 1.0
@@ -86,10 +87,10 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
         let animationId: number;
 
         const init = async () => {
-            if (!navigator.gpu) return;
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) return;
-            device = await adapter.requestDevice();
+            const sharedDevice = await WebGpuManager.getInstance().getDevice();
+            if (!sharedDevice) return;
+            device = sharedDevice;
+
             context = canvas.getContext('webgpu') as GPUCanvasContext;
             const format = navigator.gpu.getPreferredCanvasFormat();
             context.configure({ device, format, alphaMode: 'premultiplied' });

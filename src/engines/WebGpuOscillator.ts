@@ -1,3 +1,4 @@
+import { WebGpuManager } from '../utils/WebGpuManager';
 
 export class WebGpuOscillator {
     device: GPUDevice | null = null;
@@ -64,16 +65,14 @@ export class WebGpuOscillator {
     `;
 
     async init() {
-        if (!navigator.gpu) {
-            console.warn("WebGPU not supported in this browser.");
-            return;
-        }
-
         try {
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) throw new Error("No GPU adapter found.");
+            // Use the shared manager instead of requesting a new device
+            this.device = await WebGpuManager.getInstance().getDevice();
 
-            this.device = await adapter.requestDevice();
+            if (!this.device) {
+                console.warn("WebGPU Audio Engine: No device available.");
+                return;
+            }
 
             const shaderModule = this.device.createShaderModule({
                 code: this.SHADER_CODE
@@ -92,10 +91,20 @@ export class WebGpuOscillator {
             });
 
             this.isSupported = true;
-            console.log("WebGPU Oscillator Engine Initialized");
+            console.log("WebGPU Oscillator Engine Initialized (Shared Device)");
         } catch (e) {
             console.error("Failed to init WebGPU Audio:", e);
+            this.isSupported = false;
         }
+    }
+
+    destroy() {
+        // We do NOT destroy the device here anymore, as it is shared.
+        // We just clear local references.
+        this.device = null;
+        this.pipeline = null;
+        this.bindGroupLayout = null;
+        this.isSupported = false;
     }
 
     async generate(frequency: number, duration: number, sampleRate: number, type: 'saw' | 'sqr' | 'tri' | 'sin'): Promise<Float32Array | null> {
@@ -161,7 +170,7 @@ export class WebGpuOscillator {
         const result = new Float32Array(copyArray); // Copy to own memory
         readBuffer.unmap();
 
-        // Clean up GPU resources usually handled by GC, but explicit destroy helps VRAM
+        // Clean up buffers (these are per-call, not shared)
         outputBuffer.destroy();
         readBuffer.destroy();
         uniformBuffer.destroy();
