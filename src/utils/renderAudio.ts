@@ -18,14 +18,51 @@ export async function renderSynthToBuffer(
     // Apply pitch shift from params
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 
-    // Waveform
-    const osc = offlineCtx.createOscillator();
-    let type: OscillatorType = 'sawtooth';
-    if (params.waveform.includes('sqr')) type = 'square';
-    else if (params.waveform.includes('tri')) type = 'triangle';
-    else if (params.waveform.includes('sin')) type = 'sine';
-    osc.type = type;
-    osc.frequency.setValueAtTime(freqWithPitch, time);
+    let sourceNode: AudioScheduledSourceNode;
+
+    // Handle Sample-Based Waveforms
+    if (params.waveform === 'wav-saw' || params.waveform === 'wav-sqr') {
+        const bufferSource = offlineCtx.createBufferSource();
+        const url = params.waveform === 'wav-saw' ? '/saw.wav' : '/square.wav';
+        const rootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
+
+        try {
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            // Use a temporary context to decode since offlineCtx might not support decodeAudioData in all envs immediately?
+            // Standard Web Audio API says context.decodeAudioData.
+            // OfflineAudioContext inherits from BaseAudioContext which has decodeAudioData.
+            // However, we can't await decodeAudioData on the offline context *while* rendering?
+            // Actually we are setting up BEFORE startRendering.
+            const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
+
+            bufferSource.buffer = audioBuffer;
+            bufferSource.loop = true;
+
+            // Calculate playback rate
+            const playbackRate = freqWithPitch / rootFreq;
+            bufferSource.playbackRate.setValueAtTime(playbackRate, time);
+
+            sourceNode = bufferSource;
+        } catch (e) {
+            console.error(`Failed to load wav buffer for ${params.waveform}`, e);
+            // Fallback to oscillator
+            const osc = offlineCtx.createOscillator();
+            osc.type = params.waveform === 'wav-saw' ? 'sawtooth' : 'square';
+            osc.frequency.setValueAtTime(freqWithPitch, time);
+            sourceNode = osc;
+        }
+    } else {
+        // Standard Waveforms
+        const osc = offlineCtx.createOscillator();
+        let type: OscillatorType = 'sawtooth';
+        if (params.waveform.includes('sqr')) type = 'square';
+        else if (params.waveform.includes('tri')) type = 'triangle';
+        else if (params.waveform.includes('sin')) type = 'sine';
+        osc.type = type;
+        osc.frequency.setValueAtTime(freqWithPitch, time);
+        sourceNode = osc;
+    }
 
     // Filter
     const filter = offlineCtx.createBiquadFilter();
@@ -40,17 +77,6 @@ export async function renderSynthToBuffer(
     const sustain = params.sustain;
     const release = params.release;
 
-    // Simple ADSR logic matching the engine
-    // Note: XM players have their own envelopes, but if we want to capture the "synth sound"
-    // including the filter character, we might want to bake some of it in.
-    // However, usually for XM samples, you want the raw waveform or a simple sustain loop.
-    // If we bake the envelope, the XM envelope will double-apply.
-    // BUT: The user asked to "render down instruments".
-    // Best approach: Render with a flat sustain so the XM envelope can do the work?
-    // OR: Render the "One Shot" sound.
-    // Let's render the full "pluck" sound (Attack, Decay, Sustain, Release)
-    // effectively creating a "Sampled Synth".
-
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(1.0, time + attack); // Normalize to 1.0 for sample
     gain.gain.linearRampToValueAtTime(sustain, time + attack + decay);
@@ -58,12 +84,12 @@ export async function renderSynthToBuffer(
     gain.gain.setValueAtTime(sustain, duration - release);
     gain.gain.linearRampToValueAtTime(0, duration);
 
-    osc.connect(filter);
+    sourceNode.connect(filter);
     filter.connect(gain);
     gain.connect(offlineCtx.destination);
 
-    osc.start(time);
-    osc.stop(time + duration);
+    sourceNode.start(time);
+    sourceNode.stop(time + duration);
 
     return await offlineCtx.startRendering();
 }
