@@ -69,11 +69,21 @@ export class WebGpuOscillator {
             return;
         }
 
+        // Check if already initialized to prevent double-init
+        if (this.device) return;
+
         try {
             const adapter = await navigator.gpu.requestAdapter();
             if (!adapter) throw new Error("No GPU adapter found.");
 
             this.device = await adapter.requestDevice();
+
+            // Handle device loss
+            this.device.lost.then((info) => {
+                console.error(`WebGPU device lost: ${info.message}`);
+                this.device = null;
+                this.isSupported = false;
+            });
 
             const shaderModule = this.device.createShaderModule({
                 code: this.SHADER_CODE
@@ -95,6 +105,17 @@ export class WebGpuOscillator {
             console.log("WebGPU Oscillator Engine Initialized");
         } catch (e) {
             console.error("Failed to init WebGPU Audio:", e);
+            this.isSupported = false;
+        }
+    }
+
+    destroy() {
+        if (this.device) {
+            this.device.destroy();
+            this.device = null;
+            this.pipeline = null;
+            this.bindGroupLayout = null;
+            this.isSupported = false;
         }
     }
 

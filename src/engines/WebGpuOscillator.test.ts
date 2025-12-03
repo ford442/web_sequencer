@@ -15,6 +15,7 @@ type MockGPUDevice = {
     writeBuffer: any;
     submit: any;
   };
+  lost: Promise<any>;
 };
 
 describe('WebGpuOscillator', () => {
@@ -57,6 +58,7 @@ describe('WebGpuOscillator', () => {
         finish: vi.fn(),
       })),
       queue: mockQueue,
+      lost: new Promise(() => {}) // Mock never resolving promise for 'lost'
     };
 
     mockAdapter = {
