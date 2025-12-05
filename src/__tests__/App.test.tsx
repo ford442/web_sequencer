@@ -26,4 +26,12 @@ describe('App', () => {
     // Check for the Song button
     expect(screen.getByRole('button', { name: 'SONG' })).toBeInTheDocument();
   });
+
+  it('renders the waveform selector buttons for the active synth', () => {
+    render(<App />);
+    // The active selected track defaults to partA, which should show the WaveformSelector
+    const wavSawBtn = screen.getByRole('button', { name: /Select wav-saw waveform/i });
+    expect(wavSawBtn).toBeInTheDocument();
+    expect(wavSawBtn).toBeVisible();
+  });
 });

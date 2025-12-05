@@ -352,10 +352,13 @@ export const HardwareModule = React.memo(
         };
     }, [colorHex]); // Re-init if color changes (rare)
 
+    // Allow overlayed children (e.g., WaveformSelector) to be visible
+    // when they extend outside the main canvas/module rectangle.
+    // This avoids them being clipped by the module's border.
     return (
         <div 
             ref={containerRef} 
-            className="relative rounded-lg shadow-xl overflow-hidden bg-gray-900 border border-gray-700"
+            className="relative rounded-lg shadow-xl overflow-visible bg-gray-900 border border-gray-700"
             style={{ width: '100%', height: '100%', minHeight: '220px' }}
         >
             {/* The WebGPU Surface */}
