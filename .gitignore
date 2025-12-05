@@ -22,3 +22,4 @@ package-lock.json
 *.njsproj
 *.sln
 *.sw?
+verification/wasm_ui.png
