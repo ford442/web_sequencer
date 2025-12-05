@@ -239,7 +239,7 @@ def generate_sampler(name, pitch_ratio, volume):
     const loadPyodide = async () => {
       try {
         setPyodideStatus('Loading Pyodide runtime...');
-        await loadScript("pyodide.js");
+        await loadScript("https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js");
         
         // @ts-ignore: loadPyodide is now on the window object
         const pyodideInstance = await window.loadPyodide();
