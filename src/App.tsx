@@ -760,7 +760,7 @@ export const App: React.FC = () => {
 
                 {/* LEFT: Title & Global Song Storage */}
                 <div className="flex items-center gap-6">
-                    <h1 className="text-xl font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
+                    <h1 className="text-xl font-bold font-orbitron text-cyan-400 tracking-widest drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
                         ELECTRIBE<span className="text-white">WEB</span>
                     </h1>
 
@@ -990,7 +990,7 @@ export const App: React.FC = () => {
                 <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
                 
                 <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
-                    <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-gray-700 shadow-[0_0_40px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(0,0,0,0.5)] bg-gradient-to-br from-black to-[#0a0c0f] relative">
+                    <div className="w-full h-full rounded-2xl border-2 border-gray-700 shadow-[0_0_40px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(0,0,0,0.5)] bg-gradient-to-br from-black to-[#0a0c0f] relative">
                         {/* Inner decorative frame */}
                         <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
                         {renderModulePanel()}

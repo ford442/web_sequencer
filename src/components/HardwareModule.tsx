@@ -358,8 +358,8 @@ export const HardwareModule = React.memo(
     return (
         <div 
             ref={containerRef} 
-            className="relative rounded-lg shadow-xl overflow-visible bg-gray-900 border border-gray-700"
-            style={{ width: '100%', height: '100%', minHeight: '220px' }}
+            className="relative rounded-lg shadow-xl overflow-visible bg-gray-900 border border-gray-700 min-h-[120px]"
+            style={{ width: '100%', height: '100%' }}
         >
             {/* The WebGPU Surface */}
             <canvas 
