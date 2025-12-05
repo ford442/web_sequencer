@@ -5,7 +5,7 @@ export class WasmOscillator {
 
     async init() {
         try {
-            const response = await fetch('/oscillators.wasm');
+            const response = await fetch('oscillators.wasm');
             const bytes = await response.arrayBuffer();
             const memory = new WebAssembly.Memory({ initial: 100 });
             const module = await WebAssembly.instantiate(bytes, { env: { memory } });

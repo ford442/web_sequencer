@@ -420,12 +420,7 @@ export const HardwareModule = React.memo(
             </div>
 
             {/* Custom Children (e.g., Waveform Selector) */}
-            {children && (
-                <div className="absolute inset-0 pointer-events-none">
-                    {/* Children wrapper - specific children should opt into pointer-events-auto so they can receive input */}
-                    {children}
-                </div>
-            )}
+            {children}
         </div>
     );
   }
