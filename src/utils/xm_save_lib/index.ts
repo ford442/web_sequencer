@@ -36,8 +36,20 @@ export {
   addSampleToInstrument,
   noteNameToValue,
   noteValueToName,
-  saveToFile,
 } from './xmWriter';
+
+// Conditionally export saveToFile for Node.js environments
+let saveToFile: (module: any, filename: string) => Promise<void>;
+
+if (typeof window === 'undefined') {
+  saveToFile = require('./xmWriter.node').saveToFile;
+} else {
+  saveToFile = () => {
+    throw new Error('saveToFile is only available in a Node.js environment.');
+  };
+}
+
+export { saveToFile };
 
 // Export binary writer for advanced use cases
 export { BinaryWriter } from './binaryWriter';
