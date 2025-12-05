@@ -367,7 +367,7 @@ export const HardwareModule = React.memo(
             />
             
             {/* HTML Overlay for Labels (Accessibility + Sharp Text) */}
-            <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-0 pointer-events-none z-10">
                 <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">
                     {title.toUpperCase()}
                 </div>
@@ -421,7 +421,7 @@ export const HardwareModule = React.memo(
 
             {/* Custom Children (e.g., Waveform Selector) */}
             {children && (
-                <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute inset-0 pointer-events-none z-20">
                     {/* Children wrapper - specific children should opt into pointer-events-auto so they can receive input */}
                     {children}
                 </div>

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Waveform } from '../types';
 
@@ -78,7 +77,8 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
   };
 
   return (
-    <div className="flex justify-around items-center bg-gray-800 rounded-md p-1">
+    // UPDATED: Added flex-wrap, gap-1, and changed justify-around to justify-center
+    <div className="flex flex-wrap justify-center gap-1 bg-gray-800 rounded-md p-1">
       {waveforms.map((wave) => (
         <button
           key={wave}
