@@ -5,6 +5,7 @@ import { useScheduler } from './hooks/useScheduler'
 import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
+import { WaveformFloatingToggle } from './components/WaveformFloatingToggle';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
 import { SamplerPanel } from './components/SamplerPanel';
@@ -1000,6 +1001,14 @@ export const App: React.FC = () => {
                         {/* Inner decorative frame */}
                         <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
                         {renderModulePanel()}
+
+                        {/* Floating waveform selector toggle — ensures waveform UI is always reachable *regardless* of module overlay clipping. */}
+                        <WaveformFloatingToggle
+                            selected={selectedTrack.startsWith('part') && selectedTrack === 'partA' ? synthA.waveform : synthB.waveform}
+                            onChange={(w) => selectedTrack === 'partA' ? updateSynthA({ waveform: w }) : updateSynthB({ waveform: w })}
+                            accentColor={selectedTrack === 'partA' ? 'cyan' : 'pink'}
+                            disabled={!selectedTrack.startsWith('part')}
+                        />
                     </div>
                 </div>
             </div>

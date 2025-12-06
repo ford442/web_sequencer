@@ -77,8 +77,8 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
   };
 
   return (
-    // UPDATED: Added flex-wrap, gap-1, and changed justify-around to justify-center
-    <div className="flex flex-wrap justify-center gap-1 bg-gray-800 rounded-md p-1">
+    // Updated: more responsive layout, and ensure the wrapper is pointer-events-auto so it can be interactive when outside of module overlay
+    <div className="flex flex-wrap justify-center gap-1 bg-gray-800 rounded-md p-1 pointer-events-auto">
       {waveforms.map((wave) => (
         <button
           key={wave}
