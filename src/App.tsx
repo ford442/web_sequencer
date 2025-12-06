@@ -666,45 +666,45 @@ export const App: React.FC = () => {
     // --- MODULE RENDER HELPERS ---
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
         // Row 1: ADSR (Smaller)
-        { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
-        { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
-        { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
-        { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
+        { id: 'attack', label: 'ATK', x: 0.15, y: 0.30, size: 0.04, value: params.attack },
+        { id: 'decay', label: 'DEC', x: 0.27, y: 0.30, size: 0.04, value: params.decay / 2 },
+        { id: 'sustain', label: 'SUS', x: 0.39, y: 0.30, size: 0.04, value: params.sustain },
+        { id: 'release', label: 'REL', x: 0.51, y: 0.30, size: 0.04, value: params.release / 2 },
 
         // Row 2: Filter (Larger)
-        { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
-        { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
+        { id: 'filterCutoff', label: 'CUTOFF', x: 0.30, y: 0.60, size: 0.055, value: params.filterCutoff / 8000 },
+        { id: 'filterResonance', label: 'RES', x: 0.45, y: 0.60, size: 0.055, value: params.filterResonance / 20 },
 
         // Sides:
-        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
-        { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 }, // Max 2s
+        { id: 'pitch', label: 'TUNE', x: 0.08, y: 0.55, size: 0.045, value: (params.pitch + 24) / 48 },
+        { id: 'length', label: 'GATE', x: 0.60, y: 0.60, size: 0.045, value: (params.length || 0.25) / 2 }, // Max 2s
 
         // Output / FX
-        { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
-        { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
-        { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
+        { id: 'volume', label: 'LEVEL', x: 0.75, y: 0.55, size: 0.05, value: params.volume },
+        { id: 'delayMix', label: 'DLY MIX', x: 0.70, y: 0.80, size: 0.035, value: params.delayMix },
+        { id: 'delayTime', label: 'DLY TIME', x: 0.82, y: 0.80, size: 0.035, value: params.delayTime },
     ];
     const getKickControls = (params: KickParams): KnobConfig[] => [
-        { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
-        { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+        { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.50, size: 0.06, value: (params.pitch - 20) / 130 },
+        { id: 'decay', label: 'DECAY', x: 0.4, y: 0.50, size: 0.06, value: params.decay },
+        { id: 'tone', label: 'SNAP', x: 0.6, y: 0.50, size: 0.06, value: params.tone },
+        { id: 'volume', label: 'LEVEL', x: 0.8, y: 0.50, size: 0.05, value: params.volume },
     ];
     const getSnareControls = (params: SnareParams): KnobConfig[] => [
-        { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300 },
-        { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000 },
-        { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+        { id: 'tone', label: 'TUNE', x: 0.2, y: 0.50, size: 0.06, value: (params.tone - 100) / 300 },
+        { id: 'noise', label: 'SNAPPY', x: 0.4, y: 0.50, size: 0.06, value: (params.noise - 1000) / 7000 },
+        { id: 'decay', label: 'DECAY', x: 0.6, y: 0.50, size: 0.055, value: params.decay * 2 },
+        { id: 'volume', label: 'LEVEL', x: 0.8, y: 0.50, size: 0.05, value: params.volume },
     ];
     const getClosedHatControls = (params: any): KnobConfig[] => [
-        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+        { id: 'decay', label: 'DECAY', x: 0.25, y: 0.50, size: 0.06, value: params.decay },
+        { id: 'pitch', label: 'TONE', x: 0.5, y: 0.50, size: 0.06, value: params.pitch / 12000 },
+        { id: 'volume', label: 'LEVEL', x: 0.75, y: 0.50, size: 0.05, value: params.volume },
     ];
     const getOpenHatControls = (params: any): KnobConfig[] => [
-        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+        { id: 'decay', label: 'DECAY', x: 0.25, y: 0.50, size: 0.06, value: params.decay },
+        { id: 'pitch', label: 'TONE', x: 0.5, y: 0.50, size: 0.06, value: params.pitch / 12000 },
+        { id: 'volume', label: 'LEVEL', x: 0.75, y: 0.50, size: 0.05, value: params.volume },
     ];
 
     const handleSynthChange = (isA: boolean, id: string, val: number) => {
