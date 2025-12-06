@@ -1,3 +1,4 @@
+import { OSCILLATOR_SHADER } from '../gpu/shaders/oscillator.wgsl';
 
 export class WebGpuOscillator {
     device: GPUDevice | null = null;
@@ -5,8 +6,9 @@ export class WebGpuOscillator {
     bindGroupLayout: GPUBindGroupLayout | null = null;
     isSupported: boolean = false;
 
-    // Shader Code: Generates raw audio samples
-    private readonly SHADER_CODE = `
+    // Legacy shader code - now imported from separate file
+    // Keeping this commented for reference during transition
+    /* private readonly SHADER_CODE = `
         struct Uniforms {
             sampleRate: f32,
             frequency: f32,
@@ -61,9 +63,25 @@ export class WebGpuOscillator {
 
             audioBuffer[index] = sample;
         }
-    `;
+    `; */
+
+    /**
+     * Constructor that optionally accepts a pre-initialized device
+     * If no device is provided, it will initialize its own (legacy behavior)
+     */
+    constructor(device?: GPUDevice) {
+        if (device) {
+            this.device = device;
+            this.isSupported = true;
+        }
+    }
 
     async init() {
+        // If device was provided in constructor, skip initialization
+        if (this.device) {
+            console.log('WebGpuOscillator: Using provided device, creating pipeline');
+            return this.createPipeline();
+        }
         if (!navigator.gpu) {
             console.warn("WebGPU not supported in this browser.");
             return;
@@ -74,28 +92,40 @@ export class WebGpuOscillator {
             if (!adapter) throw new Error("No GPU adapter found.");
 
             this.device = await adapter.requestDevice();
-
-            const shaderModule = this.device.createShaderModule({
-                code: this.SHADER_CODE
-            });
-
-            this.bindGroupLayout = this.device.createBindGroupLayout({
-                entries: [
-                    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
-                    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }
-                ]
-            });
-
-            this.pipeline = this.device.createComputePipeline({
-                layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.bindGroupLayout] }),
-                compute: { module: shaderModule, entryPoint: "main" }
-            });
-
             this.isSupported = true;
-            console.log("WebGPU Oscillator Engine Initialized");
+            
+            return this.createPipeline();
         } catch (e) {
             console.error("Failed to init WebGPU Audio:", e);
         }
+    }
+
+    /**
+     * Creates the compute pipeline using the imported shader
+     * @private
+     */
+    private async createPipeline() {
+        if (!this.device) {
+            throw new Error('Device not initialized');
+        }
+
+        const shaderModule = this.device.createShaderModule({
+            code: OSCILLATOR_SHADER
+        });
+
+        this.bindGroupLayout = this.device.createBindGroupLayout({
+            entries: [
+                { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
+                { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }
+            ]
+        });
+
+        this.pipeline = this.device.createComputePipeline({
+            layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.bindGroupLayout] }),
+            compute: { module: shaderModule, entryPoint: "main" }
+        });
+
+        console.log("WebGPU Oscillator Engine Initialized");
     }
 
     async generate(frequency: number, duration: number, sampleRate: number, type: 'saw' | 'sqr' | 'tri' | 'sin'): Promise<Float32Array | null> {

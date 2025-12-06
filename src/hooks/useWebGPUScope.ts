@@ -2,10 +2,14 @@
 import { useEffect, useRef } from 'react';
 import type { SynthParams } from '../types';
 import { noteToFrequency } from '../constants';
+import { useWebGPU } from '../gpu/WebGPUContext';
+import { useWebGPUCanvas } from '../gpu/hooks/useWebGPUCanvas';
+import { SCOPE_COMPUTE_SHADER, SCOPE_RENDER_SHADER } from '../gpu/shaders/scope.wgsl';
 
-// ---------------------------------------------------------
-// 1. WGSL Shader Code
-// ---------------------------------------------------------
+// Note: Shader code has been moved to src/gpu/shaders/scope.wgsl.ts
+// The following legacy code is removed to reduce duplication
+
+/* Legacy shader code removed - now using imported shaders
 const COMPUTE_SHADER_CODE = `
 struct Params {
   waveform: u32,       // 0: saw, 1: square, 2: tri, 3: sine
@@ -112,7 +116,7 @@ fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
 fn fs_main(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
   return color;
 }
-`;
+*/
 
 // ---------------------------------------------------------
 // 2. The Hook
@@ -121,9 +125,12 @@ export const useWebGPUScope = (
   canvasRef: React.RefObject<HTMLCanvasElement>,
   params: SynthParams,
   accentColor: 'cyan' | 'pink',
-  initDelay: number = 0
+  _initDelay: number = 0 // Deprecated parameter, prefixed with _ to indicate it's unused
 ) => {
-  const deviceRef = useRef<GPUDevice | null>(null);
+  // Use centralized WebGPU context
+  const { device } = useWebGPU();
+  const { context, format, isReady } = useWebGPUCanvas(canvasRef);
+
   const pipelineRef = useRef<GPUComputePipeline | null>(null);
   const renderPipelineRef = useRef<GPURenderPipeline | null>(null);
   const uniformBufferRef = useRef<GPUBuffer | null>(null);
@@ -136,28 +143,18 @@ export const useWebGPUScope = (
   const WORKGROUP_SIZE = 64;
   const NUM_POINTS = 1024;
 
+  // Initialize pipelines and buffers when WebGPU is ready
   useEffect(() => {
-    const initWebGPU = async () => {
-      if (!canvasRef.current || !navigator.gpu) return;
+    if (!isReady || !device || !format) return;
 
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        console.warn("WebGPU not available");
-        return;
-      }
-      const device = await adapter.requestDevice();
-      deviceRef.current = device;
+    console.log('useWebGPUScope: Initializing pipelines and buffers');
 
-      const context = canvasRef.current.getContext('webgpu');
-      if (!context) return;
+    try {
+      // 1. Create Shader Modules
+      const computeModule = device.createShaderModule({ code: SCOPE_COMPUTE_SHADER });
+      const renderModule = device.createShaderModule({ code: SCOPE_RENDER_SHADER });
 
-      const format = navigator.gpu.getPreferredCanvasFormat();
-      context.configure({ device, format });
-
-      // 1. Create Layouts & Pipelines
-      const computeModule = device.createShaderModule({ code: COMPUTE_SHADER_CODE });
-      const renderModule = device.createShaderModule({ code: VERTEX_FRAGMENT_SHADER });
-
+      // 2. Create Bind Group Layout
       const bindGroupLayout = device.createBindGroupLayout({
         entries: [
           { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
@@ -168,6 +165,7 @@ export const useWebGPUScope = (
 
       const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
 
+      // 3. Create Pipelines
       pipelineRef.current = device.createComputePipeline({
         layout: pipelineLayout,
         compute: { module: computeModule, entryPoint: 'main' },
@@ -180,7 +178,7 @@ export const useWebGPUScope = (
         primitive: { topology: 'line-strip' },
       });
 
-      // 2. Create Buffers
+      // 4. Create Buffers
       // Param Buffer: 32 bytes (8 floats/u32s) aligned
       uniformBufferRef.current = device.createBuffer({
         size: 32,
@@ -199,7 +197,7 @@ export const useWebGPUScope = (
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
 
-      // 3. Create Bind Group
+      // 5. Create Bind Group
       bindGroupRef.current = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
@@ -208,31 +206,22 @@ export const useWebGPUScope = (
           { binding: 2, resource: { buffer: accentColorBufferRef.current } },
         ],
       });
-    };
 
-    // Use setTimeout to stagger WebGPU initialization between components
-    let isCleanedUp = false;
-    const initTimeoutId = setTimeout(() => {
-      if (isCleanedUp) return;
-      initWebGPU();
-    }, initDelay);
+      console.log('useWebGPUScope: Initialization complete');
+    } catch (error) {
+      console.error('useWebGPUScope: Error during initialization:', error);
+    }
 
     return () => {
-      // cleanup
-      isCleanedUp = true;
-      clearTimeout(initTimeoutId);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [initDelay]);
+  }, [device, format, isReady]);
 
   // ---------------------------------------------------------
   // 3. Render Loop & Param Update
   // ---------------------------------------------------------
   useEffect(() => {
-    if (!deviceRef.current || !uniformBufferRef.current || !accentColorBufferRef.current || !bindGroupRef.current || !pipelineRef.current || !renderPipelineRef.current || !canvasRef.current) return;
-
-    const device = deviceRef.current;
-    const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext;
+    if (!device || !context || !uniformBufferRef.current || !accentColorBufferRef.current || !bindGroupRef.current || !pipelineRef.current || !renderPipelineRef.current) return;
 
     // Map Waveform string to int
     // Handle other waveform types by defaulting to basic ones
