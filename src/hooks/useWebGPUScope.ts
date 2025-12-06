@@ -117,185 +117,197 @@ fn fs_main(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
 // ---------------------------------------------------------
 // 2. The Hook
 // ---------------------------------------------------------
-export const useWebGPUScope = (canvasRef: React.RefObject<HTMLCanvasElement>, params: SynthParams, accentColor: 'cyan' | 'pink') => {
-    const deviceRef = useRef<GPUDevice | null>(null);
-    const pipelineRef = useRef<GPUComputePipeline | null>(null);
-    const renderPipelineRef = useRef<GPURenderPipeline | null>(null);
-    const uniformBufferRef = useRef<GPUBuffer | null>(null);
-    const storageBufferRef = useRef<GPUBuffer | null>(null);
-    const accentColorBufferRef = useRef<GPUBuffer | null>(null);
-    const bindGroupRef = useRef<GPUBindGroup | null>(null);
-    const animationRef = useRef<number>(0);
-    const startTimeRef = useRef<number>(Date.now());
+export const useWebGPUScope = (
+  canvasRef: React.RefObject<HTMLCanvasElement>,
+  params: SynthParams,
+  accentColor: 'cyan' | 'pink',
+  initDelay: number = 0
+) => {
+  const deviceRef = useRef<GPUDevice | null>(null);
+  const pipelineRef = useRef<GPUComputePipeline | null>(null);
+  const renderPipelineRef = useRef<GPURenderPipeline | null>(null);
+  const uniformBufferRef = useRef<GPUBuffer | null>(null);
+  const storageBufferRef = useRef<GPUBuffer | null>(null);
+  const accentColorBufferRef = useRef<GPUBuffer | null>(null);
+  const bindGroupRef = useRef<GPUBindGroup | null>(null);
+  const animationRef = useRef<number>(0);
+  const startTimeRef = useRef<number>(Date.now());
 
-    const WORKGROUP_SIZE = 64;
-    const NUM_POINTS = 1024;
+  const WORKGROUP_SIZE = 64;
+  const NUM_POINTS = 1024;
 
-    useEffect(() => {
-        const initWebGPU = async () => {
-            if (!canvasRef.current || !navigator.gpu) return;
+  useEffect(() => {
+    const initWebGPU = async () => {
+      if (!canvasRef.current || !navigator.gpu) return;
 
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) {
-                console.warn("WebGPU not available");
-                return;
-            }
-            const device = await adapter.requestDevice();
-            deviceRef.current = device;
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        console.warn("WebGPU not available");
+        return;
+      }
+      const device = await adapter.requestDevice();
+      deviceRef.current = device;
 
-            const context = canvasRef.current.getContext('webgpu');
-            if (!context) return;
+      const context = canvasRef.current.getContext('webgpu');
+      if (!context) return;
 
-            const format = navigator.gpu.getPreferredCanvasFormat();
-            context.configure({ device, format });
+      const format = navigator.gpu.getPreferredCanvasFormat();
+      context.configure({ device, format });
 
-            // 1. Create Layouts & Pipelines
-            const computeModule = device.createShaderModule({ code: COMPUTE_SHADER_CODE });
-            const renderModule = device.createShaderModule({ code: VERTEX_FRAGMENT_SHADER });
+      // 1. Create Layouts & Pipelines
+      const computeModule = device.createShaderModule({ code: COMPUTE_SHADER_CODE });
+      const renderModule = device.createShaderModule({ code: VERTEX_FRAGMENT_SHADER });
 
-            const bindGroupLayout = device.createBindGroupLayout({
-                entries: [
-                    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-                    { binding: 1, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX, buffer: { type: 'storage' } },
-                    { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
-                ],
-            });
+      const bindGroupLayout = device.createBindGroupLayout({
+        entries: [
+          { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+          { binding: 1, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX, buffer: { type: 'storage' } },
+          { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+        ],
+      });
 
-            const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+      const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
 
-            pipelineRef.current = device.createComputePipeline({
-                layout: pipelineLayout,
-                compute: { module: computeModule, entryPoint: 'main' },
-            });
+      pipelineRef.current = device.createComputePipeline({
+        layout: pipelineLayout,
+        compute: { module: computeModule, entryPoint: 'main' },
+      });
 
-            renderPipelineRef.current = device.createRenderPipeline({
-                layout: pipelineLayout,
-                vertex: { module: renderModule, entryPoint: 'vs_main' },
-                fragment: { module: renderModule, entryPoint: 'fs_main', targets: [{ format }] },
-                primitive: { topology: 'line-strip' },
-            });
+      renderPipelineRef.current = device.createRenderPipeline({
+        layout: pipelineLayout,
+        vertex: { module: renderModule, entryPoint: 'vs_main' },
+        fragment: { module: renderModule, entryPoint: 'fs_main', targets: [{ format }] },
+        primitive: { topology: 'line-strip' },
+      });
 
-            // 2. Create Buffers
-            // Param Buffer: 32 bytes (8 floats/u32s) aligned
-            uniformBufferRef.current = device.createBuffer({
-                size: 32,
-                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-            });
+      // 2. Create Buffers
+      // Param Buffer: 32 bytes (8 floats/u32s) aligned
+      uniformBufferRef.current = device.createBuffer({
+        size: 32,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
 
-            // Storage Buffer: 1024 points * 2 floats (vec2) * 4 bytes = 8192 bytes
-            storageBufferRef.current = device.createBuffer({
-                size: NUM_POINTS * 2 * 4,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
-            });
+      // Storage Buffer: 1024 points * 2 floats (vec2) * 4 bytes = 8192 bytes
+      storageBufferRef.current = device.createBuffer({
+        size: NUM_POINTS * 2 * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
+      });
 
-            // Accent Color Buffer: 16 bytes (vec4)
-            accentColorBufferRef.current = device.createBuffer({
-                size: 16,
-                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-            });
+      // Accent Color Buffer: 16 bytes (vec4)
+      accentColorBufferRef.current = device.createBuffer({
+        size: 16,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
 
-            // 3. Create Bind Group
-            bindGroupRef.current = device.createBindGroup({
-                layout: bindGroupLayout,
-                entries: [
-                    { binding: 0, resource: { buffer: uniformBufferRef.current } },
-                    { binding: 1, resource: { buffer: storageBufferRef.current } },
-                    { binding: 2, resource: { buffer: accentColorBufferRef.current } },
-                ],
-            });
-        };
+      // 3. Create Bind Group
+      bindGroupRef.current = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          { binding: 0, resource: { buffer: uniformBufferRef.current } },
+          { binding: 1, resource: { buffer: storageBufferRef.current } },
+          { binding: 2, resource: { buffer: accentColorBufferRef.current } },
+        ],
+      });
+    };
 
-        initWebGPU();
+    // Use setTimeout to stagger WebGPU initialization between components
+    let isCleanedUp = false;
+    const initTimeoutId = setTimeout(() => {
+      if (isCleanedUp) return;
+      initWebGPU();
+    }, initDelay);
 
-        return () => {
-            // cleanup if needed
-            if (animationRef.current) cancelAnimationFrame(animationRef.current);
-        };
-    }, []);
+    return () => {
+      // cleanup
+      isCleanedUp = true;
+      clearTimeout(initTimeoutId);
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, [initDelay]);
 
-    // ---------------------------------------------------------
-    // 3. Render Loop & Param Update
-    // ---------------------------------------------------------
-    useEffect(() => {
-        if (!deviceRef.current || !uniformBufferRef.current || !accentColorBufferRef.current || !bindGroupRef.current || !pipelineRef.current || !renderPipelineRef.current || !canvasRef.current) return;
+  // ---------------------------------------------------------
+  // 3. Render Loop & Param Update
+  // ---------------------------------------------------------
+  useEffect(() => {
+    if (!deviceRef.current || !uniformBufferRef.current || !accentColorBufferRef.current || !bindGroupRef.current || !pipelineRef.current || !renderPipelineRef.current || !canvasRef.current) return;
 
-        const device = deviceRef.current;
-        const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext;
+    const device = deviceRef.current;
+    const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext;
 
-        // Map Waveform string to int
-        // Handle other waveform types by defaulting to basic ones
-        let waveIndex = 0;
-        if (params.waveform.includes('saw')) waveIndex = 0;
-        else if (params.waveform.includes('squ') || params.waveform.includes('sqr')) waveIndex = 1;
-        else if (params.waveform.includes('tri')) waveIndex = 2;
-        else if (params.waveform.includes('sin')) waveIndex = 3;
+    // Map Waveform string to int
+    // Handle other waveform types by defaulting to basic ones
+    let waveIndex = 0;
+    if (params.waveform.includes('saw')) waveIndex = 0;
+    else if (params.waveform.includes('squ') || params.waveform.includes('sqr')) waveIndex = 1;
+    else if (params.waveform.includes('tri')) waveIndex = 2;
+    else if (params.waveform.includes('sin')) waveIndex = 3;
 
-        // Normalize frequency purely for visualization scale
-        const freq = noteToFrequency('C4') / 1000.0;
+    // Normalize frequency purely for visualization scale
+    const freq = noteToFrequency('C4') / 1000.0;
 
-        // WRITE PARAMS TO GPU
-        // Structure must match WGSL struct Params exactly
-        const paramData = new Float32Array([
-            0, // placeholder for u32 waveform (we'll cast view)
-            freq,
-            params.filterCutoff,
-            params.filterResonance,
-            params.attack,
-            params.decay,
-            params.volume,
-            0 // placeholder for time
-        ]);
+    // WRITE PARAMS TO GPU
+    // Structure must match WGSL struct Params exactly
+    const paramData = new Float32Array([
+      0, // placeholder for u32 waveform (we'll cast view)
+      freq,
+      params.filterCutoff,
+      params.filterResonance,
+      params.attack,
+      params.decay,
+      params.volume,
+      0 // placeholder for time
+    ]);
 
-        // Cast to uint32 for the first slot
-        const uintView = new Uint32Array(paramData.buffer);
-        uintView[0] = waveIndex;
+    // Cast to uint32 for the first slot
+    const uintView = new Uint32Array(paramData.buffer);
+    uintView[0] = waveIndex;
 
-        // UPDATE ACCENT COLOR
-        const colorData = accentColor === 'cyan'
-            ? new Float32Array([0.2, 0.9, 1.0, 1.0])
-            : new Float32Array([1.0, 0.2, 0.8, 1.0]);
-        device.queue.writeBuffer(accentColorBufferRef.current!, 0, colorData);
+    // UPDATE ACCENT COLOR
+    const colorData = accentColor === 'cyan'
+      ? new Float32Array([0.2, 0.9, 1.0, 1.0])
+      : new Float32Array([1.0, 0.2, 0.8, 1.0]);
+    device.queue.writeBuffer(accentColorBufferRef.current!, 0, colorData);
 
-        const renderFrame = () => {
-            const time = (Date.now() - startTimeRef.current) / 1000.0;
-            paramData[7] = time; // Update time
+    const renderFrame = () => {
+      const time = (Date.now() - startTimeRef.current) / 1000.0;
+      paramData[7] = time; // Update time
 
-            device.queue.writeBuffer(uniformBufferRef.current!, 0, paramData);
+      device.queue.writeBuffer(uniformBufferRef.current!, 0, paramData);
 
-            const commandEncoder = device.createCommandEncoder();
+      const commandEncoder = device.createCommandEncoder();
 
-            // COMPUTE PASS
-            const computePass = commandEncoder.beginComputePass();
-            computePass.setPipeline(pipelineRef.current!);
-            computePass.setBindGroup(0, bindGroupRef.current!);
-            computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
-            computePass.end();
+      // COMPUTE PASS
+      const computePass = commandEncoder.beginComputePass();
+      computePass.setPipeline(pipelineRef.current!);
+      computePass.setBindGroup(0, bindGroupRef.current!);
+      computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
+      computePass.end();
 
-            // RENDER PASS
-            const textureView = context.getCurrentTexture().createView();
-            const renderPass = commandEncoder.beginRenderPass({
-                colorAttachments: [{
-                    view: textureView,
-                    clearValue: { r: 0.05, g: 0.05, b: 0.07, a: 1.0 }, // bg-gray-900 equivalent
-                    loadOp: 'clear',
-                    storeOp: 'store',
-                }],
-            });
+      // RENDER PASS
+      const textureView = context.getCurrentTexture().createView();
+      const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [{
+          view: textureView,
+          clearValue: { r: 0.05, g: 0.05, b: 0.07, a: 1.0 }, // bg-gray-900 equivalent
+          loadOp: 'clear',
+          storeOp: 'store',
+        }],
+      });
 
-            renderPass.setPipeline(renderPipelineRef.current!);
-            renderPass.setBindGroup(0, bindGroupRef.current!);
-            renderPass.draw(NUM_POINTS);
-            renderPass.end();
+      renderPass.setPipeline(renderPipelineRef.current!);
+      renderPass.setBindGroup(0, bindGroupRef.current!);
+      renderPass.draw(NUM_POINTS);
+      renderPass.end();
 
-            device.queue.submit([commandEncoder.finish()]);
-            animationRef.current = requestAnimationFrame(renderFrame);
-        };
+      device.queue.submit([commandEncoder.finish()]);
+      animationRef.current = requestAnimationFrame(renderFrame);
+    };
 
-        renderFrame();
+    renderFrame();
 
-        return () => {
-            if (animationRef.current) cancelAnimationFrame(animationRef.current);
-        };
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
 
-    }, [params, accentColor]); // Re-run effect when params change to update buffer mapping context
+  }, [params, accentColor]); // Re-run effect when params change to update buffer mapping context
 };

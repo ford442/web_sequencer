@@ -739,23 +739,25 @@ export const App: React.FC = () => {
     const handleSamplerChange = (u: Partial<SamplerParams>) => updateSampler(u);
 
     const renderModulePanel = () => {
-        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}>
-            <div className="absolute top-2 left-6 w-[200px] pointer-events-none opacity-50"><Oscilloscope params={synthA} accentColor="cyan" /></div>
+        // Note: initDelay is used to stagger WebGPU context initialization
+        // HardwareModule initializes first (0ms), Oscilloscope after (150ms) to prevent conflicts
+        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)} initDelay={0}>
+            <div className="absolute top-2 left-6 w-[200px] pointer-events-none opacity-50"><Oscilloscope params={synthA} accentColor="cyan" initDelay={150} /></div>
             <div className="absolute top-4 right-6 pointer-events-auto">
                 <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
             </div>
         </HardwareModule>;
-        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}>
-            <div className="absolute top-2 left-6 w-[200px] pointer-events-none opacity-50"><Oscilloscope params={synthB} accentColor="pink" /></div>
+        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)} initDelay={0}>
+            <div className="absolute top-2 left-6 w-[200px] pointer-events-none opacity-50"><Oscilloscope params={synthB} accentColor="pink" initDelay={150} /></div>
             <div className="absolute top-4 right-6 pointer-events-auto">
                 <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
             </div>
         </HardwareModule>;
-        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} />;
-        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
-        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
-        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
-        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => { }}><SamplerPanel params={sampler} onChange={handleSamplerChange} onLoadSample={(n, b) => audioEngine?.loadSampleToEngine(n, b)} audioContext={audioEngine?.context!} /></HardwareModule>;
+        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} initDelay={0} />;
+        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} initDelay={0} />;
+        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} initDelay={0} />;
+        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} initDelay={0} />;
+        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => { }} initDelay={0}><SamplerPanel params={sampler} onChange={handleSamplerChange} onLoadSample={(n, b) => audioEngine?.loadSampleToEngine(n, b)} audioContext={audioEngine?.context!} /></HardwareModule>;
         return null;
     };
 

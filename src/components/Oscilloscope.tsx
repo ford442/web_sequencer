@@ -6,13 +6,14 @@ import { useWebGPUScope } from '../hooks/useWebGPUScope';
 interface OscilloscopeProps {
     params: SynthParams;
     accentColor: 'cyan' | 'pink';
+    initDelay?: number; // Delay in ms before initializing WebGPU
 }
 
-export const Oscilloscope: React.FC<OscilloscopeProps> = ({ params, accentColor }) => {
+export const Oscilloscope: React.FC<OscilloscopeProps> = ({ params, accentColor, initDelay = 0 }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-    // Initialize the WebGPU bridge
-    useWebGPUScope(canvasRef as React.RefObject<HTMLCanvasElement>, params, accentColor);
+    // Initialize the WebGPU bridge with staggered delay
+    useWebGPUScope(canvasRef as React.RefObject<HTMLCanvasElement>, params, accentColor, initDelay);
 
     return (
         <div className="w-full h-24 bg-black rounded-md overflow-hidden border border-gray-700 relative shadow-inner mb-4">

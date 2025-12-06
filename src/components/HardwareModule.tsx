@@ -18,6 +18,7 @@ interface HardwareModuleProps {
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void; // Callback when record button is clicked
     children?: React.ReactNode; // <-- allow overlaying custom React UI (e.g., WaveformSelector)
+    initDelay?: number; // Delay in ms before initializing WebGPU (to prevent context conflicts)
 }
 
 export const HardwareModule = React.memo(
@@ -27,7 +28,8 @@ export const HardwareModule = React.memo(
         controls,
         onParamChange,
         onRecordToggle,
-        children
+        children,
+        initDelay = 0
     }: HardwareModuleProps) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
@@ -111,13 +113,13 @@ export const HardwareModule = React.memo(
         useEffect(() => {
             // Skip if we already decided not to use WebGPU
             if (!useWebGPU) {
-                console.log('HardwareModule: useWebGPU is false, skipping WebGPU setup');
+                console.log(`HardwareModule [${title}]: useWebGPU is false, skipping WebGPU setup`);
                 return;
             }
-            
+
             const canvas = canvasRef.current;
             if (!canvas) {
-                console.log('HardwareModule: Canvas ref is null');
+                console.log(`HardwareModule [${title}]: Canvas ref is null`);
                 return;
             }
 
@@ -128,19 +130,26 @@ export const HardwareModule = React.memo(
             let animationId: number | null = null;
             let initFailed = false;
             let format: GPUTextureFormat | null = null;
+            let isCleanedUp = false;
+            let initTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
             const init = async () => {
+                // Check if component was unmounted during the delay
+                if (isCleanedUp) return;
+
                 try {
-                    console.log('HardwareModule: Attempting WebGPU initialization...');
+                    console.log(`HardwareModule [${title}]: Attempting WebGPU initialization...`);
                     const adapter = await navigator.gpu.requestAdapter();
-                    if (!adapter) {
-                        console.log('HardwareModule: No WebGPU adapter available, falling back to Canvas 2D');
-                        initFailed = true;
-                        setUseWebGPU(false);
+                    if (!adapter || isCleanedUp) {
+                        if (!isCleanedUp) {
+                            console.log(`HardwareModule [${title}]: No WebGPU adapter available, falling back to Canvas 2D`);
+                            initFailed = true;
+                            setUseWebGPU(false);
+                        }
                         return;
                     }
                     device = await adapter.requestDevice();
-                    
+
                     // IMPORTANT: Try to get WebGPU context, but if it fails, don't leave canvas in bad state
                     try {
                         context = canvas.getContext('webgpu') as GPUCanvasContext;
@@ -148,7 +157,7 @@ export const HardwareModule = React.memo(
                         console.log('HardwareModule: Failed to get WebGPU context:', ctxError);
                         context = null;
                     }
-                    
+
                     if (!context) {
                         console.log('HardwareModule: WebGPU context is null, falling back to Canvas 2D');
                         initFailed = true;
@@ -345,7 +354,7 @@ export const HardwareModule = React.memo(
 
             const render = () => {
                 // Check initFailed first as it's the most fundamental condition
-                if (initFailed) return; 
+                if (initFailed) return;
                 if (!device || !context || !pipeline || !uniformBuffer) return;
 
                 try {
@@ -363,43 +372,43 @@ export const HardwareModule = React.memo(
 
                     // Knob Positions (packed into 8 vec4s: x, y, size, padding)
                     const positions = new Float32Array(32);
-                currentControls.forEach((c, i) => {
-                    if (i < 8) {
-                        const offset = i * 4;
-                        positions[offset] = c.x;
-                        positions[offset + 1] = c.y;
-                        positions[offset + 2] = c.size;
-                        positions[offset + 3] = 0; // padding
-                    }
-                });
+                    currentControls.forEach((c, i) => {
+                        if (i < 8) {
+                            const offset = i * 4;
+                            positions[offset] = c.x;
+                            positions[offset + 1] = c.y;
+                            positions[offset + 2] = c.size;
+                            positions[offset + 3] = 0; // padding
+                        }
+                    });
 
-                // Write Buffer
-                // 0: time, ratio, pad, pad
-                device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([now, ratio, 0, 0]));
-                // 16: color.r, color.g, color.b, pad
-                device.queue.writeBuffer(uniformBuffer, 16, new Float32Array([colorHex[0], colorHex[1], colorHex[2], 0]));
-                // 32: vals1, vals2
-                device.queue.writeBuffer(uniformBuffer, 32, vals);
-                // 64: positions
-                device.queue.writeBuffer(uniformBuffer, 64, positions);
+                    // Write Buffer
+                    // 0: time, ratio, pad, pad
+                    device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([now, ratio, 0, 0]));
+                    // 16: color.r, color.g, color.b, pad
+                    device.queue.writeBuffer(uniformBuffer, 16, new Float32Array([colorHex[0], colorHex[1], colorHex[2], 0]));
+                    // 32: vals1, vals2
+                    device.queue.writeBuffer(uniformBuffer, 32, vals);
+                    // 64: positions
+                    device.queue.writeBuffer(uniformBuffer, 64, positions);
 
-                // Encode
-                const encoder = device.createCommandEncoder();
-                const pass = encoder.beginRenderPass({
-                    colorAttachments: [{
-                        view: context.getCurrentTexture().createView(),
-                        loadOp: 'clear',
-                        clearValue: { r: 0, g: 0, b: 0, a: 1 },
-                        storeOp: 'store'
-                    }]
-                });
-                pass.setPipeline(pipeline);
-                pass.setBindGroup(0, device.createBindGroup({
-                    layout: pipeline.getBindGroupLayout(0),
-                    entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
-                }));
-                pass.draw(3);
-                pass.end();
+                    // Encode
+                    const encoder = device.createCommandEncoder();
+                    const pass = encoder.beginRenderPass({
+                        colorAttachments: [{
+                            view: context.getCurrentTexture().createView(),
+                            loadOp: 'clear',
+                            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                            storeOp: 'store'
+                        }]
+                    });
+                    pass.setPipeline(pipeline);
+                    pass.setBindGroup(0, device.createBindGroup({
+                        layout: pipeline.getBindGroupLayout(0),
+                        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+                    }));
+                    pass.draw(3);
+                    pass.end();
 
                     device.queue.submit([encoder.finish()]);
                     animationId = requestAnimationFrame(render);
@@ -412,22 +421,37 @@ export const HardwareModule = React.memo(
                 }
             };
 
-            init().then(() => {
-                // Only start rendering if WebGPU init was successful and didn't fail during init
-                if (!initFailed && device && context && pipeline) {
-                    console.log('HardwareModule: Starting WebGPU render loop');
-                    render();
-                } else {
-                    console.log('HardwareModule: Not starting WebGPU render loop - init failed or missing resources');
-                }
-            }).catch((error) => {
-                console.log('HardwareModule: WebGPU setup promise rejected, falling back to Canvas 2D:', error);
-                initFailed = true;
-                setUseWebGPU(false);
-            });
+            // Use setTimeout to stagger WebGPU initialization between components
+            // This prevents context conflicts when multiple modules mount simultaneously
+            initTimeoutId = setTimeout(() => {
+                if (isCleanedUp) return;
+
+                init().then(() => {
+                    // Only start rendering if WebGPU init was successful and didn't fail during init
+                    if (!initFailed && device && context && pipeline && !isCleanedUp) {
+                        console.log(`HardwareModule [${title}]: Starting WebGPU render loop`);
+                        render();
+                    } else if (!isCleanedUp) {
+                        console.log(`HardwareModule [${title}]: Not starting WebGPU render loop - init failed or missing resources`);
+                    }
+                }).catch((error) => {
+                    if (isCleanedUp) return;
+                    console.log(`HardwareModule [${title}]: WebGPU setup promise rejected, falling back to Canvas 2D:`, error);
+                    initFailed = true;
+                    setUseWebGPU(false);
+                });
+            }, initDelay);
 
             return () => {
-                console.log('HardwareModule: Cleaning up WebGPU effect');
+                console.log(`HardwareModule [${title}]: Cleaning up WebGPU effect`);
+                isCleanedUp = true;
+
+                // Clear the init timeout if it hasn't fired yet
+                if (initTimeoutId) {
+                    clearTimeout(initTimeoutId);
+                    initTimeoutId = null;
+                }
+
                 if (animationId) {
                     cancelAnimationFrame(animationId);
                     animationId = null;
@@ -441,7 +465,7 @@ export const HardwareModule = React.memo(
                     }
                 }
             };
-        }, [colorHex, useWebGPU]); // Added useWebGPU to dependencies
+        }, [colorHex, useWebGPU, title, initDelay]); // Added useWebGPU to dependencies
 
         // --- CANVAS 2D FALLBACK RENDERER ---
         useEffect(() => {
