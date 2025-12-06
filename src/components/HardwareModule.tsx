@@ -1,4 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useWebGPU } from '../gpu/WebGPUContext';
+import { useWebGPUCanvas } from '../gpu/hooks/useWebGPUCanvas';
+import { HARDWARE_MODULE_SHADER } from '../gpu/shaders/hardwareModule.wgsl';
 
 // --- Types ---
 export interface KnobConfig {
@@ -18,7 +21,7 @@ interface HardwareModuleProps {
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void; // Callback when record button is clicked
     children?: React.ReactNode; // <-- allow overlaying custom React UI (e.g., WaveformSelector)
-    initDelay?: number; // Delay in ms before initializing WebGPU (to prevent context conflicts)
+    initDelay?: number; // Deprecated - kept for backward compatibility but no longer used
 }
 
 export const HardwareModule = React.memo(
@@ -29,20 +32,16 @@ export const HardwareModule = React.memo(
         onParamChange,
         onRecordToggle,
         children,
-        initDelay = 0
     }: HardwareModuleProps) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
 
-        // Track if WebGPU is available and working - check immediately
-        const [useWebGPU, setUseWebGPU] = useState(() => {
-            // Check synchronously if WebGPU is available at all
-            if (!navigator.gpu) {
-                console.log('HardwareModule: WebGPU API not available, will use Canvas 2D fallback');
-                return false;
-            }
-            return true;
-        });
+        // Use centralized WebGPU context
+        const { device, isSupported, isInitialized } = useWebGPU();
+        const { context, format, isReady } = useWebGPUCanvas(canvasRef);
+
+        // Track if we should use Canvas 2D fallback
+        const [useCanvas2D, setUseCanvas2D] = useState(false);
 
         // Refs to store mutable data for the render loop / event handlers
         const controlsRef = useRef(controls);
@@ -52,6 +51,14 @@ export const HardwareModule = React.memo(
 
         // Sync latest props to ref
         useEffect(() => { controlsRef.current = controls; }, [controls]);
+
+        // Determine if we should fall back to Canvas 2D
+        useEffect(() => {
+            if (isInitialized && !isSupported) {
+                console.log(`HardwareModule [${title}]: WebGPU not supported, using Canvas 2D fallback`);
+                setUseCanvas2D(true);
+            }
+        }, [isInitialized, isSupported, title]);
 
         // --- INTERACTION LOGIC ---
         useEffect(() => {
@@ -111,9 +118,14 @@ export const HardwareModule = React.memo(
 
         // --- WEBGPU RENDERER ---
         useEffect(() => {
-            // Skip if we already decided not to use WebGPU
-            if (!useWebGPU) {
-                console.log(`HardwareModule [${title}]: useWebGPU is false, skipping WebGPU setup`);
+            // Skip if we should use Canvas 2D fallback
+            if (useCanvas2D) {
+                console.log(`HardwareModule [${title}]: Using Canvas 2D fallback, skipping WebGPU setup`);
+                return;
+            }
+
+            // Wait for WebGPU to be ready
+            if (!isReady || !device || !context || !format) {
                 return;
             }
 
@@ -123,219 +135,17 @@ export const HardwareModule = React.memo(
                 return;
             }
 
-            let context: GPUCanvasContext | null = null;
-            let device: GPUDevice | null = null;
+            console.log(`HardwareModule [${title}]: Initializing WebGPU renderer`);
+
             let pipeline: GPURenderPipeline | null = null;
             let uniformBuffer: GPUBuffer | null = null;
             let animationId: number | null = null;
-            let initFailed = false;
-            let format: GPUTextureFormat | null = null;
-            let isCleanedUp = false;
-            let initTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-            const init = async () => {
-                // Check if component was unmounted during the delay
-                if (isCleanedUp) return;
-
-                try {
-                    console.log(`HardwareModule [${title}]: Attempting WebGPU initialization...`);
-                    const adapter = await navigator.gpu.requestAdapter();
-                    if (!adapter || isCleanedUp) {
-                        if (!isCleanedUp) {
-                            console.log(`HardwareModule [${title}]: No WebGPU adapter available, falling back to Canvas 2D`);
-                            initFailed = true;
-                            setUseWebGPU(false);
-                        }
-                        return;
-                    }
-                    device = await adapter.requestDevice();
-
-                    // IMPORTANT: Try to get WebGPU context, but if it fails, don't leave canvas in bad state
-                    try {
-                        context = canvas.getContext('webgpu') as GPUCanvasContext;
-                    } catch (ctxError) {
-                        console.log('HardwareModule: Failed to get WebGPU context:', ctxError);
-                        context = null;
-                    }
-
-                    if (!context) {
-                        console.log('HardwareModule: WebGPU context is null, falling back to Canvas 2D');
-                        initFailed = true;
-                        setUseWebGPU(false);
-                        return;
-                    }
-                    format = navigator.gpu.getPreferredCanvasFormat();
-                    context.configure({ device, format, alphaMode: 'premultiplied' });
-                    console.log('HardwareModule: WebGPU initialization successful');
-                } catch (error) {
-                    console.log('HardwareModule: WebGPU initialization error, falling back to Canvas 2D:', error);
-                    initFailed = true;
-                    setUseWebGPU(false);
-                    return;
-                }
-
-                // Max 8 knobs per module for this shader implementation
-                // Uniform structure:
-                // vec4 time_res_padding_padding
-                // vec4 color_rgb_padding
-                // vec4 knob_values_1_4  (x,y,z,w)
-                // vec4 knob_values_5_8  (x,y,z,w)
-                // array<vec4, 8> knob_positions (x, y, size, padding) 
-
-                const shaderCode = `
-                struct Uniforms {
-                    time: f32,
-                    ratio: f32, // Aspect ratio correction
-                    pad1: f32,
-                    pad2: f32,
-                    color: vec3f,
-                    pad3: f32,
-                    vals1: vec4f, // Values for knobs 0-3
-                    vals2: vec4f, // Values for knobs 4-7
-                    // Hardcoded array size for generic layout
-                    pos0: vec4f, pos1: vec4f, pos2: vec4f, pos3: vec4f,
-                    pos4: vec4f, pos5: vec4f, pos6: vec4f, pos7: vec4f,
-                };
-                @group(0) @binding(0) var<uniform> u: Uniforms;
-
-                struct VertexOutput {
-                    @builtin(position) position: vec4f,
-                    @location(0) uv: vec2f,
-                };
-
-                @vertex
-                fn vs_main(@builtin(vertex_index) vIdx: u32) -> VertexOutput {
-                    var pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
-                    var output: VertexOutput;
-                    output.position = vec4f(pos[vIdx], 0.0, 1.0);
-                    output.uv = pos[vIdx]; // 0,0 top-left mapping handled in frag
-                    return output;
-                }
-
-                fn get_knob_val(idx: i32) -> f32 {
-                    if (idx < 4) { return u.vals1[idx]; }
-                    return u.vals2[idx - 4];
-                }
-
-                fn sdCircle(p: vec2f, r: f32) -> f32 {
-                    return length(p) - r;
-                }
-
-                @fragment
-                fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-                    // Correct UVs: 0.0 to 1.0
-                    var uv = in.uv * 0.5 + 0.5; 
-                    uv.y = 1.0 - uv.y; // Flip Y to match standard GUI (0 at top)
-
-                    // Aspect Correction for rendering circular shapes
-                    // We work in a "Draw Space" (p) where X is stretched to compensate ratio
-                    var p = uv;
-                    p.x = p.x * u.ratio; // Correct X scale for circles
-
-                    // --- 1. Background (Dark Metal Panel) ---
-                    var col = vec3f(0.12, 0.14, 0.16);
-                    // Subtle noise/grain
-                    let noise = fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453);
-                    col += (noise * 0.03);
-
-                    // Scanline texture
-                    col *= 0.9 + 0.1 * sin(uv.y * 200.0);
-
-                    // --- 2. Draw Knobs ---
-                    var alpha = 1.0;
-                    
-                    // Loop manually unrolled or fixed size
-                    for (var i = 0; i < 8; i++) {
-                        // Get knob definition
-                        var k_pos_uv: vec4f;
-                        if(i==0){k_pos_uv=u.pos0;} else if(i==1){k_pos_uv=u.pos1;}
-                        else if(i==2){k_pos_uv=u.pos2;} else if(i==3){k_pos_uv=u.pos3;}
-                        else if(i==4){k_pos_uv=u.pos4;} else if(i==5){k_pos_uv=u.pos5;}
-                        else if(i==6){k_pos_uv=u.pos6;} else {k_pos_uv=u.pos7;}
-
-                        // If size is 0, knob is inactive
-                        if (k_pos_uv.z == 0.0) { continue; }
-
-                        // Center of knob in UV space
-                        let center_uv = k_pos_uv.xy;
-                        
-                        // Center in Draw Space (aspect corrected)
-                        let center_draw = vec2f(center_uv.x * u.ratio, center_uv.y);
-                        
-                        // Current Distance to this knob center
-                        let dist = length(p - center_draw);
-                        let radius = k_pos_uv.z;
-                        
-                        let val = get_knob_val(i);
-
-                        // --- Draw Knob Logic ---
-                        
-                        // 1. Bezel / Socket (Dark indent)
-                        if (dist < radius) {
-                            let bezel = smoothstep(radius, radius - 0.01, dist);
-                            col = mix(col, vec3f(0.05, 0.05, 0.05), bezel);
-                            
-                            // 2. Data Ring (The Value Indicator)
-                            let ring_w = 0.015;
-                            let ring_r = radius * 0.75;
-                            let ring_dist = abs(dist - ring_r);
-                            
-                            if (ring_dist < ring_w) {
-                                // Angle calculation
-                                let delta = p - center_draw;
-                                // atan2 returns -PI to PI. We want roughly -2.5 to 2.5 range for knob
-                                var angle = atan2(delta.y, delta.x); 
-                                angle = angle + 1.5708; // Rotate so 0 is up
-                                // Normalize for arc
-                                
-                                let arc_extent = 2.4; 
-                                // Map value 0..1 to angle -2.4 .. 2.4
-                                let target_angle = mix(-arc_extent, arc_extent, val);
-                                
-                                // Invert check because screen Y is flipped in calculation vs standard atan
-                                // Rough arc logic:
-                                // Check if we are inside the valid "active" arc
-                                // (This is a simplified visual approximation)
-                                
-                                // Glow color
-                                col = mix(col, u.color, smoothstep(ring_w, 0.0, ring_dist));
-                            }
-                            
-                            // 3. Center Cap (The physical knob)
-                            if (dist < radius * 0.5) {
-                                let cap = smoothstep(radius*0.5, radius*0.5 - 0.01, dist);
-                                // Metallic gradient
-                                let shine = dot(normalize(p - center_draw), vec2f(0.5, -0.5));
-                                col = mix(col, vec3f(0.2) + shine*0.1, cap);
-                                
-                                // Indicator Line on Cap
-                                // Calculate needle vector based on value
-                                let needle_angle = mix(-2.4, 2.4, val) - 1.5708;
-                                let needle_dir = vec2f(cos(needle_angle), sin(needle_angle));
-                                let delta = p - center_draw;
-                                let proj = dot(delta, needle_dir);
-                                let perp = length(delta - needle_dir * proj);
-                                
-                                if (proj > 0.0 && proj < radius*0.45 && perp < 0.005) {
-                                     col = mix(col, vec3f(1.0), 0.9);
-                                }
-                            }
-                        }
-                    }
-
-                    return vec4f(col, alpha);
-                }
-            `;
-
-                // Only create shader module and pipeline if device and format are available
-                if (!device || !format) {
-                    console.log('HardwareModule: Device or format not available, cannot create pipeline');
-                    initFailed = true;
-                    setUseWebGPU(false);
-                    return;
-                }
-
-                const module = device.createShaderModule({ code: shaderCode });
+            try {
+                // Create shader module using imported shader
+                const module = device.createShaderModule({ code: HARDWARE_MODULE_SHADER });
+                
+                // Create render pipeline
                 pipeline = device.createRenderPipeline({
                     layout: 'auto',
                     vertex: { module, entryPoint: 'vs_main' },
@@ -350,11 +160,15 @@ export const HardwareModule = React.memo(
                     size: 256, // Round up to align
                     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
                 });
-            };
+
+                console.log(`HardwareModule [${title}]: WebGPU pipeline created successfully`);
+            } catch (error) {
+                console.error(`HardwareModule [${title}]: Error creating pipeline:`, error);
+                setUseCanvas2D(true);
+                return;
+            }
 
             const render = () => {
-                // Check initFailed first as it's the most fundamental condition
-                if (initFailed) return;
                 if (!device || !context || !pipeline || !uniformBuffer) return;
 
                 try {
@@ -413,68 +227,32 @@ export const HardwareModule = React.memo(
                     device.queue.submit([encoder.finish()]);
                     animationId = requestAnimationFrame(render);
                 } catch (error) {
-                    console.log('HardwareModule: WebGPU render error, falling back to Canvas 2D:', error);
-                    initFailed = true;
-                    setUseWebGPU(false);
+                    console.error(`HardwareModule [${title}]: WebGPU render error:`, error);
+                    setUseCanvas2D(true);
                     if (animationId) cancelAnimationFrame(animationId);
                     animationId = null;
                 }
             };
 
-            // Use setTimeout to stagger WebGPU initialization between components
-            // This prevents context conflicts when multiple modules mount simultaneously
-            initTimeoutId = setTimeout(() => {
-                if (isCleanedUp) return;
-
-                init().then(() => {
-                    // Only start rendering if WebGPU init was successful and didn't fail during init
-                    if (!initFailed && device && context && pipeline && !isCleanedUp) {
-                        console.log(`HardwareModule [${title}]: Starting WebGPU render loop`);
-                        render();
-                    } else if (!isCleanedUp) {
-                        console.log(`HardwareModule [${title}]: Not starting WebGPU render loop - init failed or missing resources`);
-                    }
-                }).catch((error) => {
-                    if (isCleanedUp) return;
-                    console.log(`HardwareModule [${title}]: WebGPU setup promise rejected, falling back to Canvas 2D:`, error);
-                    initFailed = true;
-                    setUseWebGPU(false);
-                });
-            }, initDelay);
+            // Start rendering
+            render();
 
             return () => {
-                console.log(`HardwareModule [${title}]: Cleaning up WebGPU effect`);
-                isCleanedUp = true;
-
-                // Clear the init timeout if it hasn't fired yet
-                if (initTimeoutId) {
-                    clearTimeout(initTimeoutId);
-                    initTimeoutId = null;
-                }
-
+                console.log(`HardwareModule [${title}]: Cleaning up WebGPU renderer`);
                 if (animationId) {
                     cancelAnimationFrame(animationId);
                     animationId = null;
                 }
-                // Unconfigure context if it exists
-                if (context) {
-                    try {
-                        context.unconfigure();
-                    } catch (e) {
-                        // Ignore errors during cleanup
-                    }
-                }
             };
-        }, [colorHex, useWebGPU, title, initDelay]); // Added useWebGPU to dependencies
+        }, [device, context, format, isReady, colorHex, useCanvas2D, title]);
 
         // --- CANVAS 2D FALLBACK RENDERER ---
         useEffect(() => {
-            if (useWebGPU) {
-                console.log('HardwareModule: Skipping Canvas 2D because useWebGPU is true');
-                return; // Only run if WebGPU failed
+            if (!useCanvas2D) {
+                return; // Only run if we should use Canvas 2D fallback
             }
 
-            console.log('HardwareModule: Starting Canvas 2D fallback renderer');
+            console.log(`HardwareModule [${title}]: Starting Canvas 2D fallback renderer`);
             const canvas = canvasRef.current;
             if (!canvas) {
                 console.log('HardwareModule: Canvas ref is null');
@@ -560,7 +338,7 @@ export const HardwareModule = React.memo(
             return () => {
                 if (animationId) cancelAnimationFrame(animationId);
             };
-        }, [useWebGPU, colorHex]); // controlsRef is updated separately, no need for controls dependency
+        }, [useCanvas2D, colorHex, title]); // controlsRef is updated separately, no need for controls dependency
 
         // Allow overlayed children (e.g., WaveformSelector) to be visible
         // when they extend outside the main canvas/module rectangle.
