@@ -31,17 +31,19 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
 
   const percentage = Math.min(1, Math.max(0, getPercentage(value)));
   
-  // Rotation: -135deg (min) to +135deg (max) -> Total 270deg range
+  // Knob Rotation: -135deg (min) to +135deg (max) -> Total 270deg range
   const rotation = -135 + (percentage * 270);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     const dy = dragStartY - e.clientY;
-    const sensitivity = (max - min) / 200; 
+    const sensitivity = (max - min) / 200; // 200px drag for full range
     let newValue = dragStartValue + dy * sensitivity;
     
     // Snap to step
-    newValue = Math.round(newValue / step) * step;
+    if (step) {
+        newValue = Math.round(newValue / step) * step;
+    }
     newValue = Math.max(min, Math.min(max, newValue));
     
     onChange(newValue);
@@ -89,64 +91,62 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
   };
 
   // SVG Gauge Math
-  const radius = 28;
+  const radius = 26; // Slightly smaller radius to fit padding safely
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage * 0.75) * circumference; // 0.75 because we only want 270 degrees
-  
-  // Rotate the SVG circle to start at -135 degrees (bottom left)
-  // 270 degree arc typically leaves a 90 degree gap at the bottom.
-  // We rotate the entire SVG group to align the gap at the bottom.
+  const strokeDasharray = `${circumference} ${circumference}`;
+  // We want a 270 degree arc. 270/360 = 0.75.
+  // The gap should be 0.25 * C.
+  // To make the gap appear at the bottom, we rotate the circle.
+  // Standard circle starts at 3 o'clock. We want start at -135deg (7:30).
+  const offset = circumference - (percentage * 0.75) * circumference;
 
   return (
-    <div className="flex flex-col items-center space-y-2 select-none group" aria-label={`${label}: ${value.toFixed(2)}`}>
+    <div className="flex flex-col items-center space-y-1 select-none group w-full" aria-label={`${label}: ${value.toFixed(2)}`}>
       <div 
         ref={knobRef}
         onMouseDown={handleMouseDown}
-        className="relative w-16 h-16 cursor-ns-resize"
+        className="relative w-14 h-14 cursor-ns-resize flex-shrink-0"
       >
         {/* Background Track SVG */}
-        <svg className="absolute inset-0 w-full h-full rotate-90" viewBox="0 0 64 64">
-          {/* Background Ring */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 64 64">
+          {/* Background Ring (Dark Grey) */}
           <circle
             cx="32" cy="32" r={radius}
             fill="none"
             stroke="#374151" // gray-700
-            strokeWidth="4"
+            strokeWidth="5"
             strokeDasharray={`${circumference * 0.75} ${circumference * 0.25}`}
             strokeLinecap="round"
-            className="transform rotate-[135deg] origin-center"
+            transform="rotate(135 32 32)"
           />
-          {/* Value Ring (Progress) */}
+          {/* Value Ring (Colored) */}
           <circle
             cx="32" cy="32" r={radius}
             fill="none"
             stroke={themeColors[color].stroke}
-            strokeWidth="4"
-            strokeDasharray={`${circumference} ${circumference}`}
-            strokeDashoffset={strokeDashoffset}
+            strokeWidth="5"
+            strokeDasharray={strokeDasharray}
+            strokeDashoffset={offset}
             strokeLinecap="round"
-            className="transform rotate-[135deg] origin-center transition-all duration-75"
+            transform="rotate(135 32 32)"
             style={{ filter: `drop-shadow(0 0 2px ${themeColors[color].stroke})` }}
           />
         </svg>
 
         {/* The Knob Cap */}
         <div 
-          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border border-gray-600 shadow-lg ${isDragging ? 'scale-95' : ''} transition-transform duration-100 ease-out`}
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-gray-800 border-2 border-gray-600 shadow-md ${isDragging ? 'scale-95 border-gray-500' : ''} transition-transform duration-75 ease-out`}
           style={{ transform: `translate(-50%, -50%) rotate(${rotation}deg)` }}
         >
-           {/* Metallic/Shadow finish overlay */}
-           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
-           
            {/* Indicator Line */}
-           <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full ${themeColors[color].glow}`} style={{ backgroundColor: themeColors[color].stroke }}></div>
+           <div className={`absolute top-0.5 left-1/2 -translate-x-1/2 w-1 h-2.5 rounded-full ${themeColors[color].glow}`} style={{ backgroundColor: themeColors[color].stroke }}></div>
         </div>
       </div>
 
-      <div className="text-center -mt-1">
-        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</div>
-        <div className={`text-xs font-mono font-medium ${isDragging ? 'text-white' : 'text-gray-400'}`}>
-          {formatValue(value)}<span className="text-[10px] text-gray-600 ml-0.5">{unit !== 'Hz' && unit !== 's' ? unit : ''}</span>
+      <div className="text-center w-full">
+        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest truncate px-1">{label}</div>
+        <div className={`text-xs font-mono font-medium leading-none mt-0.5 ${isDragging ? 'text-white' : 'text-gray-400'}`}>
+          {formatValue(value)}{unit && unit !== 'Hz' && unit !== 's' ? <span className="text-[9px] text-gray-600 ml-0.5">{unit}</span> : ''}
         </div>
       </div>
     </div>
