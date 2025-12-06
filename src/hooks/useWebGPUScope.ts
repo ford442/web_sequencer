@@ -6,10 +6,10 @@ import { useWebGPU } from '../gpu/WebGPUContext';
 import { useWebGPUCanvas } from '../gpu/hooks/useWebGPUCanvas';
 import { SCOPE_COMPUTE_SHADER, SCOPE_RENDER_SHADER } from '../gpu/shaders/scope.wgsl';
 
-// Note: Shader code has been moved to src/gpu/shaders/scope.wgsl.ts
-// The following legacy code is removed to reduce duplication
+// Note: Shader code has been moved to ../gpu/shaders/scope.wgsl.ts (TypeScript file exporting shader strings)
+// Legacy shader code removed to reduce duplication
 
-/* Legacy shader code removed - now using imported shaders
+/* Legacy shader code removed - now using imported shaders from scope.wgsl.ts
 const COMPUTE_SHADER_CODE = `
 struct Params {
   waveform: u32,       // 0: saw, 1: square, 2: tri, 3: sine

@@ -21,7 +21,11 @@ interface HardwareModuleProps {
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void; // Callback when record button is clicked
     children?: React.ReactNode; // <-- allow overlaying custom React UI (e.g., WaveformSelector)
-    initDelay?: number; // Deprecated - kept for backward compatibility but no longer used
+    /**
+     * @deprecated No longer needed - WebGPU initialization is now centralized.
+     * This parameter is kept for backward compatibility but has no effect.
+     */
+    initDelay?: number;
 }
 
 export const HardwareModule = React.memo(
@@ -163,7 +167,7 @@ export const HardwareModule = React.memo(
 
                 console.log(`HardwareModule [${title}]: WebGPU pipeline created successfully`);
             } catch (error) {
-                console.error(`HardwareModule [${title}]: Error creating pipeline:`, error);
+                console.error(`HardwareModule [${title}]: Error creating pipeline, falling back to Canvas 2D:`, error);
                 setUseCanvas2D(true);
                 return;
             }
@@ -227,7 +231,7 @@ export const HardwareModule = React.memo(
                     device.queue.submit([encoder.finish()]);
                     animationId = requestAnimationFrame(render);
                 } catch (error) {
-                    console.error(`HardwareModule [${title}]: WebGPU render error:`, error);
+                    console.error(`HardwareModule [${title}]: WebGPU render error, falling back to Canvas 2D:`, error);
                     setUseCanvas2D(true);
                     if (animationId) cancelAnimationFrame(animationId);
                     animationId = null;
