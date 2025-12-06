@@ -344,7 +344,8 @@ export const HardwareModule = React.memo(
             };
 
             const render = () => {
-                if (initFailed) return; // Don't try to render if init failed
+                // Check initFailed first as it's the most fundamental condition
+                if (initFailed) return; 
                 if (!device || !context || !pipeline || !uniformBuffer) return;
 
                 try {
@@ -535,7 +536,7 @@ export const HardwareModule = React.memo(
             return () => {
                 if (animationId) cancelAnimationFrame(animationId);
             };
-        }, [useWebGPU, colorHex, controls]); // Added controls to dependencies to ensure re-render on control changes
+        }, [useWebGPU, colorHex]); // controlsRef is updated separately, no need for controls dependency
 
         // Allow overlayed children (e.g., WaveformSelector) to be visible
         // when they extend outside the main canvas/module rectangle.
