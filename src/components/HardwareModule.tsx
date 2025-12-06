@@ -127,6 +127,7 @@ export const HardwareModule = React.memo(
             let uniformBuffer: GPUBuffer | null = null;
             let animationId: number | null = null;
             let initFailed = false;
+            let format: GPUTextureFormat | null = null;
 
             const init = async () => {
                 try {
@@ -154,7 +155,7 @@ export const HardwareModule = React.memo(
                         setUseWebGPU(false);
                         return;
                     }
-                    const format = navigator.gpu.getPreferredCanvasFormat();
+                    format = navigator.gpu.getPreferredCanvasFormat();
                     context.configure({ device, format, alphaMode: 'premultiplied' });
                     console.log('HardwareModule: WebGPU initialization successful');
                 } catch (error) {
@@ -316,6 +317,14 @@ export const HardwareModule = React.memo(
                     return vec4f(col, alpha);
                 }
             `;
+
+                // Only create shader module and pipeline if device and format are available
+                if (!device || !format) {
+                    console.log('HardwareModule: Device or format not available, cannot create pipeline');
+                    initFailed = true;
+                    setUseWebGPU(false);
+                    return;
+                }
 
                 const module = device.createShaderModule({ code: shaderCode });
                 pipeline = device.createRenderPipeline({
