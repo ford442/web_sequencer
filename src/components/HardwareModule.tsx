@@ -32,8 +32,15 @@ export const HardwareModule = React.memo(
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
 
-        // Track if WebGPU is available and working
-        const [useWebGPU, setUseWebGPU] = useState(true);
+        // Track if WebGPU is available and working - check immediately
+        const [useWebGPU, setUseWebGPU] = useState(() => {
+            // Check synchronously if WebGPU is available at all
+            if (!navigator.gpu) {
+                console.log('HardwareModule: WebGPU API not available, will use Canvas 2D fallback');
+                return false;
+            }
+            return true;
+        });
 
         // Refs to store mutable data for the render loop / event handlers
         const controlsRef = useRef(controls);
@@ -102,29 +109,60 @@ export const HardwareModule = React.memo(
 
         // --- WEBGPU RENDERER ---
         useEffect(() => {
+            // Skip if we already decided not to use WebGPU
+            if (!useWebGPU) {
+                console.log('HardwareModule: useWebGPU is false, skipping WebGPU setup');
+                return;
+            }
+            
             const canvas = canvasRef.current;
-            if (!canvas) return;
-
-            // Check WebGPU availability
-            if (!navigator.gpu) {
-                console.log('HardwareModule: WebGPU not available, using Canvas 2D fallback');
-                setUseWebGPU(false);
+            if (!canvas) {
+                console.log('HardwareModule: Canvas ref is null');
                 return;
             }
 
-            let context: GPUCanvasContext;
-            let device: GPUDevice;
-            let pipeline: GPURenderPipeline;
-            let uniformBuffer: GPUBuffer;
-            let animationId: number;
+            let context: GPUCanvasContext | null = null;
+            let device: GPUDevice | null = null;
+            let pipeline: GPURenderPipeline | null = null;
+            let uniformBuffer: GPUBuffer | null = null;
+            let animationId: number | null = null;
+            let initFailed = false;
 
             const init = async () => {
-                const adapter = await navigator.gpu.requestAdapter();
-                if (!adapter) return;
-                device = await adapter.requestDevice();
-                context = canvas.getContext('webgpu') as GPUCanvasContext;
-                const format = navigator.gpu.getPreferredCanvasFormat();
-                context.configure({ device, format, alphaMode: 'premultiplied' });
+                try {
+                    console.log('HardwareModule: Attempting WebGPU initialization...');
+                    const adapter = await navigator.gpu.requestAdapter();
+                    if (!adapter) {
+                        console.log('HardwareModule: No WebGPU adapter available, falling back to Canvas 2D');
+                        initFailed = true;
+                        setUseWebGPU(false);
+                        return;
+                    }
+                    device = await adapter.requestDevice();
+                    
+                    // IMPORTANT: Try to get WebGPU context, but if it fails, don't leave canvas in bad state
+                    try {
+                        context = canvas.getContext('webgpu') as GPUCanvasContext;
+                    } catch (ctxError) {
+                        console.log('HardwareModule: Failed to get WebGPU context:', ctxError);
+                        context = null;
+                    }
+                    
+                    if (!context) {
+                        console.log('HardwareModule: WebGPU context is null, falling back to Canvas 2D');
+                        initFailed = true;
+                        setUseWebGPU(false);
+                        return;
+                    }
+                    const format = navigator.gpu.getPreferredCanvasFormat();
+                    context.configure({ device, format, alphaMode: 'premultiplied' });
+                    console.log('HardwareModule: WebGPU initialization successful');
+                } catch (error) {
+                    console.log('HardwareModule: WebGPU initialization error, falling back to Canvas 2D:', error);
+                    initFailed = true;
+                    setUseWebGPU(false);
+                    return;
+                }
 
                 // Max 8 knobs per module for this shader implementation
                 // Uniform structure:
@@ -297,22 +335,24 @@ export const HardwareModule = React.memo(
             };
 
             const render = () => {
+                if (initFailed) return; // Don't try to render if init failed
                 if (!device || !context || !pipeline || !uniformBuffer) return;
 
-                const now = performance.now() / 1000;
-                const width = canvas.width;
-                const height = canvas.height;
-                const ratio = width / height;
+                try {
+                    const now = performance.now() / 1000;
+                    const width = canvas.width;
+                    const height = canvas.height;
+                    const ratio = width / height;
 
-                // Prepare Data
-                const currentControls = controlsRef.current;
+                    // Prepare Data
+                    const currentControls = controlsRef.current;
 
-                // Knob Values (packed into 2 vec4s)
-                const vals = new Float32Array(8);
-                currentControls.forEach((c, i) => { if (i < 8) vals[i] = c.value; });
+                    // Knob Values (packed into 2 vec4s)
+                    const vals = new Float32Array(8);
+                    currentControls.forEach((c, i) => { if (i < 8) vals[i] = c.value; });
 
-                // Knob Positions (packed into 8 vec4s: x, y, size, padding)
-                const positions = new Float32Array(32);
+                    // Knob Positions (packed into 8 vec4s: x, y, size, padding)
+                    const positions = new Float32Array(32);
                 currentControls.forEach((c, i) => {
                     if (i < 8) {
                         const offset = i * 4;
@@ -351,27 +391,69 @@ export const HardwareModule = React.memo(
                 pass.draw(3);
                 pass.end();
 
-                device.queue.submit([encoder.finish()]);
-                animationId = requestAnimationFrame(render);
+                    device.queue.submit([encoder.finish()]);
+                    animationId = requestAnimationFrame(render);
+                } catch (error) {
+                    console.log('HardwareModule: WebGPU render error, falling back to Canvas 2D:', error);
+                    initFailed = true;
+                    setUseWebGPU(false);
+                    if (animationId) cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
             };
 
-            init().then(() => render());
+            init().then(() => {
+                // Only start rendering if WebGPU init was successful and didn't fail during init
+                if (!initFailed && device && context && pipeline) {
+                    console.log('HardwareModule: Starting WebGPU render loop');
+                    render();
+                } else {
+                    console.log('HardwareModule: Not starting WebGPU render loop - init failed or missing resources');
+                }
+            }).catch((error) => {
+                console.log('HardwareModule: WebGPU setup promise rejected, falling back to Canvas 2D:', error);
+                initFailed = true;
+                setUseWebGPU(false);
+            });
 
             return () => {
-                if (animationId) cancelAnimationFrame(animationId);
+                console.log('HardwareModule: Cleaning up WebGPU effect');
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+                // Unconfigure context if it exists
+                if (context) {
+                    try {
+                        context.unconfigure();
+                    } catch (e) {
+                        // Ignore errors during cleanup
+                    }
+                }
             };
-        }, [colorHex]); // Re-init if color changes (rare)
+        }, [colorHex, useWebGPU]); // Added useWebGPU to dependencies
 
         // --- CANVAS 2D FALLBACK RENDERER ---
         useEffect(() => {
-            if (useWebGPU) return; // Only run if WebGPU failed
+            if (useWebGPU) {
+                console.log('HardwareModule: Skipping Canvas 2D because useWebGPU is true');
+                return; // Only run if WebGPU failed
+            }
 
+            console.log('HardwareModule: Starting Canvas 2D fallback renderer');
             const canvas = canvasRef.current;
-            if (!canvas) return;
+            if (!canvas) {
+                console.log('HardwareModule: Canvas ref is null');
+                return;
+            }
 
             const ctx = canvas.getContext('2d');
-            if (!ctx) return;
+            if (!ctx) {
+                console.log('HardwareModule: Could not get 2D context');
+                return;
+            }
 
+            console.log('HardwareModule: Canvas 2D context obtained, starting render loop');
             let animationId: number;
 
             const render = () => {
@@ -444,7 +526,7 @@ export const HardwareModule = React.memo(
             return () => {
                 if (animationId) cancelAnimationFrame(animationId);
             };
-        }, [useWebGPU, colorHex]);
+        }, [useWebGPU, colorHex, controls]); // Added controls to dependencies to ensure re-render on control changes
 
         // Allow overlayed children (e.g., WaveformSelector) to be visible
         // when they extend outside the main canvas/module rectangle.
