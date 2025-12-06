@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SVG Sequencer Demo</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #101a12;
+      overflow: hidden;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+    }
+    svg {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+      background: #101a12;
+    }
+    .noselect {
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+  </style>
+</head>
+<body>
+<script>
+function drawSVGLayout() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("width", "100%");
+  svg.setAttribute("height", "100%");
+  svg.setAttribute("viewBox", "0 0 800 600");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.style.background = "#101a12";
+  svg.classList.add("noselect");
+
+  // --- Sequencer Steps ---
+  const stepCount = 16;
+  const stepWidth = 36;
+  const stepHeight = 60;
+  const stepSpacing = 12;
+  const stepY = 120;
+  const stepX0 = 60;
+  const stepButtons = [];
+
+  for (let i = 0; i < stepCount; i++) {
+    const x = stepX0 + i * (stepWidth + stepSpacing);
+    const g = document.createElementNS(svgNS, "g");
+    g.setAttribute("id", `step-${i}`);
+    g.setAttribute("cursor", "pointer");
+    g.setAttribute("aria-label", `Step ${i + 1}`);
+    g.setAttribute("role", "button");
+    g.setAttribute("tabindex", "0");
+
+    // Step background
+    const rect = document.createElementNS(svgNS, "rect");
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", stepY);
+    rect.setAttribute("width", stepWidth);
+    rect.setAttribute("height", stepHeight);
+    rect.setAttribute("rx", "12");
+    rect.setAttribute("fill", "#1a2f1a");
+    rect.setAttribute("stroke", "#3fa34d");
+    rect.setAttribute("stroke-width", "2");
+    rect.setAttribute("data-active", "false");
+
+    // Step label
+    const txt = document.createElementNS(svgNS, "text");
+    txt.setAttribute("x", x + stepWidth / 2);
+    txt.setAttribute("y", stepY + stepHeight / 2 + 8);
+    txt.setAttribute("text-anchor", "middle");
+    txt.setAttribute("font-size", "22");
+    txt.setAttribute("font-family", "monospace");
+    txt.setAttribute("fill", "#fff");
+    txt.textContent = i + 1;
+
+    g.appendChild(rect);
+    g.appendChild(txt);
+
+    // Interactivity
+    g.addEventListener("mouseover", () => {
+      if (rect.getAttribute("data-active") === "true") return;
+      rect.setAttribute("fill", "#2e4d2e");
+    });
+    g.addEventListener("mouseout", () => {
+      if (rect.getAttribute("data-active") === "true") return;
+      rect.setAttribute("fill", "#1a2f1a");
+    });
+    g.addEventListener("click", () => {
+      const active = rect.getAttribute("data-active") === "true";
+      rect.setAttribute("data-active", active ? "false" : "true");
+      rect.setAttribute("fill", active ? "#1a2f1a" : "#3fa34d");
+      rect.setAttribute("stroke", active ? "#3fa34d" : "#fff");
+    });
+    g.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        g.click();
+      }
+    });
+
+    svg.appendChild(g);
+    stepButtons.push(g);
+  }
+
+  // --- Knobs ---
+  function createKnob(id, cx, cy, label, initialValue, min, max) {
+    const knobRadius = 38;
+    const g = document.createElementNS(svgNS, "g");
+    g.setAttribute("id", id);
+    g.setAttribute("cursor", "pointer");
+    g.setAttribute("aria-label", `${label} knob`);
+    g.setAttribute("role", "slider");
+    g.setAttribute("tabindex", "0");
+
+    // Knob background
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", cx);
+    circle.setAttribute("cy", cy);
+    circle.setAttribute("r", knobRadius);
+    circle.setAttribute("fill", "#1a2f1a");
+    circle.setAttribute("stroke", "#3fa34d");
+    circle.setAttribute("stroke-width", "3");
+
+    // Knob pointer
+    const pointer = document.createElementNS(svgNS, "line");
+    pointer.setAttribute("x1", cx);
+    pointer.setAttribute("y1", cy);
+    // Initial angle: map value to angle (-120deg to +120deg)
+    const angle = ((initialValue - min) / (max - min)) * 240 - 120;
+    const rad = angle * Math.PI / 180;
+    const px = cx + Math.cos(rad) * (knobRadius - 10);
+    const py = cy + Math.sin(rad) * (knobRadius - 10);
+    pointer.setAttribute("x2", px);
+    pointer.setAttribute("y2", py);
+    pointer.setAttribute("stroke", "#fff");
+    pointer.setAttribute("stroke-width", "5");
+    pointer.setAttribute("stroke-linecap", "round");
+    pointer.setAttribute("data-value", initialValue);
+
+    // Knob label
+    const txt = document.createElementNS(svgNS, "text");
+    txt.setAttribute("x", cx);
+    txt.setAttribute("y", cy + knobRadius + 24);
+    txt.setAttribute("text-anchor", "middle");
+    txt.setAttribute("font-size", "20");
+    txt.setAttribute("font-family", "monospace");
+    txt.setAttribute("fill", "#fff");
+    txt.textContent = label;
+
+    // Value display
+    const valTxt = document.createElementNS(svgNS, "text");
+    valTxt.setAttribute("x", cx);
+    valTxt.setAttribute("y", cy + 8);
+    valTxt.setAttribute("text-anchor", "middle");
+    valTxt.setAttribute("font-size", "18");
+    valTxt.setAttribute("font-family", "monospace");
+    valTxt.setAttribute("fill", "#3fa34d");
+    valTxt.textContent = initialValue;
+
+    g.appendChild(circle);
+    g.appendChild(pointer);
+    g.appendChild(txt);
+    g.appendChild(valTxt);
+
+    // Interactivity: click/drag to rotate
+    let dragging = false;
+    let value = initialValue;
+
+    function updateKnob(val) {
+      value = Math.max(min, Math.min(max, val));
+      const angle = ((value - min) / (max - min)) * 240 - 120;
+      const rad = angle * Math.PI / 180;
+      const px = cx + Math.cos(rad) * (knobRadius - 10);
+      const py = cy + Math.sin(rad) * (knobRadius - 10);
+      pointer.setAttribute("x2", px);
+      pointer.setAttribute("y2", py);
+      pointer.setAttribute("data-value", value);
+      valTxt.textContent = Math.round(value);
+    }
+
+    g.addEventListener("mousedown", (e) => {
+      dragging = true;
+      document.body.style.cursor = "grabbing";
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      // Calculate angle from center
+      const rect = svg.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * 800;
+      const my = ((e.clientY - rect.top) / rect.height) * 600;
+      const dx = mx - cx;
+      const dy = my - cy;
+      let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      angle = Math.max(-120, Math.min(120, angle));
+      // Map angle to value
+      const val = min + ((angle + 120) / 240) * (max - min);
+      updateKnob(val);
+    });
+    window.addEventListener("mouseup", () => {
+      if (dragging) {
+        dragging = false;
+        document.body.style.cursor = "";
+      }
+    });
+
+    g.addEventListener("mouseover", () => {
+      circle.setAttribute("stroke", "#fff");
+    });
+    g.addEventListener("mouseout", () => {
+      circle.setAttribute("stroke", "#3fa34d");
+    });
+
+    svg.appendChild(g);
+    return g;
+  }
+
+  createKnob("knob-tempo", 160, 340, "Tempo", 120, 60, 200);
+  createKnob("knob-volume", 320, 340, "Volume", 80, 0, 100);
+
+  // --- Transport Controls ---
+  function createTransportButton(id, x, y, label, color) {
+    const g = document.createElementNS(svgNS, "g");
+    g.setAttribute("id", id);
+    g.setAttribute("cursor", "pointer");
+    g.setAttribute("aria-label", `${label} button`);
+    g.setAttribute("role", "button");
+    g.setAttribute("tabindex", "0");
+
+    const rect = document.createElementNS(svgNS, "rect");
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y);
+    rect.setAttribute("width", 100);
+    rect.setAttribute("height", 48);
+    rect.setAttribute("rx", "16");
+    rect.setAttribute("fill", color);
+    rect.setAttribute("stroke", "#fff");
+    rect.setAttribute("stroke-width", "3");
+
+    const txt = document.createElementNS(svgNS, "text");
+    txt.setAttribute("x", x + 50);
+    txt.setAttribute("y", y + 30);
+    txt.setAttribute("text-anchor", "middle");
+    txt.setAttribute("font-size", "22");
+    txt.setAttribute("font-family", "monospace");
+    txt.setAttribute("fill", "#fff");
+    txt.textContent = label;
+
+    g.appendChild(rect);
+    g.appendChild(txt);
+
+    g.addEventListener("mouseover", () => {
+      rect.setAttribute("fill", "#3fa34d");
+    });
+    g.addEventListener("mouseout", () => {
+      rect.setAttribute("fill", color);
+    });
+    g.addEventListener("click", () => handleButtonClick(id));
+    g.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        g.click();
+      }
+    });
+
+    svg.appendChild(g);
+    return g;
+  }
+
+  createTransportButton("btn-play", 520, 340, "Play", "#1a2f1a");
+  createTransportButton("btn-stop", 640, 340, "Stop", "#1a2f1a");
+
+  // --- Title ---
+  const title = document.createElementNS(svgNS, "text");
+  title.setAttribute("x", 400);
+  title.setAttribute("y", 60);
+  title.setAttribute("text-anchor", "middle");
+  title.setAttribute("font-size", "38");
+  title.setAttribute("font-family", "monospace");
+  title.setAttribute("fill", "#3fa34d");
+  title.setAttribute("font-weight", "bold");
+  title.textContent = "SVG Sequencer Demo";
+  svg.appendChild(title);
+
+  document.body.appendChild(svg);
+}
+
+// Button click handler
+function handleButtonClick(elementId) {
+  const btn = document.getElementById(elementId);
+  if (!btn) return;
+  const rect = btn.querySelector("rect");
+  if (!rect) return;
+  // Visual feedback: flash white then revert
+  rect.setAttribute("fill", "#fff");
+  setTimeout(() => {
+    rect.setAttribute("fill", "#3fa34d");
+    setTimeout(() => {
+      rect.setAttribute("fill", "#1a2f1a");
+    }, 200);
+  }, 120);
+}
+
+window.addEventListener("DOMContentLoaded", drawSVGLayout);
+window.addEventListener("resize", () => {
+  document.body.innerHTML = "";
+  drawSVGLayout();
+});
+</script>
+</body>
+</html>
