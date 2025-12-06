@@ -66,14 +66,14 @@ const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (Part
 // --- COMPONENTS ---
 
 const SvgStep = memo(({
-                          stepIndex,
-                          active,
-                          note,
-                          isCurrent,
-                          rowLabel,
-                          onClick,
-                          onContextMenu
-                      }: {
+    stepIndex,
+    active,
+    note,
+    isCurrent,
+    rowLabel,
+    onClick,
+    onContextMenu
+}: {
     stepIndex: number,
     active: boolean,
     note?: string | null,
@@ -93,15 +93,15 @@ const SvgStep = memo(({
 
     return (
         <g transform={`translate(${x}, 0)`}
-           role="button"
-           aria-label={`${rowLabel} step ${stepIndex+1}`}
-           onClick={() => onClick()}
-           onContextMenu={(e) => { e.preventDefault(); onContextMenu(e as any); }}
-           cursor="pointer"
-           style={{ transition: 'all 0.1s ease' }}
+            role="button"
+            aria-label={`${rowLabel} step ${stepIndex + 1}`}
+            onClick={() => onClick()}
+            onContextMenu={(e) => { e.preventDefault(); onContextMenu(e as any); }}
+            cursor="pointer"
+            style={{ transition: 'all 0.1s ease' }}
         >
             {/* Outer Glow for Active Steps */}
-            {active && <rect x={-4} y={-4} width={width+8} height={height+8} rx={6} fill={isCurrent ? "rgba(255, 255, 255, 0.3)" : color} fillOpacity={0.4} filter="blur(6px)" />}
+            {active && <rect x={-4} y={-4} width={width + 8} height={height + 8} rx={6} fill={isCurrent ? "rgba(255, 255, 255, 0.3)" : color} fillOpacity={0.4} filter="blur(6px)" />}
 
             {/* --- 3D BEVEL BASE --- */}
             {/* Shadow/Base Offset */}
@@ -109,20 +109,20 @@ const SvgStep = memo(({
 
             {/* Main Body Gradient Background */}
             <rect
-                x={1} y={1} width={width-2} height={height-2} rx={2}
+                x={1} y={1} width={width - 2} height={height - 2} rx={2}
                 fill={active ? '#0d1f15' : '#14181c'}
                 strokeWidth={0}
             />
 
             {/* Top/Left Highlight (Bevel Light) */}
-            <path d={`M 2 2 L ${width-2} 2 L ${width-4} 4 L 4 4 L 4 ${height-4} L 2 ${height-2} Z`} fill="rgba(255,255,255,0.2)" />
+            <path d={`M 2 2 L ${width - 2} 2 L ${width - 4} 4 L 4 4 L 4 ${height - 4} L 2 ${height - 2} Z`} fill="rgba(255,255,255,0.2)" />
 
             {/* Bottom/Right Shadow (Bevel Dark) */}
-            <path d={`M ${width-2} 2 L ${width-2} ${height-2} L 2 ${height-2} L 4 ${height-4} L ${width-4} ${height-4} L ${width-4} 4 Z`} fill="rgba(0,0,0,0.5)" />
+            <path d={`M ${width - 2} 2 L ${width - 2} ${height - 2} L 2 ${height - 2} L 4 ${height - 4} L ${width - 4} ${height - 4} L ${width - 4} 4 Z`} fill="rgba(0,0,0,0.5)" />
 
             {/* Inner "Cap" / Surface */}
             <rect
-                x={3} y={4} width={width-6} height={height-8} rx={1}
+                x={3} y={4} width={width - 6} height={height - 8} rx={1}
                 fill={active ? color : '#1a2026'}
                 fillOpacity={active ? 0.6 : 1}
                 stroke={isCurrent ? '#ffffff' : (active ? color : 'none')}
@@ -131,7 +131,7 @@ const SvgStep = memo(({
 
             {/* Glassy Highlight on Cap */}
             <rect
-                x={4} y={5} width={width-8} height={(height-10)/2} rx={1}
+                x={4} y={5} width={width - 8} height={(height - 10) / 2} rx={1}
                 fill="url(#glassGrad)"
                 fillOpacity={0.3}
                 pointerEvents="none"
@@ -147,6 +147,7 @@ const SvgStep = memo(({
         </g>
     )
 })
+SvgStep.displayName = 'SvgStep';
 
 // PER-TRACK STORAGE BUTTON (1-4)
 const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number, isActive: boolean, hasData: boolean, onClick: () => void }) => (
@@ -164,19 +165,19 @@ const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number,
 );
 
 const SequencerRow = memo(({
-                               rowKey,
-                               label,
-                               rowIndex,
-                               steps,
-                               currentStep,
-                               isSelected,
-                               activeSlot,
-                               slotsData,
-                               onToggle,
-                               onRightClickStep,
-                               onSelectRow,
-                               onSelectSlot
-                           }: {
+    rowKey,
+    label,
+    rowIndex,
+    steps,
+    currentStep,
+    isSelected,
+    activeSlot,
+    slotsData,
+    onToggle,
+    onRightClickStep,
+    onSelectRow,
+    onSelectSlot
+}: {
     rowKey: TrackKey,
     label: string,
     rowIndex: number,
@@ -237,6 +238,7 @@ const SequencerRow = memo(({
         </g>
     )
 })
+SequencerRow.displayName = 'SequencerRow';
 
 const ROWS = [
     { key: 'partA', label: 'Lead' },
@@ -290,17 +292,17 @@ export const App: React.FC = () => {
     }, [isPyodideReady]);
 
     const getLoadingStepData = (rIdx: number) => {
-         return Array(32).fill(null).map((_, i) => {
-             // Specific Geometric Pattern: "Digital Scanner" + Diagonal
-             // 1. Diagonal sweep
-             const diag = (i + rIdx + loadingTick) % 8 === 0;
-             // 2. Scanner ping (left to right)
-             const scanPos = loadingTick % 32;
-             const scanner = (i === scanPos) || (i === 31 - scanPos);
+        return Array(32).fill(null).map((_, i) => {
+            // Specific Geometric Pattern: "Digital Scanner" + Diagonal
+            // 1. Diagonal sweep
+            const diag = (i + rIdx + loadingTick) % 8 === 0;
+            // 2. Scanner ping (left to right)
+            const scanPos = loadingTick % 32;
+            const scanner = (i === scanPos) || (i === 31 - scanPos);
 
-             const active = diag || scanner;
-             return active ? { note: 'C4', velocity: 1 } : null;
-         });
+            const active = diag || scanner;
+            return active ? { note: 'C4', velocity: 1 } : null;
+        });
     }
 
     // --- STORAGE STATE ---
@@ -383,20 +385,18 @@ export const App: React.FC = () => {
                 if (isFirstStepRef.current) {
                     isFirstStepRef.current = false;
                 } else {
-                   // This is start of NEXT measure
-                   const nextM = songMeasureRef.current + 1;
-                   if (nextM < songStructureRef.current.length) {
-                       songMeasureRef.current = nextM;
-                       // Sync UI
-                       // Note: This is hacky. The UI update might be delayed.
-                       // Ideally useScheduler should support measures.
-                       // For now, trigger UI update slightly later to align with audio
-                       setTimeout(() => setCurrentSongMeasure(nextM), 0);
-                   } else {
-                       // Loop song or stop? Let's loop song
-                       songMeasureRef.current = 0;
-                       setTimeout(() => setCurrentSongMeasure(0), 0);
-                   }
+                    // This is start of NEXT measure
+                    const nextM = songMeasureRef.current + 1;
+                    if (nextM < songStructureRef.current.length) {
+                        songMeasureRef.current = nextM;
+                        // Sync UI using queueMicrotask for more predictable scheduling
+                        // than setTimeout (runs at end of current task, before next render)
+                        queueMicrotask(() => setCurrentSongMeasure(nextM));
+                    } else {
+                        // Loop song
+                        songMeasureRef.current = 0;
+                        queueMicrotask(() => setCurrentSongMeasure(0));
+                    }
                 }
             }
 
@@ -487,16 +487,20 @@ export const App: React.FC = () => {
 
     // Refactor: Logic to update storage for a specific track and slot
     // This helper avoids duplication in the various handlers
-    const updateStorageForTrack = (track: TrackKey, sequence: PartSequence) => {
+    // Fixed: Accept slotIndex directly to avoid stale closure issues
+    const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence, slotIndex: number) => {
         setTrackStorage(prev => {
             const copy = { ...prev };
             copy[track] = [...copy[track]];
-            copy[track][activeTrackSlots[track]] = sequence;
+            copy[track][slotIndex] = sequence;
             return copy;
         });
-    };
+    }, []);
 
     const toggleStep = useCallback((rowKey: keyof Pattern, i: number) => {
+        // Capture current slot index to avoid stale closure
+        const currentSlot = activeTrackSlots[rowKey];
+
         setPattern(prev => {
             const copy = JSON.parse(JSON.stringify(prev)) as Pattern
             const arr = copy[rowKey].steps
@@ -504,12 +508,12 @@ export const App: React.FC = () => {
             const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
             arr[i] = arr[i] ? null : { note: defaultNote, velocity: 1 }
 
-            // Sync to storage
-            updateStorageForTrack(rowKey, copy[rowKey]);
+            // Sync to storage - pass slot index explicitly
+            updateStorageForTrack(rowKey, copy[rowKey], currentSlot);
 
             return copy
         })
-    }, [activeTrackSlots])
+    }, [activeTrackSlots, updateStorageForTrack])
 
     const handleKeyboardPlay = (note: string) => {
         if (!audioEngine) return;
@@ -526,13 +530,16 @@ export const App: React.FC = () => {
 
         // 2. Record if enabled
         if (isRecording && isPlaying && currentStep >= 0) {
+            // Capture current slot to avoid stale closure
+            const currentSlot = activeTrackSlots[selectedTrack];
+
             // Quantize to current step
             setPattern(prev => {
                 const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
                 copy[selectedTrack].steps[currentStep] = { note, velocity: 1 };
 
-                // Sync to storage
-                updateStorageForTrack(selectedTrack, copy[selectedTrack]);
+                // Sync to storage - pass slot index explicitly
+                updateStorageForTrack(selectedTrack, copy[selectedTrack], currentSlot);
 
                 return copy;
             });
@@ -549,6 +556,9 @@ export const App: React.FC = () => {
 
     const handleNoteSelect = (note: string) => {
         if (!contextMenu) return;
+        // Capture current slot to avoid stale closure
+        const currentSlot = activeTrackSlots[contextMenu.track];
+
         setPattern(prev => {
             const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
             const stepData = copy[contextMenu.track].steps[contextMenu.step];
@@ -556,8 +566,8 @@ export const App: React.FC = () => {
                 stepData.note = note;
             }
 
-            // Sync to storage
-            updateStorageForTrack(contextMenu.track, copy[contextMenu.track]);
+            // Sync to storage - pass slot index explicitly
+            updateStorageForTrack(contextMenu.track, copy[contextMenu.track], currentSlot);
 
             return copy;
         });
@@ -565,28 +575,28 @@ export const App: React.FC = () => {
     };
 
     const handleClearPattern = () => {
-        if(window.confirm("Clear current pattern?")) {
-             const emptyPattern = {
-                 partA: { steps: Array(32).fill(null) },
-                 partB: { steps: Array(32).fill(null) },
-                 kick: { steps: Array(32).fill(null) },
-                 snare: { steps: Array(32).fill(null) },
-                 closedHat: { steps: Array(32).fill(null) },
-                 openHat: { steps: Array(32).fill(null) },
-                 sampler: { steps: Array(32).fill(null) },
-             } as Pattern; // Cast to ensure type compatibility
+        if (window.confirm("Clear current pattern?")) {
+            const emptyPattern = {
+                partA: { steps: Array(32).fill(null) },
+                partB: { steps: Array(32).fill(null) },
+                kick: { steps: Array(32).fill(null) },
+                snare: { steps: Array(32).fill(null) },
+                closedHat: { steps: Array(32).fill(null) },
+                openHat: { steps: Array(32).fill(null) },
+                sampler: { steps: Array(32).fill(null) },
+            } as Pattern; // Cast to ensure type compatibility
 
-             setPattern(emptyPattern);
+            setPattern(emptyPattern);
 
-             // Sync all tracks to storage
-             setTrackStorage(prevStorage => {
-                 const storageCopy = { ...prevStorage };
-                 (Object.keys(storageCopy) as TrackKey[]).forEach(key => {
-                     storageCopy[key] = [...storageCopy[key]];
-                     storageCopy[key][activeTrackSlots[key]] = emptyPattern[key];
-                 });
-                 return storageCopy;
-             });
+            // Sync all tracks to storage
+            setTrackStorage(prevStorage => {
+                const storageCopy = { ...prevStorage };
+                (Object.keys(storageCopy) as TrackKey[]).forEach(key => {
+                    storageCopy[key] = [...storageCopy[key]];
+                    storageCopy[key][activeTrackSlots[key]] = emptyPattern[key];
+                });
+                return storageCopy;
+            });
         }
     };
 
@@ -654,24 +664,24 @@ export const App: React.FC = () => {
 
     // --- MODULE RENDER HELPERS ---
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
-         // Row 1: ADSR (Smaller)
-         { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
-         { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
-         { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
-         { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
+        // Row 1: ADSR (Smaller)
+        { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
+        { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
+        { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
+        { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
 
-         // Row 2: Filter (Larger)
-         { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
-         { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
+        // Row 2: Filter (Larger)
+        { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
+        { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
 
-         // Sides:
-         { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
-         { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 }, // Max 2s
+        // Sides:
+        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
+        { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 }, // Max 2s
 
-         // Output / FX
-         { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
-         { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
-         { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
+        // Output / FX
+        { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
+        { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
+        { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
     ];
     const getKickControls = (params: KickParams): KnobConfig[] => [
         { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
@@ -733,13 +743,13 @@ export const App: React.FC = () => {
         if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
         if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
         if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
-        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => {}}><SamplerPanel params={sampler} onChange={handleSamplerChange} onLoadSample={(n, b) => audioEngine?.loadSampleToEngine(n, b)} audioContext={audioEngine?.context!} /></HardwareModule>;
+        if (selectedTrack === 'sampler') return <HardwareModule title="SAMPLER" colorHex={[0.6, 0.4, 1.0]} controls={[]} onParamChange={() => { }}><SamplerPanel params={sampler} onChange={handleSamplerChange} onLoadSample={(n, b) => audioEngine?.loadSampleToEngine(n, b)} audioContext={audioEngine?.context!} /></HardwareModule>;
         return null;
     };
 
     return (
         <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative">
-            
+
             {/* --- DECORATIVE BACKGROUND FRAME --- */}
             <div className="fixed inset-0 pointer-events-none z-0">
                 {/* Corner decorations */}
@@ -747,7 +757,7 @@ export const App: React.FC = () => {
                 <div className="absolute top-0 right-0 w-32 h-32 border-r-2 border-t-2 border-cyan-900/20"></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 border-l-2 border-b-2 border-cyan-900/20"></div>
                 <div className="absolute bottom-0 right-0 w-32 h-32 border-r-2 border-b-2 border-cyan-900/20"></div>
-                
+
                 {/* Edge lines */}
                 <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-900/30 to-transparent"></div>
                 <div className="absolute bottom-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-900/30 to-transparent"></div>
@@ -775,10 +785,9 @@ export const App: React.FC = () => {
                                     else saveSong(slot);
                                 }}
                                 onContextMenu={(e) => { e.preventDefault(); saveSong(slot); }} // Right click to overwrite
-                                className={`w-6 h-6 text-xs font-mono rounded transition-all ${
-                                    activeSongSlot === slot ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 
+                                className={`w-6 h-6 text-xs font-mono rounded transition-all ${activeSongSlot === slot ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' :
                                     (songStorage[slot] ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')
-                                }`}
+                                    }`}
                                 title="Click to Load (if empty, Save). Right-Click to Save/Overwrite."
                             >
                                 {slot + 1}
@@ -815,21 +824,20 @@ export const App: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                         <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
-                            <button onClick={() => setTempo(t => t-1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800">-</button>
+                        <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
+                            <button onClick={() => setTempo(t => t - 1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800">-</button>
                             <span className="w-12 text-center font-mono text-cyan-300 text-sm">{tempo}</span>
-                            <button onClick={() => setTempo(t => t+1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800">+</button>
+                            <button onClick={() => setTempo(t => t + 1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800">+</button>
                         </div>
                     </div>
 
                     {/* REC BUTTON */}
-                     <button
+                    <button
                         onClick={() => setIsRecording(!isRecording)}
-                        className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${
-                            isRecording
+                        className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isRecording
                             ? 'bg-red-600 text-white border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)] animate-pulse'
                             : 'bg-gray-800 text-red-700 border border-gray-700 hover:bg-gray-700'
-                        }`}
+                            }`}
                         title="Enable Recording (Input notes from keyboard will be saved to pattern)"
                     >
                         REC
@@ -837,11 +845,10 @@ export const App: React.FC = () => {
 
                     <button
                         onClick={() => { setIsSongModeOpen(!isSongModeOpen); }}
-                        className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${
-                            isSongModeOpen
+                        className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isSongModeOpen
                             ? 'bg-purple-900/40 text-purple-300 border border-purple-500'
                             : 'bg-gray-800 text-gray-400 border border-gray-700'
-                        }`}
+                            }`}
                     >
                         SONG
                     </button>
@@ -853,11 +860,10 @@ export const App: React.FC = () => {
 
                     <button
                         onClick={handlePlayToggle}
-                        className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg ${
-                            isPlaying 
-                            ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' 
+                        className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg ${isPlaying
+                            ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
                             : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
-                        }`}
+                            }`}
                     >
                         {isPlaying ? 'STOP' : 'PLAY'}
                     </button>
@@ -916,7 +922,7 @@ export const App: React.FC = () => {
 
                     {/* Outer decorative frame */}
                     <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
-                    
+
                     {/* Inner shadow frame */}
                     <div className="absolute inset-2 rounded-lg border border-gray-800/50 pointer-events-none shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)]"></div>
 
@@ -975,9 +981,9 @@ export const App: React.FC = () => {
                             onPlayNote={handleKeyboardPlay}
                             activeTrackColor={
                                 selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') :
-                                selectedTrack === 'kick' ? '#f97316' :
-                                selectedTrack === 'snare' ? '#22c55e' :
-                                selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
+                                    selectedTrack === 'kick' ? '#f97316' :
+                                        selectedTrack === 'snare' ? '#22c55e' :
+                                            selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
                             }
                         />
                     </div>
@@ -988,7 +994,7 @@ export const App: React.FC = () => {
             <div className="h-[320px] bg-gradient-to-b from-[#0d0f12] to-[#0f1215] border-t-2 border-cyan-900/30 relative shadow-[0_-10px_60px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(6,182,212,0.1)] z-30 shrink-0 fixed bottom-0 w-full">
                 {/* Decorative top line */}
                 <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
-                
+
                 <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
                     <div className="w-full h-full rounded-2xl border-2 border-gray-700 shadow-[0_0_40px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(0,0,0,0.5)] bg-gradient-to-br from-black to-[#0a0c0f] relative">
                         {/* Inner decorative frame */}
