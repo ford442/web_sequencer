@@ -904,7 +904,7 @@ export const App: React.FC = () => {
             />
 
             {/* --- SEQUENCER --- */}
-            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
+            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-[340px] z-10 overflow-auto">
 
                 {contextMenu && (
                     <NoteSelector

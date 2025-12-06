@@ -5,47 +5,17 @@ interface LiveKeyboardProps { onPlayNote: (note: string) => void; activeTrackCol
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
-// Mapping: Extended to support all 4 visible octaves
-// Top row (number keys): Sharp notes for current octave
-// F-keys: Natural notes
-// Q-P: Higher octave (5), A-L: Octave 4, Z-M: Lower octave (2)
+// Mapping based on user request: // Right side (F8) = Lower Pitch (C3) // Left side (F1) = Higher Pitch (C4)
 const KEY_TO_NOTE: Record<string, string> = {
-    // === OCTAVE 5 (Top row in keyboard visual) ===
-    'KeyQ': 'C5', 'Digit2': 'C#5',
-    'KeyW': 'D5', 'Digit3': 'D#5',
-    'KeyE': 'E5',
-    'KeyR': 'F5', 'Digit5': 'F#5',
-    'KeyT': 'G5', 'Digit6': 'G#5',
-    'KeyY': 'A5', 'Digit7': 'A#5',
-    'KeyU': 'B5',
+    // Octave 3
+    'F8': 'C3', 'Digit9': 'C#3', 'F7': 'D3', 'Digit8': 'D#3', 'F6': 'E3',
+    // Digit7 skipped (No sharp between E and F)
+    'F5': 'F3', 'Digit6': 'F#3', 'F4': 'G3', 'Digit5': 'G#3', 'F3': 'A3', 'Digit4': 'A#3', 'F2': 'B3',
+    // Digit3 skipped (No sharp between B and C)
 
-    // === OCTAVE 4 ===
-    'KeyA': 'C4', 'KeyZ': 'C#4',
-    'KeyS': 'D4', 'KeyX': 'D#4',
-    'KeyD': 'E4',
-    'KeyF': 'F4', 'KeyC': 'F#4',
-    'KeyG': 'G4', 'KeyV': 'G#4',
-    'KeyH': 'A4', 'KeyB': 'A#4',
-    'KeyJ': 'B4',
-
-    // === OCTAVE 3 (F-keys as alternative) ===
-    'F8': 'C3', 'Digit9': 'C#3',
-    'F7': 'D3', 'Digit8': 'D#3',
-    'F6': 'E3',
-    'F5': 'F3',
-    'F4': 'G3',
-    'F3': 'A3', 'Digit4': 'A#3',
-    'F2': 'B3',
-    'F1': 'C4', // F1 maps to C4 as alternate
-
-    // === OCTAVE 2 (Bottom row in keyboard visual) ===
-    'KeyK': 'C2', 'KeyM': 'C#2',
-    'KeyL': 'D2', 'Comma': 'D#2',
-    'Semicolon': 'E2',
-    'Quote': 'F2', 'Period': 'F#2',
-    'BracketLeft': 'G2', 'Slash': 'G#2',
-    'BracketRight': 'A2',
-    'Backslash': 'B2',
+    // Octave 4
+    'F1': 'C4',
+    'Digit2': 'C#4'
 };
 
 export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTrackColor }) => {
