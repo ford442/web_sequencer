@@ -4,9 +4,8 @@ import * as ort from 'onnxruntime-web';
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.proxy = false;
 
-// const BASE_PATH = './assets'; // Removed unused constant
-
-const MODELS_PATH = './assets/onnx';
+// Vite serves public/ directory from root, so paths should be absolute
+const MODELS_PATH = '/assets/onnx';
 
 interface StyleData {
     style_ttl: { data: number[], dims: number[] };
@@ -64,12 +63,30 @@ class UnicodeProcessor {
     }
 }
 
+interface Models {
+    dp?: ort.InferenceSession;
+    textEnc?: ort.InferenceSession;
+    vecEst?: ort.InferenceSession;
+    vocoder?: ort.InferenceSession;
+}
+
+interface TTSConfig {
+    ae: {
+        sample_rate: number;
+        base_chunk_size: number;
+    };
+    ttl: {
+        latent_dim: number;
+        chunk_compress_factor: number;
+    };
+}
+
 export class SupertonicService {
     private static instance: SupertonicService;
     private isReady = false;
-    private models: any = {};
+    private models: Models = {};
     private textProcessor: UnicodeProcessor | null = null;
-    private cfgs: any = null;
+    private cfgs: TTSConfig | null = null;
     private currentStyle: Style | null = null;
 
     private constructor() { }
@@ -88,9 +105,15 @@ export class SupertonicService {
             console.log("Supertonic: Loading Config...");
             // Assuming files are served from /assets/onnx in public folder
             const cfgRes = await fetch(`${MODELS_PATH}/tts.json`);
+            if (!cfgRes.ok) {
+                throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}. Please ensure assets are in public/assets/onnx/`);
+            }
             this.cfgs = await cfgRes.json();
 
             const idxRes = await fetch(`${MODELS_PATH}/unicode_indexer.json`);
+            if (!idxRes.ok) {
+                throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
+            }
             const indexer = await idxRes.json();
             this.textProcessor = new UnicodeProcessor(indexer);
 
@@ -115,7 +138,9 @@ export class SupertonicService {
             console.log("Supertonic: Ready");
         } catch (e) {
             console.error("Supertonic Init Failed:", e);
-            throw e;
+            this.isReady = false;
+            // Don't throw - let the app continue without TTS
+            return;
         }
     }
 
@@ -133,8 +158,14 @@ export class SupertonicService {
         this.currentStyle = new Style(ttlTensor, dpTensor);
     }
 
+    isServiceReady(): boolean {
+        return this.isReady;
+    }
+
     async generate(text: string, steps: number = 5, speed: number = 1.0): Promise<Float32Array> {
-        if (!this.isReady || !this.currentStyle || !this.textProcessor) throw new Error("Service not ready");
+        if (!this.isReady || !this.currentStyle || !this.textProcessor) {
+            throw new Error("Supertonic service not ready. Models may not be loaded. Please ensure assets exist in public/assets/onnx/");
+        }
 
         // 1. Process Text
         const { textIds, textMask } = this.textProcessor.call([text]);

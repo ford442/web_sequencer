@@ -21,16 +21,25 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange: _o
     const chunksRef = useRef<Blob[]>([]);
 
     useEffect(() => {
-        // Pre-init Supertonic
-        SupertonicService.getInstance().init().catch(_e => setStatus("TTS Init Failed"));
+        // Pre-init Supertonic (gracefully handle failures)
+        SupertonicService.getInstance().init().catch(e => {
+            console.error("TTS Init Error:", e);
+            setStatus("TTS Unavailable");
+        });
     }, []);
 
     const handleTTS = async () => {
         if (!audioContext) return;
+        
+        const service = SupertonicService.getInstance();
+        if (!service.isServiceReady()) {
+            setStatus("TTS models not loaded");
+            return;
+        }
+
         setIsGenerating(true);
         setStatus("Generating...");
         try {
-            const service = SupertonicService.getInstance();
             const rawData = await service.generate(ttsText);
 
             // Create Audio Buffer
@@ -40,8 +49,8 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange: _o
             onLoadSample(params.sampleName, buffer);
             setStatus("TTS Loaded");
         } catch (e) {
-            console.error(e);
-            setStatus("Gen Error");
+            console.error("TTS Generation Error:", e);
+            setStatus(e instanceof Error ? e.message : "Gen Error");
         } finally {
             setIsGenerating(false);
         }
