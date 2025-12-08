@@ -1,4 +1,3 @@
-// hooks/useWebGPUScope.ts
 import { useEffect, useRef } from 'react';
 import type { SynthParams } from '../types';
 import { noteToFrequency } from '../constants';
@@ -6,7 +5,7 @@ import { noteToFrequency } from '../constants';
 // ---------------------------------------------------------
 // 1. WGSL Shader Code
 // ---------------------------------------------------------
-const COMPUTE_SHADER_CODE = `
+const SHADER_CODE = `
 struct Params {
   waveform: u32,       // 0: saw, 1: square, 2: tri, 3: sine
   frequency: f32,      // normalized frequency for viz
@@ -48,7 +47,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let t = x * (1.0 + params.frequency * 10.0) + params.time; 
   
   var amplitude: f32 = 0.0;
-  // Note: switch case works with u32 in WGSL
   switch (params.waveform) {
     case 0u: { amplitude = saw(t); }
     case 1u: { amplitude = square(t); }
@@ -97,14 +95,12 @@ struct VertexOutput {
   @location(0) color : vec4<f32>,
 }
 
-@group(0) @binding(2) var<uniform> accentColor: vec4<f32>;
-
 @vertex
 fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
   let point = inputBuffer[vertexIndex];
   var output : VertexOutput;
   output.Position = vec4<f32>(point.position, 0.0, 1.0);
-  output.color = accentColor; 
+  output.color = vec4<f32>(0.2, 1.0, 0.8, 1.0); // Cyan-ish
   return output;
 }
 
@@ -117,18 +113,12 @@ fn fs_main(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
 // ---------------------------------------------------------
 // 2. The Hook
 // ---------------------------------------------------------
-export const useWebGPUScope = (
-  canvasRef: React.RefObject<HTMLCanvasElement>,
-  params: SynthParams,
-  accentColor: 'cyan' | 'pink',
-  initDelay: number = 0
-) => {
+export const useWebGPUScope = (canvasRef: React.RefObject<HTMLCanvasElement>, params: SynthParams, accentColor: 'cyan' | 'pink') => {
   const deviceRef = useRef<GPUDevice | null>(null);
   const pipelineRef = useRef<GPUComputePipeline | null>(null);
   const renderPipelineRef = useRef<GPURenderPipeline | null>(null);
   const uniformBufferRef = useRef<GPUBuffer | null>(null);
   const storageBufferRef = useRef<GPUBuffer | null>(null);
-  const accentColorBufferRef = useRef<GPUBuffer | null>(null);
   const bindGroupRef = useRef<GPUBindGroup | null>(null);
   const animationRef = useRef<number>(0);
   const startTimeRef = useRef<number>(Date.now());
@@ -155,14 +145,13 @@ export const useWebGPUScope = (
       context.configure({ device, format });
 
       // 1. Create Layouts & Pipelines
-      const computeModule = device.createShaderModule({ code: COMPUTE_SHADER_CODE });
+      const computeModule = device.createShaderModule({ code: SHADER_CODE });
       const renderModule = device.createShaderModule({ code: VERTEX_FRAGMENT_SHADER });
 
       const bindGroupLayout = device.createBindGroupLayout({
         entries: [
           { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
           { binding: 1, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX, buffer: { type: 'storage' } },
-          { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
         ],
       });
 
@@ -193,54 +182,36 @@ export const useWebGPUScope = (
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
       });
 
-      // Accent Color Buffer: 16 bytes (vec4)
-      accentColorBufferRef.current = device.createBuffer({
-        size: 16,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-
       // 3. Create Bind Group
       bindGroupRef.current = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
           { binding: 0, resource: { buffer: uniformBufferRef.current } },
           { binding: 1, resource: { buffer: storageBufferRef.current } },
-          { binding: 2, resource: { buffer: accentColorBufferRef.current } },
         ],
       });
     };
 
-    // Use setTimeout to stagger WebGPU initialization between components
-    let isCleanedUp = false;
-    const initTimeoutId = setTimeout(() => {
-      if (isCleanedUp) return;
-      initWebGPU();
-    }, initDelay);
+    initWebGPU();
 
     return () => {
-      // cleanup
-      isCleanedUp = true;
-      clearTimeout(initTimeoutId);
+      // cleanup if needed
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [initDelay]);
+  }, []);
 
   // ---------------------------------------------------------
   // 3. Render Loop & Param Update
   // ---------------------------------------------------------
   useEffect(() => {
-    if (!deviceRef.current || !uniformBufferRef.current || !accentColorBufferRef.current || !bindGroupRef.current || !pipelineRef.current || !renderPipelineRef.current || !canvasRef.current) return;
+    if (!deviceRef.current || !uniformBufferRef.current || !bindGroupRef.current || !pipelineRef.current || !renderPipelineRef.current || !canvasRef.current) return;
 
     const device = deviceRef.current;
     const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext;
 
     // Map Waveform string to int
-    // Handle other waveform types by defaulting to basic ones
-    let waveIndex = 0;
-    if (params.waveform.includes('saw')) waveIndex = 0;
-    else if (params.waveform.includes('squ') || params.waveform.includes('sqr')) waveIndex = 1;
-    else if (params.waveform.includes('tri')) waveIndex = 2;
-    else if (params.waveform.includes('sin')) waveIndex = 3;
+    const waveMap: Record<string, number> = { 'sawtooth': 0, 'square': 1, 'triangle': 2, 'sine': 3 };
+    const waveIndex = waveMap[params.waveform] ?? 0;
 
     // Normalize frequency purely for visualization scale
     const freq = noteToFrequency('C4') / 1000.0;
@@ -261,12 +232,6 @@ export const useWebGPUScope = (
     // Cast to uint32 for the first slot
     const uintView = new Uint32Array(paramData.buffer);
     uintView[0] = waveIndex;
-
-    // UPDATE ACCENT COLOR
-    const colorData = accentColor === 'cyan'
-      ? new Float32Array([0.2, 0.9, 1.0, 1.0])
-      : new Float32Array([1.0, 0.2, 0.8, 1.0]);
-    device.queue.writeBuffer(accentColorBufferRef.current!, 0, colorData);
 
     const renderFrame = () => {
       const time = (Date.now() - startTimeRef.current) / 1000.0;

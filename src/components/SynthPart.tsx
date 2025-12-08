@@ -4,6 +4,8 @@ import type { SynthParams } from '../types';
 import { Knob } from './Knob';
 import { WaveformSelector } from './WaveformSelector';
 
+import { Oscilloscope } from './Oscilloscope';
+
 interface SynthPartProps {
   title: string;
   accentColor: 'cyan' | 'pink';
@@ -33,16 +35,17 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
         <button
           onClick={isFrozen ? onUnfreeze : onMixdown}
           disabled={isRendering}
-          className={`px-3 py-1 text-xs font-bold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${accentClasses[accentColor].ring} ${
-            isRendering ? 'bg-gray-600 text-gray-400 cursor-wait' :
-            isFrozen ? 'bg-yellow-500 hover:bg-yellow-600 text-gray-900' :
-            'bg-indigo-500 hover:bg-indigo-600 text-white'
-          }`}
+          className={`px-3 py-1 text-xs font-bold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${accentClasses[accentColor].ring} ${isRendering ? 'bg-gray-600 text-gray-400 cursor-wait' :
+              isFrozen ? 'bg-yellow-500 hover:bg-yellow-600 text-gray-900' :
+                'bg-indigo-500 hover:bg-indigo-600 text-white'
+            }`}
         >
           {isRendering ? 'Rendering...' : isFrozen ? 'Unfreeze' : 'Mixdown'}
         </button>
       </div>
-      
+
+      <Oscilloscope params={params} accentColor={accentColor} />
+
       <div className={`relative transition-opacity duration-300 ${isDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           <div className="space-y-2">
@@ -74,7 +77,7 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
       </div>
       {isFrozen && (
         <div className="absolute inset-0 bg-black/30 rounded-lg flex items-center justify-center">
-            <span className="font-orbitron text-2xl font-bold text-yellow-400 transform -rotate-12">FROZEN</span>
+          <span className="font-orbitron text-2xl font-bold text-yellow-400 transform -rotate-12">FROZEN</span>
         </div>
       )}
     </div>
