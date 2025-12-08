@@ -101,13 +101,13 @@ export class SupertonicService {
         try {
             console.log("Supertonic: Loading Config...");
             // Assuming files are served from /assets/onnx in public folder
-            const cfgRes = await fetch(`./assets/onnx/onnx/tts.json`);
+            const cfgRes = await fetch(`./assets/onnx/tts.json`);
             if (!cfgRes.ok) {
                 throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}. Please ensure assets are in public/assets/onnx/`);
             }
             this.cfgs = await cfgRes.json();
 
-            const idxRes = await fetch(`./assets/onnx/onnx/unicode_indexer.json`);
+            const idxRes = await fetch(`./assets/onnx/unicode_indexer.json`);
             if (!idxRes.ok) {
                 throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
             }
@@ -117,16 +117,16 @@ export class SupertonicService {
             console.log("Supertonic: Loading Models...");
             const opts: ort.InferenceSession.SessionOptions = { executionProviders: ['wasm'] };
 
-            this.models.dp = await ort.InferenceSession.create(`./assets/onnx/onnx/duration_predictor.onnx`, opts);
-            this.models.textEnc = await ort.InferenceSession.create(`./assets/onnx/onnx/text_encoder.onnx`, opts);
-            this.models.vecEst = await ort.InferenceSession.create(`./assets/onnx/onnx/vector_estimator.onnx`, opts);
-            this.models.vocoder = await ort.InferenceSession.create(`./assets/onnx/onnx/vocoder.onnx`, opts);
+            this.models.dp = await ort.InferenceSession.create(`./assets/onnx/duration_predictor.onnx`, opts);
+            this.models.textEnc = await ort.InferenceSession.create(`./assets/onnx/text_encoder.onnx`, opts);
+            this.models.vecEst = await ort.InferenceSession.create(`./assets/onnx/vector_estimator.onnx`, opts);
+            this.models.vocoder = await ort.InferenceSession.create(`./assets/onnx/vocoder.onnx`, opts);
 
             // Load Default Style (M1 default if available, or placeholder)
             // We need to make sure this file exists.
             // For now, let's assume M1.json is there.
             try {
-                await this.loadStyle(`./assets/voice_styles/M1.json`);
+                await this.loadStyle(`./assets/onnx/voice_styles/M1.json`);
             } catch (e) {
                 console.warn("Could not load default style M1.json, please load manually.", e);
             }
