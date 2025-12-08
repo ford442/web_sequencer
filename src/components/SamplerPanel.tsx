@@ -7,9 +7,11 @@ interface SamplerPanelProps {
     onChange: (updates: Partial<SamplerParams>) => void;
     onLoadSample: (name: string, buffer: AudioBuffer) => void;
     audioContext: AudioContext;
+    onOpenEditor?: () => void;
 }
 
-export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, onLoadSample, audioContext }) => {
+export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange: _onChange, onLoadSample, audioContext, onOpenEditor }) => {
+    // ... items ...
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [ttsText, setTtsText] = useState("Hello World");
@@ -20,7 +22,7 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
 
     useEffect(() => {
         // Pre-init Supertonic
-        SupertonicService.getInstance().init().catch(e => setStatus("TTS Init Failed"));
+        SupertonicService.getInstance().init().catch(_e => setStatus("TTS Init Failed"));
     }, []);
 
     const handleTTS = async () => {
@@ -126,7 +128,17 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
 
             {/* ROW 2: TTS Generator */}
             <div className="flex flex-col gap-2 border-t border-gray-700 pt-2">
-                <label className="text-purple-400 font-bold">SUPERTONIC TTS</label>
+                <div className="flex justify-between">
+                    <label className="text-purple-400 font-bold">SUPERTONIC TTS</label>
+                    {onOpenEditor && (
+                        <button
+                            onClick={onOpenEditor}
+                            className="text-[10px] text-purple-300 underline hover:text-white"
+                        >
+                            EDIT VOICE
+                        </button>
+                    )}
+                </div>
                 <div className="flex gap-2">
                     <input
                         type="text"
