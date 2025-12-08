@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import type { SamplerParams } from '../types';
+import { SupertonicService } from '../services/Supertonic';
 
 interface SamplerPanelProps {
     params: SamplerParams;
@@ -11,9 +12,38 @@ interface SamplerPanelProps {
 export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, onLoadSample, audioContext }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
+    const [ttsText, setTtsText] = useState("Hello World");
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [status, setStatus] = useState<string>('');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
-    const [status, setStatus] = useState<string>('');
+
+    useEffect(() => {
+        // Pre-init Supertonic
+        SupertonicService.getInstance().init().catch(e => setStatus("TTS Init Failed"));
+    }, []);
+
+    const handleTTS = async () => {
+        if (!audioContext) return;
+        setIsGenerating(true);
+        setStatus("Generating...");
+        try {
+            const service = SupertonicService.getInstance();
+            const rawData = await service.generate(ttsText);
+
+            // Create Audio Buffer
+            const buffer = audioContext.createBuffer(1, rawData.length, 44100); // Model is 44.1k
+            buffer.getChannelData(0).set(rawData);
+
+            onLoadSample(params.sampleName, buffer);
+            setStatus("TTS Loaded");
+        } catch (e) {
+            console.error(e);
+            setStatus("Gen Error");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -56,9 +86,9 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                         onLoadSample(params.sampleName, audioBuffer);
                         setStatus('Recorded Sample Loaded');
-                    } catch(e) {
-                         console.error(e);
-                         setStatus('Decode Error');
+                    } catch (e) {
+                        console.error(e);
+                        setStatus('Decode Error');
                     }
                     // Stop all tracks
                     stream.getTracks().forEach(track => track.stop());
@@ -75,63 +105,45 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
     };
 
     return (
-        <div className="flex flex-col gap-4 p-4 text-xs font-mono text-gray-400">
-             <div className="flex items-center gap-4">
-                 <div className="flex flex-col gap-1">
-                     <label className="text-cyan-500 font-bold">LOAD SAMPLE</label>
-                     <input
-                        type="file"
-                        accept="audio/*"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                     />
-                     <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="px-3 py-2 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 active:bg-gray-600 transition-colors"
-                     >
-                         CHOOSE FILE
-                     </button>
-                 </div>
+        <div className="flex flex-col gap-4 p-4 text-xs font-mono text-gray-400 h-full">
+            {/* ROW 1: Load / Record */}
+            <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-1">
+                    <label className="text-cyan-500 font-bold">FILE</label>
+                    <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                    <button onClick={() => fileInputRef.current?.click()} className="px-2 py-1 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700">LOAD</button>
+                </div>
 
-                 <div className="flex flex-col gap-1">
-                     <label className="text-red-500 font-bold">RECORD MIC</label>
-                     <button
-                        onClick={toggleRecording}
-                        className={`px-3 py-2 border rounded transition-all ${
-                            isRecording
-                            ? 'bg-red-900 text-red-200 border-red-500 animate-pulse'
-                            : 'bg-gray-800 border-gray-600 hover:bg-gray-700'
-                        }`}
-                     >
-                         {isRecording ? 'STOP REC' : 'START REC'}
-                     </button>
-                 </div>
+                <div className="flex flex-col gap-1">
+                    <label className="text-red-500 font-bold">MIC</label>
+                    <button onClick={toggleRecording} className={`px-2 py-1 border rounded ${isRecording ? 'bg-red-900 border-red-500 animate-pulse' : 'bg-gray-800 border-gray-600'}`}>
+                        {isRecording ? 'STOP' : 'REC'}
+                    </button>
+                </div>
 
-                 <div className="ml-4 text-white italic">{status}</div>
-             </div>
+                <div className="flex-1 text-right text-white italic">{status}</div>
+            </div>
 
-             <div className="flex gap-8 mt-2">
-                 <div className="flex flex-col items-center gap-2">
-                     <label>VOLUME</label>
-                     <input
-                        type="range" min="0" max="1" step="0.01"
-                        value={params.volume}
-                        onChange={(e) => onChange({ volume: parseFloat(e.target.value) })}
-                        className="w-24 accent-cyan-500 h-1 bg-gray-700 rounded appearance-none"
-                     />
-                 </div>
-                 <div className="flex flex-col items-center gap-2">
-                     <label>SPEED</label>
-                     <input
-                        type="range" min="0.1" max="4.0" step="0.1"
-                        value={params.playbackSpeed}
-                        onChange={(e) => onChange({ playbackSpeed: parseFloat(e.target.value) })}
-                        className="w-24 accent-purple-500 h-1 bg-gray-700 rounded appearance-none"
-                     />
-                     <span>{params.playbackSpeed.toFixed(1)}x</span>
-                 </div>
-             </div>
+            {/* ROW 2: TTS Generator */}
+            <div className="flex flex-col gap-2 border-t border-gray-700 pt-2">
+                <label className="text-purple-400 font-bold">SUPERTONIC TTS</label>
+                <div className="flex gap-2">
+                    <input
+                        type="text"
+                        value={ttsText}
+                        onChange={(e) => setTtsText(e.target.value)}
+                        className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white focus:border-purple-500 outline-none"
+                        placeholder="Type phrase..."
+                    />
+                    <button
+                        onClick={handleTTS}
+                        disabled={isGenerating}
+                        className="px-3 py-1 bg-purple-900 border border-purple-500 text-purple-200 rounded hover:bg-purple-800 disabled:opacity-50"
+                    >
+                        {isGenerating ? '...' : 'GEN'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
