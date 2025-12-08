@@ -41,7 +41,15 @@ export const DEFAULT_SNARE_PARAMS: SnareParams = { decay: 0.2, tone: 150, noise:
 export const DEFAULT_CLOSED_HAT_PARAMS: HatParams = { pitch: 9000, decay: 0.05, volume: 0.4 };
 
 export const DEFAULT_OPEN_HAT_PARAMS: HatParams = { pitch: 7000, decay: 0.4, volume: 0.4 };
-export const DEFAULT_SAMPLER_PARAMS: SamplerParams = { sampleName: 'default', playbackSpeed: 1.0, volume: 0.8 };
+export const DEFAULT_SAMPLER_PARAMS: SamplerParams = {
+  sampleName: 'default',
+  playbackSpeed: 1.0,
+  volume: 0.8,
+  filterCutoff: 20000,
+  filterResonance: 0,
+  drive: 0,
+  delaySend: 0
+};
 
 export const INITIAL_PATTERN: Pattern = {
   partA: {
@@ -75,28 +83,28 @@ export const INITIAL_PATTERN: Pattern = {
   kick: {
     steps: [
       // Bar 1
-      { note: 'C2', velocity: 1 }, null, null, null, 
       { note: 'C2', velocity: 1 }, null, null, null,
-      { note: 'C2', velocity: 1 }, null, null, null, 
+      { note: 'C2', velocity: 1 }, null, null, null,
+      { note: 'C2', velocity: 1 }, null, null, null,
       { note: 'C2', velocity: 1 }, null, null, null,
       // Bar 2
-      { note: 'C2', velocity: 1 }, null, null, null, 
       { note: 'C2', velocity: 1 }, null, null, null,
-      { note: 'C2', velocity: 1 }, null, null, null, 
+      { note: 'C2', velocity: 1 }, null, null, null,
+      { note: 'C2', velocity: 1 }, null, null, null,
       { note: 'C2', velocity: 1 }, null, null, null,
     ]
   },
   snare: {
     steps: [
       // Bar 1
-      null, null, null, null, 
+      null, null, null, null,
       { note: 'C2', velocity: 1 }, null, null, null,
-      null, null, null, null, 
+      null, null, null, null,
       { note: 'C2', velocity: 1 }, null, null, null,
       // Bar 2 (With ghost note at end)
-      null, null, null, null, 
+      null, null, null, null,
       { note: 'C2', velocity: 1 }, null, null, null,
-      null, null, null, null, 
+      null, null, null, null,
       { note: 'C2', velocity: 1 }, null, { note: 'C2', velocity: 0.6 }, null,
     ]
   },
@@ -134,21 +142,21 @@ export const INITIAL_PATTERN: Pattern = {
 };
 
 export const AMBIANCE_TRACKS: AmbianceTrack[] = [
-    { name: 'None', url: '' },
-    { name: 'Ocean Waves', url: 'https://www.soundjay.com/nature/ocean-wave-1.mp3' },
-    { name: 'Crickets', url: 'https://www.soundjay.com/nature/crickets-1.mp3' },
-    { name: 'Rain', url: 'https://www.soundjay.com/nature/rain-01.mp3' },
-    { name: 'Forest', url: 'https://www.soundjay.com/nature/forest-1.mp3' },
+  { name: 'None', url: '' },
+  { name: 'Ocean Waves', url: 'https://www.soundjay.com/nature/ocean-wave-1.mp3' },
+  { name: 'Crickets', url: 'https://www.soundjay.com/nature/crickets-1.mp3' },
+  { name: 'Rain', url: 'https://www.soundjay.com/nature/rain-01.mp3' },
+  { name: 'Forest', url: 'https://www.soundjay.com/nature/forest-1.mp3' },
 ];
 
 // Note to Frequency mapping
 const noteFrequencies: { [key: string]: number } = {
-    'C2': 65.41, 'C#2': 69.30, 'D2': 73.42, 'D#2': 77.78, 'E2': 82.41, 'F2': 87.31, 'F#2': 92.50, 'G2': 98.00, 'G#2': 103.83, 'A2': 110.00, 'A#2': 116.54, 'B2': 123.47,
-    'C3': 130.81, 'C#3': 138.59, 'D3': 146.83, 'D#3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'G3': 196.00, 'G#3': 207.65, 'A3': 220.00, 'A#3': 233.08, 'B3': 246.94,
-    'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'D#4': 311.13, 'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'G#4': 415.30, 'A4': 440.00, 'A#4': 466.16, 'B4': 493.88,
-    'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'D#5': 622.25, 'E5': 659.25, 'F5': 698.46, 'F#5': 739.99, 'G5': 783.99, 'G#5': 830.61, 'A5': 880.00, 'A#5': 932.33, 'B5': 987.77,
+  'C2': 65.41, 'C#2': 69.30, 'D2': 73.42, 'D#2': 77.78, 'E2': 82.41, 'F2': 87.31, 'F#2': 92.50, 'G2': 98.00, 'G#2': 103.83, 'A2': 110.00, 'A#2': 116.54, 'B2': 123.47,
+  'C3': 130.81, 'C#3': 138.59, 'D3': 146.83, 'D#3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'G3': 196.00, 'G#3': 207.65, 'A3': 220.00, 'A#3': 233.08, 'B3': 246.94,
+  'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'D#4': 311.13, 'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'G#4': 415.30, 'A4': 440.00, 'A#4': 466.16, 'B4': 493.88,
+  'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'D#5': 622.25, 'E5': 659.25, 'F5': 698.46, 'F#5': 739.99, 'G5': 783.99, 'G#5': 830.61, 'A5': 880.00, 'A#5': 932.33, 'B5': 987.77,
 };
 
 export const noteToFrequency = (note: string): number => {
-    return noteFrequencies[note] || 440.00; // Default to A4 if not found
+  return noteFrequencies[note] || 440.00; // Default to A4 if not found
 };

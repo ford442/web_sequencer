@@ -48,13 +48,17 @@ export interface SamplerParams {
   sampleName: string; // The key used in Python SAMPLES dict
   playbackSpeed: number; // 1.0 = normal
   volume: number;
+  filterCutoff: number; // Hz
+  filterResonance: number; // Q factor
+  drive: number; // 0-1 (Distortion amount)
+  delaySend: number; // 0-1 (Amount sent to delay bus)
 }
 
 export interface AllDrumParams {
-    kick: KickParams;
-    snare: SnareParams;
-    closedHat: HatParams;
-    openHat: HatParams;
+  kick: KickParams;
+  snare: SnareParams;
+  closedHat: HatParams;
+  openHat: HatParams;
 }
 
 export interface Note {
