@@ -4,9 +4,6 @@ import * as ort from 'onnxruntime-web';
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.proxy = false;
 
-// Vite serves public/ directory from root, so paths should be absolute
-const MODELS_PATH = '/assets/onnx';
-
 interface StyleData {
     style_ttl: { data: number[], dims: number[] };
     style_dp: { data: number[], dims: number[] };
