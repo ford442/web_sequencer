@@ -104,16 +104,16 @@ export class VoiceDesigner {
         } else {
             console.warn(`WebGPU not ready, running ${opName} on CPU fallback.`);
             // Fallback map
-            const map: Record<string, (params: Record<string, number>) => void> = {
-                'sharpen': this._cpu_sharpen,
-                'quantize': this._cpu_quantize,
-                'echo': this._cpu_echo,
-                'tremolo': this._cpu_tremolo,
-                'jitter': this._cpu_jitter,
-                'multiply': this._cpu_multiply,
-                'add': this._cpu_add
+            const map: Record<string, (params?: Record<string, number>) => void> = {
+                'sharpen': () => this._cpu_sharpen(params),
+                'quantize': () => this._cpu_quantize(params),
+                'echo': () => this._cpu_echo(),
+                'tremolo': () => this._cpu_tremolo(),
+                'jitter': () => this._cpu_jitter(),
+                'multiply': () => this._cpu_multiply(params),
+                'add': () => this._cpu_add(params)
             };
-            if (map[opName]) map[opName].call(this, params);
+            if (map[opName]) map[opName]();
         }
         this.renderHeatmap();
     }
@@ -182,25 +182,26 @@ export class VoiceDesigner {
     _cpu_add(params: Record<string, number>) { if (this.currentTtl) for (let i = 0; i < this.currentTtl.length; i++) this.currentTtl[i] += params.factor; }
     _cpu_multiply(params: Record<string, number>) { if (this.currentTtl) for (let i = 0; i < this.currentTtl.length; i++) this.currentTtl[i] *= params.factor; }
 
-    _cpu_sharpen() {
+    _cpu_sharpen(params: Record<string, number>) {
         if (!this.currentTtl) return;
         const rows = this.ttlDims[1];
         const cols = this.ttlDims[2];
+        const factor = params.factor || 1.5;
         const newData = new Float32Array(this.currentTtl);
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const prev = (c > 0) ? this.currentTtl[r * cols + c - 1] : this.currentTtl[r * cols + c];
                 const next = (c < cols - 1) ? this.currentTtl[r * cols + c + 1] : this.currentTtl[r * cols + c];
                 const grad = (next - prev) / 2.0;
-                newData[r * cols + c] += grad * 1.5;
+                newData[r * cols + c] += grad * factor;
             }
         }
         this.currentTtl = newData;
     }
 
-    _cpu_quantize() {
+    _cpu_quantize(params: Record<string, number>) {
         if (!this.currentTtl) return;
-        const factor = 5.0;
+        const factor = params.factor || 5.0;
         for (let i = 0; i < this.currentTtl.length; i++) {
             this.currentTtl[i] = Math.round(this.currentTtl[i] * factor) / factor;
         }

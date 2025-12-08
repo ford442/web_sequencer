@@ -163,8 +163,12 @@ export class SupertonicService {
     }
 
     async generate(text: string, steps: number = 5, speed: number = 1.0): Promise<Float32Array> {
-        if (!this.isReady || !this.currentStyle || !this.textProcessor) {
+        if (!this.isReady || !this.currentStyle || !this.textProcessor || !this.cfgs) {
             throw new Error("Supertonic service not ready. Models may not be loaded. Please ensure assets exist in public/assets/onnx/");
+        }
+
+        if (!this.models.dp || !this.models.textEnc || !this.models.vecEst || !this.models.vocoder) {
+            throw new Error("One or more ONNX models not loaded");
         }
 
         // 1. Process Text
@@ -202,7 +206,7 @@ export class SupertonicService {
         const noise = new Float32Array(totalSize);
         for (let i = 0; i < totalSize; i++) noise[i] = (Math.random() * 2 - 1); // Simple noise
 
-        let xtTensor = new ort.Tensor('float32', noise, [bsz, latentDim, latentLen]);
+        let xtTensor: ort.Tensor = new ort.Tensor('float32', noise, [bsz, latentDim, latentLen]);
 
         // Masks
         const latentMaskVals = new Float32Array(bsz * 1 * latentLen).fill(1.0); // Simplified mask
@@ -222,16 +226,8 @@ export class SupertonicService {
                 current_step: currentStepTensor,
                 total_step: totalStepTensor
             });
-            // Update xtTensor with denoised output for next iteration if loop requires it?
-            // Wait, standard diffusion goes xt -> xt-1. 
-            // In helper.js: 
-            // const vectorEstOutputs = await this.vectorEstOrt.run({...})
-            // const denoised = ...
-            // ... xt (updated) = ...
-            // The logic implies iterative refinement. 
-            // The user's snippet: `xtTensor = vecOut.denoised_latent;`
-            // This assumes `denoised_latent` IS the input for the next step.
-            xtTensor = vecOut.denoised_latent;
+            // Update xtTensor with denoised output for next iteration
+            xtTensor = vecOut.denoised_latent as ort.Tensor;
         }
 
         // 6. Vocoder
