@@ -93,7 +93,7 @@ export class VoiceDesigner {
     }
 
     // --- Helper for GPU Execution ---
-    async _runGpuOp(opName: string, params: any = {}) {
+    async _runGpuOp(opName: string, params: Record<string, number> = {}) {
         if (this.gpu.ready && this.currentTtl) {
             console.time(`GPU ${opName}`);
             const result = await this.gpu.runOp(opName, this.currentTtl, this.ttlDims, params);
@@ -104,7 +104,7 @@ export class VoiceDesigner {
         } else {
             console.warn(`WebGPU not ready, running ${opName} on CPU fallback.`);
             // Fallback map
-            const map: Record<string, (params: any) => void> = {
+            const map: Record<string, (params: Record<string, number>) => void> = {
                 'sharpen': this._cpu_sharpen,
                 'quantize': this._cpu_quantize,
                 'echo': this._cpu_echo,
@@ -179,8 +179,8 @@ export class VoiceDesigner {
     }
 
     // --- CPU Fallbacks ---
-    _cpu_add(params: any) { if (this.currentTtl) for (let i = 0; i < this.currentTtl.length; i++) this.currentTtl[i] += params.factor; }
-    _cpu_multiply(params: any) { if (this.currentTtl) for (let i = 0; i < this.currentTtl.length; i++) this.currentTtl[i] *= params.factor; }
+    _cpu_add(params: Record<string, number>) { if (this.currentTtl) for (let i = 0; i < this.currentTtl.length; i++) this.currentTtl[i] += params.factor; }
+    _cpu_multiply(params: Record<string, number>) { if (this.currentTtl) for (let i = 0; i < this.currentTtl.length; i++) this.currentTtl[i] *= params.factor; }
 
     _cpu_sharpen() {
         if (!this.currentTtl) return;
