@@ -1,23 +1,22 @@
 import React, { useRef, useEffect } from 'react';
 
-// --- Types ---
 export interface KnobConfig {
     id: string;
     label: string;
-    x: number; // 0.0 to 1.0 (UV coordinate)
-    y: number; // 0.0 to 1.0
-    size: number; // radius relative to canvas width
-    value: number; // current value 0.0 to 1.0
-    isRecording?: boolean; // Whether this knob is in record mode
+    x: number;
+    y: number;
+    size: number;
+    value: number;
+    isRecording?: boolean;
 }
 
 interface HardwareModuleProps {
     title: string;
-    colorHex: [number, number, number]; // e.g. [0.0, 0.8, 1.0] for Cyan
+    colorHex: [number, number, number];
     controls: KnobConfig[];
     onParamChange: (id: string, value: number) => void;
-    onRecordToggle?: (id: string) => void; // Callback when record button is clicked
-    children?: React.ReactNode; // <-- allow overlaying custom React UI (e.g., WaveformSelector)
+    onRecordToggle?: (id: string) => void;
+    children?: React.ReactNode;
 }
 
 export const HardwareModule = React.memo(
@@ -31,33 +30,27 @@ export const HardwareModule = React.memo(
     }: HardwareModuleProps) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
-
-        // Refs to store mutable data for the render loop / event handlers
         const controlsRef = useRef(controls);
         const activeKnobIndex = useRef<number | null>(null);
         const startY = useRef(0);
         const startVal = useRef(0);
 
-        // Sync latest props to ref
         useEffect(() => { controlsRef.current = controls; }, [controls]);
 
-        // --- INTERACTION LOGIC ---
+        // --- INTERACTION LOGIC (Mouse) ---
         useEffect(() => {
             const canvas = canvasRef.current;
             if (!canvas) return;
 
             const handleMouseDown = (e: MouseEvent) => {
                 const rect = canvas.getBoundingClientRect();
-                // Normalize mouse to 0..1 UV space
                 const mouseX = (e.clientX - rect.left) / rect.width;
                 const mouseY = (e.clientY - rect.top) / rect.height;
 
-                // Simple Hit Test based on distance to knob center
                 const hitIndex = controlsRef.current.findIndex(k => {
                     const dx = k.x - mouseX;
                     const dy = k.y - mouseY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    return dist < (k.size * 1.2); // 1.2x tolerance for easier grabbing
+                    return Math.sqrt(dx * dx + dy * dy) < (k.size * 1.2);
                 });
 
                 if (hitIndex !== -1) {
@@ -71,14 +64,10 @@ export const HardwareModule = React.memo(
 
             const handleMouseMove = (e: MouseEvent) => {
                 if (activeKnobIndex.current === null) return;
-
                 const dy = startY.current - e.clientY;
-                const sensitivity = 0.005; // Adjust sensitivity
-                let newVal = startVal.current + (dy * sensitivity);
+                let newVal = startVal.current + (dy * 0.005);
                 newVal = Math.max(0, Math.min(1, newVal));
-
-                const activeId = controlsRef.current[activeKnobIndex.current].id;
-                onParamChange(activeId, newVal);
+                onParamChange(controlsRef.current[activeKnobIndex.current].id, newVal);
             };
 
             const handleMouseUp = () => {
@@ -102,12 +91,12 @@ export const HardwareModule = React.memo(
             const canvas = canvasRef.current;
             if (!canvas || !navigator.gpu) return;
 
-            let context: GPUCanvasContext | null = null;
-            let device: GPUDevice | null = null;
-            let pipeline: GPURenderPipeline | null = null;
-            let uniformBuffer: GPUBuffer | null = null;
+            let context: GPUCanvasContext;
+            let device: GPUDevice;
+            let pipeline: GPURenderPipeline;
+            let uniformBuffer: GPUBuffer;
             let animationId: number;
-            let isUnmounted = false; // Flag to prevent async race conditions
+            let isActive = true;
 
             const init = async () => {
                 try {
@@ -115,26 +104,26 @@ export const HardwareModule = React.memo(
                     if (!adapter) return;
 
                     const newDevice = await adapter.requestDevice();
-                    if (isUnmounted) {
+                    // If component unmounted while waiting for device, destroy it immediately
+                    if (!isActive) {
                         newDevice.destroy();
                         return;
                     }
                     device = newDevice;
 
                     context = canvas.getContext('webgpu') as GPUCanvasContext;
-                    const format = navigator.gpu.getPreferredCanvasFormat();
-                    context.configure({ device, format, alphaMode: 'premultiplied' });
+                    context.configure({
+                        device,
+                        format: navigator.gpu.getPreferredCanvasFormat(),
+                        alphaMode: 'premultiplied'
+                    });
 
+                    // Shader logic (Same as before)
                     const shaderCode = `
                     struct Uniforms {
-                        time: f32,
-                        ratio: f32,
-                        pad1: f32,
-                        pad2: f32,
-                        color: vec3f,
-                        pad3: f32,
-                        vals1: vec4f,
-                        vals2: vec4f,
+                        time: f32, ratio: f32, pad1: f32, pad2: f32,
+                        color: vec3f, pad3: f32,
+                        vals1: vec4f, vals2: vec4f,
                         pos0: vec4f, pos1: vec4f, pos2: vec4f, pos3: vec4f,
                         pos4: vec4f, pos5: vec4f, pos6: vec4f, pos7: vec4f,
                     };
@@ -163,16 +152,12 @@ export const HardwareModule = React.memo(
                     fn fs_main(in: VertexOutput) -> @location(0) vec4f {
                         var uv = in.uv * 0.5 + 0.5; 
                         uv.y = 1.0 - uv.y;
-                        var p = uv;
-                        p.x = p.x * u.ratio;
+                        var p = uv; p.x = p.x * u.ratio;
 
                         var col = vec3f(0.12, 0.14, 0.16);
-                        let noise = fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453);
-                        col += (noise * 0.03);
+                        col += (fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453) * 0.03);
                         col *= 0.9 + 0.1 * sin(uv.y * 200.0);
 
-                        var alpha = 1.0;
-                        
                         for (var i = 0; i < 8; i++) {
                             var k_pos_uv: vec4f;
                             if(i==0){k_pos_uv=u.pos0;} else if(i==1){k_pos_uv=u.pos1;}
@@ -182,42 +167,32 @@ export const HardwareModule = React.memo(
 
                             if (k_pos_uv.z == 0.0) { continue; }
 
-                            let center_uv = k_pos_uv.xy;
-                            let center_draw = vec2f(center_uv.x * u.ratio, center_uv.y);
+                            let center_draw = vec2f(k_pos_uv.x * u.ratio, k_pos_uv.y);
                             let dist = length(p - center_draw);
                             let radius = k_pos_uv.z;
                             let val = get_knob_val(i);
 
                             if (dist < radius) {
-                                let bezel = smoothstep(radius, radius - 0.01, dist);
-                                col = mix(col, vec3f(0.05, 0.05, 0.05), bezel);
-                                
-                                let ring_w = 0.015;
-                                let ring_r = radius * 0.75;
-                                let ring_dist = abs(dist - ring_r);
-                                
-                                if (ring_dist < ring_w) {
-                                    col = mix(col, u.color, smoothstep(ring_w, 0.0, ring_dist));
+                                col = mix(col, vec3f(0.05), smoothstep(radius, radius - 0.01, dist));
+                                let ring_dist = abs(dist - (radius * 0.75));
+                                if (ring_dist < 0.015) {
+                                    col = mix(col, u.color, smoothstep(0.015, 0.0, ring_dist));
                                 }
-                                
                                 if (dist < radius * 0.5) {
-                                    let cap = smoothstep(radius*0.5, radius*0.5 - 0.01, dist);
                                     let shine = dot(normalize(p - center_draw), vec2f(0.5, -0.5));
-                                    col = mix(col, vec3f(0.2) + shine*0.1, cap);
+                                    col = mix(col, vec3f(0.2) + shine*0.1, smoothstep(radius*0.5, radius*0.5 - 0.01, dist));
                                     
-                                    let needle_angle = mix(-2.4, 2.4, val) - 1.5708;
-                                    let needle_dir = vec2f(cos(needle_angle), sin(needle_angle));
+                                    let ang = mix(-2.4, 2.4, val) - 1.5708;
+                                    let dir = vec2f(cos(ang), sin(ang));
                                     let delta = p - center_draw;
-                                    let proj = dot(delta, needle_dir);
-                                    let perp = length(delta - needle_dir * proj);
-                                    
-                                    if (proj > 0.0 && proj < radius*0.45 && perp < 0.005) {
-                                         col = mix(col, vec3f(1.0), 0.9);
+                                    let proj = dot(delta, dir);
+                                    if (proj > 0.0 && proj < radius*0.45 && length(delta - dir * proj) < 0.005) {
+                                         col = vec3f(1.0);
                                     }
                                 }
                             }
                         }
-                        return vec4f(col, alpha);
+                        return vec4f(col, 1.0);
                     }
                 `;
 
@@ -225,57 +200,37 @@ export const HardwareModule = React.memo(
                     pipeline = device.createRenderPipeline({
                         layout: 'auto',
                         vertex: { module, entryPoint: 'vs_main' },
-                        fragment: { module, entryPoint: 'fs_main', targets: [{ format }] },
+                        fragment: { module, entryPoint: 'fs_main', targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }] },
                         primitive: { topology: 'triangle-list' }
                     });
 
-                    uniformBuffer = device.createBuffer({
-                        size: 256,
-                        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-                    });
-
-                    render(); // Start loop
-                } catch (e) {
-                    console.error("WebGPU UI Init Failed:", e);
-                }
+                    uniformBuffer = device.createBuffer({ size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+                    render();
+                } catch (e) { console.error("WebGPU Init Failed", e); }
             };
 
             const render = () => {
-                if (!device || !context || !pipeline || !uniformBuffer) return;
+                if (!isActive || !device || !pipeline) return;
 
-                const now = performance.now() / 1000;
-                const width = canvas.width;
-                const height = canvas.height;
-                const ratio = width / height;
-
-                const currentControls = controlsRef.current;
                 const vals = new Float32Array(8);
-                currentControls.forEach((c, i) => { if (i < 8) vals[i] = c.value; });
-
                 const positions = new Float32Array(32);
-                currentControls.forEach((c, i) => {
+                controlsRef.current.forEach((c, i) => {
                     if (i < 8) {
-                        const offset = i * 4;
-                        positions[offset] = c.x;
-                        positions[offset + 1] = c.y;
-                        positions[offset + 2] = c.size;
-                        positions[offset + 3] = 0;
+                        vals[i] = c.value;
+                        const o = i * 4;
+                        positions[o] = c.x; positions[o + 1] = c.y; positions[o + 2] = c.size;
                     }
                 });
 
-                device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([now, ratio, 0, 0]));
-                device.queue.writeBuffer(uniformBuffer, 16, new Float32Array([colorHex[0], colorHex[1], colorHex[2], 0]));
+                const width = canvas.width, height = canvas.height;
+                device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([performance.now() / 1000, width / height, 0, 0]));
+                device.queue.writeBuffer(uniformBuffer, 16, new Float32Array([...colorHex, 0]));
                 device.queue.writeBuffer(uniformBuffer, 32, vals);
                 device.queue.writeBuffer(uniformBuffer, 64, positions);
 
                 const encoder = device.createCommandEncoder();
                 const pass = encoder.beginRenderPass({
-                    colorAttachments: [{
-                        view: context.getCurrentTexture().createView(),
-                        loadOp: 'clear',
-                        clearValue: { r: 0, g: 0, b: 0, a: 1 },
-                        storeOp: 'store'
-                    }]
+                    colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: 'clear', clearValue: { r: 0, g: 0, b: 0, a: 1 }, storeOp: 'store' }]
                 });
                 pass.setPipeline(pipeline);
                 pass.setBindGroup(0, device.createBindGroup({
@@ -284,92 +239,38 @@ export const HardwareModule = React.memo(
                 }));
                 pass.draw(3);
                 pass.end();
-
                 device.queue.submit([encoder.finish()]);
+
                 animationId = requestAnimationFrame(render);
             };
 
             init();
 
-            // CLEANUP FUNCTION (Crucial for preventing OOM)
             return () => {
-                isUnmounted = true;
+                isActive = false;
                 if (animationId) cancelAnimationFrame(animationId);
-                if (device) {
-                    device.destroy(); // <--- This prevents the memory leak!
-                }
+                if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
             };
-        }, [colorHex]); // Re-run when module type changes
+        }, [colorHex]);
 
         return (
-            <div
-                ref={containerRef}
-                className="relative rounded-lg shadow-xl overflow-hidden bg-gray-900 border border-gray-700"
-                style={{ width: '100%', height: '100%', minHeight: '220px' }}
-            >
-                <canvas
-                    ref={canvasRef}
-                    width={800}
-                    height={400}
-                    className="w-full h-full block"
-                />
-
+            <div ref={containerRef} className="relative rounded-lg shadow-xl overflow-hidden bg-gray-900 border border-gray-700" style={{ width: '100%', height: '100%', minHeight: '220px' }}>
+                <canvas ref={canvasRef} width={800} height={400} className="w-full h-full block" />
                 <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">
-                        {title.toUpperCase()}
-                    </div>
+                    <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">{title.toUpperCase()}</div>
                     {controls.map((c) => (
-                        <div
-                            key={c.id}
-                            className="absolute text-center transform -translate-x-1/2"
-                            style={{
-                                left: `${c.x * 100}%`,
-                                top: `${(c.y + c.size * 0.8) * 100}%`,
-                                color: `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 0.8)`
-                            }}
-                        >
-                            <span className="text-[10px] font-mono font-bold tracking-wider drop-shadow-md">
-                                {c.label}
-                            </span>
-                            <div className="text-[9px] opacity-60 font-mono">
-                                {c.id.includes('freq') || c.id.includes('cutoff') ? Math.round(c.value * 8000) : Math.round(c.value * 100)}
-                            </div>
+                        <div key={c.id} className="absolute text-center transform -translate-x-1/2" style={{ left: `${c.x * 100}%`, top: `${(c.y + c.size * 0.8) * 100}%`, color: `rgba(${colorHex[0] * 255},${colorHex[1] * 255},${colorHex[2] * 255},0.8)` }}>
+                            <span className="text-[10px] font-mono font-bold tracking-wider drop-shadow-md">{c.label}</span>
+                            <div className="text-[9px] opacity-60 font-mono">{Math.round(c.value * 100)}</div>
                         </div>
                     ))}
                     {onRecordToggle && controls.map((c) => (
-                        <button
-                            key={`rec-${c.id}`}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onRecordToggle(c.id);
-                            }}
-                            className="absolute pointer-events-auto transform -translate-x-1/2 transition-all"
-                            style={{
-                                left: `${c.x * 100}%`,
-                                top: `${(c.y - c.size * 1.3) * 100}%`,
-                                width: '16px',
-                                height: '16px',
-                            }}
-                            title={`${c.isRecording ? 'Stop' : 'Start'} recording ${c.label}`}
-                        >
-                            <div
-                                className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${c.isRecording
-                                        ? 'bg-red-600 text-white shadow-lg shadow-red-500/50 animate-pulse'
-                                        : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'
-                                    }`}
-                            >
-                                R
-                            </div>
+                        <button key={`rec-${c.id}`} onClick={(e) => { e.stopPropagation(); onRecordToggle(c.id); }} className="absolute pointer-events-auto transform -translate-x-1/2" style={{ left: `${c.x * 100}%`, top: `${(c.y - c.size * 1.3) * 100}%`, width: '16px', height: '16px' }} title="Record Automation">
+                            <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${c.isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
                         </button>
                     ))}
                 </div>
-
-                {children && (
-                    <div className="absolute inset-0 pointer-events-none">
-                        {children}
-                    </div>
-                )}
+                {children && <div className="absolute inset-0 pointer-events-none">{children}</div>}
             </div>
         );
-    }
-);
+    });
