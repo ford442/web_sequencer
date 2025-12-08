@@ -990,4 +990,48 @@ export const App: React.FC = () => {
                                     currentStep={currentStep}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
-                                    slotsData={trackStorage[row.key].map(s => s
+                                    slotsData={trackStorage[row.key].map(s => s !== null)}
+                                    onToggle={toggleStep}
+                                    onRightClickStep={handleRightClickStep}
+                                    onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
+                                    onSelectSlot={handleTrackSlotClick}
+                                />
+                            ))}
+                        </g>
+                    </svg>
+                </div>
+
+                {/* --- LIVE KEYBOARD --- */}
+                <div className="shrink-0 pb-4 mt-6 max-w-[1000px] mx-auto w-full">
+                    <div className="border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl bg-gradient-to-b from-[#0d1015] to-[#080a0c]">
+                        <LiveKeyboard
+                            onPlayNote={handleKeyboardPlay}
+                            activeTrackColor={
+                                selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') :
+                                    selectedTrack === 'kick' ? '#f97316' :
+                                        selectedTrack === 'snare' ? '#22c55e' :
+                                            selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
+                            }
+                        />
+                    </div>
+                </div>
+            </main>
+
+            {/* --- HARDWARE MODULE --- */}
+            <div className="h-[320px] bg-gradient-to-b from-[#0d0f12] to-[#0f1215] border-t-2 border-cyan-900/30 relative shadow-[0_-10px_60px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(6,182,212,0.1)] z-30 shrink-0 fixed bottom-0 w-full">
+                {/* Decorative top line */}
+                <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
+
+                <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
+                    <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-gray-700 shadow-[0_0_40px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(0,0,0,0.5)] bg-gradient-to-br from-black to-[#0a0c0f] relative">
+                        {/* Inner decorative frame */}
+                        <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
+                        {renderModulePanel()}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default App
