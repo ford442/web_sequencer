@@ -3,7 +3,7 @@ import * as ort from 'onnxruntime-web';
 // Ensure WASM runs on main thread or correctly configured worker
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.proxy = false;
-ort.env.wasm.wasmPaths = './assets/';
+ort.env.wasm.wasmPaths = './';
 
 interface StyleData {
     style_ttl: { data: number[], dims: number[] };
