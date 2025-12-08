@@ -9,8 +9,8 @@ import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
 
 import { VoiceEditor } from './components/VoiceEditor';
+// Removed unused VoiceDesigner import
 
-import { VoiceDesigner } from './services/VoiceDesigner'; // Ensure service is available if needed, though Editor uses it internally
 import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
 import { exportSongToXM } from './utils/xmExport';
@@ -460,11 +460,6 @@ export const App: React.FC = () => {
         }
     }, [schedPlaying]);
 
-    // Inject logic into onStep (Redefining it here for clarity, will replace previous onStep block in merge)
-    // Actually, I will merge the Ref logic into the `onStep` I wrote above.
-
-    // Let's rewrite the onStep block in the merge below to include the measure advancement.
-
     const handlePlayToggle = async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
         setSchedPlaying(!schedPlaying)
@@ -598,19 +593,8 @@ export const App: React.FC = () => {
     // --- STORAGE LOGIC ---
 
     const handleTrackSlotClick = (track: TrackKey, slotIndex: number) => {
-        // Behavior: If slot is empty or shift held -> Save current. If slot has data -> Load it.
-        // For simplicity: If current active is different, LOAD. If current active is same, SAVE.
-
         const currentTrackPattern = pattern[track];
         const storedPattern = trackStorage[track][slotIndex];
-
-        // Logic: Load if data exists and we aren't already on this slot
-        // Save if we are on this slot (update) or if it's empty
-
-        // Simple behavior for now:
-        // 1. If slot has data -> Load it into current pattern
-        // 2. If slot empty -> Save current pattern there
-        // 3. Right click (context menu) to Force Save? (handled via UI usually, but lets do basic toggle)
 
         if (storedPattern) {
             setPattern(prev => ({ ...prev, [track]: storedPattern }));
@@ -746,6 +730,8 @@ export const App: React.FC = () => {
         if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
         if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
         if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
+
+        // --- UPDATED SAMPLER CONTROLS ---
         const getSamplerControls = (params: SamplerParams): KnobConfig[] => [
             // Top Row: Playback
             { id: 'volume', label: 'LEVEL', x: 0.8, y: 0.25, size: 0.1, value: params.volume },
@@ -758,7 +744,6 @@ export const App: React.FC = () => {
             { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend },
         ];
 
-        // ... inside renderModulePanel
         if (selectedTrack === 'sampler') {
             return (
                 <HardwareModule
@@ -1005,48 +990,4 @@ export const App: React.FC = () => {
                                     currentStep={currentStep}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
-                                    slotsData={trackStorage[row.key].map(s => s !== null)}
-                                    onToggle={toggleStep}
-                                    onRightClickStep={handleRightClickStep}
-                                    onSelectRow={(k) => setSelectedTrack(k as TrackKey)}
-                                    onSelectSlot={handleTrackSlotClick}
-                                />
-                            ))}
-                        </g>
-                    </svg>
-                </div>
-
-                {/* --- LIVE KEYBOARD --- */}
-                <div className="shrink-0 pb-4 mt-6 max-w-[1000px] mx-auto w-full">
-                    <div className="border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl bg-gradient-to-b from-[#0d1015] to-[#080a0c]">
-                        <LiveKeyboard
-                            onPlayNote={handleKeyboardPlay}
-                            activeTrackColor={
-                                selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') :
-                                    selectedTrack === 'kick' ? '#f97316' :
-                                        selectedTrack === 'snare' ? '#22c55e' :
-                                            selectedTrack === 'sampler' ? '#a855f7' : '#eab308'
-                            }
-                        />
-                    </div>
-                </div>
-            </main>
-
-            {/* --- HARDWARE MODULE --- */}
-            <div className="h-[320px] bg-gradient-to-b from-[#0d0f12] to-[#0f1215] border-t-2 border-cyan-900/30 relative shadow-[0_-10px_60px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(6,182,212,0.1)] z-30 shrink-0 fixed bottom-0 w-full">
-                {/* Decorative top line */}
-                <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
-
-                <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
-                    <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-gray-700 shadow-[0_0_40px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(0,0,0,0.5)] bg-gradient-to-br from-black to-[#0a0c0f] relative">
-                        {/* Inner decorative frame */}
-                        <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
-                        {renderModulePanel()}
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
-
-export default App
+                                    slotsData={trackStorage[row.key].map(s => s
