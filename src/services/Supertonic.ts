@@ -100,11 +100,10 @@ export class SupertonicService {
 
     async init() {
         if (this.isReady) return;
-
         try {
             console.log("Supertonic: Loading Config...");
             // Assuming files are served from /assets/onnx in public folder
-            const cfgRes = await fetch(`./{MODELS_PATH}/tts.json`);
+            const cfgRes = await fetch(`./assets/onnx/onnx/tts.json`);
             if (!cfgRes.ok) {
                 throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}. Please ensure assets are in public/assets/onnx/`);
             }
