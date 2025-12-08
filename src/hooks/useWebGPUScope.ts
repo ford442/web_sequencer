@@ -113,7 +113,12 @@ fn fs_main(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
 // ---------------------------------------------------------
 // 2. The Hook
 // ---------------------------------------------------------
-export const useWebGPUScope = (canvasRef: React.RefObject<HTMLCanvasElement>, params: SynthParams, accentColor: 'cyan' | 'pink') => {
+export const useWebGPUScope = (
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  params: SynthParams,
+  accentColor: 'cyan' | 'pink',
+  initDelay: number = 0
+) => {
   const deviceRef = useRef<GPUDevice | null>(null);
   const pipelineRef = useRef<GPUComputePipeline | null>(null);
   const renderPipelineRef = useRef<GPURenderPipeline | null>(null);
@@ -122,11 +127,14 @@ export const useWebGPUScope = (canvasRef: React.RefObject<HTMLCanvasElement>, pa
   const bindGroupRef = useRef<GPUBindGroup | null>(null);
   const animationRef = useRef<number>(0);
   const startTimeRef = useRef<number>(Date.now());
+  const formattedDelay = useRef<number>(initDelay);
 
   const WORKGROUP_SIZE = 64;
   const NUM_POINTS = 1024;
 
   useEffect(() => {
+    let timeoutId: any;
+
     const initWebGPU = async () => {
       if (!canvasRef.current || !navigator.gpu) return;
 
@@ -192,10 +200,14 @@ export const useWebGPUScope = (canvasRef: React.RefObject<HTMLCanvasElement>, pa
       });
     };
 
-    initWebGPU();
+    if (formattedDelay.current > 0) {
+      timeoutId = setTimeout(initWebGPU, formattedDelay.current);
+    } else {
+      initWebGPU();
+    }
 
     return () => {
-      // cleanup if needed
+      clearTimeout(timeoutId);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, []);
