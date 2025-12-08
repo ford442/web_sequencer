@@ -109,7 +109,7 @@ export class SupertonicService {
             }
             this.cfgs = await cfgRes.json();
 
-            const idxRes = await fetch(`${MODELS_PATH}/unicode_indexer.json`);
+            const idxRes = await fetch(`./assets/onnx/onnx/unicode_indexer.json`);
             if (!idxRes.ok) {
                 throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
             }
@@ -119,16 +119,16 @@ export class SupertonicService {
             console.log("Supertonic: Loading Models...");
             const opts: ort.InferenceSession.SessionOptions = { executionProviders: ['wasm'] };
 
-            this.models.dp = await ort.InferenceSession.create(`${MODELS_PATH}/duration_predictor.onnx`, opts);
-            this.models.textEnc = await ort.InferenceSession.create(`${MODELS_PATH}/text_encoder.onnx`, opts);
-            this.models.vecEst = await ort.InferenceSession.create(`${MODELS_PATH}/vector_estimator.onnx`, opts);
-            this.models.vocoder = await ort.InferenceSession.create(`${MODELS_PATH}/vocoder.onnx`, opts);
+            this.models.dp = await ort.InferenceSession.create(`./assets/onnx/onnx/duration_predictor.onnx`, opts);
+            this.models.textEnc = await ort.InferenceSession.create(`./assets/onnx/onnx/text_encoder.onnx`, opts);
+            this.models.vecEst = await ort.InferenceSession.create(`./assets/onnx/onnx/vector_estimator.onnx`, opts);
+            this.models.vocoder = await ort.InferenceSession.create(`./assets/onnx/onnx/vocoder.onnx`, opts);
 
             // Load Default Style (M1 default if available, or placeholder)
             // We need to make sure this file exists.
             // For now, let's assume M1.json is there.
             try {
-                await this.loadStyle(`${MODELS_PATH}/voice_styles/M1.json`);
+                await this.loadStyle(`./assets/voice_styles/M1.json`);
             } catch (e) {
                 console.warn("Could not load default style M1.json, please load manually.", e);
             }
