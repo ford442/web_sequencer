@@ -7,6 +7,10 @@ import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
+
+import { VoiceEditor } from './components/VoiceEditor';
+
+import { VoiceDesigner } from './services/VoiceDesigner'; // Ensure service is available if needed, though Editor uses it internally
 import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
 import { exportSongToXM } from './utils/xmExport';
@@ -250,6 +254,7 @@ const ROWS = [
 
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
+    const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide)
 
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
@@ -770,6 +775,7 @@ export const App: React.FC = () => {
                             onChange={() => { }} // Params handled by knobs now
                             onLoadSample={(n, b) => audioEngine?.loadSampleToEngine(n, b)}
                             audioContext={audioEngine?.context!}
+                            onOpenEditor={() => setIsVoiceEditorOpen(true)}
                         />
                     </div>
                 </HardwareModule>
@@ -780,6 +786,11 @@ export const App: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative">
+
+            {/* Overlay */}
+            {isVoiceEditorOpen && (
+                <VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />
+            )}
 
             {/* --- DECORATIVE BACKGROUND FRAME --- */}
             <div className="fixed inset-0 pointer-events-none z-0">

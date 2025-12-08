@@ -4,13 +4,7 @@ import * as ort from 'onnxruntime-web';
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.proxy = false;
 
-const BASE_PATH = './assets'; // Adjusted to match where we might put models, or public/assets. 
-// User said "./assets/onnx", typically in Vite public/assets serves at /assets.
-// Let's assume /assets/onnx if we copy them there. 
-// The user's snippet says BASE_PATH = './assets/onnx'. 
-// If models are in public/onnx, then path is /onnx. 
-// If models are in public/assets/onnx, then path is /assets/onnx.
-// I will check the directory structure later. For now, I'll use the user's suggestion but be mindful.
+// const BASE_PATH = './assets'; // Removed unused constant
 
 const MODELS_PATH = './assets/onnx';
 
@@ -212,5 +206,20 @@ export class SupertonicService {
         // 6. Vocoder
         const vocOut = await this.models.vocoder.run({ latent: xtTensor });
         return vocOut.wav_tts.data as Float32Array;
+    }
+    // NEW: Update style from raw arrays (from VoiceDesigner)
+    getStyle(): Style | null {
+        return this.currentStyle;
+    }
+
+    updateStyleFromRaw(ttlData: Float32Array, dpData: Float32Array, ttlDims: number[], dpDims: number[]) {
+        if (!this.isReady) return;
+
+        // Wrap in ONNX Tensors
+        const ttlTensor = new ort.Tensor('float32', ttlData, ttlDims);
+        const dpTensor = new ort.Tensor('float32', dpData, dpDims);
+
+        this.currentStyle = new Style(ttlTensor, dpTensor);
+        console.log("Supertonic: Style Updated from Mixer");
     }
 }
