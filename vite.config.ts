@@ -9,6 +9,9 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  optimizeDeps: {
+    exclude: ['onnxruntime-web'],
+  },
   build: {
     sourcemap: true,
     outDir: 'dist',

@@ -14,32 +14,49 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
     useEffect(() => {
         if (!canvasRef.current) return;
 
-        designerRef.current = new VoiceDesigner();
-        const service = SupertonicService.getInstance();
-        const currentStyle = service.getStyle();
+        const initDesigner = () => {
+            designerRef.current = new VoiceDesigner();
+            const service = SupertonicService.getInstance();
+            
+            if (!service.isServiceReady()) {
+                setStatus("TTS Service Not Ready");
+                return;
+            }
 
-        if (currentStyle) {
-            designerRef.current.setCanvas(canvasRef.current);
-            designerRef.current.loadFromStyle(currentStyle);
-            setStatus("Voice Loaded");
-        } else {
-            setStatus("No Voice Loaded (Init Supertonic First)");
-        }
+            const currentStyle = service.getStyle();
+
+            if (currentStyle) {
+                designerRef.current.setCanvas(canvasRef.current!);
+                designerRef.current.loadFromStyle(currentStyle);
+                setStatus("Voice Loaded");
+            } else {
+                setStatus("No Voice Loaded");
+            }
+        };
+
+        initDesigner();
     }, []);
 
     const handleOp = async (op: keyof VoiceDesigner) => {
         const d = designerRef.current;
         if (d && typeof d[op] === 'function') {
-            await (d[op] as Function)();
+            await (d[op] as () => Promise<void>)();
             setStatus(`Applied: ${op}`);
         }
     };
 
     const handleApply = () => {
         if (!designerRef.current) return;
+        
+        const service = SupertonicService.getInstance();
+        if (!service.isServiceReady()) {
+            setStatus("Cannot apply: TTS not ready");
+            return;
+        }
+
         const raw = designerRef.current.getRawData();
         if (raw.ttl && raw.dp) {
-            SupertonicService.getInstance().updateStyleFromRaw(raw.ttl, raw.dp, raw.ttlDims, raw.dpDims);
+            service.updateStyleFromRaw(raw.ttl, raw.dp, raw.ttlDims, raw.dpDims);
             setStatus("Style Applied to Engine!");
             setTimeout(onClose, 500);
         }
