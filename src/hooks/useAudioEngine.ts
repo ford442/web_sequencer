@@ -367,91 +367,93 @@ export const useAudioEngine = (pyodide: any) => {
             } catch (e) { console.error("Error sending sample to Python:", e); }
         };
 
-        const playSampler = (params: SamplerParams, note: string, time: number) => {
-            console.log("playSampler called:", { name: params.sampleName, note, pyodideReady: !!pyodideRef.current });
+        const playSampler = (params: SamplerParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
+            console.log("playSampler called:", { name: params.sampleName, note, durationSteps, stepTime, pyodideReady: !!pyodideRef.current });
             if (!pyodideRef.current) return;
+
             try {
-                // 1. Resample/Pitch in Python (Keep existing logic)
+                // 1. Calculate Pitch Ratio
                 const baseFreq = noteToFrequency('C4');
                 const targetFreq = noteToFrequency(note);
                 const ratio = targetFreq / baseFreq * params.playbackSpeed;
 
+                // 2. Generate Audio via Pyodide
                 const pyProxy = pyodideRef.current.globals.get('generate_sampler')(params.sampleName, ratio, params.volume);
                 const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
                 pyProxy.destroy();
 
                 if (audioSamples.length === 0) return;
 
+                // 3. Create Audio Source
                 const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
                 buffer.getChannelData(0).set(audioSamples);
 
                 const source = context.createBufferSource();
                 source.buffer = buffer;
 
-                // 2. DSP Chain Upgrade
-                // Source -> Filter -> Drive -> Gain -> Master
-                //                           -> DelaySend -> Delay -> Master
+                // --- SUSTAIN ENVELOPE (Gate) ---
+                // Calculate duration in seconds based on steps
+                const noteDuration = durationSteps * stepTime;
+                const attack = 0.01; // Fast attack
+                const release = 0.1; // Short fade out to avoid clicks
 
-                // A. Filter (LowPass)
+                const envGain = context.createGain();
+                envGain.gain.setValueAtTime(0, time);
+                envGain.gain.linearRampToValueAtTime(1.0, time + attack);
+
+                // Sustain phase (Hold at 1.0)
+                envGain.gain.setValueAtTime(1.0, time + noteDuration);
+
+                // Release phase
+                envGain.gain.linearRampToValueAtTime(0, time + noteDuration + release);
+
+                // --- DSP CHAIN ---
+                // Source -> Filter -> Drive -> Envelope -> Master
+
                 const filter = context.createBiquadFilter();
                 filter.type = 'lowpass';
-                // Default cutoff is high (bypass) if not set, but we set default in constants
-                const cutoff = params.filterCutoff || 20000;
-                const res = params.filterResonance || 0;
-                filter.frequency.setValueAtTime(cutoff, time);
-                filter.Q.setValueAtTime(res, time);
+                filter.frequency.setValueAtTime(params.filterCutoff || 20000, time);
+                filter.Q.setValueAtTime(params.filterResonance || 0, time);
 
-                // B. Drive (Distortion)
-                // Simple soft clipper or waveshaper
                 const driveNode = context.createWaveShaper();
-                // If drive is 0, curve is linear. If > 0, distorts.
-                // We need a helper for curve.
-                // For now, I'll define curve inline or use a simple transfer function if drive > 0
                 if (params.drive > 0) {
-                    driveNode.curve = makeDistortionCurve(params.drive * 50); // Scale 0-1 to 0-50 amount
+                    driveNode.curve = makeDistortionCurve(params.drive * 50);
                     driveNode.oversample = '4x';
                 } else {
                     driveNode.curve = null; // Bypass
                 }
 
-                // C. Delay Send
+                // Connections
                 source.connect(filter);
                 filter.connect(driveNode);
+                driveNode.connect(envGain); // Connect to Envelope instead of Master directly
 
+                // Delay Send (Optional)
                 if (params.delaySend > 0) {
-                    // Reuse synth delay logic pattern
-                    // Create dedicated delay graph for this voice (easiest refactor)
                     const delay = context.createDelay(1.0);
                     const feedback = context.createGain();
                     const wetGain = context.createGain();
 
-                    // Fixed delay time/feedback for Sampler for now inside constants or params?
-                    // We didn't add delayTime/Feedback to SamplerParams, only delaySend.
-                    // So we use fixed defaults or reuse Synth defaults? 
-                    // Let's use sensible defaults for now: 300ms, 0.4 feedback
-                    const dTime = 0.3;
-                    const dFb = 0.4;
+                    delay.delayTime.setValueAtTime(0.3, time);
+                    feedback.gain.setValueAtTime(0.4, time);
+                    wetGain.gain.setValueAtTime(params.delaySend, time);
 
-                    delay.delayTime.setValueAtTime(dTime, time);
-                    feedback.gain.setValueAtTime(dFb, time);
-                    wetGain.gain.setValueAtTime(params.delaySend, time); // Amount of wet signal
-
-                    // Routing: Drive -> Delay -> Feedback -> Delay -> WetGain -> Master
-                    // Note: Usually Send is parallel. 
-                    // Dry signal goes to Master. Wet goes to Master.
-
-                    driveNode.connect(delay);
+                    // Send from Post-Envelope so delay tails fade out naturally if we cut the note
+                    envGain.connect(delay);
                     delay.connect(feedback);
                     feedback.connect(delay);
                     delay.connect(wetGain);
                     wetGain.connect(masterGainRef.current!);
                 }
 
-                // Connect Main (Dry) Output
-                driveNode.connect(masterGainRef.current!);
+                // Main Output
+                envGain.connect(masterGainRef.current!);
 
                 source.start(time);
-            } catch (e) { console.error("Pyodide sampler error:", e); }
+                // Stop source after envelope release to save CPU
+                source.stop(time + noteDuration + release + 0.1);
+
+            } catch (e) { console.error("Sampler Error", e); }
         };
 
         const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {

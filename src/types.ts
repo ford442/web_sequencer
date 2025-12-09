@@ -64,6 +64,7 @@ export interface AllDrumParams {
 export interface Note {
   note: string; // e.g., 'C4' for synths, placeholder for drums
   velocity: number;
+  length?: number; // Duration in steps (default 1)
 }
 
 export interface PartSequence {
@@ -96,9 +97,9 @@ export interface AudioEngine {
   context: AudioContext;
   webGpuEngine?: any; // WebGpuOscillator
   wasmEngine?: any; // WasmOscillator
-  playSynth: (params: SynthParams, note: string, time: number, destination?: AudioNode) => void;
+  playSynth: (params: SynthParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
   playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
-  playSampler: (params: SamplerParams, note: string, time: number) => void;
+  playSampler: (params: SamplerParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
   loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
   renderSynthPartToBuffer: (params: SynthParams, sequence: PartSequence, tempo: number) => Promise<AudioBuffer>;
   playBufferedPart: (buffer: AudioBuffer, time: number) => void;
