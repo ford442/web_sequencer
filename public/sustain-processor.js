@@ -7,6 +7,13 @@
  * - Built-in arpeggiator with sample-perfect timing
  * - Garbage-collection free render loop
  */
+
+// --- LCG (Linear Congruential Generator) Constants ---
+// Standard parameters for GC-free pseudo-random number generation
+const LCG_MULTIPLIER = 1103515245;
+const LCG_INCREMENT = 12345;
+const LCG_MODULUS = 0x7FFFFFFF;
+
 class SustainProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
@@ -173,9 +180,9 @@ class SustainProcessor extends AudioWorkletProcessor {
      * @returns {number} Random offset within grain
      */
     getStretchJumpPosition() {
-        // Simple LCG for deterministic randomness without GC
-        this.grainPhase = (this.grainPhase * 1103515245 + 12345) & 0x7FFFFFFF;
-        const randomFactor = (this.grainPhase / 0x7FFFFFFF);
+        // LCG for deterministic randomness without GC
+        this.grainPhase = (this.grainPhase * LCG_MULTIPLIER + LCG_INCREMENT) & LCG_MODULUS;
+        const randomFactor = (this.grainPhase / LCG_MODULUS);
 
         // Jump to a position within the grain window
         const windowSize = this.grainSize * this.grainOverlap;
