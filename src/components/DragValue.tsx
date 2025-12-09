@@ -43,7 +43,7 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
       window.removeEventListener('mouseup', onUp);
     };
   }, [isDragging, max, min, onChange, step]);
-  
+
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const dir = e.deltaY > 0 ? -1 : 1;
@@ -65,34 +65,98 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
     return `${Math.round(v)}`;
   };
 
+  // Hold-to-repeat refs
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const valueRef = useRef(value);
+
+  // Keep valueRef in sync with value prop
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  const stopRepeat = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  const startRepeat = (direction: 1 | -1) => {
+    // Immediately apply once
+    let newVal = valueRef.current + direction * step;
+    newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
+    onChange(newVal);
+
+    // After initial delay, start repeating
+    timeoutRef.current = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        let next = valueRef.current + direction * step;
+        next = Math.max(min, Math.min(max, Math.round(next / step) * step));
+        onChange(next);
+      }, 80);
+    }, 300);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopRepeat();
+  }, []);
+
   return (
     <div className={`flex flex-col items-center ${className || ''}`}>
       {label && <label className="text-xs text-gray-400 uppercase tracking-wider">{label}</label>}
-      <div
-        className="bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none"
-        onMouseDown={handleMouseDown}
-        onWheel={handleWheel}
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
-            e.preventDefault();
-            let newVal = value + step;
-            newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
-            onChange(newVal);
-          } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
-            e.preventDefault();
-            let newVal = value - step;
-            newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
-            onChange(newVal);
-          }
-        }}
-        role="slider"
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-valuenow={value}
-        aria-label={label}
-      >
-        {display(value)}
+      <div className="flex items-center gap-1">
+        {/* Minus button */}
+        <button
+          onMouseDown={() => startRepeat(-1)}
+          onMouseUp={stopRepeat}
+          onMouseLeave={stopRepeat}
+          className="w-6 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-400 hover:text-white text-lg font-bold select-none"
+          aria-label="Decrease"
+        >
+          −
+        </button>
+        <div
+          className="bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none min-w-[60px] text-center"
+          onMouseDown={handleMouseDown}
+          onWheel={handleWheel}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+              e.preventDefault();
+              let newVal = value + step;
+              newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
+              onChange(newVal);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+              e.preventDefault();
+              let newVal = value - step;
+              newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
+              onChange(newVal);
+            }
+          }}
+          role="slider"
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={value}
+          aria-label={label}
+        >
+          {display(value)}
+        </div>
+        {/* Plus button */}
+        <button
+          onMouseDown={() => startRepeat(1)}
+          onMouseUp={stopRepeat}
+          onMouseLeave={stopRepeat}
+          className="w-6 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-400 hover:text-white text-lg font-bold select-none"
+          aria-label="Increase"
+        >
+          +
+        </button>
       </div>
     </div>
   );

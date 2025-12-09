@@ -23,6 +23,8 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
     const chunksRef = useRef<Blob[]>([]);
     const [activeBankIdx, setActiveBankIdx] = useState(0);
     const [ttsReady, setTtsReady] = useState(false);
+    const [flashBankIdx, setFlashBankIdx] = useState<number | null>(null);
+    const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Update sampleName when bank changes
     useEffect(() => {
@@ -72,6 +74,11 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
 
             onLoadSample(params.sampleName, buffer);
             setStatus("TTS Loaded");
+
+            // Flash the active bank to indicate sample loaded
+            if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+            setFlashBankIdx(activeBankIdx);
+            flashTimeoutRef.current = setTimeout(() => setFlashBankIdx(null), 1000);
         } catch (e) {
             console.error("TTS Generation Error:", e);
             setStatus(e instanceof Error ? e.message : "Gen Error");
@@ -148,7 +155,11 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                         <button
                             key={b}
                             onClick={() => setActiveBankIdx(i)}
-                            className={`px-2 py-1 rounded text-[10px] border ${activeBankIdx === i ? 'bg-cyan-900 border-cyan-500 text-cyan-300' : 'bg-gray-800 border-gray-700'
+                            className={`px-2 py-1 rounded text-[10px] border transition-all duration-200 ${flashBankIdx === i
+                                    ? 'bg-green-600 border-green-400 text-white shadow-[0_0_12px_rgba(34,197,94,0.8)] animate-pulse'
+                                    : activeBankIdx === i
+                                        ? 'bg-cyan-900 border-cyan-500 text-cyan-300'
+                                        : 'bg-gray-800 border-gray-700'
                                 }`}
                         >
                             {['A', 'B', 'C', 'D'][i]}
