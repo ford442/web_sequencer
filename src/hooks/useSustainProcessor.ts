@@ -52,12 +52,13 @@ export const useSustainProcessor = (audioContext: AudioContext | null) => {
 
         // Get mono channel data
         const channelData = audioBuffer.getChannelData(0);
+        const bufferCopy = new Float32Array(channelData);
 
         // Send to worklet
         sustainNodeRef.current.port.postMessage({
             type: 'loadBuffer',
-            data: { buffer: Array.from(channelData) }
-        });
+            data: { buffer: bufferCopy },
+        }, [bufferCopy.buffer]);
 
         console.log('Buffer loaded into SustainProcessor:', channelData.length, 'samples');
     }, []);
@@ -113,12 +114,14 @@ export const useSustainProcessor = (audioContext: AudioContext | null) => {
     }, []);
 
     // Control parameters via AudioParam
-    const setMode = useCallback((mode: 'loop' | 'stretch') => {
+    const setMode = useCallback((mode: 'loop' | 'stretch' | 'wavetable') => {
         if (!sustainNodeRef.current) return;
 
         const modeParam = sustainNodeRef.current.parameters.get('mode');
         if (modeParam) {
-            modeParam.setValueAtTime(mode === 'loop' ? 0 : 1, 0);
+            const modeValue = mode === 'loop' ? 0 : mode === 'stretch' ? 1 : 2;
+            const now = sustainNodeRef.current.context.currentTime;
+            modeParam.setValueAtTime(modeValue, now);
         }
     }, []);
 
@@ -127,7 +130,8 @@ export const useSustainProcessor = (audioContext: AudioContext | null) => {
 
         const bpmParam = sustainNodeRef.current.parameters.get('bpm');
         if (bpmParam) {
-            bpmParam.setValueAtTime(bpm, 0);
+            const now = sustainNodeRef.current.context.currentTime;
+            bpmParam.setValueAtTime(bpm, now);
         }
     }, []);
 
@@ -136,7 +140,8 @@ export const useSustainProcessor = (audioContext: AudioContext | null) => {
 
         const arpParam = sustainNodeRef.current.parameters.get('arp');
         if (arpParam) {
-            arpParam.setValueAtTime(enabled ? 1 : 0, 0);
+            const now = sustainNodeRef.current.context.currentTime;
+            arpParam.setValueAtTime(enabled ? 1 : 0, now);
         }
     }, []);
 
@@ -145,7 +150,18 @@ export const useSustainProcessor = (audioContext: AudioContext | null) => {
 
         const pitchParam = sustainNodeRef.current.parameters.get('pitch');
         if (pitchParam) {
-            pitchParam.setValueAtTime(pitch, 0);
+            const now = sustainNodeRef.current.context.currentTime;
+            pitchParam.setValueAtTime(pitch, now);
+        }
+    }, []);
+
+    const setFrequency = useCallback((frequency: number) => {
+        if (!sustainNodeRef.current) return;
+
+        const freqParam = sustainNodeRef.current.parameters.get('frequency');
+        if (freqParam) {
+            const now = sustainNodeRef.current.context.currentTime;
+            freqParam.setValueAtTime(frequency, now);
         }
     }, []);
 
@@ -176,6 +192,7 @@ export const useSustainProcessor = (audioContext: AudioContext | null) => {
         setBpm,
         setArpEnabled,
         setPitch,
+        setFrequency,
         connect,
         disconnect,
         getNode,

@@ -7,6 +7,7 @@ import { WasmOscillator } from '../engines/WasmOscillator';
 export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
     const audioEngineRef = useRef<AudioEngine | null>(null);
+    const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
     const ambianceGainNodeRef = useRef<GainNode | null>(null);
@@ -86,6 +87,22 @@ export const useAudioEngine = (pyodide: any) => {
 
         if (context.state === 'suspended') {
             await context.resume();
+        }
+
+        // Try to initialize SustainProcessor worklet (best-effort)
+        try {
+            await context.audioWorklet.addModule('/sustain-processor.js');
+            const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
+                numberOfInputs: 0,
+                numberOfOutputs: 1,
+                outputChannelCount: [2]
+            });
+            sustainNode.connect(masterGainRef.current!);
+            sustainNodeRef.current = sustainNode;
+            console.log('SustainProcessor initialized in AudioEngine');
+        } catch (e) {
+            console.warn('Sustain worklet not available:', e);
+            sustainNodeRef.current = null;
         }
 
         // Create a white noise buffer
@@ -305,6 +322,208 @@ export const useAudioEngine = (pyodide: any) => {
             }
         };
 
+        // Live note on/off for synths
+        const nextSynthNoteId = useRef(1);
+        const activeSynthNotes = useRef(new Map<number, { stop: () => void }>());
+
+        const MAX_SYNTH_VOICES = 8;
+        const generatorCache = new Map<string, AudioBuffer>();
+        const BASE_GENERATION_FREQ = 220; // Hz - single-cycle buffer frequency used for caching
+
+        const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl'|'wam'|'pyodide', type: 'saw'|'sqr'|'tri'|'sin', filterCutoff: number = 20000, filterResonance: number = 0) : Promise<AudioBuffer | null> => {
+            const sampleRate = context.sampleRate;
+            const key = `${engine}:${type}:${BASE_GENERATION_FREQ}:${sampleRate}:${filterCutoff}:${filterResonance}`;
+            if (generatorCache.has(key)) return generatorCache.get(key)!;
+
+            const duration = 1 / BASE_GENERATION_FREQ; // one cycle
+            let samples: Float32Array | null = null;
+            try {
+                if (engine === 'wgsl' && gpuEngineRef.current?.isSupported) {
+                    samples = await gpuEngineRef.current.generate(BASE_GENERATION_FREQ, duration, sampleRate, type);
+                } else if (engine === 'wam' && wasmEngineRef.current?.isReady) {
+                    samples = wasmEngineRef.current.generate(BASE_GENERATION_FREQ, duration, sampleRate, type, filterCutoff, filterResonance) as Float32Array;
+                    } else if (engine === 'pyodide' && pyodideRef.current) {
+                    try {
+                        pyodideRef.current.globals.get('set_sample_rate')(sampleRate);
+                            const proxy = pyodideRef.current.globals.get('generate_wave')(BASE_GENERATION_FREQ, duration, type, filterCutoff, filterResonance);
+                        samples = proxy.toJs({ array_buffer_type: 'float32' });
+                        proxy.destroy();
+                    } catch (e) {
+                        console.error('Pyodide generator single-cycle error', e);
+                        samples = null;
+                    }
+                }
+            } catch (err) {
+                console.error('generate single-cycle error', err);
+                samples = null;
+            }
+
+            if (!samples || samples.length === 0) return null;
+
+            const audioBuf = context.createBuffer(1, samples.length, sampleRate);
+            audioBuf.getChannelData(0).set(samples);
+            generatorCache.set(key, audioBuf);
+            return audioBuf;
+        };
+
+        const noteOnSynth = async (params: SynthParams, note: string, time?: number) => {
+            const now = time || context.currentTime;
+            try {
+                const isWavWave = params.waveform.startsWith('wav-');
+                const isWgslWave = params.waveform.startsWith('wgsl-');
+                const isWasmWave = params.waveform.startsWith('wam-');
+                const isPyodideWave = params.waveform.startsWith('pyodide-');
+                if (isWavWave) {
+                    const buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
+                    if (!buffer) return null;
+                    const source = context.createBufferSource();
+                    source.buffer = buffer;
+                    source.loop = true;
+
+                    const baseFreq = noteToFrequency(note);
+                    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+                    const sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
+                    source.playbackRate.setValueAtTime(freqWithPitch / sampleRootFreq, now);
+
+                    const envGain = context.createGain();
+                    envGain.gain.setValueAtTime(0, now);
+                    envGain.gain.linearRampToValueAtTime(params.volume, now + params.attack);
+                    const sustainLevel = params.volume * params.sustain;
+                    envGain.gain.linearRampToValueAtTime(sustainLevel, now + params.attack + params.decay);
+
+                    const filter = context.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(params.filterCutoff || 20000, now);
+                    filter.Q.setValueAtTime(params.filterResonance || 0, now);
+
+                    source.connect(filter);
+                    filter.connect(envGain);
+                    envGain.connect(masterGainRef.current!);
+
+                    source.start(now);
+
+                    if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
+                        const oldestId = activeSynthNotes.current.keys().next().value;
+                        const oldest = activeSynthNotes.current.get(oldestId);
+                        if (oldest && oldest.stop) oldest.stop();
+                    }
+                        const id = nextSynthNoteId.current++;
+                    const stop = () => {
+                        const t = context.currentTime;
+                        envGain.gain.cancelScheduledValues(t);
+                        envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
+                        envGain.gain.linearRampToValueAtTime(0, t + params.release);
+                        try { source.stop(t + params.release + 0.05); } catch (e) {}
+                        activeSynthNotes.current.delete(id);
+                    };
+                    activeSynthNotes.current.set(id, { stop });
+                    return id;
+                }
+                // WGSL / Wasm / Pyodide synthesized waves (generate buffer and loop)
+                if (isWgslWave || isWasmWave || isPyodideWave) {
+                    const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
+                    const freqWithPitch = noteToFrequency(note) * Math.pow(2, params.pitch / 12);
+                    // Use cached single-cycle generator to reduce CPU (lower duration)
+                    const engine = isWgslWave ? 'wgsl' : isWasmWave ? 'wam' : 'pyodide';
+                    const audioBuf = await getOrGenerateSingleCycleBuffer(engine as any, type, params.filterCutoff || 20000, params.filterResonance || 0);
+                    if (audioBuf) {
+                        const source = context.createBufferSource();
+                        source.buffer = audioBuf;
+                        source.loop = true;
+                        // playbackRate to transpose from base generation freq to desired freq
+                        const playbackRate = freqWithPitch / BASE_GENERATION_FREQ;
+                        source.playbackRate.setValueAtTime(playbackRate, now);
+
+                        const envGain = context.createGain();
+                        envGain.gain.setValueAtTime(0, now);
+                        envGain.gain.linearRampToValueAtTime(params.volume, now + params.attack);
+                        const sustainLevel = params.volume * params.sustain;
+                        envGain.gain.linearRampToValueAtTime(sustainLevel, now + params.attack + params.decay);
+
+                        const filter = context.createBiquadFilter();
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(params.filterCutoff || 20000, now);
+                        filter.Q.setValueAtTime(params.filterResonance || 0, now);
+
+                        source.connect(filter);
+                        filter.connect(envGain);
+                        envGain.connect(masterGainRef.current!);
+
+                        source.start(now);
+                        // Voice allocator: enforce max voices
+                        if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
+                            const oldestId = activeSynthNotes.current.keys().next().value;
+                            const oldest = activeSynthNotes.current.get(oldestId);
+                            if (oldest && oldest.stop) oldest.stop();
+                        }
+                        const id2 = nextSynthNoteId.current++;
+                        const stop2 = () => {
+                            const t = context.currentTime;
+                            envGain.gain.cancelScheduledValues(t);
+                            envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
+                            envGain.gain.linearRampToValueAtTime(0, t + params.release);
+                            try { source.stop(t + params.release + 0.05); } catch (e) {}
+                            activeSynthNotes.current.delete(id2);
+                        };
+                        activeSynthNotes.current.set(id2, { stop: stop2 });
+                        return id2;
+                    }
+                }
+
+                // Fallback oscillator sustain
+                const baseFreq = noteToFrequency(note);
+                const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+                const osc = context.createOscillator();
+                osc.frequency.setValueAtTime(freqWithPitch, now);
+                let waveType = params.waveform;
+                if (waveType.includes('saw')) waveType = 'sawtooth';
+                else if (waveType.includes('sqr')) waveType = 'square';
+                else if (waveType.includes('tri')) waveType = 'triangle';
+                else if (waveType.includes('sin')) waveType = 'sine';
+                // @ts-ignore
+                osc.type = waveType as OscillatorType;
+
+                const envGain = context.createGain();
+                envGain.gain.setValueAtTime(0, now);
+                envGain.gain.linearRampToValueAtTime(params.volume, now + params.attack);
+                const sustainLevel = params.volume * params.sustain;
+                envGain.gain.linearRampToValueAtTime(sustainLevel, now + params.attack + params.decay);
+
+                const filter = context.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(params.filterCutoff || 20000, now);
+                filter.Q.setValueAtTime(params.filterResonance || 0, now);
+
+                osc.connect(filter);
+                filter.connect(envGain);
+                envGain.connect(masterGainRef.current!);
+
+                osc.start(now);
+                if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
+                    const oldestId = activeSynthNotes.current.keys().next().value;
+                    const oldest = activeSynthNotes.current.get(oldestId);
+                    if (oldest && oldest.stop) oldest.stop();
+                }
+                const id = nextSynthNoteId.current++;
+                const stop = () => {
+                    const t = context.currentTime;
+                    envGain.gain.cancelScheduledValues(t);
+                    envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
+                    envGain.gain.linearRampToValueAtTime(0, t + params.release);
+                    try { osc.stop(t + params.release + 0.05); } catch (e) {}
+                    activeSynthNotes.current.delete(id);
+                };
+                activeSynthNotes.current.set(id, { stop });
+                return id;
+            } catch (e) { console.error('noteOnSynth:', e); return null; }
+        };
+
+        const noteOffSynth = (id: number) => {
+            const entry = activeSynthNotes.current.get(id);
+            if (!entry) return;
+            entry.stop();
+        };
+
         const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
             if (!pyodideRef.current) {
                 console.warn("Pyodide not ready, skipping drum trigger.");
@@ -365,6 +584,16 @@ export const useAudioEngine = (pyodide: any) => {
             try {
                 pyodideRef.current.globals.get('load_sample')(name, Array.from(channelData));
             } catch (e) { console.error("Error sending sample to Python:", e); }
+
+            // Also load into SustainProcessor (AudioWorklet) if present
+            try {
+                if (sustainNodeRef.current) {
+                    // Copy into a transferable Float32Array
+                    const floatArr = new Float32Array(channelData.length);
+                    floatArr.set(channelData);
+                    sustainNodeRef.current.port.postMessage({ type: 'loadBuffer', data: { buffer: floatArr } }, [floatArr.buffer]);
+                }
+            } catch (e) { console.error("Error sending sample to Worklet:", e); }
         };
 
         const playSampler = (params: SamplerParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
@@ -456,6 +685,94 @@ export const useAudioEngine = (pyodide: any) => {
             } catch (e) { console.error("Sampler Error", e); }
         };
 
+        // Live note-on/note-off for Sampler
+        const nextSamplerNoteId = useRef(1);
+        const activeSamplerNotes = useRef(new Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>());
+
+        const noteOnSampler = (params: SamplerParams, note: string, time?: number) => {
+            if (!pyodideRef.current) return null;
+            const now = time || context.currentTime;
+            // Prefer Worklet if available
+            if (sustainNodeRef.current) {
+                try {
+                    const baseFreq = noteToFrequency('C4');
+                    const targetFreq = noteToFrequency(note);
+                    const ratio = targetFreq / baseFreq * params.playbackSpeed;
+                    sustainNodeRef.current.port.postMessage({ type: 'noteOn', data: { pitch: ratio } });
+                    const id = nextSamplerNoteId.current++;
+                    activeSamplerNotes.current.set(id, { source: null as any, envGain: null as any });
+                    return id;
+                } catch (e) {
+                    console.error('Worklet noteOnSampler error', e);
+                    // fallback to existing path
+                }
+            }
+            try {
+                const baseFreq = noteToFrequency('C4');
+                const targetFreq = noteToFrequency(note);
+                const ratio = targetFreq / baseFreq * params.playbackSpeed;
+
+                const pyProxy = pyodideRef.current.globals.get('generate_sampler')(params.sampleName, ratio, params.volume);
+                const audioSamples = pyProxy.toJs({ array_buffer_type: 'float32' });
+                pyProxy.destroy();
+                if (!audioSamples || audioSamples.length === 0) return null;
+
+                const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+                buffer.getChannelData(0).set(audioSamples);
+
+                const source = context.createBufferSource();
+                source.buffer = buffer;
+                source.loop = true;
+
+                const envGain = context.createGain();
+                envGain.gain.setValueAtTime(0, now);
+                envGain.gain.linearRampToValueAtTime(1.0, now + 0.01);
+
+                const filter = context.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(params.filterCutoff || 20000, now);
+                filter.Q.setValueAtTime(params.filterResonance || 0, now);
+
+                const driveNode = context.createWaveShaper();
+                if (params.drive && params.drive > 0) {
+                    driveNode.curve = makeDistortionCurve(params.drive * 50);
+                    driveNode.oversample = '4x';
+                } else {
+                    driveNode.curve = null;
+                }
+
+                source.connect(filter);
+                filter.connect(driveNode);
+                driveNode.connect(envGain);
+                envGain.connect(masterGainRef.current!);
+
+                source.start(now);
+                const id = nextSamplerNoteId.current++;
+                activeSamplerNotes.current.set(id, { source, envGain });
+                return id;
+            } catch (e) { console.error('noteOnSampler:', e); return null; }
+        };
+
+        const noteOffSampler = (id: number) => {
+            const entry = activeSamplerNotes.current.get(id);
+            if (!entry) return;
+            const { source, envGain } = entry;
+            if (!source && sustainNodeRef.current) {
+                try {
+                    sustainNodeRef.current.port.postMessage({ type: 'noteOff', data: {} });
+                } catch (e) { console.error('sustain worklet noteOff error', e); }
+                activeSamplerNotes.current.delete(id);
+                return;
+            }
+            const now = context.currentTime;
+            envGain.gain.cancelScheduledValues(now);
+            // ramp to zero in 0.1s
+            envGain.gain.setValueAtTime(envGain.gain.value || 1.0, now);
+            envGain.gain.linearRampToValueAtTime(0, now + 0.12);
+            try { source.stop(now + 0.12 + 0.05); } catch (e) {}
+            activeSamplerNotes.current.delete(id);
+        };
+
         const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {
             return new Promise((resolve, reject) => {
                 if (rendererWorkerRef.current) rendererWorkerRef.current.terminate();
@@ -545,6 +862,10 @@ export const useAudioEngine = (pyodide: any) => {
             playSynth,
             playDrum,
             playSampler,
+            noteOnSampler,
+            noteOffSampler,
+            noteOnSynth,
+            noteOffSynth,
             loadSampleToEngine,
             renderSynthPartToBuffer,
             playBufferedPart,

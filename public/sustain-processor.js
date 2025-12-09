@@ -31,11 +31,14 @@ class SustainProcessor extends AudioWorkletProcessor {
         this.arpPattern = [0, 4, 7, 12]; // Default: Major Triad + Octave (semitones)
 
         // Parameters
-        this.mode = 0;         // 0=LOOP, 1=STRETCH
+        this.mode = 0;         // 0=LOOP, 1=STRETCH, 2=WAVETABLE
         this.loopStart = 0;
         this.loopEnd = 0;
         this.grainSize = 4410; // Default grain size (~100ms at 44.1kHz)
         this.grainOverlap = 0.5; // Overlap factor for smoother stretching
+
+        // Wavetable
+        this.baseFrequency = 220; // Base Hz before pitch offsets
 
         // Stretch mode state (for crossfade grains)
         this.grainPhase = 0;
@@ -92,10 +95,11 @@ class SustainProcessor extends AudioWorkletProcessor {
 
     static get parameterDescriptors() {
         return [
-            { name: 'mode', defaultValue: 0, minValue: 0, maxValue: 1 }, // 0=LOOP, 1=STRETCH
+            { name: 'mode', defaultValue: 0, minValue: 0, maxValue: 2 }, // 0=LOOP, 1=STRETCH, 2=WAVETABLE
             { name: 'bpm', defaultValue: 120, minValue: 20, maxValue: 300 },
             { name: 'arp', defaultValue: 0, minValue: 0, maxValue: 1 }, // 0 = Off, 1 = On
-            { name: 'pitch', defaultValue: 1.0, minValue: 0.25, maxValue: 4.0 }
+            { name: 'pitch', defaultValue: 1.0, minValue: 0.25, maxValue: 4.0 },
+            { name: 'frequency', defaultValue: 220, minValue: 20, maxValue: 20000 }
         ];
     }
 
@@ -193,78 +197,90 @@ class SustainProcessor extends AudioWorkletProcessor {
         const output = outputs[0];
         if (!output || output.length === 0) return true;
 
-        const bpm = parameters['bpm'].length > 1 ? parameters['bpm'] : parameters['bpm'][0];
-        const arpOn = (parameters['arp'].length > 1 ? parameters['arp'][0] : parameters['arp'][0]) > 0.5;
-        const mode = parameters['mode'].length > 1 ? parameters['mode'][0] : parameters['mode'][0];
-        const pitchParam = parameters['pitch'].length > 1 ? parameters['pitch'][0] : parameters['pitch'][0];
+        const bpmParam = parameters['bpm'];
+        const arpParam = parameters['arp'];
+        const modeParam = parameters['mode'];
+        const pitchParam = parameters['pitch'];
+        const freqParam = parameters['frequency'];
 
-        // --- ARPEGGIATOR LOGIC ---
-        if (arpOn && this.buffer) {
-            // Calculate samples per 16th note: (SampleRate * 60) / (BPM * 4)
-            const currentBpm = typeof bpm === 'number' ? bpm : bpm[0];
-            const samplesPerStep = (sampleRate * 60) / (currentBpm * 4);
-
-            this.arpCounter++;
-
-            if (this.arpCounter >= samplesPerStep) {
-                // Trigger Next Step
-                this.arpCounter = 0;
-                const semiTone = this.arpPattern[this.arpStepIndex % this.arpPattern.length];
-
-                // Convert Semitone to Playback Rate (Pitch)
-                // rate = 2 ^ (semitones / 12)
-                this.basePitch = Math.pow(2, semiTone / 12.0);
-
-                // Reset playhead for the new note attack
-                this.playhead = this.loopStart;
-                this.isPlaying = true;
-                this.arpStepIndex++;
-            }
-        }
-
-        // --- AUDIO GENERATION ---
-        if (!this.buffer || !this.isPlaying) {
-            // Output silence
-            for (let channel = 0; channel < output.length; channel++) {
-                output[channel].fill(0);
-            }
-            return true;
-        }
+        const arpConstant = arpParam.length === 1;
+        const modeConstant = modeParam.length === 1;
+        const pitchConstant = pitchParam.length === 1;
+        const freqConstant = freqParam.length === 1;
+        const bpmConstant = bpmParam.length === 1;
 
         const blockSize = output[0].length;
 
         for (let i = 0; i < blockSize; i++) {
-            // 1. Get Sample (Interpolated for anti-aliasing)
-            const sampleValue = this.getInterpolatedSample(this.playhead);
+            const arpOn = (arpConstant ? arpParam[0] : arpParam[i]) > 0.5;
+            const mode = modeConstant ? modeParam[0] : modeParam[i];
+            const currentPitch = pitchConstant ? pitchParam[0] : pitchParam[i];
+            const currentFreq = freqConstant ? freqParam[0] : freqParam[i];
+            const currentBpm = bpmConstant ? bpmParam[0] : bpmParam[i];
 
-            // 2. Write to Output (Mono to Stereo)
-            for (let channel = 0; channel < output.length; channel++) {
-                output[channel][i] = sampleValue;
+            // --- ARPEGGIATOR LOGIC ---
+            if (arpOn && this.buffer) {
+                const samplesPerStep = (sampleRate * 60) / (currentBpm * 4);
+                this.arpCounter++;
+
+                if (this.arpCounter >= samplesPerStep) {
+                    this.arpCounter = 0;
+                    const semiTone = this.arpPattern[this.arpStepIndex % this.arpPattern.length];
+                    this.basePitch = Math.pow(2, semiTone / 12.0);
+                    this.playhead = this.loopStart;
+                    this.isPlaying = true;
+                    this.arpStepIndex++;
+                }
             }
 
-            // 3. Advance Playhead
-            // If Arp is on, we play at the pitch determined by the Arp logic.
-            // Otherwise use the pitch parameter or base pitch
-            const speed = arpOn ? this.basePitch : (pitchParam || 1.0);
-            this.playhead += speed;
+            if (!this.buffer || !this.isPlaying) {
+                for (let channel = 0; channel < output.length; channel++) {
+                    output[channel][i] = 0;
+                }
+                continue;
+            }
 
-            // 4. Sustain / Loop Logic
+            let sampleValue = 0;
+
             if (mode < 0.5) {
                 // --- MODE A: LOOP ---
-                // Standard pointer wrap-around with optional zero-crossing alignment
+                sampleValue = this.getInterpolatedSample(this.playhead);
+                const speed = arpOn ? this.basePitch : (currentPitch || 1.0);
+                this.playhead += speed;
+
                 if (this.playhead >= this.loopEnd) {
-                    // Find nearest zero crossing for click-free looping
                     const alignedStart = this.findNearestZeroCrossing(this.loopStart);
                     this.playhead = alignedStart;
                 }
-            } else {
+            } else if (mode < 1.5) {
                 // --- MODE B: STRETCH (Granular Freeze) ---
-                // Jump playhead back to create infinite sustain texture
+                sampleValue = this.getInterpolatedSample(this.playhead);
+                const speed = arpOn ? this.basePitch : (currentPitch || 1.0);
+                this.playhead += speed;
+
                 const freezeLimit = this.loopStart + this.grainSize;
                 if (this.playhead >= freezeLimit) {
-                    // Use random position for natural texture without rhythmic repetition
                     this.playhead = this.getStretchJumpPosition();
                 }
+            } else {
+                // --- MODE C: WAVETABLE (single-cycle oscillator) ---
+                const bufferLength = this.buffer.length;
+                const phase = this.playhead % bufferLength;
+                sampleValue = this.getInterpolatedSample(phase);
+
+                const pitchRatio = arpOn ? this.basePitch : (currentPitch || 1.0);
+                const targetFreq = (currentFreq || this.baseFrequency) * pitchRatio;
+                const increment = (targetFreq * bufferLength) / sampleRate;
+                this.playhead += increment;
+
+                if (this.playhead >= bufferLength) {
+                    // Maintain precision by wrapping instead of letting it grow
+                    this.playhead = this.playhead % bufferLength;
+                }
+            }
+
+            for (let channel = 0; channel < output.length; channel++) {
+                output[channel][i] = sampleValue;
             }
         }
 

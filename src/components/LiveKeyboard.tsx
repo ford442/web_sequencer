@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 
-interface LiveKeyboardProps { onPlayNote: (note: string) => void; activeTrackColor: string; }
+interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
@@ -18,7 +18,7 @@ const KEY_TO_NOTE: Record<string, string> = {
     'Digit2': 'C#4'
 };
 
-export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTrackColor }) => { const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
+export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNote, activeTrackColor }) => { const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
 
 // --- KEYBOARD INTERACTION ---
     useEffect(() => {
@@ -49,6 +49,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                     next.delete(note);
                     return next;
                 });
+                if (typeof onStopNote === 'function') onStopNote(note);
             }
         };
 
@@ -81,6 +82,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
             next.delete(note);
             return next;
         });
+        if (typeof onStopNote === 'function') onStopNote(note);
     };
 
     const handleMouseEnter = (note: string) => {
@@ -97,6 +99,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                 next.delete(note);
                 return next;
             });
+            if (typeof onStopNote === 'function') onStopNote(note);
         }
     };
 
@@ -128,9 +131,10 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                             const baseColor = isBlack ? '#080a0c' : '#151a21'; // Dark vs Light(er) Dark
 
                             // UPDATED: Use getNoteColor for active state to match sequencer steps
-                            // If not active, fall back to default track color (though currently unused for inactive keys)
+                            // Inactive keys are subtly tinted to their note color for visual consistency
                             const noteColor = getNoteColor(fullNote);
                             const activeColor = isActive ? noteColor : activeTrackColor;
+                            const inactiveTint = isBlack ? '#0b1220' : noteColor;
 
                             const x = colIndex * (keyWidth + gap);
 
@@ -164,8 +168,8 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                                     {/* Inner Cap */}
                                     <rect
                                         x={3} y={3} width={keyWidth-6} height={keyHeight-6} rx={2}
-                                        fill={isActive ? activeColor : (isBlack ? '#111' : '#222')}
-                                        fillOpacity={isActive ? 0.6 : 1}
+                                        fill={isActive ? activeColor : inactiveTint}
+                                        fillOpacity={isActive ? 0.6 : (isBlack ? 1 : 0.12)}
                                         stroke={isActive ? activeColor : 'none'}
                                         strokeWidth={1}
                                     />

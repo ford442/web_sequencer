@@ -2,6 +2,17 @@ Hybrid Audio Engine & XM Export Overhaul
 1. Objective
 Build a professional-grade browser audio engine that blurs the line between Sampler and Synthesizer. The engine must support real-time performance (AudioWorklet), advanced sustain modes (Granular/Looping), and high-fidelity export to FastTracker 2 (.XM) format.
 
+Execution Order (requested)
+- 1 → 5 → 6 → 7 → 1b → 4 → 3 → 2
+	- 1: Core AudioWorklet engine (modes, interpolation, arp) baseline.
+	- 5: UI polish (knob drag/scroll, keyboard note-off fix, visual feedback).
+	- 6: Advanced audio (polyphonic lead allocator, 4×8 pattern bank).
+	- 7: Optimizations (WebGPU buffer reuse, save/load groundwork).
+	- 1b: Engine refinement (cubic interpolation, zero allocs inside process()).
+	- 4: Integration (mode toggle UI, Export-to-XM button, render_to_buffer hooks).
+	- 3: XM export (16-bit + delta, loop flags/byte alignment, arp-to-pattern).
+	- 2: Render & Freeze (offline render, auto loop detect, normalization to -1 dB).
+
 2. Architecture Overview
 The "Unified Voice" Concept
 Instead of separate engines for Synth and Sampler, we create a single HybridVoice processor.
@@ -130,6 +141,17 @@ Phase 5: User Interface Polish (New)
 Color code keyboard keys (C = Red, D = Orange, etc.).
 
 Color code pattern numbers (Active = Green, Empty = Grey).
+
+Progress (Phase 5):
+- [x] Implemented `DragValue` and wired tempo control to drag/scroll.
+- [x] Added wheel support to `Knob` and `MagicKnob` for scroll adjustments.
+- [x] Fixed `LiveKeyboard` to call `onStopNote` for keyup/mouseup/mouseleave/touchend, preventing stuck UI state.
+- [x] Hooked `LiveKeyboard` up to `App.tsx` with a `handleKeyboardStop` handler for future engine integration.
+
+Next (Phase 5):
+- Add unit tests for `DragValue` and `LiveKeyboard` interaction (mouse/touch/keyboard).
+- Ensure Knob and DragValue keyboard accessibility (arrow key increments).
+- Polish visual feedback: add hover/active styles and consistent color theming for keys and pattern slots.
 
 Phase 6: Advanced Audio Features (New)
 [ ] Polyphonic Lead: Upgrade HybridVoice to manage an array of voices (e.g., voices = [Voice(), Voice(), Voice()]). Allocator logic needed (Steal oldest note).

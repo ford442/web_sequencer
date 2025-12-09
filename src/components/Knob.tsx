@@ -74,6 +74,15 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
     document.body.style.cursor = 'ns-resize';
   };
 
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const direction = e.deltaY > 0 ? -1 : 1; // normalize: up increases
+    let newValue = value + direction * step;
+    newValue = Math.round(newValue / step) * step;
+    newValue = Math.max(min, Math.min(max, newValue));
+    onChange(newValue);
+  }, [step, value, min, max, onChange]);
+
   const formatValue = (val: number) => {
     if (unit === 's' && val < 1) return `${(val * 1000).toFixed(0)}ms`;
     if (unit === 'Hz' && val >= 1000) return `${(val / 1000).toFixed(1)}k`;
@@ -93,7 +102,20 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
       <div
         ref={knobRef}
         className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center cursor-pointer select-none border-2 border-gray-600"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            const newVal = Math.max(min, Math.min(max, Math.round((value + step) / step) * step));
+            onChange(newVal);
+          } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            const newVal = Math.max(min, Math.min(max, Math.round((value - step) / step) * step));
+            onChange(newVal);
+          }
+        }}
         onMouseDown={handleMouseDown}
+        onWheel={handleWheel}
         role="slider"
         aria-valuemin={min}
         aria-valuemax={max}
