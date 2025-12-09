@@ -26,6 +26,12 @@ export const useAudioEngine = (pyodide: any) => {
 
     const pyodideRef = useRef(pyodide);
 
+    // Live note tracking refs (must be at top level for hooks rules)
+    const nextSynthNoteId = useRef(1);
+    const activeSynthNotes = useRef(new Map<number, { stop: () => void }>());
+    const nextSamplerNoteId = useRef(1);
+    const activeSamplerNotes = useRef(new Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>());
+
     useEffect(() => {
         pyodideRef.current = pyodide;
     }, [pyodide]);
@@ -322,10 +328,8 @@ export const useAudioEngine = (pyodide: any) => {
             }
         };
 
-        // Live note on/off for synths
-        const nextSynthNoteId = useRef(1);
-        const activeSynthNotes = useRef(new Map<number, { stop: () => void }>());
 
+        // Live note on/off for synths
         const MAX_SYNTH_VOICES = 8;
         const generatorCache = new Map<string, AudioBuffer>();
         const BASE_GENERATION_FREQ = 220; // Hz - single-cycle buffer frequency used for caching
@@ -692,8 +696,6 @@ export const useAudioEngine = (pyodide: any) => {
         };
 
         // Live note-on/note-off for Sampler
-        const nextSamplerNoteId = useRef(1);
-        const activeSamplerNotes = useRef(new Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>());
 
         const noteOnSampler = (params: SamplerParams, note: string, time?: number) => {
             if (!pyodideRef.current) return null;
