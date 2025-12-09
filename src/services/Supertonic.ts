@@ -101,13 +101,13 @@ export class SupertonicService {
         try {
             console.log("Supertonic: Loading Config...");
             // Assuming files are served from /assets/onnx in public folder
-            const cfgRes = await fetch(`./assets/onnx/tts.json`);
+            const cfgRes = await fetch(`/assets/onnx/tts.json`);
             if (!cfgRes.ok) {
                 throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}. Please ensure assets are in public/assets/onnx/`);
             }
             this.cfgs = await cfgRes.json();
 
-            const idxRes = await fetch(`./assets/onnx/unicode_indexer.json`);
+            const idxRes = await fetch(`/assets/onnx/unicode_indexer.json`);
             if (!idxRes.ok) {
                 throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
             }
@@ -117,16 +117,17 @@ export class SupertonicService {
             console.log("Supertonic: Loading Models...");
             const opts: ort.InferenceSession.SessionOptions = { executionProviders: ['wasm'] };
 
-            this.models.dp = await ort.InferenceSession.create(`./assets/onnx/duration_predictor.onnx`, opts);
-            this.models.textEnc = await ort.InferenceSession.create(`./assets/onnx/text_encoder.onnx`, opts);
-            this.models.vecEst = await ort.InferenceSession.create(`./assets/onnx/vector_estimator.onnx`, opts);
-            this.models.vocoder = await ort.InferenceSession.create(`./assets/onnx/vocoder.onnx`, opts);
+            this.models.dp = await ort.InferenceSession.create(`/assets/onnx/duration_predictor.onnx`, opts);
+            this.models.textEnc = await ort.InferenceSession.create(`/assets/onnx/text_encoder.onnx`, opts);
+            this.models.vecEst = await ort.InferenceSession.create(`/assets/onnx/vector_estimator.onnx`, opts);
+            this.models.vocoder = await ort.InferenceSession.create(`/assets/onnx/vocoder.onnx`, opts);
 
             // Load Default Style (M1 default if available, or placeholder)
             // We need to make sure this file exists.
             // For now, let's assume M1.json is there.
             try {
-                await this.loadStyle(`./assets/onnx/voice_styles/M1.json`);
+                await this.loadStyle(`/assets/onnx/voice_styles/M1.json`);
+                console.log("✓ Loaded default voice style: M1");
             } catch (e) {
                 console.warn("Could not load default style M1.json, please load manually.", e);
             }
@@ -134,7 +135,11 @@ export class SupertonicService {
             this.isReady = true;
             console.log("Supertonic: Ready");
         } catch (e) {
-            console.error("Supertonic Init Failed:", e);
+            console.error("❌ Supertonic Init Failed:", e);
+            if (e instanceof Error && e.message.includes('Failed to fetch')) {
+                console.error("→ Check that ONNX models exist in public/assets/onnx/");
+                console.error("→ Run 'powershell -ExecutionPolicy Bypass -File download_models.ps1' to download models");
+            }
             this.isReady = false;
             // Don't throw - let the app continue without TTS
             return;
