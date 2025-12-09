@@ -1,9 +1,8 @@
 import * as ort from 'onnxruntime-web';
 
-// Ensure WASM runs on main thread or correctly configured worker
+// WASM configuration - point to public folder where WASM files are served
 ort.env.wasm.numThreads = 1;
-ort.env.wasm.proxy = false;
-ort.env.wasm.wasmPaths = './';
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
 
 interface StyleData {
     style_ttl: { data: number[], dims: number[] };
@@ -126,7 +125,7 @@ export class SupertonicService {
             // We need to make sure this file exists.
             // For now, let's assume M1.json is there.
             try {
-                await this.loadStyle(`./assets/voice_styles/F1.json`);
+                await this.loadStyle(`./assets/onnx/voice_styles/F1.json`);
                 console.log("✓ Loaded default voice style: M1");
             } catch (e) {
                 console.warn("Could not load default style M1.json, please load manually.", e);
