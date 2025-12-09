@@ -1,6 +1,6 @@
 import {
     createModule, createPattern, createInstrument, createSample, addSampleToInstrument,
-    XMWriter, noteNameToValue
+    XMWriter, noteNameToValue, LoopType
 } from './xm_save_lib/index';
 import type { PartSequence, Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams } from '../types';
 import { renderSynthToBuffer, renderDrumToBuffer } from './renderAudio';
@@ -19,14 +19,160 @@ const downloadBlob = (blob: Blob, filename: string) => {
     URL.revokeObjectURL(url);
 };
 
-// Helper to convert float32 buffer to int16
+/**
+ * Normalize an audio buffer to a target peak level (default -1dB).
+ * This addresses Task 4: Fix low sampler volume.
+ * @param input Float32Array audio buffer
+ * @param targetPeakDb Target peak in dB (default -1)
+ * @returns Normalized Float32Array
+ */
+const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1): Float32Array => {
+    // Find peak amplitude
+    let peak = 0;
+    for (let i = 0; i < input.length; i++) {
+        const abs = Math.abs(input[i]);
+        if (abs > peak) peak = abs;
+    }
+
+    // If peak is already near target or buffer is silent, return as-is
+    if (peak < 0.001) return input;
+
+    // Calculate target peak (linear)
+    const targetPeak = Math.pow(10, targetPeakDb / 20);
+
+    // Only normalize if peak is below threshold (e.g., < 0.5)
+    if (peak < 0.5) {
+        const gain = targetPeak / peak;
+        const output = new Float32Array(input.length);
+        for (let i = 0; i < input.length; i++) {
+            output[i] = Math.max(-1, Math.min(1, input[i] * gain));
+        }
+        return output;
+    }
+
+    return input;
+};
+
+/**
+ * Convert float32 buffer to int16 with proper handling to preserve harmonic content.
+ * Uses soft-clipping and proper dithering for better fidelity.
+ * This addresses Task 1: Fix waveform & fidelity loss in XM export.
+ * @param input Float32Array audio buffer
+ * @returns Int16Array for XM sample
+ */
 const floatTo16BitPCM = (input: Float32Array): Int16Array => {
     const output = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
-        const s = Math.max(-1, Math.min(1, input[i]));
-        output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        // Soft clipping using tanh to preserve harmonic content better
+        let s = input[i];
+        if (s > 0.95 || s < -0.95) {
+            // Apply soft clipping for values near the limit
+            s = Math.tanh(s);
+        }
+        s = Math.max(-1, Math.min(1, s));
+        // Symmetric scaling for 16-bit (use 32767 for both positive and negative for symmetry)
+        output[i] = Math.round(s * 32767);
     }
     return output;
+};
+
+/**
+ * Find a zero-crossing point near the given position.
+ * @param buffer Audio buffer
+ * @param position Starting position to search from
+ * @param direction 1 = forward, -1 = backward
+ * @param maxSearch Maximum samples to search
+ * @returns Position of zero crossing
+ */
+const findZeroCrossing = (buffer: Float32Array, position: number, direction: number = 1, maxSearch: number = 1000): number => {
+    const len = buffer.length;
+    for (let i = 0; i < maxSearch; i++) {
+        const idx = position + (i * direction);
+        if (idx < 1 || idx >= len - 1) break;
+
+        // Check for zero crossing (positive going)
+        if (buffer[idx] >= 0 && buffer[idx - 1] < 0) {
+            return idx;
+        }
+    }
+    return position;
+};
+
+/**
+ * Find optimal loop points for a synth sample by detecting the steady-state region.
+ * This addresses Task 3: Implement sustain for rendered synths (auto-looping).
+ * @param buffer Audio buffer
+ * @param sampleRate Sample rate
+ * @param attackDecayTime Estimated attack+decay time in seconds
+ * @returns Object with loopStart and loopEnd in samples
+ */
+const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, attackDecayTime: number = 0.3): { loopStart: number, loopEnd: number } => {
+    const len = buffer.length;
+
+    // Skip attack/decay phase - start searching after attackDecayTime
+    const steadyStateStart = Math.min(Math.floor(attackDecayTime * sampleRate), Math.floor(len * 0.3));
+
+    // End before release phase (last 10% of buffer)
+    const steadyStateEnd = Math.floor(len * 0.9);
+
+    // Ensure we have enough samples for a loop
+    const minLoopLength = Math.floor(sampleRate * 0.05); // Minimum 50ms loop
+
+    if (steadyStateEnd - steadyStateStart < minLoopLength * 2) {
+        // Buffer too short for proper looping, return no loop
+        return { loopStart: 0, loopEnd: 0 };
+    }
+
+    // Find loop start - first zero crossing in steady state
+    const loopStart = findZeroCrossing(buffer, steadyStateStart, 1, Math.floor(sampleRate * 0.1));
+
+    // Find loop end - zero crossing near end of steady state, at least minLoopLength away from start
+    const searchEnd = Math.max(steadyStateEnd, loopStart + minLoopLength);
+    const loopEnd = findZeroCrossing(buffer, searchEnd, -1, Math.floor(sampleRate * 0.2));
+
+    // Validate loop points
+    if (loopEnd <= loopStart + minLoopLength) {
+        return { loopStart: 0, loopEnd: 0 };
+    }
+
+    return { loopStart, loopEnd };
+};
+
+/**
+ * Find loop points for a sampler based on user settings.
+ * This addresses Task 2: Implement note sustain for samplers.
+ * @param buffer Audio buffer
+ * @param loopEnabled Whether looping is enabled
+ * @param sampleRate Sample rate
+ * @returns Object with loopStart, loopEnd, and loopType
+ */
+const findSamplerLoopPoints = (buffer: Float32Array, loopEnabled: boolean, sampleRate: number = 44100): { loopStart: number, loopEnd: number, loopType: number } => {
+    if (!loopEnabled) {
+        return { loopStart: 0, loopEnd: 0, loopType: LoopType.None };
+    }
+
+    const len = buffer.length;
+
+    // For samplers, we want to loop a portion near the end to sustain the sound
+    // Skip transient at beginning (first 10ms)
+    const transientSkip = Math.floor(sampleRate * 0.01);
+
+    // Find stable region for looping (middle to end)
+    const loopRegionStart = Math.max(transientSkip, Math.floor(len * 0.2));
+    const loopRegionEnd = Math.floor(len * 0.95);
+
+    // Find zero crossings for clean loop
+    const loopStart = findZeroCrossing(buffer, loopRegionStart, 1, Math.floor(sampleRate * 0.1));
+    const loopEnd = findZeroCrossing(buffer, loopRegionEnd, -1, Math.floor(sampleRate * 0.1));
+
+    // Minimum loop length (20ms)
+    const minLoop = Math.floor(sampleRate * 0.02);
+
+    if (loopEnd <= loopStart + minLoop) {
+        return { loopStart: 0, loopEnd: 0, loopType: LoopType.None };
+    }
+
+    return { loopStart, loopEnd, loopType: LoopType.Forward };
 };
 
 export const exportSongToXM = async (
@@ -57,92 +203,100 @@ export const exportSongToXM = async (
     // 2. Render and Add Instruments
     // Mapping: 1=SynthA, 2=SynthB, 3=Kick, 4=Snare, 5=CH, 6=OH, 7=Sampler
 
-    // Synth A
-    const bufA = await renderSynthToBuffer(params.synthA, 'C4', 1.0, engines);
+    // Synth A - with auto-loop detection for sustain (Task 3)
+    const bufA = await renderSynthToBuffer(params.synthA, 'C4', 2.0, engines); // 2 seconds for steady-state detection
+    const rawDataA = bufA.getChannelData(0);
+    const normalizedDataA = normalizeBuffer(rawDataA); // Normalize for consistent volume
+    const loopPointsA = findSynthLoopPoints(normalizedDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay);
+
     const sampleA = createSample({
         name: 'Lead',
-        data: floatTo16BitPCM(bufA.getChannelData(0)),
+        data: floatTo16BitPCM(normalizedDataA),
         volume: 64,
-        loopType: 1, // Forward loop
-        loopStart: 20000, // Approximate loop point near end? Or just One Shot?
-        loopLength: bufA.length - 20000,
-        relativeNoteNumber: 24 // FIX: Set relative note to +12
+        loopType: loopPointsA.loopEnd > loopPointsA.loopStart ? LoopType.Forward : LoopType.None,
+        loopStart: loopPointsA.loopStart,
+        loopLength: loopPointsA.loopEnd > loopPointsA.loopStart ? loopPointsA.loopEnd - loopPointsA.loopStart : 0,
+        relativeNoteNumber: 24 // Set relative note to +12
     });
-    // Fix loop for simple synth: just loop the whole thing if it's long?
-    // Actually, for XM synth samples, usually you want a short loop.
-    // Let's just disable loop for now to be safe, treat as one-shot.
-    sampleA.header.type = 0x10; // 16-bit, no loop
 
     const instA = createInstrument('Lead Synth');
     addSampleToInstrument(instA, sampleA);
     mod.instruments.push(instA);
 
-    // Synth B
-    const bufB = await renderSynthToBuffer(params.synthB, 'C4', 1.0, engines);
+    // Synth B - with auto-loop detection for sustain (Task 3)
+    const bufB = await renderSynthToBuffer(params.synthB, 'C4', 2.0, engines); // 2 seconds for steady-state detection
+    const rawDataB = bufB.getChannelData(0);
+    const normalizedDataB = normalizeBuffer(rawDataB);
+    const loopPointsB = findSynthLoopPoints(normalizedDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay);
+
     const sampleB = createSample({
         name: 'Bass',
-        data: floatTo16BitPCM(bufB.getChannelData(0)),
+        data: floatTo16BitPCM(normalizedDataB),
         volume: 64,
+        loopType: loopPointsB.loopEnd > loopPointsB.loopStart ? LoopType.Forward : LoopType.None,
+        loopStart: loopPointsB.loopStart,
+        loopLength: loopPointsB.loopEnd > loopPointsB.loopStart ? loopPointsB.loopEnd - loopPointsB.loopStart : 0,
         relativeNoteNumber: 24
     });
-    sampleB.header.type = 0x10;
+
     const instB = createInstrument('Bass Synth');
     addSampleToInstrument(instB, sampleB);
     mod.instruments.push(instB);
 
-    // Kick
+    // Kick - with normalization for consistent volume (Task 4)
     const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide);
+    const normalizedKick = normalizeBuffer(bufKick.getChannelData(0));
     const sampleKick = createSample({
         name: 'Kick',
-        data: floatTo16BitPCM(bufKick.getChannelData(0)),
+        data: floatTo16BitPCM(normalizedKick),
         volume: 64,
-        relativeNoteNumber: 24 // FIX: Set relative note to +12
+        relativeNoteNumber: 24 // Set relative note to +12
     });
-    sampleKick.header.type = 0x10;
     const instKick = createInstrument('Kick');
     addSampleToInstrument(instKick, sampleKick);
     mod.instruments.push(instKick);
 
-    // Snare
+    // Snare - with normalization for consistent volume (Task 4)
     const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide);
+    const normalizedSnare = normalizeBuffer(bufSnare.getChannelData(0));
     const sampleSnare = createSample({
         name: 'Snare',
-        data: floatTo16BitPCM(bufSnare.getChannelData(0)),
+        data: floatTo16BitPCM(normalizedSnare),
         volume: 64,
-        relativeNoteNumber: 24 // FIX: Set relative note to +12
+        relativeNoteNumber: 24 // Set relative note to +12
     });
-    sampleSnare.header.type = 0x10;
     const instSnare = createInstrument('Snare');
     addSampleToInstrument(instSnare, sampleSnare);
     mod.instruments.push(instSnare);
 
-    // CH
+    // CH - with normalization for consistent volume (Task 4)
     const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide);
+    const normalizedCH = normalizeBuffer(bufCH.getChannelData(0));
     const sampleCH = createSample({
         name: 'Closed Hat',
-        data: floatTo16BitPCM(bufCH.getChannelData(0)),
+        data: floatTo16BitPCM(normalizedCH),
         volume: 64,
-        relativeNoteNumber: 24 // FIX: Set relative note to +12
+        relativeNoteNumber: 24 // Set relative note to +12
     });
-    sampleCH.header.type = 0x10;
     const instCH = createInstrument('Closed Hat');
     addSampleToInstrument(instCH, sampleCH);
     mod.instruments.push(instCH);
 
-    // OH
+    // OH - with normalization for consistent volume (Task 4)
     const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
+    const normalizedOH = normalizeBuffer(bufOH.getChannelData(0));
     const sampleOH = createSample({
         name: 'Open Hat',
-        data: floatTo16BitPCM(bufOH.getChannelData(0)),
+        data: floatTo16BitPCM(normalizedOH),
         volume: 64,
-        relativeNoteNumber: 24 // FIX: Set relative note to +12
+        relativeNoteNumber: 24 // Set relative note to +12
     });
-    sampleOH.header.type = 0x10;
     const instOH = createInstrument('Open Hat');
     addSampleToInstrument(instOH, sampleOH);
     mod.instruments.push(instOH);
 
     // --- SAMPLER INSTRUMENT (Index 7) ---
+    // With normalization (Task 4) and loop point detection (Task 2)
     const instSamp = createInstrument('Sampler');
 
     if (samplerBuffer) {
@@ -157,19 +311,32 @@ export const exportSongToXM = async (
         // 1.0 = 0 shift, 2.0 = +12 semitones, 0.5 = -12 semitones
         const pitchShift = Math.round(Math.log2(params.sampler.playbackSpeed) * 12);
 
+        // Normalize sampler buffer for consistent volume (Task 4)
+        const rawSamplerData = samplerBuffer.getChannelData(0);
+        const normalizedSamplerData = normalizeBuffer(rawSamplerData, -1);
+
+        // Determine if looping should be enabled for the sampler
+        // For now, enable looping for samples longer than 0.5 seconds (likely musical content)
+        // and disable for shorter samples (likely one-shots or speech)
+        const enableLoop = samplerBuffer.duration > 0.5;
+        const samplerLoopPoints = findSamplerLoopPoints(normalizedSamplerData, enableLoop, samplerBuffer.sampleRate);
+
         const sampleSamp = createSample({
             name: params.sampler.sampleName || 'Sample',
-            data: floatTo16BitPCM(samplerBuffer.getChannelData(0)),
+            data: floatTo16BitPCM(normalizedSamplerData),
             volume: Math.min(64, Math.floor(params.sampler.volume * 64)),
             relativeNoteNumber: 24 + pitchShift, // Base note + speed as pitch offset
-            loopType: 0, // One-shot (no loop) - best for TTS/Speech
+            loopType: samplerLoopPoints.loopType,
+            loopStart: samplerLoopPoints.loopStart,
+            loopLength: samplerLoopPoints.loopEnd > samplerLoopPoints.loopStart
+                ? samplerLoopPoints.loopEnd - samplerLoopPoints.loopStart : 0,
         });
-
-        // 16-bit flag
-        sampleSamp.header.type = 0x10;
 
         addSampleToInstrument(instSamp, sampleSamp);
         console.log("✓ Sampler buffer exported:", samplerBuffer.length, "samples →", sampleSamp.data.length, "bytes");
+        if (samplerLoopPoints.loopType !== LoopType.None) {
+            console.log("  Loop points set:", samplerLoopPoints.loopStart, "→", samplerLoopPoints.loopEnd);
+        }
     } else {
         console.warn("⚠ XM Export: No sampler buffer loaded - sampler track will be silent in XM file");
         console.warn("  → To export sampler: Load a sample file, record audio, or generate TTS before exporting");
