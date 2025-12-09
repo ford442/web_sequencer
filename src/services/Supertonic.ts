@@ -105,7 +105,7 @@ export class SupertonicService {
                 throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}. Please ensure assets are in public/assets/onnx/`);
             }
             this.cfgs = await cfgRes.json();
-
+            8
             const idxRes = await fetch(`./assets/onnx/unicode_indexer.json`);
             if (!idxRes.ok) {
                 throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
