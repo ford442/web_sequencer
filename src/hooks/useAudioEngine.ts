@@ -405,7 +405,7 @@ export const useAudioEngine = (pyodide: any) => {
                     if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
                         const oldestId = activeSynthNotes.current.keys().next().value;
                         if (oldestId !== undefined) {
-                            const oldest = activeSynthNotes.current.get(oldestId);
+                            const oldest = activeSynthNotes.current.get(oldestId as number);
                             if (oldest && oldest.stop) oldest.stop();
                         }
                     }
@@ -456,7 +456,7 @@ export const useAudioEngine = (pyodide: any) => {
                         if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
                             const oldestId = activeSynthNotes.current.keys().next().value;
                             if (oldestId !== undefined) {
-                                const oldest = activeSynthNotes.current.get(oldestId);
+                                const oldest = activeSynthNotes.current.get(oldestId as number);
                                 if (oldest && oldest.stop) oldest.stop();
                             }
                         }
@@ -506,7 +506,7 @@ export const useAudioEngine = (pyodide: any) => {
                 if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
                     const oldestId = activeSynthNotes.current.keys().next().value;
                     if (oldestId !== undefined) {
-                        const oldest = activeSynthNotes.current.get(oldestId);
+                        const oldest = activeSynthNotes.current.get(oldestId as number);
                         if (oldest && oldest.stop) oldest.stop();
                     }
                 }
