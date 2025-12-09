@@ -330,7 +330,7 @@ export const useAudioEngine = (pyodide: any) => {
         const generatorCache = new Map<string, AudioBuffer>();
         const BASE_GENERATION_FREQ = 220; // Hz - single-cycle buffer frequency used for caching
 
-        const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl'|'wam'|'pyodide', type: 'saw'|'sqr'|'tri'|'sin', filterCutoff: number = 20000, filterResonance: number = 0) : Promise<AudioBuffer | null> => {
+        const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl' | 'wam' | 'pyodide', type: 'saw' | 'sqr' | 'tri' | 'sin', filterCutoff: number = 20000, filterResonance: number = 0): Promise<AudioBuffer | null> => {
             const sampleRate = context.sampleRate;
             const key = `${engine}:${type}:${BASE_GENERATION_FREQ}:${sampleRate}:${filterCutoff}:${filterResonance}`;
             if (generatorCache.has(key)) return generatorCache.get(key)!;
@@ -342,10 +342,10 @@ export const useAudioEngine = (pyodide: any) => {
                     samples = await gpuEngineRef.current.generate(BASE_GENERATION_FREQ, duration, sampleRate, type);
                 } else if (engine === 'wam' && wasmEngineRef.current?.isReady) {
                     samples = wasmEngineRef.current.generate(BASE_GENERATION_FREQ, duration, sampleRate, type, filterCutoff, filterResonance) as Float32Array;
-                    } else if (engine === 'pyodide' && pyodideRef.current) {
+                } else if (engine === 'pyodide' && pyodideRef.current) {
                     try {
                         pyodideRef.current.globals.get('set_sample_rate')(sampleRate);
-                            const proxy = pyodideRef.current.globals.get('generate_wave')(BASE_GENERATION_FREQ, duration, type, filterCutoff, filterResonance);
+                        const proxy = pyodideRef.current.globals.get('generate_wave')(BASE_GENERATION_FREQ, duration, type, filterCutoff, filterResonance);
                         samples = proxy.toJs({ array_buffer_type: 'float32' });
                         proxy.destroy();
                     } catch (e) {
@@ -404,16 +404,18 @@ export const useAudioEngine = (pyodide: any) => {
 
                     if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
                         const oldestId = activeSynthNotes.current.keys().next().value;
-                        const oldest = activeSynthNotes.current.get(oldestId);
-                        if (oldest && oldest.stop) oldest.stop();
+                        if (oldestId !== undefined) {
+                            const oldest = activeSynthNotes.current.get(oldestId);
+                            if (oldest && oldest.stop) oldest.stop();
+                        }
                     }
-                        const id = nextSynthNoteId.current++;
+                    const id = nextSynthNoteId.current++;
                     const stop = () => {
                         const t = context.currentTime;
                         envGain.gain.cancelScheduledValues(t);
                         envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                         envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                        try { source.stop(t + params.release + 0.05); } catch (e) {}
+                        try { source.stop(t + params.release + 0.05); } catch (e) { }
                         activeSynthNotes.current.delete(id);
                     };
                     activeSynthNotes.current.set(id, { stop });
@@ -453,8 +455,10 @@ export const useAudioEngine = (pyodide: any) => {
                         // Voice allocator: enforce max voices
                         if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
                             const oldestId = activeSynthNotes.current.keys().next().value;
-                            const oldest = activeSynthNotes.current.get(oldestId);
-                            if (oldest && oldest.stop) oldest.stop();
+                            if (oldestId !== undefined) {
+                                const oldest = activeSynthNotes.current.get(oldestId);
+                                if (oldest && oldest.stop) oldest.stop();
+                            }
                         }
                         const id2 = nextSynthNoteId.current++;
                         const stop2 = () => {
@@ -462,7 +466,7 @@ export const useAudioEngine = (pyodide: any) => {
                             envGain.gain.cancelScheduledValues(t);
                             envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                             envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                            try { source.stop(t + params.release + 0.05); } catch (e) {}
+                            try { source.stop(t + params.release + 0.05); } catch (e) { }
                             activeSynthNotes.current.delete(id2);
                         };
                         activeSynthNotes.current.set(id2, { stop: stop2 });
@@ -501,8 +505,10 @@ export const useAudioEngine = (pyodide: any) => {
                 osc.start(now);
                 if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
                     const oldestId = activeSynthNotes.current.keys().next().value;
-                    const oldest = activeSynthNotes.current.get(oldestId);
-                    if (oldest && oldest.stop) oldest.stop();
+                    if (oldestId !== undefined) {
+                        const oldest = activeSynthNotes.current.get(oldestId);
+                        if (oldest && oldest.stop) oldest.stop();
+                    }
                 }
                 const id = nextSynthNoteId.current++;
                 const stop = () => {
@@ -510,7 +516,7 @@ export const useAudioEngine = (pyodide: any) => {
                     envGain.gain.cancelScheduledValues(t);
                     envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                     envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                    try { osc.stop(t + params.release + 0.05); } catch (e) {}
+                    try { osc.stop(t + params.release + 0.05); } catch (e) { }
                     activeSynthNotes.current.delete(id);
                 };
                 activeSynthNotes.current.set(id, { stop });
@@ -769,7 +775,7 @@ export const useAudioEngine = (pyodide: any) => {
             // ramp to zero in 0.1s
             envGain.gain.setValueAtTime(envGain.gain.value || 1.0, now);
             envGain.gain.linearRampToValueAtTime(0, now + 0.12);
-            try { source.stop(now + 0.12 + 0.05); } catch (e) {}
+            try { source.stop(now + 0.12 + 0.05); } catch (e) { }
             activeSamplerNotes.current.delete(id);
         };
 
