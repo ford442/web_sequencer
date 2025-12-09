@@ -125,7 +125,7 @@ export class SupertonicService {
             // We need to make sure this file exists.
             // For now, let's assume M1.json is there.
             try {
-                await this.loadStyle(`./assets/onnx/voice_styles/F1.json`);
+                await this.loadStyle(`./assets/voice_styles/F1.json`);
                 console.log("✓ Loaded default voice style: M1");
             } catch (e) {
                 console.warn("Could not load default style M1.json, please load manually.", e);
