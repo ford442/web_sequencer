@@ -1,12 +1,8 @@
 import * as ort from 'onnxruntime-web';
 
-// Ensure WASM runs on main thread or correctly configured worker
+// WASM configuration - point to public folder where WASM files are served
 ort.env.wasm.numThreads = 1;
-ort.env.wasm.proxy = false;
-
-// const BASE_PATH = './assets'; // Removed unused constant
-
-const MODELS_PATH = './assets/onnx';
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
 
 interface StyleData {
     style_ttl: { data: number[], dims: number[] };
@@ -64,12 +60,30 @@ class UnicodeProcessor {
     }
 }
 
+interface Models {
+    dp?: ort.InferenceSession;
+    textEnc?: ort.InferenceSession;
+    vecEst?: ort.InferenceSession;
+    vocoder?: ort.InferenceSession;
+}
+
+interface TTSConfig {
+    ae: {
+        sample_rate: number;
+        base_chunk_size: number;
+    };
+    ttl: {
+        latent_dim: number;
+        chunk_compress_factor: number;
+    };
+}
+
 export class SupertonicService {
     private static instance: SupertonicService;
     private isReady = false;
-    private models: any = {};
+    private models: Models = {};
     private textProcessor: UnicodeProcessor | null = null;
-    private cfgs: any = null;
+    private cfgs: TTSConfig | null = null;
     private currentStyle: Style | null = null;
 
     private constructor() { }
@@ -83,30 +97,36 @@ export class SupertonicService {
 
     async init() {
         if (this.isReady) return;
-
         try {
             console.log("Supertonic: Loading Config...");
             // Assuming files are served from /assets/onnx in public folder
-            const cfgRes = await fetch(`${MODELS_PATH}/tts.json`);
+            const cfgRes = await fetch(`./assets/onnx/tts.json`);
+            if (!cfgRes.ok) {
+                throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}. Please ensure assets are in public/assets/onnx/`);
+            }
             this.cfgs = await cfgRes.json();
 
-            const idxRes = await fetch(`${MODELS_PATH}/unicode_indexer.json`);
+            const idxRes = await fetch(`./assets/onnx/unicode_indexer.json`);
+            if (!idxRes.ok) {
+                throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
+            }
             const indexer = await idxRes.json();
             this.textProcessor = new UnicodeProcessor(indexer);
 
             console.log("Supertonic: Loading Models...");
             const opts: ort.InferenceSession.SessionOptions = { executionProviders: ['wasm'] };
 
-            this.models.dp = await ort.InferenceSession.create(`${MODELS_PATH}/duration_predictor.onnx`, opts);
-            this.models.textEnc = await ort.InferenceSession.create(`${MODELS_PATH}/text_encoder.onnx`, opts);
-            this.models.vecEst = await ort.InferenceSession.create(`${MODELS_PATH}/vector_estimator.onnx`, opts);
-            this.models.vocoder = await ort.InferenceSession.create(`${MODELS_PATH}/vocoder.onnx`, opts);
+            this.models.dp = await ort.InferenceSession.create(`./assets/onnx/duration_predictor.onnx`, opts);
+            this.models.textEnc = await ort.InferenceSession.create(`./assets/onnx/text_encoder.onnx`, opts);
+            this.models.vecEst = await ort.InferenceSession.create(`./assets/onnx/vector_estimator.onnx`, opts);
+            this.models.vocoder = await ort.InferenceSession.create(`./assets/onnx/vocoder.onnx`, opts);
 
             // Load Default Style (M1 default if available, or placeholder)
             // We need to make sure this file exists.
             // For now, let's assume M1.json is there.
             try {
-                await this.loadStyle(`${MODELS_PATH}/voice_styles/M1.json`);
+                await this.loadStyle(`./assets/voice_styles/F1.json`);
+                console.log("✓ Loaded default voice style: M1");
             } catch (e) {
                 console.warn("Could not load default style M1.json, please load manually.", e);
             }
@@ -114,8 +134,14 @@ export class SupertonicService {
             this.isReady = true;
             console.log("Supertonic: Ready");
         } catch (e) {
-            console.error("Supertonic Init Failed:", e);
-            throw e;
+            console.error("❌ Supertonic Init Failed:", e);
+            if (e instanceof Error && e.message.includes('Failed to fetch')) {
+                console.error("→ Check that ONNX models exist in public/assets/onnx/");
+                console.error("→ Run 'powershell -ExecutionPolicy Bypass -File download_models.ps1' to download models");
+            }
+            this.isReady = false;
+            // Don't throw - let the app continue without TTS
+            return;
         }
     }
 
@@ -133,8 +159,18 @@ export class SupertonicService {
         this.currentStyle = new Style(ttlTensor, dpTensor);
     }
 
+    isServiceReady(): boolean {
+        return this.isReady;
+    }
+
     async generate(text: string, steps: number = 5, speed: number = 1.0): Promise<Float32Array> {
-        if (!this.isReady || !this.currentStyle || !this.textProcessor) throw new Error("Service not ready");
+        if (!this.isReady || !this.currentStyle || !this.textProcessor || !this.cfgs) {
+            throw new Error("Supertonic service not ready. Models may not be loaded. Please ensure assets exist in public/assets/onnx/");
+        }
+
+        if (!this.models.dp || !this.models.textEnc || !this.models.vecEst || !this.models.vocoder) {
+            throw new Error("One or more ONNX models not loaded");
+        }
 
         // 1. Process Text
         const { textIds, textMask } = this.textProcessor.call([text]);
@@ -171,7 +207,7 @@ export class SupertonicService {
         const noise = new Float32Array(totalSize);
         for (let i = 0; i < totalSize; i++) noise[i] = (Math.random() * 2 - 1); // Simple noise
 
-        let xtTensor = new ort.Tensor('float32', noise, [bsz, latentDim, latentLen]);
+        let xtTensor: ort.Tensor = new ort.Tensor('float32', noise, [bsz, latentDim, latentLen]);
 
         // Masks
         const latentMaskVals = new Float32Array(bsz * 1 * latentLen).fill(1.0); // Simplified mask
@@ -191,16 +227,8 @@ export class SupertonicService {
                 current_step: currentStepTensor,
                 total_step: totalStepTensor
             });
-            // Update xtTensor with denoised output for next iteration if loop requires it?
-            // Wait, standard diffusion goes xt -> xt-1. 
-            // In helper.js: 
-            // const vectorEstOutputs = await this.vectorEstOrt.run({...})
-            // const denoised = ...
-            // ... xt (updated) = ...
-            // The logic implies iterative refinement. 
-            // The user's snippet: `xtTensor = vecOut.denoised_latent;`
-            // This assumes `denoised_latent` IS the input for the next step.
-            xtTensor = vecOut.denoised_latent;
+            // Update xtTensor with denoised output for next iteration
+            xtTensor = vecOut.denoised_latent as ort.Tensor;
         }
 
         // 6. Vocoder

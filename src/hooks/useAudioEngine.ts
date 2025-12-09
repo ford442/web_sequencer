@@ -368,6 +368,7 @@ export const useAudioEngine = (pyodide: any) => {
         };
 
         const playSampler = (params: SamplerParams, note: string, time: number) => {
+            console.log("playSampler called:", { name: params.sampleName, note, pyodideReady: !!pyodideRef.current });
             if (!pyodideRef.current) return;
             try {
                 // 1. Resample/Pitch in Python (Keep existing logic)
