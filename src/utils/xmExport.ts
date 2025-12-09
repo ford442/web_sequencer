@@ -146,6 +146,13 @@ export const exportSongToXM = async (
     const instSamp = createInstrument('Sampler');
 
     if (samplerBuffer) {
+        console.log("XM Export: Sampler buffer received:", {
+            length: samplerBuffer.length,
+            sampleRate: samplerBuffer.sampleRate,
+            channels: samplerBuffer.numberOfChannels,
+            duration: (samplerBuffer.length / samplerBuffer.sampleRate).toFixed(2) + 's'
+        });
+
         // Calculate relative note number based on playback speed
         // 1.0 = 0 shift, 2.0 = +12 semitones, 0.5 = -12 semitones
         const pitchShift = Math.round(Math.log2(params.sampler.playbackSpeed) * 12);
@@ -162,9 +169,10 @@ export const exportSongToXM = async (
         sampleSamp.header.type = 0x10;
 
         addSampleToInstrument(instSamp, sampleSamp);
-        console.log("Sampler buffer exported:", samplerBuffer.length, "samples");
+        console.log("✓ Sampler buffer exported:", samplerBuffer.length, "samples →", sampleSamp.data.length, "bytes");
     } else {
-        console.log("No sampler buffer available for export");
+        console.warn("⚠ XM Export: No sampler buffer loaded - sampler track will be silent in XM file");
+        console.warn("  → To export sampler: Load a sample file, record audio, or generate TTS before exporting");
     }
 
     mod.instruments.push(instSamp);
