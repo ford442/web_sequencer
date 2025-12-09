@@ -55,15 +55,15 @@ export const INITIAL_PATTERN: Pattern = {
   partA: {
     steps: [
       // Bar 1 (C Major Arp)
-      { note: 'C4', velocity: 1 }, null, null, null,
-      { note: 'E4', velocity: 1 }, null, null, null,
-      { note: 'G4', velocity: 1 }, null, null, null,
-      { note: 'E4', velocity: 1 }, null, null, null,
+      { note: 'C4', velocity: 1, length: 1 }, null, null, null,
+      { note: 'E4', velocity: 1, length: 1 }, null, null, null,
+      { note: 'G4', velocity: 1, length: 1 }, null, null, null,
+      { note: 'E4', velocity: 1, length: 1 }, null, null, null,
       // Bar 2 (F Major Variation)
-      { note: 'C4', velocity: 1 }, null, null, null,
-      { note: 'F4', velocity: 1 }, null, null, null,
-      { note: 'A4', velocity: 1 }, null, null, null,
-      { note: 'F4', velocity: 1 }, null, null, null,
+      { note: 'C4', velocity: 1, length: 1 }, null, null, null,
+      { note: 'F4', velocity: 1, length: 1 }, null, null, null,
+      { note: 'A4', velocity: 1, length: 1 }, null, null, null,
+      { note: 'F4', velocity: 1, length: 1 }, null, null, null,
     ],
   },
   partB: {

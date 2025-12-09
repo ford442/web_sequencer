@@ -41,7 +41,8 @@ export const exportSongToXM = async (
         webGpuEngine?: any,
         wasmEngine?: any,
         pyodide?: any
-    }
+    },
+    samplerBuffer?: AudioBuffer | null // NEW: Accept sampler buffer for export
 ) => {
     console.log("Starting XM Export with engines:", engines);
 
@@ -141,9 +142,31 @@ export const exportSongToXM = async (
     addSampleToInstrument(instOH, sampleOH);
     mod.instruments.push(instOH);
 
-    // Sampler (Placeholder or actual?)
-    // If sampler loaded, we should use it. For now, empty or simple sine
+    // --- SAMPLER INSTRUMENT (Index 7) ---
     const instSamp = createInstrument('Sampler');
+
+    if (samplerBuffer) {
+        // Calculate relative note number based on playback speed
+        // 1.0 = 0 shift, 2.0 = +12 semitones, 0.5 = -12 semitones
+        const pitchShift = Math.round(Math.log2(params.sampler.playbackSpeed) * 12);
+
+        const sampleSamp = createSample({
+            name: params.sampler.sampleName || 'Sample',
+            data: floatTo16BitPCM(samplerBuffer.getChannelData(0)),
+            volume: Math.min(64, Math.floor(params.sampler.volume * 64)),
+            relativeNoteNumber: 24 + pitchShift, // Base note + speed as pitch offset
+            loopType: 0, // One-shot (no loop) - best for TTS/Speech
+        });
+
+        // 16-bit flag
+        sampleSamp.header.type = 0x10;
+
+        addSampleToInstrument(instSamp, sampleSamp);
+        console.log("Sampler buffer exported:", samplerBuffer.length, "samples");
+    } else {
+        console.log("No sampler buffer available for export");
+    }
+
     mod.instruments.push(instSamp);
 
     mod.header.numberOfInstruments = mod.instruments.length;
@@ -160,7 +183,7 @@ export const exportSongToXM = async (
 
     // Determine if we should use the current pattern as fallback
     const useFallbackPattern = lastActiveMeasure === -1 && currentPattern;
-    
+
     // Export measures up to lastActiveMeasure + 1 (or at least 1 if the whole song is empty).
     const activeLength = Math.max(1, lastActiveMeasure + 1);
 
@@ -191,7 +214,7 @@ export const exportSongToXM = async (
     // Helper to fill pattern data from a sequence
     const fillPatternFromSequence = (xmPat: ReturnType<typeof createPattern>, sequence: PartSequence, trackKey: TrackKey) => {
         const { inst, chan } = trackMap[trackKey];
-        
+
         sequence.steps.forEach((stepData, row) => {
             if (stepData && row < 32) {
                 const note = xmPat.data[row][chan];
@@ -214,9 +237,9 @@ export const exportSongToXM = async (
     if (useFallbackPattern) {
         // Song structure is empty - export the current pattern as a single measure
         console.log("Song structure is empty, exporting current pattern...");
-        
+
         const xmPat = createPattern(32, 8);
-        
+
         // Fill from current pattern
         (Object.keys(trackMap) as TrackKey[]).forEach(trackKey => {
             const sequence = currentPattern[trackKey];
@@ -224,7 +247,7 @@ export const exportSongToXM = async (
                 fillPatternFromSequence(xmPat, sequence, trackKey);
             }
         });
-        
+
         mod.patterns.push(xmPat);
         patternOrderTable.push(0);
     } else {
@@ -256,7 +279,7 @@ export const exportSongToXM = async (
     mod.header.songLength = patternOrderTable.length;
 
     // Update order table
-    for(let i=0; i<patternOrderTable.length; i++) {
+    for (let i = 0; i < patternOrderTable.length; i++) {
         mod.header.patternOrderTable[i] = patternOrderTable[i];
     }
 
