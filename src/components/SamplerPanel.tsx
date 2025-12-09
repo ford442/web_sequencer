@@ -29,9 +29,14 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange: _o
     }, []);
 
     const handleTTS = async () => {
-        if (!audioContext) return;
-        
+        console.log("GEN clicked - handleTTS triggered");
+        if (!audioContext) {
+            console.log("No audioContext");
+            return;
+        }
+
         const service = SupertonicService.getInstance();
+        console.log("Service ready?", service.isServiceReady());
         if (!service.isServiceReady()) {
             setStatus("TTS models not loaded");
             return;
