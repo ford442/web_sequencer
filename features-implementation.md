@@ -120,3 +120,23 @@ Add a Button: Export Track to .XM.
 [ ] Compatibility: Loop points must align to even bytes for 16-bit samples to avoid tracker crashing.
 
 [ ] Fidelity: Normalized gain must apply before 16-bit integer conversion.
+Phase 5: User Interface Polish (New)
+[ ] Knob & Scroll Interaction: Implement mousedown -> mousemove (delta) logic for Knobs, Pattern Selectors, and Tempo. Remove "double-tap" behavior.
+
+[ ] Musical Keyboard: Fix mouseup / mouseleave events to properly trigger NoteOff (solving the stuck note sustain issue).
+
+[ ] Visual Feedback:
+
+Color code keyboard keys (C = Red, D = Orange, etc.).
+
+Color code pattern numbers (Active = Green, Empty = Grey).
+
+Phase 6: Advanced Audio Features (New)
+[ ] Polyphonic Lead: Upgrade HybridVoice to manage an array of voices (e.g., voices = [Voice(), Voice(), Voice()]). Allocator logic needed (Steal oldest note).
+
+[ ] Bank Expansion: Update data structure to support 4 Banks x 8 Patterns (32 total patterns).
+
+Phase 7: Optimization & System (New)
+[ ] WebGPU Memory Manager: Refactor shader code to reuse GPUBuffers instead of recreating them.
+
+[ ] Save/Load System: Implement Python-based Zip export for full song state.
