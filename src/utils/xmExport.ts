@@ -7,6 +7,16 @@ import { renderSynthToBuffer, renderDrumToBuffer } from './renderAudio';
 
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 
+// --- Configuration Constants ---
+/** Peak level threshold below which normalization is applied */
+const NORMALIZATION_PEAK_THRESHOLD = 0.5;
+/** Minimum sample duration (in seconds) to enable looping for samplers */
+const SAMPLER_LOOP_DURATION_THRESHOLD = 0.5;
+/** Base render duration for synths (in seconds) for steady-state detection */
+const SYNTH_RENDER_BASE_DURATION = 1.0;
+/** Safety multiplier for attack+decay time when calculating synth render duration */
+const SYNTH_RENDER_AD_MULTIPLIER = 2.0;
+
 // Helper to download blob
 const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -40,8 +50,8 @@ const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1): Float3
     // Calculate target peak (linear)
     const targetPeak = Math.pow(10, targetPeakDb / 20);
 
-    // Only normalize if peak is below threshold (e.g., < 0.5)
-    if (peak < 0.5) {
+    // Only normalize if peak is below threshold
+    if (peak < NORMALIZATION_PEAK_THRESHOLD) {
         const gain = targetPeak / peak;
         const output = new Float32Array(input.length);
         for (let i = 0; i < input.length; i++) {
@@ -127,8 +137,8 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
     const loopStart = findZeroCrossing(buffer, steadyStateStart, 1, Math.floor(sampleRate * 0.1));
 
     // Find loop end - zero crossing near end of steady state, at least minLoopLength away from start
-    const searchEnd = Math.max(steadyStateEnd, loopStart + minLoopLength);
-    const loopEnd = findZeroCrossing(buffer, searchEnd, -1, Math.floor(sampleRate * 0.2));
+    const loopEndSearchStart = Math.max(steadyStateEnd, loopStart + minLoopLength);
+    const loopEnd = findZeroCrossing(buffer, loopEndSearchStart, -1, Math.floor(sampleRate * 0.2));
 
     // Validate loop points
     if (loopEnd <= loopStart + minLoopLength) {
@@ -204,7 +214,9 @@ export const exportSongToXM = async (
     // Mapping: 1=SynthA, 2=SynthB, 3=Kick, 4=Snare, 5=CH, 6=OH, 7=Sampler
 
     // Synth A - with auto-loop detection for sustain (Task 3)
-    const bufA = await renderSynthToBuffer(params.synthA, 'C4', 2.0, engines); // 2 seconds for steady-state detection
+    // Adaptive render duration based on attack+decay time
+    const synthADuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthA.attack + params.synthA.decay) * SYNTH_RENDER_AD_MULTIPLIER);
+    const bufA = await renderSynthToBuffer(params.synthA, 'C4', synthADuration, engines);
     const rawDataA = bufA.getChannelData(0);
     const normalizedDataA = normalizeBuffer(rawDataA); // Normalize for consistent volume
     const loopPointsA = findSynthLoopPoints(normalizedDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay);
@@ -224,7 +236,9 @@ export const exportSongToXM = async (
     mod.instruments.push(instA);
 
     // Synth B - with auto-loop detection for sustain (Task 3)
-    const bufB = await renderSynthToBuffer(params.synthB, 'C4', 2.0, engines); // 2 seconds for steady-state detection
+    // Adaptive render duration based on attack+decay time
+    const synthBDuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthB.attack + params.synthB.decay) * SYNTH_RENDER_AD_MULTIPLIER);
+    const bufB = await renderSynthToBuffer(params.synthB, 'C4', synthBDuration, engines);
     const rawDataB = bufB.getChannelData(0);
     const normalizedDataB = normalizeBuffer(rawDataB);
     const loopPointsB = findSynthLoopPoints(normalizedDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay);
@@ -316,9 +330,9 @@ export const exportSongToXM = async (
         const normalizedSamplerData = normalizeBuffer(rawSamplerData, -1);
 
         // Determine if looping should be enabled for the sampler
-        // For now, enable looping for samples longer than 0.5 seconds (likely musical content)
-        // and disable for shorter samples (likely one-shots or speech)
-        const enableLoop = samplerBuffer.duration > 0.5;
+        // Enable looping for samples longer than threshold (likely musical content)
+        // Disable for shorter samples (likely one-shots or speech)
+        const enableLoop = samplerBuffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
         const samplerLoopPoints = findSamplerLoopPoints(normalizedSamplerData, enableLoop, samplerBuffer.sampleRate);
 
         const sampleSamp = createSample({
