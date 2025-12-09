@@ -1,9 +1,11 @@
 /**
  * SustainProcessor - AudioWorklet for sample playback with arpeggiator
  * Features:
- * - Linear interpolation for smooth pitch shifting
- * - Loop and Stretch modes
+ * - Linear interpolation for smooth pitch shifting (prevents aliasing)
+ * - Mode A (Loop): Standard pointer wrap-around with zero-crossing alignment
+ * - Mode B (Stretch): Granular "freeze" with randomized grain positions
  * - Built-in arpeggiator with sample-perfect timing
+ * - Garbage-collection free render loop
  */
 class SustainProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -25,7 +27,15 @@ class SustainProcessor extends AudioWorkletProcessor {
         this.mode = 0;         // 0=LOOP, 1=STRETCH
         this.loopStart = 0;
         this.loopEnd = 0;
-        this.grainSize = 2000;
+        this.grainSize = 4410; // Default grain size (~100ms at 44.1kHz)
+        this.grainOverlap = 0.5; // Overlap factor for smoother stretching
+
+        // Stretch mode state (for crossfade grains)
+        this.grainPhase = 0;
+        this.grainFadeLength = 441; // ~10ms fade for smooth transitions
+
+        // Pre-computed zero-crossing positions (optional optimization)
+        this.zeroCrossings = null;
 
         // Message handler for receiving buffer and settings
         this.port.onmessage = (event) => {
@@ -37,6 +47,8 @@ class SustainProcessor extends AudioWorkletProcessor {
                     this.loopEnd = this.buffer.length;
                     this.loopStart = 0;
                     this.playhead = 0;
+                    // Pre-compute zero crossings for this buffer
+                    this.zeroCrossings = this.findZeroCrossings(this.buffer);
                     break;
 
                 case 'setLoopPoints':
@@ -53,6 +65,7 @@ class SustainProcessor extends AudioWorkletProcessor {
                     this.isPlaying = true;
                     this.playhead = this.loopStart;
                     this.basePitch = data.pitch || 1.0;
+                    this.grainPhase = 0;
                     break;
 
                 case 'noteOff':
@@ -60,7 +73,11 @@ class SustainProcessor extends AudioWorkletProcessor {
                     break;
 
                 case 'setGrainSize':
-                    this.grainSize = data.size || 2000;
+                    this.grainSize = data.size || 4410;
+                    break;
+
+                case 'setMode':
+                    this.mode = data.mode || 0;
                     break;
             }
         };
@@ -75,7 +92,65 @@ class SustainProcessor extends AudioWorkletProcessor {
         ];
     }
 
-    // Helper: Linear Interpolation for high-quality pitch/stretch
+    /**
+     * Find zero-crossing positions in the buffer for clean loop points.
+     * Uses a simple positive-going zero-crossing detection.
+     * @param {Float32Array} buffer - Audio buffer
+     * @returns {Int32Array} Array of zero-crossing indices
+     */
+    findZeroCrossings(buffer) {
+        // Pre-allocate array (estimate ~sampleRate/100 crossings per second for typical audio)
+        const crossings = [];
+        for (let i = 1; i < buffer.length; i++) {
+            if (buffer[i] >= 0 && buffer[i - 1] < 0) {
+                crossings.push(i);
+            }
+        }
+        return new Int32Array(crossings);
+    }
+
+    /**
+     * Find the nearest zero-crossing to a given position.
+     * Uses binary search for efficiency.
+     * @param {number} position - Target position
+     * @returns {number} Nearest zero-crossing index
+     */
+    findNearestZeroCrossing(position) {
+        if (!this.zeroCrossings || this.zeroCrossings.length === 0) {
+            return Math.floor(position);
+        }
+
+        // Binary search for nearest zero crossing
+        let low = 0;
+        let high = this.zeroCrossings.length - 1;
+
+        while (low < high) {
+            const mid = (low + high) >>> 1;
+            if (this.zeroCrossings[mid] < position) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+
+        // Check which of the two closest is nearer
+        if (low > 0) {
+            const prev = this.zeroCrossings[low - 1];
+            const curr = this.zeroCrossings[low];
+            if (Math.abs(position - prev) < Math.abs(position - curr)) {
+                return prev;
+            }
+        }
+
+        return this.zeroCrossings[low] || Math.floor(position);
+    }
+
+    /**
+     * Linear Interpolation for high-quality pitch/stretch.
+     * Prevents aliasing at non-integer playback rates.
+     * @param {number} position - Fractional sample position
+     * @returns {number} Interpolated sample value
+     */
     getInterpolatedSample(position) {
         if (!this.buffer || this.buffer.length === 0) return 0;
 
@@ -90,6 +165,21 @@ class SustainProcessor extends AudioWorkletProcessor {
         const valB = (indexB < this.buffer.length) ? this.buffer[indexB] : 0;
 
         return valA + (valB - valA) * fraction;
+    }
+
+    /**
+     * Generate a random position within the grain window for stretch mode.
+     * Uses a simple LCG for GC-free random numbers.
+     * @returns {number} Random offset within grain
+     */
+    getStretchJumpPosition() {
+        // Simple LCG for deterministic randomness without GC
+        this.grainPhase = (this.grainPhase * 1103515245 + 12345) & 0x7FFFFFFF;
+        const randomFactor = (this.grainPhase / 0x7FFFFFFF);
+
+        // Jump to a position within the grain window
+        const windowSize = this.grainSize * this.grainOverlap;
+        return this.loopStart + (randomFactor * windowSize);
     }
 
     process(inputs, outputs, parameters) {
@@ -137,7 +227,7 @@ class SustainProcessor extends AudioWorkletProcessor {
         const blockSize = output[0].length;
 
         for (let i = 0; i < blockSize; i++) {
-            // 1. Get Sample (Interpolated)
+            // 1. Get Sample (Interpolated for anti-aliasing)
             const sampleValue = this.getInterpolatedSample(this.playhead);
 
             // 2. Write to Output (Mono to Stereo)
@@ -153,16 +243,20 @@ class SustainProcessor extends AudioWorkletProcessor {
 
             // 4. Sustain / Loop Logic
             if (mode < 0.5) {
-                // Loop Mode
+                // --- MODE A: LOOP ---
+                // Standard pointer wrap-around with optional zero-crossing alignment
                 if (this.playhead >= this.loopEnd) {
-                    this.playhead = this.loopStart;
+                    // Find nearest zero crossing for click-free looping
+                    const alignedStart = this.findNearestZeroCrossing(this.loopStart);
+                    this.playhead = alignedStart;
                 }
             } else {
-                // Stretch Mode (Granular-ish sustain)
+                // --- MODE B: STRETCH (Granular Freeze) ---
+                // Jump playhead back to create infinite sustain texture
                 const freezeLimit = this.loopStart + this.grainSize;
                 if (this.playhead >= freezeLimit) {
-                    // Randomize position within grain for natural texture
-                    this.playhead = this.loopStart + (Math.random() * (this.grainSize / 2));
+                    // Use random position for natural texture without rhythmic repetition
+                    this.playhead = this.getStretchJumpPosition();
                 }
             }
         }
