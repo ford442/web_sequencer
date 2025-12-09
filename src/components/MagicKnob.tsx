@@ -64,11 +64,22 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
         // Attach to container to catch clicks on the bezel/canvas
         const container = canvas.parentElement;
         container?.addEventListener('mousedown', onDown);
+        const onWheel = (ev: WheelEvent) => {
+            ev.preventDefault();
+            const direction = ev.deltaY > 0 ? -1 : 1;
+            const range = max - min;
+            const delta = direction * (range / 100);
+            let newVal = valueRef.current + delta;
+            newVal = Math.max(min, Math.min(max, newVal));
+            if (onChangeRef.current) onChangeRef.current(newVal);
+        };
+        container?.addEventListener('wheel', onWheel, { passive: false });
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
 
         return () => {
             container?.removeEventListener('mousedown', onDown);
+            container?.removeEventListener('wheel', onWheel as any);
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
         };
@@ -268,7 +279,25 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
     }, [min, max]); // Re-init if range changes
 
     return (
-        <div className="flex flex-col items-center select-none" style={{ cursor: 'pointer' }}>
+        <div className="flex flex-col items-center select-none" style={{ cursor: 'pointer' }} tabIndex={0}
+            onKeyDown={(e) => {
+                if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+                    const range = max - min;
+                    const step = range / 100;
+                    let newVal = valueRef.current + step;
+                    newVal = Math.max(min, Math.min(max, newVal));
+                    if (onChangeRef.current) onChangeRef.current(newVal);
+                    e.preventDefault();
+                } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+                    const range = max - min;
+                    const step = range / 100;
+                    let newVal = valueRef.current - step;
+                    newVal = Math.max(min, Math.min(max, newVal));
+                    if (onChangeRef.current) onChangeRef.current(newVal);
+                    e.preventDefault();
+                }
+            }}
+        >
             <div style={{ position: 'relative', width: size, height: size }}>
                 
                 {/* Bezel is now BOTTOM Layer (Z-Index 0) */}

@@ -592,17 +592,26 @@ export const App: React.FC = () => {
         })
     }, [activeTrackSlots])
 
+    const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
+
     const handleKeyboardPlay = (note: string) => {
         if (!audioEngine) return;
         const time = audioEngine.context.currentTime;
-
-        if (selectedTrack === 'partA') audioEngine.playSynth(synthARef.current, note, time);
-        else if (selectedTrack === 'partB') audioEngine.playSynth(synthBRef.current, note, time);
+        if (selectedTrack === 'partA') {
+            const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time);
+            Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); });
+        } else if (selectedTrack === 'partB') {
+            const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time);
+            Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); });
+        }
         else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
         else if (selectedTrack === 'snare') audioEngine.playDrum('snare', snareRef.current, time);
         else if (selectedTrack === 'closedHat') audioEngine.playDrum('closedHat', closedHatRef.current, time);
         else if (selectedTrack === 'openHat') audioEngine.playDrum('openHat', openHatRef.current, time);
-        else if (selectedTrack === 'sampler') audioEngine.playSampler(samplerRef.current, note, time);
+        else if (selectedTrack === 'sampler') {
+            const id = audioEngine.noteOnSampler?.(samplerRef.current, note, time) ?? null;
+            if (id) activeKeyboardNotesRef.current.set(note, id);
+        }
 
         if (isRecording && isPlaying && currentStep >= 0) {
             setPattern(prev => {
@@ -612,6 +621,23 @@ export const App: React.FC = () => {
                 return copy;
             });
         }
+    };
+
+    const handleKeyboardStop = (note: string) => {
+        // For now we don't have per-note stop in the AudioEngine for scheduled envelopes.
+        // This function exists so keyboard UI can notify engine implementations that support note-off (e.g., SustainProcessor)
+        // If a future engine exposes stopSynth/stopSampler methods, call them here.
+        if (!audioEngine) return;
+        const id = activeKeyboardNotesRef.current.get(note);
+        if (!id) return;
+        if (selectedTrack === 'partA' || selectedTrack === 'partB') {
+            audioEngine.noteOffSynth?.(id);
+        } else if (selectedTrack === 'sampler') {
+            audioEngine.noteOffSampler?.(id);
+        }
+        activeKeyboardNotesRef.current.delete(note);
+        // Right now, the keyboard will rely on envelope lengths managed by the engine.
+        return;
     };
 
     const handleRightClickStep = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => {
@@ -963,6 +989,7 @@ export const App: React.FC = () => {
                     <div className="border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl bg-gradient-to-b from-[#0d1015] to-[#080a0c]">
                         <LiveKeyboard
                             onPlayNote={handleKeyboardPlay}
+                            onStopNote={handleKeyboardStop}
                             activeTrackColor={selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') : selectedTrack === 'kick' ? '#f97316' : selectedTrack === 'snare' ? '#22c55e' : selectedTrack === 'sampler' ? '#a855f7' : '#eab308'}
                         />
                     </div>
