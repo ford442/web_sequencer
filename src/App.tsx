@@ -989,10 +989,10 @@ export const App: React.FC = () => {
                         ))}
                     </div>
                     <div className="flex items-center gap-1">
-                        <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 hover:text-green-300 border border-green-900/50 bg-gradient-to-r from-green-900/10 to-green-900/20 hover:bg-green-900/40 px-2 py-1 rounded transition-all" title="Export song to file">
+                        <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 hover:text-green-300 border border-green-900/50 bg-gradient-to-r from-green-900/10 to-green-900/20 hover:bg-green-900/40 px-2 py-1 rounded transition-all" title="Export song to file" aria-label="Export song to file">
                             💾
                         </button>
-                        <button onClick={importSongFromFile} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 border border-blue-900/50 bg-gradient-to-r from-blue-900/10 to-blue-900/20 hover:bg-blue-900/40 px-2 py-1 rounded transition-all" title="Import song from file">
+                        <button onClick={importSongFromFile} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 border border-blue-900/50 bg-gradient-to-r from-blue-900/10 to-blue-900/20 hover:bg-blue-900/40 px-2 py-1 rounded transition-all" title="Import song from file" aria-label="Import song from file">
                             📂
                         </button>
                     </div>
