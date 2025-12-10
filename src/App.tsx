@@ -988,6 +988,14 @@ export const App: React.FC = () => {
                             </button>
                         ))}
                     </div>
+                    <div className="flex items-center gap-1">
+                        <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 hover:text-green-300 border border-green-900/50 bg-gradient-to-r from-green-900/10 to-green-900/20 hover:bg-green-900/40 px-2 py-1 rounded transition-all" title="Export song to file">
+                            💾
+                        </button>
+                        <button onClick={importSongFromFile} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 border border-blue-900/50 bg-gradient-to-r from-blue-900/10 to-blue-900/20 hover:bg-blue-900/40 px-2 py-1 rounded transition-all" title="Import song from file">
+                            📂
+                        </button>
+                    </div>
                     <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-gradient-to-r from-red-900/10 to-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded-lg transition-all shadow-md">
                         CLEAR
                     </button>
