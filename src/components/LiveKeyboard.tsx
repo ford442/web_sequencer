@@ -181,14 +181,14 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNo
                                         pointerEvents="none"
                                     />
 
-                                    {/* Label */}
+                                    {/* Label - color coded by note */}
                                     <text
                                         x={keyWidth/2} y={keyHeight - 8}
                                         textAnchor="middle"
                                         fontSize={10}
                                         fontFamily="monospace"
                                         fontWeight="bold"
-                                        fill={isActive ? '#fff' : (isBlack ? '#555' : '#888')}
+                                        fill={isActive ? '#fff' : noteColor}
                                         pointerEvents="none"
                                     >
                                         {fullNote}
