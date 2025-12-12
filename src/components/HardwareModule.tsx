@@ -118,14 +118,16 @@ export const HardwareModule = React.memo(
                         alphaMode: 'premultiplied'
                     });
 
-                    // Shader logic (Same as before)
+                    // Shader logic - supports up to 12 knobs
                     const shaderCode = `
                     struct Uniforms {
                         time: f32, ratio: f32, pad1: f32, pad2: f32,
                         color: vec3f, pad3: f32,
-                        vals1: vec4f, vals2: vec4f,
+                        vals1: vec4f, vals2: vec4f, vals3: vec4f,
+                        pad4: vec4f,
                         pos0: vec4f, pos1: vec4f, pos2: vec4f, pos3: vec4f,
                         pos4: vec4f, pos5: vec4f, pos6: vec4f, pos7: vec4f,
+                        pos8: vec4f, pos9: vec4f, pos10: vec4f, pos11: vec4f,
                     };
                     @group(0) @binding(0) var<uniform> u: Uniforms;
 
@@ -145,7 +147,8 @@ export const HardwareModule = React.memo(
 
                     fn get_knob_val(idx: i32) -> f32 {
                         if (idx < 4) { return u.vals1[idx]; }
-                        return u.vals2[idx - 4];
+                        if (idx < 8) { return u.vals2[idx - 4]; }
+                        return u.vals3[idx - 8];
                     }
 
                     @fragment
@@ -158,12 +161,14 @@ export const HardwareModule = React.memo(
                         col += (fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453) * 0.03);
                         col *= 0.9 + 0.1 * sin(uv.y * 200.0);
 
-                        for (var i = 0; i < 8; i++) {
+                        for (var i = 0; i < 12; i++) {
                             var k_pos_uv: vec4f;
                             if(i==0){k_pos_uv=u.pos0;} else if(i==1){k_pos_uv=u.pos1;}
                             else if(i==2){k_pos_uv=u.pos2;} else if(i==3){k_pos_uv=u.pos3;}
                             else if(i==4){k_pos_uv=u.pos4;} else if(i==5){k_pos_uv=u.pos5;}
-                            else if(i==6){k_pos_uv=u.pos6;} else {k_pos_uv=u.pos7;}
+                            else if(i==6){k_pos_uv=u.pos6;} else if(i==7){k_pos_uv=u.pos7;}
+                            else if(i==8){k_pos_uv=u.pos8;} else if(i==9){k_pos_uv=u.pos9;}
+                            else if(i==10){k_pos_uv=u.pos10;} else {k_pos_uv=u.pos11;}
 
                             if (k_pos_uv.z == 0.0) { continue; }
 
@@ -204,7 +209,7 @@ export const HardwareModule = React.memo(
                         primitive: { topology: 'triangle-list' }
                     });
 
-                    uniformBuffer = device.createBuffer({ size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+                    uniformBuffer = device.createBuffer({ size: 320, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
                     render();
                 } catch (e) { console.error("WebGPU Init Failed", e); }
             };
@@ -212,10 +217,10 @@ export const HardwareModule = React.memo(
             const render = () => {
                 if (!isActive || !device || !pipeline) return;
 
-                const vals = new Float32Array(8);
-                const positions = new Float32Array(32);
+                const vals = new Float32Array(12);
+                const positions = new Float32Array(48); // 12 knobs * 4 floats each
                 controlsRef.current.forEach((c, i) => {
-                    if (i < 8) {
+                    if (i < 12) {
                         vals[i] = c.value;
                         const o = i * 4;
                         positions[o] = c.x; positions[o + 1] = c.y; positions[o + 2] = c.size;
@@ -225,8 +230,11 @@ export const HardwareModule = React.memo(
                 const width = canvas.width, height = canvas.height;
                 device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([performance.now() / 1000, width / height, 0, 0]));
                 device.queue.writeBuffer(uniformBuffer, 16, new Float32Array([...colorHex, 0]));
-                device.queue.writeBuffer(uniformBuffer, 32, vals);
-                device.queue.writeBuffer(uniformBuffer, 64, positions);
+                // vals: 12 floats = 3 vec4f, padded to 4 vec4f (16 floats)
+                const valsWithPad = new Float32Array(16);
+                valsWithPad.set(vals);
+                device.queue.writeBuffer(uniformBuffer, 32, valsWithPad);
+                device.queue.writeBuffer(uniformBuffer, 96, positions);
 
                 const encoder = device.createCommandEncoder();
                 const pass = encoder.beginRenderPass({

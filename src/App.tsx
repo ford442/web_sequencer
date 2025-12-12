@@ -62,6 +62,12 @@ const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (Part
     return storage;
 };
 
+// Map pattern slot numbers (0-7) to note colors (C4, D4, E4, F4, G4, A4, B4, C5)
+const PATTERN_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+const getPatternColor = (slotIndex: number): string => {
+    return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
+};
+
 // --- COMPONENTS ---
 
 // UPDATED SVG STEP: Supports variable length (morphing) and alternating background groups
@@ -178,19 +184,27 @@ const SvgStep = memo(({
     )
 })
 
-const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number, isActive: boolean, hasData: boolean, onClick: () => void }) => (
-    <g transform={`translate(${index * 22}, 0)`} onClick={() => onClick()} cursor="pointer">
-        <rect
-            width={18} height={18} rx={2}
-            fill={isActive ? '#3fa34d' : (hasData ? '#234a2e' : '#0f1812')}
-            stroke={isActive ? '#fff' : '#3fa34d'}
-            strokeWidth={1}
-        />
-        <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : '#8fa394'} fontFamily="monospace" fontWeight="bold">
-            {index + 1}
-        </text>
-    </g>
-);
+const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number, isActive: boolean, hasData: boolean, onClick: () => void }) => {
+    const patternColor = getPatternColor(index);
+    // Create a darker version for inactive state
+    const inactiveColor = hasData ? patternColor : '#0f1812';
+    
+    return (
+        <g transform={`translate(${index * 22}, 0)`} onClick={() => onClick()} cursor="pointer">
+            <rect
+                width={18} height={18} rx={2}
+                fill={isActive ? patternColor : inactiveColor}
+                fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)}
+                stroke={isActive ? '#fff' : patternColor}
+                strokeOpacity={isActive ? 1 : 0.6}
+                strokeWidth={1}
+            />
+            <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : patternColor} fontFamily="monospace" fontWeight="bold">
+                {index + 1}
+            </text>
+        </g>
+    );
+};
 
 // UPDATED SEQUENCER ROW: Adds Grid Markers (Beats/Bars)
 const SequencerRow = memo(({
@@ -424,6 +438,36 @@ export const App: React.FC = () => {
     const [sampler, setSampler] = useState(DEFAULT_SAMPLER_PARAMS);
     const samplerRef = useRef(DEFAULT_SAMPLER_PARAMS);
     const updateSampler = (u: Partial<SamplerParams>) => { const n = { ...sampler, ...u }; setSampler(n); samplerRef.current = n; };
+
+    // --- TEMPO HOLD-TO-SCROLL ---
+    const tempoHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const tempoRef = useRef(tempo);
+    useEffect(() => { tempoRef.current = tempo; }, [tempo]);
+
+    const handleTempoHoldStart = useCallback((direction: number) => {
+        // First immediate change
+        setTempo(t => Math.max(30, Math.min(300, t + direction)));
+        
+        // Start interval for continuous change after 300ms
+        const timeout = setTimeout(() => {
+            tempoHoldIntervalRef.current = setInterval(() => {
+                setTempo(t => Math.max(30, Math.min(300, t + direction)));
+            }, 50); // Change every 50ms while held
+        }, 300);
+        
+        // Store timeout so we can clear it
+        (tempoHoldIntervalRef as any).timeout = timeout;
+    }, []);
+
+    const handleTempoHoldEnd = useCallback(() => {
+        if ((tempoHoldIntervalRef as any).timeout) {
+            clearTimeout((tempoHoldIntervalRef as any).timeout);
+        }
+        if (tempoHoldIntervalRef.current) {
+            clearInterval(tempoHoldIntervalRef.current);
+            tempoHoldIntervalRef.current = null;
+        }
+    }, []);
 
     // --- AUDIO LOOP ---
     const patternRef = useRef(pattern);
@@ -735,6 +779,74 @@ export const App: React.FC = () => {
         setActiveSongSlot(slot);
     };
 
+    // --- SAVE/LOAD SONGS AS FILE ---
+    const exportSongToFile = useCallback(() => {
+        const songData = {
+            version: 1,
+            pattern,
+            tempo,
+            ambianceUrl,
+            params: {
+                synthA, synthB, kick, snare, closedHat, openHat, sampler
+            },
+            trackStorage,
+            activeTrackSlots,
+            songStructure
+        };
+        
+        const jsonStr = JSON.stringify(songData, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `electribe-song-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, [pattern, tempo, ambianceUrl, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure]);
+
+    const importSongFromFile = useCallback(() => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const songData = JSON.parse(text);
+                
+                // Validate and load
+                if (songData.pattern) setPattern(songData.pattern);
+                if (songData.tempo) setTempo(songData.tempo);
+                if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl);
+                
+                if (songData.params) {
+                    if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; }
+                    if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; }
+                    if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; }
+                    if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; }
+                    if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; }
+                    if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; }
+                    if (songData.params.sampler) { setSampler(songData.params.sampler); samplerRef.current = songData.params.sampler; }
+                }
+                
+                if (songData.trackStorage) setTrackStorage(songData.trackStorage);
+                if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots);
+                if (songData.songStructure) setSongStructure(songData.songStructure);
+                
+                alert('Song loaded successfully!');
+            } catch (err) {
+                console.error('Failed to load song:', err);
+                alert('Failed to load song file. Make sure it\'s a valid JSON file.');
+            }
+        };
+        input.click();
+    }, []);
+
     // --- MODULE RENDER HELPERS ---
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
         { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
@@ -876,6 +988,14 @@ export const App: React.FC = () => {
                             </button>
                         ))}
                     </div>
+                    <div className="flex items-center gap-1">
+                        <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 hover:text-green-300 border border-green-900/50 bg-gradient-to-r from-green-900/10 to-green-900/20 hover:bg-green-900/40 px-2 py-1 rounded transition-all" title="Export song to file" aria-label="Export song to file">
+                            💾
+                        </button>
+                        <button onClick={importSongFromFile} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 border border-blue-900/50 bg-gradient-to-r from-blue-900/10 to-blue-900/20 hover:bg-blue-900/40 px-2 py-1 rounded transition-all" title="Import song from file" aria-label="Import song from file">
+                            📂
+                        </button>
+                    </div>
                     <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-gradient-to-r from-red-900/10 to-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded-lg transition-all shadow-md">
                         CLEAR
                     </button>
@@ -892,9 +1012,19 @@ export const App: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
-                            <button onClick={() => setTempo(t => t - 1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800">-</button>
+                            <button 
+                                onMouseDown={() => handleTempoHoldStart(-1)}
+                                onMouseUp={handleTempoHoldEnd}
+                                onMouseLeave={handleTempoHoldEnd}
+                                className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800 select-none"
+                            >-</button>
                             <span className="w-12 text-center font-mono text-cyan-300 text-sm">{tempo}</span>
-                            <button onClick={() => setTempo(t => t + 1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800">+</button>
+                            <button 
+                                onMouseDown={() => handleTempoHoldStart(1)}
+                                onMouseUp={handleTempoHoldEnd}
+                                onMouseLeave={handleTempoHoldEnd}
+                                className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800 select-none"
+                            >+</button>
                         </div>
                     </div>
                     <button onClick={() => setIsRecording(!isRecording)} className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isRecording ? 'bg-red-600 text-white border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)] animate-pulse' : 'bg-gray-800 text-red-700 border border-gray-700 hover:bg-gray-700'}`}>REC</button>

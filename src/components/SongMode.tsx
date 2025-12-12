@@ -1,6 +1,13 @@
-import { memo } from 'react';
+import React, { memo, useRef, useState, useCallback } from 'react';
+import { getNoteColor } from '../utils/noteColors';
 
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
+// Map pattern slot numbers (0-7) to note colors (C4, D4, E4, F4, G4, A4, B4, C5)
+const PATTERN_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+const getPatternColor = (slotIndex: number): string => {
+    return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
+};
 
 interface SongModeProps {
     isVisible: boolean;
@@ -41,6 +48,61 @@ export const SongMode = memo(({
     const HEADER_HEIGHT = 30;
 
     const totalWidth = ROW_HEADER_WIDTH + (songStructure.length * CELL_WIDTH);
+
+    // Drag state for pattern selection
+    const [isDragging, setIsDragging] = useState(false);
+    const dragRef = useRef<{ sIdx: number; track: TrackKey; startY: number; startVal: number | null } | null>(null);
+
+    const handleDragStart = useCallback((e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
+        e.preventDefault();
+        setIsDragging(true);
+        dragRef.current = { sIdx, track, startY: e.clientY, startVal: currentVal };
+        document.body.style.cursor = 'ns-resize';
+    }, []);
+
+    const handleDragMove = useCallback((e: MouseEvent) => {
+        if (!isDragging || !dragRef.current) return;
+        
+        const { sIdx, track, startY, startVal } = dragRef.current;
+        const dy = startY - e.clientY; // Positive when dragging up
+        const step = Math.round(dy / 15); // Every 15px = 1 pattern change
+        
+        if (step !== 0) {
+            let newVal: number | null;
+            if (startVal === null) {
+                // Start from 0 or 7 depending on direction
+                newVal = step > 0 ? Math.min(step - 1, 7) : Math.max(7 + step + 1, 0);
+            } else {
+                newVal = startVal + step;
+            }
+            
+            // Clamp to 0-7 or null
+            if (newVal !== null) {
+                if (newVal < 0) newVal = null;
+                else if (newVal > 7) newVal = 7;
+            }
+            
+            onUpdateStep(sIdx, track, newVal);
+        }
+    }, [isDragging, onUpdateStep]);
+
+    const handleDragEnd = useCallback(() => {
+        setIsDragging(false);
+        dragRef.current = null;
+        document.body.style.cursor = 'default';
+    }, []);
+
+    // Global mouse event handlers
+    React.useEffect(() => {
+        if (isDragging) {
+            window.addEventListener('mousemove', handleDragMove);
+            window.addEventListener('mouseup', handleDragEnd);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleDragMove);
+            window.removeEventListener('mouseup', handleDragEnd);
+        };
+    }, [isDragging, handleDragMove, handleDragEnd]);
     const totalHeight = HEADER_HEIGHT + (ROWS.length * CELL_HEIGHT);
 
     return (
@@ -106,19 +168,11 @@ export const SongMode = memo(({
                                         <div
                                             key={`${row.key}-${sIdx}`}
                                             style={{ width: CELL_WIDTH }}
-                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors
+                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-ns-resize transition-colors select-none
                                                 ${isPlaying ? 'bg-white/5' : 'bg-transparent'}
                                                 ${hasVal ? '' : 'hover:bg-gray-800/50'}
                                             `}
-                                            onClick={() => {
-                                                // Cycle: null -> 0 -> 1 ... -> 7 -> null
-                                                // Right click to clear?
-                                                // Let's implement a simple cycle for now, maybe a dropdown later if needed
-                                                // Or shift-click to go backwards?
-                                                let nextVal: number | null = val === null ? 0 : val + 1;
-                                                if (nextVal > 7) nextVal = null;
-                                                onUpdateStep(sIdx, row.key, nextVal);
-                                            }}
+                                            onMouseDown={(e) => handleDragStart(e, sIdx, row.key, val)}
                                             onContextMenu={(e) => {
                                                 e.preventDefault();
                                                 onUpdateStep(sIdx, row.key, null);
@@ -126,8 +180,8 @@ export const SongMode = memo(({
                                         >
                                             {hasVal && (
                                                 <div
-                                                    className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black select-none"
-                                                    style={{ backgroundColor: row.color, opacity: isPlaying ? 1 : 0.8 }}
+                                                    className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black select-none pointer-events-none"
+                                                    style={{ backgroundColor: getPatternColor(val!), opacity: isPlaying ? 1 : 0.8 }}
                                                 >
                                                     {val! + 1}
                                                 </div>
