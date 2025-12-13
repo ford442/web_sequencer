@@ -11,6 +11,7 @@ import { LiveKeyboard } from './components/LiveKeyboard';
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
+import { CloudLibrary } from './components/CloudLibrary';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
@@ -352,6 +353,7 @@ const ROWS = [
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
+    const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
 
     // UPDATED: Destructure init function for auto-load
     const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide)
@@ -869,8 +871,8 @@ export const App: React.FC = () => {
     };
 
     // --- SAVE/LOAD SONGS AS FILE ---
-    const exportSongToFile = useCallback(() => {
-        const songData = {
+    const getSongDataForUpload = useCallback(() => {
+        return {
             version: 1,
             pattern,
             tempo,
@@ -882,6 +884,30 @@ export const App: React.FC = () => {
             activeTrackSlots,
             songStructure
         };
+    }, [pattern, tempo, ambianceUrl, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure]);
+
+    const loadSongData = useCallback((songData: any) => {
+        if (songData.pattern) setPattern(songData.pattern);
+        if (songData.tempo) setTempo(songData.tempo);
+        if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl);
+
+        if (songData.params) {
+            if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; }
+            if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; }
+            if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; }
+            if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; }
+            if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; }
+            if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; }
+            if (songData.params.sampler) { setSampler(songData.params.sampler); samplerRef.current = songData.params.sampler; }
+        }
+
+        if (songData.trackStorage) setTrackStorage(songData.trackStorage);
+        if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots);
+        if (songData.songStructure) setSongStructure(songData.songStructure);
+    }, []);
+
+    const exportSongToFile = useCallback(() => {
+        const songData = getSongDataForUpload();
         
         const jsonStr = JSON.stringify(songData, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -894,7 +920,7 @@ export const App: React.FC = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }, [pattern, tempo, ambianceUrl, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure]);
+    }, [getSongDataForUpload]);
 
     const importSongFromFile = useCallback(() => {
         const input = document.createElement('input');
@@ -908,24 +934,7 @@ export const App: React.FC = () => {
                 const text = await file.text();
                 const songData = JSON.parse(text);
                 
-                // Validate and load
-                if (songData.pattern) setPattern(songData.pattern);
-                if (songData.tempo) setTempo(songData.tempo);
-                if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl);
-                
-                if (songData.params) {
-                    if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; }
-                    if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; }
-                    if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; }
-                    if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; }
-                    if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; }
-                    if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; }
-                    if (songData.params.sampler) { setSampler(songData.params.sampler); samplerRef.current = songData.params.sampler; }
-                }
-                
-                if (songData.trackStorage) setTrackStorage(songData.trackStorage);
-                if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots);
-                if (songData.songStructure) setSongStructure(songData.songStructure);
+                loadSongData(songData);
                 
                 alert('Song loaded successfully!');
             } catch (err) {
@@ -934,7 +943,7 @@ export const App: React.FC = () => {
             }
         };
         input.click();
-    }, []);
+    }, [loadSongData]);
 
     // --- MODULE RENDER HELPERS ---
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
@@ -1054,6 +1063,13 @@ export const App: React.FC = () => {
     return (
         <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative">
 
+            <CloudLibrary
+                isOpen={isCloudLibraryOpen}
+                onClose={() => setIsCloudLibraryOpen(false)}
+                onLoadSong={loadSongData}
+                getSongDataForUpload={getSongDataForUpload}
+            />
+
             {isVoiceEditorOpen && (
                 <VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />
             )}
@@ -1083,6 +1099,9 @@ export const App: React.FC = () => {
                         </button>
                         <button onClick={importSongFromFile} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 border border-blue-900/50 bg-gradient-to-r from-blue-900/10 to-blue-900/20 hover:bg-blue-900/40 px-2 py-1 rounded transition-all" title="Import song from file" aria-label="Import song from file">
                             📂
+                        </button>
+                        <button onClick={() => setIsCloudLibraryOpen(true)} className="text-[10px] font-bold text-purple-400 hover:text-purple-300 border border-purple-900/50 bg-gradient-to-r from-purple-900/10 to-purple-900/20 hover:bg-purple-900/40 px-2 py-1 rounded transition-all" title="Cloud Library" aria-label="Cloud Library">
+                            ☁️
                         </button>
                     </div>
                     <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-gradient-to-r from-red-900/10 to-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded-lg transition-all shadow-md">
