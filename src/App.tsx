@@ -77,7 +77,8 @@ const SvgStep = memo(({
     note,
     isCurrent,
     rowLabel,
-    onClick,
+    rowKey,
+    onToggle,
     onContextMenu,
     length = 1
 }: {
@@ -86,8 +87,9 @@ const SvgStep = memo(({
     note?: string | null,
     isCurrent: boolean,
     rowLabel: string,
-    onClick: (e: any) => void,
-    onContextMenu: (e: React.MouseEvent) => void,
+    rowKey: TrackKey,
+    onToggle: (k: TrackKey, i: number, e: any) => void,
+    onContextMenu: (k: TrackKey, i: number, e: React.MouseEvent) => void,
     length?: number
 }) => {
     // Dimensions
@@ -114,8 +116,8 @@ const SvgStep = memo(({
         <g transform={`translate(${x}, 0)`}
             role="button"
             aria-label={`${rowLabel} step ${stepIndex + 1}`}
-            onClick={onClick}
-            onContextMenu={(e) => { e.preventDefault(); onContextMenu(e); }}
+            onClick={(e) => onToggle(rowKey, stepIndex, e)}
+            onContextMenu={(e) => { e.preventDefault(); onContextMenu(rowKey, stepIndex, e); }}
             cursor="pointer"
             style={{ transition: 'all 0.1s ease' }}
         >
@@ -281,8 +283,9 @@ const SequencerRow = memo(({
                 length={length}
                 isCurrent={isCurrent}
                 rowLabel={label}
-                onClick={(e: React.MouseEvent) => onToggle(rowKey, i, e)}
-                onContextMenu={(e: React.MouseEvent) => onRightClickStep(rowKey, i, e)}
+                rowKey={rowKey}
+                onToggle={onToggle}
+                onContextMenu={onRightClickStep}
             />
         );
 
