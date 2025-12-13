@@ -150,10 +150,13 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
         <div className="flex flex-col gap-2 p-3 text-xs font-mono text-gray-400 h-full justify-center">
             {/* ROW 1: Banks & File/Mic */}
             <div className="flex items-center justify-between">
-                <div className="flex gap-1">
+                <div className="flex gap-1" role="tablist" aria-label="Sample Banks">
                     {SAMPLE_BANKS.map((b, i) => (
                         <button
                             key={b}
+                            role="tab"
+                            aria-selected={activeBankIdx === i}
+                            aria-label={`Select ${b}`}
                             onClick={() => setActiveBankIdx(i)}
                             className={`px-2 py-1 rounded text-[10px] border transition-all duration-200 ${flashBankIdx === i
                                     ? 'bg-green-600 border-green-400 text-white shadow-[0_0_12px_rgba(34,197,94,0.8)] animate-pulse'
@@ -167,9 +170,19 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                     ))}
                 </div>
                 <div className="flex gap-2">
-                    <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                    <button onClick={() => fileInputRef.current?.click()} className="text-[10px] bg-gray-800 px-2 py-1 rounded hover:bg-gray-700 border border-gray-600">LOAD</button>
-                    <button onClick={toggleRecording} className={`text-[10px] px-2 py-1 border rounded ${isRecording ? 'bg-red-900 border-red-500 animate-pulse' : 'bg-gray-800 border-gray-600 hover:bg-gray-700'}`}>
+                    <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" id="sample-file-input" />
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[10px] bg-gray-800 px-2 py-1 rounded hover:bg-gray-700 border border-gray-600"
+                        aria-label="Load audio file"
+                    >
+                        LOAD
+                    </button>
+                    <button
+                        onClick={toggleRecording}
+                        className={`text-[10px] px-2 py-1 border rounded ${isRecording ? 'bg-red-900 border-red-500 animate-pulse' : 'bg-gray-800 border-gray-600 hover:bg-gray-700'}`}
+                        aria-label={isRecording ? "Stop recording" : "Start recording"}
+                    >
                         {isRecording ? 'STOP' : 'REC'}
                     </button>
                 </div>
@@ -180,7 +193,12 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <span className="text-purple-400 font-bold text-[10px]">TTS ENGINE</span>
-                        <div className={`w-2 h-2 rounded-full ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-900'}`} title={ttsReady ? "Ready" : "Loading/Failed"}></div>
+                        <div
+                            className={`w-2 h-2 rounded-full ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-900'}`}
+                            title={ttsReady ? "Ready" : "Loading/Failed"}
+                            role="status"
+                            aria-label={ttsReady ? "TTS Engine Ready" : "TTS Engine Not Ready"}
+                        ></div>
                     </div>
                     {onOpenEditor && (
                         <button onClick={onOpenEditor} className="text-[10px] text-purple-300 underline hover:text-white">EDIT VOICE</button>
@@ -192,16 +210,29 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                         onChange={e => setTtsText(e.target.value)}
                         className="flex-1 bg-gray-900 border border-gray-700 rounded px-1 text-white focus:border-purple-500 text-[10px] outline-none"
                         placeholder="Type phrase..."
+                        aria-label="Text to speech phrase"
                     />
                     <button
                         onClick={handleTTS}
                         disabled={isGenerating || !ttsReady}
-                        className="px-3 py-1 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50"
+                        aria-label={isGenerating ? "Generating speech..." : "Generate speech"}
+                        className="w-12 h-6 flex items-center justify-center bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50"
                     >
-                        {isGenerating ? '...' : 'GEN'}
+                        {isGenerating ? (
+                            <svg className="animate-spin h-3 w-3 text-purple-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        ) : 'GEN'}
                     </button>
                 </div>
-                <div className="text-right text-[10px] text-gray-500 h-3 overflow-hidden">{status}</div>
+                <div
+                    className="text-right text-[10px] text-gray-500 h-3 overflow-hidden"
+                    role="status"
+                    aria-live="polite"
+                >
+                    {status}
+                </div>
             </div>
         </div>
     );
