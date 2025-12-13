@@ -13,6 +13,7 @@ import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
+import { noteToMidi, midiToNote } from './utils/musicTheory';
 import {
     INITIAL_PATTERN,
     NUM_STEPS,
@@ -71,6 +72,7 @@ const getPatternColor = (slotIndex: number): string => {
 // --- COMPONENTS ---
 
 // UPDATED SVG STEP: Supports variable length (morphing) and alternating background groups
+// UPDATED: Now supports onMouseDown for drag detection
 const SvgStep = memo(({
     stepIndex,
     active,
@@ -79,7 +81,7 @@ const SvgStep = memo(({
     rowLabel,
     rowKey,
     onToggle,
-    onContextMenu,
+    onRightMouseDown,
     length = 1
 }: {
     stepIndex: number,
@@ -89,7 +91,7 @@ const SvgStep = memo(({
     rowLabel: string,
     rowKey: TrackKey,
     onToggle: (k: TrackKey, i: number, e: any) => void,
-    onContextMenu: (k: TrackKey, i: number, e: React.MouseEvent) => void,
+    onRightMouseDown: (k: TrackKey, i: number, e: React.MouseEvent) => void,
     length?: number
 }) => {
     // Dimensions
@@ -117,7 +119,12 @@ const SvgStep = memo(({
             role="button"
             aria-label={`${rowLabel} step ${stepIndex + 1}`}
             onClick={(e) => onToggle(rowKey, stepIndex, e)}
-            onContextMenu={(e) => { e.preventDefault(); onContextMenu(rowKey, stepIndex, e); }}
+            onMouseDown={(e) => {
+                if (e.button === 2) {
+                    onRightMouseDown(rowKey, stepIndex, e);
+                }
+            }}
+            onContextMenu={(e) => e.preventDefault()}
             cursor="pointer"
             style={{ transition: 'all 0.1s ease' }}
         >
@@ -219,7 +226,7 @@ const SequencerRow = memo(({
     activeSlot,
     slotsData,
     onToggle,
-    onRightClickStep,
+    onRightMouseDown,
     onSelectRow,
     onSelectSlot
 }: {
@@ -232,7 +239,7 @@ const SequencerRow = memo(({
     activeSlot: number,
     slotsData: boolean[],
     onToggle: (k: any, i: number, e: any) => void,
-    onRightClickStep: (k: TrackKey, i: number, e: any) => void,
+    onRightMouseDown: (k: TrackKey, i: number, e: any) => void,
     onSelectRow: (k: any) => void,
     onSelectSlot: (k: TrackKey, slot: number) => void
 }) => {
@@ -285,7 +292,7 @@ const SequencerRow = memo(({
                 rowLabel={label}
                 rowKey={rowKey}
                 onToggle={onToggle}
-                onContextMenu={onRightClickStep}
+                onRightMouseDown={onRightMouseDown}
             />
         );
 
@@ -381,6 +388,17 @@ export const App: React.FC = () => {
 
     // --- CONTEXT MENU STATE ---
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
+
+    // --- DRAG STATE FOR NOTE CHANGES ---
+    const [isNoteDragging, setIsNoteDragging] = useState(false);
+    const noteDragRef = useRef<{
+        track: TrackKey;
+        step: number;
+        startY: number;
+        startMidi: number;
+        hasMoved: boolean;
+    } | null>(null);
+
 
     // --- ANIMATION LOOP ---
     const [loadingTick, setLoadingTick] = useState(0);
@@ -687,12 +705,80 @@ export const App: React.FC = () => {
         return;
     };
 
-    const handleRightClickStep = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => {
+    const handleRightMouseDown = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
         const stepData = pattern[track].steps[step];
-        if (stepData) {
+        if (!stepData) return;
+
+        setIsNoteDragging(true);
+        noteDragRef.current = {
+            track,
+            step,
+            startY: e.clientY,
+            startMidi: noteToMidi(stepData.note),
+            hasMoved: false
+        };
+        document.body.style.cursor = 'ns-resize';
+    }, [pattern]);
+
+    const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+        if (!isNoteDragging || !noteDragRef.current) return;
+
+        const { track, step, startY, startMidi } = noteDragRef.current;
+        const dy = startY - e.clientY; // Positive = Drag Up
+
+        // Check for threshold
+        if (!noteDragRef.current.hasMoved && Math.abs(dy) > 5) {
+            noteDragRef.current.hasMoved = true;
+        }
+
+        if (noteDragRef.current.hasMoved) {
+            const semitoneChange = Math.round(dy / 10); // 10px per semitone
+            if (semitoneChange !== 0) {
+                const newMidi = startMidi + semitoneChange;
+                // Clamp midi
+                const clampedMidi = Math.max(24, Math.min(108, newMidi)); // C1 to C8
+                const newNote = midiToNote(clampedMidi);
+
+                setPattern(prev => {
+                    const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+                    if (copy[track].steps[step]) {
+                        copy[track].steps[step]!.note = newNote;
+                    }
+                    updateStorageForTrack(track, copy[track]);
+                    return copy;
+                });
+            }
+        }
+    }, [isNoteDragging]);
+
+    const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+        if (!isNoteDragging || !noteDragRef.current) return;
+
+        // If short click, open menu
+        if (!noteDragRef.current.hasMoved) {
+            const { track, step } = noteDragRef.current;
             setContextMenu({ x: e.clientX, y: e.clientY, track, step });
         }
-    }, [pattern]);
+
+        setIsNoteDragging(false);
+        noteDragRef.current = null;
+        document.body.style.cursor = 'default';
+    }, [isNoteDragging]);
+
+    useEffect(() => {
+        if (isNoteDragging) {
+            window.addEventListener('mousemove', handleGlobalMouseMove);
+            window.addEventListener('mouseup', handleGlobalMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleGlobalMouseMove);
+            window.removeEventListener('mouseup', handleGlobalMouseUp);
+        };
+    }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
+
 
     const handleNoteSelect = (note: string) => {
         if (!contextMenu) return;
@@ -1109,7 +1195,7 @@ export const App: React.FC = () => {
                                     activeSlot={activeTrackSlots[row.key]}
                                     slotsData={trackStorage[row.key].map(s => s !== null)}
                                     onToggle={toggleStep}
-                                    onRightClickStep={handleRightClickStep}
+                                    onRightMouseDown={handleRightMouseDown}
                                     onSelectRow={(k: any) => setSelectedTrack(k as TrackKey)}
                                     onSelectSlot={handleTrackSlotClick}
                                 />
