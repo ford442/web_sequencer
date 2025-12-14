@@ -303,7 +303,7 @@ export const exportSongToXM = async (
         name: 'Open Hat',
         data: floatTo16BitPCM(normalizedOH),
         volume: 64,
-        relativeNoteNumber: 24 // Set relative note to +12
+        relativeNoteNumber: 12 // Set relative note to +12
     });
     const instOH = createInstrument('Open Hat');
     addSampleToInstrument(instOH, sampleOH);
