@@ -26,9 +26,10 @@ export interface CloudSongPayload {
 }
 
 export const CloudStorage = {
-    async getSongs(): Promise<CloudSongMeta[]> {
+    async getSongs(typeFilter?: CloudItemType): Promise<CloudSongMeta[]> {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/songs`);
+            const url = typeFilter ? `${API_BASE_URL}/api/songs?type=${typeFilter}` : `${API_BASE_URL}/api/songs`;
+            const res = await fetch(url);
             if (!res.ok) throw new Error("Failed to fetch library");
             return await res.json();
         } catch (e) {
@@ -37,8 +38,12 @@ export const CloudStorage = {
         }
     },
 
-    async getSongData(id: string): Promise<any> {
-        const res = await fetch(`${API_BASE_URL}/api/songs/${id}`);
+    // Updated to accept optional type for faster/safer lookup
+    async getSongData(id: string, type?: CloudItemType): Promise<any> {
+        let url = `${API_BASE_URL}/api/songs/${id}`;
+        if (type) url += `?type=${type}`;
+
+        const res = await fetch(url);
         if (!res.ok) throw new Error("Failed to fetch data");
         return await res.json();
     },

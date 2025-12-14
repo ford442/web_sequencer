@@ -34,7 +34,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
     const loadLibrary = async () => {
         setIsLoading(true);
-        const list = await CloudStorage.getSongs();
+        const list = await CloudStorage.getSongs(filterType === 'all' ? undefined : (filterType as any));
         setSongs(list);
         setIsLoading(false);
     };
@@ -77,7 +77,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
     const handleLoadClick = async (item: CloudSongMeta) => {
         setIsLoading(true);
         try {
-            const res = await CloudStorage.getSongData(item.id);
+            const res = await CloudStorage.getSongData(item.id, item.type);
             // Some backends wrap the payload under a `data` key; prefer inner payload if present
             const payload = (res && typeof res === 'object' && 'data' in res) ? (res as any).data : res;
             // Pass both data and type so App.tsx knows how to handle it
