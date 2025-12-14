@@ -5,6 +5,12 @@ export class WebGpuOscillator {
     bindGroupLayout: GPUBindGroupLayout | null = null;
     isSupported: boolean = false;
 
+    // Buffer pool for reuse - keyed by size bucket
+    private bufferPool: Map<number, { output: GPUBuffer, read: GPUBuffer }[]> = new Map();
+    private readonly MAX_POOL_SIZE_PER_BUCKET = 4;
+    private readonly MAX_BUFFER_SIZE = 44100 * 5 * 4; // ~5 seconds at 44.1kHz (limit to prevent OOM)
+    private readonly SIZE_BUCKET_BYTES = 4096; // Quantize to 4KB buckets
+
     // Shader Code: Generates raw audio samples
     private readonly SHADER_CODE = `
         struct Uniforms {
@@ -92,10 +98,75 @@ export class WebGpuOscillator {
             });
 
             this.isSupported = true;
-            console.log("WebGPU Oscillator Engine Initialized");
+            console.log("WebGPU Oscillator Engine Initialized (with buffer pooling)");
         } catch (e) {
             console.error("Failed to init WebGPU Audio:", e);
         }
+    }
+
+    // Quantize size to bucket for better reuse
+    private getSizeBucket(size: number): number {
+        return Math.ceil(size / this.SIZE_BUCKET_BYTES) * this.SIZE_BUCKET_BYTES;
+    }
+
+    // Get or create buffer pair from pool
+    private getBuffers(size: number): { output: GPUBuffer, read: GPUBuffer } | null {
+        if (!this.device) return null;
+
+        const bucketSize = this.getSizeBucket(size);
+        const pool = this.bufferPool.get(bucketSize);
+
+        if (pool && pool.length > 0) {
+            return pool.pop()!;
+        }
+
+        // Create new buffers
+        try {
+            const output = this.device.createBuffer({
+                size: bucketSize,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+            });
+
+            const read = this.device.createBuffer({
+                size: bucketSize,
+                usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+            });
+
+            return { output, read };
+        } catch (e) {
+            console.error("Failed to create GPU buffers:", e);
+            return null;
+        }
+    }
+
+    // Return buffers to pool for reuse
+    private returnBuffers(buffers: { output: GPUBuffer, read: GPUBuffer }, size: number) {
+        const bucketSize = this.getSizeBucket(size);
+
+        if (!this.bufferPool.has(bucketSize)) {
+            this.bufferPool.set(bucketSize, []);
+        }
+
+        const pool = this.bufferPool.get(bucketSize)!;
+
+        if (pool.length < this.MAX_POOL_SIZE_PER_BUCKET) {
+            pool.push(buffers);
+        } else {
+            // Pool is full, destroy these buffers
+            buffers.output.destroy();
+            buffers.read.destroy();
+        }
+    }
+
+    // Clean up all pooled buffers (call on dispose)
+    destroy() {
+        for (const pool of this.bufferPool.values()) {
+            for (const buffers of pool) {
+                buffers.output.destroy();
+                buffers.read.destroy();
+            }
+        }
+        this.bufferPool.clear();
     }
 
     async generate(frequency: number, duration: number, sampleRate: number, type: 'saw' | 'sqr' | 'tri' | 'sin'): Promise<Float32Array | null> {
@@ -105,18 +176,20 @@ export class WebGpuOscillator {
         // Align to 4 bytes
         const bufferSize = Math.ceil((numSamples * 4) / 4) * 4;
 
-        // 1. Create Buffers
-        const outputBuffer = this.device.createBuffer({
-            size: bufferSize,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
-        });
+        // Guard against very large requests
+        if (bufferSize > this.MAX_BUFFER_SIZE) {
+            console.warn(`WebGPU: Buffer size ${bufferSize} exceeds max ${this.MAX_BUFFER_SIZE}, clamping duration`);
+            const maxDuration = this.MAX_BUFFER_SIZE / (sampleRate * 4);
+            return this.generate(frequency, maxDuration, sampleRate, type);
+        }
 
-        const readBuffer = this.device.createBuffer({
-            size: bufferSize,
-            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-        });
+        // 1. Get Buffers from pool
+        const buffers = this.getBuffers(bufferSize);
+        if (!buffers) return null;
 
-        // 2. Prepare Uniforms
+        const { output: outputBuffer, read: readBuffer } = buffers;
+
+        // 2. Prepare Uniforms (always create fresh - small and cheap)
         const uniformData = new ArrayBuffer(16); // 4 floats/u32 * 4 bytes
         const view = new DataView(uniformData);
         view.setFloat32(0, sampleRate, true);
@@ -156,16 +229,26 @@ export class WebGpuOscillator {
         this.device.queue.submit([commandEncoder.finish()]);
 
         // 5. Readback
-        await readBuffer.mapAsync(GPUMapMode.READ);
-        const copyArray = new Float32Array(readBuffer.getMappedRange());
-        const result = new Float32Array(copyArray); // Copy to own memory
-        readBuffer.unmap();
+        try {
+            await readBuffer.mapAsync(GPUMapMode.READ);
+            const copyArray = new Float32Array(readBuffer.getMappedRange());
+            const result = new Float32Array(copyArray.subarray(0, numSamples)); // Only copy actual samples
+            readBuffer.unmap();
 
-        // Clean up GPU resources usually handled by GC, but explicit destroy helps VRAM
-        outputBuffer.destroy();
-        readBuffer.destroy();
-        uniformBuffer.destroy();
+            // 6. Return buffers to pool
+            this.returnBuffers(buffers, bufferSize);
 
-        return result;
+            // Destroy small uniform buffer (not worth pooling)
+            uniformBuffer.destroy();
+
+            return result;
+        } catch (e) {
+            console.error("WebGPU readback failed:", e);
+            // Destroy buffers on error - don't return to pool
+            outputBuffer.destroy();
+            readBuffer.destroy();
+            uniformBuffer.destroy();
+            return null;
+        }
     }
 }

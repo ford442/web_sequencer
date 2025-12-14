@@ -1,4 +1,5 @@
 import React from 'react';
+import { DragValue } from './DragValue';
 
 interface TransportProps {
   isPlaying: boolean;
@@ -30,14 +31,13 @@ export const Transport: React.FC<TransportProps> = ({ isPlaying, onPlayClick, te
         )}
       </button>
       <div className="flex flex-col items-center">
-        <label htmlFor="tempo" className="text-xs text-gray-400 uppercase tracking-wider">Tempo</label>
-        <input
-          id="tempo"
-          type="number"
+        <DragValue
+          label="Tempo"
           value={tempo}
-          onChange={(e) => onTempoChange(Math.max(30, Math.min(300, parseInt(e.target.value, 10) || 0)))}
-          className="w-20 bg-gray-800 text-center text-2xl font-orbitron text-yellow-400 rounded-md border-2 border-gray-700 focus:border-yellow-400 focus:ring-0 focus:outline-none"
-          aria-label={`Tempo: ${tempo} BPM`}
+          onChange={(v) => onTempoChange(Math.max(30, Math.min(300, Math.round(v))))}
+          min={30}
+          max={300}
+          step={1}
         />
       </div>
     </div>

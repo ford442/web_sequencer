@@ -1,6 +1,14 @@
-import { memo } from 'react';
+import React, { memo, useRef, useState, useCallback } from 'react';
+import { getNoteColor } from '../utils/noteColors';
+import { PatternSelector } from './PatternSelector';
 
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
+// Map pattern slot numbers (0-7) to note colors (C4, D4, E4, F4, G4, A4, B4, C5)
+const PATTERN_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+const getPatternColor = (slotIndex: number): string => {
+    return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
+};
 
 interface SongModeProps {
     isVisible: boolean;
@@ -41,12 +49,156 @@ export const SongMode = memo(({
     const HEADER_HEIGHT = 30;
 
     const totalWidth = ROW_HEADER_WIDTH + (songStructure.length * CELL_WIDTH);
+
+    // Menu state
+    const [menu, setMenu] = useState<{ x: number, y: number, sIdx: number, track: TrackKey, currentVal: number | null } | null>(null);
+
+    // Double Click State
+    const lastRightClickTimeRef = useRef<number>(0);
+
+    const dragRef = useRef<{ 
+        sIdx: number; 
+        track: TrackKey; 
+        startY: number; 
+        startVal: number | null; 
+        hasMoved: boolean; 
+        accumulatedY: number 
+    } | null>(null);
+
+
+    const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+        if (!dragRef.current) return;
+        
+        const { sIdx, track, startY, startVal } = dragRef.current;
+        const dy = startY - e.clientY; // Positive when dragging up
+        
+        // Threshold check to avoid accidental drags
+        if (!dragRef.current.hasMoved && Math.abs(dy) > 5) {
+            dragRef.current.hasMoved = true;
+        }
+
+        if (dragRef.current.hasMoved) {
+            const step = Math.round(dy / 15); // Every 15px = 1 pattern change
+            
+            if (step !== 0) {
+                // If we moved enough to change value, update startY to reset the delta accumulation
+                // Actually, logic is simpler if we always diff from startY.
+                
+                let newVal: number | null;
+                if (startVal === null) {
+                    // Start from 0 or 7 depending on direction
+                    newVal = step > 0 ? Math.min(step - 1, 7) : Math.max(7 + step + 1, 0);
+                } else {
+                    newVal = startVal + step;
+                }
+                
+                // Clamp to 0-7 or null (dragging down past 0 clears it)
+                if (newVal !== null) {
+                    if (newVal < 0) newVal = null;
+                    else if (newVal > 7) newVal = 7;
+                }
+                
+                onUpdateStep(sIdx, track, newVal);
+            }
+        }
+    }, [onUpdateStep]);
+
+    const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+        if (!dragRef.current) return;
+
+        // If it was a short click (no drag), check for Double Click
+        if (!dragRef.current.hasMoved) {
+            const now = Date.now();
+            const diff = now - lastRightClickTimeRef.current;
+            
+            if (diff < 300) {
+                // Double Click!
+                const { sIdx, track, startVal } = dragRef.current;
+                setMenu({ x: e.clientX, y: e.clientY, sIdx, track, currentVal: startVal });
+                lastRightClickTimeRef.current = 0;
+            } else {
+                lastRightClickTimeRef.current = now;
+            }
+        }
+
+        dragRef.current = null;
+        document.body.style.cursor = 'default';
+
+        // Remove listeners
+        window.removeEventListener('mousemove', handleGlobalMouseMove);
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+
+    }, [handleGlobalMouseMove]);
+
+
+    // Click Handler: Handles Left Click Toggle & Right Click Drag/Menu
+    const handleCellMouseDown = useCallback((e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
+        // Prevent default context menu for right clicks
+        if (e.button === 2) {
+            e.preventDefault();
+        }
+        e.stopPropagation();
+
+        // Left Click (Button 0): Toggle
+        if (e.button === 0) {
+            if (currentVal !== null) {
+                // Turn OFF
+                onUpdateStep(sIdx, track, null);
+            } else {
+                // Turn ON (default to pattern 0)
+                onUpdateStep(sIdx, track, 0);
+            }
+            return;
+        }
+
+        // Right Click (Button 2): Start Drag / Potential Double Click
+        if (e.button === 2) {
+            dragRef.current = {
+                sIdx,
+                track,
+                startY: e.clientY,
+                startVal: currentVal,
+                hasMoved: false,
+                accumulatedY: 0
+            };
+            document.body.style.cursor = 'ns-resize';
+
+            // Attach listeners
+            window.addEventListener('mousemove', handleGlobalMouseMove);
+            window.addEventListener('mouseup', handleGlobalMouseUp);
+        }
+
+    }, [handleGlobalMouseMove, handleGlobalMouseUp, onUpdateStep]);
+
+
+    // Cleanup listeners
+    React.useEffect(() => {
+        return () => {
+            window.removeEventListener('mousemove', handleGlobalMouseMove);
+            window.removeEventListener('mouseup', handleGlobalMouseUp);
+        };
+    }, [handleGlobalMouseMove, handleGlobalMouseUp]);
+
     const totalHeight = HEADER_HEIGHT + (ROWS.length * CELL_HEIGHT);
 
     return (
         <div
             className={`fixed left-0 top-16 bottom-[320px] z-40 bg-gradient-to-br from-[#0a0d10] to-[#080a0b] border-r-2 border-cyan-900/30 transition-all duration-300 overflow-hidden flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] backdrop-blur-sm ${isVisible ? 'w-[850px] opacity-100' : 'w-0 opacity-0'}`}
         >
+            {/* Context Menu */}
+            {menu && (
+                <PatternSelector 
+                    x={menu.x} 
+                    y={menu.y} 
+                    currentPattern={menu.currentVal}
+                    onSelect={(val) => {
+                        onUpdateStep(menu.sIdx, menu.track, val);
+                        setMenu(null);
+                    }}
+                    onClose={() => setMenu(null)}
+                />
+            )}
+
             {/* Decorative edge line */}
             <div className="absolute top-0 bottom-0 right-0 w-px bg-gradient-to-b from-cyan-500/30 via-transparent to-cyan-500/30 pointer-events-none"></div>
             
@@ -105,29 +257,21 @@ export const SongMode = memo(({
                                     return (
                                         <div
                                             key={`${row.key}-${sIdx}`}
+                                            data-testid={`cell-${row.key}-${sIdx}`}
                                             style={{ width: CELL_WIDTH }}
-                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors
+                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none
                                                 ${isPlaying ? 'bg-white/5' : 'bg-transparent'}
                                                 ${hasVal ? '' : 'hover:bg-gray-800/50'}
                                             `}
-                                            onClick={() => {
-                                                // Cycle: null -> 0 -> 1 ... -> 7 -> null
-                                                // Right click to clear?
-                                                // Let's implement a simple cycle for now, maybe a dropdown later if needed
-                                                // Or shift-click to go backwards?
-                                                let nextVal: number | null = val === null ? 0 : val + 1;
-                                                if (nextVal > 7) nextVal = null;
-                                                onUpdateStep(sIdx, row.key, nextVal);
-                                            }}
+                                            onMouseDown={(e) => handleCellMouseDown(e, sIdx, row.key, val)}
                                             onContextMenu={(e) => {
                                                 e.preventDefault();
-                                                onUpdateStep(sIdx, row.key, null);
                                             }}
                                         >
                                             {hasVal && (
                                                 <div
-                                                    className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black select-none"
-                                                    style={{ backgroundColor: row.color, opacity: isPlaying ? 1 : 0.8 }}
+                                                    className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black select-none pointer-events-none"
+                                                    style={{ backgroundColor: getPatternColor(val!), opacity: isPlaying ? 1 : 0.8 }}
                                                 >
                                                     {val! + 1}
                                                 </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 
-interface LiveKeyboardProps { onPlayNote: (note: string) => void; activeTrackColor: string; }
+interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
@@ -18,10 +18,9 @@ const KEY_TO_NOTE: Record<string, string> = {
     'Digit2': 'C#4'
 };
 
-export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTrackColor }) => {
-    const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
+export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNote, activeTrackColor }) => { const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
 
-    // --- KEYBOARD INTERACTION ---
+// --- KEYBOARD INTERACTION ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const note = KEY_TO_NOTE[e.code];
@@ -50,6 +49,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                     next.delete(note);
                     return next;
                 });
+                if (typeof onStopNote === 'function') onStopNote(note);
             }
         };
 
@@ -62,7 +62,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
         };
     }, [onPlayNote]);
 
-    // --- MOUSE INTERACTION (Glissando) ---
+// --- MOUSE INTERACTION (Glissando) ---
     useEffect(() => {
         const handleGlobalMouseUp = () => setIsMouseDown(false);
         window.addEventListener('mouseup', handleGlobalMouseUp);
@@ -82,6 +82,7 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
             next.delete(note);
             return next;
         });
+        if (typeof onStopNote === 'function') onStopNote(note);
     };
 
     const handleMouseEnter = (note: string) => {
@@ -98,10 +99,11 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                 next.delete(note);
                 return next;
             });
+            if (typeof onStopNote === 'function') onStopNote(note);
         }
     };
 
-    // Width calculations
+// Width calculations
     const totalWidth = 920;
     const gap = 4;
     const keyWidth = (totalWidth - (11 * gap)) / 12;
@@ -129,9 +131,10 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
                             const baseColor = isBlack ? '#080a0c' : '#151a21'; // Dark vs Light(er) Dark
 
                             // UPDATED: Use getNoteColor for active state to match sequencer steps
-                            // If not active, fall back to default track color (though currently unused for inactive keys)
+                            // Inactive keys are subtly tinted to their note color for visual consistency
                             const noteColor = getNoteColor(fullNote);
                             const activeColor = isActive ? noteColor : activeTrackColor;
+                            const inactiveTint = isBlack ? '#0b1220' : noteColor;
 
                             const x = colIndex * (keyWidth + gap);
 
@@ -152,40 +155,40 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, activeTr
 
                                     {/* Main Body */}
                                     <rect
-                                        x={1} y={1} width={keyWidth - 2} height={keyHeight - 2} rx={3}
+                                        x={1} y={1} width={keyWidth-2} height={keyHeight-2} rx={3}
                                         fill={isActive ? '#1f2e25' : baseColor}
                                     />
 
                                     {/* Top Highlight (Bevel) */}
-                                    <path d={`M 2 2 L ${keyWidth - 2} 2 L ${keyWidth - 4} 4 L 4 4 Z`} fill="rgba(255,255,255,0.2)" />
+                                    <path d={`M 2 2 L ${keyWidth-2} 2 L ${keyWidth-4} 4 L 4 4 Z`} fill="rgba(255,255,255,0.2)" />
 
                                     {/* Bottom Shadow (Bevel) */}
-                                    <path d={`M 2 ${keyHeight - 2} L ${keyWidth - 2} ${keyHeight - 2} L ${keyWidth - 4} ${keyHeight - 4} L 4 ${keyHeight - 4} Z`} fill="rgba(0,0,0,0.6)" />
+                                    <path d={`M 2 ${keyHeight-2} L ${keyWidth-2} ${keyHeight-2} L ${keyWidth-4} ${keyHeight-4} L 4 ${keyHeight-4} Z`} fill="rgba(0,0,0,0.6)" />
 
                                     {/* Inner Cap */}
                                     <rect
-                                        x={3} y={3} width={keyWidth - 6} height={keyHeight - 6} rx={2}
-                                        fill={isActive ? activeColor : (isBlack ? '#111' : '#222')}
-                                        fillOpacity={isActive ? 0.6 : 1}
+                                        x={3} y={3} width={keyWidth-6} height={keyHeight-6} rx={2}
+                                        fill={isActive ? activeColor : inactiveTint}
+                                        fillOpacity={isActive ? 0.6 : (isBlack ? 1 : 0.12)}
                                         stroke={isActive ? activeColor : 'none'}
                                         strokeWidth={1}
                                     />
 
                                     {/* Glassy Shine */}
                                     <rect
-                                        x={4} y={4} width={keyWidth - 8} height={(keyHeight - 8) / 2} rx={2}
+                                        x={4} y={4} width={keyWidth-8} height={(keyHeight-8)/2} rx={2}
                                         fill="url(#keyGlass)"
                                         pointerEvents="none"
                                     />
 
-                                    {/* Label */}
+                                    {/* Label - color coded by note */}
                                     <text
-                                        x={keyWidth / 2} y={keyHeight - 8}
+                                        x={keyWidth/2} y={keyHeight - 8}
                                         textAnchor="middle"
                                         fontSize={10}
                                         fontFamily="monospace"
                                         fontWeight="bold"
-                                        fill={isActive ? '#fff' : (isBlack ? '#555' : '#888')}
+                                        fill={isActive ? '#fff' : noteColor}
                                         pointerEvents="none"
                                     >
                                         {fullNote}
