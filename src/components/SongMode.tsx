@@ -131,27 +131,44 @@ export const SongMode = memo(({
     }, [handleGlobalMouseMove]);
 
 
-    // Right-Click Handler: Starts tracking for Potential Drag OR Menu
-    const handleRightMouseDown = useCallback((e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
-        if (e.button !== 2) return; // Only Right Click
-        e.preventDefault();
+    // Click Handler: Handles Left Click Toggle & Right Click Drag/Menu
+    const handleCellMouseDown = useCallback((e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
+        // Prevent default context menu for right clicks
+        if (e.button === 2) {
+            e.preventDefault();
+        }
         e.stopPropagation();
 
-        dragRef.current = { 
-            sIdx, 
-            track, 
-            startY: e.clientY, 
-            startVal: currentVal, 
-            hasMoved: false,
-            accumulatedY: 0
-        };
-        document.body.style.cursor = 'ns-resize';
+        // Left Click (Button 0): Toggle
+        if (e.button === 0) {
+            if (currentVal !== null) {
+                // Turn OFF
+                onUpdateStep(sIdx, track, null);
+            } else {
+                // Turn ON (default to pattern 0)
+                onUpdateStep(sIdx, track, 0);
+            }
+            return;
+        }
 
-        // Attach listeners
-        window.addEventListener('mousemove', handleGlobalMouseMove);
-        window.addEventListener('mouseup', handleGlobalMouseUp);
+        // Right Click (Button 2): Start Drag / Potential Double Click
+        if (e.button === 2) {
+            dragRef.current = {
+                sIdx,
+                track,
+                startY: e.clientY,
+                startVal: currentVal,
+                hasMoved: false,
+                accumulatedY: 0
+            };
+            document.body.style.cursor = 'ns-resize';
 
-    }, [handleGlobalMouseMove, handleGlobalMouseUp]);
+            // Attach listeners
+            window.addEventListener('mousemove', handleGlobalMouseMove);
+            window.addEventListener('mouseup', handleGlobalMouseUp);
+        }
+
+    }, [handleGlobalMouseMove, handleGlobalMouseUp, onUpdateStep]);
 
 
     // Cleanup listeners
@@ -240,12 +257,13 @@ export const SongMode = memo(({
                                     return (
                                         <div
                                             key={`${row.key}-${sIdx}`}
+                                            data-testid={`cell-${row.key}-${sIdx}`}
                                             style={{ width: CELL_WIDTH }}
-                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-ns-resize transition-colors select-none
+                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none
                                                 ${isPlaying ? 'bg-white/5' : 'bg-transparent'}
                                                 ${hasVal ? '' : 'hover:bg-gray-800/50'}
                                             `}
-                                            onMouseDown={(e) => handleRightMouseDown(e, sIdx, row.key, val)}
+                                            onMouseDown={(e) => handleCellMouseDown(e, sIdx, row.key, val)}
                                             onContextMenu={(e) => {
                                                 e.preventDefault();
                                             }}
