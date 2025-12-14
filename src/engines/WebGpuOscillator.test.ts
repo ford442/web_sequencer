@@ -65,15 +65,15 @@ describe('WebGpuOscillator', () => {
 
     // Mock global navigator.gpu
     // @ts-ignore
-    window.navigator.gpu = {
+    global.navigator.gpu = {
       requestAdapter: vi.fn().mockResolvedValue(mockAdapter),
     };
 
     // Mock global GPU constants
     // @ts-ignore
-    window.GPUShaderStage = { COMPUTE: 1 };
+    global.GPUShaderStage = { COMPUTE: 1 };
     // @ts-ignore
-    window.GPUBufferUsage = {
+    global.GPUBufferUsage = {
         STORAGE: 1,
         COPY_SRC: 2,
         MAP_READ: 4,
@@ -81,13 +81,13 @@ describe('WebGpuOscillator', () => {
         UNIFORM: 16
     };
     // @ts-ignore
-    window.GPUMapMode = { READ: 1 };
+    global.GPUMapMode = { READ: 1 };
   });
 
   it('should initialize correctly when WebGPU is supported', async () => {
     await engine.init();
 
-    expect(window.navigator.gpu.requestAdapter).toHaveBeenCalled();
+    expect(global.navigator.gpu.requestAdapter).toHaveBeenCalled();
     expect(mockAdapter.requestDevice).toHaveBeenCalled();
     expect(mockDevice.createShaderModule).toHaveBeenCalled();
     expect(mockDevice.createComputePipeline).toHaveBeenCalled();
@@ -96,7 +96,7 @@ describe('WebGpuOscillator', () => {
 
   it('should handle lack of WebGPU support gracefully', async () => {
     // @ts-ignore
-    window.navigator.gpu = undefined;
+    global.navigator.gpu = undefined;
 
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
