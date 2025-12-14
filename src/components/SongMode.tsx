@@ -55,37 +55,23 @@ export const SongMode = memo(({
     // Menu state
     const [menu, setMenu] = useState<{ x: number, y: number, sIdx: number, track: TrackKey, currentVal: number | null } | null>(null);
 
-    const dragRef = useRef<{
-        sIdx: number;
-        track: TrackKey;
-        startY: number;
-        startVal: number | null;
-        hasMoved: boolean;
-        accumulatedY: number
+    // Double Click State
+    const lastRightClickTimeRef = useRef<number>(0);
+
+    const dragRef = useRef<{ 
+        sIdx: number; 
+        track: TrackKey; 
+        startY: number; 
+        startVal: number | null; 
+        hasMoved: boolean; 
+        accumulatedY: number 
     } | null>(null);
 
-    // Right-Click Handler: Starts tracking for Potential Drag OR Menu
-    const handleRightMouseDown = useCallback((e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
-        if (e.button !== 2) return; // Only Right Click
-        e.preventDefault();
-        e.stopPropagation();
-
-        setIsDragging(true);
-        dragRef.current = {
-            sIdx,
-            track,
-            startY: e.clientY,
-            startVal: currentVal,
-            hasMoved: false,
-            accumulatedY: 0
-        };
-        document.body.style.cursor = 'ns-resize';
-    }, []);
 
     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
-        if (!isDragging || !dragRef.current) return;
+        if (!dragRef.current) return;
         
-        const { sIdx, track, startY, startVal, accumulatedY } = dragRef.current;
+        const { sIdx, track, startY, startVal } = dragRef.current;
         const dy = startY - e.clientY; // Positive when dragging up
         
         // Threshold check to avoid accidental drags
@@ -99,7 +85,7 @@ export const SongMode = memo(({
             if (step !== 0) {
                 // If we moved enough to change value, update startY to reset the delta accumulation
                 // Actually, logic is simpler if we always diff from startY.
-
+                
                 let newVal: number | null;
                 if (startVal === null) {
                     // Start from 0 or 7 depending on direction
@@ -107,43 +93,78 @@ export const SongMode = memo(({
                 } else {
                     newVal = startVal + step;
                 }
-
+                
                 // Clamp to 0-7 or null (dragging down past 0 clears it)
                 if (newVal !== null) {
                     if (newVal < 0) newVal = null;
                     else if (newVal > 7) newVal = 7;
                 }
-
+                
                 onUpdateStep(sIdx, track, newVal);
             }
         }
-    }, [isDragging, onUpdateStep]);
+    }, [onUpdateStep]);
 
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
-        if (!isDragging || !dragRef.current) return;
+        if (!dragRef.current) return;
 
-        // If it was a short click (no drag), open menu
+        // If it was a short click (no drag), check for Double Click
         if (!dragRef.current.hasMoved) {
-            const { sIdx, track, startVal } = dragRef.current;
-            setMenu({ x: e.clientX, y: e.clientY, sIdx, track, currentVal: startVal });
+            const now = Date.now();
+            const diff = now - lastRightClickTimeRef.current;
+            
+            if (diff < 300) {
+                // Double Click!
+                const { sIdx, track, startVal } = dragRef.current;
+                setMenu({ x: e.clientX, y: e.clientY, sIdx, track, currentVal: startVal });
+                lastRightClickTimeRef.current = 0;
+            } else {
+                lastRightClickTimeRef.current = now;
+            }
         }
 
         setIsDragging(false);
         dragRef.current = null;
         document.body.style.cursor = 'default';
-    }, [isDragging]);
 
-    // Global mouse event handlers
+        // Remove listeners
+        window.removeEventListener('mousemove', handleGlobalMouseMove);
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+
+    }, [handleGlobalMouseMove]);
+
+
+    // Right-Click Handler: Starts tracking for Potential Drag OR Menu
+    const handleRightMouseDown = useCallback((e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
+        if (e.button !== 2) return; // Only Right Click
+        e.preventDefault();
+        e.stopPropagation();
+
+        setIsDragging(true);
+        dragRef.current = { 
+            sIdx, 
+            track, 
+            startY: e.clientY, 
+            startVal: currentVal, 
+            hasMoved: false,
+            accumulatedY: 0
+        };
+        document.body.style.cursor = 'ns-resize';
+
+        // Attach listeners
+        window.addEventListener('mousemove', handleGlobalMouseMove);
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+
+    }, [handleGlobalMouseMove, handleGlobalMouseUp]);
+
+
+    // Cleanup listeners
     React.useEffect(() => {
-        if (isDragging) {
-            window.addEventListener('mousemove', handleGlobalMouseMove);
-            window.addEventListener('mouseup', handleGlobalMouseUp);
-        }
         return () => {
             window.removeEventListener('mousemove', handleGlobalMouseMove);
             window.removeEventListener('mouseup', handleGlobalMouseUp);
         };
-    }, [isDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
+    }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
     const totalHeight = HEADER_HEIGHT + (ROWS.length * CELL_HEIGHT);
 
@@ -153,9 +174,9 @@ export const SongMode = memo(({
         >
             {/* Context Menu */}
             {menu && (
-                <PatternSelector
-                    x={menu.x}
-                    y={menu.y}
+                <PatternSelector 
+                    x={menu.x} 
+                    y={menu.y} 
                     currentPattern={menu.currentVal}
                     onSelect={(val) => {
                         onUpdateStep(menu.sIdx, menu.track, val);
