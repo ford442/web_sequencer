@@ -39,6 +39,39 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
         setIsLoading(false);
     };
 
+    const handleUpload = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setUploadStatus('uploading');
+
+        try {
+            let dataToUpload: any;
+            if (uploadType === 'song') dataToUpload = getSongData();
+            else if (uploadType === 'bank') dataToUpload = getBankData();
+            else if (uploadType === 'pattern') dataToUpload = getPatternData();
+
+            const result = await CloudStorage.uploadItem({
+                name: uploadForm.name || 'Untitled',
+                author: uploadForm.author || 'Anonymous',
+                description: uploadForm.description,
+                type: uploadType,
+                data: dataToUpload
+            });
+
+            if (result.success) {
+                setUploadStatus('success');
+                setTimeout(() => {
+                    setUploadStatus('idle');
+                    setActiveTab('browse');
+                    loadLibrary();
+                }, 1500);
+            } else {
+                setUploadStatus('error');
+            }
+        } catch (err) {
+            setUploadStatus('error');
+        }
+    };
+
     const handleLoadClick = async (item: CloudSongMeta) => {
         setIsLoading(true);
         try {
