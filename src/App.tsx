@@ -12,6 +12,7 @@ import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
+import type { CloudItemType } from './services/CloudStorage';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
@@ -711,7 +712,7 @@ export const App: React.FC = () => {
         e.preventDefault();
         e.stopPropagation();
 
-        const stepData = pattern[track].steps[step];
+        const stepData = patternRef.current[track].steps[step];
         if (!stepData) return;
 
         setIsNoteDragging(true);
@@ -723,7 +724,7 @@ export const App: React.FC = () => {
             hasMoved: false
         };
         document.body.style.cursor = 'ns-resize';
-    }, [pattern]);
+    }, []);
 
     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
         if (!isNoteDragging || !noteDragRef.current) return;
@@ -870,44 +871,80 @@ export const App: React.FC = () => {
         setActiveSongSlot(slot);
     };
 
-    // --- SAVE/LOAD SONGS AS FILE ---
-    const getSongDataForUpload = useCallback(() => {
+    // --- DATA EXTRACTORS FOR CLOUD ---
+    // 1. Full Song
+    const getSongData = useCallback(() => {
         return {
             version: 1,
             pattern,
             tempo,
             ambianceUrl,
-            params: {
-                synthA, synthB, kick, snare, closedHat, openHat, sampler
-            },
+            params: { synthA, synthB, kick, snare, closedHat, openHat, sampler },
             trackStorage,
             activeTrackSlots,
             songStructure
         };
     }, [pattern, tempo, ambianceUrl, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure]);
 
-    const loadSongData = useCallback((songData: any) => {
-        if (songData.pattern) setPattern(songData.pattern);
-        if (songData.tempo) setTempo(songData.tempo);
-        if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl);
+    // 2. Pattern Bank (Just the storage)
+    const getBankData = useCallback(() => {
+        return {
+            type: 'bank',
+            trackStorage
+        };
+    }, [trackStorage]);
 
-        if (songData.params) {
-            if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; }
-            if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; }
-            if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; }
-            if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; }
-            if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; }
-            if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; }
-            if (songData.params.sampler) { setSampler(songData.params.sampler); samplerRef.current = songData.params.sampler; }
+    // 3. Single Pattern (Current active)
+    const getPatternData = useCallback(() => {
+        return {
+            type: 'pattern',
+            pattern
+        };
+    }, [pattern]);
+
+    // --- DATA LOADER ---
+    const loadCloudData = useCallback((data: any, type: CloudItemType) => {
+        console.log("Loading Cloud Data:", type, data);
+
+        if (type === 'song') {
+            // Full Song Load (Same as file import)
+            if (data.pattern) setPattern(data.pattern);
+            if (data.tempo) setTempo(data.tempo);
+            if (data.ambianceUrl !== undefined) setAmbianceUrl(data.ambianceUrl);
+            
+            if (data.params) {
+                if (data.params.synthA) { setSynthA(data.params.synthA); synthARef.current = data.params.synthA; }
+                if (data.params.synthB) { setSynthB(data.params.synthB); synthBRef.current = data.params.synthB; }
+                if (data.params.kick) { setKick(data.params.kick); kickRef.current = data.params.kick; }
+                if (data.params.snare) { setSnare(data.params.snare); snareRef.current = data.params.snare; }
+                if (data.params.closedHat) { setClosedHat(data.params.closedHat); closedHatRef.current = data.params.closedHat; }
+                if (data.params.openHat) { setOpenHat(data.params.openHat); openHatRef.current = data.params.openHat; }
+                if (data.params.sampler) { setSampler(data.params.sampler); samplerRef.current = data.params.sampler; }
+            }
+            
+            if (data.trackStorage) setTrackStorage(data.trackStorage);
+            if (data.activeTrackSlots) setActiveTrackSlots(data.activeTrackSlots);
+            if (data.songStructure) setSongStructure(data.songStructure);
+            alert("Song loaded!");
+
+        } else if (type === 'bank') {
+            // Load Bank (Replace all patterns in storage)
+            if (data.trackStorage) {
+                setTrackStorage(data.trackStorage);
+                alert("Pattern Bank loaded! Check your pattern slots.");
+            }
+
+        } else if (type === 'pattern') {
+            // Load Single Pattern (Replace CURRENT pattern)
+            if (data.pattern) {
+                setPattern(data.pattern);
+                alert("Pattern loaded into current view!");
+            }
         }
-
-        if (songData.trackStorage) setTrackStorage(songData.trackStorage);
-        if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots);
-        if (songData.songStructure) setSongStructure(songData.songStructure);
     }, []);
 
     const exportSongToFile = useCallback(() => {
-        const songData = getSongDataForUpload();
+        const songData = getSongData();
         
         const jsonStr = JSON.stringify(songData, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -920,7 +957,7 @@ export const App: React.FC = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }, [getSongDataForUpload]);
+    }, [getSongData]);
 
     const importSongFromFile = useCallback(() => {
         const input = document.createElement('input');
@@ -934,7 +971,7 @@ export const App: React.FC = () => {
                 const text = await file.text();
                 const songData = JSON.parse(text);
                 
-                loadSongData(songData);
+                        loadCloudData(songData, 'song');
                 
                 alert('Song loaded successfully!');
             } catch (err) {
@@ -943,7 +980,7 @@ export const App: React.FC = () => {
             }
         };
         input.click();
-    }, [loadSongData]);
+    }, [loadCloudData]);
 
     // --- MODULE RENDER HELPERS ---
     const getSynthControls = (params: SynthParams): KnobConfig[] => [
@@ -1063,11 +1100,13 @@ export const App: React.FC = () => {
     return (
         <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative">
 
-            <CloudLibrary
-                isOpen={isCloudLibraryOpen}
+            <CloudLibrary 
+                isOpen={isCloudLibraryOpen} 
                 onClose={() => setIsCloudLibraryOpen(false)}
-                onLoadSong={loadSongData}
-                getSongDataForUpload={getSongDataForUpload}
+                onLoadData={loadCloudData}
+                getSongData={getSongData}
+                getBankData={getBankData}
+                getPatternData={getPatternData}
             />
 
             {isVoiceEditorOpen && (

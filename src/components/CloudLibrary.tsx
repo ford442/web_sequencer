@@ -1,22 +1,29 @@
 // src/components/CloudLibrary.tsx
 import React, { useEffect, useState } from 'react';
 import { CloudStorage } from '../services/CloudStorage';
-import type { CloudSongMeta } from '../services/CloudStorage';
+import type { CloudSongMeta, CloudItemType } from '../services/CloudStorage';
 
 interface CloudLibraryProps {
     isOpen: boolean;
     onClose: () => void;
-    onLoadSong: (data: any) => void;
-    getSongDataForUpload: () => any; // Function to get current app state
+    onLoadData: (data: any, type: CloudItemType) => void;
+    // Data getters for different types
+    getSongData: () => any;
+    getBankData: () => any;
+    getPatternData: () => any;
 }
 
-export const CloudLibrary: React.FC<CloudLibraryProps> = ({ isOpen, onClose, onLoadSong, getSongDataForUpload }) => {
+export const CloudLibrary: React.FC<CloudLibraryProps> = ({ 
+    isOpen, onClose, onLoadData, getSongData, getBankData, getPatternData 
+}) => {
     const [activeTab, setActiveTab] = useState<'browse' | 'upload'>('browse');
+    const [filterType, setFilterType] = useState<CloudItemType | 'all'>('all');
     const [songs, setSongs] = useState<CloudSongMeta[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     // Upload Form State
     const [uploadForm, setUploadForm] = useState({ name: '', author: '', description: '' });
+    const [uploadType, setUploadType] = useState<CloudItemType>('song');
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
     useEffect(() => {
@@ -32,45 +39,21 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({ isOpen, onClose, onL
         setIsLoading(false);
     };
 
-    const handleLoadClick = async (id: string) => {
+    const handleLoadClick = async (item: CloudSongMeta) => {
         setIsLoading(true);
         try {
-            const data = await CloudStorage.getSongData(id);
-            onLoadSong(data);
+            const data = await CloudStorage.getSongData(item.id);
+            // Pass both data and type so App.tsx knows how to handle it
+            onLoadData(data, item.type);
             onClose();
         } catch (e) {
-            alert("Failed to load song data");
+            alert("Failed to load data");
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleUpload = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setUploadStatus('uploading');
-
-        try {
-            const songData = getSongDataForUpload();
-            const result = await CloudStorage.uploadSong({
-                name: uploadForm.name || "Untitled",
-                author: uploadForm.author || "Anonymous",
-                description: uploadForm.description,
-                data: songData
-            });
-
-            if (result.success) {
-                setUploadStatus('success');
-                setTimeout(() => {
-                    setUploadStatus('idle');
-                    setActiveTab('browse');
-                }, 1500);
-            } else {
-                setUploadStatus('error');
-            }
-        } catch (e) {
-            setUploadStatus('error');
-        }
-    };
+    const filteredSongs = songs.filter(s => filterType === 'all' || s.type === filterType);
 
     if (!isOpen) return null;
 
@@ -90,7 +73,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({ isOpen, onClose, onL
                         onClick={() => setActiveTab('upload')}
                         className={`flex-1 py-4 font-orbitron font-bold text-sm tracking-widest transition-colors ${activeTab === 'upload' ? 'text-pink-400 bg-gray-800/50' : 'text-gray-500 hover:text-gray-300'}`}
                     >
-                        UPLOAD CURRENT
+                        UPLOAD
                     </button>
                 </div>
 
@@ -98,8 +81,19 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({ isOpen, onClose, onL
                 <div className="flex-1 overflow-y-auto p-6 min-h-[400px]">
                     {activeTab === 'browse' ? (
                         <div className="space-y-4">
+                            {/* Filter Bar */}
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-cyan-500 font-mono text-xs uppercase">Community Patterns</h3>
+                                <div className="flex gap-2">
+                                    {['all', 'song', 'bank', 'pattern'].map((t) => (
+                                        <button
+                                            key={t}
+                                            onClick={() => setFilterType(t as any)}
+                                            className={`px-3 py-1 rounded text-xs font-bold uppercase transition-all ${filterType === t ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-500 hover:bg-gray-700'}`}
+                                        >
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
                                 <button onClick={loadLibrary} className="text-xs text-gray-400 hover:text-white">↻ Refresh</button>
                             </div>
 
@@ -109,17 +103,25 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({ isOpen, onClose, onL
                                 <div className="text-center py-10 text-gray-600 font-mono">No songs found. Be the first to upload!</div>
                             ) : (
                                 <div className="grid gap-3">
-                                    {songs.map(song => (
-                                        <div key={song.id} className="bg-gray-800/40 border border-gray-700 hover:border-cyan-500/50 rounded-lg p-3 flex justify-between items-center transition-all group">
+                                    {filteredSongs.map(item => (
+                                        <div key={item.id} className="bg-gray-800/40 border border-gray-700 hover:border-cyan-500/50 rounded-lg p-3 flex justify-between items-center transition-all group">
                                             <div>
-                                                <div className="font-bold text-gray-200">{song.name}</div>
-                                                <div className="text-xs text-gray-500 font-mono mt-1">
-                                                    by <span className="text-cyan-400">{song.author}</span> • {song.date}
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded text-black font-bold uppercase ${
+                                                        item.type === 'song' ? 'bg-blue-400' : 
+                                                        item.type === 'bank' ? 'bg-purple-400' : 'bg-green-400'
+                                                    }`}>
+                                                        {item.type}
+                                                    </span>
+                                                    <span className="font-bold text-gray-200">{item.name}</span>
                                                 </div>
-                                                {song.description && <div className="text-xs text-gray-600 mt-1 italic">{song.description}</div>}
+                                                <div className="text-xs text-gray-500 font-mono mt-1 ml-1">
+                                                    by <span className="text-cyan-400">{item.author}</span> • {item.date}
+                                                </div>
+                                                {item.description && <div className="text-xs text-gray-600 mt-1 ml-1 italic">{item.description}</div>}
                                             </div>
-                                            <button
-                                                onClick={() => handleLoadClick(song.id)}
+                                            <button 
+                                                onClick={() => handleLoadClick(item)}
                                                 className="bg-cyan-900/30 text-cyan-400 border border-cyan-800 px-3 py-1.5 rounded text-xs font-bold font-orbitron hover:bg-cyan-500 hover:text-black transition-all"
                                             >
                                                 LOAD
@@ -133,8 +135,33 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({ isOpen, onClose, onL
                         <div className="max-w-md mx-auto">
                             <h3 className="text-pink-500 font-mono text-xs uppercase mb-6 text-center">Share your creation</h3>
                             <form onSubmit={handleUpload} className="space-y-4">
+                                
+                                {/* Type Selection */}
+                                <div className="bg-gray-800/50 p-3 rounded-lg border border-gray-700">
+                                    <label className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500"/>
+                                            <span className="text-sm text-gray-300">Full Song</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500"/>
+                                            <span className="text-sm text-gray-300">Pattern Bank</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500"/>
+                                            <span className="text-sm text-gray-300">Current Pattern</span>
+                                        </label>
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 mt-2 italic">
+                                        {uploadType === 'song' && "Saves arrangement, patterns, and knob settings."}
+                                        {uploadType === 'bank' && "Saves all 8 pattern slots for all tracks."}
+                                        {uploadType === 'pattern' && "Saves only the currently active pattern."}
+                                    </div>
+                                </div>
+
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-mono mb-1">Song Name</label>
+                                    <label className="block text-xs text-gray-400 font-mono mb-1">Name</label>
                                     <input
                                         type="text"
                                         required
@@ -142,7 +169,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({ isOpen, onClose, onL
                                         value={uploadForm.name}
                                         onChange={e => setUploadForm({...uploadForm, name: e.target.value})}
                                         className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-pink-500 focus:outline-none transition-colors"
-                                        placeholder="My Awesome Track"
+                                        placeholder={uploadType === 'song' ? "My Song" : "My Pattern"}
                                     />
                                 </div>
                                 <div>
@@ -178,10 +205,10 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({ isOpen, onClose, onL
                                               'bg-pink-700 text-white hover:bg-pink-600 border border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.3)]'}
                                         `}
                                     >
-                                        {uploadStatus === 'uploading' ? 'UPLOADING...' :
-                                         uploadStatus === 'success' ? 'UPLOAD COMPLETE!' :
-                                         uploadStatus === 'error' ? 'FAILED - TRY AGAIN' :
-                                         'UPLOAD TO CLOUD'}
+                                        {uploadStatus === 'uploading' ? 'UPLOADING...' : 
+                                         uploadStatus === 'success' ? 'UPLOAD COMPLETE!' : 
+                                         uploadStatus === 'error' ? 'FAILED - TRY AGAIN' : 
+                                         `UPLOAD ${uploadType.toUpperCase()}`}
                                     </button>
                                 </div>
                             </form>
