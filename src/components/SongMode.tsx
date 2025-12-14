@@ -50,8 +50,6 @@ export const SongMode = memo(({
 
     const totalWidth = ROW_HEADER_WIDTH + (songStructure.length * CELL_WIDTH);
 
-    // Drag state for pattern selection
-    const [isDragging, setIsDragging] = useState(false);
     // Menu state
     const [menu, setMenu] = useState<{ x: number, y: number, sIdx: number, track: TrackKey, currentVal: number | null } | null>(null);
 
@@ -123,7 +121,6 @@ export const SongMode = memo(({
             }
         }
 
-        setIsDragging(false);
         dragRef.current = null;
         document.body.style.cursor = 'default';
 
@@ -140,7 +137,6 @@ export const SongMode = memo(({
         e.preventDefault();
         e.stopPropagation();
 
-        setIsDragging(true);
         dragRef.current = { 
             sIdx, 
             track, 
