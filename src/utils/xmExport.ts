@@ -228,7 +228,7 @@ export const exportSongToXM = async (
         loopType: loopPointsA.loopEnd > loopPointsA.loopStart ? LoopType.Forward : LoopType.None,
         loopStart: loopPointsA.loopStart,
         loopLength: loopPointsA.loopEnd > loopPointsA.loopStart ? loopPointsA.loopEnd - loopPointsA.loopStart : 0,
-        relativeNoteNumber: 24 // Set relative note to +12
+        relativeNoteNumber: 12 // Set relative note to +12
     });
 
     const instA = createInstrument('Lead Synth');
@@ -264,7 +264,7 @@ export const exportSongToXM = async (
         name: 'Kick',
         data: floatTo16BitPCM(normalizedKick),
         volume: 64,
-        relativeNoteNumber: 24 // Set relative note to +12
+        relativeNoteNumber: 12 // Set relative note to +12
     });
     const instKick = createInstrument('Kick');
     addSampleToInstrument(instKick, sampleKick);
@@ -277,7 +277,7 @@ export const exportSongToXM = async (
         name: 'Snare',
         data: floatTo16BitPCM(normalizedSnare),
         volume: 64,
-        relativeNoteNumber: 24 // Set relative note to +12
+        relativeNoteNumber: 12 // Set relative note to +12
     });
     const instSnare = createInstrument('Snare');
     addSampleToInstrument(instSnare, sampleSnare);
@@ -290,7 +290,7 @@ export const exportSongToXM = async (
         name: 'Closed Hat',
         data: floatTo16BitPCM(normalizedCH),
         volume: 64,
-        relativeNoteNumber: 24 // Set relative note to +12
+        relativeNoteNumber: 12 // Set relative note to +12
     });
     const instCH = createInstrument('Closed Hat');
     addSampleToInstrument(instCH, sampleCH);
@@ -303,7 +303,7 @@ export const exportSongToXM = async (
         name: 'Open Hat',
         data: floatTo16BitPCM(normalizedOH),
         volume: 64,
-        relativeNoteNumber: 24 // Set relative note to +12
+        relativeNoteNumber: 12 // Set relative note to +12
     });
     const instOH = createInstrument('Open Hat');
     addSampleToInstrument(instOH, sampleOH);
