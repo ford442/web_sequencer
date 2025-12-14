@@ -44,23 +44,35 @@ export const CloudStorage = {
     },
 
     async uploadItem(payload: CloudSongPayload): Promise<{ success: boolean; id?: string; error?: string }> {
+        const TIMEOUT_MS = 15000;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
         try {
             const res = await fetch(`${API_BASE_URL}/api/songs`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: controller.signal
             });
-            
+
+            clearTimeout(timeout);
+
             if (!res.ok) {
                 const err = await res.text();
                 throw new Error(err || res.statusText);
             }
-            
+
             const data = await res.json();
             return { success: true, id: data.id };
         } catch (e: any) {
+            clearTimeout(timeout);
+            if (e && e.name === 'AbortError') {
+                console.error("CloudStorage: Upload aborted (timeout)");
+                return { success: false, error: 'Request timed out' };
+            }
             console.error("CloudStorage: Upload error", e);
-            return { success: false, error: e.message };
+            return { success: false, error: e?.message || String(e) };
         }
     }
 };
