@@ -41,6 +41,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
     const handleUpload = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.debug('CloudLibrary: starting upload', uploadType);
         setUploadStatus('uploading');
 
         try {
@@ -56,7 +57,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                 type: uploadType,
                 data: dataToUpload
             });
-
+            console.debug('CloudLibrary: upload result', result);
             if (result.success) {
                 setUploadStatus('success');
                 setTimeout(() => {
@@ -68,6 +69,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                 setUploadStatus('error');
             }
         } catch (err) {
+            console.error('CloudLibrary: upload failed', err);
             setUploadStatus('error');
         }
     };
@@ -75,9 +77,11 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
     const handleLoadClick = async (item: CloudSongMeta) => {
         setIsLoading(true);
         try {
-            const data = await CloudStorage.getSongData(item.id);
+            const res = await CloudStorage.getSongData(item.id);
+            // Some backends wrap the payload under a `data` key; prefer inner payload if present
+            const payload = (res && typeof res === 'object' && 'data' in res) ? (res as any).data : res;
             // Pass both data and type so App.tsx knows how to handle it
-            onLoadData(data, item.type);
+            onLoadData(payload, item.type);
             onClose();
         } catch (e) {
             alert("Failed to load data");
