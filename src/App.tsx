@@ -711,7 +711,7 @@ export const App: React.FC = () => {
         e.preventDefault();
         e.stopPropagation();
 
-        const stepData = pattern[track].steps[step];
+        const stepData = patternRef.current[track].steps[step];
         if (!stepData) return;
 
         setIsNoteDragging(true);
@@ -723,7 +723,7 @@ export const App: React.FC = () => {
             hasMoved: false
         };
         document.body.style.cursor = 'ns-resize';
-    }, [pattern]);
+    }, []);
 
     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
         if (!isNoteDragging || !noteDragRef.current) return;
