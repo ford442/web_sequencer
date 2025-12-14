@@ -1212,15 +1212,15 @@ export const App: React.FC = () => {
             {/* --- SEQUENCER --- */}
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
                 {contextMenu && (
-                    <NoteSelector
-                        x={contextMenu.x}
-                        y={contextMenu.y}
-                        trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
-                        currentNote={pattern[contextMenu.track].steps[contextMenu.step]?.note || ''}
-                        onSelect={handleNoteSelect}
-                        onClose={() => setContextMenu(null)}
-                        getNoteColor={getNoteColor}
-                    />
+                        <NoteSelector
+                            x={contextMenu.x}
+                            y={contextMenu.y}
+                            trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
+                            currentNote={pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
+                            onSelect={handleNoteSelect}
+                            onClose={() => setContextMenu(null)}
+                            getNoteColor={getNoteColor}
+                        />
                 )}
 
                 <div className="w-full max-w-[1000px] mx-auto h-[480px] border-2 border-gray-700 rounded-xl bg-gradient-to-br from-[#0a0d10] to-[#080a0c] relative shadow-[0_0_80px_rgba(0,0,0,0.9)_inset,0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden">
