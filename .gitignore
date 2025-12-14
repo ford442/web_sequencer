@@ -7,11 +7,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+supertonic-TTS
 node_modules
 dist
 dist-ssr
 *.local
 package-lock.json
+
+# TTS Models (large files - download separately)
+assets/
+public/assets/onnx/*.onnx
+public/assets/onnx/voice_styles/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,4 +29,3 @@ package-lock.json
 *.njsproj
 *.sln
 *.sw?
-verification/wasm_ui.png

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Waveform } from '../types';
 
@@ -77,8 +78,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
   };
 
   return (
-    // Updated: more responsive layout, and ensure the wrapper is pointer-events-auto so it can be interactive when outside of module overlay
-    <div className="flex flex-wrap justify-center gap-1 bg-gray-800 rounded-md p-1 pointer-events-auto">
+    <div className="flex justify-around items-center bg-gray-800 rounded-md p-1">
       {waveforms.map((wave) => (
         <button
           key={wave}

@@ -4,25 +4,28 @@
 type Waveform = 'sawtooth' | 'square' | 'triangle' | 'sine';
 
 interface SynthParams {
-  waveform: Waveform;
-  pitch: number;
-  filterCutoff: number;
-  filterResonance: number;
-  attack: number;
-  decay: number;
-  volume: number;
-  delayTime: number;
-  delayFeedback: number;
-  delayMix: number;
+    waveform: Waveform;
+    pitch: number;
+    filterCutoff: number;
+    filterResonance: number;
+    attack: number;
+    decay: number;
+    sustain: number;  // 0-1 level
+    release: number;  // seconds
+    length: number;   // gate time in seconds
+    volume: number;
+    delayTime: number;
+    delayFeedback: number;
+    delayMix: number;
 }
 
 interface Note {
-  note: string;
-  velocity: number;
+    note: string;
+    velocity: number;
 }
 
 interface PartSequence {
-  steps: (Note | null)[];
+    steps: (Note | null)[];
 }
 
 const noteFrequencies: { [key: string]: number } = {
@@ -40,7 +43,10 @@ const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, n
     const destination = context.destination;
     const baseFreq = noteToFrequency(note);
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-    const noteDuration = params.attack + params.decay;
+
+    // ADSR timing - use length as gate time, fallback to attack+decay if not set
+    const gateTime = params.length || (params.attack + params.decay + 0.1);
+    const totalDuration = gateTime + params.release;
 
     const osc = context.createOscillator();
     osc.type = params.waveform;
@@ -51,10 +57,22 @@ const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, n
     filter.frequency.setValueAtTime(params.filterCutoff, time);
     filter.Q.setValueAtTime(params.filterResonance, time);
 
+    // --- PROPER ADSR ENVELOPE ---
     const gain = context.createGain();
+    const sustainLevel = params.volume * (params.sustain ?? 0.5);
+
+    // Attack: 0 → volume
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
-    gain.gain.linearRampToValueAtTime(0, time + noteDuration);
+
+    // Decay: volume → sustain level
+    gain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
+
+    // Sustain: hold at sustain level until gate ends
+    gain.gain.setValueAtTime(sustainLevel, time + gateTime);
+
+    // Release: sustain → 0
+    gain.gain.linearRampToValueAtTime(0, time + gateTime + params.release);
 
     osc.connect(filter);
     filter.connect(gain);
@@ -83,7 +101,7 @@ const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, n
     }
 
     osc.start(time);
-    osc.stop(time + noteDuration + 0.05);
+    osc.stop(time + totalDuration + 0.05);
 };
 
 self.onmessage = async (event: MessageEvent<{ params: SynthParams, sequence: PartSequence, tempo: number, sampleRate: number, numSteps: number }>) => {
