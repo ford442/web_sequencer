@@ -1,8 +1,6 @@
 
 import React from 'react';
-
-// Standard chromatic scale
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+import { NOTES } from '../utils/musicTheory';
 
 interface NoteSelectorProps {
     x: number;

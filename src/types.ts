@@ -48,18 +48,23 @@ export interface SamplerParams {
   sampleName: string; // The key used in Python SAMPLES dict
   playbackSpeed: number; // 1.0 = normal
   volume: number;
+  filterCutoff: number; // Hz
+  filterResonance: number; // Q factor
+  drive: number; // 0-1 (Distortion amount)
+  delaySend: number; // 0-1 (Amount sent to delay bus)
 }
 
 export interface AllDrumParams {
-    kick: KickParams;
-    snare: SnareParams;
-    closedHat: HatParams;
-    openHat: HatParams;
+  kick: KickParams;
+  snare: SnareParams;
+  closedHat: HatParams;
+  openHat: HatParams;
 }
 
 export interface Note {
   note: string; // e.g., 'C4' for synths, placeholder for drums
   velocity: number;
+  length?: number; // Duration in steps (default 1)
 }
 
 export interface PartSequence {
@@ -92,9 +97,13 @@ export interface AudioEngine {
   context: AudioContext;
   webGpuEngine?: any; // WebGpuOscillator
   wasmEngine?: any; // WasmOscillator
-  playSynth: (params: SynthParams, note: string, time: number, destination?: AudioNode) => void;
+  playSynth: (params: SynthParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
   playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
-  playSampler: (params: SamplerParams, note: string, time: number) => void;
+  playSampler: (params: SamplerParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
+    noteOnSampler?: (params: SamplerParams, note: string, time?: number) => number | null;
+    noteOffSampler?: (id: number) => void;
+    noteOnSynth?: (params: SynthParams, note: string, time?: number) => Promise<number | null> | number | null;
+    noteOffSynth?: (id: number) => void;
   loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
   renderSynthPartToBuffer: (params: SynthParams, sequence: PartSequence, tempo: number) => Promise<AudioBuffer>;
   playBufferedPart: (buffer: AudioBuffer, time: number) => void;

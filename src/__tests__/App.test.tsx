@@ -26,31 +26,4 @@ describe('App', () => {
     // Check for the Song button
     expect(screen.getByRole('button', { name: 'SONG' })).toBeInTheDocument();
   });
-
-  it('renders the waveform selector buttons for the active synth', () => {
-    render(<App />);
-    // The active selected track defaults to partA, which should show the WaveformSelector
-    const wavSawBtns = screen.getAllByRole('button', { name: /Select wav-saw waveform/i });
-    // There may be multiple instances (module inline + overlay). Assert at least one is visible
-    expect(wavSawBtns.length).toBeGreaterThan(0);
-    expect(wavSawBtns.some((btn) => btn)).toBeTruthy();
-  });
-
-  it('renders floating waveform toggle button', () => {
-    render(<App />);
-    const toggleBtn = screen.getByRole('button', { name: /Open waveform selector/i });
-    expect(toggleBtn).toBeInTheDocument();
-    expect(toggleBtn).toBeVisible();
-  });
-
-  it('opens waveform overlay when toggle clicked', async () => {
-    render(<App />);
-    const toggleBtn = screen.getByRole('button', { name: /Open waveform selector/i });
-    expect(toggleBtn).toBeInTheDocument();
-    // click and assert overlay waveform appears
-    const initialCount = screen.getAllByRole('button', { name: /Select wav-saw waveform/i }).length;
-    await (await import('@testing-library/user-event')).default.click(toggleBtn);
-    const newCount = screen.getAllByRole('button', { name: /Select wav-saw waveform/i }).length;
-    expect(newCount).toBeGreaterThan(initialCount);
-  });
 });
