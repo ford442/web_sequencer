@@ -37,6 +37,7 @@ type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
     ambianceUrl: string;
+    backgroundImage: string;
     params: {
         synthA: SynthParams;
         synthB: SynthParams;
@@ -432,6 +433,7 @@ export const App: React.FC = () => {
     const [currentStep, setCurrentStep] = useState(-1)
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
+    const [backgroundImage, setBackgroundImage] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
     const [globalPan, setGlobalPan] = useState(0)
 
@@ -940,7 +942,7 @@ export const App: React.FC = () => {
 
     const saveSong = (slot: number) => {
         const snapshot: SongSnapshot = {
-            pattern, tempo, ambianceUrl,
+            pattern, tempo, ambianceUrl, backgroundImage,
             params: {
                 synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler
             }
@@ -959,6 +961,7 @@ export const App: React.FC = () => {
         setPattern(snapshot.pattern);
         setTempo(snapshot.tempo);
         setAmbianceUrl(snapshot.ambianceUrl);
+        setBackgroundImage(snapshot.backgroundImage || '');
         setSynthA(snapshot.params.synthA); synthARef.current = snapshot.params.synthA;
         setSynthB(snapshot.params.synthB); synthBRef.current = snapshot.params.synthB;
         setKick(snapshot.params.kick); kickRef.current = snapshot.params.kick;
@@ -977,12 +980,13 @@ export const App: React.FC = () => {
             pattern,
             tempo,
             ambianceUrl,
+            backgroundImage,
             params: { synthA, synthB, kick, snare, closedHat, openHat, sampler },
             trackStorage,
             activeTrackSlots,
             songStructure
         };
-    }, [pattern, tempo, ambianceUrl, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure]);
+    }, [pattern, tempo, ambianceUrl, backgroundImage, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure]);
 
     // 2. Pattern Bank (Just the storage)
     const getBankData = useCallback(() => {
@@ -1009,6 +1013,7 @@ export const App: React.FC = () => {
             if (data.pattern) setPattern(data.pattern);
             if (data.tempo) setTempo(data.tempo);
             if (data.ambianceUrl !== undefined) setAmbianceUrl(data.ambianceUrl);
+            if (data.backgroundImage !== undefined) setBackgroundImage(data.backgroundImage);
             
             if (data.params) {
                 if (data.params.synthA) { setSynthA(data.params.synthA); synthARef.current = data.params.synthA; }
@@ -1182,7 +1187,12 @@ export const App: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative">
+        <div
+            className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center"
+            style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}
+        >
+            {/* Dark overlay for readability if BG image is set */}
+            {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
 
             <CloudLibrary 
                 isOpen={isCloudLibraryOpen} 
@@ -1275,6 +1285,8 @@ export const App: React.FC = () => {
                 isVisible={isSongModeOpen}
                 songStructure={songStructure}
                 currentSongStep={currentSongMeasure}
+                backgroundImage={backgroundImage}
+                onSetBackgroundImage={setBackgroundImage}
                 onToggle={() => setIsSongModeOpen(!isSongModeOpen)}
                 onUpdateStep={(idx, key, val) => {
                     setSongStructure(prev => {
