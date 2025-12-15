@@ -24,7 +24,8 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
     // Upload Form State
     const [uploadForm, setUploadForm] = useState({ name: '', author: '', description: '' });
     const [uploadType, setUploadType] = useState<CloudItemType>('song');
-    const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+    const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'retrying' | 'success' | 'error'>('idle');
+    const [errorMessage, setErrorMessage] = useState<string>("");
 
     useEffect(() => {
         if (isOpen && activeTab === 'browse') {
@@ -39,11 +40,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
         setIsLoading(false);
     };
 
-    const handleUpload = async (e: React.FormEvent) => {
-        e.preventDefault();
-        console.debug('CloudLibrary: starting upload', uploadType);
-        setUploadStatus('uploading');
-
+    const performUpload = async (retryCount = 0): Promise<void> => {
         try {
             let dataToUpload: any;
             if (uploadType === 'song') dataToUpload = getSongData();
@@ -58,6 +55,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                 data: dataToUpload
             });
             console.debug('CloudLibrary: upload result', result);
+
             if (result.success) {
                 setUploadStatus('success');
                 setTimeout(() => {
@@ -66,12 +64,33 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                     loadLibrary();
                 }, 1500);
             } else {
-                setUploadStatus('error');
+                // Retry Logic
+                if (retryCount < 1) {
+                    setUploadStatus('retrying');
+                    setTimeout(() => performUpload(retryCount + 1), 1500);
+                } else {
+                    setUploadStatus('error');
+                    setErrorMessage(result.error || "Unknown Error");
+                }
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('CloudLibrary: upload failed', err);
-            setUploadStatus('error');
+            if (retryCount < 1) {
+                setUploadStatus('retrying');
+                setTimeout(() => performUpload(retryCount + 1), 1500);
+            } else {
+                setUploadStatus('error');
+                setErrorMessage(err.message || "Network Error");
+            }
         }
+    };
+
+    const handleUpload = async (e: React.FormEvent) => {
+        e.preventDefault();
+        console.debug('CloudLibrary: starting upload', uploadType);
+        setUploadStatus('uploading');
+        setErrorMessage("");
+        await performUpload(0);
     };
 
     const handleLoadClick = async (item: CloudSongMeta) => {
@@ -235,18 +254,25 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                 <div className="pt-4">
                                     <button
                                         type="submit"
-                                        disabled={uploadStatus === 'uploading' || uploadStatus === 'success'}
+                                        disabled={uploadStatus === 'uploading' || uploadStatus === 'retrying' || uploadStatus === 'success'}
                                         className={`w-full py-3 rounded font-orbitron font-bold text-sm tracking-widest transition-all
                                             ${uploadStatus === 'success' ? 'bg-green-600 text-white' :
                                               uploadStatus === 'error' ? 'bg-red-600 text-white' :
+                                              uploadStatus === 'retrying' ? 'bg-yellow-600 text-white animate-pulse' :
                                               'bg-pink-700 text-white hover:bg-pink-600 border border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.3)]'}
                                         `}
                                     >
                                         {uploadStatus === 'uploading' ? 'UPLOADING...' : 
+                                         uploadStatus === 'retrying' ? 'RETRYING...' :
                                          uploadStatus === 'success' ? 'UPLOAD COMPLETE!' : 
-                                         uploadStatus === 'error' ? 'FAILED - TRY AGAIN' : 
+                                         uploadStatus === 'error' ? 'FAILED - RETRY?' :
                                          `UPLOAD ${uploadType.toUpperCase()}`}
                                     </button>
+                                    {uploadStatus === 'error' && errorMessage && (
+                                        <div className="text-center mt-2 text-red-400 text-xs font-mono bg-red-900/20 p-2 rounded border border-red-900">
+                                            ERROR: {errorMessage}
+                                        </div>
+                                    )}
                                 </div>
                             </form>
                         </div>
