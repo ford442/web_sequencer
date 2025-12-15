@@ -313,8 +313,18 @@ async def upload_item(payload: ItemPayload):
                         sftp.chdir(config["folder"])
 
                     # Write file (Safe Mode: Binary + Encode)
+                    json_bytes = json.dumps(payload.data).encode('utf-8')
                     with sftp.open(meta['filename'], 'wb') as f:
-                        f.write(json.dumps(payload.data).encode('utf-8'))
+                        f.write(json_bytes)
+
+                    # --- VERIFICATION ---
+                    # Immediate read-back to confirm data integrity
+                    # We read as binary to avoid encoding ambiguities during verify
+                    with sftp.open(meta['filename'], 'rb') as f_check:
+                        written_bytes = f_check.read()
+                        if written_bytes != json_bytes:
+                            raise Exception("Verification Failed: Data mismatch on disk")
+                    # --------------------
 
                     # Update Index
                     try:
