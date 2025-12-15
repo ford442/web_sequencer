@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, memo } from 'react'
+import React, { useCallback, useEffect, useRef, useState, memo, useMemo } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -71,6 +71,61 @@ const PATTERN_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 const getPatternColor = (slotIndex: number): string => {
     return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
 };
+
+// --- CONSTANTS FOR MODULE RENDERING ---
+const COLOR_LEAD = [0.0, 0.9, 1.0] as [number, number, number];
+const COLOR_BASS = [1.0, 0.2, 0.8] as [number, number, number];
+const COLOR_KICK = [1.0, 0.6, 0.0] as [number, number, number];
+const COLOR_SNARE = [0.2, 1.0, 0.2] as [number, number, number];
+const COLOR_CH = [0.8, 0.8, 0.0] as [number, number, number];
+const COLOR_OH = [0.9, 0.5, 0.0] as [number, number, number];
+const COLOR_SAMPLER = [0.6, 0.4, 1.0] as [number, number, number];
+
+// --- MODULE CONTROL HELPERS ---
+const getSynthControls = (params: SynthParams): KnobConfig[] => [
+    { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
+    { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
+    { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
+    { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
+    { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
+    { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
+    { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
+    { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 },
+    { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
+    { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
+    { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
+];
+const getKickControls = (params: KickParams): KnobConfig[] => [
+    { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
+    { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay },
+    { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone },
+    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+];
+const getSnareControls = (params: SnareParams): KnobConfig[] => [
+    { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300 },
+    { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000 },
+    { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2 },
+    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+];
+const getClosedHatControls = (params: any): KnobConfig[] => [
+    { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
+    { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
+    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+];
+const getOpenHatControls = (params: any): KnobConfig[] => [
+    { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
+    { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
+    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+];
+const getSamplerControls = (params: SamplerParams): KnobConfig[] => [
+    { id: 'volume', label: 'LEVEL', x: 0.8, y: 0.25, size: 0.1, value: params.volume },
+    { id: 'playbackSpeed', label: 'SPEED', x: 0.2, y: 0.25, size: 0.1, value: (params.playbackSpeed) / 4.0 },
+    { id: 'filterCutoff', label: 'CUTOFF', x: 0.2, y: 0.65, size: 0.12, value: params.filterCutoff / 20000 },
+    { id: 'filterResonance', label: 'RES', x: 0.4, y: 0.65, size: 0.12, value: params.filterResonance / 20 },
+    { id: 'drive', label: 'DRIVE', x: 0.6, y: 0.65, size: 0.12, value: params.drive },
+    { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend },
+];
+
 
 // --- COMPONENTS ---
 
@@ -438,31 +493,73 @@ export const App: React.FC = () => {
     // --- INSTRUMENT STATE ---
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
     const synthARef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
-    const updateSynthA = (updates: Partial<SynthParams>) => { const n = { ...synthA, ...updates }; setSynthA(n); synthARef.current = n; };
+    const updateSynthA = useCallback((updates: Partial<SynthParams>) => {
+        setSynthA(prev => {
+            const n = { ...prev, ...updates };
+            synthARef.current = n;
+            return n;
+        });
+    }, []);
 
     const [synthB, setSynthB] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
     const synthBRef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
-    const updateSynthB = (updates: Partial<SynthParams>) => { const n = { ...synthB, ...updates }; setSynthB(n); synthBRef.current = n; };
+    const updateSynthB = useCallback((updates: Partial<SynthParams>) => {
+        setSynthB(prev => {
+            const n = { ...prev, ...updates };
+            synthBRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [kick, setKick] = useState<KickParams>(DEFAULT_KICK_PARAMS);
     const kickRef = useRef(DEFAULT_KICK_PARAMS);
-    const updateKick = (u: Partial<KickParams>) => { const n = { ...kick, ...u }; setKick(n); kickRef.current = n; };
+    const updateKick = useCallback((u: Partial<KickParams>) => {
+        setKick(prev => {
+            const n = { ...prev, ...u };
+            kickRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [snare, setSnare] = useState<SnareParams>(DEFAULT_SNARE_PARAMS);
     const snareRef = useRef(DEFAULT_SNARE_PARAMS);
-    const updateSnare = (u: Partial<SnareParams>) => { const n = { ...snare, ...u }; setSnare(n); snareRef.current = n; };
+    const updateSnare = useCallback((u: Partial<SnareParams>) => {
+        setSnare(prev => {
+            const n = { ...prev, ...u };
+            snareRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [closedHat, setClosedHat] = useState(DEFAULT_CLOSED_HAT_PARAMS);
     const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS);
-    const updateClosedHat = (u: Partial<typeof DEFAULT_CLOSED_HAT_PARAMS>) => { const n = { ...closedHat, ...u }; setClosedHat(n); closedHatRef.current = n; };
+    const updateClosedHat = useCallback((u: Partial<typeof DEFAULT_CLOSED_HAT_PARAMS>) => {
+        setClosedHat(prev => {
+            const n = { ...prev, ...u };
+            closedHatRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [openHat, setOpenHat] = useState(DEFAULT_OPEN_HAT_PARAMS);
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
-    const updateOpenHat = (u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => { const n = { ...openHat, ...u }; setOpenHat(n); openHatRef.current = n; };
+    const updateOpenHat = useCallback((u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => {
+        setOpenHat(prev => {
+            const n = { ...prev, ...u };
+            openHatRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [sampler, setSampler] = useState(DEFAULT_SAMPLER_PARAMS);
     const samplerRef = useRef(DEFAULT_SAMPLER_PARAMS);
-    const updateSampler = (u: Partial<SamplerParams>) => { const n = { ...sampler, ...u }; setSampler(n); samplerRef.current = n; };
+    const updateSampler = useCallback((u: Partial<SamplerParams>) => {
+        setSampler(prev => {
+            const n = { ...prev, ...u };
+            samplerRef.current = n;
+            return n;
+        });
+    }, []);
 
     // --- TEMPO HOLD-TO-SCROLL ---
     const tempoHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -984,51 +1081,7 @@ export const App: React.FC = () => {
     }, [loadCloudData]);
 
     // --- MODULE RENDER HELPERS ---
-    const getSynthControls = (params: SynthParams): KnobConfig[] => [
-        { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
-        { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
-        { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
-        { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
-        { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
-        { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
-        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
-        { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 },
-        { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
-        { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
-        { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
-    ];
-    const getKickControls = (params: KickParams): KnobConfig[] => [
-        { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
-        { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
-    ];
-    const getSnareControls = (params: SnareParams): KnobConfig[] => [
-        { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300 },
-        { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000 },
-        { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
-    ];
-    const getClosedHatControls = (params: any): KnobConfig[] => [
-        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
-    ];
-    const getOpenHatControls = (params: any): KnobConfig[] => [
-        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
-    ];
-    const getSamplerControls = (params: SamplerParams): KnobConfig[] => [
-        { id: 'volume', label: 'LEVEL', x: 0.8, y: 0.25, size: 0.1, value: params.volume },
-        { id: 'playbackSpeed', label: 'SPEED', x: 0.2, y: 0.25, size: 0.1, value: (params.playbackSpeed) / 4.0 },
-        { id: 'filterCutoff', label: 'CUTOFF', x: 0.2, y: 0.65, size: 0.12, value: params.filterCutoff / 20000 },
-        { id: 'filterResonance', label: 'RES', x: 0.4, y: 0.65, size: 0.12, value: params.filterResonance / 20 },
-        { id: 'drive', label: 'DRIVE', x: 0.6, y: 0.65, size: 0.12, value: params.drive },
-        { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend },
-    ];
-
-    const handleSynthChange = (isA: boolean, id: string, val: number) => {
+    const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => {
         const updater = isA ? updateSynthA : updateSynthB;
         let realVal = val;
         if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
@@ -1038,60 +1091,90 @@ export const App: React.FC = () => {
         else if (id === 'release') realVal = val * 2;
         else if (id === 'length') realVal = val * 2;
         updater({ [id]: realVal });
-    };
+    }, [updateSynthA, updateSynthB]);
 
-    const handleKickChange = (id: string, val: number) => {
+    const handleKickChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'pitch') realVal = val * 130 + 20;
         updateKick({ [id]: realVal });
-    };
+    }, [updateKick]);
 
-    const handleSnareChange = (id: string, val: number) => {
+    const handleSnareChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'tone') realVal = val * 300 + 100;
         else if (id === 'noise') realVal = val * 7000 + 1000;
         else if (id === 'decay') realVal = val * 0.5;
         updateSnare({ [id]: realVal });
-    };
+    }, [updateSnare]);
 
-    const handleClosedHatChange = (id: string, val: number) => updateClosedHat({ [id]: val });
-    const handleOpenHatChange = (id: string, val: number) => updateOpenHat({ [id]: val });
-    const handleSamplerChange = (id: string, val: number) => {
+    const handleClosedHatChange = useCallback((id: string, val: number) => updateClosedHat({ [id]: val }), [updateClosedHat]);
+    const handleOpenHatChange = useCallback((id: string, val: number) => updateOpenHat({ [id]: val }), [updateOpenHat]);
+    const handleSamplerChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'playbackSpeed') realVal = val * 4.0;
         else if (id === 'filterCutoff') realVal = val * 20000;
         else if (id === 'filterResonance') realVal = val * 20;
         updateSampler({ [id]: realVal });
-    };
+    }, [updateSampler]);
+
+    // Create stable handlers for synth A and B
+    const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
+    const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
+
+    // Memoize controls arrays to prevent re-creation on every render
+    const synthAControls = useMemo(() => getSynthControls(synthA), [synthA]);
+    const synthBControls = useMemo(() => getSynthControls(synthB), [synthB]);
+    const kickControls = useMemo(() => getKickControls(kick), [kick]);
+    const snareControls = useMemo(() => getSnareControls(snare), [snare]);
+    const closedHatControls = useMemo(() => getClosedHatControls(closedHat), [closedHat]);
+    const openHatControls = useMemo(() => getOpenHatControls(openHat), [openHat]);
+    const samplerControls = useMemo(() => getSamplerControls(sampler), [sampler]);
+
+    // Memoize complex children (e.g. WaveformSelectors and SamplerPanel)
+    const synthAChild = useMemo(() => (
+        <div className="absolute top-4 right-6 pointer-events-auto">
+            <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
+        </div>
+    ), [synthA.waveform, updateSynthA]);
+
+    const synthBChild = useMemo(() => (
+        <div className="absolute top-4 right-6 pointer-events-auto">
+            <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
+        </div>
+    ), [synthB.waveform, updateSynthB]);
+
+    const samplerChild = useMemo(() => (
+        <div className="absolute top-4 left-[30%] w-[40%] h-[120px] pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm">
+            <SamplerPanel
+                params={sampler}
+                onChange={(u) => updateSampler(u)}
+                onLoadSample={(n, b) => {
+                    audioEngine?.loadSampleToEngine(n, b);
+                    setSamplerBuffer(b); // Save buffer for XM export
+                }}
+                audioContext={audioEngine?.context!}
+                onOpenEditor={() => setIsVoiceEditorOpen(true)}
+            />
+        </div>
+    ), [sampler, updateSampler, audioEngine, setIsVoiceEditorOpen]);
 
     const renderModulePanel = () => {
-        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
-        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
-        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} />;
-        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
-        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
-        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
+        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange}>{synthAChild}</HardwareModule>;
+        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange}>{synthBChild}</HardwareModule>;
+        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} />;
+        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} />;
+        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} />;
+        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} />;
 
         if (selectedTrack === 'sampler') {
             return (
                 <HardwareModule
                     title="SAMPLER // TTS"
-                    colorHex={[0.6, 0.4, 1.0]}
-                    controls={getSamplerControls(sampler)}
+                    colorHex={COLOR_SAMPLER}
+                    controls={samplerControls}
                     onParamChange={handleSamplerChange}
                 >
-                    <div className="absolute top-4 left-[30%] w-[40%] h-[120px] pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm">
-                        <SamplerPanel
-                            params={sampler}
-                            onChange={(u) => updateSampler(u)}
-                            onLoadSample={(n, b) => {
-                                audioEngine?.loadSampleToEngine(n, b);
-                                setSamplerBuffer(b); // Save buffer for XM export
-                            }}
-                            audioContext={audioEngine?.context!}
-                            onOpenEditor={() => setIsVoiceEditorOpen(true)}
-                        />
-                    </div>
+                    {samplerChild}
                 </HardwareModule>
             );
         }
