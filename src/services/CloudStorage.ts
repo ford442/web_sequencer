@@ -1,9 +1,7 @@
 // src/services/CloudStorage.ts
 
-// src/services/CloudStorage.ts
-
-// Replace with your actual Space URL
-const API_BASE_URL = "https://ford442-storage-manager.hf.space"; 
+// Replace with your actual Space URL or use relative path if proxied
+export const API_BASE_URL = "https://ford442-storage-manager.hf.space";
 
 export type CloudItemType = 'song' | 'pattern' | 'bank' | 'sample';
 
@@ -24,6 +22,23 @@ export interface CloudSongPayload {
     type: CloudItemType; // Added type field
     data: any; 
 }
+
+// Simple event bus for status updates
+type StatusListener = (status: 'idle' | 'uploading' | 'complete' | 'error') => void;
+const listeners: StatusListener[] = [];
+
+export const CloudStatusManager = {
+    subscribe(listener: StatusListener) {
+        listeners.push(listener);
+        return () => {
+            const idx = listeners.indexOf(listener);
+            if (idx > -1) listeners.splice(idx, 1);
+        };
+    },
+    notify(status: 'idle' | 'uploading' | 'complete' | 'error') {
+        listeners.forEach(l => l(status));
+    }
+};
 
 export const CloudStorage = {
     async getSongs(typeFilter?: CloudItemType): Promise<CloudSongMeta[]> {
@@ -53,6 +68,8 @@ export const CloudStorage = {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+        CloudStatusManager.notify('uploading');
+
         try {
             const res = await fetch(`${API_BASE_URL}/api/songs`, {
                 method: 'POST',
@@ -69,9 +86,14 @@ export const CloudStorage = {
             }
 
             const data = await res.json();
+            CloudStatusManager.notify('complete');
+            setTimeout(() => CloudStatusManager.notify('idle'), 2000);
             return { success: true, id: data.id };
         } catch (e: any) {
             clearTimeout(timeout);
+            CloudStatusManager.notify('error');
+            setTimeout(() => CloudStatusManager.notify('idle'), 3000);
+
             if (e && e.name === 'AbortError') {
                 console.error("CloudStorage: Upload aborted (timeout)");
                 return { success: false, error: 'Request timed out' };
