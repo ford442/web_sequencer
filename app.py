@@ -5,49 +5,164 @@ import paramiko
 import uvicorn
 import asyncio
 import socket
+import traceback
 from contextlib import asynccontextmanager
-from datetime import datetime
-from io import BytesIO
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
+from concurrent.futures import ThreadPoolExecutor
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
+from aiocache import Cache
+from datetime import datetime
 
 # --- CONFIGURATION ---
 FTP_HOST = os.environ.get("FTP_HOST")
 FTP_USER = os.environ.get("FTP_USER")
 FTP_PASS = os.environ.get("FTP_PASS")
-FTP_PORT = int(os.environ.get("FTP_PORT", 22)) 
-BASE_DIR = os.environ.get("FTP_DIR", "storage.1ink.us") 
+FTP_PORT = int(os.environ.get("FTP_PORT", 22))
+BASE_DIR = os.environ.get("FTP_DIR", "storage.1ink.us")
 
-# --- TYPE DEFINITIONS ---
-# Map types to specific subfolders and index filenames
+# --- STORAGE MAP ---
 STORAGE_MAP = {
     "song":     {"folder": "songs",    "index": "_songs.json"},
     "pattern":  {"folder": "patterns", "index": "_patterns.json"},
     "bank":     {"folder": "banks",    "index": "_banks.json"},
     "sample":   {"folder": "samples",  "index": "_samples.json"},
-    # Fallback
     "default":  {"folder": "misc",     "index": "_misc.json"}
 }
 
-# --- CONCURRENCY LOCK ---
-INDEX_LOCK = None
+# --- THREAD POOL ---
+# Limits concurrent SFTP operations to prevent server overload
+io_executor = ThreadPoolExecutor(max_workers=10)
 
+async def run_sftp(func, *args, **kwargs):
+    """Runs a blocking SFTP operation in the thread pool"""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(io_executor, lambda: func(*args, **kwargs))
+
+# --- CACHE ---
+# Caches library lists for 30 seconds to reduce SFTP hits
+cache = Cache(Cache.MEMORY)
+
+# --- CONCURRENCY LOCK ---
+# Lazy initialized to avoid loop mismatch
+_INDEX_LOCK = None
+
+async def get_index_lock():
+    global _INDEX_LOCK
+    if _INDEX_LOCK is None:
+        _INDEX_LOCK = asyncio.Lock()
+    return _INDEX_LOCK
+
+# --- CONNECTION POOL ---
+class SFTPPool:
+    def __init__(self, min_size=1, max_size=5):
+        self.pool = asyncio.Queue(maxsize=max_size)
+        self.max_size = max_size
+        self.current_size = 0
+        self.lock = asyncio.Lock()
+
+    async def initialize(self):
+        """Create initial connections"""
+        for _ in range(self.pool.maxsize): # Pre-fill partially or fully
+             if self.current_size < self.max_size:
+                conn = await self._create_connection()
+                if conn:
+                    await self.pool.put(conn)
+
+    async def _create_connection(self):
+        try:
+            def _connect():
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(10)
+                sock.connect((FTP_HOST, FTP_PORT))
+
+                t = paramiko.Transport(sock)
+                # Optimization: Increase window/packet sizes
+                t.default_window_size = 32 * 1024 * 1024
+                t.default_max_packet_size = 128 * 1024
+
+                t.connect(username=FTP_USER, password=FTP_PASS)
+                t.set_keepalive(15)
+
+                sftp = paramiko.SFTPClient.from_transport(t)
+
+                # Ensure Base Dir
+                try:
+                    sftp.chdir(BASE_DIR)
+                except IOError:
+                    try:
+                        sftp.mkdir(BASE_DIR)
+                        sftp.chdir(BASE_DIR)
+                    except: pass
+
+                return sftp, t
+
+            sftp, t = await run_sftp(_connect)
+            async with self.lock:
+                self.current_size += 1
+            print("🔌 Pool: Created new connection")
+            return sftp, t
+        except Exception as e:
+            print(f"❌ Pool: Connection failed: {e}")
+            return None
+
+    async def acquire(self):
+        """Get a healthy connection"""
+        # Check if pool is empty and we can create more?
+        # For simplicty in this version, we just wait on the queue
+        # If the queue is empty because connections died, we might hang.
+        # Ideally we should have a timeout or auto-replenish logic.
+        
+        sftp, transport = await self.pool.get()
+
+        # Simple health check
+        if transport.is_active():
+            return sftp, transport
+        else:
+            print("⚠️ Pool: Discarding dead connection")
+            async with self.lock:
+                self.current_size -= 1
+            # Close old
+            await run_sftp(transport.close)
+            # Create new replacement
+            return await self._create_connection()
+
+    async def release(self, sftp, transport):
+        """Return to pool"""
+        if transport.is_active():
+            try:
+                self.pool.put_nowait((sftp, transport))
+            except asyncio.QueueFull:
+                # Should not happen if logic is correct, but safe cleanup
+                await run_sftp(transport.close)
+        else:
+            async with self.lock:
+                self.current_size -= 1
+
+    async def close_all(self):
+        while not self.pool.empty():
+            sftp, t = await self.pool.get()
+            await run_sftp(t.close)
+
+sftp_pool = SFTPPool(min_size=1, max_size=5)
+
+# --- LIFESPAN ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global INDEX_LOCK
-    INDEX_LOCK = asyncio.Lock()
-    print("--- SERVER STARTUP: Lock Initialized ---")
+    await sftp_pool.initialize()
+    print("--- SERVER STARTUP: SFTP Pool Ready ---")
     yield
+    await sftp_pool.close_all()
+    io_executor.shutdown()
 
 app = FastAPI(lifespan=lifespan)
 
 # --- CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,265 +181,340 @@ class MetaData(BaseModel):
     name: str
     author: str
     date: str
-    type: str 
+    type: str
     description: Optional[str] = ""
     filename: str
 
-# --- SFTP HELPERS ---
+# --- ASYNC HELPERS ---
 
-def get_storage_config(item_type: str):
+def get_config(item_type: str):
     return STORAGE_MAP.get(item_type, STORAGE_MAP["default"])
 
-def get_sftp_connection():
-    """
-    Establishes SFTP connection and ensures BASE_DIR exists.
-    """
+async def ensure_folder(sftp, folder):
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)
-        sock.connect((FTP_HOST, FTP_PORT))
-
-        transport = paramiko.Transport(sock)
-        transport.connect(username=FTP_USER, password=FTP_PASS)
-        sftp = paramiko.SFTPClient.from_transport(transport)
-        
-        # Ensure Base Directory
-        try:
-            if BASE_DIR.startswith("/"):
-                sftp.chdir(BASE_DIR)
-            else:
-                try:
-                    sftp.chdir(BASE_DIR)
-                except IOError:
-                    sftp.mkdir(BASE_DIR)
-                    sftp.chdir(BASE_DIR)
-        except Exception:
-            pass # Try to proceed if chdir fails (permissions etc)
-            
-        return sftp, transport
-    except Exception as e:
-        print(f"SFTP Connection Failed: {e}")
-        raise HTTPException(status_code=503, detail=f"Storage unavailable: {str(e)}")
-
-def ensure_folder(sftp, folder_name):
-    try:
-        sftp.chdir(folder_name)
+        await run_sftp(sftp.chdir, folder)
     except IOError:
-        sftp.mkdir(folder_name)
-        sftp.chdir(folder_name)
-
-def read_json_index(sftp, index_filename):
-    try:
-        with sftp.open(index_filename, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return [] # Return empty list if file doesn't exist
-
-def update_index_safely(sftp, index_filename, new_entry):
-    current = read_json_index(sftp, index_filename)
-    # Deduplicate (remove old entry if overwriting same ID, though we use UUIDs)
-    current = [item for item in current if item['id'] != new_entry['id']]
-    current.insert(0, new_entry)
-    with sftp.open(index_filename, 'w') as f:
-        json.dump(current, f)
+        await run_sftp(sftp.mkdir, folder)
+        await run_sftp(sftp.chdir, folder)
 
 # --- ENDPOINTS ---
 
 @app.get("/")
 def home():
-    return {"status": "online", "service": "Electribe Cloud Storage v3"}
+    return {"status": "online", "service": "Electribe Cloud Storage vPerformance"}
 
-# --- JSON ITEMS (Songs, Patterns, Banks) ---
-
+# --- LISTING (Cached) ---
 @app.get("/api/songs", response_model=List[MetaData])
 async def list_library(type: Optional[str] = Query(None)):
-    """
-    Returns items. If 'type' param provided, returns only that list.
-    Otherwise, merges Songs, Patterns, and Banks into one master list.
-    """
-    sftp, transport = get_sftp_connection()
-    results = []
-    
-    try:
-        # Determine which types to fetch
-        types_to_fetch = [type] if type else ["song", "pattern", "bank"]
-        
-        for t in types_to_fetch:
-            config = get_storage_config(t)
-            # We don't need to enter the folder to read the index if we keep indices in root
-            # BUT keeping indices inside folders is cleaner. Let's assume indices are in the type folder.
-            
-            try:
-                # Enter folder
-                current = sftp.getcwd()
-                try:
-                    sftp.chdir(config["folder"])
-                    items = read_json_index(sftp, config["index"])
-                    results.extend(items)
-                except IOError:
-                    pass # Folder doesn't exist yet, skip
-                
-                # Go back up
-                sftp.chdir(current)
-            except Exception as e:
-                print(f"Error listing {t}: {e}")
+    cache_key = f"library:{type or 'all'}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
 
+    sftp, transport = await sftp_pool.acquire()
+    results = []
+
+    try:
+        # We need to remember root to navigate up/down
+        root = await run_sftp(sftp.getcwd)
+
+        types = [type] if type else ["song", "pattern", "bank"]
+
+        for t in types:
+            config = get_config(t)
+            try:
+                # Run the chdir + read in one thread block to avoid hopping
+                def _fetch_list():
+                    try:
+                        sftp.chdir(config["folder"])
+                        # Safe Read (Binary)
+                        with sftp.open(config["index"], 'rb') as f:
+                            data = json.load(f)
+                        sftp.chdir(root)
+                        return data
+                    except:
+                        sftp.chdir(root)
+                        return []
+
+                items = await run_sftp(_fetch_list)
+                results.extend(items)
+            except Exception:
+                pass
+
+        # Cache for 30s
+        await cache.set(cache_key, results, ttl=30)
         return results
     finally:
-        sftp.close()
-        transport.close()
+        await sftp_pool.release(sftp, transport)
 
+# --- FETCH ITEM ---
 @app.get("/api/songs/{item_id}")
 async def get_item(item_id: str, type: Optional[str] = Query(None)):
-    """
-    Fetches a JSON item. 
-    If 'type' is unknown, it will try to find the item in all folders.
-    """
-    sftp, transport = get_sftp_connection()
+    sftp, transport = await sftp_pool.acquire()
     try:
-        # If we know the type, go straight there
+        root = await run_sftp(sftp.getcwd)
         search_order = [type] if type else ["song", "pattern", "bank"]
-        
+
         file_data = None
-        
-        for t in search_order:
-            config = get_storage_config(t)
-            current = sftp.getcwd()
-            try:
-                sftp.chdir(config["folder"])
-                filename = f"{item_id}.json"
+
+        def _find_and_read():
+            for t in search_order:
+                config = get_config(t)
                 try:
-                    with sftp.open(filename, 'r') as f:
-                        file_data = json.load(f)
-                        break # Found it!
-                except IOError:
-                    pass # Not in this folder
-            except IOError:
-                pass # Folder issue
-            finally:
-                sftp.chdir(current) # Reset path
-        
-        if file_data:
-            return file_data
-        else:
-            raise HTTPException(status_code=404, detail="Item not found")
+                    sftp.chdir(config["folder"])
+                    # Safe Read (Binary)
+                    with sftp.open(f"{item_id}.json", 'rb') as f:
+                        data = json.load(f)
+                    sftp.chdir(root)
+                    return data
+                except:
+                    sftp.chdir(root)
+            return None
 
+        file_data = await run_sftp(_find_and_read)
+
+        if not file_data:
+            raise HTTPException(404, "Item not found")
+        return file_data
     finally:
-        sftp.close()
-        transport.close()
+        await sftp_pool.release(sftp, transport)
 
+# --- UPLOAD JSON ---
 @app.post("/api/songs")
 async def upload_item(payload: ItemPayload):
-    item_id = str(uuid.uuid4())
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    try:
+        item_id = str(uuid.uuid4())
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        item_type = payload.type if payload.type in STORAGE_MAP else "song"
+        config = get_config(item_type)
     
-    # Identify configuration
-    item_type = payload.type if payload.type in STORAGE_MAP else "song"
-    config = get_storage_config(item_type)
+        meta = {
+            "id": item_id,
+            "name": payload.name,
+            "author": payload.author,
+            "date": date_str,
+            "type": item_type,
+            "description": payload.description,
+            "filename": f"{item_id}.json"
+        }
+        payload.data["_cloud_meta"] = meta
 
-    meta = {
-        "id": item_id,
-        "name": payload.name,
-        "author": payload.author,
-        "date": date_str,
-        "type": item_type,
-        "description": payload.description,
-        "filename": f"{item_id}.json"
-    }
-    
-    file_data = payload.data
-    file_data["_cloud_meta"] = meta
+        # Get lock lazily
+        lock = await get_index_lock()
 
-    async with INDEX_LOCK:
-        sftp, transport = get_sftp_connection()
-        try:
-            # 1. Enter/Create specific folder (e.g., "songs", "patterns")
-            ensure_folder(sftp, config["folder"])
-            
-            # 2. Write File
-            with sftp.open(meta['filename'], 'w') as f:
-                json.dump(file_data, f)
-            
-            # 3. Update Index in that folder
-            update_index_safely(sftp, config["index"], meta)
-            
-            return {"success": True, "id": item_id}
-        finally:
-            sftp.close()
-            transport.close()
+        async with lock: # Prevent concurrent index writes
+            sftp, transport = await sftp_pool.acquire()
+            try:
+                def _perform_write():
+                    root = sftp.getcwd()
+                    try:
+                        # Ensure folder exists
+                        try: sftp.chdir(config["folder"])
+                        except:
+                            sftp.mkdir(config["folder"])
+                            sftp.chdir(config["folder"])
 
-# --- SAMPLES (Binary) ---
+                        # Write file (Safe Mode: Binary + Encode)
+                        with sftp.open(meta['filename'], 'wb') as f:
+                            f.write(json.dumps(payload.data).encode('utf-8'))
+
+                        # Update Index
+                        try:
+                            # Safe Read (Binary)
+                            with sftp.open(config["index"], 'rb') as f:
+                                current = json.load(f)
+                        except:
+                            current = []
+
+                        current.insert(0, meta)
+
+                        # Write Index (Safe Mode: Binary + Encode)
+                        with sftp.open(config["index"], 'wb') as f:
+                            f.write(json.dumps(current).encode('utf-8'))
+
+                        sftp.chdir(root)
+                    except Exception as e:
+                        sftp.chdir(root)
+                        raise e
+        
+                await run_sftp(_perform_write)
+                
+                # Invalidate cache
+                await cache.delete(f"library:{item_type}")
+                await cache.delete("library:all")
+
+                return {"success": True, "id": item_id}
+            except Exception as e:
+                print(f"Upload Inner Error: {e}")
+                raise e
+            finally:
+                await sftp_pool.release(sftp, transport)
+
+    except Exception as e:
+        print(f"Upload Critical Error: {traceback.format_exc()}")
+        # Return error as JSON to be helpful, strictly as 500
+        return JSONResponse(status_code=500, content={"detail": f"Server Error: {str(e)}"})
+
+# --- SAMPLES (Streaming) ---
 
 @app.get("/api/samples", response_model=List[MetaData])
 async def list_samples():
-    sftp, transport = get_sftp_connection()
+    cache_key = "library:sample"
+    cached = await cache.get(cache_key)
+    if cached: return cached
+
+    sftp, transport = await sftp_pool.acquire()
     try:
-        config = get_storage_config("sample")
-        try:
-            sftp.chdir(config["folder"])
-            return read_json_index(sftp, config["index"])
-        except IOError:
-            return []
+        def _fetch():
+            root = sftp.getcwd()
+            try:
+                sftp.chdir(STORAGE_MAP["sample"]["folder"])
+                # Safe Read (Binary)
+                with sftp.open(STORAGE_MAP["sample"]["index"], 'rb') as f:
+                    data = json.load(f)
+                sftp.chdir(root)
+                return data
+            except:
+                sftp.chdir(root)
+                return []
+
+        res = await run_sftp(_fetch)
+        await cache.set(cache_key, res, ttl=30)
+        return res
     finally:
-        sftp.close()
-        transport.close()
+        await sftp_pool.release(sftp, transport)
 
 @app.post("/api/samples")
 async def upload_sample(file: UploadFile = File(...), author: str = Form(...), description: str = Form("")):
-    sample_id = str(uuid.uuid4())
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    ext = os.path.splitext(file.filename)[1]
-    storage_filename = f"{sample_id}{ext}"
-    
-    config = get_storage_config("sample")
+    try:
+        sample_id = str(uuid.uuid4())
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        ext = os.path.splitext(file.filename)[1]
+        storage_filename = f"{sample_id}{ext}"
+        config = STORAGE_MAP["sample"]
 
-    meta = {
-        "id": sample_id,
-        "name": file.filename,
-        "author": author,
-        "date": date_str,
-        "type": "sample",
-        "description": description,
-        "filename": storage_filename
-    }
+        meta = {
+            "id": sample_id,
+            "name": file.filename,
+            "author": author,
+            "date": date_str,
+            "type": "sample",
+            "description": description,
+            "filename": storage_filename
+        }
+        
+        lock = await get_index_lock()
 
-    async with INDEX_LOCK:
-        sftp, transport = get_sftp_connection()
-        try:
-            ensure_folder(sftp, config["folder"])
-            
-            with sftp.open(storage_filename, 'wb') as f:
-                while content := await file.read(1024 * 1024):
-                    f.write(content)
-            
-            update_index_safely(sftp, config["index"], meta)
-            return {"success": True, "id": sample_id}
-        finally:
-            sftp.close()
-            transport.close()
+        async with lock: # Protect Sample Index
+            sftp, transport = await sftp_pool.acquire()
+            try:
+                # Prepare path in main thread logic, execute in thread
+                root = await run_sftp(sftp.getcwd)
+                await ensure_folder(sftp, config["folder"])
+        
+                try:
+                    # Open file handle in thread
+                    f_remote = await run_sftp(sftp.open, storage_filename, 'wb')
+
+                    # Stream upload (Async Read -> Threaded Write)
+                    # This is the non-blocking magic
+                    while True:
+                        chunk = await file.read(1024 * 1024) # 1MB
+                        if not chunk: break
+                        await run_sftp(f_remote.write, chunk)
+
+                    await run_sftp(f_remote.close)
+        
+                    # Update Index
+                    def _update_idx():
+                        try:
+                            # Safe Read (Binary)
+                            with sftp.open(config["index"], 'rb') as f:
+                                idx = json.load(f)
+                        except: idx = []
+                        idx.insert(0, meta)
+
+                        # Safe Write (Binary + Encode)
+                        with sftp.open(config["index"], 'wb') as f:
+                            f.write(json.dumps(idx).encode('utf-8'))
+
+                    await run_sftp(_update_idx)
+
+                    # Reset
+                    await run_sftp(sftp.chdir, root)
+
+                    # Invalidate cache
+                    await cache.delete("library:sample")
+                    return {"success": True, "id": sample_id}
+
+                except Exception as e:
+                    await run_sftp(sftp.chdir, root)
+                    raise e
+            finally:
+                await sftp_pool.release(sftp, transport)
+
+    except Exception as e:
+        print(f"Sample Upload Critical Error: {traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"detail": f"Server Error: {str(e)}"})
 
 @app.get("/api/samples/{sample_id}")
 async def get_sample(sample_id: str):
-    sftp, transport = get_sftp_connection()
+    # Acquire a dedicated connection for streaming
+    # We DO NOT release it in the finally block of this function
+    # It gets released by the generator when done
+    sftp, transport = await sftp_pool.acquire()
+
     try:
-        config = get_storage_config("sample")
-        try:
+        config = STORAGE_MAP["sample"]
+
+        # Locate file logic (threaded)
+        def _locate():
+            root = sftp.getcwd()
             sftp.chdir(config["folder"])
-            index = read_json_index(sftp, config["index"])
-            entry = next((item for item in index if item["id"] == sample_id), None)
-            
-            if not entry:
-                raise HTTPException(status_code=404, detail="Sample not found")
-            
-            buf = BytesIO()
-            sftp.getfo(entry['filename'], buf)
-            buf.seek(0)
-            return StreamingResponse(buf, media_type="application/octet-stream")
-        except IOError:
-            raise HTTPException(status_code=404, detail="Folder/File missing")
-    finally:
-        sftp.close()
-        transport.close()
+            try:
+                # Safe Read (Binary)
+                with sftp.open(config["index"], 'rb') as f:
+                    idx = json.load(f)
+                entry = next((i for i in idx if i["id"] == sample_id), None)
+                if not entry: raise FileNotFoundError
+
+                # Return file handle
+                file_obj = sftp.open(entry['filename'], 'rb')
+                # Prefetch allows faster streaming
+                file_obj.prefetch()
+                return file_obj, entry['name']
+            except Exception:
+                sftp.chdir(root)
+                raise
+
+        file_obj, filename = await run_sftp(_locate)
+
+        # Generator that streams and closes connection at end
+        async def file_iterator():
+            try:
+                while True:
+                    # Read in thread
+                    chunk = await run_sftp(file_obj.read, 32768)
+                    if not chunk: break
+                    yield chunk
+            finally:
+                await run_sftp(file_obj.close)
+                # Return root
+                try: await run_sftp(sftp.chdir, "..")
+                except: pass
+                # Release connection back to pool
+                await sftp_pool.release(sftp, transport)
+
+        return StreamingResponse(
+            file_iterator(),
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        # If error before streaming starts, release now
+        await sftp_pool.release(sftp, transport)
+        raise HTTPException(404, "Sample not found")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=7860)

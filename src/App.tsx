@@ -12,6 +12,7 @@ import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
+import { CloudStatus } from './components/CloudStatus';
 import type { CloudItemType } from './services/CloudStorage';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
@@ -1142,6 +1143,7 @@ export const App: React.FC = () => {
                         <button onClick={() => setIsCloudLibraryOpen(true)} className="text-[10px] font-bold text-purple-400 hover:text-purple-300 border border-purple-900/50 bg-gradient-to-r from-purple-900/10 to-purple-900/20 hover:bg-purple-900/40 px-2 py-1 rounded transition-all" title="Cloud Library" aria-label="Cloud Library">
                             ☁️
                         </button>
+                        <CloudStatus />
                     </div>
                     <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 hover:text-red-300 border border-red-900/50 bg-gradient-to-r from-red-900/10 to-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded-lg transition-all shadow-md">
                         CLEAR
