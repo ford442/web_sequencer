@@ -954,9 +954,9 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleTrackSlotClick = (track: TrackKey, slotIndex: number) => {
-        const currentTrackPattern = pattern[track];
-        const storedPattern = trackStorage[track][slotIndex];
+    const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => {
+        const currentTrackPattern = patternRef.current[track];
+        const storedPattern = trackStorageRef.current[track][slotIndex];
 
         if (storedPattern) {
             setPattern(prev => ({ ...prev, [track]: storedPattern }));
@@ -970,7 +970,9 @@ export const App: React.FC = () => {
             });
             setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex }));
         }
-    };
+    }, []);
+
+    const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
 
     const saveSong = (slot: number) => {
         const snapshot: SongSnapshot = {
@@ -1385,7 +1387,7 @@ export const App: React.FC = () => {
                                     slotsData={trackStorage[row.key].map(s => s !== null)}
                                     onToggle={toggleStep}
                                     onRightMouseDown={handleRightMouseDown}
-                                    onSelectRow={(k: any) => setSelectedTrack(k as TrackKey)}
+                                    onSelectRow={handleSelectRow}
                                     onSelectSlot={handleTrackSlotClick}
                                 />
                             ))}
