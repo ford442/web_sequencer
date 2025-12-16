@@ -68,7 +68,7 @@ export async function renderSynthToBuffer(
         try {
             engines.pyodide.globals.get('set_sample_rate')(sampleRate);
             const pyOscType = params.waveform.split('-')[1];
-            let pyProxy = engines.pyodide.globals.get('generate_wave')(
+            const pyProxy = engines.pyodide.globals.get('generate_wave')(
                 freqWithPitch,
                 duration,
                 pyOscType,

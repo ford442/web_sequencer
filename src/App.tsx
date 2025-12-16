@@ -176,8 +176,15 @@ const SvgStep = memo(({
     return (
         <g transform={`translate(${x}, 0)`}
             role="button"
+            tabIndex={0}
             aria-label={`${rowLabel} step ${stepIndex + 1}`}
             onClick={(e) => onToggle(rowKey, stepIndex, e)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggle(rowKey, stepIndex, e);
+                }
+            }}
             onMouseDown={(e) => {
                 if (e.button === 2) {
                     onRightMouseDown(rowKey, stepIndex, e);
@@ -258,7 +265,20 @@ const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number,
     const inactiveColor = hasData ? patternColor : '#0f1812';
     
     return (
-        <g transform={`translate(${index * 22}, 0)`} onClick={() => onClick()} cursor="pointer">
+        <g
+            transform={`translate(${index * 22}, 0)`}
+            onClick={() => onClick()}
+            cursor="pointer"
+            role="button"
+            tabIndex={0}
+            aria-label={`Pattern Slot ${index + 1}`}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
+        >
             <rect
                 width={18} height={18} rx={2}
                 fill={isActive ? patternColor : inactiveColor}
@@ -363,7 +383,19 @@ const SequencerRow = memo(({
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
             {/* Row Label / Selector */}
-            <g onClick={() => onSelectRow(rowKey)} cursor="pointer">
+            <g
+                onClick={() => onSelectRow(rowKey)}
+                cursor="pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`Select ${label} track`}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectRow(rowKey);
+                    }
+                }}
+            >
                 {isSelected && <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />}
                 <text
                     x={-20} y={30} textAnchor="end"
