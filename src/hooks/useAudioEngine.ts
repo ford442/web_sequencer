@@ -272,7 +272,7 @@ export const useAudioEngine = (pyodide: any) => {
                     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
                     const pyOscType = params.waveform.split('-')[1];
 
-                    let pyProxy = pyodideRef.current.globals.get('generate_wave')(
+                    const pyProxy = pyodideRef.current.globals.get('generate_wave')(
                         freqWithPitch,
                         totalDuration,
                         pyOscType,
@@ -542,7 +542,7 @@ export const useAudioEngine = (pyodide: any) => {
 
             try {
                 let pyProxy;
-                let p = params as any;
+                const p = params as any;
                 let bufferLengthSeconds;
                 let finalVolume;
                 const pyodide = pyodideRef.current;
