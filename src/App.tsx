@@ -10,6 +10,7 @@ import { LiveKeyboard } from './components/LiveKeyboard';
 
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
+import { GridIndicators } from './components/GridIndicators';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
 import { CloudStatus } from './components/CloudStatus';
@@ -259,7 +260,7 @@ const SvgStep = memo(({
     )
 })
 
-const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number, isActive: boolean, hasData: boolean, onClick: () => void }) => {
+const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
     const patternColor = getPatternColor(index);
     // Create a darker version for inactive state
     const inactiveColor = hasData ? patternColor : '#0f1812';
@@ -267,7 +268,7 @@ const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number,
     return (
         <g
             transform={`translate(${index * 22}, 0)`}
-            onClick={() => onClick()}
+            onClick={() => onSelect(trackKey, index)}
             cursor="pointer"
             role="button"
             tabIndex={0}
@@ -275,7 +276,7 @@ const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number,
             onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    onClick();
+                    onSelect(trackKey, index);
                 }
             }}
         >
@@ -292,7 +293,7 @@ const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number,
             </text>
         </g>
     );
-};
+});
 
 // UPDATED SEQUENCER ROW: Adds Grid Markers (Beats/Bars)
 const SequencerRow = memo(({
@@ -323,28 +324,7 @@ const SequencerRow = memo(({
     onSelectSlot: (k: TrackKey, slot: number) => void
 }) => {
 
-    // 1. Render Grid Indicators (Measure/Beat markers)
-    const gridIndicators = [];
-    for (let i = 0; i < 32; i += 4) { // Every 4 steps = 1 beat
-        const isMeasure = i % 16 === 0; // Every 16 steps = 1 bar/measure
-        const x = 220 + i * (18 + 4) + 9; // Centered on the step
-
-        gridIndicators.push(
-            <g key={`grid-${i}`}>
-                {/* Tick Mark above row */}
-                <rect
-                    x={x - (isMeasure ? 2 : 1)}
-                    y={-8}
-                    width={isMeasure ? 4 : 2}
-                    height={isMeasure ? 6 : 4}
-                    fill={isMeasure ? "#06b6d4" : "#4b5563"}
-                    rx={1}
-                />
-            </g>
-        );
-    }
-
-    // 2. Render Steps (Handling Morphed/Tied Notes)
+    // 1. Render Steps (Handling Morphed/Tied Notes)
     const renderedSteps = [];
     let skipCount = 0;
 
@@ -416,13 +396,14 @@ const SequencerRow = memo(({
                         index={slot}
                         isActive={activeSlot === slot}
                         hasData={slotsData[slot]}
-                        onClick={() => onSelectSlot(rowKey, slot)}
+                        trackKey={rowKey}
+                        onSelect={onSelectSlot}
                     />
                 ))}
             </g>
 
             {/* Render Grid Indicators */}
-            {gridIndicators}
+            <GridIndicators />
 
             {/* Render Buttons */}
             {renderedSteps}
