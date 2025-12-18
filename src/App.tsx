@@ -498,6 +498,16 @@ export const App: React.FC = () => {
     const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | null)[]>>(
         getInitialTrackStorage(INITIAL_PATTERN)
     );
+
+    // OPTIMIZATION: Memoize slots data to prevent SequencerRow re-renders
+    const allSlotsData = useMemo(() => {
+        const data: Record<string, boolean[]> = {};
+        for (const row of ROWS) {
+            data[row.key] = trackStorage[row.key].map(s => s !== null);
+        }
+        return data;
+    }, [trackStorage]);
+
     const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
         partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
     });
@@ -728,9 +738,16 @@ export const App: React.FC = () => {
     // UPDATED TOGGLE STEP: Handles Tie Creation (Shift+Click)
     const toggleStep = useCallback((rowKey: keyof Pattern, i: number, e: React.MouseEvent) => {
         setPattern(prev => {
-            const copy = JSON.parse(JSON.stringify(prev)) as Pattern
-            const steps = copy[rowKey].steps
-            const existing = steps[i]
+            // OPTIMIZATION: Shallow copy instead of deep clone to preserve references for untouched tracks
+            const copy = { ...prev };
+            // Deep copy only the target track sequence
+            copy[rowKey] = {
+                ...prev[rowKey],
+                steps: [...prev[rowKey].steps]
+            };
+
+            const steps = copy[rowKey].steps;
+            const existing = steps[i];
 
             // TIE LOGIC: If Shift is held, extend previous note
             if (e.shiftKey) {
@@ -744,6 +761,8 @@ export const App: React.FC = () => {
                 }
 
                 if (prevIdx !== -1) {
+                    // Clone the previous note object before mutation
+                    steps[prevIdx] = { ...steps[prevIdx]! };
                     const prevNote = steps[prevIdx]!;
                     const newLength = i - prevIdx + 1;
 
@@ -1365,7 +1384,7 @@ export const App: React.FC = () => {
                                     currentStep={currentStep}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
-                                    slotsData={trackStorage[row.key].map(s => s !== null)}
+                                    slotsData={allSlotsData[row.key]}
                                     onToggle={toggleStep}
                                     onRightMouseDown={handleRightMouseDown}
                                     onSelectRow={handleSelectRow}
