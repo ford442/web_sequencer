@@ -14,6 +14,8 @@ interface SongModeProps {
     isVisible: boolean;
     songStructure: { [key in TrackKey]: number | null }[];
     currentSongStep: number;
+    backgroundImage: string;
+    onSetBackgroundImage: (url: string) => void;
     onUpdateStep: (stepIndex: number, track: TrackKey, slotIndex: number | null) => void;
     onToggle: () => void;
     onAddMeasure: () => void;
@@ -35,6 +37,8 @@ export const SongMode = memo(({
     isVisible,
     songStructure,
     currentSongStep,
+    backgroundImage,
+    onSetBackgroundImage,
     onUpdateStep,
     onToggle,
     onAddMeasure,
@@ -208,11 +212,21 @@ export const SongMode = memo(({
                 <div className="absolute bottom-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent"></div>
                 
                 <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest drop-shadow-[0_0_8px_rgba(6,182,212,0.4)]">SONG ARRANGER</h2>
-                <div className="flex gap-3">
-                    <button onClick={onRemoveMeasure} className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all">- BAR</button>
-                    <button onClick={onAddMeasure} className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all">+ BAR</button>
+                <div className="flex gap-3 items-center">
+                    <div className="flex items-center gap-2 mr-4 bg-gray-900/50 p-1 rounded border border-gray-800">
+                        <span className="text-[10px] text-gray-500 font-mono">BG IMG:</span>
+                        <input
+                            type="text"
+                            value={backgroundImage}
+                            onChange={(e) => onSetBackgroundImage(e.target.value)}
+                            placeholder="https://..."
+                            className="w-32 bg-transparent text-xs text-cyan-300 focus:outline-none border-b border-gray-700 focus:border-cyan-500 font-mono"
+                        />
+                    </div>
+                    <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all">- BAR</button>
+                    <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all">+ BAR</button>
                     <button onClick={onExportXM} className="ml-2 px-4 py-1.5 bg-gradient-to-r from-cyan-900/40 to-cyan-800/40 text-cyan-400 text-xs font-bold border border-cyan-700/50 rounded-lg hover:from-cyan-800/60 hover:to-cyan-700/60 shadow-lg transition-all">EXPORT XM</button>
-                    <button onClick={onToggle} className="ml-2 text-gray-400 hover:text-white text-lg transition-colors">✕</button>
+                    <button onClick={onToggle} aria-label="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors">✕</button>
                 </div>
             </div>
 

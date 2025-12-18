@@ -24,6 +24,8 @@ describe('App', () => {
     expect(screen.getByText('Song Mode')).toBeInTheDocument();
 
     // Check for the Song button
-    expect(screen.getByRole('button', { name: 'SONG' })).toBeInTheDocument();
+    // The button has aria-label="Open Song Mode" when closed
+    const songModeButtons = screen.getAllByRole('button', { name: /Song Mode/i });
+    expect(songModeButtons.length).toBeGreaterThan(0);
   });
 });

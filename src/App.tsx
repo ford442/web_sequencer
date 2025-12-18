@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, memo } from 'react'
+import React, { useCallback, useEffect, useRef, useState, memo, useMemo } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -10,6 +10,7 @@ import { LiveKeyboard } from './components/LiveKeyboard';
 
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
+import { GridIndicators } from './components/GridIndicators';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
 import { CloudStatus } from './components/CloudStatus';
@@ -37,6 +38,7 @@ type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
     ambianceUrl: string;
+    backgroundImage: string;
     params: {
         synthA: SynthParams;
         synthB: SynthParams;
@@ -71,6 +73,61 @@ const PATTERN_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 const getPatternColor = (slotIndex: number): string => {
     return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
 };
+
+// --- CONSTANTS FOR MODULE RENDERING ---
+const COLOR_LEAD = [0.0, 0.9, 1.0] as [number, number, number];
+const COLOR_BASS = [1.0, 0.2, 0.8] as [number, number, number];
+const COLOR_KICK = [1.0, 0.6, 0.0] as [number, number, number];
+const COLOR_SNARE = [0.2, 1.0, 0.2] as [number, number, number];
+const COLOR_CH = [0.8, 0.8, 0.0] as [number, number, number];
+const COLOR_OH = [0.9, 0.5, 0.0] as [number, number, number];
+const COLOR_SAMPLER = [0.6, 0.4, 1.0] as [number, number, number];
+
+// --- MODULE CONTROL HELPERS ---
+const getSynthControls = (params: SynthParams): KnobConfig[] => [
+    { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
+    { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
+    { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
+    { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
+    { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
+    { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
+    { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
+    { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 },
+    { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
+    { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
+    { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
+];
+const getKickControls = (params: KickParams): KnobConfig[] => [
+    { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
+    { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay },
+    { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone },
+    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+];
+const getSnareControls = (params: SnareParams): KnobConfig[] => [
+    { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300 },
+    { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000 },
+    { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2 },
+    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+];
+const getClosedHatControls = (params: any): KnobConfig[] => [
+    { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
+    { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
+    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+];
+const getOpenHatControls = (params: any): KnobConfig[] => [
+    { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
+    { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
+    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
+];
+const getSamplerControls = (params: SamplerParams): KnobConfig[] => [
+    { id: 'volume', label: 'LEVEL', x: 0.8, y: 0.25, size: 0.1, value: params.volume },
+    { id: 'playbackSpeed', label: 'SPEED', x: 0.2, y: 0.25, size: 0.1, value: (params.playbackSpeed) / 4.0 },
+    { id: 'filterCutoff', label: 'CUTOFF', x: 0.2, y: 0.65, size: 0.12, value: params.filterCutoff / 20000 },
+    { id: 'filterResonance', label: 'RES', x: 0.4, y: 0.65, size: 0.12, value: params.filterResonance / 20 },
+    { id: 'drive', label: 'DRIVE', x: 0.6, y: 0.65, size: 0.12, value: params.drive },
+    { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend },
+];
+
 
 // --- COMPONENTS ---
 
@@ -120,8 +177,15 @@ const SvgStep = memo(({
     return (
         <g transform={`translate(${x}, 0)`}
             role="button"
+            tabIndex={0}
             aria-label={`${rowLabel} step ${stepIndex + 1}`}
             onClick={(e) => onToggle(rowKey, stepIndex, e)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggle(rowKey, stepIndex, e);
+                }
+            }}
             onMouseDown={(e) => {
                 if (e.button === 2) {
                     onRightMouseDown(rowKey, stepIndex, e);
@@ -196,13 +260,26 @@ const SvgStep = memo(({
     )
 })
 
-const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number, isActive: boolean, hasData: boolean, onClick: () => void }) => {
+const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
     const patternColor = getPatternColor(index);
     // Create a darker version for inactive state
     const inactiveColor = hasData ? patternColor : '#0f1812';
     
     return (
-        <g transform={`translate(${index * 22}, 0)`} onClick={() => onClick()} cursor="pointer">
+        <g
+            transform={`translate(${index * 22}, 0)`}
+            onClick={() => onSelect(trackKey, index)}
+            cursor="pointer"
+            role="button"
+            tabIndex={0}
+            aria-label={`Pattern Slot ${index + 1}`}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelect(trackKey, index);
+                }
+            }}
+        >
             <rect
                 width={18} height={18} rx={2}
                 fill={isActive ? patternColor : inactiveColor}
@@ -216,7 +293,7 @@ const TrackSlotButton = ({ index, isActive, hasData, onClick }: { index: number,
             </text>
         </g>
     );
-};
+});
 
 // UPDATED SEQUENCER ROW: Adds Grid Markers (Beats/Bars)
 const SequencerRow = memo(({
@@ -247,28 +324,7 @@ const SequencerRow = memo(({
     onSelectSlot: (k: TrackKey, slot: number) => void
 }) => {
 
-    // 1. Render Grid Indicators (Measure/Beat markers)
-    const gridIndicators = [];
-    for (let i = 0; i < 32; i += 4) { // Every 4 steps = 1 beat
-        const isMeasure = i % 16 === 0; // Every 16 steps = 1 bar/measure
-        const x = 220 + i * (18 + 4) + 9; // Centered on the step
-
-        gridIndicators.push(
-            <g key={`grid-${i}`}>
-                {/* Tick Mark above row */}
-                <rect
-                    x={x - (isMeasure ? 2 : 1)}
-                    y={-8}
-                    width={isMeasure ? 4 : 2}
-                    height={isMeasure ? 6 : 4}
-                    fill={isMeasure ? "#06b6d4" : "#4b5563"}
-                    rx={1}
-                />
-            </g>
-        );
-    }
-
-    // 2. Render Steps (Handling Morphed/Tied Notes)
+    // 1. Render Steps (Handling Morphed/Tied Notes)
     const renderedSteps = [];
     let skipCount = 0;
 
@@ -307,7 +363,19 @@ const SequencerRow = memo(({
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
             {/* Row Label / Selector */}
-            <g onClick={() => onSelectRow(rowKey)} cursor="pointer">
+            <g
+                onClick={() => onSelectRow(rowKey)}
+                cursor="pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`Select ${label} track`}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectRow(rowKey);
+                    }
+                }}
+            >
                 {isSelected && <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />}
                 <text
                     x={-20} y={30} textAnchor="end"
@@ -328,13 +396,14 @@ const SequencerRow = memo(({
                         index={slot}
                         isActive={activeSlot === slot}
                         hasData={slotsData[slot]}
-                        onClick={() => onSelectSlot(rowKey, slot)}
+                        trackKey={rowKey}
+                        onSelect={onSelectSlot}
                     />
                 ))}
             </g>
 
             {/* Render Grid Indicators */}
-            {gridIndicators}
+            <GridIndicators />
 
             {/* Render Buttons */}
             {renderedSteps}
@@ -377,6 +446,7 @@ export const App: React.FC = () => {
     const [currentStep, setCurrentStep] = useState(-1)
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
+    const [backgroundImage, setBackgroundImage] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
     const [globalPan, setGlobalPan] = useState(0)
 
@@ -428,6 +498,16 @@ export const App: React.FC = () => {
     const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | null)[]>>(
         getInitialTrackStorage(INITIAL_PATTERN)
     );
+
+    // OPTIMIZATION: Memoize slots data to prevent SequencerRow re-renders
+    const allSlotsData = useMemo(() => {
+        const data: Record<string, boolean[]> = {};
+        for (const row of ROWS) {
+            data[row.key] = trackStorage[row.key].map(s => s !== null);
+        }
+        return data;
+    }, [trackStorage]);
+
     const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
         partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
     });
@@ -438,31 +518,73 @@ export const App: React.FC = () => {
     // --- INSTRUMENT STATE ---
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
     const synthARef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
-    const updateSynthA = (updates: Partial<SynthParams>) => { const n = { ...synthA, ...updates }; setSynthA(n); synthARef.current = n; };
+    const updateSynthA = useCallback((updates: Partial<SynthParams>) => {
+        setSynthA(prev => {
+            const n = { ...prev, ...updates };
+            synthARef.current = n;
+            return n;
+        });
+    }, []);
 
     const [synthB, setSynthB] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
     const synthBRef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
-    const updateSynthB = (updates: Partial<SynthParams>) => { const n = { ...synthB, ...updates }; setSynthB(n); synthBRef.current = n; };
+    const updateSynthB = useCallback((updates: Partial<SynthParams>) => {
+        setSynthB(prev => {
+            const n = { ...prev, ...updates };
+            synthBRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [kick, setKick] = useState<KickParams>(DEFAULT_KICK_PARAMS);
     const kickRef = useRef(DEFAULT_KICK_PARAMS);
-    const updateKick = (u: Partial<KickParams>) => { const n = { ...kick, ...u }; setKick(n); kickRef.current = n; };
+    const updateKick = useCallback((u: Partial<KickParams>) => {
+        setKick(prev => {
+            const n = { ...prev, ...u };
+            kickRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [snare, setSnare] = useState<SnareParams>(DEFAULT_SNARE_PARAMS);
     const snareRef = useRef(DEFAULT_SNARE_PARAMS);
-    const updateSnare = (u: Partial<SnareParams>) => { const n = { ...snare, ...u }; setSnare(n); snareRef.current = n; };
+    const updateSnare = useCallback((u: Partial<SnareParams>) => {
+        setSnare(prev => {
+            const n = { ...prev, ...u };
+            snareRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [closedHat, setClosedHat] = useState(DEFAULT_CLOSED_HAT_PARAMS);
     const closedHatRef = useRef(DEFAULT_CLOSED_HAT_PARAMS);
-    const updateClosedHat = (u: Partial<typeof DEFAULT_CLOSED_HAT_PARAMS>) => { const n = { ...closedHat, ...u }; setClosedHat(n); closedHatRef.current = n; };
+    const updateClosedHat = useCallback((u: Partial<typeof DEFAULT_CLOSED_HAT_PARAMS>) => {
+        setClosedHat(prev => {
+            const n = { ...prev, ...u };
+            closedHatRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [openHat, setOpenHat] = useState(DEFAULT_OPEN_HAT_PARAMS);
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
-    const updateOpenHat = (u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => { const n = { ...openHat, ...u }; setOpenHat(n); openHatRef.current = n; };
+    const updateOpenHat = useCallback((u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => {
+        setOpenHat(prev => {
+            const n = { ...prev, ...u };
+            openHatRef.current = n;
+            return n;
+        });
+    }, []);
 
     const [sampler, setSampler] = useState(DEFAULT_SAMPLER_PARAMS);
     const samplerRef = useRef(DEFAULT_SAMPLER_PARAMS);
-    const updateSampler = (u: Partial<SamplerParams>) => { const n = { ...sampler, ...u }; setSampler(n); samplerRef.current = n; };
+    const updateSampler = useCallback((u: Partial<SamplerParams>) => {
+        setSampler(prev => {
+            const n = { ...prev, ...u };
+            samplerRef.current = n;
+            return n;
+        });
+    }, []);
 
     // --- TEMPO HOLD-TO-SCROLL ---
     const tempoHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -616,9 +738,16 @@ export const App: React.FC = () => {
     // UPDATED TOGGLE STEP: Handles Tie Creation (Shift+Click)
     const toggleStep = useCallback((rowKey: keyof Pattern, i: number, e: React.MouseEvent) => {
         setPattern(prev => {
-            const copy = JSON.parse(JSON.stringify(prev)) as Pattern
-            const steps = copy[rowKey].steps
-            const existing = steps[i]
+            // OPTIMIZATION: Shallow copy instead of deep clone to preserve references for untouched tracks
+            const copy = { ...prev };
+            // Deep copy only the target track sequence
+            copy[rowKey] = {
+                ...prev[rowKey],
+                steps: [...prev[rowKey].steps]
+            };
+
+            const steps = copy[rowKey].steps;
+            const existing = steps[i];
 
             // TIE LOGIC: If Shift is held, extend previous note
             if (e.shiftKey) {
@@ -632,6 +761,8 @@ export const App: React.FC = () => {
                 }
 
                 if (prevIdx !== -1) {
+                    // Clone the previous note object before mutation
+                    steps[prevIdx] = { ...steps[prevIdx]! };
                     const prevNote = steps[prevIdx]!;
                     const newLength = i - prevIdx + 1;
 
@@ -823,9 +954,9 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleTrackSlotClick = (track: TrackKey, slotIndex: number) => {
-        const currentTrackPattern = pattern[track];
-        const storedPattern = trackStorage[track][slotIndex];
+    const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => {
+        const currentTrackPattern = patternRef.current[track];
+        const storedPattern = trackStorageRef.current[track][slotIndex];
 
         if (storedPattern) {
             setPattern(prev => ({ ...prev, [track]: storedPattern }));
@@ -839,11 +970,13 @@ export const App: React.FC = () => {
             });
             setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex }));
         }
-    };
+    }, []);
+
+    const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
 
     const saveSong = (slot: number) => {
         const snapshot: SongSnapshot = {
-            pattern, tempo, ambianceUrl,
+            pattern, tempo, ambianceUrl, backgroundImage,
             params: {
                 synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler
             }
@@ -862,6 +995,7 @@ export const App: React.FC = () => {
         setPattern(snapshot.pattern);
         setTempo(snapshot.tempo);
         setAmbianceUrl(snapshot.ambianceUrl);
+        setBackgroundImage(snapshot.backgroundImage || '');
         setSynthA(snapshot.params.synthA); synthARef.current = snapshot.params.synthA;
         setSynthB(snapshot.params.synthB); synthBRef.current = snapshot.params.synthB;
         setKick(snapshot.params.kick); kickRef.current = snapshot.params.kick;
@@ -880,12 +1014,13 @@ export const App: React.FC = () => {
             pattern,
             tempo,
             ambianceUrl,
+            backgroundImage,
             params: { synthA, synthB, kick, snare, closedHat, openHat, sampler },
             trackStorage,
             activeTrackSlots,
             songStructure
         };
-    }, [pattern, tempo, ambianceUrl, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure]);
+    }, [pattern, tempo, ambianceUrl, backgroundImage, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure]);
 
     // 2. Pattern Bank (Just the storage)
     const getBankData = useCallback(() => {
@@ -912,6 +1047,7 @@ export const App: React.FC = () => {
             if (data.pattern) setPattern(data.pattern);
             if (data.tempo) setTempo(data.tempo);
             if (data.ambianceUrl !== undefined) setAmbianceUrl(data.ambianceUrl);
+            if (data.backgroundImage !== undefined) setBackgroundImage(data.backgroundImage);
             
             if (data.params) {
                 if (data.params.synthA) { setSynthA(data.params.synthA); synthARef.current = data.params.synthA; }
@@ -984,51 +1120,7 @@ export const App: React.FC = () => {
     }, [loadCloudData]);
 
     // --- MODULE RENDER HELPERS ---
-    const getSynthControls = (params: SynthParams): KnobConfig[] => [
-        { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack },
-        { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2 },
-        { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain },
-        { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2 },
-        { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000 },
-        { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20 },
-        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48 },
-        { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2 },
-        { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume },
-        { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix },
-        { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime },
-    ];
-    const getKickControls = (params: KickParams): KnobConfig[] => [
-        { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130 },
-        { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
-    ];
-    const getSnareControls = (params: SnareParams): KnobConfig[] => [
-        { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300 },
-        { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000 },
-        { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
-    ];
-    const getClosedHatControls = (params: any): KnobConfig[] => [
-        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
-    ];
-    const getOpenHatControls = (params: any): KnobConfig[] => [
-        { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay },
-        { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000 },
-        { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume },
-    ];
-    const getSamplerControls = (params: SamplerParams): KnobConfig[] => [
-        { id: 'volume', label: 'LEVEL', x: 0.8, y: 0.25, size: 0.1, value: params.volume },
-        { id: 'playbackSpeed', label: 'SPEED', x: 0.2, y: 0.25, size: 0.1, value: (params.playbackSpeed) / 4.0 },
-        { id: 'filterCutoff', label: 'CUTOFF', x: 0.2, y: 0.65, size: 0.12, value: params.filterCutoff / 20000 },
-        { id: 'filterResonance', label: 'RES', x: 0.4, y: 0.65, size: 0.12, value: params.filterResonance / 20 },
-        { id: 'drive', label: 'DRIVE', x: 0.6, y: 0.65, size: 0.12, value: params.drive },
-        { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend },
-    ];
-
-    const handleSynthChange = (isA: boolean, id: string, val: number) => {
+    const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => {
         const updater = isA ? updateSynthA : updateSynthB;
         let realVal = val;
         if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
@@ -1038,60 +1130,90 @@ export const App: React.FC = () => {
         else if (id === 'release') realVal = val * 2;
         else if (id === 'length') realVal = val * 2;
         updater({ [id]: realVal });
-    };
+    }, [updateSynthA, updateSynthB]);
 
-    const handleKickChange = (id: string, val: number) => {
+    const handleKickChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'pitch') realVal = val * 130 + 20;
         updateKick({ [id]: realVal });
-    };
+    }, [updateKick]);
 
-    const handleSnareChange = (id: string, val: number) => {
+    const handleSnareChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'tone') realVal = val * 300 + 100;
         else if (id === 'noise') realVal = val * 7000 + 1000;
         else if (id === 'decay') realVal = val * 0.5;
         updateSnare({ [id]: realVal });
-    };
+    }, [updateSnare]);
 
-    const handleClosedHatChange = (id: string, val: number) => updateClosedHat({ [id]: val });
-    const handleOpenHatChange = (id: string, val: number) => updateOpenHat({ [id]: val });
-    const handleSamplerChange = (id: string, val: number) => {
+    const handleClosedHatChange = useCallback((id: string, val: number) => updateClosedHat({ [id]: val }), [updateClosedHat]);
+    const handleOpenHatChange = useCallback((id: string, val: number) => updateOpenHat({ [id]: val }), [updateOpenHat]);
+    const handleSamplerChange = useCallback((id: string, val: number) => {
         let realVal = val;
         if (id === 'playbackSpeed') realVal = val * 4.0;
         else if (id === 'filterCutoff') realVal = val * 20000;
         else if (id === 'filterResonance') realVal = val * 20;
         updateSampler({ [id]: realVal });
-    };
+    }, [updateSampler]);
+
+    // Create stable handlers for synth A and B
+    const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
+    const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
+
+    // Memoize controls arrays to prevent re-creation on every render
+    const synthAControls = useMemo(() => getSynthControls(synthA), [synthA]);
+    const synthBControls = useMemo(() => getSynthControls(synthB), [synthB]);
+    const kickControls = useMemo(() => getKickControls(kick), [kick]);
+    const snareControls = useMemo(() => getSnareControls(snare), [snare]);
+    const closedHatControls = useMemo(() => getClosedHatControls(closedHat), [closedHat]);
+    const openHatControls = useMemo(() => getOpenHatControls(openHat), [openHat]);
+    const samplerControls = useMemo(() => getSamplerControls(sampler), [sampler]);
+
+    // Memoize complex children (e.g. WaveformSelectors and SamplerPanel)
+    const synthAChild = useMemo(() => (
+        <div className="absolute top-4 right-6 pointer-events-auto">
+            <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
+        </div>
+    ), [synthA.waveform, updateSynthA]);
+
+    const synthBChild = useMemo(() => (
+        <div className="absolute top-4 right-6 pointer-events-auto">
+            <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
+        </div>
+    ), [synthB.waveform, updateSynthB]);
+
+    const samplerChild = useMemo(() => (
+        <div className="absolute top-4 left-[30%] w-[40%] h-[120px] pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm">
+            <SamplerPanel
+                params={sampler}
+                onChange={(u) => updateSampler(u)}
+                onLoadSample={(n, b) => {
+                    audioEngine?.loadSampleToEngine(n, b);
+                    setSamplerBuffer(b); // Save buffer for XM export
+                }}
+                audioContext={audioEngine?.context!}
+                onOpenEditor={() => setIsVoiceEditorOpen(true)}
+            />
+        </div>
+    ), [sampler, updateSampler, audioEngine, setIsVoiceEditorOpen]);
 
     const renderModulePanel = () => {
-        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={[0.0, 0.9, 1.0]} controls={getSynthControls(synthA)} onParamChange={(id, v) => handleSynthChange(true, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div></HardwareModule>;
-        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={[1.0, 0.2, 0.8]} controls={getSynthControls(synthB)} onParamChange={(id, v) => handleSynthChange(false, id, v)}><div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div></HardwareModule>;
-        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={[1.0, 0.6, 0.0]} controls={getKickControls(kick)} onParamChange={(id, v) => handleKickChange(id, v)} />;
-        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={[0.2, 1.0, 0.2]} controls={getSnareControls(snare)} onParamChange={(id, v) => handleSnareChange(id, v)} />;
-        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={[0.8, 0.8, 0.0]} controls={getClosedHatControls(closedHat)} onParamChange={handleClosedHatChange} />;
-        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={[0.9, 0.5, 0.0]} controls={getOpenHatControls(openHat)} onParamChange={handleOpenHatChange} />;
+        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange}>{synthAChild}</HardwareModule>;
+        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange}>{synthBChild}</HardwareModule>;
+        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} />;
+        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} />;
+        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} />;
+        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} />;
 
         if (selectedTrack === 'sampler') {
             return (
                 <HardwareModule
                     title="SAMPLER // TTS"
-                    colorHex={[0.6, 0.4, 1.0]}
-                    controls={getSamplerControls(sampler)}
+                    colorHex={COLOR_SAMPLER}
+                    controls={samplerControls}
                     onParamChange={handleSamplerChange}
                 >
-                    <div className="absolute top-4 left-[30%] w-[40%] h-[120px] pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm">
-                        <SamplerPanel
-                            params={sampler}
-                            onChange={(u) => updateSampler(u)}
-                            onLoadSample={(n, b) => {
-                                audioEngine?.loadSampleToEngine(n, b);
-                                setSamplerBuffer(b); // Save buffer for XM export
-                            }}
-                            audioContext={audioEngine?.context!}
-                            onOpenEditor={() => setIsVoiceEditorOpen(true)}
-                        />
-                    </div>
+                    {samplerChild}
                 </HardwareModule>
             );
         }
@@ -1099,7 +1221,12 @@ export const App: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative">
+        <div
+            className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center"
+            style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}
+        >
+            {/* Dark overlay for readability if BG image is set */}
+            {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
 
             <CloudLibrary 
                 isOpen={isCloudLibraryOpen} 
@@ -1152,12 +1279,12 @@ export const App: React.FC = () => {
 
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 mr-4">
-                        <span className="text-[10px] text-gray-500 font-mono uppercase">Vol</span>
-                        <input type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                        <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
+                        <input id="master-volume" type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Master Volume" />
                     </div>
                     <div className="flex items-center gap-2 mr-4">
-                        <span className="text-[10px] text-gray-500 font-mono uppercase">Pan</span>
-                        <input type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                        <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
+                        <input id="global-pan" type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Global Pan" />
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
@@ -1166,21 +1293,23 @@ export const App: React.FC = () => {
                                 onMouseUp={handleTempoHoldEnd}
                                 onMouseLeave={handleTempoHoldEnd}
                                 className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800 select-none"
+                                aria-label="Decrease Tempo"
                             >-</button>
-                            <span className="w-12 text-center font-mono text-cyan-300 text-sm">{tempo}</span>
+                            <span className="w-12 text-center font-mono text-cyan-300 text-sm" aria-label={`Current Tempo: ${tempo} BPM`}>{tempo}</span>
                             <button 
                                 onMouseDown={() => handleTempoHoldStart(1)}
                                 onMouseUp={handleTempoHoldEnd}
                                 onMouseLeave={handleTempoHoldEnd}
                                 className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800 select-none"
+                                aria-label="Increase Tempo"
                             >+</button>
                         </div>
                     </div>
-                    <button onClick={() => setIsRecording(!isRecording)} className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isRecording ? 'bg-red-600 text-white border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)] animate-pulse' : 'bg-gray-800 text-red-700 border border-gray-700 hover:bg-gray-700'}`}>REC</button>
-                    <button onClick={() => { setIsSongModeOpen(!isSongModeOpen); }} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300 border border-purple-500' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>SONG</button>
+                    <button onClick={() => setIsRecording(!isRecording)} aria-label={isRecording ? "Stop Recording" : "Start Recording"} className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isRecording ? 'bg-red-600 text-white border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)] animate-pulse' : 'bg-gray-800 text-red-700 border border-gray-700 hover:bg-gray-700'}`}>REC</button>
+                    <button onClick={() => { setIsSongModeOpen(!isSongModeOpen); }} aria-label={isSongModeOpen ? "Close Song Mode" : "Open Song Mode"} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300 border border-purple-500' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>SONG</button>
                     <div className="flex items-center gap-2 mr-2">
-                        <label className="text-[10px] text-gray-500 font-mono uppercase">Song Mode</label>
-                        <input type="checkbox" checked={isSongModeActive} onChange={(e) => setIsSongModeActive(e.target.checked)} />
+                        <label htmlFor="song-mode-toggle" className="text-[10px] text-gray-500 font-mono uppercase">Song Mode</label>
+                        <input id="song-mode-toggle" type="checkbox" checked={isSongModeActive} onChange={(e) => setIsSongModeActive(e.target.checked)} />
                     </div>
                     <button onClick={handlePlayToggle} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg ${isPlaying ? 'bg-red-900/20 text-red-400 border border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-green-900/20 text-green-400 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'}`}>{isPlaying ? 'STOP' : 'PLAY'}</button>
                 </div>
@@ -1190,6 +1319,8 @@ export const App: React.FC = () => {
                 isVisible={isSongModeOpen}
                 songStructure={songStructure}
                 currentSongStep={currentSongMeasure}
+                backgroundImage={backgroundImage}
+                onSetBackgroundImage={setBackgroundImage}
                 onToggle={() => setIsSongModeOpen(!isSongModeOpen)}
                 onUpdateStep={(idx, key, val) => {
                     setSongStructure(prev => {
@@ -1253,10 +1384,10 @@ export const App: React.FC = () => {
                                     currentStep={currentStep}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
-                                    slotsData={trackStorage[row.key].map(s => s !== null)}
+                                    slotsData={allSlotsData[row.key]}
                                     onToggle={toggleStep}
                                     onRightMouseDown={handleRightMouseDown}
-                                    onSelectRow={(k: any) => setSelectedTrack(k as TrackKey)}
+                                    onSelectRow={handleSelectRow}
                                     onSelectSlot={handleTrackSlotClick}
                                 />
                             ))}

@@ -1,0 +1,3 @@
+## 2025-05-24 - Accessibility gaps in custom UI controls
+**Learning:** Even in a specialized "hardware-like" interface, standard HTML form elements (range inputs, checkboxes) are often used but stripped of their semantic labels for visual reasons.
+**Action:** When working on "knob/slider" heavy interfaces, always check if the visual labels are programmatically associated with the inputs. Use `aria-label` or `htmlFor` to bridge the gap without disrupting the visual design.
