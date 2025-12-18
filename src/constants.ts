@@ -46,56 +46,86 @@ export const DEFAULT_SAMPLER_PARAMS: SamplerParams = { sampleName: 'default', pl
 export const INITIAL_PATTERN: Pattern = {
   partA: {
     steps: [
+      // Bar 1 (C Major Arp)
       { note: 'C4', velocity: 1 }, null, null, null,
       { note: 'E4', velocity: 1 }, null, null, null,
       { note: 'G4', velocity: 1 }, null, null, null,
       { note: 'E4', velocity: 1 }, null, null, null,
-      ...Array(16).fill(null)
+      // Bar 2 (F Major Variation)
+      { note: 'C4', velocity: 1 }, null, null, null,
+      { note: 'F4', velocity: 1 }, null, null, null,
+      { note: 'A4', velocity: 1 }, null, null, null,
+      { note: 'F4', velocity: 1 }, null, null, null,
     ],
   },
   partB: {
     steps: [
+      // Bar 1 (C Root)
       null, null, { note: 'C3', velocity: 0.8 }, null,
       null, null, { note: 'C3', velocity: 0.8 }, null,
       null, null, { note: 'D3', velocity: 0.8 }, null,
       null, null, { note: 'C3', velocity: 0.8 }, null,
-      ...Array(16).fill(null)
+      // Bar 2 (F Root)
+      null, null, { note: 'F3', velocity: 0.8 }, null,
+      null, null, { note: 'F3', velocity: 0.8 }, null,
+      null, null, { note: 'G3', velocity: 0.8 }, null,
+      null, null, { note: 'F3', velocity: 0.8 }, null,
     ],
   },
   kick: {
     steps: [
+      // Bar 1
       { note: 'C2', velocity: 1 }, null, null, null, 
       { note: 'C2', velocity: 1 }, null, null, null,
       { note: 'C2', velocity: 1 }, null, null, null, 
       { note: 'C2', velocity: 1 }, null, null, null,
-      ...Array(16).fill(null)
+      // Bar 2
+      { note: 'C2', velocity: 1 }, null, null, null, 
+      { note: 'C2', velocity: 1 }, null, null, null,
+      { note: 'C2', velocity: 1 }, null, null, null, 
+      { note: 'C2', velocity: 1 }, null, null, null,
     ]
   },
   snare: {
     steps: [
+      // Bar 1
       null, null, null, null, 
       { note: 'C2', velocity: 1 }, null, null, null,
       null, null, null, null, 
       { note: 'C2', velocity: 1 }, null, null, null,
-      ...Array(16).fill(null)
+      // Bar 2 (With ghost note at end)
+      null, null, null, null, 
+      { note: 'C2', velocity: 1 }, null, null, null,
+      null, null, null, null, 
+      { note: 'C2', velocity: 1 }, null, { note: 'C2', velocity: 0.6 }, null,
     ]
   },
   closedHat: {
     steps: [
-      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 },
-      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 },
-      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 },
-      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.7 },
-      ...Array(16).fill(null)
+      // Bar 1
+      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 },
+      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 },
+      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 },
+      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 },
+      // Bar 2
+      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 },
+      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 },
+      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 },
+      { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 }, { note: 'C2', velocity: 0.7 }, { note: 'C2', velocity: 0.5 },
     ]
   },
   openHat: {
     steps: [
+      // Bar 1
       null, null, null, null,
       null, null, null, null,
       null, null, { note: 'C2', velocity: 0.8 }, null,
       null, null, null, null,
-      ...Array(16).fill(null)
+      // Bar 2
+      null, null, null, null,
+      null, null, null, null,
+      null, null, { note: 'C2', velocity: 0.8 }, null,
+      null, null, null, null,
     ]
   },
   sampler: {
