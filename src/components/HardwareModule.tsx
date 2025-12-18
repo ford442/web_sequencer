@@ -277,6 +277,35 @@ export const HardwareModule = React.memo(
                             <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${c.isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
                         </button>
                     ))}
+                    {controls.map((c) => (
+                        <div
+                            key={`a11y-${c.id}`}
+                            role="slider"
+                            aria-label={c.label}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(c.value * 100)}
+                            tabIndex={0}
+                            className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:ring-2 focus:ring-white focus:outline-none pointer-events-none"
+                            style={{
+                                left: `${c.x * 100}%`,
+                                top: `${c.y * 100}%`,
+                                width: `${c.size * 200}%`,
+                                height: `${c.size * 200}%`
+                            }}
+                            onKeyDown={(e) => {
+                                let delta = 0;
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowRight') delta = 0.05;
+                                if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') delta = -0.05;
+                                if (delta !== 0) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const newVal = Math.max(0, Math.min(1, c.value + delta));
+                                    onParamChange(c.id, newVal);
+                                }
+                            }}
+                        />
+                    ))}
                 </div>
                 {children && <div className="absolute inset-0 pointer-events-none">{children}</div>}
             </div>
