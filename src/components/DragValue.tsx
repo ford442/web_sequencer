@@ -117,12 +117,13 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
           onMouseUp={stopRepeat}
           onMouseLeave={stopRepeat}
           className="w-6 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-400 hover:text-white text-lg font-bold select-none"
-          aria-label="Decrease"
+          aria-label={label ? `Decrease ${label}` : 'Decrease'}
+          title={label ? `Decrease ${label}` : 'Decrease'}
         >
           −
         </button>
         <div
-          className="bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none min-w-[60px] text-center"
+          className="bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none min-w-[60px] text-center focus:outline-none focus:ring-2 focus:ring-yellow-400"
           onMouseDown={handleMouseDown}
           onWheel={handleWheel}
           tabIndex={0}
@@ -153,7 +154,8 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
           onMouseUp={stopRepeat}
           onMouseLeave={stopRepeat}
           className="w-6 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-400 hover:text-white text-lg font-bold select-none"
-          aria-label="Increase"
+          aria-label={label ? `Increase ${label}` : 'Increase'}
+          title={label ? `Increase ${label}` : 'Increase'}
         >
           +
         </button>
