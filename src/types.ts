@@ -2,7 +2,8 @@
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
   | 'pyodide-saw' | 'pyodide-square' | 'pyodide-sine'
-  | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin';
+  | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin'
+  | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin';
 
 export interface SynthParams {
   waveform: Waveform;
@@ -90,6 +91,8 @@ export interface AudioEngine {
   playAmbiance: (url: string) => Promise<void>;
   stopAmbiance: () => void;
   setAmbianceVolume: (volume: number) => void;
+  setMasterVolume: (volume: number) => void;
+  setGlobalPan: (pan: number) => void;
 }
 
 // Automation recording types

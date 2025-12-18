@@ -11,7 +11,8 @@ interface WaveformSelectorProps {
 const waveforms: Waveform[] = [
   'sawtooth', 'square', 'triangle', 'sine',
   'pyodide-saw', 'pyodide-square', 'pyodide-sine',
-  'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'
+  'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin',
+  'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'
 ];
 
 const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
@@ -40,6 +41,15 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>TRI</div>;
     case 'wgsl-sin':
       return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>SIN</div>;
+    // NEW: WAM icons
+    case 'wam-saw':
+      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>SAW</div>;
+    case 'wam-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>SQR</div>;
+    case 'wam-tri':
+      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>TRI</div>;
+    case 'wam-sin':
+      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>SIN</div>;
     default:
       return null;
   }
