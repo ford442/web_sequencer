@@ -22,6 +22,9 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
 
     return (
         <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="note-selector-title"
             className="fixed z-50 bg-gray-900 border border-gray-700 rounded shadow-xl p-2 grid gap-1"
             style={{
                 left: Math.min(x, window.innerWidth - 200), // Prevent overflow right
@@ -29,8 +32,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
             }}
         >
             <div className="flex justify-between items-center mb-1 px-1">
-                <span className="text-xs font-bold text-gray-400">SELECT NOTE</span>
-                <button onClick={onClose} className="text-gray-500 hover:text-white text-xs">✕</button>
+                <span id="note-selector-title" className="text-xs font-bold text-gray-400">SELECT NOTE</span>
+                <button onClick={onClose} aria-label="Close" className="text-gray-500 hover:text-white text-xs">✕</button>
             </div>
 
             <div className="flex gap-2">
@@ -45,6 +48,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                  <button
                                     key={fullNote}
                                     onClick={() => onSelect(fullNote)}
+                                    aria-label={`Select ${fullNote}`}
                                     className={`
                                         w-8 h-6 text-[10px] font-mono rounded flex items-center justify-center
                                         transition-all hover:scale-110
