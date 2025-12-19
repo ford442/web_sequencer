@@ -304,7 +304,7 @@ const SequencerRow = memo(({
     currentStep,
     isSelected,
     activeSlot,
-    slotsData,
+    trackSlots,
     onToggle,
     onRightMouseDown,
     onSelectRow,
@@ -317,7 +317,7 @@ const SequencerRow = memo(({
     currentStep: number,
     isSelected: boolean,
     activeSlot: number,
-    slotsData: boolean[],
+    trackSlots: (PartSequence | null)[],
     onToggle: (k: any, i: number, e: any) => void,
     onRightMouseDown: (k: TrackKey, i: number, e: any) => void,
     onSelectRow: (k: any) => void,
@@ -395,7 +395,7 @@ const SequencerRow = memo(({
                         key={slot}
                         index={slot}
                         isActive={activeSlot === slot}
-                        hasData={slotsData[slot]}
+                        hasData={!!trackSlots[slot]}
                         trackKey={rowKey}
                         onSelect={onSelectSlot}
                     />
@@ -498,15 +498,6 @@ export const App: React.FC = () => {
     const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | null)[]>>(
         getInitialTrackStorage(INITIAL_PATTERN)
     );
-
-    // OPTIMIZATION: Memoize slots data to prevent SequencerRow re-renders
-    const allSlotsData = useMemo(() => {
-        const data: Record<string, boolean[]> = {};
-        for (const row of ROWS) {
-            data[row.key] = trackStorage[row.key].map(s => s !== null);
-        }
-        return data;
-    }, [trackStorage]);
 
     const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
         partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
@@ -1384,7 +1375,7 @@ export const App: React.FC = () => {
                                     currentStep={currentStep}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
-                                    slotsData={allSlotsData[row.key]}
+                                    trackSlots={trackStorage[row.key]}
                                     onToggle={toggleStep}
                                     onRightMouseDown={handleRightMouseDown}
                                     onSelectRow={handleSelectRow}
