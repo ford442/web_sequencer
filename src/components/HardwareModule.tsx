@@ -35,6 +35,9 @@ export const HardwareModule = React.memo(
         const startY = useRef(0);
         const startVal = useRef(0);
 
+        // Refs for accessibility elements to enable focus management
+        const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
+
         useEffect(() => { controlsRef.current = controls; }, [controls]);
 
         // --- INTERACTION LOGIC (Mouse) ---
@@ -59,6 +62,10 @@ export const HardwareModule = React.memo(
                     startVal.current = controlsRef.current[hitIndex].value;
                     document.body.style.cursor = 'ns-resize';
                     e.preventDefault();
+
+                    // UX IMPROVEMENT: Focus the accessible slider when clicking the visual knob
+                    // This allows users to click to select, then use arrow keys for fine-tuning
+                    sliderRefs.current[hitIndex]?.focus();
                 }
             };
 
@@ -277,9 +284,10 @@ export const HardwareModule = React.memo(
                             <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${c.isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
                         </button>
                     ))}
-                    {controls.map((c) => (
+                    {controls.map((c, i) => (
                         <div
                             key={`a11y-${c.id}`}
+                            ref={(el) => { sliderRefs.current[i] = el; }}
                             role="slider"
                             aria-label={c.label}
                             aria-valuemin={0}
