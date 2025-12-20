@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { NoteSelector } from '../components/NoteSelector';
 
 // Mock getNoteColor since it's used in the component
-const getNoteColor = vi.fn((note) => '#ff0000');
+const getNoteColor = vi.fn((_note) => '#ff0000');
 
 describe('NoteSelector', () => {
     const defaultProps = {
