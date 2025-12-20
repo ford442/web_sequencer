@@ -1,3 +1,3 @@
-## 2025-05-24 - Accessibility gaps in custom UI controls
-**Learning:** Even in a specialized "hardware-like" interface, standard HTML form elements (range inputs, checkboxes) are often used but stripped of their semantic labels for visual reasons.
-**Action:** When working on "knob/slider" heavy interfaces, always check if the visual labels are programmatically associated with the inputs. Use `aria-label` or `htmlFor` to bridge the gap without disrupting the visual design.
+## 2025-05-24 - Syncing Canvas Interaction with DOM Accessibility
+**Learning:** When using `<canvas>` for visual controls (like knobs) alongside hidden accessible DOM elements, mouse users who click the canvas do not automatically transfer focus to the accessible element. This prevents them from switching to keyboard navigation (e.g., arrow keys) for fine-tuning after selection.
+**Action:** Always programmatically call `.focus()` on the corresponding accessible DOM element (e.g., `role="slider"`) within the canvas `mousedown` or `click` handler. This bridges the gap between the visual interface and the accessible document structure.
