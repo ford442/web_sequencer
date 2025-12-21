@@ -221,11 +221,20 @@ export const HardwareModule = React.memo(
                 } catch (e) { console.error("WebGPU Init Failed", e); }
             };
 
+            // Pre-allocate buffers to avoid garbage collection in the render loop
+            const vals = new Float32Array(12);
+            const positions = new Float32Array(48); // 12 knobs * 4 floats each
+            const valsWithPad = new Float32Array(16);
+            const timeUniform = new Float32Array(4); // [time, ratio, 0, 0]
+            const colorUniform = new Float32Array(4); // [...colorHex, 0]
+
+            // Set static color uniform once
+            colorUniform.set([...colorHex, 0]);
+
             const render = () => {
                 if (!isActive || !device || !pipeline) return;
 
-                const vals = new Float32Array(12);
-                const positions = new Float32Array(48); // 12 knobs * 4 floats each
+                // Update dynamic values in pre-allocated buffers
                 controlsRef.current.forEach((c, i) => {
                     if (i < 12) {
                         vals[i] = c.value;
@@ -235,10 +244,16 @@ export const HardwareModule = React.memo(
                 });
 
                 const width = canvas.width, height = canvas.height;
-                device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([performance.now() / 1000, width / height, 0, 0]));
-                device.queue.writeBuffer(uniformBuffer, 16, new Float32Array([...colorHex, 0]));
+
+                // Update time uniform
+                timeUniform[0] = performance.now() / 1000;
+                timeUniform[1] = width / height;
+
+                device.queue.writeBuffer(uniformBuffer, 0, timeUniform);
+                device.queue.writeBuffer(uniformBuffer, 16, colorUniform);
+
                 // vals: 12 floats = 3 vec4f, padded to 4 vec4f (16 floats)
-                const valsWithPad = new Float32Array(16);
+                valsWithPad.fill(0); // Reset padding
                 valsWithPad.set(vals);
                 device.queue.writeBuffer(uniformBuffer, 32, valsWithPad);
                 device.queue.writeBuffer(uniformBuffer, 96, positions);
