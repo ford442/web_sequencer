@@ -217,8 +217,9 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-mono mb-1">Name</label>
+                                    <label htmlFor="cloud-upload-name" className="block text-xs text-gray-400 font-mono mb-1">Name</label>
                                     <input
+                                        id="cloud-upload-name"
                                         type="text"
                                         required
                                         maxLength={40}
@@ -229,8 +230,9 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-mono mb-1">Author / Artist</label>
+                                    <label htmlFor="cloud-upload-author" className="block text-xs text-gray-400 font-mono mb-1">Author / Artist</label>
                                     <input
+                                        id="cloud-upload-author"
                                         type="text"
                                         required
                                         maxLength={20}
@@ -241,8 +243,9 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-mono mb-1">Description (Optional)</label>
+                                    <label htmlFor="cloud-upload-desc" className="block text-xs text-gray-400 font-mono mb-1">Description (Optional)</label>
                                     <textarea
+                                        id="cloud-upload-desc"
                                         maxLength={100}
                                         value={uploadForm.description}
                                         onChange={e => setUploadForm({...uploadForm, description: e.target.value})}
@@ -251,7 +254,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     />
                                 </div>
 
-                                <div className="pt-4">
+                                <div className="pt-4" aria-live="polite">
                                     <button
                                         type="submit"
                                         disabled={uploadStatus === 'uploading' || uploadStatus === 'retrying' || uploadStatus === 'success'}
