@@ -582,20 +582,24 @@ export const App: React.FC = () => {
     const tempoRef = useRef(tempo);
     useEffect(() => { tempoRef.current = tempo; }, [tempo]);
 
+    const adjustTempo = useCallback((direction: number) => {
+        setTempo(t => Math.max(30, Math.min(300, t + direction)));
+    }, []);
+
     const handleTempoHoldStart = useCallback((direction: number) => {
         // First immediate change
-        setTempo(t => Math.max(30, Math.min(300, t + direction)));
+        adjustTempo(direction);
         
         // Start interval for continuous change after 300ms
         const timeout = setTimeout(() => {
             tempoHoldIntervalRef.current = setInterval(() => {
-                setTempo(t => Math.max(30, Math.min(300, t + direction)));
+                adjustTempo(direction);
             }, 50); // Change every 50ms while held
         }, 300);
         
         // Store timeout so we can clear it
         (tempoHoldIntervalRef as any).timeout = timeout;
-    }, []);
+    }, [adjustTempo]);
 
     const handleTempoHoldEnd = useCallback(() => {
         if ((tempoHoldIntervalRef as any).timeout) {
@@ -606,6 +610,13 @@ export const App: React.FC = () => {
             tempoHoldIntervalRef.current = null;
         }
     }, []);
+
+    const handleTempoKeyDown = useCallback((e: React.KeyboardEvent, direction: number) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            adjustTempo(direction);
+        }
+    }, [adjustTempo]);
 
     // --- AUDIO LOOP ---
     const patternRef = useRef(pattern);
@@ -1283,6 +1294,7 @@ export const App: React.FC = () => {
                                 onMouseDown={() => handleTempoHoldStart(-1)}
                                 onMouseUp={handleTempoHoldEnd}
                                 onMouseLeave={handleTempoHoldEnd}
+                                onKeyDown={(e) => handleTempoKeyDown(e, -1)}
                                 className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 hover:bg-gray-800 select-none"
                                 aria-label="Decrease Tempo"
                             >-</button>
@@ -1291,6 +1303,7 @@ export const App: React.FC = () => {
                                 onMouseDown={() => handleTempoHoldStart(1)}
                                 onMouseUp={handleTempoHoldEnd}
                                 onMouseLeave={handleTempoHoldEnd}
+                                onKeyDown={(e) => handleTempoKeyDown(e, 1)}
                                 className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 hover:bg-gray-800 select-none"
                                 aria-label="Increase Tempo"
                             >+</button>
