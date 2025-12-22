@@ -502,6 +502,9 @@ export const App: React.FC = () => {
     const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
         partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
     });
+    const activeTrackSlotsRef = useRef(activeTrackSlots);
+    useEffect(() => { activeTrackSlotsRef.current = activeTrackSlots; }, [activeTrackSlots]);
+
     const [songStorage, setSongStorage] = useState<(SongSnapshot | null)[]>([null, null, null, null]);
     const [activeSongSlot, setActiveSongSlot] = useState<number | null>(null);
     const [samplerBuffer, setSamplerBuffer] = useState<AudioBuffer | null>(null);
@@ -728,14 +731,14 @@ export const App: React.FC = () => {
         audioEngine?.setGlobalPan(val);
     };
 
-    const updateStorageForTrack = (track: TrackKey, sequence: PartSequence) => {
+    const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence) => {
         setTrackStorage(prev => {
             const copy = { ...prev };
             copy[track] = [...copy[track]];
-            copy[track][activeTrackSlots[track]] = sequence;
+            copy[track][activeTrackSlotsRef.current[track]] = sequence;
             return copy;
         });
-    };
+    }, []);
 
     // UPDATED TOGGLE STEP: Handles Tie Creation (Shift+Click)
     const toggleStep = useCallback((rowKey: keyof Pattern, i: number, e: React.MouseEvent) => {
@@ -792,7 +795,7 @@ export const App: React.FC = () => {
             updateStorageForTrack(rowKey, copy[rowKey]);
             return copy;
         })
-    }, [activeTrackSlots])
+    }, [updateStorageForTrack])
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
 
