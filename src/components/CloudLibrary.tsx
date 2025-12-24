@@ -13,6 +13,23 @@ interface CloudLibraryProps {
     getPatternData: () => any;
 }
 
+const SkeletonRow = () => (
+    <div className="bg-gray-800/20 border border-gray-800 rounded-lg p-3 flex justify-between items-center animate-pulse" aria-hidden="true">
+        <div className="w-full">
+            <div className="flex items-center gap-2 mb-2">
+                <div className="w-10 h-4 bg-gray-700 rounded" />
+                <div className="w-32 h-4 bg-gray-700 rounded" />
+            </div>
+            <div className="flex gap-2 mb-1">
+                <div className="w-24 h-3 bg-gray-700/50 rounded" />
+                <div className="w-16 h-3 bg-gray-700/50 rounded" />
+            </div>
+            <div className="w-48 h-3 bg-gray-700/30 rounded" />
+        </div>
+        <div className="w-16 h-8 bg-gray-700/50 rounded" />
+    </div>
+);
+
 export const CloudLibrary: React.FC<CloudLibraryProps> = ({ 
     isOpen, onClose, onLoadData, getSongData, getBankData, getPatternData 
 }) => {
@@ -154,7 +171,10 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                             </div>
 
                             {isLoading ? (
-                                <div className="text-center py-10 text-gray-500 font-mono animate-pulse">Loading from Cloud...</div>
+                                <div role="status" className="space-y-3">
+                                    <span className="sr-only">Loading songs from cloud...</span>
+                                    {[1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
+                                </div>
                             ) : songs.length === 0 ? (
                                 <div className="text-center py-10 text-gray-600 font-mono">No songs found. Be the first to upload!</div>
                             ) : (
