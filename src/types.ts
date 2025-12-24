@@ -104,6 +104,7 @@ export interface AudioEngine {
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number) => Promise<number | null> | number | null;
     noteOffSynth?: (id: number) => void;
+    stopAllNotes?: () => void;
   loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
   renderSynthPartToBuffer: (params: SynthParams, sequence: PartSequence, tempo: number) => Promise<AudioBuffer>;
   playBufferedPart: (buffer: AudioBuffer, time: number) => void;
