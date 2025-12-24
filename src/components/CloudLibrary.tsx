@@ -156,7 +156,27 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                             {isLoading ? (
                                 <div className="text-center py-10 text-gray-500 font-mono animate-pulse">Loading from Cloud...</div>
                             ) : songs.length === 0 ? (
-                                <div className="text-center py-10 text-gray-600 font-mono">No songs found. Be the first to upload!</div>
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4 text-gray-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-gray-300 font-bold mb-2">No items found</h3>
+                                    <p className="text-gray-500 text-xs mb-6 max-w-[200px]">
+                                        The library is empty. Be the first to share your creation with the world!
+                                    </p>
+                                    <button
+                                        onClick={() => setActiveTab('upload')}
+                                        className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 group"
+                                        aria-label="Upload your first creation"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform group-hover:-translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                        Share Your Creation
+                                    </button>
+                                </div>
                             ) : (
                                 <div className="grid gap-3">
                                     {filteredSongs.map(item => (
