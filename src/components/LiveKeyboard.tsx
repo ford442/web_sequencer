@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
@@ -18,7 +18,7 @@ const KEY_TO_NOTE: Record<string, string> = {
     'Digit2': 'C#4'
 };
 
-export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNote, activeTrackColor }) => { const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
+export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: LiveKeyboardProps) => { const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
 
 // --- KEYBOARD INTERACTION ---
     useEffect(() => {
@@ -210,4 +210,4 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNo
             </svg>
         </div>
     );
-};
+});

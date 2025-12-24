@@ -703,6 +703,9 @@ export const App: React.FC = () => {
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
     useEffect(() => setCurrentStep(schedStep), [schedStep])
 
+    const currentStepRef = useRef(currentStep);
+    useEffect(() => { currentStepRef.current = currentStep; }, [currentStep]);
+
     useEffect(() => {
         if (!schedPlaying) {
             songMeasureRef.current = 0;
@@ -799,7 +802,7 @@ export const App: React.FC = () => {
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
 
-    const handleKeyboardPlay = (note: string) => {
+    const handleKeyboardPlay = useCallback((note: string) => {
         if (!audioEngine) return;
         const time = audioEngine.context.currentTime;
         if (selectedTrack === 'partA') {
@@ -818,17 +821,18 @@ export const App: React.FC = () => {
             if (id) activeKeyboardNotesRef.current.set(note, id);
         }
 
-        if (isRecording && isPlaying && currentStep >= 0) {
+        const step = currentStepRef.current;
+        if (isRecording && isPlaying && step >= 0) {
             setPattern(prev => {
                 const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
-                copy[selectedTrack].steps[currentStep] = { note, velocity: 1, length: 1 };
+                copy[selectedTrack].steps[step] = { note, velocity: 1, length: 1 };
                 updateStorageForTrack(selectedTrack, copy[selectedTrack]);
                 return copy;
             });
         }
-    };
+    }, [audioEngine, selectedTrack, isRecording, isPlaying, updateStorageForTrack]);
 
-    const handleKeyboardStop = (note: string) => {
+    const handleKeyboardStop = useCallback((note: string) => {
         // For now we don't have per-note stop in the AudioEngine for scheduled envelopes.
         // This function exists so keyboard UI can notify engine implementations that support note-off (e.g., SustainProcessor)
         // If a future engine exposes stopSynth/stopSampler methods, call them here.
@@ -843,7 +847,7 @@ export const App: React.FC = () => {
         activeKeyboardNotesRef.current.delete(note);
         // Right now, the keyboard will rely on envelope lengths managed by the engine.
         return;
-    };
+    }, [audioEngine, selectedTrack]);
 
     const handleRightMouseDown = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => {
         e.preventDefault();
