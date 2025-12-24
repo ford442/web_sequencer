@@ -781,6 +781,21 @@ export const useAudioEngine = (pyodide: any) => {
             activeSamplerNotes.current.delete(id);
         };
 
+        const stopAllNotes = () => {
+            // Stop all synth notes
+            activeSynthNotes.current.forEach((entry) => {
+                entry.stop();
+            });
+            activeSynthNotes.current.clear();
+
+            // Stop all sampler notes
+            activeSamplerNotes.current.forEach((entry, id) => {
+                 noteOffSampler(id);
+            });
+            // noteOffSampler removes them from map, but let's be safe
+            activeSamplerNotes.current.clear();
+        };
+
         const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {
             return new Promise((resolve, reject) => {
                 if (rendererWorkerRef.current) rendererWorkerRef.current.terminate();
@@ -874,6 +889,7 @@ export const useAudioEngine = (pyodide: any) => {
             noteOffSampler,
             noteOnSynth,
             noteOffSynth,
+            stopAllNotes,
             loadSampleToEngine,
             renderSynthPartToBuffer,
             playBufferedPart,
