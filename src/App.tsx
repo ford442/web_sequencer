@@ -621,6 +621,14 @@ export const App: React.FC = () => {
         }
     }, [adjustTempo]);
 
+    const handlePanic = useCallback(() => {
+        if (!audioEngine || !audioEngine.stopAllNotes) return;
+        audioEngine.stopAllNotes();
+        // Also clear the app's tracking map
+        activeKeyboardNotesRef.current.clear();
+        console.log("Panic triggered: All notes stopped.");
+    }, [audioEngine]);
+
     // --- AUDIO LOOP ---
     const patternRef = useRef(pattern);
     useEffect(() => { patternRef.current = pattern; }, [pattern]);
@@ -1316,6 +1324,7 @@ export const App: React.FC = () => {
                             >+</button>
                         </div>
                     </div>
+                    <button onClick={handlePanic} className="w-8 h-8 rounded-full bg-red-900/50 border border-red-500/50 text-red-500 hover:bg-red-800 hover:text-white flex items-center justify-center font-bold text-xs mr-2 shadow-inner" title="PANIC: Stop All Notes" aria-label="Panic Stop All Notes">!</button>
                     <button onClick={() => setIsRecording(!isRecording)} aria-label={isRecording ? "Stop Recording" : "Start Recording"} className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isRecording ? 'bg-red-600 text-white border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)] animate-pulse' : 'bg-gray-800 text-red-700 border border-gray-700 hover:bg-gray-700'}`}>REC</button>
                     <button onClick={() => { setIsSongModeOpen(!isSongModeOpen); }} aria-label={isSongModeOpen ? "Close Song Mode" : "Open Song Mode"} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide transition-all shadow-lg mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300 border border-purple-500' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>SONG</button>
                     <div className="flex items-center gap-2 mr-2">
