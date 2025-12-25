@@ -203,7 +203,7 @@ async def write_json(sftp, filename, data):
 
 @app.get("/")
 def home():
-    return {"status": "online", "service": "Electribe Cloud Storage vPerformance"}
+    return {"status": "online", "service": "Hyphon Cloud Storage vPerformance"}
 
 # --- LISTING (Cached) ---
 @app.get("/api/songs", response_model=List[MetaData])
