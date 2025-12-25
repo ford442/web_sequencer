@@ -35,10 +35,17 @@ export const HardwareModule = React.memo(
         const startY = useRef(0);
         const startVal = useRef(0);
 
+        // Ref to store the render function for demand-based rendering
+        const renderRef = useRef<(() => void) | null>(null);
+
         // Refs for accessibility elements to enable focus management
         const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-        useEffect(() => { controlsRef.current = controls; }, [controls]);
+        useEffect(() => {
+            controlsRef.current = controls;
+            // Trigger a re-render when controls change
+            if (renderRef.current) renderRef.current();
+        }, [controls]);
 
         // --- INTERACTION LOGIC (Mouse) ---
         useEffect(() => {
@@ -102,7 +109,6 @@ export const HardwareModule = React.memo(
             let device: GPUDevice;
             let pipeline: GPURenderPipeline;
             let uniformBuffer: GPUBuffer;
-            let animationId: number;
             let isActive = true;
 
             const init = async () => {
@@ -217,6 +223,11 @@ export const HardwareModule = React.memo(
                     });
 
                     uniformBuffer = device.createBuffer({ size: 320, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+                    // Assign render function for external calls
+                    renderRef.current = render;
+
+                    // Initial render
                     render();
                 } catch (e) { console.error("WebGPU Init Failed", e); }
             };
@@ -270,15 +281,13 @@ export const HardwareModule = React.memo(
                 pass.draw(3);
                 pass.end();
                 device.queue.submit([encoder.finish()]);
-
-                animationId = requestAnimationFrame(render);
             };
 
             init();
 
             return () => {
                 isActive = false;
-                if (animationId) cancelAnimationFrame(animationId);
+                renderRef.current = null;
                 if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
             };
         }, [colorHex]);
