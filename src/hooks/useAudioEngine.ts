@@ -789,7 +789,7 @@ export const useAudioEngine = (pyodide: any) => {
             activeSynthNotes.current.clear();
 
             // Stop all sampler notes
-            activeSamplerNotes.current.forEach((entry, id) => {
+            activeSamplerNotes.current.forEach((_entry, id) => {
                  noteOffSampler(id);
             });
             // noteOffSampler removes them from map, but let's be safe
