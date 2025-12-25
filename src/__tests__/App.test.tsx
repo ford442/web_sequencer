@@ -4,9 +4,9 @@ import { describe, it, expect } from 'vitest';
 import App from '../App';
 
 describe('App', () => {
-  it('renders ELECTRIBE heading', () => {
+  it('renders HYPHON heading', () => {
     render(<App />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/ELECTRIBE/i);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/HYPHON/i);
   });
 
   it('renders volume control', () => {

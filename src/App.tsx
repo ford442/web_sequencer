@@ -1106,7 +1106,7 @@ export const App: React.FC = () => {
         
         const a = document.createElement('a');
         a.href = url;
-        a.download = `electribe-song-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `hyphon-song-${new Date().toISOString().slice(0, 10)}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1262,7 +1262,7 @@ export const App: React.FC = () => {
             <header className="h-16 flex items-center justify-between px-6 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 z-20 shadow-2xl shrink-0 relative backdrop-blur-sm">
                 <div className="flex items-center gap-6">
                     <h1 className="text-xl font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
-                        ELECTRIBE<span className="text-white">WEB</span>
+                        HYPHON
                     </h1>
                     <div className="flex items-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 p-2 rounded-lg border border-cyan-900/30 shadow-lg">
                         <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Song</span>
