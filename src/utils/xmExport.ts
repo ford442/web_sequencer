@@ -204,7 +204,7 @@ export const exportSongToXM = async (
 
     // 1. Create Module
     const mod = createModule({
-        moduleName: 'Electribe Export',
+        moduleName: 'Hyphon Export',
         numberOfChannels: 8, // 2 synths + 4 drums + 1 sampler + 1 reserved
         defaultTempo: 6,
         defaultBPM: tempo
