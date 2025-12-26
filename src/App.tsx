@@ -1296,12 +1296,32 @@ export const App: React.FC = () => {
 
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 mr-4">
-                        <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
-                        <input id="master-volume" type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Master Volume" />
+                        <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click slider to reset">Vol</label>
+                        <input
+                            id="master-volume"
+                            type="range"
+                            min="0" max="1.2" step="0.01"
+                            value={masterVolume}
+                            onChange={handleMasterVolume}
+                            onDoubleClick={() => { setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); }}
+                            className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            aria-label="Master Volume"
+                            title="Master Volume (Double-click to reset)"
+                        />
                     </div>
                     <div className="flex items-center gap-2 mr-4">
-                        <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
-                        <input id="global-pan" type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Global Pan" />
+                        <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click slider to reset">Pan</label>
+                        <input
+                            id="global-pan"
+                            type="range"
+                            min="-1" max="1" step="0.01"
+                            value={globalPan}
+                            onChange={handleGlobalPan}
+                            onDoubleClick={() => { setGlobalPan(0); audioEngine?.setGlobalPan(0); }}
+                            className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            aria-label="Global Pan"
+                            title="Global Pan (Double-click to reset)"
+                        />
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
