@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, memo, useMemo } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, memo, useMemo } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -74,6 +74,13 @@ const getPatternColor = (slotIndex: number): string => {
     return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
 };
 
+// --- PERFORMANCE STYLES ---
+const SEQUENCER_STYLES = `
+    .svg-step.is-current .step-glow { fill: rgba(255, 255, 255, 0.3) !important; }
+    .svg-step.is-current .step-cap { stroke: #ffffff !important; stroke-width: 2px !important; }
+    .svg-step.is-current .step-led { fill: #ff3333 !important; fill-opacity: 1 !important; filter: url(#glow) !important; }
+`;
+
 // --- CONSTANTS FOR MODULE RENDERING ---
 const COLOR_LEAD = [0.0, 0.9, 1.0] as [number, number, number];
 const COLOR_BASS = [1.0, 0.2, 0.8] as [number, number, number];
@@ -133,11 +140,12 @@ const getSamplerControls = (params: SamplerParams): KnobConfig[] => [
 
 // UPDATED SVG STEP: Supports variable length (morphing) and alternating background groups
 // UPDATED: Now supports onMouseDown for drag detection
+// PERFORMANCE: Removed isCurrent prop, now uses CSS classes via refs for high-frequency updates
 const SvgStep = memo(({
     stepIndex,
     active,
     note,
-    isCurrent,
+    refsArray,
     rowLabel,
     rowKey,
     onToggle,
@@ -147,7 +155,7 @@ const SvgStep = memo(({
     stepIndex: number,
     active: boolean,
     note?: string | null,
-    isCurrent: boolean,
+    refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string,
     rowKey: TrackKey,
     onToggle: (k: TrackKey, i: number, e: any) => void,
@@ -176,6 +184,8 @@ const SvgStep = memo(({
 
     return (
         <g transform={`translate(${x}, 0)`}
+            ref={(el) => { refsArray.current[stepIndex] = el; }}
+            className="svg-step"
             role="button"
             tabIndex={0}
             aria-label={`${rowLabel} step ${stepIndex + 1}`}
@@ -198,10 +208,11 @@ const SvgStep = memo(({
             {/* Active Glow */}
             {active && (
                 <rect
+                    className="step-glow"
                     x={-4} y={-4}
                     width={totalWidth + 8} height={height + 8}
                     rx={6}
-                    fill={isCurrent ? "rgba(255, 255, 255, 0.3)" : color}
+                    fill={color}
                     fillOpacity={0.4}
                     filter="blur(6px)"
                 />
@@ -225,11 +236,12 @@ const SvgStep = memo(({
 
             {/* Cap/Surface */}
             <rect
+                className="step-cap"
                 x={3} y={4} width={totalWidth - 6} height={height - 8} rx={1}
                 fill={active ? color : '#1a2026'}
                 fillOpacity={active ? 0.6 : 1}
-                stroke={isCurrent ? '#ffffff' : (active ? color : 'none')}
-                strokeWidth={isCurrent ? 2 : (active ? 1 : 0)}
+                stroke={active ? color : 'none'}
+                strokeWidth={active ? 1 : 0}
             />
 
             {/* Grip Lines for Long Notes */}
@@ -251,10 +263,11 @@ const SvgStep = memo(({
 
             {/* LED */}
             <rect
+                className="step-led"
                 x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1}
-                fill={isCurrent ? '#ff3333' : (active ? '#ccffcc' : '#000')}
-                fillOpacity={isCurrent ? 1 : (active ? 0.8 : 0.2)}
-                filter={active || isCurrent ? "url(#glow)" : "none"}
+                fill={active ? '#ccffcc' : '#000'}
+                fillOpacity={active ? 0.8 : 0.2}
+                filter={active ? "url(#glow)" : "none"}
             />
         </g>
     )
@@ -296,6 +309,7 @@ const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: 
 });
 
 // UPDATED SEQUENCER ROW: Adds Grid Markers (Beats/Bars)
+// PERFORMANCE: Uses ref-based class toggling to avoid re-rendering children on step changes
 const SequencerRow = memo(({
     rowKey,
     label,
@@ -324,6 +338,20 @@ const SequencerRow = memo(({
     onSelectSlot: (k: TrackKey, slot: number) => void
 }) => {
 
+    const stepRefs = useRef<(SVGGElement | null)[]>([]);
+
+    // Use useLayoutEffect to update classes synchronously before paint
+    useLayoutEffect(() => {
+        stepRefs.current.forEach((el, i) => {
+            if (!el) return;
+            const length = steps[i]?.length || 1;
+            const isCurrent = currentStep >= i && currentStep < (i + length);
+
+            if (isCurrent) el.classList.add('is-current');
+            else el.classList.remove('is-current');
+        });
+    }, [currentStep, steps]);
+
     // 1. Render Steps (Handling Morphed/Tied Notes)
     const renderedSteps = [];
     let skipCount = 0;
@@ -337,9 +365,8 @@ const SequencerRow = memo(({
         const stepData = steps[i];
         const length = stepData?.length || 1;
 
-        // Is the playhead currently inside this note's duration?
-        const isCurrent = currentStep >= i && currentStep < (i + length);
-
+        // Note: isCurrent prop removed to prevent re-renders
+        // PERFORMANCE: Passing stepRefs object instead of function to keep props stable
         renderedSteps.push(
             <SvgStep
                 key={i}
@@ -347,7 +374,7 @@ const SequencerRow = memo(({
                 active={!!stepData}
                 note={stepData ? stepData.note : null}
                 length={length}
-                isCurrent={isCurrent}
+                refsArray={stepRefs}
                 rowLabel={label}
                 rowKey={rowKey}
                 onToggle={onToggle}
@@ -1242,6 +1269,8 @@ export const App: React.FC = () => {
             className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center"
             style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}
         >
+            <style>{SEQUENCER_STYLES}</style>
+
             {/* Dark overlay for readability if BG image is set */}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
 
