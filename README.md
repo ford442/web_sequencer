@@ -59,14 +59,23 @@ Or open `svg-demo.html` in your browser to see a pure SVG-based sequencer interf
 
 ## TTS Voice Synthesis
 
-The sampler includes Supertonic TTS integration for generating speech from text with customizable voice characteristics.
+The sampler includes Supertonic TTS integration for generating speech from text with customizable voice characteristics. Each of the 8 sample banks maintains its own independent TTS text phrase.
 
 ### Quick Start
 
 1. Navigate to the Sampler track (SMP) in the sequencer
-2. Enter text in the TTS input field
-3. Click "GEN" to generate speech
-4. Click "EDIT VOICE" to open the Voice Designer for real-time parameter editing
+2. Select a bank (1-8) using the bank selector buttons
+3. Enter text in the TTS input field (each bank stores its own text)
+4. Click "GEN" to generate speech for the active bank
+5. Switch banks to set different text for each bank
+6. Click "EDIT VOICE" to open the Voice Designer for real-time parameter editing
+
+### Per-Bank TTS Text
+
+- Each of the 8 sample banks has its own TTS text phrase
+- Switching banks automatically displays that bank's text
+- All TTS phrases are saved with your project
+- Generate unique speech samples for each bank
 
 ### Voice Designer Features
 
@@ -79,6 +88,9 @@ The sampler includes Supertonic TTS integration for generating speech from text 
 
 - **[TTS_DEPLOYMENT.md](TTS_DEPLOYMENT.md)** - Complete deployment guide, asset requirements, troubleshooting
 - **[INTEGRATION_SUMMARY.md](INTEGRATION_SUMMARY.md)** - Technical integration details and architecture
+- **[TTS_IMPLEMENTATION_SUMMARY.md](TTS_IMPLEMENTATION_SUMMARY.md)** - Per-bank TTS feature implementation details
+- **[TTS_VISUAL_GUIDE.md](TTS_VISUAL_GUIDE.md)** - Visual guide and examples for per-bank TTS
+- **[TTS_PER_BANK_VERIFICATION.md](TTS_PER_BANK_VERIFICATION.md)** - Manual testing guide for TTS functionality
 
 ### Requirements
 
