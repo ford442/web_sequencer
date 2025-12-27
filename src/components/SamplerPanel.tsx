@@ -11,17 +11,19 @@ interface SamplerPanelProps {
     activeBankIdx: number;           // Controlled by Parent
     onBankChange: (i: number) => void; // Controlled by Parent
     onOpenEditor?: () => void;
+    ttsPhrases: string[];            // Array of 8 TTS phrases
+    onTtsPhraseChange: (phrases: string[]) => void; // Update TTS phrases
 }
 
 // 8 Banks
 const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 
 export const SamplerPanel: React.FC<SamplerPanelProps> = ({
-    params, onChange, onLoadSample, audioContext, activeBankIdx, onBankChange, onOpenEditor
+    params, onChange, onLoadSample, audioContext, activeBankIdx, onBankChange, onOpenEditor,
+    ttsPhrases, onTtsPhraseChange
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
-    const [ttsText, setTtsText] = useState("Hello World");
     const [isGenerating, setIsGenerating] = useState(false);
     const [status, setStatus] = useState<string>('');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -30,6 +32,22 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
     const [ttsReady, setTtsReady] = useState(false);
     const [flashBankIdx, setFlashBankIdx] = useState<number | null>(null);
     const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Get the TTS text for the current bank with bounds checking
+    const currentTtsText = (ttsPhrases && activeBankIdx >= 0 && activeBankIdx < 8) 
+        ? (ttsPhrases[activeBankIdx] || "Hello World")
+        : "Hello World";
+
+    // Update TTS text for current bank with bounds validation
+    const setCurrentTtsText = (text: string) => {
+        if (activeBankIdx < 0 || activeBankIdx >= 8) {
+            console.warn(`Invalid bank index: ${activeBankIdx}`);
+            return;
+        }
+        const newPhrases = [...ttsPhrases];
+        newPhrases[activeBankIdx] = text;
+        onTtsPhraseChange(newPhrases);
+    };
 
     // Helpers to access current bank's params safely
     const currentParams = params[activeBankIdx] || {
@@ -88,7 +106,7 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
         setIsGenerating(true);
         setStatus("Generating...");
         try {
-            const rawData = await SupertonicService.getInstance().generate(ttsText);
+            const rawData = await SupertonicService.getInstance().generate(currentTtsText);
             const buffer = audioContext.createBuffer(1, rawData.length, 44100);
             buffer.getChannelData(0).set(rawData);
 
@@ -189,8 +207,8 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
             {/* ROW 3: TTS */}
             <div className="flex gap-1 mt-1">
                 <input
-                    value={ttsText}
-                    onChange={e => setTtsText(e.target.value)}
+                    value={currentTtsText}
+                    onChange={e => setCurrentTtsText(e.target.value)}
                     className="flex-1 bg-gray-900 border border-gray-700 rounded px-1 text-white text-[10px] outline-none focus:border-purple-500"
                     placeholder="Phrase..."
                 />

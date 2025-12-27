@@ -158,4 +158,6 @@ export interface SavedSongData {
   embeddedSamples?: {
     [bankIndex: number]: string; // Base64 encoded WAV
   };
+  // TTS text phrases for each bank
+  ttsPhrases?: string[]; // Array of 8 TTS text strings, one per bank
 }
