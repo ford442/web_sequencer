@@ -5,10 +5,10 @@ echo "🚀 Starting Post-Build Optimization..."
 
 # 1. Define Paths
 PUBLIC_DIR="public"
-PHYSICS_WASM="$PUBLIC_DIR/candy_physics.wasm"
-NATIVE_WASM="$PUBLIC_DIR/candy_native.wasm"
-NATIVE_JS="$PUBLIC_DIR/candy_native.js"
-WORKER_JS="$PUBLIC_DIR/candy_native.worker.js"
+PHYSICS_WASM="$PUBLIC_DIR/oscillators.wasm"
+NATIVE_WASM="$PUBLIC_DIR/hyphon_native.wasm"
+NATIVE_JS="$PUBLIC_DIR/hyphon_native.js"
+WORKER_JS="$PUBLIC_DIR/hyphon_native.worker.js"
 
 # 2. Check for Tools
 if ! command -v wasm-opt &> /dev/null; then
@@ -32,7 +32,7 @@ fi
 
 # 3. Optimize AssemblyScript WASM (Physics)
 # We must explicitly enable the features we used in compilation.
-echo "🔧 Optimizing Physics WASM..."
+echo "🔧 Optimizing Oscillator  WASM..."
 wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   -O3 \
   --converge \
@@ -43,7 +43,7 @@ wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --enable-relaxed-simd \
   --enable-nontrapping-float-to-int
 
-echo "🔧 Optimizing Physics WASM (wasmedge)..."
+echo "🔧 Optimizing Oscillator WASM (wasmedge)..."
 wasmedge compile --optimize=3 --enable-threads --enable-relaxed-simd "$PHYSICS_WASM" "$PHYSICS_WASM"
 
 # 4. Optimize Emscripten WASM (Native Effects)
