@@ -179,6 +179,7 @@ const SvgStep = memo(({
     rowKey,
     onToggle,
     onRightMouseDown,
+    onEditLength,
     length = 1
 }: {
     stepIndex: number,
@@ -189,6 +190,7 @@ const SvgStep = memo(({
     rowKey: TrackKey,
     onToggle: (k: TrackKey, i: number, e: any) => void,
     onRightMouseDown: (k: TrackKey, i: number, e: React.MouseEvent) => void,
+    onEditLength: (k: TrackKey, i: number, len: number) => void,
     length?: number
 }) => {
     // Dimensions
@@ -211,6 +213,51 @@ const SvgStep = memo(({
     const isAltGroup = groupIndex % 2 === 1;
     const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
+    const handlePointerDown = (e: React.PointerEvent) => {
+        // Right click handled by separate handler
+        if (e.button === 2) {
+             onRightMouseDown(rowKey, stepIndex, e);
+             return;
+        }
+
+        // 1. Shift + Click/Drag -> Adjust Length
+        if (e.shiftKey && active) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const target = e.currentTarget as Element;
+            target.setPointerCapture(e.pointerId);
+
+            const startX = e.clientX;
+            const startLength = length;
+            const sensitivity = 20; // Pixels per step
+
+            const handlePointerMove = (ev: PointerEvent) => {
+                const delta = ev.clientX - startX;
+                const stepsToAdd = Math.floor(delta / sensitivity);
+                // Clamp length between 1 and 16
+                const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
+
+                if (newLength !== length) {
+                    onEditLength(rowKey, stepIndex, newLength);
+                }
+            };
+
+            const handlePointerUp = (ev: PointerEvent) => {
+                target.removeEventListener('pointermove', handlePointerMove as any);
+                target.removeEventListener('pointerup', handlePointerUp as any);
+                target.releasePointerCapture(ev.pointerId);
+            };
+
+            target.addEventListener('pointermove', handlePointerMove as any);
+            target.addEventListener('pointerup', handlePointerUp as any);
+        }
+        // 2. Normal Click -> Toggle
+        else if (!e.shiftKey) {
+            onToggle(rowKey, stepIndex, e);
+        }
+    };
+
     return (
         <g transform={`translate(${x}, 0)`}
             ref={(el) => { refsArray.current[stepIndex] = el; }}
@@ -218,21 +265,16 @@ const SvgStep = memo(({
             role="button"
             tabIndex={0}
             aria-label={`${rowLabel} step ${stepIndex + 1}`}
-            onClick={(e) => onToggle(rowKey, stepIndex, e)}
+            onPointerDown={handlePointerDown}
             onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onToggle(rowKey, stepIndex, e);
                 }
             }}
-            onMouseDown={(e) => {
-                if (e.button === 2) {
-                    onRightMouseDown(rowKey, stepIndex, e);
-                }
-            }}
             onContextMenu={(e) => e.preventDefault()}
             cursor="pointer"
-            style={{ transition: 'all 0.1s ease' }}
+            style={{ transition: 'all 0.1s ease', touchAction: 'none' }}
         >
             {/* Active Glow */}
             {active && (
@@ -273,12 +315,21 @@ const SvgStep = memo(({
                 strokeWidth={active ? 1 : 0}
             />
 
-            {/* Grip Lines for Long Notes */}
+            {/* Grip Lines & Label for Long Notes */}
             {length > 1 && (
-                <g opacity={0.3} fill="#000">
-                    <rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} />
-                    <rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} />
-                    <rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} />
+                <g pointerEvents="none">
+                    <g opacity={0.3} fill="#000">
+                        <rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} />
+                        <rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} />
+                        <rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} />
+                    </g>
+                    {/* Visual Length Indicator */}
+                    <g transform={`translate(${totalWidth - 25}, 8)`}>
+                         <rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} />
+                         <text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">
+                             {length}x
+                         </text>
+                    </g>
                 </g>
             )}
 
@@ -353,6 +404,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     trackSlots: (PartSequence | PartSequence[] | null)[],
     onToggle: (k: any, i: number, e: any) => void,
     onRightMouseDown: (k: TrackKey, i: number, e: any) => void,
+    onEditLength: (k: TrackKey, i: number, len: number) => void, // NEW: Prop for length edits
     onSelectRow: (k: any) => void,
     onSelectSlot: (k: TrackKey, slot: number) => void
 }>((props, ref) => {
@@ -366,6 +418,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         trackSlots,
         onToggle,
         onRightMouseDown,
+        onEditLength,
         onSelectRow,
         onSelectSlot
     } = props;
@@ -425,6 +478,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 rowKey={rowKey}
                 onToggle={onToggle}
                 onRightMouseDown={onRightMouseDown}
+                onEditLength={onEditLength}
             />
         );
 
@@ -858,7 +912,8 @@ export const App: React.FC = () => {
     }, []);
 
     // UPDATED TOGGLE STEP: Handles Sampler Bank Index (subIndex)
-    const toggleStep = useCallback((rowKey: keyof Pattern, i: number, subIndex?: number | any) => {
+    // Refactored to 'handlePatternChange' to support length updates
+    const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, subIndex?: number | unknown, updates?: { length: number }) => {
         setPattern(prev => {
             const copy = { ...prev };
 
@@ -876,10 +931,26 @@ export const App: React.FC = () => {
                 // Removed unused _e, _isShiftKey, suppressed subIndex
                 void subIndex;
 
-                if (existing) {
-                    steps[i] = null;
+                if (updates && updates.length !== undefined) {
+                    // CASE A: Length Update
+                    if (existing) {
+                        steps[i] = { ...existing, length: updates.length };
+
+                        // Clean up overlapping steps in the new length's shadow
+                        for (let k = 1; k < updates.length; k++) {
+                            const nextStepIdx = i + k;
+                            if (nextStepIdx < steps.length) {
+                                steps[nextStepIdx] = null;
+                            }
+                        }
+                    }
                 } else {
-                    steps[i] = { note: 'C4', velocity: 1, length: 1 };
+                    // CASE B: Normal Toggle (Click)
+                    if (existing) {
+                        steps[i] = null;
+                    } else {
+                        steps[i] = { note: 'C4', velocity: 1, length: 1 };
+                    }
                 }
 
                 copy.sampler = newSampler;
@@ -893,11 +964,27 @@ export const App: React.FC = () => {
                 const steps = copy[rowKey].steps;
                 const existing = steps[i];
 
-                if (existing) {
-                    steps[i] = null;
+                if (updates && updates.length !== undefined) {
+                    // CASE A: Length Update
+                    if (existing) {
+                        steps[i] = { ...existing, length: updates.length };
+
+                        // Clean up overlapping steps
+                        for (let k = 1; k < updates.length; k++) {
+                            const nextStepIdx = i + k;
+                            if (nextStepIdx < steps.length) {
+                                steps[nextStepIdx] = null;
+                            }
+                        }
+                    }
                 } else {
-                    const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
-                    steps[i] = { note: defaultNote, velocity: 1, length: 1 };
+                    // CASE B: Normal Toggle (Click)
+                    if (existing) {
+                        steps[i] = null;
+                    } else {
+                        const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
+                        steps[i] = { note: defaultNote, velocity: 1, length: 1 };
+                    }
                 }
                 updateStorageForTrack(rowKey, copy[rowKey]);
             }
@@ -1733,12 +1820,13 @@ export const App: React.FC = () => {
                                     rowKey={row.key}
                                     label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label}
                                     rowIndex={rIdx}
-                                    steps={!isPyodideReady ? getLoadingStepData(rIdx) : (row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
+                                    steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
-                                    onToggle={toggleStep}
+                                    onToggle={handlePatternChange}
                                     onRightMouseDown={handleRightMouseDown}
+                                    onEditLength={(k, i, len) => handlePatternChange(k, i, undefined, { length: len })}
                                     onSelectRow={handleSelectRow}
                                     onSelectSlot={handleTrackSlotClick}
                                 />
