@@ -1,4 +1,4 @@
-# Electribe EA-1 Web Synth
+# Hyphon Hyrid Web Synth/Drum/Sampler/TTS
 
 A 32-step sequencer with dual synths, drums, sampler, and TTS voice synthesis powered by Web Audio + Pyodide.
 
