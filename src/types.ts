@@ -1,4 +1,3 @@
-
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
   | 'pyodide-saw' | 'pyodide-square' | 'pyodide-sine'
@@ -137,6 +136,7 @@ export interface SongStructure {
 
 // Helper type for the saved file format
 export interface SavedSongData {
+  version?: number;
   pattern: Pattern;
   // Use generic objects for params to allow flexibility
   params: {

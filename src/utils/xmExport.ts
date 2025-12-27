@@ -201,7 +201,7 @@ export const exportSongToXM = async (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pyodide?: any
     },
-    samplerBuffer?: AudioBuffer | null
+    sampleBuffers?: (AudioBuffer | null)[]
 ) => {
     console.log("Starting XM Export with engines:", engines);
 
@@ -314,12 +314,14 @@ export const exportSongToXM = async (
         const instName = `Sampler Bank ${i+1}`;
         const inst = createInstrument(instName);
 
-        if (i === 0 && samplerBuffer) {
+        // Check if we have a buffer for this bank
+        if (sampleBuffers && sampleBuffers[i]) {
+             const buffer = sampleBuffers[i]!;
              const pitchShift = Math.round(Math.log2(params.sampler[i].playbackSpeed) * 12);
-             const rawData = samplerBuffer.getChannelData(0);
+             const rawData = buffer.getChannelData(0);
              const normalizedData = normalizeBuffer(rawData, -1);
-             const enableLoop = samplerBuffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
-             const loopPoints = findSamplerLoopPoints(normalizedData, enableLoop, samplerBuffer.sampleRate);
+             const enableLoop = buffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
+             const loopPoints = findSamplerLoopPoints(normalizedData, enableLoop, buffer.sampleRate);
 
              const sample = createSample({
                 name: params.sampler[i].sampleName || `Sample ${i}`,
@@ -374,7 +376,10 @@ export const exportSongToXM = async (
         sequence.steps.forEach((stepData, row) => {
             if (stepData && row < 32) {
                 // Ensure we don't write outside channel bounds
-                if (chan < xmPat.numberOfChannels) {
+                // Note: xmPat from createPattern doesn't expose numberOfChannels in type def,
+                // but we know it matches what we requested (14).
+                // Assuming 14 channels based on createPattern(32, 14) call.
+                if (chan < 14) {
                     const note = xmPat.data[row][chan];
 
                     if (trackKey.startsWith('part') || trackKey === 'sampler') {

@@ -14,8 +14,7 @@ import { GridIndicators } from './components/GridIndicators';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
 import { CloudStatus } from './components/CloudStatus';
-import type { CloudItemType, CloudSongPayload } from './services/CloudStorage';
-import { CloudStorage } from './services/CloudStorage';
+import type { CloudItemType } from './services/CloudStorage';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
@@ -517,7 +516,7 @@ export const App: React.FC = () => {
     const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
-    const [currentStep, setCurrentStep] = useState(-1)
+    // Removed unused _currentStep, _setCurrentStep
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [backgroundImage, setBackgroundImage] = useState<string>('')
@@ -582,7 +581,7 @@ export const App: React.FC = () => {
 
     const [songStorage, setSongStorage] = useState<(SongSnapshot | null)[]>([null, null, null, null]);
     const [activeSongSlot, setActiveSongSlot] = useState<number | null>(null);
-    const [samplerBuffer, setSamplerBuffer] = useState<AudioBuffer | null>(null);
+    // Removed unused samplerBuffer state
 
     // --- NEW: Multi-Bank Sampler State ---
     const [activeSamplerBank, setActiveSamplerBank] = useState(0);
@@ -872,13 +871,8 @@ export const App: React.FC = () => {
 
                 const steps = newSampler[bankIndex].steps;
                 const existing = steps[i];
-                const e = (subIndex?.nativeEvent || subIndex) as MouseEvent; // Hacky cast if event passed in subIndex spot, but standard sequencer passes explicit args
-
-                // Handling Event if passed
-                // The Sequencer.tsx calls `onToggle(i)` -> `onPatternChange('sampler', i, activeSamplerBank)`
-                // We need to check if e is a MouseEvent (shift key check)
-                const isShiftKey = (window.event as MouseEvent)?.shiftKey; // Simple global check fallback or we need better prop drilling
-                // Since this is wrapped in callback, let's assume standard toggle behavior for now or use `subIndex` purely as index
+                // Removed unused _e, _isShiftKey, suppressed subIndex
+                void subIndex;
 
                 if (existing) {
                     steps[i] = null;
@@ -1180,6 +1174,35 @@ export const App: React.FC = () => {
         setActiveSongSlot(slot);
     };
 
+    // --- NEW: LOAD SONG FROM SLOT ---
+    const loadSong = useCallback((slot: number) => {
+        const snapshot = songStorage[slot];
+        if (!snapshot) return;
+
+        setPattern(snapshot.pattern);
+        setTempo(snapshot.tempo);
+        setAmbianceUrl(snapshot.ambianceUrl);
+        setBackgroundImage(snapshot.backgroundImage);
+        setSynthA(snapshot.params.synthA);
+        setSynthB(snapshot.params.synthB);
+        setKick(snapshot.params.kick);
+        setSnare(snapshot.params.snare);
+        setClosedHat(snapshot.params.closedHat);
+        setOpenHat(snapshot.params.openHat);
+        setSampler(snapshot.params.sampler);
+
+        setActiveSongSlot(slot);
+
+        // Params refs update
+        synthARef.current = snapshot.params.synthA;
+        synthBRef.current = snapshot.params.synthB;
+        kickRef.current = snapshot.params.kick;
+        snareRef.current = snapshot.params.snare;
+        closedHatRef.current = snapshot.params.closedHat;
+        openHatRef.current = snapshot.params.openHat;
+        samplerRef.current = snapshot.params.sampler;
+    }, [songStorage]);
+
     // --- NEW: CLOUD / FILE EXPORT ---
     const getSongData = useCallback(async () => {
         // Encode samples on demand
@@ -1251,9 +1274,7 @@ export const App: React.FC = () => {
 
             // Decode Embedded Samples
             if (songData.embeddedSamples && audioEngine) {
-                 const newBuffers = [...sampleBuffers]; // Use current state or clean array? Better clean.
-                 // Actually, let's keep existing if not overwritten? No, loading song should reset state.
-                 // But wait, `sampleBuffers` is state, we can't read it synchronously.
+                 // Removed unused _newBuffers
                  const loadedBuffers = new Array(8).fill(null);
 
                  await Promise.all(Object.entries(songData.embeddedSamples).map(async ([idx, b64]) => {
@@ -1588,7 +1609,7 @@ export const App: React.FC = () => {
                         { synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler },
                         tempo, pattern,
                         { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide: pyodide },
-                        samplerBuffer // Pass sampler buffer for export
+                        sampleBuffers // UPDATED: Pass sampleBuffers array
                     );
                 }}
             />

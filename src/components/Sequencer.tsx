@@ -102,6 +102,7 @@ const TrackRow: React.FC<{
                         isCurrent={isPlaying && currentStep === i}
                         onClick={() => onToggle(i)}
                         color={color}
+                        aria-label={`${label} step ${i + 1}`}
                     />
                 </div>
             ))}
