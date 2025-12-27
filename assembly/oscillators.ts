@@ -1,4 +1,14 @@
 // assembly/oscillators.ts
+// @mode: assemblyscript
+// @note-for-ai: This is the AssemblyScript implementation of the oscillator DSP.
+// It is compiled to WASM via: npm run build:wasm
+// Output: public/oscillators.wasm
+// Bridge file: src/engines/WasmOscillator.ts
+//
+// Design constraints for WASM modules:
+// - Only use primitive types (f32, i32) and TypedArrays
+// - No JS object dependencies
+// - Direct memory access via store<type>(offset, value)
 
 @inline const PI: f32 = 3.14159265359;
 
@@ -13,83 +23,58 @@ export function generate(
 ): i32 {
   let totalSamples: i32 = i32(sampleRate * duration);
 
-  // --- FILTER COEFFICIENT CALCULATION (BiQuad Lowpass) ---
-  // Ensure cutoff is within Nyquist and positive
+  // --- FILTER SETUP (Same as before) ---
   let safeCutoff: f32 = max(20.0, min(cutoff, sampleRate / 2.1));
   let safeRes: f32 = max(0.1, resonance);
-
   let w0: f32 = 2.0 * PI * safeCutoff / sampleRate;
   let cosW0: f32 = f32(Math.cos(f64(w0)));
   let sinW0: f32 = f32(Math.sin(f64(w0)));
   let alpha: f32 = sinW0 / (2.0 * safeRes);
 
-  // Coefficients
-  let b0: f32 = (1.0 - cosW0) / 2.0;
-  let b1: f32 = 1.0 - cosW0;
-  let b2: f32 = (1.0 - cosW0) / 2.0;
   let a0: f32 = 1.0 + alpha;
-  let a1: f32 = -2.0 * cosW0;
-  let a2: f32 = 1.0 - alpha;
-
-  // Normalize by a0
   let invA0: f32 = 1.0 / a0;
-  b0 *= invA0;
-  b1 *= invA0;
-  b2 *= invA0;
-  a1 *= invA0;
-  a2 *= invA0;
+  let b0: f32 = ((1.0 - cosW0) / 2.0) * invA0;
+  let b1: f32 = (1.0 - cosW0) * invA0;
+  let b2: f32 = ((1.0 - cosW0) / 2.0) * invA0;
+  let a1: f32 = (-2.0 * cosW0) * invA0;
+  let a2: f32 = (1.0 - alpha) * invA0;
 
-  // Filter State History
-  let x1: f32 = 0.0;
-  let x2: f32 = 0.0;
-  let y1: f32 = 0.0;
-  let y2: f32 = 0.0;
+  // Filter State
+  let x1: f32 = 0.0, x2: f32 = 0.0, y1: f32 = 0.0, y2: f32 = 0.0;
 
+  // Oscillator State
   let phase: f32 = 0.0;
   let phaseIncr: f32 = freq / sampleRate;
 
   for (let i = 0; i < totalSamples; i++) {
     let rawSample: f32 = 0.0;
+    let p: f64 = f64(phase);
 
-    // 1. Generate Raw Oscillator Sample
-    if (type == 0) { // Saw
-      // 2 * (p - floor(p + 0.5))
-      // Use simple modulo logic for robustness
-      // p % 1.0
-      let p: f64 = f64(phase);
-      let saw: f64 = 2.0 * (p - Math.floor(p + 0.5));
-      rawSample = f32(saw);
+    if (type == 0) { // Sawtooth (Standard: -1 to 1)
+      // 2 * p - 1
+      rawSample = f32(2.0 * p - 1.0);
     } else if (type == 1) { // Square
-       let p: f64 = f64(phase);
-       // p - floor(p) gives 0..1
-       let cycle: f64 = p - Math.floor(p);
-       rawSample = cycle >= 0.5 ? -1.0 : 1.0;
+      // 1 if < 0.5, else -1
+      rawSample = phase < 0.5 ? 1.0 : -1.0;
     } else if (type == 2) { // Triangle
-       let p: f64 = f64(phase);
-       // 2 * abs(2 * (p - floor(p + 0.5))) - 1
-       let saw: f64 = 2.0 * (p - Math.floor(p + 0.5));
-       rawSample = f32(2.0 * Math.abs(saw) - 1.0);
-    } else { // Sine (Default)
-      rawSample = f32(Math.sin(2.0 * Math.PI * f64(phase)));
+      // Map 0..1 -> -1..1..-1
+      // 1 - 4 * abs(p - 0.5)
+      rawSample = f32(1.0 - 4.0 * Math.abs(p - 0.5));
+    } else { // Sine
+      rawSample = f32(Math.sin(2.0 * Math.PI * p));
     }
 
-    // 2. Apply Biquad Filter
-    let filteredSample: f32 = (b0 * rawSample)
-                            + (b1 * x1)
-                            + (b2 * x2)
-                            - (a1 * y1)
-                            - (a2 * y2);
+    // Apply Filter
+    let filtered: f32 = (b0 * rawSample) + (b1 * x1) + (b2 * x2) - (a1 * y1) - (a2 * y2);
 
-    // 3. Shift History
-    x2 = x1;
-    x1 = rawSample;
-    y2 = y1;
-    y1 = filteredSample;
+    x2 = x1; x1 = rawSample;
+    y2 = y1; y1 = filtered;
 
-    // 4. Write to Memory
-    store<f32>(offset + (i * 4), filteredSample);
+    store<f32>(offset + (i * 4), filtered);
 
+    // --- PHASE WRAPPING FIX ---
     phase += phaseIncr;
+    if (phase >= 1.0) phase -= 1.0;
   }
 
   return totalSamples;

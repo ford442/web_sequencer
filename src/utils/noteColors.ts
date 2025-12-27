@@ -1,3 +1,6 @@
+// @mode: typescript
+// @note-for-ai: UI utility for note color mapping - not a migration candidate.
+// Called infrequently, UI-only, no performance bottleneck.
 
 // Base hues for the 12 chromatic notes (0-360 degrees)
 // C = Red (0), G = Blue (240), etc. - Standard-ish association or custom cycle

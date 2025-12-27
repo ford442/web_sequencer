@@ -1,3 +1,10 @@
+// @mode: bridge
+// @note-for-ai: This is the TypeScript bridge to the AssemblyScript WASM module.
+// The heavy DSP logic is in assembly/oscillators.ts. This file handles:
+// - WASM loading and initialization
+// - Memory management (copying data out of WASM memory)
+// - Error handling and fallback paths
+
 export class WasmOscillator {
     private instance: WebAssembly.Instance | null = null;
     private memory: WebAssembly.Memory | null = null;
@@ -5,12 +12,21 @@ export class WasmOscillator {
 
     async init() {
         try {
+            // Load the WASM
             const response = await fetch('./oscillators.wasm');
             const bytes = await response.arrayBuffer();
-            const memory = new WebAssembly.Memory({ initial: 100 });
-            const module = await WebAssembly.instantiate(bytes, { env: { memory } });
+
+            // Instantiate (Let WASM create its own memory)
+            const module = await WebAssembly.instantiate(bytes, {
+                env: {
+                    abort: () => console.error("Wasm Abort")
+                }
+            });
+
             this.instance = module.instance;
-            this.memory = memory;
+            // Grab the exported memory
+            this.memory = this.instance.exports.memory as WebAssembly.Memory;
+
             this.isReady = true;
             console.log("Wasm Engine Ready");
         } catch (e) { console.error("Wasm Init Failed", e); }
@@ -21,19 +37,24 @@ export class WasmOscillator {
         dur: number,
         rate: number,
         type: 'saw' | 'sqr' | 'tri' | 'sin',
-        cutoff: number,   // <--- New Arg
-        resonance: number // <--- New Arg
+        cutoff: number,
+        resonance: number
     ): Float32Array | null {
-        if (!this.isReady || !this.instance) return null;
+        if (!this.isReady || !this.instance || !this.memory) return null;
+
         const exports = this.instance.exports as any;
         const typeMap = { saw: 0, sqr: 1, tri: 2, sin: 3 };
 
-        // Ensure reasonable filter values to prevent explosion
-        // Standard biquads can be unstable if cutoff is too high/low or Q is zero
+        // Constraints
         const safeCutoff = Math.max(20, Math.min(rate / 2.1, cutoff));
         const safeRes = Math.max(0.1, resonance);
 
+        // Generate
+        // We use offset 0 in the shared memory
         const numSamples = exports.generate(0, rate, freq, dur, typeMap[type], safeCutoff, safeRes);
-        return new Float32Array(this.memory!.buffer, 0, numSamples); // Returns view of memory
+
+        // Copy the data out safely using slice()
+        // If we don't slice, the view changes when the next note is generated!
+        return new Float32Array(this.memory.buffer).slice(0, numSamples);
     }
 }

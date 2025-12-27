@@ -13,6 +13,23 @@ interface CloudLibraryProps {
     getPatternData: () => any;
 }
 
+const SkeletonRow = () => (
+    <div className="bg-gray-800/20 border border-gray-800 rounded-lg p-3 flex justify-between items-center animate-pulse" aria-hidden="true">
+        <div className="w-full">
+            <div className="flex items-center gap-2 mb-2">
+                <div className="w-10 h-4 bg-gray-700 rounded" />
+                <div className="w-32 h-4 bg-gray-700 rounded" />
+            </div>
+            <div className="flex gap-2 mb-1">
+                <div className="w-24 h-3 bg-gray-700/50 rounded" />
+                <div className="w-16 h-3 bg-gray-700/50 rounded" />
+            </div>
+            <div className="w-48 h-3 bg-gray-700/30 rounded" />
+        </div>
+        <div className="w-16 h-8 bg-gray-700/50 rounded" />
+    </div>
+);
+
 export const CloudLibrary: React.FC<CloudLibraryProps> = ({ 
     isOpen, onClose, onLoadData, getSongData, getBankData, getPatternData 
 }) => {
@@ -24,7 +41,8 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
     // Upload Form State
     const [uploadForm, setUploadForm] = useState({ name: '', author: '', description: '' });
     const [uploadType, setUploadType] = useState<CloudItemType>('song');
-    const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+    const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'retrying' | 'success' | 'error'>('idle');
+    const [errorMessage, setErrorMessage] = useState<string>("");
 
     useEffect(() => {
         if (isOpen && activeTab === 'browse') {
@@ -34,17 +52,72 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
     const loadLibrary = async () => {
         setIsLoading(true);
-        const list = await CloudStorage.getSongs();
+        const list = await CloudStorage.getSongs(filterType === 'all' ? undefined : (filterType as any));
         setSongs(list);
         setIsLoading(false);
+    };
+
+    const performUpload = async (retryCount = 0): Promise<void> => {
+        try {
+            let dataToUpload: any;
+            if (uploadType === 'song') dataToUpload = getSongData();
+            else if (uploadType === 'bank') dataToUpload = getBankData();
+            else if (uploadType === 'pattern') dataToUpload = getPatternData();
+
+            const result = await CloudStorage.uploadItem({
+                name: uploadForm.name || 'Untitled',
+                author: uploadForm.author || 'Anonymous',
+                description: uploadForm.description,
+                type: uploadType,
+                data: dataToUpload
+            });
+            console.debug('CloudLibrary: upload result', result);
+
+            if (result.success) {
+                setUploadStatus('success');
+                setTimeout(() => {
+                    setUploadStatus('idle');
+                    setActiveTab('browse');
+                    loadLibrary();
+                }, 1500);
+            } else {
+                // Retry Logic
+                if (retryCount < 1) {
+                    setUploadStatus('retrying');
+                    setTimeout(() => performUpload(retryCount + 1), 1500);
+                } else {
+                    setUploadStatus('error');
+                    setErrorMessage(result.error || "Unknown Error");
+                }
+            }
+        } catch (err: any) {
+            console.error('CloudLibrary: upload failed', err);
+            if (retryCount < 1) {
+                setUploadStatus('retrying');
+                setTimeout(() => performUpload(retryCount + 1), 1500);
+            } else {
+                setUploadStatus('error');
+                setErrorMessage(err.message || "Network Error");
+            }
+        }
+    };
+
+    const handleUpload = async (e: React.FormEvent) => {
+        e.preventDefault();
+        console.debug('CloudLibrary: starting upload', uploadType);
+        setUploadStatus('uploading');
+        setErrorMessage("");
+        await performUpload(0);
     };
 
     const handleLoadClick = async (item: CloudSongMeta) => {
         setIsLoading(true);
         try {
-            const data = await CloudStorage.getSongData(item.id);
+            const res = await CloudStorage.getSongData(item.id, item.type);
+            // Some backends wrap the payload under a `data` key; prefer inner payload if present
+            const payload = (res && typeof res === 'object' && 'data' in res) ? (res as any).data : res;
             // Pass both data and type so App.tsx knows how to handle it
-            onLoadData(data, item.type);
+            onLoadData(payload, item.type);
             onClose();
         } catch (e) {
             alert("Failed to load data");
@@ -98,9 +171,32 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                             </div>
 
                             {isLoading ? (
-                                <div className="text-center py-10 text-gray-500 font-mono animate-pulse">Loading from Cloud...</div>
+                                <div role="status" className="space-y-3">
+                                    <span className="sr-only">Loading songs from cloud...</span>
+                                    {[1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
+                                </div>
                             ) : songs.length === 0 ? (
-                                <div className="text-center py-10 text-gray-600 font-mono">No songs found. Be the first to upload!</div>
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4 text-gray-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-gray-300 font-bold mb-2">No items found</h3>
+                                    <p className="text-gray-500 text-xs mb-6 max-w-[200px]">
+                                        The library is empty. Be the first to share your creation with the world!
+                                    </p>
+                                    <button
+                                        onClick={() => setActiveTab('upload')}
+                                        className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 group"
+                                        aria-label="Upload your first creation"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform group-hover:-translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                        Share Your Creation
+                                    </button>
+                                </div>
                             ) : (
                                 <div className="grid gap-3">
                                     {filteredSongs.map(item => (
@@ -161,8 +257,9 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-mono mb-1">Name</label>
+                                    <label htmlFor="cloud-upload-name" className="block text-xs text-gray-400 font-mono mb-1">Name</label>
                                     <input
+                                        id="cloud-upload-name"
                                         type="text"
                                         required
                                         maxLength={40}
@@ -173,8 +270,9 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-mono mb-1">Author / Artist</label>
+                                    <label htmlFor="cloud-upload-author" className="block text-xs text-gray-400 font-mono mb-1">Author / Artist</label>
                                     <input
+                                        id="cloud-upload-author"
                                         type="text"
                                         required
                                         maxLength={20}
@@ -185,8 +283,9 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-mono mb-1">Description (Optional)</label>
+                                    <label htmlFor="cloud-upload-desc" className="block text-xs text-gray-400 font-mono mb-1">Description (Optional)</label>
                                     <textarea
+                                        id="cloud-upload-desc"
                                         maxLength={100}
                                         value={uploadForm.description}
                                         onChange={e => setUploadForm({...uploadForm, description: e.target.value})}
@@ -195,21 +294,28 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     />
                                 </div>
 
-                                <div className="pt-4">
+                                <div className="pt-4" aria-live="polite">
                                     <button
                                         type="submit"
-                                        disabled={uploadStatus === 'uploading' || uploadStatus === 'success'}
+                                        disabled={uploadStatus === 'uploading' || uploadStatus === 'retrying' || uploadStatus === 'success'}
                                         className={`w-full py-3 rounded font-orbitron font-bold text-sm tracking-widest transition-all
                                             ${uploadStatus === 'success' ? 'bg-green-600 text-white' :
                                               uploadStatus === 'error' ? 'bg-red-600 text-white' :
+                                              uploadStatus === 'retrying' ? 'bg-yellow-600 text-white animate-pulse' :
                                               'bg-pink-700 text-white hover:bg-pink-600 border border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.3)]'}
                                         `}
                                     >
                                         {uploadStatus === 'uploading' ? 'UPLOADING...' : 
+                                         uploadStatus === 'retrying' ? 'RETRYING...' :
                                          uploadStatus === 'success' ? 'UPLOAD COMPLETE!' : 
-                                         uploadStatus === 'error' ? 'FAILED - TRY AGAIN' : 
+                                         uploadStatus === 'error' ? 'FAILED - RETRY?' :
                                          `UPLOAD ${uploadType.toUpperCase()}`}
                                     </button>
+                                    {uploadStatus === 'error' && errorMessage && (
+                                        <div className="text-center mt-2 text-red-400 text-xs font-mono bg-red-900/20 p-2 rounded border border-red-900">
+                                            ERROR: {errorMessage}
+                                        </div>
+                                    )}
                                 </div>
                             </form>
                         </div>
