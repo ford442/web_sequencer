@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, memo, useMemo } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, memo, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -338,27 +338,17 @@ const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: 
     );
 });
 
+export interface SequencerRowHandle {
+    setHighlight: (step: number) => void;
+}
+
 // UPDATED SEQUENCER ROW: Adds Grid Markers (Beats/Bars)
 // PERFORMANCE: Uses ref-based class toggling to avoid re-rendering children on step changes
-const SequencerRow = memo(({
-    rowKey,
-    label,
-    rowIndex,
-    steps,
-    currentStep,
-    isSelected,
-    activeSlot,
-    trackSlots,
-    onToggle,
-    onRightMouseDown,
-    onSelectRow,
-    onSelectSlot
-}: {
+const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     rowKey: TrackKey,
     label: string,
     rowIndex: number,
     steps: (any | null)[],
-    currentStep: number,
     isSelected: boolean,
     activeSlot: number,
     trackSlots: (PartSequence | PartSequence[] | null)[],
@@ -366,21 +356,48 @@ const SequencerRow = memo(({
     onRightMouseDown: (k: TrackKey, i: number, e: any) => void,
     onSelectRow: (k: any) => void,
     onSelectSlot: (k: TrackKey, slot: number) => void
-}) => {
+}>((props, ref) => {
+    const {
+        rowKey,
+        label,
+        rowIndex,
+        steps,
+        isSelected,
+        activeSlot,
+        trackSlots,
+        onToggle,
+        onRightMouseDown,
+        onSelectRow,
+        onSelectSlot
+    } = props;
 
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
+    const lastStepRef = useRef(-1);
 
-    // Use useLayoutEffect to update classes synchronously before paint
-    useLayoutEffect(() => {
+    const updateClasses = useCallback((step: number) => {
         stepRefs.current.forEach((el, i) => {
             if (!el) return;
             const length = steps[i]?.length || 1;
-            const isCurrent = currentStep >= i && currentStep < (i + length);
+            const isCurrent = step >= i && step < (i + length);
 
             if (isCurrent) el.classList.add('is-current');
             else el.classList.remove('is-current');
         });
-    }, [currentStep, steps]);
+    }, [steps]);
+
+    useImperativeHandle(ref, () => ({
+        setHighlight: (step: number) => {
+            lastStepRef.current = step;
+            updateClasses(step);
+        }
+    }));
+
+    // Re-apply highlight if steps change while paused or playing
+    useLayoutEffect(() => {
+        if (lastStepRef.current !== -1) {
+            updateClasses(lastStepRef.current);
+        }
+    }, [updateClasses]);
 
     // 1. Render Steps (Handling Morphed/Tied Notes)
     const renderedSteps = [];
@@ -466,7 +483,7 @@ const SequencerRow = memo(({
             {renderedSteps}
         </g>
     )
-})
+}))
 
 const ROWS = [
     { key: 'partA', label: 'Lead' },
@@ -786,10 +803,21 @@ export const App: React.FC = () => {
     const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
-    useEffect(() => setCurrentStep(schedStep), [schedStep])
 
-    const currentStepRef = useRef(currentStep);
-    useEffect(() => { currentStepRef.current = currentStep; }, [currentStep]);
+    // PERFORMANCE: Use Ref-based updates instead of State to prevent full App re-render every step
+    const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
+
+    // We still keep currentStepRef for logic that needs to read it (like Keyboard)
+    const currentStepRef = useRef(schedStep);
+
+    useEffect(() => {
+        currentStepRef.current = schedStep;
+
+        // Imperative Update of Grid
+        rowRefs.current.forEach(r => r?.setHighlight(schedStep));
+
+        // We do NOT call setCurrentStep(schedStep) here anymore!
+    }, [schedStep])
 
     useEffect(() => {
         if (!schedPlaying) {
@@ -1600,11 +1628,11 @@ export const App: React.FC = () => {
                             {ROWS.map((row, rIdx) => (
                                 <SequencerRow
                                     key={row.key}
+                                    ref={(el) => { rowRefs.current[rIdx] = el; }}
                                     rowKey={row.key}
                                     label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label}
                                     rowIndex={rIdx}
                                     steps={!isPyodideReady ? getLoadingStepData(rIdx) : (row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
-                                    currentStep={currentStep}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
