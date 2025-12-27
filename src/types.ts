@@ -108,6 +108,9 @@ export interface AudioEngine {
   setAmbianceVolume: (volume: number) => void;
   setMasterVolume: (volume: number) => void;
   setGlobalPan: (pan: number) => void;
+  detectSamplePitch?: (buffer: AudioBuffer) => Promise<any>;
+  processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
+  processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
 }
 
 // Automation recording types
