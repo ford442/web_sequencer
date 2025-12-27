@@ -172,4 +172,50 @@ describe('SamplerPanel TTS per-bank functionality', () => {
     expect(buttons[0]).toHaveAttribute('aria-selected', 'false');
     expect(buttons[3]).toHaveAttribute('aria-selected', 'true');
   });
+
+  it('handles invalid bank indices gracefully', () => {
+    const onTtsPhraseChange = vi.fn();
+    const { rerender } = render(
+      <SamplerPanel
+        {...defaultProps}
+        activeBankIdx={10}  // Out of range
+        onTtsPhraseChange={onTtsPhraseChange}
+      />
+    );
+
+    const input = screen.getByPlaceholderText('Phrase...') as HTMLInputElement;
+    
+    // Should show default text
+    expect(input.value).toBe("Hello World");
+    
+    // Try to change text with invalid index
+    fireEvent.change(input, { target: { value: 'Invalid bank text' } });
+    
+    // Should not call onTtsPhraseChange due to bounds check
+    expect(onTtsPhraseChange).not.toHaveBeenCalled();
+  });
+
+  it('handles missing or incomplete ttsPhrases array', () => {
+    const { rerender } = render(
+      <SamplerPanel
+        {...defaultProps}
+        ttsPhrases={[]}  // Empty array
+        activeBankIdx={0}
+      />
+    );
+
+    const input = screen.getByPlaceholderText('Phrase...') as HTMLInputElement;
+    expect(input.value).toBe("Hello World");
+
+    // Test with array that's too short
+    rerender(
+      <SamplerPanel
+        {...defaultProps}
+        ttsPhrases={["Bank 0", "Bank 1"]}  // Only 2 elements
+        activeBankIdx={3}  // Index beyond array length
+      />
+    );
+
+    expect(input.value).toBe("Hello World");
+  });
 });
