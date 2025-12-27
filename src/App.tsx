@@ -587,6 +587,8 @@ export const App: React.FC = () => {
     const [activeSamplerBank, setActiveSamplerBank] = useState(0);
     // Stores the raw audio buffers for all 8 banks so we can save them later
     const [sampleBuffers, setSampleBuffers] = useState<(AudioBuffer | null)[]>(new Array(8).fill(null));
+    // TTS text phrases for each bank
+    const [ttsPhrases, setTtsPhrases] = useState<string[]>(Array(8).fill("Hello World"));
 
     // --- INSTRUMENT STATE ---
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
@@ -1225,9 +1227,10 @@ export const App: React.FC = () => {
             trackStorage,
             activeTrackSlots,
             songStructure,
-            embeddedSamples: encodedSamples
+            embeddedSamples: encodedSamples,
+            ttsPhrases
         } as SavedSongData;
-    }, [pattern, tempo, ambianceUrl, backgroundImage, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure, sampleBuffers]);
+    }, [pattern, tempo, ambianceUrl, backgroundImage, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure, sampleBuffers, ttsPhrases]);
 
     // --- DATA EXTRACTORS FOR CLOUD ---
     // 2. Pattern Bank (Just the storage)
@@ -1271,6 +1274,14 @@ export const App: React.FC = () => {
             if (songData.trackStorage) setTrackStorage(songData.trackStorage);
             if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots);
             if (songData.songStructure) setSongStructure(songData.songStructure);
+            
+            // Load TTS phrases if available, otherwise use default
+            if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) {
+                setTtsPhrases(songData.ttsPhrases);
+            } else {
+                // Initialize with default if not present in saved data
+                setTtsPhrases(Array(8).fill("Hello World"));
+            }
 
             // Decode Embedded Samples
             if (songData.embeddedSamples && audioEngine) {
@@ -1433,9 +1444,11 @@ export const App: React.FC = () => {
                 activeBankIdx={activeSamplerBank}
                 onBankChange={setActiveSamplerBank}
                 onOpenEditor={() => setIsVoiceEditorOpen(true)}
+                ttsPhrases={ttsPhrases}
+                onTtsPhraseChange={setTtsPhrases}
             />
         </div>
-    ), [sampler, updateSampler, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample]);
+    ), [sampler, updateSampler, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases]);
 
     const renderModulePanel = () => {
         if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange}>{synthAChild}</HardwareModule>;
