@@ -2,15 +2,52 @@
  * Track Freezer Utility
  * Renders complex synth/drum patterns to simple audio buffers for CPU savings
  */
-// @mode: typescript
+// @mode: bridge
 // @migrate-target: assemblyscript
 // @perf-bottleneck: Loop analysis in findLoopPoints scans entire buffer
 // @future-plan: Move findLoopPoints and audioBufferToMono to WASM for large buffer processing
-// @note-for-ai: Consider assembly/trackFreezer.ts with:
-// - findLoopPoints(buffer: Float32Array, minLoopLength: i32): {start: i32, end: i32}
-// - audioBufferToMono(buffer: Float32Array, numChannels: i32): Float32Array
 
 import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '../types';
+
+// WASM Module Loader
+interface WasmExports {
+    memory: WebAssembly.Memory;
+    findLoopPoints: (bufferPtr: number, length: number, minLoopLength: number) => bigint;
+    mixToMono: (leftPtr: number, rightPtr: number, outputPtr: number, length: number) => void;
+    __new: (size: number, classId: number) => number;
+    __pin: (ptr: number) => number;
+    __unpin: (ptr: number) => void;
+    __collect: () => void;
+}
+
+let wasmInstance: WasmExports | null = null;
+
+// Allow external injection for testing
+export const setWasmInstance = (instance: WasmExports) => {
+    wasmInstance = instance;
+};
+
+const loadWasm = async () => {
+    if (wasmInstance) return;
+    try {
+        const response = await fetch('/trackFreezer.wasm');
+        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+        const bytes = await response.arrayBuffer();
+        const { instance } = await WebAssembly.instantiate(bytes, {
+            env: {
+                abort: () => console.error("WASM Abort")
+            }
+        });
+        wasmInstance = instance.exports as unknown as WasmExports;
+    } catch (e) {
+        console.warn("Failed to load trackFreezer.wasm, using JS fallback", e);
+    }
+};
+
+// Initialize WASM in background
+if (typeof window !== 'undefined') {
+    loadWasm();
+}
 
 export interface FreezeOptions {
     bpm: number;
@@ -21,6 +58,7 @@ export interface FreezeOptions {
  * Freezes a synth track using Python's offline rendering
  */
 export const freezeSynthTrack = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pyodide: any,
     sequence: PartSequence,
     params: SynthParams,
@@ -61,6 +99,7 @@ export const freezeSynthTrack = async (
  * Freezes a drum track using Python's offline rendering
  */
 export const freezeDrumTrack = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pyodide: any,
     sequence: PartSequence,
     params: KickParams | SnareParams | HatParams,
@@ -130,7 +169,52 @@ export const audioBufferToMono = (buffer: AudioBuffer): Float32Array => {
         return buffer.getChannelData(0);
     }
 
-    // Mix down to mono
+    // Attempt WASM optimization (Only supports standard Stereo -> Mono mix)
+    if (wasmInstance && buffer.numberOfChannels === 2) {
+        let leftPtr = 0;
+        let rightPtr = 0;
+        let outPtr = 0;
+
+        try {
+            const length = buffer.length;
+            const leftData = buffer.getChannelData(0);
+            const rightData = buffer.getChannelData(1);
+
+            // Allocate and Pin to prevent GC during subsequent allocations
+            leftPtr = wasmInstance.__new(length * 4, 0);
+            wasmInstance.__pin(leftPtr);
+
+            rightPtr = wasmInstance.__new(length * 4, 0);
+            wasmInstance.__pin(rightPtr);
+
+            outPtr = wasmInstance.__new(length * 4, 0);
+            wasmInstance.__pin(outPtr);
+
+            // Copy data to WASM
+            const wasmMemoryBuffer = wasmInstance.memory.buffer;
+            new Float32Array(wasmMemoryBuffer, leftPtr, length).set(leftData);
+            new Float32Array(wasmMemoryBuffer, rightPtr, length).set(rightData);
+
+            // Exec
+            wasmInstance.mixToMono(leftPtr, rightPtr, outPtr, length);
+
+            // Copy back
+            const result = new Float32Array(length);
+            result.set(new Float32Array(wasmMemoryBuffer, outPtr, length));
+
+            return result;
+        } catch (e) {
+            console.warn("WASM audioBufferToMono failed, falling back to JS", e);
+            // Fallthrough to JS
+        } finally {
+            // Clean up memory
+            if (leftPtr) wasmInstance.__unpin(leftPtr);
+            if (rightPtr) wasmInstance.__unpin(rightPtr);
+            if (outPtr) wasmInstance.__unpin(outPtr);
+        }
+    }
+
+    // Mix down to mono (JS Fallback)
     const mono = new Float32Array(buffer.length);
     const numChannels = buffer.numberOfChannels;
 
@@ -152,6 +236,36 @@ export const findLoopPoints = (
     buffer: Float32Array,
     minLoopLength: number = 4410 // ~100ms at 44.1kHz
 ): { start: number, end: number } => {
+    // Attempt WASM optimization
+    if (wasmInstance) {
+        let bufferPtr = 0;
+        try {
+            const length = buffer.length;
+
+            // Allocate & Pin
+            bufferPtr = wasmInstance.__new(length * 4, 0);
+            wasmInstance.__pin(bufferPtr);
+
+            // Copy
+            new Float32Array(wasmInstance.memory.buffer, bufferPtr, length).set(buffer);
+
+            // Exec
+            const packedResult = wasmInstance.findLoopPoints(bufferPtr, length, minLoopLength);
+
+            // Unpack u64
+            const start = Number((packedResult >> 32n) & 0xFFFFFFFFn);
+            const end = Number(packedResult & 0xFFFFFFFFn);
+
+            return { start, end };
+        } catch (e) {
+            console.warn("WASM findLoopPoints failed, falling back to JS", e);
+        } finally {
+            // Clean up
+            if (bufferPtr) wasmInstance.__unpin(bufferPtr);
+        }
+    }
+
+    /* --- OLD LOGIC (PRESERVED / ACTIVE FALLBACK) --- */
     const length = buffer.length;
 
     // Find a zero-crossing near the start (after ~10ms to avoid attack transient)
