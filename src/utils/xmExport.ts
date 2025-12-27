@@ -187,38 +187,42 @@ const findSamplerLoopPoints = (buffer: Float32Array, loopEnabled: boolean, sampl
 
 export const exportSongToXM = async (
     songStructure: { [key in TrackKey]: number | null }[],
-    trackStorage: Record<TrackKey, (PartSequence | null)[]>,
+    trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
     params: {
         synthA: SynthParams, synthB: SynthParams, kick: KickParams, snare: SnareParams, closedHat: HatParams, openHat: HatParams, sampler: SamplerParams
     },
     tempo: number,
     currentPattern?: Pattern,
     engines?: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         webGpuEngine?: any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         wasmEngine?: any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pyodide?: any
     },
-    samplerBuffer?: AudioBuffer | null // NEW: Accept sampler buffer for export
+    samplerBuffer?: AudioBuffer | null
 ) => {
     console.log("Starting XM Export with engines:", engines);
 
     // 1. Create Module
     const mod = createModule({
         moduleName: 'Hyphon Export',
-        numberOfChannels: 8, // 2 synths + 4 drums + 1 sampler + 1 reserved
+        numberOfChannels: 14,
         defaultTempo: 6,
         defaultBPM: tempo
     });
 
     // 2. Render and Add Instruments
-    // Mapping: 1=SynthA, 2=SynthB, 3=Kick, 4=Snare, 5=CH, 6=OH, 7=Sampler
+    // Mapping:
+    // 1=SynthA, 2=SynthB, 3=Kick, 4=Snare, 5=CH, 6=OH
+    // 7-14 = Sampler Banks 0-7
 
-    // Synth A - with auto-loop detection for sustain (Task 3)
-    // Adaptive render duration based on attack+decay time
+    // Synth A
     const synthADuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthA.attack + params.synthA.decay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufA = await renderSynthToBuffer(params.synthA, 'C4', synthADuration, engines);
     const rawDataA = bufA.getChannelData(0);
-    const normalizedDataA = normalizeBuffer(rawDataA); // Normalize for consistent volume
+    const normalizedDataA = normalizeBuffer(rawDataA);
     const loopPointsA = findSynthLoopPoints(normalizedDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay);
 
     const sampleA = createSample({
@@ -230,19 +234,16 @@ export const exportSongToXM = async (
         loopLength: loopPointsA.loopEnd > loopPointsA.loopStart ? loopPointsA.loopEnd - loopPointsA.loopStart : 0,
         relativeNoteNumber: 12
     });
-
     const instA = createInstrument('Lead Synth');
     addSampleToInstrument(instA, sampleA);
     mod.instruments.push(instA);
 
-    // Synth B - with auto-loop detection for sustain (Task 3)
-    // Adaptive render duration based on attack+decay time
+    // Synth B
     const synthBDuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthB.attack + params.synthB.decay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufB = await renderSynthToBuffer(params.synthB, 'C4', synthBDuration, engines);
     const rawDataB = bufB.getChannelData(0);
     const normalizedDataB = normalizeBuffer(rawDataB);
     const loopPointsB = findSynthLoopPoints(normalizedDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay);
-
     const sampleB = createSample({
         name: 'Bass',
         data: floatTo16BitPCM(normalizedDataB),
@@ -252,12 +253,11 @@ export const exportSongToXM = async (
         loopLength: loopPointsB.loopEnd > loopPointsB.loopStart ? loopPointsB.loopEnd - loopPointsB.loopStart : 0,
         relativeNoteNumber: 12
     });
-
     const instB = createInstrument('Bass Synth');
     addSampleToInstrument(instB, sampleB);
     mod.instruments.push(instB);
 
-    // Kick - with normalization for consistent volume (Task 4)
+    // Kick
     const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide);
     const normalizedKick = normalizeBuffer(bufKick.getChannelData(0));
     const sampleKick = createSample({
@@ -270,7 +270,7 @@ export const exportSongToXM = async (
     addSampleToInstrument(instKick, sampleKick);
     mod.instruments.push(instKick);
 
-    // Snare - with normalization for consistent volume (Task 4)
+    // Snare
     const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide);
     const normalizedSnare = normalizeBuffer(bufSnare.getChannelData(0));
     const sampleSnare = createSample({
@@ -283,7 +283,7 @@ export const exportSongToXM = async (
     addSampleToInstrument(instSnare, sampleSnare);
     mod.instruments.push(instSnare);
 
-    // CH - with normalization for consistent volume (Task 4)
+    // CH
     const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide);
     const normalizedCH = normalizeBuffer(bufCH.getChannelData(0));
     const sampleCH = createSample({
@@ -296,7 +296,7 @@ export const exportSongToXM = async (
     addSampleToInstrument(instCH, sampleCH);
     mod.instruments.push(instCH);
 
-    // OH - with normalization for consistent volume (Task 4)
+    // OH
     const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
     const normalizedOH = normalizeBuffer(bufOH.getChannelData(0));
     const sampleOH = createSample({
@@ -309,58 +309,34 @@ export const exportSongToXM = async (
     addSampleToInstrument(instOH, sampleOH);
     mod.instruments.push(instOH);
 
-    // --- SAMPLER INSTRUMENT (Index 7) ---
-    // With normalization (Task 4) and loop point detection (Task 2)
-    const instSamp = createInstrument('Sampler');
+    // --- SAMPLER BANKS (Indices 7-14) ---
+    for (let i = 0; i < 8; i++) {
+        const instName = `Sampler Bank ${i+1}`;
+        const inst = createInstrument(instName);
 
-    if (samplerBuffer) {
-        console.log("XM Export: Sampler buffer received:", {
-            length: samplerBuffer.length,
-            sampleRate: samplerBuffer.sampleRate,
-            channels: samplerBuffer.numberOfChannels,
-            duration: (samplerBuffer.length / samplerBuffer.sampleRate).toFixed(2) + 's'
-        });
+        if (i === 0 && samplerBuffer) {
+             const pitchShift = Math.round(Math.log2(params.sampler[i].playbackSpeed) * 12);
+             const rawData = samplerBuffer.getChannelData(0);
+             const normalizedData = normalizeBuffer(rawData, -1);
+             const enableLoop = samplerBuffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
+             const loopPoints = findSamplerLoopPoints(normalizedData, enableLoop, samplerBuffer.sampleRate);
 
-        // Calculate relative note number based on playback speed
-        // 1.0 = 0 shift, 2.0 = +12 semitones, 0.5 = -12 semitones
-        const pitchShift = Math.round(Math.log2(params.sampler.playbackSpeed) * 12);
-
-        // Normalize sampler buffer for consistent volume (Task 4)
-        const rawSamplerData = samplerBuffer.getChannelData(0);
-        const normalizedSamplerData = normalizeBuffer(rawSamplerData, -1);
-
-        // Determine if looping should be enabled for the sampler
-        // Enable looping for samples longer than threshold (likely musical content)
-        // Disable for shorter samples (likely one-shots or speech)
-        const enableLoop = samplerBuffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
-        const samplerLoopPoints = findSamplerLoopPoints(normalizedSamplerData, enableLoop, samplerBuffer.sampleRate);
-
-        const sampleSamp = createSample({
-            name: params.sampler.sampleName || 'Sample',
-            data: floatTo16BitPCM(normalizedSamplerData),
-            volume: Math.min(64, Math.floor(params.sampler.volume * 64)),
-            relativeNoteNumber: 24 + pitchShift, // Base note + speed as pitch offset
-            loopType: samplerLoopPoints.loopType,
-            loopStart: samplerLoopPoints.loopStart,
-            loopLength: samplerLoopPoints.loopEnd > samplerLoopPoints.loopStart
-                ? samplerLoopPoints.loopEnd - samplerLoopPoints.loopStart : 0,
-        });
-
-        addSampleToInstrument(instSamp, sampleSamp);
-        console.log("✓ Sampler buffer exported:", samplerBuffer.length, "samples →", sampleSamp.data.length, "bytes");
-        if (samplerLoopPoints.loopType !== LoopType.None) {
-            console.log("  Loop points set:", samplerLoopPoints.loopStart, "→", samplerLoopPoints.loopEnd);
+             const sample = createSample({
+                name: params.sampler[i].sampleName || `Sample ${i}`,
+                data: floatTo16BitPCM(normalizedData),
+                volume: Math.min(64, Math.floor(params.sampler[i].volume * 64)),
+                relativeNoteNumber: 24 + pitchShift,
+                loopType: loopPoints.loopType,
+                loopStart: loopPoints.loopStart,
+                loopLength: loopPoints.loopEnd > loopPoints.loopStart ? loopPoints.loopEnd - loopPoints.loopStart : 0,
+             });
+             addSampleToInstrument(inst, sample);
         }
-    } else {
-        console.warn("⚠ XM Export: No sampler buffer loaded - sampler track will be silent in XM file");
-        console.warn("  → To export sampler: Load a sample file, record audio, or generate TTS before exporting");
+        mod.instruments.push(inst);
     }
-
-    mod.instruments.push(instSamp);
 
     mod.header.numberOfInstruments = mod.instruments.length;
 
-    // Check if song structure has any active measures
     let lastActiveMeasure = -1;
     for (let i = songStructure.length - 1; i >= 0; i--) {
         const measure = songStructure[i];
@@ -370,93 +346,92 @@ export const exportSongToXM = async (
         }
     }
 
-    // Determine if we should use the current pattern as fallback
     const useFallbackPattern = lastActiveMeasure === -1 && currentPattern;
-
-    // Export measures up to lastActiveMeasure + 1 (or at least 1 if the whole song is empty).
     const activeLength = Math.max(1, lastActiveMeasure + 1);
-
-    // 3. Generate Patterns
-    // SongStructure is: [ { partA: 0, partB: 1 ... }, { partA: 0, ... } ]
-    // Each step in SongStructure is a "Measure" (32 steps in our app).
-    // XM Patterns are usually 64 rows.
-    // Our app has 32 steps per pattern. We can map 1 Measure -> 1 XM Pattern (length 32).
-
-    // We need to identify unique "Combinations" of slots to minimize patterns?
-    // Or just create one XM pattern per Song Step?
-    // Creating one XM pattern per Song Step is easier and fine (XM supports up to 256 patterns).
-    // If user has 16 measures, we make 16 patterns.
-
     const patternOrderTable: number[] = [];
 
-    // Map TrackKey to Instrument Index and Channel Index
-    const trackMap: Record<TrackKey, { inst: number, chan: number }> = {
+    const baseTrackMap: Record<TrackKey, { inst: number, chan: number }> = {
         'partA': { inst: 1, chan: 0 },
         'partB': { inst: 2, chan: 1 },
         'kick': { inst: 3, chan: 2 },
         'snare': { inst: 4, chan: 3 },
         'closedHat': { inst: 5, chan: 4 },
-        'openHat': { inst: 6, chan: 5 }, // Share channel with CH? Typically yes (choke group). Let's use separate for now.
+        'openHat': { inst: 6, chan: 5 },
         'sampler': { inst: 7, chan: 6 }
     };
 
-    // Helper to fill pattern data from a sequence
-    const fillPatternFromSequence = (xmPat: ReturnType<typeof createPattern>, sequence: PartSequence, trackKey: TrackKey) => {
-        const { inst, chan } = trackMap[trackKey];
+    const fillPatternFromSequence = (xmPat: ReturnType<typeof createPattern>, sequence: PartSequence, trackKey: TrackKey, bankIdx: number = 0) => {
+        let inst, chan;
+
+        if (trackKey === 'sampler') {
+            inst = 7 + bankIdx;   // Instruments 7-14
+            chan = 6 + bankIdx;   // Channels 6-13
+        } else {
+            inst = baseTrackMap[trackKey].inst;
+            chan = baseTrackMap[trackKey].chan;
+        }
 
         sequence.steps.forEach((stepData, row) => {
             if (stepData && row < 32) {
-                const note = xmPat.data[row][chan];
+                // Ensure we don't write outside channel bounds
+                if (chan < xmPat.numberOfChannels) {
+                    const note = xmPat.data[row][chan];
 
-                if (trackKey.startsWith('part') || trackKey === 'sampler') {
-                    // Melodic
-                    const nVal = noteNameToValue(stepData.note);
-                    note.note = nVal;
-                } else {
-                    // Drums (Fixed note C-4 usually for sampled drums)
-                    note.note = 49; // C-4
+                    if (trackKey.startsWith('part') || trackKey === 'sampler') {
+                        const nVal = noteNameToValue(stepData.note);
+                        note.note = nVal;
+                    } else {
+                        note.note = 49; // C-4
+                    }
+
+                    note.instrument = inst;
+                    note.volume = 64;
                 }
-
-                note.instrument = inst;
-                note.volume = 64; // Max vol
             }
         });
     };
 
     if (useFallbackPattern) {
-        // Song structure is empty - export the current pattern as a single measure
-        console.log("Song structure is empty, exporting current pattern...");
+        const xmPat = createPattern(32, 14); // 14 Channels
 
-        const xmPat = createPattern(32, 8);
-
-        // Fill from current pattern
-        (Object.keys(trackMap) as TrackKey[]).forEach(trackKey => {
-            const sequence = currentPattern[trackKey];
-            if (sequence) {
-                fillPatternFromSequence(xmPat, sequence, trackKey);
+        (Object.keys(baseTrackMap) as TrackKey[]).forEach(trackKey => {
+            if (trackKey === 'sampler') {
+                // Iterate all 8 banks
+                currentPattern.sampler.forEach((seq, idx) => {
+                    fillPatternFromSequence(xmPat, seq, 'sampler', idx);
+                });
+            } else {
+                const sequence = currentPattern[trackKey] as PartSequence;
+                if (sequence) {
+                    fillPatternFromSequence(xmPat, sequence, trackKey);
+                }
             }
         });
 
         mod.patterns.push(xmPat);
         patternOrderTable.push(0);
     } else {
-        // Use song structure
         for (let m = 0; m < activeLength; m++) {
             const measure = songStructure[m];
+            const xmPat = createPattern(32, 14);
 
-            // Create new XM pattern
-            const xmPat = createPattern(32, 8);
-
-            // Fill pattern data
-            // Iterate over tracks
-            (Object.keys(trackMap) as TrackKey[]).forEach(trackKey => {
+            (Object.keys(baseTrackMap) as TrackKey[]).forEach(trackKey => {
                 const slotIndex = measure[trackKey];
-                if (slotIndex === null) return; // Empty track for this measure
+                if (slotIndex === null) return;
 
-                const sequence = trackStorage[trackKey][slotIndex];
-                if (!sequence) return;
+                const storedData = trackStorage[trackKey][slotIndex];
+                if (!storedData) return;
 
-                fillPatternFromSequence(xmPat, sequence, trackKey);
+                if (trackKey === 'sampler') {
+                    // storedData is PartSequence[]
+                    const sequences = storedData as PartSequence[];
+                    sequences.forEach((seq, idx) => {
+                        fillPatternFromSequence(xmPat, seq, 'sampler', idx);
+                    });
+                } else {
+                    // storedData is PartSequence
+                    fillPatternFromSequence(xmPat, storedData as PartSequence, trackKey);
+                }
             });
 
             mod.patterns.push(xmPat);
@@ -466,13 +441,10 @@ export const exportSongToXM = async (
 
     mod.header.numberOfPatterns = mod.patterns.length;
     mod.header.songLength = patternOrderTable.length;
-
-    // Update order table
     for (let i = 0; i < patternOrderTable.length; i++) {
         mod.header.patternOrderTable[i] = patternOrderTable[i];
     }
 
-    // 4. Write File
     const writer = new XMWriter();
     const buffer = writer.write(mod);
     const blob = new Blob([buffer], { type: 'audio/xm' });

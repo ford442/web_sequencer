@@ -1,19 +1,24 @@
 import React, { useRef, useState, useEffect } from 'react';
-import type { SamplerParams } from '../types';
+import type { SamplerParams } from '../types'; // Note: This is now SamplerBankParams[]
 import { SupertonicService } from '../services/Supertonic';
+import { Knob } from './Knob';
 
 interface SamplerPanelProps {
-    params: SamplerParams;
-    onChange: (updates: Partial<SamplerParams>) => void;
+    params: SamplerParams; // Expecting Array[8]
+    onChange: (updates: SamplerParams) => void; // Expecting full array update
     onLoadSample: (name: string, buffer: AudioBuffer) => void;
     audioContext: AudioContext;
+    activeBankIdx: number;           // Controlled by Parent
+    onBankChange: (i: number) => void; // Controlled by Parent
     onOpenEditor?: () => void;
 }
 
-const SAMPLE_BANKS = ['Bank A', 'Bank B', 'Bank C', 'Bank D'];
+// 8 Banks
+const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 
-export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, onLoadSample, audioContext, onOpenEditor }) => {
-    // ... items ...
+export const SamplerPanel: React.FC<SamplerPanelProps> = ({
+    params, onChange, onLoadSample, audioContext, activeBankIdx, onBankChange, onOpenEditor
+}) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [ttsText, setTtsText] = useState("Hello World");
@@ -21,21 +26,30 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
     const [status, setStatus] = useState<string>('');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
-    const [activeBankIdx, setActiveBankIdx] = useState(0);
+
     const [ttsReady, setTtsReady] = useState(false);
     const [flashBankIdx, setFlashBankIdx] = useState<number | null>(null);
     const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Update sampleName when bank changes
-    useEffect(() => {
-        const bankName = `bank_${activeBankIdx}`;
-        if (params.sampleName !== bankName) {
-            onChange({ sampleName: bankName });
-        }
-    }, [activeBankIdx, onChange, params.sampleName]);
+    // Helpers to access current bank's params safely
+    const currentParams = params[activeBankIdx] || {
+        sampleName: `bank_${activeBankIdx}`,
+        playbackSpeed: 1.0,
+        volume: 1.0,
+        filterCutoff: 20000,
+        filterResonance: 0,
+        drive: 0,
+        delaySend: 0
+    };
+
+    // Update single param for active bank
+    const updateParam = (key: keyof typeof currentParams, value: number) => {
+        const newParams = [...params];
+        newParams[activeBankIdx] = { ...currentParams, [key]: value };
+        onChange(newParams);
+    };
 
     useEffect(() => {
-        // Pre-init Supertonic (gracefully handle failures)
         const initTTS = async () => {
             try {
                 await SupertonicService.getInstance().init();
@@ -43,45 +57,46 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
             } catch (e) {
                 console.error("TTS Init Error:", e);
                 setStatus("TTS Unavailable");
-                setTtsReady(false);
             }
         };
         initTTS();
     }, []);
 
-    const handleTTS = async () => {
-        console.log("GEN clicked - handleTTS triggered");
-        if (!audioContext) {
-            console.log("No audioContext");
-            return;
+    const loadBufferToBank = (buffer: AudioBuffer) => {
+        const bankName = `bank_${activeBankIdx}`;
+        onLoadSample(bankName, buffer);
+
+        // Ensure name is synced
+        if (currentParams.sampleName !== bankName) {
+            const newParams = [...params];
+            newParams[activeBankIdx] = { ...currentParams, sampleName: bankName };
+            onChange(newParams);
         }
 
-        const service = SupertonicService.getInstance();
-        console.log("Service ready?", service.isServiceReady());
-        if (!service.isServiceReady()) {
-            setStatus("TTS models not loaded");
+        // Flash UI
+        if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+        setFlashBankIdx(activeBankIdx);
+        flashTimeoutRef.current = setTimeout(() => setFlashBankIdx(null), 1000);
+    };
+
+    const handleTTS = async () => {
+        if (!audioContext || !SupertonicService.getInstance().isServiceReady()) {
+            setStatus("Engine not ready");
             return;
         }
 
         setIsGenerating(true);
         setStatus("Generating...");
         try {
-            const rawData = await service.generate(ttsText);
-
-            // Create Audio Buffer
-            const buffer = audioContext.createBuffer(1, rawData.length, 44100); // Model is 44.1k
+            const rawData = await SupertonicService.getInstance().generate(ttsText);
+            const buffer = audioContext.createBuffer(1, rawData.length, 44100);
             buffer.getChannelData(0).set(rawData);
 
-            onLoadSample(params.sampleName, buffer);
-            setStatus("TTS Loaded");
-
-            // Flash the active bank to indicate sample loaded
-            if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
-            setFlashBankIdx(activeBankIdx);
-            flashTimeoutRef.current = setTimeout(() => setFlashBankIdx(null), 1000);
+            loadBufferToBank(buffer);
+            setStatus(`Gen: Bank ${activeBankIdx + 1}`);
         } catch (e) {
-            console.error("TTS Generation Error:", e);
-            setStatus(e instanceof Error ? e.message : "Gen Error");
+            console.error(e);
+            setStatus("Gen Error");
         } finally {
             setIsGenerating(false);
         }
@@ -90,27 +105,23 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
         setStatus('Loading...');
         try {
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            onLoadSample(params.sampleName, audioBuffer);
-            setStatus(`Loaded: ${file.name}`);
+            loadBufferToBank(audioBuffer);
+            setStatus(`Loaded: ${file.name.substring(0, 10)}...`);
         } catch (err) {
-            console.error(err);
-            setStatus('Error loading file');
+            setStatus('Load Error');
         }
     };
 
     const toggleRecording = async () => {
         if (isRecording) {
-            // Stop recording
             mediaRecorderRef.current?.stop();
             setIsRecording(false);
             setStatus('Processing...');
         } else {
-            // Start recording
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const mediaRecorder = new MediaRecorder(stream);
@@ -126,113 +137,79 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({ params, onChange, on
                     const arrayBuffer = await blob.arrayBuffer();
                     try {
                         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                        onLoadSample(params.sampleName, audioBuffer);
-                        setStatus('Recorded Sample Loaded');
-                    } catch (e) {
-                        console.error(e);
-                        setStatus('Decode Error');
-                    }
-                    // Stop all tracks
+                        loadBufferToBank(audioBuffer);
+                        setStatus('Recorded!');
+                    } catch (e) { setStatus('Decode Error'); }
                     stream.getTracks().forEach(track => track.stop());
                 };
 
                 mediaRecorder.start();
                 setIsRecording(true);
                 setStatus('Recording...');
-            } catch (err) {
-                console.error("Mic access denied:", err);
-                setStatus('Mic Error');
-            }
+            } catch (err) { setStatus('Mic Error'); }
         }
     };
 
     return (
-        <div className="flex flex-col gap-2 p-3 text-xs font-mono text-gray-400 h-full justify-center">
-            {/* ROW 1: Banks & File/Mic */}
-            <div className="flex items-center justify-between">
-                <div className="flex gap-1" role="tablist" aria-label="Sample Banks">
-                    {SAMPLE_BANKS.map((b, i) => (
-                        <button
-                            key={b}
-                            role="tab"
-                            aria-selected={activeBankIdx === i}
-                            aria-label={`Select ${b}`}
-                            onClick={() => setActiveBankIdx(i)}
-                            className={`px-2 py-1 rounded text-[10px] border transition-all duration-200 ${flashBankIdx === i
-                                    ? 'bg-green-600 border-green-400 text-white shadow-[0_0_12px_rgba(34,197,94,0.8)] animate-pulse'
-                                    : activeBankIdx === i
-                                        ? 'bg-cyan-900 border-cyan-500 text-cyan-300'
-                                        : 'bg-gray-800 border-gray-700'
-                                }`}
-                        >
-                            {['A', 'B', 'C', 'D'][i]}
-                        </button>
-                    ))}
-                </div>
-                <div className="flex gap-2">
-                    <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" id="sample-file-input" />
+        <div className="flex flex-col gap-2 p-3 text-xs font-mono text-gray-400 h-full">
+            {/* ROW 1: Bank Selectors (8 Banks) */}
+            <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar" role="tablist" aria-label="Sample Banks">
+                {SAMPLE_BANKS.map((label, i) => (
                     <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-[10px] bg-gray-800 px-2 py-1 rounded hover:bg-gray-700 border border-gray-600"
-                        aria-label="Load audio file"
+                        key={i}
+                        role="tab"
+                        aria-selected={activeBankIdx === i}
+                        aria-label={`Select Bank ${i + 1}`}
+                        onClick={() => onBankChange(i)}
+                        className={`min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all ${
+                            flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
+                            activeBankIdx === i
+                                ? 'bg-purple-600 border-purple-400 text-white shadow-md'
+                                : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                        }`}
+                        title={`Select Bank ${i+1}`}
                     >
-                        LOAD
+                        {label}
                     </button>
-                    <button
-                        onClick={toggleRecording}
-                        className={`text-[10px] px-2 py-1 border rounded ${isRecording ? 'bg-red-900 border-red-500 animate-pulse' : 'bg-gray-800 border-gray-600 hover:bg-gray-700'}`}
-                        aria-label={isRecording ? "Stop recording" : "Start recording"}
-                    >
+                ))}
+            </div>
+
+            {/* ROW 2: Actions */}
+            <div className="flex justify-between items-center gap-2">
+                <div className="flex gap-1">
+                    <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                    <button onClick={() => fileInputRef.current?.click()} className="btn-mini px-2 py-0.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600">LOAD</button>
+                    <button onClick={toggleRecording} className={`btn-mini px-2 py-0.5 rounded border ${isRecording ? 'bg-red-900 border-red-500 animate-pulse text-white' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}>
                         {isRecording ? 'STOP' : 'REC'}
                     </button>
                 </div>
+                <div className="text-[10px] text-right truncate w-24 text-yellow-500" title={status}>{status}</div>
             </div>
 
-            {/* ROW 2: TTS Controls */}
-            <div className="flex flex-col gap-1 border-t border-gray-700 pt-2">
-                <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <span className="text-purple-400 font-bold text-[10px]">TTS ENGINE</span>
-                        <div
-                            className={`w-2 h-2 rounded-full ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-900'}`}
-                            title={ttsReady ? "Ready" : "Loading/Failed"}
-                            role="status"
-                            aria-label={ttsReady ? "TTS Engine Ready" : "TTS Engine Not Ready"}
-                        ></div>
-                    </div>
-                    {onOpenEditor && (
-                        <button onClick={onOpenEditor} className="text-[10px] text-purple-300 underline hover:text-white">EDIT VOICE</button>
-                    )}
-                </div>
-                <div className="flex gap-1">
-                    <input
-                        value={ttsText}
-                        onChange={e => setTtsText(e.target.value)}
-                        className="flex-1 bg-gray-900 border border-gray-700 rounded px-1 text-white focus:border-purple-500 text-[10px] outline-none"
-                        placeholder="Type phrase..."
-                        aria-label="Text to speech phrase"
-                    />
-                    <button
-                        onClick={handleTTS}
-                        disabled={isGenerating || !ttsReady}
-                        aria-label={isGenerating ? "Generating speech..." : "Generate speech"}
-                        className="w-12 h-6 flex items-center justify-center bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50"
-                    >
-                        {isGenerating ? (
-                            <svg className="animate-spin h-3 w-3 text-purple-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        ) : 'GEN'}
-                    </button>
-                </div>
-                <div
-                    className="text-right text-[10px] text-gray-500 h-3 overflow-hidden"
-                    role="status"
-                    aria-live="polite"
+            {/* ROW 3: TTS */}
+            <div className="flex gap-1 mt-1">
+                <input
+                    value={ttsText}
+                    onChange={e => setTtsText(e.target.value)}
+                    className="flex-1 bg-gray-900 border border-gray-700 rounded px-1 text-white text-[10px] outline-none focus:border-purple-500"
+                    placeholder="Phrase..."
+                />
+                <button
+                    onClick={handleTTS}
+                    disabled={isGenerating || !ttsReady}
+                    className="px-2 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50"
                 >
-                    {status}
-                </div>
+                    GEN
+                </button>
+                {onOpenEditor && <button onClick={onOpenEditor} className="text-[10px] text-purple-400 underline hover:text-white px-1">EDIT</button>}
+            </div>
+
+            {/* ROW 4: Parameters for Active Bank */}
+            <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
+                <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={v => updateParam('playbackSpeed', v)} min={0.1} max={4.0} color="purple" />
+                <Knob label="Vol" value={currentParams.volume} onChange={v => updateParam('volume', v)} min={0} max={2.0} color="purple" />
+                <Knob label="Filter" value={currentParams.filterCutoff} onChange={v => updateParam('filterCutoff', v)} min={100} max={20000} color="purple" logarithmic />
+                <Knob label="Drive" value={currentParams.drive} onChange={v => updateParam('drive', v)} min={0} max={1} color="red" />
             </div>
         </div>
     );
