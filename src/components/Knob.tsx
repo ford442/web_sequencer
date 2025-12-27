@@ -7,7 +7,7 @@ interface KnobProps {
   min: number;
   max: number;
   step?: number;
-  color?: 'cyan' | 'pink' | 'yellow';
+  color?: 'cyan' | 'pink' | 'yellow' | 'purple' | 'red' | 'green';
   unit?: string;
   logarithmic?: boolean;
 }
@@ -95,12 +95,18 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
     cyan: 'bg-cyan-500',
     pink: 'bg-pink-500',
     yellow: 'bg-yellow-500',
+    purple: 'bg-purple-500',
+    red: 'bg-red-500',
+    green: 'bg-green-500',
   };
 
   const focusBorderClasses = {
     cyan: 'focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400',
     pink: 'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
     yellow: 'focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400',
+    purple: 'focus:border-purple-400 focus:ring-1 focus:ring-purple-400',
+    red: 'focus:border-red-400 focus:ring-1 focus:ring-red-400',
+    green: 'focus:border-green-400 focus:ring-1 focus:ring-green-400',
   };
 
   return (

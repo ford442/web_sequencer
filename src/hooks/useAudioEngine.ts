@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerParams, PartSequence } from '../types';
+import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -606,7 +606,7 @@ export const useAudioEngine = (pyodide: any) => {
             } catch (e) { console.error("Error sending sample to Worklet:", e); }
         };
 
-        const playSampler = (params: SamplerParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
+        const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
             console.log("playSampler called:", { name: params.sampleName, note, durationSteps, stepTime, pyodideReady: !!pyodideRef.current });
             if (!pyodideRef.current) return;
 
@@ -697,7 +697,7 @@ export const useAudioEngine = (pyodide: any) => {
 
         // Live note-on/note-off for Sampler
 
-        const noteOnSampler = (params: SamplerParams, note: string, time?: number) => {
+        const noteOnSampler = (params: SamplerBankParams, note: string, time?: number) => {
             if (!pyodideRef.current) return null;
             const now = time || context.currentTime;
             // Prefer Worklet if available
