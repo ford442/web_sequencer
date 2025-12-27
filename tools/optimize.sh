@@ -32,7 +32,7 @@ fi
 
 # 3. Optimize AssemblyScript WASM (Physics)
 # We must explicitly enable the features we used in compilation.
-echo "🔧 Optimizing Oscillator  WASM..."
+echo "🔧 Optimizing Oscillator WASM..."
 wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   -O3 \
   --converge \
