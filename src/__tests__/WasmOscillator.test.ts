@@ -25,7 +25,7 @@ describe('WasmOscillator', () => {
         vi.spyOn(WebAssembly, 'instantiate').mockResolvedValue({
             instance: { exports: mockExports } as any,
             module: {} as any
-        });
+        } as any);
 
         // Spy on fetch
         global.fetch = vi.fn().mockResolvedValue({
