@@ -33,11 +33,17 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
     const [flashBankIdx, setFlashBankIdx] = useState<number | null>(null);
     const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Get the TTS text for the current bank
-    const currentTtsText = ttsPhrases[activeBankIdx] || "Hello World";
+    // Get the TTS text for the current bank with bounds checking
+    const currentTtsText = (ttsPhrases && activeBankIdx >= 0 && activeBankIdx < 8) 
+        ? (ttsPhrases[activeBankIdx] || "Hello World")
+        : "Hello World";
 
-    // Update TTS text for current bank
+    // Update TTS text for current bank with bounds validation
     const setCurrentTtsText = (text: string) => {
+        if (activeBankIdx < 0 || activeBankIdx >= 8) {
+            console.warn(`Invalid bank index: ${activeBankIdx}`);
+            return;
+        }
         const newPhrases = [...ttsPhrases];
         newPhrases[activeBankIdx] = text;
         onTtsPhraseChange(newPhrases);

@@ -1276,8 +1276,15 @@ export const App: React.FC = () => {
             if (songData.songStructure) setSongStructure(songData.songStructure);
             
             // Load TTS phrases if available, otherwise use default
-            if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) {
+            if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) {
                 setTtsPhrases(songData.ttsPhrases);
+            } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) {
+                // Handle case where array exists but has wrong length
+                const normalized = Array(8).fill("Hello World");
+                songData.ttsPhrases.forEach((phrase, idx) => {
+                    if (idx < 8) normalized[idx] = phrase || "Hello World";
+                });
+                setTtsPhrases(normalized);
             } else {
                 // Initialize with default if not present in saved data
                 setTtsPhrases(Array(8).fill("Hello World"));
