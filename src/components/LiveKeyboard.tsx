@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect, memo, useRef, useMemo } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
@@ -18,9 +18,45 @@ const KEY_TO_NOTE: Record<string, string> = {
     'Digit2': 'C#4'
 };
 
-export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNote, activeTrackColor }) => { const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set()); const [isMouseDown, setIsMouseDown] = useState(false);
+export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: LiveKeyboardProps) => {
+    // State to track which notes are held by which source
+    const [heldByKeys, setHeldByKeys] = useState<Set<string>>(new Set());
+    const [heldByMouse, setHeldByMouse] = useState<string | null>(null);
 
-// --- KEYBOARD INTERACTION ---
+    // We use a ref to track what we *think* is currently playing externally, to avoid redundant calls
+    // and ensure we stop everything we started.
+    const playingNotesRef = useRef<Set<string>>(new Set());
+
+    // Calculate the set of notes that SHOULD be playing
+    const targetActiveNotes = useMemo(() => {
+        const active = new Set(heldByKeys);
+        if (heldByMouse) active.add(heldByMouse);
+        return active;
+    }, [heldByKeys, heldByMouse]);
+
+    // Reconciliation Effect: Sync playingNotesRef with targetActiveNotes
+    useEffect(() => {
+        const currentlyPlaying = playingNotesRef.current;
+        const target = targetActiveNotes;
+
+        // 1. Stop notes that are no longer in target
+        currentlyPlaying.forEach(note => {
+            if (!target.has(note)) {
+                if (onStopNote) onStopNote(note);
+                currentlyPlaying.delete(note);
+            }
+        });
+
+        // 2. Start notes that are in target but not playing
+        target.forEach(note => {
+            if (!currentlyPlaying.has(note)) {
+                onPlayNote(note);
+                currentlyPlaying.add(note);
+            }
+        });
+    }, [targetActiveNotes, onPlayNote, onStopNote]);
+
+    // --- KEYBOARD INTERACTION ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const note = KEY_TO_NOTE[e.code];
@@ -28,14 +64,12 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNo
                 // Prevent default browser actions for F-keys (Help, Find, Refresh, etc.)
                 e.preventDefault();
 
-                // Prevent repeat triggers if key is held down
                 if (!e.repeat) {
-                    setActiveKeys(prev => {
+                    setHeldByKeys(prev => {
                         const next = new Set(prev);
                         next.add(note);
                         return next;
                     });
-                    onPlayNote(note);
                 }
             }
         };
@@ -44,66 +78,73 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNo
             const note = KEY_TO_NOTE[e.code];
             if (note) {
                 e.preventDefault();
-                setActiveKeys(prev => {
+                setHeldByKeys(prev => {
                     const next = new Set(prev);
                     next.delete(note);
                     return next;
                 });
-                if (typeof onStopNote === 'function') onStopNote(note);
             }
+        };
+
+        // Safety: Clear keys on blur to prevent stuck keys
+        const handleBlur = () => {
+            setHeldByKeys(new Set());
         };
 
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('blur', handleBlur);
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('blur', handleBlur);
         };
-    }, [onPlayNote]);
+    }, []);
 
-// --- MOUSE INTERACTION (Glissando) ---
+    // --- MOUSE INTERACTION (Glissando) ---
     useEffect(() => {
-        const handleGlobalMouseUp = () => setIsMouseDown(false);
+        const handleGlobalMouseUp = () => {
+            setHeldByMouse(null);
+        };
+        // Also clear on blur/leave window if mouse button was held
+        const handleBlur = () => {
+            setHeldByMouse(null);
+        };
+
         window.addEventListener('mouseup', handleGlobalMouseUp);
-        return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+        window.addEventListener('blur', handleBlur);
+        return () => {
+             window.removeEventListener('mouseup', handleGlobalMouseUp);
+             window.removeEventListener('blur', handleBlur);
+        };
     }, []);
 
     const handleMouseDown = (note: string) => {
-        setIsMouseDown(true);
-        setActiveKeys(prev => new Set(prev).add(note));
-        onPlayNote(note);
-    };
-
-    const handleMouseUp = (note: string) => {
-        setIsMouseDown(false);
-        setActiveKeys(prev => {
-            const next = new Set(prev);
-            next.delete(note);
-            return next;
-        });
-        if (typeof onStopNote === 'function') onStopNote(note);
+        setHeldByMouse(note);
     };
 
     const handleMouseEnter = (note: string) => {
-        if (isMouseDown) {
-            setActiveKeys(prev => new Set(prev).add(note));
-            onPlayNote(note);
+        // Only switch notes if we are currently holding the mouse down (dragging)
+        // We know we are dragging if heldByMouse is not null.
+        // Note: This relies on setHeldByMouse(null) on global mouseup.
+        // However, we need to check if the primary button is actually pressed.
+        // But since we track state, if heldByMouse is active, we assume we are dragging.
+        // To be safe against "mouse up happened outside window and we missed it",
+        // we might want to check e.buttons in mouse enter, but React SyntheticEvent
+        // doesn't always have it reliable on enter.
+        // We'll stick to our state + global mouse up.
+
+        if (heldByMouse !== null) {
+            setHeldByMouse(note);
         }
     };
 
-    const handleMouseLeave = (note: string) => {
-        if (activeKeys.has(note)) {
-            setActiveKeys(prev => {
-                const next = new Set(prev);
-                next.delete(note);
-                return next;
-            });
-            if (typeof onStopNote === 'function') onStopNote(note);
-        }
-    };
+    // We don't need handleMouseUp on individual keys because global handles it,
+    // but stopping propagation might be useful or just rely on state.
+    // Actually, simply relying on state is cleaner.
 
-// Width calculations
+    // Width calculations
     const totalWidth = 920;
     const gap = 4;
     const keyWidth = (totalWidth - (11 * gap)) / 12;
@@ -125,7 +166,8 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNo
                         {NOTES.map((noteName, colIndex) => {
                             const fullNote = `${noteName}${octave}`;
                             const isBlack = noteName.includes('#');
-                            const isActive = activeKeys.has(fullNote);
+
+                            const isActive = targetActiveNotes.has(fullNote);
 
                             // Visuals
                             const baseColor = isBlack ? '#080a0c' : '#151a21'; // Dark vs Light(er) Dark
@@ -142,12 +184,23 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNo
                                 <g
                                     key={fullNote}
                                     transform={`translate(${x}, 0)`}
-                                    onMouseDown={() => handleMouseDown(fullNote)}
-                                    onMouseUp={() => handleMouseUp(fullNote)}
-                                    onMouseEnter={() => handleMouseEnter(fullNote)}
-                                    onMouseLeave={() => handleMouseLeave(fullNote)}
+                                    onMouseDown={(e) => {
+                                        if (e.button === 0) handleMouseDown(fullNote);
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        // Optional: check e.buttons === 1 to ensure left click is held
+                                        // This helps if the user released mouse outside and came back in
+                                        if (e.buttons === 1) {
+                                            handleMouseEnter(fullNote);
+                                        } else if (heldByMouse) {
+                                            // Recovery: User is not pressing button but we think they are
+                                            setHeldByMouse(null);
+                                        }
+                                    }}
                                     onTouchStart={(e) => { e.preventDefault(); handleMouseDown(fullNote); }}
-                                    onTouchEnd={(e) => { e.preventDefault(); handleMouseUp(fullNote); }}
+                                    // Touch end handled by clearing state if needed, or rely on global?
+                                    // Touch is tricky with glissando. For now, simple touch support:
+                                    onTouchEnd={(e) => { e.preventDefault(); setHeldByMouse(null); }}
                                     cursor="pointer"
                                 >
                                     {/* Base / Bevel Shadow */}
@@ -210,4 +263,4 @@ export const LiveKeyboard: React.FC<LiveKeyboardProps> = ({ onPlayNote, onStopNo
             </svg>
         </div>
     );
-};
+});

@@ -1,3 +1,6 @@
+// @mode: typescript
+// @note-for-ai: Simple utility functions - not a migration candidate.
+// Low complexity, minimal performance impact. Keep in TypeScript.
 
 export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 

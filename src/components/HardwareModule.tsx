@@ -35,7 +35,17 @@ export const HardwareModule = React.memo(
         const startY = useRef(0);
         const startVal = useRef(0);
 
-        useEffect(() => { controlsRef.current = controls; }, [controls]);
+        // Ref to store the render function for demand-based rendering
+        const renderRef = useRef<(() => void) | null>(null);
+
+        // Refs for accessibility elements to enable focus management
+        const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+        useEffect(() => {
+            controlsRef.current = controls;
+            // Trigger a re-render when controls change
+            if (renderRef.current) renderRef.current();
+        }, [controls]);
 
         // --- INTERACTION LOGIC (Mouse) ---
         useEffect(() => {
@@ -59,6 +69,10 @@ export const HardwareModule = React.memo(
                     startVal.current = controlsRef.current[hitIndex].value;
                     document.body.style.cursor = 'ns-resize';
                     e.preventDefault();
+
+                    // UX IMPROVEMENT: Focus the accessible slider when clicking the visual knob
+                    // This allows users to click to select, then use arrow keys for fine-tuning
+                    sliderRefs.current[hitIndex]?.focus();
                 }
             };
 
@@ -95,7 +109,6 @@ export const HardwareModule = React.memo(
             let device: GPUDevice;
             let pipeline: GPURenderPipeline;
             let uniformBuffer: GPUBuffer;
-            let animationId: number;
             let isActive = true;
 
             const init = async () => {
@@ -210,15 +223,29 @@ export const HardwareModule = React.memo(
                     });
 
                     uniformBuffer = device.createBuffer({ size: 320, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+                    // Assign render function for external calls
+                    renderRef.current = render;
+
+                    // Initial render
                     render();
                 } catch (e) { console.error("WebGPU Init Failed", e); }
             };
 
+            // Pre-allocate buffers to avoid garbage collection in the render loop
+            const vals = new Float32Array(12);
+            const positions = new Float32Array(48); // 12 knobs * 4 floats each
+            const valsWithPad = new Float32Array(16);
+            const timeUniform = new Float32Array(4); // [time, ratio, 0, 0]
+            const colorUniform = new Float32Array(4); // [...colorHex, 0]
+
+            // Set static color uniform once
+            colorUniform.set([...colorHex, 0]);
+
             const render = () => {
                 if (!isActive || !device || !pipeline) return;
 
-                const vals = new Float32Array(12);
-                const positions = new Float32Array(48); // 12 knobs * 4 floats each
+                // Update dynamic values in pre-allocated buffers
                 controlsRef.current.forEach((c, i) => {
                     if (i < 12) {
                         vals[i] = c.value;
@@ -228,10 +255,16 @@ export const HardwareModule = React.memo(
                 });
 
                 const width = canvas.width, height = canvas.height;
-                device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([performance.now() / 1000, width / height, 0, 0]));
-                device.queue.writeBuffer(uniformBuffer, 16, new Float32Array([...colorHex, 0]));
+
+                // Update time uniform
+                timeUniform[0] = performance.now() / 1000;
+                timeUniform[1] = width / height;
+
+                device.queue.writeBuffer(uniformBuffer, 0, timeUniform);
+                device.queue.writeBuffer(uniformBuffer, 16, colorUniform);
+
                 // vals: 12 floats = 3 vec4f, padded to 4 vec4f (16 floats)
-                const valsWithPad = new Float32Array(16);
+                valsWithPad.fill(0); // Reset padding
                 valsWithPad.set(vals);
                 device.queue.writeBuffer(uniformBuffer, 32, valsWithPad);
                 device.queue.writeBuffer(uniformBuffer, 96, positions);
@@ -248,15 +281,13 @@ export const HardwareModule = React.memo(
                 pass.draw(3);
                 pass.end();
                 device.queue.submit([encoder.finish()]);
-
-                animationId = requestAnimationFrame(render);
             };
 
             init();
 
             return () => {
                 isActive = false;
-                if (animationId) cancelAnimationFrame(animationId);
+                renderRef.current = null;
                 if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
             };
         }, [colorHex]);
@@ -273,9 +304,46 @@ export const HardwareModule = React.memo(
                         </div>
                     ))}
                     {onRecordToggle && controls.map((c) => (
-                        <button key={`rec-${c.id}`} onClick={(e) => { e.stopPropagation(); onRecordToggle(c.id); }} className="absolute pointer-events-auto transform -translate-x-1/2" style={{ left: `${c.x * 100}%`, top: `${(c.y - c.size * 1.3) * 100}%`, width: '16px', height: '16px' }} title="Record Automation">
+                        <button
+                            key={`rec-${c.id}`}
+                            onClick={(e) => { e.stopPropagation(); onRecordToggle(c.id); }}
+                            className="absolute pointer-events-auto transform -translate-x-1/2"
+                            style={{ left: `${c.x * 100}%`, top: `${(c.y - c.size * 1.3) * 100}%`, width: '16px', height: '16px' }}
+                            title="Record Automation"
+                            aria-label={`Record Automation for ${c.label}`}
+                        >
                             <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${c.isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
                         </button>
+                    ))}
+                    {controls.map((c, i) => (
+                        <div
+                            key={`a11y-${c.id}`}
+                            ref={(el) => { sliderRefs.current[i] = el; }}
+                            role="slider"
+                            aria-label={c.label}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(c.value * 100)}
+                            tabIndex={0}
+                            className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:ring-2 focus:ring-white focus:outline-none pointer-events-none"
+                            style={{
+                                left: `${c.x * 100}%`,
+                                top: `${c.y * 100}%`,
+                                width: `${c.size * 200}%`,
+                                height: `${c.size * 200}%`
+                            }}
+                            onKeyDown={(e) => {
+                                let delta = 0;
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowRight') delta = 0.05;
+                                if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') delta = -0.05;
+                                if (delta !== 0) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const newVal = Math.max(0, Math.min(1, c.value + delta));
+                                    onParamChange(c.id, newVal);
+                                }
+                            }}
+                        />
                     ))}
                 </div>
                 {children && <div className="absolute inset-0 pointer-events-none">{children}</div>}

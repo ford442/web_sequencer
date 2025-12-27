@@ -4,9 +4,9 @@ import { describe, it, expect } from 'vitest';
 import App from '../App';
 
 describe('App', () => {
-  it('renders ELECTRIBE heading', () => {
+  it('renders HYPHON heading', () => {
     render(<App />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/ELECTRIBE/i);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/HYPHON/i);
   });
 
   it('renders volume control', () => {
@@ -24,6 +24,8 @@ describe('App', () => {
     expect(screen.getByText('Song Mode')).toBeInTheDocument();
 
     // Check for the Song button
-    expect(screen.getByRole('button', { name: 'SONG' })).toBeInTheDocument();
+    // The button has aria-label="Open Song Mode" when closed
+    const songModeButtons = screen.getAllByRole('button', { name: /Song Mode/i });
+    expect(songModeButtons.length).toBeGreaterThan(0);
   });
 });

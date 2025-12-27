@@ -1,3 +1,8 @@
+// @mode: typescript
+// @note-for-ai: This is a native WebGPU implementation (L5 in UIMP).
+// The WGSL shader code is embedded in SHADER_CODE constant.
+// This file handles GPU resource management and buffer pooling.
+// See PERFORMANCE_MIGRATION_STRATEGY.md for migration context.
 
 export class WebGpuOscillator {
     device: GPUDevice | null = null;

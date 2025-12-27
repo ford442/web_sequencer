@@ -63,11 +63,16 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="voice-designer-title"
+        >
             <div className="bg-gray-900 border border-purple-500 rounded-xl p-6 w-[600px] shadow-2xl">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-orbitron text-purple-400">VOICE DESIGNER <span className="text-xs text-gray-500 ml-2">(WebGPU)</span></h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+                    <h2 id="voice-designer-title" className="text-xl font-orbitron text-purple-400">VOICE DESIGNER <span className="text-xs text-gray-500 ml-2">(WebGPU)</span></h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close Voice Designer">✕</button>
                 </div>
 
                 {/* Heatmap Area */}
@@ -76,6 +81,8 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
                         ref={canvasRef}
                         className="w-full h-full block"
                         style={{ imageRendering: 'pixelated' }}
+                        role="img"
+                        aria-label="Voice Heatmap Visualization"
                     />
                 </div>
 
@@ -93,7 +100,13 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
                 </div>
 
                 <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500 font-mono">{status}</span>
+                    <span
+                        className="text-xs text-gray-500 font-mono"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        {status}
+                    </span>
                     <button
                         onClick={handleApply}
                         className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-[0_0_15px_rgba(34,197,94,0.3)] font-mono text-sm"

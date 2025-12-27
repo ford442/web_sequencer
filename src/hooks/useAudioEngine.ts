@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerParams, PartSequence } from '../types';
+import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -272,7 +272,7 @@ export const useAudioEngine = (pyodide: any) => {
                     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
                     const pyOscType = params.waveform.split('-')[1];
 
-                    let pyProxy = pyodideRef.current.globals.get('generate_wave')(
+                    const pyProxy = pyodideRef.current.globals.get('generate_wave')(
                         freqWithPitch,
                         totalDuration,
                         pyOscType,
@@ -542,7 +542,7 @@ export const useAudioEngine = (pyodide: any) => {
 
             try {
                 let pyProxy;
-                let p = params as any;
+                const p = params as any;
                 let bufferLengthSeconds;
                 let finalVolume;
                 const pyodide = pyodideRef.current;
@@ -606,7 +606,7 @@ export const useAudioEngine = (pyodide: any) => {
             } catch (e) { console.error("Error sending sample to Worklet:", e); }
         };
 
-        const playSampler = (params: SamplerParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
+        const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
             console.log("playSampler called:", { name: params.sampleName, note, durationSteps, stepTime, pyodideReady: !!pyodideRef.current });
             if (!pyodideRef.current) return;
 
@@ -697,7 +697,7 @@ export const useAudioEngine = (pyodide: any) => {
 
         // Live note-on/note-off for Sampler
 
-        const noteOnSampler = (params: SamplerParams, note: string, time?: number) => {
+        const noteOnSampler = (params: SamplerBankParams, note: string, time?: number) => {
             if (!pyodideRef.current) return null;
             const now = time || context.currentTime;
             // Prefer Worklet if available
@@ -779,6 +779,21 @@ export const useAudioEngine = (pyodide: any) => {
             envGain.gain.linearRampToValueAtTime(0, now + 0.12);
             try { source.stop(now + 0.12 + 0.05); } catch (e) { }
             activeSamplerNotes.current.delete(id);
+        };
+
+        const stopAllNotes = () => {
+            // Stop all synth notes
+            activeSynthNotes.current.forEach((entry) => {
+                entry.stop();
+            });
+            activeSynthNotes.current.clear();
+
+            // Stop all sampler notes
+            activeSamplerNotes.current.forEach((_entry, id) => {
+                 noteOffSampler(id);
+            });
+            // noteOffSampler removes them from map, but let's be safe
+            activeSamplerNotes.current.clear();
         };
 
         const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {
@@ -863,6 +878,68 @@ export const useAudioEngine = (pyodide: any) => {
             }
         };
 
+        const detectSamplePitch = async (buffer: AudioBuffer) => {
+            if (!pyodideRef.current) return null;
+            try {
+                const data = Array.from(buffer.getChannelData(0));
+                // Call Python to get JSON string
+                const jsonStr = await pyodideRef.current.globals.get('analyze_sample')(data);
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                console.error("detectSamplePitch Error:", e);
+                return null;
+            }
+        };
+
+        const processSinging = async (sampleName: string, note: string, steps: number, tempo: number) => {
+            if (!pyodideRef.current) return null;
+
+            try {
+                // Call Python
+                const pyProxy = await pyodideRef.current.globals.get('process_singing_sample')(
+                    sampleName,
+                    note,
+                    steps,
+                    tempo
+                );
+
+                const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+                pyProxy.destroy();
+
+                if (audioSamples.length === 0) return null;
+
+                // Create buffer
+                const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+                buffer.getChannelData(0).set(audioSamples);
+
+                return buffer;
+            } catch (e) {
+                console.error("Process Singing Error:", e);
+                return null;
+            }
+        };
+
+        const processSpoon = async (sampleName: string, note: string) => {
+            if (!pyodideRef.current) return null;
+            try {
+                const pyProxy = await pyodideRef.current.globals.get('process_spoon_sample')(
+                    sampleName,
+                    note
+                );
+                const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+                pyProxy.destroy();
+
+                if (audioSamples.length === 0) return null;
+
+                const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+                buffer.getChannelData(0).set(audioSamples);
+                return buffer;
+            } catch (e) {
+                console.error("Process Spoon Error:", e);
+                return null;
+            }
+        };
+
         audioEngineRef.current = {
             context,
             webGpuEngine: gpuEngineRef.current,
@@ -874,6 +951,7 @@ export const useAudioEngine = (pyodide: any) => {
             noteOffSampler,
             noteOnSynth,
             noteOffSynth,
+            stopAllNotes,
             loadSampleToEngine,
             renderSynthPartToBuffer,
             playBufferedPart,
@@ -881,7 +959,10 @@ export const useAudioEngine = (pyodide: any) => {
             stopAmbiance,
             setAmbianceVolume,
             setMasterVolume,
-            setGlobalPan
+            setGlobalPan,
+            detectSamplePitch,
+            processSinging,
+            processSpoon
         };
 
         setIsReady(true);
