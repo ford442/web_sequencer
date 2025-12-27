@@ -132,7 +132,7 @@ Track the current status of all migration candidates here.
 | `src/engines/WasmOscillator.ts` | L2 (TypeScript) | L3 (WASM Bridge) | ✅ Complete | Uses `assembly/oscillators.ts` |
 | `src/engines/WebGpuOscillator.ts` | L2 (TypeScript) | L5 (WebGPU) | ✅ Complete | Native WebGPU shader |
 | `src/utils/audioExport.ts` | L2 (TypeScript) | L3 (AssemblyScript) | 📋 Candidate | Hot loop in `audioBufferToWav` |
-| `src/utils/trackFreezer.ts` | L2 (TypeScript) | L3/L4 | 📋 Candidate | Loop analysis functions |
+| `src/utils/trackFreezer.ts` | L2 (TypeScript) | L3 (AssemblyScript) | ✅ Complete | Uses `assembly/trackFreezer.ts` |
 | `src/utils/musicTheory.ts` | L2 (TypeScript) | L2 | ⏸️ Hold | Low complexity, no benefit |
 | `src/utils/noteColors.ts` | L2 (TypeScript) | L2 | ⏸️ Hold | UI-only, no performance issue |
 | `emscripten/main.cpp` | L4 (C++) | L4 | 🚧 Scaffold | Empty placeholder for future |
