@@ -44,7 +44,7 @@ export interface HatParams {
   volume: number;
 }
 
-export interface SamplerParams {
+export interface SamplerBankParams {
   sampleName: string; // The key used in Python SAMPLES dict
   playbackSpeed: number; // 1.0 = normal
   volume: number;
@@ -53,6 +53,9 @@ export interface SamplerParams {
   drive: number; // 0-1 (Distortion amount)
   delaySend: number; // 0-1 (Amount sent to delay bus)
 }
+
+// SamplerParams is now an array of banks
+export type SamplerParams = SamplerBankParams[];
 
 export interface AllDrumParams {
   kick: KickParams;
@@ -78,7 +81,7 @@ export interface Pattern {
   snare: PartSequence;
   closedHat: PartSequence;
   openHat: PartSequence;
-  sampler: PartSequence;
+  sampler: PartSequence[]; // Array of 8 sequences
 }
 
 export interface AmbianceTrack {
@@ -86,21 +89,14 @@ export interface AmbianceTrack {
   url: string;
 }
 
-// Import engine types to avoid circular dependency issues if possible, or use 'any' if types are not exported here.
-// But ideally we import them.
-// Since WebGpuOscillator and WasmOscillator are classes, we can use them as types if we import them or use 'any'.
-// To avoid circular imports (since engines might import types), we can use basic structural typing or `any` for now,
-// or better, move engine interfaces to types.ts.
-// For now, I'll add them as optional properties to AudioEngine.
-
 export interface AudioEngine {
   context: AudioContext;
   webGpuEngine?: any; // WebGpuOscillator
   wasmEngine?: any; // WasmOscillator
   playSynth: (params: SynthParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
   playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
-  playSampler: (params: SamplerParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
-    noteOnSampler?: (params: SamplerParams, note: string, time?: number) => number | null;
+  playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
+    noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number) => Promise<number | null> | number | null;
     noteOffSynth?: (id: number) => void;
@@ -137,4 +133,29 @@ export interface SongStructure {
   length: number; // Total number of song steps (1-64)
   steps: SongStep[]; // Array of song steps defining which pattern plays when
   currentSongStep: number; // Current position in the song
+}
+
+// Helper type for the saved file format
+export interface SavedSongData {
+  pattern: Pattern;
+  // Use generic objects for params to allow flexibility
+  params: {
+    synthA: SynthParams;
+    synthB: SynthParams;
+    kick: KickParams;
+    snare: SnareParams;
+    closedHat: HatParams;
+    openHat: HatParams;
+    sampler: SamplerParams;
+  };
+  trackStorage: any;
+  activeTrackSlots: any;
+  songStructure: any;
+  tempo: number;
+  ambianceUrl?: string;
+  backgroundImage?: string;
+  // NEW: Embedded samples
+  embeddedSamples?: {
+    [bankIndex: number]: string; // Base64 encoded WAV
+  };
 }
