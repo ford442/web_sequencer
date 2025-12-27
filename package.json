@@ -5,9 +5,11 @@
   "description": "Sequencer-driven Web Audio workstation inspired by the Korg Electribe EA-1 ER-1.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run build:wasm && npm run build:emcc && vite",
     "build:wasm": "asc assembly/oscillators.ts -o public/oscillators.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 384 --enable threads",
-    "build": "npm run build:wasm && tsc -b && vite build",
+    "build:emcc": "bash emscripten/build.sh",
+    "optimize": "bash tools/optimize.sh",
+    "build": "npm run build:wasm && npm run build:emcc && npm run optimize && tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
