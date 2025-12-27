@@ -21,7 +21,7 @@ const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 
 export const SamplerPanel: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, activeBankIdx, onBankChange, onOpenEditor,
-    onTtsPhraseChange,
+    ttsPhrases, onTtsPhraseChange,
     onHarmonize
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);

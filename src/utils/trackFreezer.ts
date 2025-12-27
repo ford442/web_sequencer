@@ -23,7 +23,7 @@ interface WasmExports {
 let wasmInstance: WasmExports | null = null;
 
 // Allow external injection for testing
-export const setWasmInstance = (instance: any) => {
+export const setWasmInstance = (instance: WasmExports) => {
     wasmInstance = instance;
 };
 
@@ -58,6 +58,7 @@ export interface FreezeOptions {
  * Freezes a synth track using Python's offline rendering
  */
 export const freezeSynthTrack = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pyodide: any,
     sequence: PartSequence,
     params: SynthParams,
@@ -98,6 +99,7 @@ export const freezeSynthTrack = async (
  * Freezes a drum track using Python's offline rendering
  */
 export const freezeDrumTrack = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pyodide: any,
     sequence: PartSequence,
     params: KickParams | SnareParams | HatParams,

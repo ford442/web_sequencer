@@ -122,7 +122,7 @@ describe('trackFreezer', () => {
                 })
             } as any as AudioBuffer;
 
-            const result = audioBufferToMono(buffer);
+            audioBufferToMono(buffer);
 
             // Average of 4 channels with value 1.0 should be 1.0
             // If WASM ran (and only took first 2 and div by 2), it would also be 1.0 actually...
