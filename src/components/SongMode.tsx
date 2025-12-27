@@ -214,12 +214,13 @@ export const SongMode = memo(({
                 <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest drop-shadow-[0_0_8px_rgba(6,182,212,0.4)]">SONG ARRANGER</h2>
                 <div className="flex gap-3 items-center">
                     <div className="flex items-center gap-2 mr-4 bg-gray-900/50 p-1 rounded border border-gray-800">
-                        <span className="text-[10px] text-gray-500 font-mono">BG IMG:</span>
+                        <span className="text-[10px] text-gray-500 font-mono" id="bg-img-label">BG IMG:</span>
                         <input
                             type="text"
                             value={backgroundImage}
                             onChange={(e) => onSetBackgroundImage(e.target.value)}
                             placeholder="https://..."
+                            aria-labelledby="bg-img-label"
                             className="w-32 bg-transparent text-xs text-cyan-300 focus:outline-none border-b border-gray-700 focus:border-cyan-500 font-mono"
                         />
                     </div>
