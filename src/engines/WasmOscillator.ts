@@ -1,3 +1,10 @@
+// @mode: bridge
+// @note-for-ai: This is the TypeScript bridge to the AssemblyScript WASM module.
+// The heavy DSP logic is in assembly/oscillators.ts. This file handles:
+// - WASM loading and initialization
+// - Memory management (copying data out of WASM memory)
+// - Error handling and fallback paths
+
 export class WasmOscillator {
     private instance: WebAssembly.Instance | null = null;
     private memory: WebAssembly.Memory | null = null;
