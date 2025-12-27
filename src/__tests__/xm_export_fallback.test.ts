@@ -31,7 +31,7 @@ describe('XM Export Fallback Pattern', () => {
             snare: { steps: Array(32).fill(null) },
             closedHat: { steps: Array(32).fill(null) },
             openHat: { steps: Array(32).fill(null) },
-            sampler: { steps: Array(32).fill(null) },
+            sampler: Array(8).fill({ steps: Array(32).fill(null) }),
         };
         
         // With empty song structure, useFallbackPattern should be truthy (the pattern object)
@@ -61,15 +61,23 @@ describe('XM Export Fallback Pattern', () => {
             snare: { steps: Array(32).fill(null) },
             closedHat: { steps: Array(32).fill(null) },
             openHat: { steps: Array(32).fill(null) },
-            sampler: { steps: Array(32).fill(null) },
+            sampler: Array(8).fill({ steps: Array(32).fill(null) }),
         };
         
         // Create XM pattern
-        const xmPat = createPattern(32, 8);
+        const xmPat = createPattern(32, 14);
         
         // Fill from current pattern (simulating the fix logic)
-        const fillPatternFromSequence = (sequence: PartSequence, trackKey: TrackKey) => {
-            const { inst, chan } = trackMap[trackKey];
+        const fillPatternFromSequence = (sequence: PartSequence, trackKey: TrackKey, bankIdx: number = 0) => {
+            let inst, chan;
+
+            if (trackKey === 'sampler') {
+                inst = 7 + bankIdx;   // Instruments 7-14
+                chan = 6 + bankIdx;   // Channels 6-13
+            } else {
+                inst = trackMap[trackKey].inst;
+                chan = trackMap[trackKey].chan;
+            }
             
             sequence.steps.forEach((stepData, row) => {
                 if (stepData && row < 32) {
@@ -89,9 +97,15 @@ describe('XM Export Fallback Pattern', () => {
         };
         
         (Object.keys(trackMap) as TrackKey[]).forEach(trackKey => {
-            const sequence = currentPattern[trackKey];
-            if (sequence) {
-                fillPatternFromSequence(sequence, trackKey);
+            if (trackKey === 'sampler') {
+                currentPattern.sampler.forEach((seq, idx) => {
+                    fillPatternFromSequence(seq, 'sampler', idx);
+                });
+            } else {
+                const sequence = currentPattern[trackKey] as PartSequence;
+                if (sequence) {
+                    fillPatternFromSequence(sequence, trackKey);
+                }
             }
         });
         
@@ -137,7 +151,7 @@ describe('XM Export Fallback Pattern', () => {
             snare: { steps: Array(32).fill(null) },
             closedHat: { steps: Array(32).fill(null) },
             openHat: { steps: Array(32).fill(null) },
-            sampler: { steps: Array(32).fill(null) },
+            sampler: Array(8).fill({ steps: Array(32).fill(null) }),
         };
         
         const useFallbackPattern = lastActiveMeasure === -1 && currentPattern;
