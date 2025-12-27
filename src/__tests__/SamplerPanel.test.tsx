@@ -16,7 +16,7 @@ vi.mock('../services/Supertonic', () => ({
 
 // Mock AudioContext
 const mockAudioContext = {
-  createBuffer: vi.fn((channels: number, length: number, sampleRate: number) => ({
+  createBuffer: vi.fn((_channels: number, length: number) => ({
     getChannelData: () => new Float32Array(length)
   }))
 } as any;
@@ -175,7 +175,7 @@ describe('SamplerPanel TTS per-bank functionality', () => {
 
   it('handles invalid bank indices gracefully', () => {
     const onTtsPhraseChange = vi.fn();
-    const { rerender } = render(
+    render(
       <SamplerPanel
         {...defaultProps}
         activeBankIdx={10}  // Out of range
