@@ -13,6 +13,7 @@ interface SamplerPanelProps {
     onOpenEditor?: () => void;
     ttsPhrases: string[];            // Array of 8 TTS phrases
     onTtsPhraseChange: (phrases: string[]) => void; // Update TTS phrases
+    onHarmonize?: (bankIndex: number, chordType: string) => Promise<void>; // New prop
 }
 
 // 8 Banks
@@ -20,7 +21,8 @@ const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 
 export const SamplerPanel: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, activeBankIdx, onBankChange, onOpenEditor,
-    ttsPhrases, onTtsPhraseChange
+    onTtsPhraseChange,
+    onHarmonize
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -32,6 +34,24 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
     const [ttsReady, setTtsReady] = useState(false);
     const [flashBankIdx, setFlashBankIdx] = useState<number | null>(null);
     const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const [isProcessingHarmonize, setIsProcessingHarmonize] = useState(false);
+    const [chordType, setChordType] = useState('minor');
+
+    const handleHarmonizeClick = async () => {
+        if (!onHarmonize) return;
+        setIsProcessingHarmonize(true);
+        setStatus("Harmonizing...");
+        try {
+            await onHarmonize(activeBankIdx, chordType);
+            setStatus("Harmonized!");
+        } catch (e) {
+            console.error(e);
+            setStatus("Error");
+        } finally {
+            setIsProcessingHarmonize(false);
+        }
+    };
 
     // Get the TTS text for the current bank with bounds checking
     const currentTtsText = (ttsPhrases && activeBankIdx >= 0 && activeBankIdx < 8) 
@@ -222,7 +242,30 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                 {onOpenEditor && <button onClick={onOpenEditor} className="text-[10px] text-purple-400 underline hover:text-white px-1">EDIT</button>}
             </div>
 
-            {/* ROW 4: Parameters for Active Bank */}
+            {/* ROW 4: INSTANT HARMONIZER */}
+            <div className="mt-1 bg-gray-800/30 p-1 rounded flex gap-1 items-center">
+                <select
+                    value={chordType}
+                    onChange={(e) => setChordType(e.target.value)}
+                    className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500"
+                >
+                    <option value="major">Major</option>
+                    <option value="minor">Minor</option>
+                    <option value="maj7">Major 7</option>
+                    <option value="min7">Minor 7</option>
+                    <option value="octave">Octave</option>
+                    <option value="stack">Power Stack</option>
+                </select>
+                <button
+                    onClick={handleHarmonizeClick}
+                    disabled={isProcessingHarmonize || !onHarmonize}
+                    className="px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold"
+                >
+                    {isProcessingHarmonize ? '...' : 'HARM'}
+                </button>
+            </div>
+
+            {/* ROW 5: Parameters for Active Bank */}
             <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
                 <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={v => updateParam('playbackSpeed', v)} min={0.1} max={4.0} color="purple" />
                 <Knob label="Vol" value={currentParams.volume} onChange={v => updateParam('volume', v)} min={0} max={2.0} color="purple" />
