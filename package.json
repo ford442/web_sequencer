@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "npm run build:wasm && npm run build:emcc && vite",
-    "build:wasm": "asc assembly/oscillators.ts -o public/oscillators.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 384 --enable threads",
+    "build:wasm": "npm run build:wasm:oscillators && npm run build:wasm:freezer",
+    "build:wasm:oscillators": "asc assembly/oscillators.ts -o public/oscillators.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 384 --enable threads",
+    "build:wasm:freezer": "asc assembly/trackFreezer.ts -o public/trackFreezer.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 128 --exportRuntime",
     "build:emcc": "bash emscripten/build.sh",
     "optimize": "bash tools/optimize.sh",
     "build": "npm run build:wasm && npm run build:emcc && npm run optimize && tsc -b && vite build",
