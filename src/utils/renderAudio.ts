@@ -1,3 +1,9 @@
+// @mode: typescript
+// @note-for-ai: Audio rendering utilities with hybrid engine support.
+// Already uses WebGPU/WASM/Pyodide engines when available.
+// The skipFilter logic prevents double-filtering when WASM/Pyodide handle it.
+// See engines directory for the actual performance-critical implementations.
+
 import type { SynthParams, KickParams, SnareParams, HatParams } from '../types';
 import { noteToFrequency } from '../constants';
 

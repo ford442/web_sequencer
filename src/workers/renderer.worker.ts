@@ -1,3 +1,10 @@
+// @mode: typescript
+// @note-for-ai: This worker runs in a separate thread for background audio rendering.
+// It duplicates types because workers have isolated scope.
+// Consider: If this becomes a bottleneck, the playSynthForRender function
+// could be migrated to use a shared WASM module loaded in the worker.
+// Currently, OfflineAudioContext provides sufficient performance.
+
 // A self-contained worker for rendering audio in the background.
 // It duplicates some types and functions because it runs in a separate scope.
 
