@@ -7,6 +7,17 @@ We never delete the original JavaScript entry point immediately. The JS file rem
 
 ---
 
+## Quick Start for AI Agents
+
+When starting a migration session:
+
+1. **Scan for existing tags:** `grep -r "@mode:\|@migrate-target:\|@perf-bottleneck:" src/`
+2. **Check this tracking table** (Section 6) for current migration status
+3. **Run profiling** before any optimization: `npm run dev` then use browser DevTools Performance tab
+4. **Follow the 4-Pass workflow** in Section 3 - never skip passes
+
+---
+
 ## 1. The Technology Stack Levels
 
 Move code down this stack **only** when profiling data justifies the complexity cost.
@@ -79,3 +90,133 @@ export function applyFilter(buffer) {
     return buffer.map(v => v * 0.5);
     */
 }
+```
+
+### Pass 4: Validation & Cleanup
+**Goal:** Verify performance gains and clean up.
+1.  Run profiling to confirm improvements.
+2.  Remove `@migrate-target` tags from completed functions.
+3.  Update the Migration Tracking Table (Section 6).
+4.  Consider marking the original file as `@mode: deprecated` if all logic migrated.
+
+---
+
+## 4. Build Commands Reference
+
+| Tech | Build Command | Output Location |
+| :--- | :--- | :--- |
+| TypeScript | `tsc -b` (via Vite) | Bundled by Vite |
+| AssemblyScript | `npm run build:wasm` | `public/oscillators.wasm` |
+| C++ (Emscripten) | `npm run build:emcc` | `public/hyphon_native.js/.wasm` |
+| Full Build | `npm run build` | `dist/` |
+
+---
+
+## 5. File Naming Conventions
+
+| Original File | AssemblyScript Sidecar | C++ Sidecar |
+| :--- | :--- | :--- |
+| `src/utils/audio.ts` | `assembly/audio.ts` | `emscripten/audio.cpp` |
+| `src/engines/processor.ts` | `assembly/processor.ts` | `emscripten/processor.cpp` |
+
+**Pattern:** Keep the same base name. Use directory structure to indicate target tech.
+
+---
+
+## 6. Migration Tracking Table
+
+Track the current status of all migration candidates here.
+
+| File | Current Level | Target Level | Status | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| `src/engines/WasmOscillator.ts` | L2 (TypeScript) | L3 (WASM Bridge) | ✅ Complete | Uses `assembly/oscillators.ts` |
+| `src/engines/WebGpuOscillator.ts` | L2 (TypeScript) | L5 (WebGPU) | ✅ Complete | Native WebGPU shader |
+| `src/utils/audioExport.ts` | L2 (TypeScript) | L3 (AssemblyScript) | 📋 Candidate | Hot loop in `audioBufferToWav` |
+| `src/utils/trackFreezer.ts` | L2 (TypeScript) | L3/L4 | 📋 Candidate | Loop analysis functions |
+| `src/utils/musicTheory.ts` | L2 (TypeScript) | L2 | ⏸️ Hold | Low complexity, no benefit |
+| `src/utils/noteColors.ts` | L2 (TypeScript) | L2 | ⏸️ Hold | UI-only, no performance issue |
+| `emscripten/main.cpp` | L4 (C++) | L4 | 🚧 Scaffold | Empty placeholder for future |
+
+**Status Legend:**
+- ✅ Complete: Migration finished
+- 🚧 In Progress: Currently being migrated
+- 📋 Candidate: Identified for future migration
+- ⏸️ Hold: Not suitable for migration
+
+---
+
+## 7. Example: Existing Bridge Pattern (WasmOscillator)
+
+The codebase already demonstrates the Bridge pattern:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  src/engines/WasmOscillator.ts                                  │
+│  // @mode: bridge                                               │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ generate() method:                                       │   │
+│  │   1. Validates inputs                                    │   │
+│  │   2. Calls WASM: exports.generate(offset, rate, ...)    │   │
+│  │   3. Copies result from WASM memory                      │   │
+│  │   4. Returns Float32Array                                │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  assembly/oscillators.ts  (AssemblyScript)                      │
+│  // @mode: assemblyscript                                       │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ generate() function:                                     │   │
+│  │   - Pure math/DSP logic                                  │   │
+│  │   - No JS object dependencies                            │   │
+│  │   - Direct memory writes: store<f32>(offset, value)      │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Adding New Migration Candidates
+
+When identifying a new candidate:
+
+1. **Profile First:** Use browser DevTools to identify actual bottlenecks
+2. **Add Tags:** Annotate the function with `@migrate-target: [level]` and `@perf-bottleneck: [reason]`
+3. **Update Table:** Add entry to Section 6 with status "📋 Candidate"
+4. **Create Issue (Optional):** For larger migrations, create a GitHub issue
+
+### Common Bottleneck Patterns
+
+| Pattern | Example | Recommended Target |
+| :--- | :--- | :--- |
+| Float array processing | WAV encoding loops | AssemblyScript (L3) |
+| Complex DSP math | Filters, FFT | AssemblyScript (L3) |
+| Existing C/C++ library | Audio codecs | Emscripten (L4) |
+| Massively parallel compute | Per-pixel effects | WebGPU (L5) |
+
+---
+
+## 9. Verification Checklist
+
+Before marking a migration as complete:
+
+- [ ] Original behavior preserved (unit tests pass)
+- [ ] Performance improvement measured (document % gain)
+- [ ] Fallback path exists (graceful degradation)
+- [ ] Memory management verified (no leaks)
+- [ ] Build commands updated if needed
+- [ ] Documentation updated
+
+---
+
+## 10. Rollback Strategy
+
+If a migration causes issues:
+
+1. The original logic should still exist (commented out in bridge, or in git history)
+2. Toggle back by editing the bridge function to use original logic
+3. Mark the migration as "🚧 In Progress" with notes on the issue
+4. Consider whether the complexity cost is worth the performance gain

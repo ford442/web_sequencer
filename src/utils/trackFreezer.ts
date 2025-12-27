@@ -2,6 +2,13 @@
  * Track Freezer Utility
  * Renders complex synth/drum patterns to simple audio buffers for CPU savings
  */
+// @mode: typescript
+// @migrate-target: assemblyscript
+// @perf-bottleneck: Loop analysis in findLoopPoints scans entire buffer
+// @future-plan: Move findLoopPoints and audioBufferToMono to WASM for large buffer processing
+// @note-for-ai: Consider assembly/trackFreezer.ts with:
+// - findLoopPoints(buffer: Float32Array, minLoopLength: i32): {start: i32, end: i32}
+// - audioBufferToMono(buffer: Float32Array, numChannels: i32): Float32Array
 
 import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '../types';
 

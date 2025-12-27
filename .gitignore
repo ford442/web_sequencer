@@ -29,3 +29,4 @@ public/assets/onnx/voice_styles/
 *.njsproj
 *.sln
 *.sw?
+_codeql_detected_source_root

@@ -1,4 +1,14 @@
 // assembly/oscillators.ts
+// @mode: assemblyscript
+// @note-for-ai: This is the AssemblyScript implementation of the oscillator DSP.
+// It is compiled to WASM via: npm run build:wasm
+// Output: public/oscillators.wasm
+// Bridge file: src/engines/WasmOscillator.ts
+//
+// Design constraints for WASM modules:
+// - Only use primitive types (f32, i32) and TypedArrays
+// - No JS object dependencies
+// - Direct memory access via store<type>(offset, value)
 
 @inline const PI: f32 = 3.14159265359;
 
