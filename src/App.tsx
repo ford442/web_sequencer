@@ -1067,6 +1067,54 @@ export const App: React.FC = () => {
         setContextMenu(null);
     };
 
+    const handleNoteLengthChange = (newLength: number) => {
+        if (!contextMenu) return;
+
+        setPattern(prev => {
+            const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+
+            // 1. Determine Track and Step
+            const trackKey = contextMenu.track;
+            const stepIndex = contextMenu.step;
+            const isSampler = trackKey === 'sampler';
+
+            // 2. Get the specific step data
+            let stepsArray;
+            if (isSampler) {
+                 stepsArray = copy.sampler[activeSamplerBank].steps;
+            } else {
+                 // Cast to PartSequence to ensure TS knows it has .steps property
+                 stepsArray = (copy[trackKey] as any).steps;
+            }
+
+            const stepData = stepsArray[stepIndex];
+
+            if (stepData) {
+                // 3. Update the length
+                stepData.length = newLength;
+
+                // 4. OPTION A: Clean up overlapping steps
+                // We clear any notes that exist in the "shadow" of this new length
+                for (let i = 1; i < newLength; i++) {
+                    const nextStepIdx = stepIndex + i;
+                    if (nextStepIdx < stepsArray.length) {
+                        stepsArray[nextStepIdx] = null;
+                    }
+                }
+            }
+
+            // 5. Save changes to storage history
+            if (isSampler) {
+                 updateStorageForTrack('sampler', copy.sampler);
+            } else {
+                updateStorageForTrack(trackKey, copy[trackKey]);
+            }
+
+            return copy;
+        });
+        // We do NOT close the menu here, so you can drag the slider smoothly
+    };
+
     const handleClearPattern = () => {
         if (window.confirm("Clear current pattern?")) {
             const emptyPattern = {
@@ -1641,8 +1689,20 @@ export const App: React.FC = () => {
                             x={contextMenu.x}
                             y={contextMenu.y}
                             trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
-                            currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
+                            // Retrieve current Note
+                            currentNote={
+                                contextMenu.track === 'sampler'
+                                ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? ''
+                                : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''
+                            }
+                            // Retrieve current Length (Default to 1)
+                            currentLength={
+                                contextMenu.track === 'sampler'
+                                ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1
+                                : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1
+                            }
                             onSelect={handleNoteSelect}
+                            onLengthChange={handleNoteLengthChange} // Pass the new handler
                             onClose={() => setContextMenu(null)}
                             getNoteColor={getNoteColor}
                         />
