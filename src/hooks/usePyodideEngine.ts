@@ -442,7 +442,104 @@ def generate_sampler(name, pitch_ratio, volume):
 
     return final_wave.astype(np.float64)
 
-# --- ARPEGGIATOR PATTERNS ---
+# --- PHASE VOCODER & PITCH SHIFTING (Required for Harmonizer) ---
+
+def phase_vocoder(y, rate):
+    """
+    Time-stretches signal 'y' by factor 'rate' using STFT Phase Vocoder.
+    rate > 1.0 = Slower (Stretch) | rate < 1.0 = Faster (Compress)
+    """
+    n_fft = 2048
+    hop_length = n_fft // 4
+    spec = signal.stft(y, nperseg=n_fft, noverlap=n_fft-hop_length)[2]
+
+    rows, cols = spec.shape
+    new_cols = int(cols * rate)
+    time_new = np.linspace(0, cols, new_cols)
+
+    new_spec = np.zeros((rows, new_cols), dtype=np.complex128)
+    phi_advance = np.linspace(0, np.pi * hop_length, rows)
+    phase_acc = np.angle(spec[:, 0])
+
+    for t in range(new_cols):
+        old_t = time_new[t]
+        idx = int(np.floor(old_t))
+        alpha = old_t - idx
+
+        # Safe indexing
+        if idx >= cols - 1:
+            col_0 = spec[:, -1]; col_1 = spec[:, -1]
+        else:
+            col_0 = spec[:, idx]; col_1 = spec[:, idx+1]
+
+        # Mag Linear Interp
+        mag = (1 - alpha) * np.abs(col_0) + alpha * np.abs(col_1)
+
+        # Phase Prop
+        phase_0 = np.angle(col_0)
+        phase_1 = np.angle(col_1)
+        dphase = phase_1 - phase_0 - phi_advance
+        dphase -= 2 * np.pi * np.round(dphase / (2 * np.pi))
+        phase_acc += dphase + phi_advance
+
+        new_spec[:, t] = mag * np.exp(1j * phase_acc)
+
+    _, y_stretch = signal.istft(new_spec, nperseg=n_fft, noverlap=n_fft-hop_length)
+    return y_stretch
+
+def shift_pitch_pv(y, n_semitones):
+    """ Shifts pitch WITHOUT changing duration. """
+    if n_semitones == 0: return y
+    factor = 2 ** (n_semitones / 12.0)
+
+    # 1. Resample (Changes pitch & duration)
+    new_len = int(len(y) / factor)
+    y_resampled = signal.resample(y, new_len)
+
+    # 2. Stretch back to original length
+    stretch_factor = len(y) / len(y_resampled)
+    y_shifted = phase_vocoder(y_resampled, stretch_factor)
+
+    # Trim/Pad to match exactly
+    if len(y_shifted) > len(y): y_shifted = y_shifted[:len(y)]
+    else: y_shifted = np.pad(y_shifted, (0, len(y) - len(y_shifted)))
+
+    return y_shifted
+
+# --- HARMONIZER FUNCTION ---
+
+def generate_chord_stack(name, chord_type):
+    """
+    Creates a chord from a single sample.
+    """
+    if name not in SAMPLES: return np.zeros(10)
+    y = SAMPLES[name]
+
+    intervals = {
+        'major': [0, 4, 7],
+        'minor': [0, 3, 7],
+        'maj7':  [0, 4, 7, 11],
+        'min7':  [0, 3, 7, 10],
+        'octave': [0, 12],
+        'stack': [0, 7, 12]
+    }
+
+    semitones = intervals.get(chord_type, [0])
+    output = np.zeros(len(y))
+
+    # Mix layers
+    for semi in semitones:
+        layer = shift_pitch_pv(y, semi)
+        # Prevent clipping when summing layers by scaling down
+        output += layer * 0.6
+
+    # Normalize
+    max_val = np.max(np.abs(output))
+    if max_val > 0: output = output / max_val
+
+    return output.astype(np.float64)
+
+# --- NEW: Arpeggiator Patterns ---
 
 ARP_PATTERNS = {
     'major': [0, 4, 7, 12],
@@ -658,7 +755,7 @@ def freeze_drum_track(pattern_json, params_json, drum_type='kick'):
                 setPyodideStatus('Loading Pyodide runtime...');
                 await loadScript("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
-                // @ts-ignore: loadPyodide is now on the window object
+                // @ts-expect-error: loadPyodide is now on the window object
                 const pyodideInstance = await window.loadPyodide();
                 setPyodide(pyodideInstance);
 
