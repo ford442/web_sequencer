@@ -878,6 +878,68 @@ export const useAudioEngine = (pyodide: any) => {
             }
         };
 
+        const detectSamplePitch = async (buffer: AudioBuffer) => {
+            if (!pyodideRef.current) return null;
+            try {
+                const data = Array.from(buffer.getChannelData(0));
+                // Call Python to get JSON string
+                const jsonStr = await pyodideRef.current.globals.get('analyze_sample')(data);
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                console.error("detectSamplePitch Error:", e);
+                return null;
+            }
+        };
+
+        const processSinging = async (sampleName: string, note: string, steps: number, tempo: number) => {
+            if (!pyodideRef.current) return null;
+
+            try {
+                // Call Python
+                const pyProxy = await pyodideRef.current.globals.get('process_singing_sample')(
+                    sampleName,
+                    note,
+                    steps,
+                    tempo
+                );
+
+                const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+                pyProxy.destroy();
+
+                if (audioSamples.length === 0) return null;
+
+                // Create buffer
+                const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+                buffer.getChannelData(0).set(audioSamples);
+
+                return buffer;
+            } catch (e) {
+                console.error("Process Singing Error:", e);
+                return null;
+            }
+        };
+
+        const processSpoon = async (sampleName: string, note: string) => {
+            if (!pyodideRef.current) return null;
+            try {
+                const pyProxy = await pyodideRef.current.globals.get('process_spoon_sample')(
+                    sampleName,
+                    note
+                );
+                const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+                pyProxy.destroy();
+
+                if (audioSamples.length === 0) return null;
+
+                const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+                buffer.getChannelData(0).set(audioSamples);
+                return buffer;
+            } catch (e) {
+                console.error("Process Spoon Error:", e);
+                return null;
+            }
+        };
+
         audioEngineRef.current = {
             context,
             webGpuEngine: gpuEngineRef.current,
@@ -897,7 +959,10 @@ export const useAudioEngine = (pyodide: any) => {
             stopAmbiance,
             setAmbianceVolume,
             setMasterVolume,
-            setGlobalPan
+            setGlobalPan,
+            detectSamplePitch,
+            processSinging,
+            processSpoon
         };
 
         setIsReady(true);
