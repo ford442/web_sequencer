@@ -304,7 +304,14 @@ export const HardwareModule = React.memo(
                         </div>
                     ))}
                     {onRecordToggle && controls.map((c) => (
-                        <button key={`rec-${c.id}`} onClick={(e) => { e.stopPropagation(); onRecordToggle(c.id); }} className="absolute pointer-events-auto transform -translate-x-1/2" style={{ left: `${c.x * 100}%`, top: `${(c.y - c.size * 1.3) * 100}%`, width: '16px', height: '16px' }} title="Record Automation">
+                        <button
+                            key={`rec-${c.id}`}
+                            onClick={(e) => { e.stopPropagation(); onRecordToggle(c.id); }}
+                            className="absolute pointer-events-auto transform -translate-x-1/2"
+                            style={{ left: `${c.x * 100}%`, top: `${(c.y - c.size * 1.3) * 100}%`, width: '16px', height: '16px' }}
+                            title="Record Automation"
+                            aria-label={`Record Automation for ${c.label}`}
+                        >
                             <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${c.isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
                         </button>
                     ))}
