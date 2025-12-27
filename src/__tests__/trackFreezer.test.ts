@@ -18,7 +18,7 @@ describe('trackFreezer', () => {
                 }
             });
             // Inject the WASM instance directly to test the bridge
-            setWasmInstance(instance.exports);
+            setWasmInstance(instance.exports as any);
             console.log("WASM loaded for tests");
         } else {
             console.warn("WASM file not found, tests will run on JS fallback only");
