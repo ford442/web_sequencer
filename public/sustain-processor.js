@@ -59,6 +59,10 @@ class SustainProcessor extends AudioWorkletProcessor {
                     this.playhead = 0;
                     // Pre-compute zero crossings for this buffer
                     this.zeroCrossings = this.findZeroCrossings(this.buffer);
+                    // Accept optional mode in loadBuffer message
+                    if (data.mode !== undefined) {
+                        this.mode = data.mode;
+                    }
                     break;
 
                 case 'setLoopPoints':
@@ -76,6 +80,10 @@ class SustainProcessor extends AudioWorkletProcessor {
                     this.playhead = this.loopStart;
                     this.basePitch = data.pitch || 1.0;
                     this.grainPhase = 0;
+                    // Accept mode in noteOn message (optional, falls back to current mode)
+                    if (data.mode !== undefined) {
+                        this.mode = data.mode;
+                    }
                     break;
 
                 case 'noteOff':
