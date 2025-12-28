@@ -185,6 +185,29 @@ const findSamplerLoopPoints = (buffer: Float32Array, loopEnabled: boolean, sampl
     return { loopStart, loopEnd, loopType: LoopType.Forward };
 };
 
+/**
+ * Calculate XM relative note and finetune for a given sample rate
+ * so that the sample plays at its original pitch when C-4 is triggered.
+ * * XM standard C-4 frequency is 8363 Hz.
+ * Formula: RelNote = 12 * log2(SampleRate / 8363)
+ */
+const calculateXMPitchParams = (sampleRate: number) => {
+    const C4_FREQ = 8363;
+    const totalSemitones = 12 * Math.log2(sampleRate / C4_FREQ);
+    
+    // Relative Note (Semitone offset)
+    const relativeNote = Math.round(totalSemitones);
+    
+    // Fine Tune (1/128th of a semitone)
+    // Range: -128 to +127
+    const fineTune = Math.round((totalSemitones - relativeNote) * 128);
+    
+    return {
+        relativeNote: Math.max(-128, Math.min(127, relativeNote)),
+        fineTune: Math.max(-128, Math.min(127, fineTune))
+    };
+};
+
 export const exportSongToXM = async (
     songStructure: { [key in TrackKey]: number | null }[],
     trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
@@ -225,6 +248,9 @@ export const exportSongToXM = async (
     const normalizedDataA = normalizeBuffer(rawDataA);
     const loopPointsA = findSynthLoopPoints(normalizedDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay);
 
+    // UPDATED: Calculate pitch for Synths too (handles 44.1k/48k correctly)
+    const pitchA = calculateXMPitchParams(bufA.sampleRate);
+
     const sampleA = createSample({
         name: 'Lead',
         data: floatTo16BitPCM(normalizedDataA),
@@ -232,7 +258,8 @@ export const exportSongToXM = async (
         loopType: loopPointsA.loopEnd > loopPointsA.loopStart ? LoopType.Forward : LoopType.None,
         loopStart: loopPointsA.loopStart,
         loopLength: loopPointsA.loopEnd > loopPointsA.loopStart ? loopPointsA.loopEnd - loopPointsA.loopStart : 0,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchA.relativeNote,
+        fineTune: pitchA.fineTune
     });
     const instA = createInstrument('Lead Synth');
     addSampleToInstrument(instA, sampleA);
@@ -244,6 +271,10 @@ export const exportSongToXM = async (
     const rawDataB = bufB.getChannelData(0);
     const normalizedDataB = normalizeBuffer(rawDataB);
     const loopPointsB = findSynthLoopPoints(normalizedDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay);
+    
+    // UPDATED: Calculate pitch for Synths
+    const pitchB = calculateXMPitchParams(bufB.sampleRate);
+
     const sampleB = createSample({
         name: 'Bass',
         data: floatTo16BitPCM(normalizedDataB),
@@ -251,7 +282,8 @@ export const exportSongToXM = async (
         loopType: loopPointsB.loopEnd > loopPointsB.loopStart ? LoopType.Forward : LoopType.None,
         loopStart: loopPointsB.loopStart,
         loopLength: loopPointsB.loopEnd > loopPointsB.loopStart ? loopPointsB.loopEnd - loopPointsB.loopStart : 0,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchB.relativeNote,
+        fineTune: pitchB.fineTune
     });
     const instB = createInstrument('Bass Synth');
     addSampleToInstrument(instB, sampleB);
@@ -260,11 +292,14 @@ export const exportSongToXM = async (
     // Kick
     const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide);
     const normalizedKick = normalizeBuffer(bufKick.getChannelData(0));
+    const pitchKick = calculateXMPitchParams(bufKick.sampleRate);
+    
     const sampleKick = createSample({
         name: 'Kick',
         data: floatTo16BitPCM(normalizedKick),
         volume: 64,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchKick.relativeNote,
+        fineTune: pitchKick.fineTune
     });
     const instKick = createInstrument('Kick');
     addSampleToInstrument(instKick, sampleKick);
@@ -273,11 +308,14 @@ export const exportSongToXM = async (
     // Snare
     const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide);
     const normalizedSnare = normalizeBuffer(bufSnare.getChannelData(0));
+    const pitchSnare = calculateXMPitchParams(bufSnare.sampleRate);
+
     const sampleSnare = createSample({
         name: 'Snare',
         data: floatTo16BitPCM(normalizedSnare),
         volume: 64,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchSnare.relativeNote,
+        fineTune: pitchSnare.fineTune
     });
     const instSnare = createInstrument('Snare');
     addSampleToInstrument(instSnare, sampleSnare);
@@ -286,11 +324,14 @@ export const exportSongToXM = async (
     // CH
     const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide);
     const normalizedCH = normalizeBuffer(bufCH.getChannelData(0));
+    const pitchCH = calculateXMPitchParams(bufCH.sampleRate);
+
     const sampleCH = createSample({
         name: 'Closed Hat',
         data: floatTo16BitPCM(normalizedCH),
         volume: 64,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchCH.relativeNote,
+        fineTune: pitchCH.fineTune
     });
     const instCH = createInstrument('Closed Hat');
     addSampleToInstrument(instCH, sampleCH);
@@ -299,11 +340,14 @@ export const exportSongToXM = async (
     // OH
     const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
     const normalizedOH = normalizeBuffer(bufOH.getChannelData(0));
+    const pitchOH = calculateXMPitchParams(bufOH.sampleRate);
+
     const sampleOH = createSample({
         name: 'Open Hat',
         data: floatTo16BitPCM(normalizedOH),
         volume: 64,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchOH.relativeNote,
+        fineTune: pitchOH.fineTune
     });
     const instOH = createInstrument('Open Hat');
     addSampleToInstrument(instOH, sampleOH);
@@ -323,11 +367,16 @@ export const exportSongToXM = async (
              const enableLoop = buffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
              const loopPoints = findSamplerLoopPoints(normalizedData, enableLoop, buffer.sampleRate);
 
+             // UPDATED: Calculate pitch correction for the sample rate
+             const { relativeNote, fineTune } = calculateXMPitchParams(buffer.sampleRate);
+
              const sample = createSample({
                 name: params.sampler[i].sampleName || `Sample ${i}`,
                 data: floatTo16BitPCM(normalizedData),
                 volume: Math.min(64, Math.floor(params.sampler[i].volume * 64)),
-                relativeNoteNumber: 24 + pitchShift,
+                // Add pitchShift (from playback speed) to the base relativeNote (from sample rate)
+                relativeNoteNumber: relativeNote + pitchShift,
+                fineTune: fineTune,
                 loopType: loopPoints.loopType,
                 loopStart: loopPoints.loopStart,
                 loopLength: loopPoints.loopEnd > loopPoints.loopStart ? loopPoints.loopEnd - loopPoints.loopStart : 0,
