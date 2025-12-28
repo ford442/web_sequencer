@@ -1490,7 +1490,7 @@ export const App: React.FC = () => {
     ), [synthB.waveform, updateSynthB]);
 
     const samplerChild = useMemo(() => (
-        <div className="absolute top-4 left-[30%] w-[40%] h-[120px] pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm">
+        <div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm">
             <SamplerPanel
                 params={sampler}
                 onChange={(u) => updateSampler(u)}
