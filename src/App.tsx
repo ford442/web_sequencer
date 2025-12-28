@@ -600,27 +600,6 @@ export const App: React.FC = () => {
         hasMoved: boolean;
     } | null>(null);
 
-
-    // --- ANIMATION LOOP ---
-    const [loadingTick, setLoadingTick] = useState(0);
-    useEffect(() => {
-        if (isPyodideReady) return;
-        const interval = setInterval(() => {
-            setLoadingTick(t => (t + 1) % 1000);
-        }, 100);
-        return () => clearInterval(interval);
-    }, [isPyodideReady]);
-
-    const getLoadingStepData = (rIdx: number) => {
-        return Array(32).fill(null).map((_, i) => {
-            const diag = (i + rIdx + loadingTick) % 8 === 0;
-            const scanPos = loadingTick % 32;
-            const scanner = (i === scanPos) || (i === 31 - scanPos);
-            const active = diag || scanner;
-            return active ? { note: 'C4', velocity: 1 } : null;
-        });
-    }
-
     // --- STORAGE STATE ---
     // Updated type definition to handle PartSequence | PartSequence[]
     const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>(
