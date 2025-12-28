@@ -223,9 +223,12 @@ describe('SamplerPanel TTS per-bank functionality', () => {
     render(<SamplerPanel {...defaultProps} />);
 
     // Check status live region
-    const statusDiv = screen.getByRole('status');
-    expect(statusDiv).toBeInTheDocument();
-    expect(statusDiv).toHaveAttribute('aria-live', 'polite');
+    const statusDivs = screen.getAllByRole('status');
+    // We expect 2 status roles: one for text feedback, one for TTS light
+    expect(statusDivs.length).toBeGreaterThanOrEqual(1);
+
+    const statusTextRegion = statusDivs.find(el => el.getAttribute('aria-live') === 'polite');
+    expect(statusTextRegion).toBeInTheDocument();
 
     // Check buttons have labels
     expect(screen.getByLabelText('Load Sample from File')).toBeInTheDocument();
