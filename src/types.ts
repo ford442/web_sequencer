@@ -51,6 +51,7 @@ export interface SamplerBankParams {
   filterResonance: number; // Q factor
   drive: number; // 0-1 (Distortion amount)
   delaySend: number; // 0-1 (Amount sent to delay bus)
+  mode: 'loop' | 'stretch' | 'wavetable'; // Playback mode
 }
 
 // SamplerParams is now an array of banks

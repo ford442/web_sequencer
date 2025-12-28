@@ -4,6 +4,11 @@ import { noteToFrequency, NUM_STEPS } from '../constants';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 
+// Helper to convert mode string to worklet numeric value
+const modeToWorkletValue = (mode: 'loop' | 'stretch' | 'wavetable'): number => {
+    return mode === 'loop' ? 0 : mode === 'stretch' ? 1 : 2;
+};
+
 export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
     const audioEngineRef = useRef<AudioEngine | null>(null);
@@ -706,7 +711,10 @@ export const useAudioEngine = (pyodide: any) => {
                     const baseFreq = noteToFrequency('C4');
                     const targetFreq = noteToFrequency(note);
                     const ratio = targetFreq / baseFreq * params.playbackSpeed;
-                    sustainNodeRef.current.port.postMessage({ type: 'noteOn', data: { pitch: ratio } });
+                    sustainNodeRef.current.port.postMessage({ 
+                        type: 'noteOn', 
+                        data: { pitch: ratio, mode: modeToWorkletValue(params.mode) } 
+                    });
                     const id = nextSamplerNoteId.current++;
                     activeSamplerNotes.current.set(id, { source: null as any, envGain: null as any });
                     return id;
