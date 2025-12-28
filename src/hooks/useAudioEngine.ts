@@ -120,10 +120,8 @@ export const useAudioEngine = (pyodide: any) => {
         }
         noiseBufferRef.current = buffer;
 
-        const playSynth = async (params: SynthParams, note: string, time: number) => {
-            // NOTE: destination arg removed, we force routing to masterGain
-            // If we ever need to support custom destinations (e.g. for offline rendering), we can re-add it,
-            // but 'playSynth' is for live playback. 'renderSynthPartToBuffer' uses its own offline context/worker.
+        // UPDATED: Now accepts durationSteps and stepTime to calculate dynamic gate length
+        const playSynth = async (params: SynthParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
             const destination = masterGainRef.current!;
 
             const isPyodideWave = params.waveform.startsWith('pyodide-');
@@ -131,8 +129,13 @@ export const useAudioEngine = (pyodide: any) => {
             const isWasmWave = params.waveform.startsWith('wam-');
             const isWavWave = params.waveform.startsWith('wav-');
 
-            // ADSR Logic
-            const gateTime = params.length || 0.25;
+            // --- ADSR / GATE LOGIC UPDATED ---
+            // We prioritize the sequencer's calculated duration (durationSteps * stepTime).
+            // If that's 0 or null, we fallback to params.length (the Gate knob).
+            const seqDuration = durationSteps * stepTime;
+            const gateTime = seqDuration > 0 ? seqDuration : (params.length || 0.25);
+            
+            // The total sound duration must include the release tail
             const totalDuration = gateTime + params.release;
 
             // --- Gain Envelope ---
@@ -142,10 +145,13 @@ export const useAudioEngine = (pyodide: any) => {
 
             const sustainLevel = params.volume * params.sustain;
             gain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
+            
+            // Hold Sustain until Gate Time
             gain.gain.setValueAtTime(sustainLevel, time + gateTime);
+            // Release after Gate Time
             gain.gain.linearRampToValueAtTime(0, time + gateTime + params.release);
 
-            // --- Delay ---
+            // --- Delay Chain ---
             let outputNode: AudioNode = destination;
             if (params.delayMix > 0 && params.delayTime > 0) {
                 const dryGain = context.createGain();
@@ -184,9 +190,6 @@ export const useAudioEngine = (pyodide: any) => {
 
                     const baseFreq = noteToFrequency(note);
                     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-
-                    // Determine sample root frequency based on user spec
-                    // saw.wav: 32.86 Hz, square.wav: 65.72 Hz
                     const sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
 
                     source.playbackRate.setValueAtTime(freqWithPitch / sampleRootFreq, time);
@@ -200,7 +203,7 @@ export const useAudioEngine = (pyodide: any) => {
                     filter.connect(outputNode);
 
                     source.start(time);
-                    // Stop slightly after release to prevent clicking
+                    // UPDATED: Stop after total duration (gate + release)
                     source.stop(time + totalDuration + 0.1);
                 }
             } else if (isWgslWave && gpuEngineRef.current?.isSupported) {
@@ -209,9 +212,10 @@ export const useAudioEngine = (pyodide: any) => {
                     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
                     const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
 
+                    // UPDATED: Pass calculated totalDuration to GPU
                     const rawData = await gpuEngineRef.current.generate(
                         freqWithPitch,
-                        totalDuration + 0.1,
+                        totalDuration + 0.1, 
                         context.sampleRate,
                         type
                     );
@@ -240,9 +244,7 @@ export const useAudioEngine = (pyodide: any) => {
                     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
                     const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
 
-                    // Log parameters for debugging
-                    // console.log("Wasm Generate:", { freqWithPitch, totalDuration, type, cutoff: params.filterCutoff });
-
+                    // UPDATED: Pass calculated totalDuration to WASM
                     const rawData = wasmEngineRef.current.generate(
                         freqWithPitch,
                         totalDuration + 0.1,
@@ -272,6 +274,7 @@ export const useAudioEngine = (pyodide: any) => {
                     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
                     const pyOscType = params.waveform.split('-')[1];
 
+                    // UPDATED: Pass totalDuration
                     const pyProxy = pyodideRef.current.globals.get('generate_wave')(
                         freqWithPitch,
                         totalDuration,
@@ -305,7 +308,6 @@ export const useAudioEngine = (pyodide: any) => {
                 const osc = context.createOscillator();
 
                 let waveType = params.waveform;
-                // Map any fancy names to standard if we fell back
                 if (waveType.includes('saw')) waveType = 'sawtooth';
                 else if (waveType.includes('sqr')) waveType = 'square';
                 else if (waveType.includes('tri')) waveType = 'triangle';
@@ -324,6 +326,7 @@ export const useAudioEngine = (pyodide: any) => {
                 filter.connect(outputNode);
 
                 osc.start(time);
+                // UPDATED: Stop after totalDuration
                 osc.stop(time + totalDuration + 0.05);
             }
         };
