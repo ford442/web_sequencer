@@ -7,7 +7,6 @@ export const useScheduler = (
   isAudioReady: boolean
 ) => {
   const [isPlaying, setIsPlaying] = useState(false)
-  const [currentStep, setCurrentStep] = useState(-1)
 
   // Use refs for values that change often but shouldn't restart the loop logic.
   const onStepRef = useRef(onStep)
@@ -26,7 +25,7 @@ export const useScheduler = (
   }, [tempo])
 
   // The main animation loop. It's a stable useCallback.
-  const loop = useCallback((time: number) => {
+  const loop = useCallback(function tick(time: number) {
     if (!isAudioReady) return
 
     const now = time / 1000
@@ -45,9 +44,6 @@ export const useScheduler = (
       currentStepRef.current = (currentStepRef.current + 1) % steps
       const stepToPlay = currentStepRef.current
 
-      // Update the UI state for the visual indicator
-      setCurrentStep(stepToPlay)
-
       // Trigger the audio callback with the correct step
       onStepRef.current(stepToPlay)
 
@@ -55,7 +51,7 @@ export const useScheduler = (
       nextStepTime.current += stepDuration
     }
 
-    animationFrameId.current = requestAnimationFrame(loop)
+    animationFrameId.current = requestAnimationFrame(tick)
   }, [isAudioReady, steps])
 
   useEffect(() => {
@@ -71,7 +67,6 @@ export const useScheduler = (
         cancelAnimationFrame(animationFrameId.current)
         animationFrameId.current = null
       }
-      setCurrentStep(-1) // Reset the visual indicator
     }
 
     // The cleanup function is crucial for stopping the loop when the component unmounts.
@@ -82,5 +77,5 @@ export const useScheduler = (
     }
   }, [isPlaying, isAudioReady, loop])
 
-  return { isPlaying, currentStep, setIsPlaying }
+  return { isPlaying, setIsPlaying }
 }
