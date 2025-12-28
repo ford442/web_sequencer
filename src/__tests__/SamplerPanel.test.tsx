@@ -218,4 +218,31 @@ describe('SamplerPanel TTS per-bank functionality', () => {
 
     expect(input.value).toBe("Hello World");
   });
+
+  it('has accessible labels and live region for status', () => {
+    render(<SamplerPanel {...defaultProps} />);
+
+    // Check status live region
+    const statusDiv = screen.getByRole('status');
+    expect(statusDiv).toBeInTheDocument();
+    expect(statusDiv).toHaveAttribute('aria-live', 'polite');
+
+    // Check buttons have labels
+    expect(screen.getByLabelText('Load Sample from File')).toBeInTheDocument();
+
+    // Check toggle button label (starts as Record)
+    expect(screen.getByLabelText('Record Sample from Microphone')).toBeInTheDocument();
+
+    // Check TTS input label
+    expect(screen.getByLabelText('Text to Speech Phrase')).toBeInTheDocument();
+
+    // Check Gen button label
+    expect(screen.getByLabelText('Generate Speech')).toBeInTheDocument();
+
+    // Check Chord selector label
+    expect(screen.getByLabelText('Harmonization Chord Type')).toBeInTheDocument();
+
+    // Check Harm button label
+    expect(screen.getByLabelText('Apply Harmonization')).toBeInTheDocument();
+  });
 });
