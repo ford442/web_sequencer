@@ -725,6 +725,10 @@ export const App: React.FC = () => {
     const isFirstStepRef = useRef(true);
 
     const onStep = useCallback((step: number) => {
+        // PERFORMANCE: Update Visuals Imperatively
+        currentStepRef.current = step;
+        rowRefs.current.forEach(r => r?.setHighlight(step));
+
         if (!audioEngine) return
         const time = audioEngine.context.currentTime
 
@@ -801,7 +805,8 @@ export const App: React.FC = () => {
 
     }, [audioEngine, tempo])
 
-    const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
+    // PERFORMANCE: schedStep is no longer used for reactive updates
+    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
 
@@ -809,22 +814,16 @@ export const App: React.FC = () => {
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
 
     // We still keep currentStepRef for logic that needs to read it (like Keyboard)
-    const currentStepRef = useRef(schedStep);
-
-    useEffect(() => {
-        currentStepRef.current = schedStep;
-
-        // Imperative Update of Grid
-        rowRefs.current.forEach(r => r?.setHighlight(schedStep));
-
-        // We do NOT call setCurrentStep(schedStep) here anymore!
-    }, [schedStep])
+    const currentStepRef = useRef(-1);
 
     useEffect(() => {
         if (!schedPlaying) {
             songMeasureRef.current = 0;
             setCurrentSongMeasure(0);
             isFirstStepRef.current = true;
+            // Clear highlights when stopped
+            rowRefs.current.forEach(r => r?.setHighlight(-1));
+            currentStepRef.current = -1;
         }
     }, [schedPlaying]);
 
