@@ -706,7 +706,12 @@ export const useAudioEngine = (pyodide: any) => {
                     const baseFreq = noteToFrequency('C4');
                     const targetFreq = noteToFrequency(note);
                     const ratio = targetFreq / baseFreq * params.playbackSpeed;
-                    sustainNodeRef.current.port.postMessage({ type: 'noteOn', data: { pitch: ratio } });
+                    // Convert mode string to number for worklet
+                    const modeValue = params.mode === 'loop' ? 0 : params.mode === 'stretch' ? 1 : 2;
+                    sustainNodeRef.current.port.postMessage({ 
+                        type: 'noteOn', 
+                        data: { pitch: ratio, mode: modeValue } 
+                    });
                     const id = nextSamplerNoteId.current++;
                     activeSamplerNotes.current.set(id, { source: null as any, envGain: null as any });
                     return id;

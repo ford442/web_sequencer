@@ -41,7 +41,8 @@ const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     filterCutoff: 20000,
     filterResonance: 0,
     drive: 0,
-    delaySend: 0
+    delaySend: 0,
+    mode: 'loop'
 };
 
 // Initial Sampler Params (Array of 8)
@@ -1316,7 +1317,15 @@ export const App: React.FC = () => {
                 if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; }
                 if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; }
                 if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; }
-                if (songData.params.sampler) { setSampler(songData.params.sampler); samplerRef.current = songData.params.sampler; }
+                if (songData.params.sampler) {
+                    // Ensure backward compatibility: add default mode if missing
+                    const samplerWithMode = songData.params.sampler.map(bank => ({
+                        ...bank,
+                        mode: bank.mode || 'loop' as const
+                    }));
+                    setSampler(samplerWithMode);
+                    samplerRef.current = samplerWithMode;
+                }
             }
             
             if (songData.trackStorage) setTrackStorage(songData.trackStorage);
