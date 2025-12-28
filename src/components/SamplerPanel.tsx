@@ -78,7 +78,7 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
         filterResonance: 0,
         drive: 0,
         delaySend: 0,
-        mode: 'loop' as const
+        mode: 'loop' as 'loop' | 'stretch' | 'wavetable'
     };
 
     // Update single param for active bank
