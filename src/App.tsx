@@ -618,6 +618,9 @@ export const App: React.FC = () => {
 
     // --- NEW: Multi-Bank Sampler State ---
     const [activeSamplerBank, setActiveSamplerBank] = useState(0);
+    const activeSamplerBankRef = useRef(activeSamplerBank);
+    useEffect(() => { activeSamplerBankRef.current = activeSamplerBank; }, [activeSamplerBank]);
+
     // Stores the raw audio buffers for all 8 banks so we can save them later
     const [sampleBuffers, setSampleBuffers] = useState<(AudioBuffer | null)[]>(new Array(8).fill(null));
     // TTS text phrases for each bank
@@ -897,7 +900,7 @@ export const App: React.FC = () => {
 
             if (rowKey === 'sampler') {
                 // Use activeSamplerBank from state (closure capture)
-                const bankIndex = activeSamplerBank;
+                const bankIndex = activeSamplerBankRef.current;
 
                 // Deep copy sampler array
                 const newSampler = [...prev.sampler];
@@ -968,7 +971,7 @@ export const App: React.FC = () => {
             }
             return copy;
         });
-    }, [updateStorageForTrack, activeSamplerBank]);
+    }, [updateStorageForTrack]);
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
 
@@ -1032,7 +1035,7 @@ export const App: React.FC = () => {
 
         let stepData = null;
         if (track === 'sampler') {
-            stepData = patternRef.current.sampler[activeSamplerBank].steps[step];
+            stepData = patternRef.current.sampler[activeSamplerBankRef.current].steps[step];
         } else {
             stepData = patternRef.current[track].steps[step];
         }
@@ -1048,7 +1051,7 @@ export const App: React.FC = () => {
             hasMoved: false
         };
         document.body.style.cursor = 'ns-resize';
-    }, [activeSamplerBank]);
+    }, []);
 
     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
         if (!isNoteDragging || !noteDragRef.current) return;
@@ -1226,6 +1229,10 @@ export const App: React.FC = () => {
     }, []);
 
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
+
+    const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => {
+        handlePatternChange(k, i, undefined, { length: len });
+    }, [handlePatternChange]);
 
     // --- NEW: HANDLE LOAD SAMPLE ---
     const handleLoadSample = useCallback((name: string, buffer: AudioBuffer) => {
@@ -1804,7 +1811,7 @@ export const App: React.FC = () => {
                                     trackSlots={trackStorage[row.key]}
                                     onToggle={handlePatternChange}
                                     onRightMouseDown={handleRightMouseDown}
-                                    onEditLength={(k, i, len) => handlePatternChange(k, i, undefined, { length: len })}
+                                    onEditLength={handleEditLength}
                                     onSelectRow={handleSelectRow}
                                     onSelectSlot={handleTrackSlotClick}
                                 />
