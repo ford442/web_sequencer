@@ -5,3 +5,7 @@
 ## 2025-05-24 - Actionable Empty States in Modals
 **Learning:** In modal-based workflows (like the Cloud Library), a passive "No items found" message creates a dead end that forces the user to close the modal or hunt for the right tab.
 **Action:** Empty states should always include a direct action button (e.g., "Share Your Creation") that automatically switches context (e.g., changes tabs) to the solution, keeping the flow fluid without closing the modal.
+
+## 2025-05-24 - Accessibility of Single-Panel Tab Interfaces
+**Learning:** `role="tablist"` needs `role="tabpanel"` and proper `aria-controls` / `aria-labelledby` relationships to be truly semantic. A single dynamic panel is a valid pattern if attributes update dynamically.
+**Action:** Always verify that `tablist` implementations include the corresponding `tabpanel` and linkage attributes, even if the content is just swapping in place.
