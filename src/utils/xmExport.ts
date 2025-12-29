@@ -10,6 +10,9 @@ type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' |
 // --- Configuration Constants ---
 /** Peak level threshold below which normalization is applied */
 const NORMALIZATION_PEAK_THRESHOLD = 0.5;
+
+// @migrate-target: assemblyscript
+// @perf-bottleneck: Double iteration over buffer for peak finding and scaling
 /** Minimum sample duration (in seconds) to enable looping for samplers */
 const SAMPLER_LOOP_DURATION_THRESHOLD = 0.5;
 /** Base render duration for synths (in seconds) for steady-state detection */
@@ -63,6 +66,8 @@ const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1): Float3
     return input;
 };
 
+// @migrate-target: assemblyscript
+// @perf-bottleneck: Iterates buffer applying Math.tanh (expensive) per sample
 /**
  * Convert float32 buffer to int16 with proper handling to preserve harmonic content.
  * Uses soft-clipping and proper dithering for better fidelity.
@@ -86,6 +91,8 @@ const floatTo16BitPCM = (input: Float32Array): Int16Array => {
     return output;
 };
 
+// @migrate-target: assemblyscript
+// @perf-bottleneck: Tight loop searching for values, called frequently by findSynthLoopPoints
 /**
  * Find a zero-crossing point near the given position.
  * @param buffer Audio buffer
