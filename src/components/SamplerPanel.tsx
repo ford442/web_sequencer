@@ -195,11 +195,13 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                 {SAMPLE_BANKS.map((label, i) => (
                     <button
                         key={i}
+                        id={`sampler-bank-tab-${i}`}
                         role="tab"
                         aria-selected={activeBankIdx === i}
+                        aria-controls="sampler-bank-panel"
                         aria-label={`Select Bank ${i + 1}`}
                         onClick={() => onBankChange(i)}
-                        className={`min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all ${
+                        className={`min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                             flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
                             activeBankIdx === i
                                 ? 'bg-purple-600 border-purple-400 text-white shadow-md'
@@ -212,8 +214,15 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                 ))}
             </div>
 
-            {/* ROW 2: Actions */}
-            <div className="flex justify-between items-center gap-2">
+            {/* Tab Panel Content */}
+            <div
+                role="tabpanel"
+                id="sampler-bank-panel"
+                aria-labelledby={`sampler-bank-tab-${activeBankIdx}`}
+                className="flex flex-col gap-2"
+            >
+                {/* ROW 2: Actions */}
+                <div className="flex justify-between items-center gap-2">
                 <div className="flex gap-1">
                     <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
                     <button
@@ -303,12 +312,13 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                 </button>
             </div>
 
-            {/* ROW 5: Parameters for Active Bank */}
-            <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
-                <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={v => updateParam('playbackSpeed', v)} min={0.1} max={4.0} color="purple" />
-                <Knob label="Vol" value={currentParams.volume} onChange={v => updateParam('volume', v)} min={0} max={2.0} color="purple" />
-                <Knob label="Filter" value={currentParams.filterCutoff} onChange={v => updateParam('filterCutoff', v)} min={100} max={20000} color="purple" logarithmic />
-                <Knob label="Drive" value={currentParams.drive} onChange={v => updateParam('drive', v)} min={0} max={1} color="red" />
+                {/* ROW 5: Parameters for Active Bank */}
+                <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
+                    <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={v => updateParam('playbackSpeed', v)} min={0.1} max={4.0} color="purple" />
+                    <Knob label="Vol" value={currentParams.volume} onChange={v => updateParam('volume', v)} min={0} max={2.0} color="purple" />
+                    <Knob label="Filter" value={currentParams.filterCutoff} onChange={v => updateParam('filterCutoff', v)} min={100} max={20000} color="purple" logarithmic />
+                    <Knob label="Drive" value={currentParams.drive} onChange={v => updateParam('drive', v)} min={0} max={1} color="red" />
+                </div>
             </div>
         </div>
     );
