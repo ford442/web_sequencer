@@ -21,8 +21,8 @@ export function findLoopPoints(bufferPtr: usize, length: i32, minLoopLength: i32
     // Find zero crossing near start (positive slope: - to +)
     // buffer[i] >= 0 && buffer[i-1] < 0
     for (let i: i32 = searchLimit; i < length / 2; i++) {
-        let curr = load<f32>(bufferPtr + <usize>(i * 4));
-        let prev = load<f32>(bufferPtr + <usize>((i - 1) * 4));
+        const curr = load<f32>(bufferPtr + <usize>(i * 4));
+        const prev = load<f32>(bufferPtr + <usize>((i - 1) * 4));
 
         if (curr >= 0.0 && prev < 0.0) {
             loopStart = i;
@@ -35,8 +35,8 @@ export function findLoopPoints(bufferPtr: usize, length: i32, minLoopLength: i32
     // Find zero crossing near end
     // Must be > loopStart + minLoopLength
     for (let i: i32 = length - 1; i > loopStart + minLoopLength; i--) {
-        let curr = load<f32>(bufferPtr + <usize>(i * 4));
-        let prev = load<f32>(bufferPtr + <usize>((i - 1) * 4));
+        const curr = load<f32>(bufferPtr + <usize>(i * 4));
+        const prev = load<f32>(bufferPtr + <usize>((i - 1) * 4));
 
         if (curr >= 0.0 && prev < 0.0) {
             loopEnd = i;
@@ -65,10 +65,10 @@ export function mixToMono(leftPtr: usize, rightPtr: usize, outputPtr: usize, len
 
     // Check if we can use SIMD later (v128), for now simple loop
     for (let i: i32 = 0; i < length; i++) {
-        let l = load<f32>(leftPtr + <usize>(i * 4));
-        let r = load<f32>(rightPtr + <usize>(i * 4));
+        const l = load<f32>(leftPtr + <usize>(i * 4));
+        const r = load<f32>(rightPtr + <usize>(i * 4));
 
-        let mixed = (l + r) * 0.5;
+        const mixed = (l + r) * 0.5;
         store<f32>(outputPtr + <usize>(i * 4), mixed);
     }
 }
