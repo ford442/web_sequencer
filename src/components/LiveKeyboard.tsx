@@ -168,6 +168,9 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                         <feGaussianBlur stdDeviation="2" result="blur" />
                         <feComposite in="SourceGraphic" in2="blur" operator="over" />
                     </filter>
+                    <style>{`
+                        g:focus > .focus-ring { opacity: 1 !important; }
+                    `}</style>
                 </defs>
 
                 {OCTAVES.map((octave, rowIndex) => (
@@ -193,8 +196,33 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                                 <g
                                     key={fullNote}
                                     transform={`translate(${x}, 0)`}
+                                    role="button"
+                                    aria-label={`Play ${fullNote}`}
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            handleMouseDown(fullNote);
+                                        }
+                                    }}
+                                    onKeyUp={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setHeldByMouse(null);
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        // Safety: stop note if tabbing away while holding Enter/Space
+                                        if (heldByMouse === fullNote) {
+                                            setHeldByMouse(null);
+                                        }
+                                    }}
                                     onMouseDown={(e) => {
-                                        if (e.button === 0) handleMouseDown(fullNote);
+                                        if (e.button === 0) {
+                                            handleMouseDown(fullNote);
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            (e.currentTarget as any).focus();
+                                        }
                                     }}
                                     onMouseEnter={(e) => {
                                         if (e.buttons === 1) {
@@ -206,7 +234,19 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                                     onTouchStart={(e) => { e.preventDefault(); handleMouseDown(fullNote); }}
                                     onTouchEnd={(e) => { e.preventDefault(); setHeldByMouse(null); }}
                                     cursor="pointer"
+                                    className="focus:outline-none"
                                 >
+                                    {/* Focus Ring Indicator (only visible when focused) */}
+                                    <rect
+                                        x={-2} y={-2} width={keyWidth + 4} height={keyHeight + 4} rx={6}
+                                        fill="none"
+                                        stroke="#a855f7"
+                                        strokeWidth={2}
+                                        opacity={0}
+                                        className="focus-ring"
+                                        style={{ transition: 'opacity 0.2s' }}
+                                    />
+
                                     {/* Base / Bevel Shadow */}
                                     <rect width={keyWidth} height={keyHeight} rx={4} fill="#000" />
 
