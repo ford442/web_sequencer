@@ -10,11 +10,11 @@ pub fn generate_rust_wave(
     wave_type: i32, // 0 = Saw, 1 = Square
     cutoff: f32,
     resonance: f32
-) -> js_sys::Float32Array {
+) -> Float32Array {
     let num_samples = (sample_rate * duration) as usize;
     let mut buffer = Vec::with_capacity(num_samples);
 
-    // Filter Coefficients (Same logic as AS for fair comparison)
+    // Filter Coefficients
     let safe_cutoff = cutoff.min(sample_rate / 2.1).max(20.0);
     let safe_res = resonance.max(0.1);
     let w0 = 2.0 * PI * safe_cutoff / sample_rate;
@@ -39,16 +39,15 @@ pub fn generate_rust_wave(
     let phase_incr = freq / sample_rate;
 
     for _ in 0..num_samples {
-        let mut sample = 0.0;
-
-        // Oscillator
-        if wave_type == 0 {
+        // FIX: Assign result of if/else expression directly to 'sample'
+        // This removes the "unused assignment" warning and is cleaner Rust.
+        let sample = if wave_type == 0 {
             // Sawtooth
-            sample = 2.0 * phase - 1.0;
+            2.0 * phase - 1.0
         } else {
             // Square
-            sample = if phase < 0.5 { 1.0 } else { -1.0 };
-        }
+            if phase < 0.5 { 1.0 } else { -1.0 }
+        };
 
         // Apply Filter
         let filtered = b0 * sample + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
@@ -68,9 +67,6 @@ pub fn generate_rust_wave(
         }
     }
 
-    // Convert Rust Vec<f32> to JS Float32Array safely
-    // Note: unsafe_view is faster but requires keeping the WASM memory alive.
-    // For simplicity, we just convert.
     use js_sys::Float32Array;
     let js_array = Float32Array::from(buffer.as_slice());
     js_array
