@@ -20,6 +20,10 @@ interface SamplerPanelProps {
 // 8 Banks
 const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 
+// Helper functions for grain size calculations
+const grainSizeToMs = (size: number) => Math.round(size / 441 * 10);
+const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100);
+
 export const SamplerPanel: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
     ttsPhrases, onTtsPhraseChange,
@@ -405,12 +409,12 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                             onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
                             className="flex-1 h-1 bg-gray-700 rounded appearance-none cursor-pointer"
                             style={{
-                                background: `linear-gradient(to right, #9333ea 0%, #9333ea ${((currentParams.grainSize || 4410) - 441) / (22050 - 441) * 100}%, #374151 ${((currentParams.grainSize || 4410) - 441) / (22050 - 441) * 100}%, #374151 100%)`
+                                background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
                             }}
                             aria-label="Grain Size"
-                            title={`Grain size: ${Math.round((currentParams.grainSize || 4410) / 441 * 10)}ms`}
+                            title={`Grain size: ${grainSizeToMs(currentParams.grainSize || 4410)}ms`}
                         />
-                        <span className="text-[9px] text-gray-500 w-10 text-right">{Math.round((currentParams.grainSize || 4410) / 441 * 10)}ms</span>
+                        <span className="text-[9px] text-gray-500 w-10 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
                     </div>
                 )}
             </div>
