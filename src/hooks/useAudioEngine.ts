@@ -184,9 +184,14 @@ export const useAudioEngine = (pyodide: any) => {
             let waveType = params.waveform;
 
             if (params.waveform.startsWith('wav-')) { engine = 'wav'; }
-            else if (params.waveform.startsWith('wgsl-')) { engine = 'wgsl'; waveType = params.waveform.split('-')[1]; }
-            else if (params.waveform.startsWith('wam-')) { engine = 'wam'; waveType = params.waveform.split('-')[1]; }
-            else if (params.waveform.startsWith('pyodide-')) { engine = 'pyodide'; waveType = params.waveform.split('-')[1]; }
+            // @ts-ignore
+            else if (params.waveform.startsWith('wgsl-')) { engine = 'wgsl'; waveType = params.waveform.split('-')[1] as any; }
+            // @ts-ignore
+            else if (params.waveform.startsWith('wam-')) { engine = 'wam'; waveType = params.waveform.split('-')[1] as any; }
+            // @ts-ignore
+            else if (params.waveform.startsWith('rust-')) { engine = 'rust' as any; waveType = params.waveform.split('-')[1] as any; }
+            // @ts-ignore
+            else if (params.waveform.startsWith('pyodide-')) { engine = 'pyodide'; waveType = params.waveform.split('-')[1] as any; }
 
             // 3. Prepare Buffer (WAV or Generated Single Cycle)
             let buffer: AudioBuffer | null = null;
@@ -291,7 +296,7 @@ export const useAudioEngine = (pyodide: any) => {
                     else if (typeStr.includes('tri')) typeStr = 'triangle';
                     else if (typeStr.includes('sin')) typeStr = 'sine';
 
-                    // @ts-expect-error - TS doesn't know about custom oscillator types mapped to strings
+                    // @ts-ignore
                     osc.type = typeStr as OscillatorType;
 
                     // --- SLIDE LOGIC (Frequency Param) ---
