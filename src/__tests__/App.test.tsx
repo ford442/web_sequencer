@@ -6,7 +6,10 @@ import App from '../App';
 describe('App', () => {
   it('renders HYPHON heading', () => {
     render(<App />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/HYPHON/i);
+    // There are now multiple HYPHON headings (one in overlay, one in header)
+    const headings = screen.getAllByRole('heading', { level: 1, name: /HYPHON/i });
+    expect(headings.length).toBeGreaterThan(0);
+    expect(headings[0]).toBeInTheDocument();
   });
 
   it('renders volume control', () => {
