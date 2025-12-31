@@ -38,7 +38,6 @@ wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --converge \
   --strip-debug \
   --enable-simd \
-  --enable-threads \
   --enable-bulk-memory \
   --enable-relaxed-simd \
   --enable-nontrapping-float-to-int
@@ -54,7 +53,6 @@ wasm-opt "$NATIVE_WASM" -o "$NATIVE_WASM" \
   --converge \
   --strip-debug \
   --enable-simd \
-  --enable-threads \
   --enable-relaxed-simd \
   --enable-bulk-memory \
   --enable-nontrapping-float-to-int
