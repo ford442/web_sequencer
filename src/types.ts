@@ -51,6 +51,8 @@ export interface SamplerBankParams {
   filterResonance: number; // Q factor
   drive: number; // 0-1 (Distortion amount)
   delaySend: number; // 0-1 (Amount sent to delay bus)
+  mode?: 'loop' | 'stretch' | 'wavetable'; // Sustain processor mode (0=loop, 1=stretch, 2=wavetable)
+  grainSize?: number; // Grain size for stretch mode (in samples)
 }
 
 // SamplerParams is now an array of banks
@@ -111,6 +113,8 @@ export interface AudioEngine {
   detectSamplePitch?: (buffer: AudioBuffer) => Promise<any>;
   processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
   processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
+  setSustainMode?: (mode: 'loop' | 'stretch' | 'wavetable') => void;
+  setSustainGrainSize?: (size: number) => void;
 }
 
 // Automation recording types

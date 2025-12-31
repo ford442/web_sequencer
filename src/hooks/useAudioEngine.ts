@@ -943,6 +943,26 @@ export const useAudioEngine = (pyodide: any) => {
             }
         };
 
+        // Sustain Processor Controls
+        const setSustainMode = (mode: 'loop' | 'stretch' | 'wavetable') => {
+            if (!sustainNodeRef.current) return;
+            const modeParam = sustainNodeRef.current.parameters.get('mode');
+            if (modeParam) {
+                const modeValue = mode === 'loop' ? 0 : mode === 'stretch' ? 1 : 2;
+                const now = context.currentTime;
+                modeParam.setValueAtTime(modeValue, now);
+            }
+        };
+
+        const setSustainGrainSize = (size: number) => {
+            if (!sustainNodeRef.current) return;
+            sustainNodeRef.current.port.postMessage({
+                type: 'setGrainSize',
+                data: { size }
+            });
+        };
+
+
         audioEngineRef.current = {
             context,
             webGpuEngine: gpuEngineRef.current,
@@ -965,7 +985,9 @@ export const useAudioEngine = (pyodide: any) => {
             setGlobalPan,
             detectSamplePitch,
             processSinging,
-            processSpoon
+            processSpoon,
+            setSustainMode,
+            setSustainGrainSize
         };
 
         setIsReady(true);
