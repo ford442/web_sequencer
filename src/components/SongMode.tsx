@@ -174,6 +174,18 @@ export const SongMode = memo(({
 
     }, [handleGlobalMouseMove, handleGlobalMouseUp, onUpdateStep]);
 
+    // Keyboard Handler: Allows simple toggling via Enter/Space
+    const handleCellKeyDown = useCallback((e: React.KeyboardEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentVal !== null) {
+                onUpdateStep(sIdx, track, null);
+            } else {
+                onUpdateStep(sIdx, track, 0);
+            }
+        }
+    }, [onUpdateStep]);
 
     // Cleanup listeners
     React.useEffect(() => {
@@ -274,11 +286,15 @@ export const SongMode = memo(({
                                             key={`${row.key}-${sIdx}`}
                                             data-testid={`cell-${row.key}-${sIdx}`}
                                             style={{ width: CELL_WIDTH }}
-                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none
+                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none focus:outline-none focus:ring-1 focus:ring-cyan-500
                                                 ${isPlaying ? 'bg-white/5' : 'bg-transparent'}
                                                 ${hasVal ? '' : 'hover:bg-gray-800/50'}
                                             `}
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`${row.label} Measure ${sIdx + 1}, ${hasVal ? 'Pattern ' + (val! + 1) : 'Empty'}`}
                                             onMouseDown={(e) => handleCellMouseDown(e, sIdx, row.key, val)}
+                                            onKeyDown={(e) => handleCellKeyDown(e, sIdx, row.key, val)}
                                             onContextMenu={(e) => {
                                                 e.preventDefault();
                                             }}
