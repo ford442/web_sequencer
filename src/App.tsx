@@ -20,6 +20,7 @@ import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
 import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
 import {
+    noteToFrequency,
     INITIAL_PATTERN,
     NUM_STEPS,
     DEFAULT_TEMPO,
@@ -902,6 +903,7 @@ export const App: React.FC = () => {
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
 
                 // 4. Play
+                // @ts-ignore
                 audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom);
 
                 // 5. Update History
