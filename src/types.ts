@@ -69,6 +69,8 @@ export interface Note {
   note: string; // e.g., 'C4' for synths, placeholder for drums
   velocity: number;
   length?: number; // Duration in steps (default 1)
+  slide?: boolean; // Triggers portamento from previous note
+  chord?: string[]; // Additional notes to play simultaneously
 }
 
 export interface PartSequence {
