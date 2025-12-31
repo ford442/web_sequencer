@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import type { SamplerParams } from '../types'; // Note: This is now SamplerBankParams[]
+import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 
@@ -8,6 +8,7 @@ interface SamplerPanelProps {
     onChange: (updates: SamplerParams) => void; // Expecting full array update
     onLoadSample: (name: string, buffer: AudioBuffer) => void;
     audioContext: AudioContext;
+    audioEngine?: AudioEngine; // For sustain processor controls
     activeBankIdx: number;           // Controlled by Parent
     onBankChange: (i: number) => void; // Controlled by Parent
     onOpenEditor?: () => void;
@@ -20,7 +21,7 @@ interface SamplerPanelProps {
 const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 
 export const SamplerPanel: React.FC<SamplerPanelProps> = ({
-    params, onChange, onLoadSample, audioContext, activeBankIdx, onBankChange, onOpenEditor,
+    params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
     ttsPhrases, onTtsPhraseChange,
     onHarmonize
 }) => {
@@ -77,7 +78,9 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
         filterCutoff: 20000,
         filterResonance: 0,
         drive: 0,
-        delaySend: 0
+        delaySend: 0,
+        mode: 'loop' as const,
+        grainSize: 4410
     };
 
     // Update single param for active bank
@@ -86,6 +89,40 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
         newParams[activeBankIdx] = { ...currentParams, [key]: value };
         onChange(newParams);
     };
+
+    // Handle mode change
+    const handleModeChange = (mode: 'loop' | 'stretch' | 'wavetable') => {
+        const newParams = [...params];
+        newParams[activeBankIdx] = { ...currentParams, mode };
+        onChange(newParams);
+        
+        // Update audio engine immediately
+        if (audioEngine?.setSustainMode) {
+            audioEngine.setSustainMode(mode);
+        }
+    };
+
+    // Handle grain size change
+    const handleGrainSizeChange = (size: number) => {
+        const newParams = [...params];
+        newParams[activeBankIdx] = { ...currentParams, grainSize: size };
+        onChange(newParams);
+        
+        // Update audio engine immediately
+        if (audioEngine?.setSustainGrainSize) {
+            audioEngine.setSustainGrainSize(size);
+        }
+    };
+
+    // Apply current mode and grain size to audio engine when bank changes
+    useEffect(() => {
+        if (audioEngine?.setSustainMode && currentParams.mode) {
+            audioEngine.setSustainMode(currentParams.mode);
+        }
+        if (audioEngine?.setSustainGrainSize && currentParams.grainSize) {
+            audioEngine.setSustainGrainSize(currentParams.grainSize);
+        }
+    }, [activeBankIdx, audioEngine, currentParams.mode, currentParams.grainSize]);
 
     useEffect(() => {
         const initTTS = async () => {
@@ -312,7 +349,73 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                 </button>
             </div>
 
-                {/* ROW 5: Parameters for Active Bank */}
+            {/* ROW 5: SAMPLER MODE */}
+            <div className="mt-1 bg-gray-800/30 p-1 rounded">
+                <div className="flex gap-1 items-center mb-1">
+                    <label className="text-[10px] text-gray-400 font-bold w-12">MODE:</label>
+                    <div className="flex gap-1 flex-1">
+                        <button
+                            onClick={() => handleModeChange('loop')}
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                                (currentParams.mode || 'loop') === 'loop'
+                                    ? 'bg-purple-600 border-purple-400 text-white'
+                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                            }`}
+                            aria-label="Loop Mode"
+                            title="Standard sample looping"
+                        >
+                            LOOP
+                        </button>
+                        <button
+                            onClick={() => handleModeChange('stretch')}
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                                (currentParams.mode || 'loop') === 'stretch'
+                                    ? 'bg-purple-600 border-purple-400 text-white'
+                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                            }`}
+                            aria-label="Stretch Mode"
+                            title="Granular time-stretch for infinite sustain"
+                        >
+                            STRETCH
+                        </button>
+                        <button
+                            onClick={() => handleModeChange('wavetable')}
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                                (currentParams.mode || 'loop') === 'wavetable'
+                                    ? 'bg-purple-600 border-purple-400 text-white'
+                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                            }`}
+                            aria-label="Wavetable Mode"
+                            title="Single-cycle oscillator mode"
+                        >
+                            WAVE
+                        </button>
+                    </div>
+                </div>
+                {/* Grain Size Control - Only visible in stretch mode */}
+                {(currentParams.mode || 'loop') === 'stretch' && (
+                    <div className="flex gap-1 items-center">
+                        <label className="text-[9px] text-gray-500 w-12">Grain:</label>
+                        <input
+                            type="range"
+                            min="441"
+                            max="22050"
+                            step="441"
+                            value={currentParams.grainSize || 4410}
+                            onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
+                            className="flex-1 h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                            style={{
+                                background: `linear-gradient(to right, #9333ea 0%, #9333ea ${((currentParams.grainSize || 4410) - 441) / (22050 - 441) * 100}%, #374151 ${((currentParams.grainSize || 4410) - 441) / (22050 - 441) * 100}%, #374151 100%)`
+                            }}
+                            aria-label="Grain Size"
+                            title={`Grain size: ${Math.round((currentParams.grainSize || 4410) / 441 * 10)}ms`}
+                        />
+                        <span className="text-[9px] text-gray-500 w-10 text-right">{Math.round((currentParams.grainSize || 4410) / 441 * 10)}ms</span>
+                    </div>
+                )}
+            </div>
+
+                {/* ROW 6: Parameters for Active Bank */}
                 <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
                     <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={v => updateParam('playbackSpeed', v)} min={0.1} max={4.0} color="purple" />
                     <Knob label="Vol" value={currentParams.volume} onChange={v => updateParam('volume', v)} min={0} max={2.0} color="purple" />
