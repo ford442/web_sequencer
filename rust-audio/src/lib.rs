@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 use std::f32::consts::PI;
+use js_sys::Float32Array; // <--- Moved import to top level
 
 // We optimize for size and speed
 #[wasm_bindgen]
@@ -39,8 +40,7 @@ pub fn generate_rust_wave(
     let phase_incr = freq / sample_rate;
 
     for _ in 0..num_samples {
-        // FIX: Assign result of if/else expression directly to 'sample'
-        // This removes the "unused assignment" warning and is cleaner Rust.
+        // Sample Generation
         let sample = if wave_type == 0 {
             // Sawtooth
             2.0 * phase - 1.0
@@ -67,7 +67,6 @@ pub fn generate_rust_wave(
         }
     }
 
-    use js_sys::Float32Array;
-    let js_array = Float32Array::from(buffer.as_slice());
-    js_array
+    // Convert to JS Float32Array
+    Float32Array::from(buffer.as_slice())
 }
