@@ -740,7 +740,7 @@ globalThis.initPyodideSystem = async function() {
         if (!globalThis.loadPyodide) {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
+                script.src = "/pyodide/pyodide.js";
                 script.onload = resolve;
                 script.onerror = reject;
                 document.head.appendChild(script);
@@ -748,7 +748,11 @@ globalThis.initPyodideSystem = async function() {
         }
 
         // Initialize Pyodide
-        const pyodide = await globalThis.loadPyodide();
+        // Point to the local pyodide installation (which contains pyodide-lock.json and whl files)
+        const pyodide = await globalThis.loadPyodide({
+            indexURL: "/pyodide/"
+        });
+
         await pyodide.loadPackage(['numpy', 'scipy']);
 
         // Load the internal python code
