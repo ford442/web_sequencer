@@ -30,7 +30,9 @@ describe('SamplerPanel TTS per-bank functionality', () => {
       filterCutoff: 20000,
       filterResonance: 0,
       drive: 0,
-      delaySend: 0
+      delaySend: 0,
+      mode: 'loop' as const,
+      grainSize: 4410
     }),
     onChange: vi.fn(),
     onLoadSample: vi.fn(),

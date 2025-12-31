@@ -41,7 +41,9 @@ const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     filterCutoff: 20000,
     filterResonance: 0,
     drive: 0,
-    delaySend: 0
+    delaySend: 0,
+    mode: 'loop',
+    grainSize: 4410
 };
 
 // Initial Sampler Params (Array of 8)
@@ -1611,6 +1613,7 @@ export const App: React.FC = () => {
                 onChange={(u) => updateSampler(u)}
                 onLoadSample={handleLoadSample}
                 audioContext={audioEngine?.context!}
+                audioEngine={audioEngine || undefined}
                 activeBankIdx={activeSamplerBank}
                 onBankChange={setActiveSamplerBank}
                 onOpenEditor={() => setIsVoiceEditorOpen(true)}
