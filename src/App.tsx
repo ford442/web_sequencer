@@ -425,20 +425,55 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
 
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
+    const lastActiveIndexRef = useRef(-1);
 
+    // PERFORMANCE: Optimized to avoid iterating all steps (O(1) instead of O(N))
     const updateClasses = useCallback((step: number) => {
-        stepRefs.current.forEach((el, i) => {
-            if (!el) return;
-            const length = steps[i]?.length || 1;
-            const isCurrent = step >= i && step < (i + length);
+        // Find new active index by searching backwards from current step
+        // (to account for long notes that started earlier)
+        let newActiveIndex = -1;
+        for (let i = step; i >= 0; i--) {
+            if (stepRefs.current[i]) {
+                const length = steps[i]?.length || 1;
+                // Verify the note actually covers the current step
+                if (i + length > step) {
+                    newActiveIndex = i;
+                }
+                // Once we found a note (or gap), we stop because notes are sequential
+                break;
+            }
+        }
 
-            if (isCurrent) el.classList.add('is-current');
-            else el.classList.remove('is-current');
-        });
+        // Only update DOM if the active note index changed
+        if (newActiveIndex !== lastActiveIndexRef.current) {
+            // Remove highlight from old
+            if (lastActiveIndexRef.current !== -1) {
+                stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
+            }
+            // Add highlight to new
+            if (newActiveIndex !== -1) {
+                stepRefs.current[newActiveIndex]?.classList.add('is-current');
+            }
+            lastActiveIndexRef.current = newActiveIndex;
+        } else {
+             // Ensure class is present (handles re-renders where element might be recreated)
+             if (newActiveIndex !== -1) {
+                stepRefs.current[newActiveIndex]?.classList.add('is-current');
+            }
+        }
     }, [steps]);
 
     useImperativeHandle(ref, () => ({
         setHighlight: (step: number) => {
+            if (step === -1) {
+                // Reset everything
+                if (lastActiveIndexRef.current !== -1) {
+                    stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
+                    lastActiveIndexRef.current = -1;
+                }
+                lastStepRef.current = -1;
+                return;
+            }
             lastStepRef.current = step;
             updateClasses(step);
         }
@@ -446,8 +481,16 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
 
     // Re-apply highlight if steps change while paused or playing
     useLayoutEffect(() => {
+        // Force re-evaluation on render to handle mounting/unmounting
+        // We temporarily reset lastActiveIndexRef so logic runs again if needed
+        const currentActive = lastActiveIndexRef.current;
+        lastActiveIndexRef.current = -1;
+
         if (lastStepRef.current !== -1) {
             updateClasses(lastStepRef.current);
+        } else {
+             // Restore if we didn't update
+             lastActiveIndexRef.current = currentActive;
         }
     }, [updateClasses]);
 
