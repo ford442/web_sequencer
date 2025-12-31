@@ -740,19 +740,15 @@ globalThis.initPyodideSystem = async function() {
         if (!globalThis.loadPyodide) {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                // Use local pyodide.js instead of CDN to avoid blocking issues
-                script.src = "/pyodide.js";
+                script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
                 script.onload = resolve;
                 script.onerror = reject;
                 document.head.appendChild(script);
             });
         }
 
-        // Initialize Pyodide with local index URL
-        const pyodide = await globalThis.loadPyodide({
-            indexURL: "/",  // Use local files from public directory
-        });
-        await pyodide.loadPackage(['numpy', 'scipy']);
+        // Initialize Pyodide
+        const pyodide = await globalThis.loadPyodide();
 
         // Load the internal python code
         await pyodide.runPythonAsync(INTERNAL_PYTHON_CODE);
@@ -766,6 +762,9 @@ globalThis.initPyodideSystem = async function() {
 
     } catch (e) {
         console.error("[C++ -> JS] Pyodide Load Failed:", e);
+        // Mark as "ready" even on failure so the app doesn't hang
+        globalThis.hyphonPyodideReady = false;
+        globalThis.hyphonPyodideLoading = false;
     }
 };
 
