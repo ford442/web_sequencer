@@ -749,7 +749,6 @@ globalThis.initPyodideSystem = async function() {
 
         // Initialize Pyodide
         const pyodide = await globalThis.loadPyodide();
-        await pyodide.loadPackage(['numpy', 'scipy']);
 
         // Load the internal python code
         await pyodide.runPythonAsync(INTERNAL_PYTHON_CODE);
@@ -763,5 +762,19 @@ globalThis.initPyodideSystem = async function() {
 
     } catch (e) {
         console.error("[C++ -> JS] Pyodide Load Failed:", e);
+        // Mark as "ready" even on failure so the app doesn't hang
+        globalThis.hyphonPyodideReady = false;
+        globalThis.hyphonPyodideLoading = false;
     }
 };
+
+// Automatically initialize Pyodide after WASM module loads
+// Only run in main thread (not in worker threads)
+if (!globalThis.WorkerGlobalScope && globalThis.window) {
+    // Use setTimeout to ensure this runs after the module export completes
+    setTimeout(() => {
+        if (typeof globalThis.initPyodideSystem === 'function') {
+            globalThis.initPyodideSystem();
+        }
+    }, 0);
+}

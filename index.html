@@ -49,19 +49,7 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/hyphon_native.js"></script>
-    <script>
-      // Initialize Pyodide system on page load
-      // The hyphon_native.js script defines globalThis.initPyodideSystem
-      // We need to call it to start loading Pyodide
-      (function checkAndInit() {
-        if (typeof globalThis.initPyodideSystem === 'function') {
-          globalThis.initPyodideSystem();
-        } else {
-          // Retry after a short delay if not yet available
-          setTimeout(checkAndInit, 50);
-        }
-      })();
-    </script>
+    <!-- Pyodide initialization is now automatic from hyphon_native.js -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
