@@ -182,7 +182,8 @@ const SvgStep = memo(({
     onToggle,
     onRightMouseDown,
     onEditLength,
-    length = 1
+    length = 1,
+    isSlide
 }: {
     stepIndex: number,
     active: boolean,
@@ -193,7 +194,8 @@ const SvgStep = memo(({
     onToggle: (k: TrackKey, i: number, e: any) => void,
     onRightMouseDown: (k: TrackKey, i: number, e: React.MouseEvent) => void,
     onEditLength: (k: TrackKey, i: number, len: number) => void,
-    length?: number
+    length?: number,
+    isSlide?: boolean
 }) => {
     // Dimensions
     const baseWidth = 18;
@@ -293,6 +295,18 @@ const SvgStep = memo(({
 
             {/* Base/Shadow */}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
+
+            {/* Slide Indicator: Amber Rect at bottom */}
+            {active && isSlide && (
+                 <rect
+                    x={4} y={height - 8}
+                    width={totalWidth - 8} height={3}
+                    rx={1}
+                    fill="#fbbf24" // Amber-400
+                    fillOpacity={1}
+                    style={{ mixBlendMode: 'plus-lighter' }}
+                 />
+            )}
 
             {/* Main Body */}
             <rect
@@ -518,6 +532,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 active={!!stepData}
                 note={stepData ? stepData.note : null}
                 length={length}
+                isSlide={!!stepData?.slide}
                 refsArray={stepRefs}
                 rowLabel={label}
                 rowKey={rowKey}
@@ -597,6 +612,9 @@ export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
+
+    // Track the last played frequency for each track to enable sliding FROM it
+    const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
 
     // UPDATED: Destructure init function for auto-load
     const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide)
@@ -867,8 +885,32 @@ export const App: React.FC = () => {
         const stepTime = 60 / tempo / 4;
 
         // UPDATED PLAY CALLS: Pass length and stepTime for duration
-        if (p.partA.steps[step]) audioEngine.playSynth(synthARef.current, p.partA.steps[step]!.note, time, p.partA.steps[step]!.length, stepTime)
-        if (p.partB.steps[step]) audioEngine.playSynth(synthBRef.current, p.partB.steps[step]!.note, time, p.partB.steps[step]!.length, stepTime)
+
+        const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
+            const stepData = p[trackKey].steps[step];
+            if (stepData) {
+                // 1. Calculate Current Frequency (for tracking)
+                const currentBaseFreq = noteToFrequency(stepData.note) * Math.pow(2, params.pitch / 12);
+
+                // 2. Determine Slide Source
+                let slideFrom = null;
+                if (stepData.slide && lastFreqRef.current[trackKey] > 0) {
+                    slideFrom = lastFreqRef.current[trackKey];
+                }
+
+                // 3. Prepare Notes (Root + Chord)
+                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+
+                // 4. Play
+                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom);
+
+                // 5. Update History
+                lastFreqRef.current[trackKey] = currentBaseFreq;
+            }
+        };
+
+        triggerSynth('partA', synthARef.current);
+        triggerSynth('partB', synthBRef.current);
 
         if (p.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
         if (p.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
@@ -939,7 +981,12 @@ export const App: React.FC = () => {
 
     // UPDATED TOGGLE STEP: Handles Sampler Bank Index (subIndex)
     // Refactored to 'handlePatternChange' to support length updates
-    const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, subIndex?: number | unknown, updates?: { length: number }) => {
+    const handlePatternChange = useCallback((
+        rowKey: keyof Pattern,
+        i: number,
+        subIndex?: number | unknown,
+        updates?: { length?: number, slide?: boolean, chord?: string[] }
+    ) => {
         setPattern(prev => {
             const copy = { ...prev };
 
@@ -957,16 +1004,23 @@ export const App: React.FC = () => {
                 // Removed unused _e, _isShiftKey, suppressed subIndex
                 void subIndex;
 
-                if (updates && updates.length !== undefined) {
-                    // CASE A: Length Update
+                if (updates) {
                     if (existing) {
-                        steps[i] = { ...existing, length: updates.length };
+                        // Always clone the step first to prevent mutation of previous state
+                        const newStep = { ...existing };
+                        if (updates.length !== undefined) newStep.length = updates.length;
+                        if (updates.slide !== undefined) newStep.slide = updates.slide;
+                        if (updates.chord !== undefined) newStep.chord = updates.chord;
 
-                        // Clean up overlapping steps in the new length's shadow
-                        for (let k = 1; k < updates.length; k++) {
-                            const nextStepIdx = i + k;
-                            if (nextStepIdx < steps.length) {
-                                steps[nextStepIdx] = null;
+                        steps[i] = newStep;
+
+                        // Clean up overlapping steps in the new length's shadow if length changed
+                        if (updates.length !== undefined) {
+                            for (let k = 1; k < updates.length; k++) {
+                                const nextStepIdx = i + k;
+                                if (nextStepIdx < steps.length) {
+                                    steps[nextStepIdx] = null;
+                                }
                             }
                         }
                     }
@@ -975,7 +1029,7 @@ export const App: React.FC = () => {
                     if (existing) {
                         steps[i] = null;
                     } else {
-                        steps[i] = { note: 'C4', velocity: 1, length: 1 };
+                        steps[i] = { note: 'C4', velocity: 1, length: 1, slide: false };
                     }
                 }
 
@@ -990,16 +1044,23 @@ export const App: React.FC = () => {
                 const steps = copy[rowKey].steps;
                 const existing = steps[i];
 
-                if (updates && updates.length !== undefined) {
-                    // CASE A: Length Update
+                if (updates) {
                     if (existing) {
-                        steps[i] = { ...existing, length: updates.length };
+                        // Always clone the step first to prevent mutation of previous state
+                        const newStep = { ...existing };
+                        if (updates.length !== undefined) newStep.length = updates.length;
+                        if (updates.slide !== undefined) newStep.slide = updates.slide;
+                        if (updates.chord !== undefined) newStep.chord = updates.chord;
+
+                        steps[i] = newStep;
 
                         // Clean up overlapping steps
-                        for (let k = 1; k < updates.length; k++) {
-                            const nextStepIdx = i + k;
-                            if (nextStepIdx < steps.length) {
-                                steps[nextStepIdx] = null;
+                        if (updates.length !== undefined) {
+                            for (let k = 1; k < updates.length; k++) {
+                                const nextStepIdx = i + k;
+                                if (nextStepIdx < steps.length) {
+                                    steps[nextStepIdx] = null;
+                                }
                             }
                         }
                     }
@@ -1009,7 +1070,7 @@ export const App: React.FC = () => {
                         steps[i] = null;
                     } else {
                         const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
-                        steps[i] = { note: defaultNote, velocity: 1, length: 1 };
+                        steps[i] = { note: defaultNote, velocity: 1, length: 1, slide: false };
                     }
                 }
                 updateStorageForTrack(rowKey, copy[rowKey]);
@@ -1017,6 +1078,51 @@ export const App: React.FC = () => {
             return copy;
         });
     }, [updateStorageForTrack]);
+
+    const handleStepToggle = useCallback((rowKey: TrackKey, index: number, e: any) => {
+        // A. Alt + Click = Toggle Slide
+        if (e.altKey) {
+            e.preventDefault();
+            let step = null;
+            if (rowKey === 'sampler') {
+                step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index];
+            } else {
+                step = patternRef.current[rowKey].steps[index];
+            }
+
+            if (step) {
+                handlePatternChange(rowKey, index, undefined, { slide: !step.slide });
+            }
+            return;
+        }
+
+        // B. Ctrl + Click = Add/Remove Chord (Testing Polyphony)
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            let step = null;
+             if (rowKey === 'sampler') {
+                step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index];
+            } else {
+                step = patternRef.current[rowKey].steps[index];
+            }
+
+            if (step) {
+                // Toggle a simple Major chord
+                if (step.chord && step.chord.length > 0) {
+                    handlePatternChange(rowKey, index, undefined, { chord: [] }); // Remove chord
+                } else {
+                    // Calc Major 3rd and Perfect 5th
+                    const root = noteToMidi(step.note);
+                    const chord = [midiToNote(root + 4), midiToNote(root + 7)];
+                    handlePatternChange(rowKey, index, undefined, { chord });
+                }
+            }
+            return;
+        }
+
+        // C. Normal Click
+        handlePatternChange(rowKey, index, e);
+    }, [handlePatternChange]);
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
 
@@ -1855,7 +1961,7 @@ export const App: React.FC = () => {
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
-                                    onToggle={handlePatternChange}
+                                    onToggle={handleStepToggle}
                                     onRightMouseDown={handleRightMouseDown}
                                     onEditLength={handleEditLength}
                                     onSelectRow={handleSelectRow}

@@ -120,222 +120,10 @@ export const useAudioEngine = (pyodide: any) => {
         }
         noiseBufferRef.current = buffer;
 
-        // UPDATED: Now accepts durationSteps and stepTime to calculate dynamic gate length
-        const playSynth = async (params: SynthParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
-            const destination = masterGainRef.current!;
-
-            const isPyodideWave = params.waveform.startsWith('pyodide-');
-            const isWgslWave = params.waveform.startsWith('wgsl-');
-            const isWasmWave = params.waveform.startsWith('wam-');
-            const isWavWave = params.waveform.startsWith('wav-');
-
-            // --- ADSR / GATE LOGIC UPDATED ---
-            // We prioritize the sequencer's calculated duration (durationSteps * stepTime).
-            // If that's 0 or null, we fallback to params.length (the Gate knob).
-            const seqDuration = durationSteps * stepTime;
-            const gateTime = seqDuration > 0 ? seqDuration : (params.length || 0.25);
-            
-            // The total sound duration must include the release tail
-            const totalDuration = gateTime + params.release;
-
-            // --- Gain Envelope ---
-            const gain = context.createGain();
-            gain.gain.setValueAtTime(0, time);
-            gain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
-
-            const sustainLevel = params.volume * params.sustain;
-            gain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
-            
-            // Hold Sustain until Gate Time
-            gain.gain.setValueAtTime(sustainLevel, time + gateTime);
-            // Release after Gate Time
-            gain.gain.linearRampToValueAtTime(0, time + gateTime + params.release);
-
-            // --- Delay Chain ---
-            let outputNode: AudioNode = destination;
-            if (params.delayMix > 0 && params.delayTime > 0) {
-                const dryGain = context.createGain();
-                const wetGain = context.createGain();
-                const delay = context.createDelay(1.0);
-                const feedback = context.createGain();
-
-                dryGain.gain.setValueAtTime(1.0 - params.delayMix, time);
-                wetGain.gain.setValueAtTime(params.delayMix, time);
-                delay.delayTime.setValueAtTime(params.delayTime, time);
-                feedback.gain.setValueAtTime(params.delayFeedback, time);
-
-                gain.connect(dryGain);
-                dryGain.connect(destination);
-
-                gain.connect(delay);
-                delay.connect(feedback);
-                feedback.connect(delay);
-                delay.connect(wetGain);
-                wetGain.connect(destination);
-
-                outputNode = gain;
-            } else {
-                gain.connect(destination);
-                outputNode = gain;
-            }
-
-            // --- Waveform Generation ---
-            if (isWavWave) {
-                const buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
-
-                if (buffer) {
-                    const source = context.createBufferSource();
-                    source.buffer = buffer;
-                    source.loop = true;
-
-                    const baseFreq = noteToFrequency(note);
-                    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-                    const sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
-
-                    source.playbackRate.setValueAtTime(freqWithPitch / sampleRootFreq, time);
-
-                    const filter = context.createBiquadFilter();
-                    filter.type = 'lowpass';
-                    filter.frequency.setValueAtTime(params.filterCutoff, time);
-                    filter.Q.setValueAtTime(params.filterResonance, time);
-
-                    source.connect(filter);
-                    filter.connect(outputNode);
-
-                    source.start(time);
-                    // UPDATED: Stop after total duration (gate + release)
-                    source.stop(time + totalDuration + 0.1);
-                }
-            } else if (isWgslWave && gpuEngineRef.current?.isSupported) {
-                try {
-                    const baseFreq = noteToFrequency(note);
-                    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-                    const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
-
-                    // UPDATED: Pass calculated totalDuration to GPU
-                    const rawData = await gpuEngineRef.current.generate(
-                        freqWithPitch,
-                        totalDuration + 0.1, 
-                        context.sampleRate,
-                        type
-                    );
-
-                    if (rawData) {
-                        const buffer = context.createBuffer(1, rawData.length, context.sampleRate);
-                        buffer.getChannelData(0).set(rawData);
-
-                        const source = context.createBufferSource();
-                        source.buffer = buffer;
-
-                        const filter = context.createBiquadFilter();
-                        filter.type = 'lowpass';
-                        filter.frequency.setValueAtTime(params.filterCutoff, time);
-                        filter.Q.setValueAtTime(params.filterResonance, time);
-
-                        source.connect(filter);
-                        filter.connect(outputNode);
-                        source.start(time);
-                    }
-                } catch (e) { console.error("WGSL Render Error:", e); }
-
-            } else if (isWasmWave && wasmEngineRef.current?.isReady) {
-                try {
-                    const baseFreq = noteToFrequency(note);
-                    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-                    const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
-
-                    // UPDATED: Pass calculated totalDuration to WASM
-                    const rawData = wasmEngineRef.current.generate(
-                        freqWithPitch,
-                        totalDuration + 0.1,
-                        context.sampleRate,
-                        type,
-                        params.filterCutoff,
-                        params.filterResonance
-                    );
-
-                    if (rawData) {
-                        const buffer = context.createBuffer(1, rawData.length, context.sampleRate);
-                        buffer.getChannelData(0).set(rawData);
-
-                        const source = context.createBufferSource();
-                        source.buffer = buffer;
-
-                        // Wasm engine handles filter internally
-                        source.connect(outputNode);
-                        source.start(time);
-                    }
-                } catch (e) { console.error("Wasm Render Error:", e); }
-
-            } else if (isPyodideWave && pyodideRef.current) {
-                try {
-                    pyodideRef.current.globals.get('set_sample_rate')(context.sampleRate);
-                    const baseFreq = noteToFrequency(note);
-                    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-                    const pyOscType = params.waveform.split('-')[1];
-
-                    // UPDATED: Pass totalDuration
-                    const pyProxy = pyodideRef.current.globals.get('generate_wave')(
-                        freqWithPitch,
-                        totalDuration,
-                        pyOscType,
-                        params.filterCutoff,
-                        params.filterResonance
-                    );
-
-                    const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
-                    pyProxy.destroy();
-
-                    const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
-                    buffer.getChannelData(0).set(audioSamples);
-
-                    const source = context.createBufferSource();
-                    source.buffer = buffer;
-
-                    source.connect(outputNode);
-                    source.start(time);
-                    source.stop(time + totalDuration + 0.05);
-
-                } catch (e) { console.error("Pyodide synth error:", e); }
-
-            } else if (isPyodideWave && !pyodideRef.current) {
-                console.warn("Pyodide not ready, skipping synth trigger.");
-            } else {
-                // --- Web Audio Fallback ---
-                const baseFreq = noteToFrequency(note);
-                const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-
-                const osc = context.createOscillator();
-
-                let waveType = params.waveform;
-                if (waveType.includes('saw')) waveType = 'sawtooth';
-                else if (waveType.includes('sqr')) waveType = 'square';
-                else if (waveType.includes('tri')) waveType = 'triangle';
-                else if (waveType.includes('sin')) waveType = 'sine';
-
-                // @ts-ignore
-                osc.type = waveType as OscillatorType;
-                osc.frequency.setValueAtTime(freqWithPitch, time);
-
-                const filter = context.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.setValueAtTime(params.filterCutoff, time);
-                filter.Q.setValueAtTime(params.filterResonance, time);
-
-                osc.connect(filter);
-                filter.connect(outputNode);
-
-                osc.start(time);
-                // UPDATED: Stop after totalDuration
-                osc.stop(time + totalDuration + 0.05);
-            }
-        };
-
-
-        // Live note on/off for synths
-        const MAX_SYNTH_VOICES = 8;
+        // --- SINGLE CYCLE GENERATOR ---
+        // Moved up to be accessible by playSynth
         const generatorCache = new Map<string, AudioBuffer>();
-        const BASE_GENERATION_FREQ = 220; // Hz - single-cycle buffer frequency used for caching
+        const BASE_GENERATION_FREQ = 220; // Hz
 
         const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl' | 'wam' | 'pyodide', type: 'saw' | 'sqr' | 'tri' | 'sin', filterCutoff: number = 20000, filterResonance: number = 0): Promise<AudioBuffer | null> => {
             const sampleRate = context.sampleRate;
@@ -372,6 +160,200 @@ export const useAudioEngine = (pyodide: any) => {
             generatorCache.set(key, audioBuf);
             return audioBuf;
         };
+
+        // --- UPDATED PLAY SYNTH ---
+        // Now handles Polyphony (arrays) and Portamento (slideFromFreq)
+        const playSynth = async (
+            params: SynthParams,
+            noteOrChord: string | string[],
+            time: number,
+            durationSteps: number = 1,
+            stepTime: number = 0.125,
+            slideFromFreq: number | null = null
+        ) => {
+            const destination = masterGainRef.current!;
+            const seqDuration = durationSteps * stepTime;
+            const gateTime = seqDuration > 0 ? seqDuration : (params.length || 0.25);
+            const totalDuration = gateTime + params.release;
+
+            // 1. Normalize to Array for Polyphony
+            const notesToPlay = Array.isArray(noteOrChord) ? noteOrChord : [noteOrChord];
+
+            // 2. Identify Engine Type
+            let engine: 'wav' | 'wgsl' | 'wam' | 'pyodide' | 'native' = 'native';
+            let waveType = params.waveform;
+
+            if (params.waveform.startsWith('wav-')) { engine = 'wav'; }
+            else if (params.waveform.startsWith('wgsl-')) { engine = 'wgsl'; waveType = params.waveform.split('-')[1]; }
+            else if (params.waveform.startsWith('wam-')) { engine = 'wam'; waveType = params.waveform.split('-')[1]; }
+            else if (params.waveform.startsWith('pyodide-')) { engine = 'pyodide'; waveType = params.waveform.split('-')[1]; }
+
+            // 3. Prepare Buffer (WAV or Generated Single Cycle)
+            let buffer: AudioBuffer | null = null;
+            let sampleRootFreq = 440; // Default placeholder
+
+            if (engine === 'wav') {
+                buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
+                sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
+            }
+            else if (engine !== 'native') {
+                // Use existing getOrGenerateSingleCycleBuffer to get a looped cycle
+                // This unifies WebGPU, Wasm, and Pyodide into a "Sampler" workflow
+                buffer = await getOrGenerateSingleCycleBuffer(
+                    engine,
+                    waveType as any,
+                    // Pass extreme defaults because filter is applied per-voice below,
+                    // not baked into the buffer (unless engine forces it)
+                    20000,
+                    0
+                );
+                sampleRootFreq = 220; // The constant used in getOrGenerateSingleCycleBuffer
+            }
+
+            // 4. Play Each Voice
+            notesToPlay.forEach((note) => {
+                const baseFreq = noteToFrequency(note);
+                // Apply Pitch Knob
+                const targetFreq = baseFreq * Math.pow(2, params.pitch / 12);
+
+                // A. BUFFER BASED ENGINES (WAV, WGSL, Wasm, Pyodide)
+                if (buffer) {
+                    const source = context.createBufferSource();
+                    source.buffer = buffer;
+                    source.loop = true;
+
+                    // --- SLIDE LOGIC (Playback Rate) ---
+                    const targetRate = targetFreq / sampleRootFreq;
+
+                    if (slideFromFreq) {
+                        const startRate = slideFromFreq / sampleRootFreq;
+                        source.playbackRate.setValueAtTime(startRate, time);
+                        // Slide duration: 0.1s or match Attack if attack is longer
+                        const slideDur = Math.max(0.05, params.attack);
+                        source.playbackRate.exponentialRampToValueAtTime(targetRate, time + slideDur);
+                    } else {
+                        source.playbackRate.setValueAtTime(targetRate, time);
+                    }
+
+                    // --- ENVELOPE & FILTER CHAIN ---
+                    const envGain = context.createGain();
+                    envGain.gain.setValueAtTime(0, time);
+                    envGain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
+                    const sustainLevel = params.volume * params.sustain;
+                    envGain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
+                    // Hold Sustain
+                    envGain.gain.setValueAtTime(sustainLevel, time + gateTime);
+                    // Release
+                    envGain.gain.linearRampToValueAtTime(0, time + gateTime + params.release);
+
+                    const filter = context.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(params.filterCutoff, time);
+                    filter.Q.setValueAtTime(params.filterResonance, time);
+
+                    // --- DELAY CHAIN (Simplified) ---
+                    if (params.delayMix > 0 && params.delayTime > 0) {
+                        const dryGain = context.createGain();
+                        const wetGain = context.createGain();
+                        const delay = context.createDelay(1.0);
+                        const feedback = context.createGain();
+
+                        dryGain.gain.setValueAtTime(1.0 - params.delayMix, time);
+                        wetGain.gain.setValueAtTime(params.delayMix, time);
+                        delay.delayTime.setValueAtTime(params.delayTime, time);
+                        feedback.gain.setValueAtTime(params.delayFeedback, time);
+
+                        envGain.connect(dryGain);
+                        dryGain.connect(destination);
+
+                        envGain.connect(delay);
+                        delay.connect(feedback);
+                        feedback.connect(delay);
+                        delay.connect(wetGain);
+                        wetGain.connect(destination);
+                    } else {
+                         envGain.connect(destination);
+                    }
+
+                    // Connect: Source -> Filter -> Env -> (Output or Delay)
+                    source.connect(filter);
+                    filter.connect(envGain);
+
+                    source.start(time);
+                    source.stop(time + totalDuration + 0.1);
+                }
+                // B. FALLBACK (Native Web Audio Oscillators)
+                else {
+                    const osc = context.createOscillator();
+                    let typeStr = waveType;
+                    if (typeStr.includes('saw')) typeStr = 'sawtooth';
+                    else if (typeStr.includes('sqr')) typeStr = 'square';
+                    else if (typeStr.includes('tri')) typeStr = 'triangle';
+                    else if (typeStr.includes('sin')) typeStr = 'sine';
+
+                    // @ts-expect-error - TS doesn't know about custom oscillator types mapped to strings
+                    osc.type = typeStr as OscillatorType;
+
+                    // --- SLIDE LOGIC (Frequency Param) ---
+                    if (slideFromFreq) {
+                        osc.frequency.setValueAtTime(slideFromFreq, time);
+                        const slideDur = Math.max(0.05, params.attack);
+                        osc.frequency.exponentialRampToValueAtTime(targetFreq, time + slideDur);
+                    } else {
+                        osc.frequency.setValueAtTime(targetFreq, time);
+                    }
+
+                    // --- ENVELOPE & FILTER CHAIN ---
+                    const envGain = context.createGain();
+                    envGain.gain.setValueAtTime(0, time);
+                    envGain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
+                    const sustainLevel = params.volume * params.sustain;
+                    envGain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
+                    envGain.gain.setValueAtTime(sustainLevel, time + gateTime);
+                    envGain.gain.linearRampToValueAtTime(0, time + gateTime + params.release);
+
+                    const filter = context.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(params.filterCutoff, time);
+                    filter.Q.setValueAtTime(params.filterResonance, time);
+
+                    // Delay Logic for Native
+                    if (params.delayMix > 0 && params.delayTime > 0) {
+                        const dryGain = context.createGain();
+                        const wetGain = context.createGain();
+                        const delay = context.createDelay(1.0);
+                        const feedback = context.createGain();
+
+                        dryGain.gain.setValueAtTime(1.0 - params.delayMix, time);
+                        wetGain.gain.setValueAtTime(params.delayMix, time);
+                        delay.delayTime.setValueAtTime(params.delayTime, time);
+                        feedback.gain.setValueAtTime(params.delayFeedback, time);
+
+                        envGain.connect(dryGain);
+                        dryGain.connect(destination);
+                        envGain.connect(delay);
+                        delay.connect(feedback);
+                        feedback.connect(delay);
+                        delay.connect(wetGain);
+                        wetGain.connect(destination);
+                    } else {
+                        envGain.connect(destination);
+                    }
+
+                    osc.connect(filter);
+                    filter.connect(envGain);
+
+                    osc.start(time);
+                    osc.stop(time + totalDuration + 0.1);
+                }
+            });
+        };
+
+
+        // Live note on/off for synths
+        const MAX_SYNTH_VOICES = 8;
+
+        // ... (Original getOrGenerateSingleCycleBuffer removed from here as it's hoisted) ...
 
         const noteOnSynth = async (params: SynthParams, note: string, time?: number) => {
             const now = time || context.currentTime;
