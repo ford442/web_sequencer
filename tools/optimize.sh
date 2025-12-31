@@ -44,7 +44,7 @@ wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --enable-nontrapping-float-to-int
 
 echo "🔧 Optimizing Oscillator WASM (wasmedge)..."
-wasmedge compile --optimize=3 --enable-threads --enable-relaxed-simd "$PHYSICS_WASM" "$PHYSICS_WASM"
+wasmedge compile --optimize=3 --enable-relaxed-simd "$PHYSICS_WASM" "$PHYSICS_WASM"
 
 # 4. Optimize Emscripten WASM (Native Effects)
 # Emscripten -O3 does a lot, but wasm-opt can usually squeeze another 5-10%
