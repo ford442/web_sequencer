@@ -38,6 +38,7 @@ wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --converge \
   --strip-debug \
   --enable-simd \
+  --enable-threads \
   --enable-bulk-memory \
   --enable-relaxed-simd \
   --enable-nontrapping-float-to-int
@@ -53,12 +54,13 @@ wasm-opt "$NATIVE_WASM" -o "$NATIVE_WASM" \
   --converge \
   --strip-debug \
   --enable-simd \
+  --enable-threads \
   --enable-relaxed-simd \
   --enable-bulk-memory \
   --enable-nontrapping-float-to-int
   
 echo "🔧 Optimizing Native WASM (wasmedge)..."
-wasmedge compile --optimize=3 --enable-threads --enable-relaxed-simd "$NATIVE_WASM" "$NATIVE_WASM"
+wasmedge compile --optimize=3 --enable-relaxed-simd "$NATIVE_WASM" "$NATIVE_WASM"
 
 # 5. Minify Emscripten Loaders (Safety First)
 # We use -c (compress) and -m (mangle) but KEEP function names to avoid breaking
