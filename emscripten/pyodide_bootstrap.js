@@ -765,3 +765,14 @@ globalThis.initPyodideSystem = async function() {
         console.error("[C++ -> JS] Pyodide Load Failed:", e);
     }
 };
+
+// Automatically initialize Pyodide after WASM module loads
+// Only run in main thread (not in worker threads)
+if (!globalThis.WorkerGlobalScope && globalThis.window) {
+    // Use setTimeout to ensure this runs after the module export completes
+    setTimeout(() => {
+        if (typeof globalThis.initPyodideSystem === 'function') {
+            globalThis.initPyodideSystem();
+        }
+    }, 0);
+}
