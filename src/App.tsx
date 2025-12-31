@@ -609,10 +609,61 @@ const ROWS = [
     { key: 'sampler', label: 'SMP' },
 ] as const
 
+const StartOverlay = ({
+    onStart,
+    isReady
+}: {
+    onStart: () => void,
+    isReady: boolean
+}) => {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm">
+            <div className="text-center p-8 bg-[#1f2937] border-2 border-cyan-500 rounded-2xl shadow-2xl max-w-lg w-full">
+                <h1 className="text-4xl font-bold font-orbitron text-cyan-400 mb-2 tracking-widest drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]">
+                    HYPHON
+                </h1>
+                <p className="text-gray-400 mb-8 font-mono text-sm tracking-wide">
+                    BROWSER AUDIO WORKSTATION
+                </p>
+
+                <div className="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700 text-left font-mono text-xs text-gray-300">
+                    <p className="mb-2 text-cyan-500 font-bold">SYSTEM CHECK:</p>
+                    <div className="flex justify-between mb-1">
+                        <span>AUDIO ENGINE:</span>
+                        <span className="text-green-400">READY</span>
+                    </div>
+                    <div className="flex justify-between mb-1">
+                        <span>WEBGPU:</span>
+                        <span className="text-green-400">DETECTED</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span>CORE (PYODIDE):</span>
+                        {isReady ? <span className="text-green-400">LOADED</span> : <span className="text-yellow-400 animate-pulse">LOADING...</span>}
+                    </div>
+                </div>
+
+                <button
+                    onClick={onStart}
+                    disabled={!isReady}
+                    className={`
+                        w-full py-4 rounded-xl font-orbitron text-xl font-bold tracking-widest transition-all duration-300
+                        ${isReady
+                            ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.6)] hover:shadow-[0_0_30px_rgba(6,182,212,0.8)] border border-cyan-400 cursor-pointer transform hover:scale-[1.02]'
+                            : 'bg-gray-700 text-gray-500 cursor-wait border border-gray-600'}
+                    `}
+                >
+                    {isReady ? 'INITIALIZE SYSTEM' : 'LOADING RESOURCES...'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
+    const [hasStarted, setHasStarted] = useState(false); // NEW: Track start state
 
     // Track the last played frequency for each track to enable sliding FROM it
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
@@ -622,11 +673,17 @@ export const App: React.FC = () => {
 
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
-    // --- AUTO INITIALIZE AUDIO ---
-    useEffect(() => {
-        // Automatically try to init audio engines on mount
-        initializeAudio();
-    }, [initializeAudio]);
+    // REMOVED: Auto initialize on mount
+    // useEffect(() => {
+    //    initializeAudio();
+    // }, [initializeAudio]);
+
+    // NEW: Handle Start
+    const handleStart = async () => {
+        await initializeAudio();
+        setIsInitialized(true);
+        setHasStarted(true);
+    };
 
     // --- STATE ---
     const [pattern, setPattern] = useState<Pattern>(UPDATED_INITIAL_PATTERN)
@@ -1763,6 +1820,9 @@ export const App: React.FC = () => {
 
             {/* Dark overlay for readability if BG image is set */}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
+
+            {/* START OVERLAY */}
+            {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
 
             <CloudLibrary 
                 isOpen={isCloudLibraryOpen} 
