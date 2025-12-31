@@ -740,15 +740,18 @@ globalThis.initPyodideSystem = async function() {
         if (!globalThis.loadPyodide) {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
+                // Use local pyodide.js instead of CDN to avoid blocking issues
+                script.src = "/pyodide.js";
                 script.onload = resolve;
                 script.onerror = reject;
                 document.head.appendChild(script);
             });
         }
 
-        // Initialize Pyodide
-        const pyodide = await globalThis.loadPyodide();
+        // Initialize Pyodide with local index URL
+        const pyodide = await globalThis.loadPyodide({
+            indexURL: "/",  // Use local files from public directory
+        });
         await pyodide.loadPackage(['numpy', 'scipy']);
 
         // Load the internal python code
