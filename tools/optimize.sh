@@ -44,7 +44,7 @@ wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --enable-nontrapping-float-to-int
 
 echo "🔧 Optimizing Oscillator WASM (wasmedge)..."
-wasmedgec compile --optimize=3 --enable-all "$PHYSICS_WASM" "$PHYSICS_WASM"
+wasmedgec compile --optimize=3 "$PHYSICS_WASM" "$PHYSICS_WASM"
 
 # 4. Optimize Emscripten WASM (Native Effects)
 # Emscripten -O3 does a lot, but wasm-opt can usually squeeze another 5-10%
@@ -60,7 +60,7 @@ wasm-opt "$NATIVE_WASM" -o "$NATIVE_WASM" \
   --enable-nontrapping-float-to-int
   
 echo "🔧 Optimizing Native WASM (wasmedge)..."
-wasmedgec compile --optimize=3 --enable-all "$NATIVE_WASM" "$NATIVE_WASM"
+wasmedgec compile --optimize=3 "$NATIVE_WASM" "$NATIVE_WASM"
 
 # 5. Minify Emscripten Loaders (Safety First)
 # We use -c (compress) and -m (mangle) but KEEP function names to avoid breaking
