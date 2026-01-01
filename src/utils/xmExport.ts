@@ -58,7 +58,10 @@ const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1): Float3
         const gain = targetPeak / peak;
         const output = new Float32Array(input.length);
         for (let i = 0; i < input.length; i++) {
-            output[i] = Math.max(-1, Math.min(1, input[i] * gain));
+            const val = input[i] * gain;
+            if (val > 1) output[i] = 1;
+            else if (val < -1) output[i] = -1;
+            else output[i] = val;
         }
         return output;
     }
@@ -80,11 +83,15 @@ const floatTo16BitPCM = (input: Float32Array): Int16Array => {
     for (let i = 0; i < input.length; i++) {
         // Soft clipping using tanh to preserve harmonic content better
         let s = input[i];
-        if (s > 0.95 || s < -0.95) {
-            // Apply soft clipping for values near the limit
+        if (s > 0.95) {
+            s = Math.tanh(s);
+        } else if (s < -0.95) {
             s = Math.tanh(s);
         }
-        s = Math.max(-1, Math.min(1, s));
+
+        if (s > 1) s = 1;
+        else if (s < -1) s = -1;
+
         // Symmetric scaling for 16-bit (use 32767 for both positive and negative for symmetry)
         output[i] = Math.round(s * 32767);
     }
@@ -103,13 +110,18 @@ const floatTo16BitPCM = (input: Float32Array): Int16Array => {
  */
 const findZeroCrossing = (buffer: Float32Array, position: number, direction: number = 1, maxSearch: number = 1000): number => {
     const len = buffer.length;
-    for (let i = 0; i < maxSearch; i++) {
-        const idx = position + (i * direction);
-        if (idx < 1 || idx >= len - 1) break;
 
-        // Check for zero crossing (positive going)
-        if (buffer[idx] >= 0 && buffer[idx - 1] < 0) {
-            return idx;
+    if (direction === 1) {
+        if (position < 1 || position >= len - 1) return position;
+        const limit = Math.min(position + maxSearch, len - 1);
+        for (let idx = position; idx < limit; idx++) {
+            if (buffer[idx] >= 0 && buffer[idx - 1] < 0) return idx;
+        }
+    } else {
+        if (position < 1 || position >= len - 1) return position;
+        const limit = Math.max(position - maxSearch + 1, 1);
+        for (let idx = position; idx >= limit; idx--) {
+            if (buffer[idx] >= 0 && buffer[idx - 1] < 0) return idx;
         }
     }
     return position;
