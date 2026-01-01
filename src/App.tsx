@@ -1022,11 +1022,27 @@ export const App: React.FC = () => {
         audioEngine?.setMasterVolume(v);
     };
 
+    const handleMasterVolumeKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            setMasterVolume(0.8);
+            audioEngine?.setMasterVolume(0.8);
+        }
+    };
+
     const handleGlobalPan = (e: React.ChangeEvent<HTMLInputElement>) => {
         const p = parseFloat(e.target.value);
         const val = (p > -0.1 && p < 0.1) ? 0 : p;
         setGlobalPan(val);
         audioEngine?.setGlobalPan(val);
+    };
+
+    const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            setGlobalPan(0);
+            audioEngine?.setGlobalPan(0);
+        }
     };
 
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => {
@@ -1882,31 +1898,33 @@ export const App: React.FC = () => {
 
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 mr-4">
-                        <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click slider to reset">Vol</label>
+                        <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click or Press Delete to reset">Vol</label>
                         <input
                             id="master-volume"
                             type="range"
                             min="0" max="1.2" step="0.01"
                             value={masterVolume}
                             onChange={handleMasterVolume}
+                            onKeyDown={handleMasterVolumeKeyDown}
                             onDoubleClick={() => { setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); }}
                             className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                             aria-label="Master Volume"
-                            title="Master Volume (Double-click to reset)"
+                            title="Master Volume (Double-click or Delete to reset)"
                         />
                     </div>
                     <div className="flex items-center gap-2 mr-4">
-                        <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click slider to reset">Pan</label>
+                        <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click or Press Delete to reset">Pan</label>
                         <input
                             id="global-pan"
                             type="range"
                             min="-1" max="1" step="0.01"
                             value={globalPan}
                             onChange={handleGlobalPan}
+                            onKeyDown={handleGlobalPanKeyDown}
                             onDoubleClick={() => { setGlobalPan(0); audioEngine?.setGlobalPan(0); }}
                             className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                             aria-label="Global Pan"
-                            title="Global Pan (Double-click to reset)"
+                            title="Global Pan (Double-click or Delete to reset)"
                         />
                     </div>
                     <div className="flex items-center gap-2">
