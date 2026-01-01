@@ -1,4 +1,3 @@
-
 // file: emscripten/pyodide_bootstrap.js
 
 // 1. Global storage for the Pyodide instance so React can access it later
@@ -749,6 +748,10 @@ globalThis.initPyodideSystem = async function() {
 
         // Initialize Pyodide
         const pyodide = await globalThis.loadPyodide();
+
+        // --- FIX: Load NumPy and SciPy explicitly ---
+        console.log("[C++ -> JS] Loading NumPy & SciPy...");
+        await pyodide.loadPackage(['numpy', 'scipy']);
 
         // Load the internal python code
         await pyodide.runPythonAsync(INTERNAL_PYTHON_CODE);
