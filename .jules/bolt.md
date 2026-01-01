@@ -6,3 +6,7 @@
 ## 2024-05-24 - Demand-Based WebGPU Rendering
 **Learning:** For WebGPU visualizations that represent static state (like knobs), a continuous `requestAnimationFrame` loop is wasteful. React's prop updates can be used to trigger imperative WebGPU renders only when data changes.
 **Action:** Identify static WebGPU components, expose their `render` method via a `useRef`, and trigger it from a `useEffect` watching the data props. Ensure the `render` method reads from a mutable `Ref` of the data to avoid closure staleness issues.
+
+## 2024-05-24 - Git Merge Diff Sensitivity
+**Learning:** `replace_with_git_merge_diff` is extremely sensitive to context. When attempting to replace multiple separate blocks (functions) in a single call, it often fails if the context between blocks is not perfectly matched or if the tool expects contiguous blocks.
+**Action:** When applying multiple distinct optimizations to the same file, it is safer and more reliable to apply them one by one using separate tool calls, or ensure the search block encompasses the entire region including unchanged code between functions (which increases risk of conflict).
