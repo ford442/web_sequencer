@@ -389,6 +389,7 @@ const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: 
                     onSelect(trackKey, index);
                 }
             }}
+            onContextMenu={(e) => e.preventDefault()}
         >
             <rect
                 width={18} height={18} rx={2}
@@ -2003,7 +2004,14 @@ export const App: React.FC = () => {
                     <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div></div>
                     <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div></div>
 
-                    <svg viewBox="0 0 1050 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
+                    <svg
+                        viewBox="0 0 1050 420"
+                        width="100%"
+                        height="100%"
+                        preserveAspectRatio="xMidYMid meet"
+                        className="drop-shadow-lg"
+                        onContextMenu={(e) => e.preventDefault()}
+                    >
                         <defs>
                             <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                                 <stop offset="0%" stopColor="white" stopOpacity="0.5" />
