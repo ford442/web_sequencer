@@ -34,7 +34,7 @@ fi
 # We must explicitly enable the features we used in compilation.
 echo "🔧 Optimizing Oscillator WASM..."
 wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
-  -O3 \
+  -O4 \
   --converge \
   --strip-debug \
   --enable-simd \
@@ -50,7 +50,7 @@ wasmedge compile --optimize=3 --enable-all "$PHYSICS_WASM" "$PHYSICS_WASM"
 # Emscripten -O3 does a lot, but wasm-opt can usually squeeze another 5-10%
 echo "🔧 Optimizing Native WASM..."
 wasm-opt "$NATIVE_WASM" -o "$NATIVE_WASM" \
-  -O3 \
+  -O4 \
   --converge \
   --strip-debug \
   --enable-simd \
