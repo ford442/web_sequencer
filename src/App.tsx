@@ -1869,16 +1869,26 @@ export const App: React.FC = () => {
                     </h1>
                     <div className="flex items-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 p-2 rounded-lg border border-cyan-900/30 shadow-lg">
                         <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Song</span>
-                        {[0, 1, 2, 3].map(slot => (
-                            <button
-                                key={slot}
-                                onClick={() => { if (songStorage[slot]) loadSong(slot); else handleSaveSong(slot); }}
-                                onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }}
-                                className={`w-6 h-6 text-xs font-mono rounded transition-all ${activeSongSlot === slot ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : (songStorage[slot] ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')}`}
-                            >
-                                {slot + 1}
-                            </button>
-                        ))}
+                        {[0, 1, 2, 3].map(slot => {
+                            const isSaved = !!songStorage[slot];
+                            const isActive = activeSongSlot === slot;
+                            const label = `Song Slot ${slot + 1}${isActive ? ' (Active)' : ''}${isSaved ? ' - Saved' : ' - Empty'}`;
+                            const title = isSaved ? `Load Song ${slot + 1} • Right-click to Overwrite` : `Save current song to Slot ${slot + 1}`;
+
+                            return (
+                                <button
+                                    key={slot}
+                                    onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }}
+                                    onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }}
+                                    className={`w-6 h-6 text-xs font-mono rounded transition-all ${isActive ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : (isSaved ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')}`}
+                                    aria-label={label}
+                                    title={title}
+                                    aria-pressed={isActive}
+                                >
+                                    {slot + 1}
+                                </button>
+                            );
+                        })}
                     </div>
                     <div className="flex items-center gap-1">
                         <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 hover:text-green-300 border border-green-900/50 bg-gradient-to-r from-green-900/10 to-green-900/20 hover:bg-green-900/40 px-2 py-1 rounded transition-all" title="Export song to file" aria-label="Export song to file">
