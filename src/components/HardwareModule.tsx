@@ -109,6 +109,7 @@ export const HardwareModule = React.memo(
             let device: GPUDevice;
             let pipeline: GPURenderPipeline;
             let uniformBuffer: GPUBuffer;
+            let bindGroup: GPUBindGroup; // Performance: Reuse bindGroup
             let isActive = true;
 
             const init = async () => {
@@ -224,6 +225,12 @@ export const HardwareModule = React.memo(
 
                     uniformBuffer = device.createBuffer({ size: 320, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 
+                    // Optimization: Create BindGroup once
+                    bindGroup = device.createBindGroup({
+                        layout: pipeline.getBindGroupLayout(0),
+                        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+                    });
+
                     // Assign render function for external calls
                     renderRef.current = render;
 
@@ -243,7 +250,7 @@ export const HardwareModule = React.memo(
             colorUniform.set([...colorHex, 0]);
 
             const render = () => {
-                if (!isActive || !device || !pipeline) return;
+                if (!isActive || !device || !pipeline || !bindGroup) return;
 
                 // Update dynamic values in pre-allocated buffers
                 controlsRef.current.forEach((c, i) => {
@@ -274,10 +281,7 @@ export const HardwareModule = React.memo(
                     colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: 'clear', clearValue: { r: 0, g: 0, b: 0, a: 1 }, storeOp: 'store' }]
                 });
                 pass.setPipeline(pipeline);
-                pass.setBindGroup(0, device.createBindGroup({
-                    layout: pipeline.getBindGroupLayout(0),
-                    entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
-                }));
+                pass.setBindGroup(0, bindGroup);
                 pass.draw(3);
                 pass.end();
                 device.queue.submit([encoder.finish()]);
