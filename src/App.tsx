@@ -720,6 +720,7 @@ export const App: React.FC = () => {
         startY: number;
         startMidi: number;
         hasMoved: boolean;
+        lastMidi: number;
     } | null>(null);
 
     // --- STORAGE STATE ---
@@ -1270,12 +1271,14 @@ export const App: React.FC = () => {
         if (!stepData) return;
 
         setIsNoteDragging(true);
+        const startMidi = noteToMidi(stepData.note);
         noteDragRef.current = {
             track,
             step,
             startY: e.clientY,
-            startMidi: noteToMidi(stepData.note),
-            hasMoved: false
+            startMidi,
+            hasMoved: false,
+            lastMidi: startMidi
         };
         document.body.style.cursor = 'ns-resize';
     }, []);
@@ -1293,23 +1296,46 @@ export const App: React.FC = () => {
 
         if (noteDragRef.current.hasMoved) {
             const semitoneChange = Math.round(dy / 10); // 10px per semitone
-            if (semitoneChange !== 0) {
-                const newMidi = startMidi + semitoneChange;
-                // Clamp midi
-                const clampedMidi = Math.max(24, Math.min(108, newMidi)); // C1 to C8
+
+            // PERFORMANCE: Calculate newMidi before scheduling update
+            const newMidi = startMidi + semitoneChange;
+            const clampedMidi = Math.max(24, Math.min(108, newMidi)); // C1 to C8
+
+            // PERFORMANCE: Only update if value actually changed from last frame
+            if (clampedMidi !== noteDragRef.current.lastMidi) {
+                noteDragRef.current.lastMidi = clampedMidi;
                 const newNote = midiToNote(clampedMidi);
 
                 setPattern(prev => {
-                    const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+                    // PERFORMANCE: Use shallow copy instead of expensive JSON.parse(JSON.stringify(prev))
+                    const copy = { ...prev };
+
                     if (track === 'sampler') {
-                        if (copy.sampler[activeSamplerBank].steps[step]) {
-                            copy.sampler[activeSamplerBank].steps[step]!.note = newNote;
+                        // Use activeSamplerBank from state (closure capture) since we depend on it
+                        // (Safe because handleGlobalMouseMove depends on activeSamplerBank)
+                        const bankIndex = activeSamplerBank;
+
+                        const newSampler = [...copy.sampler];
+                        const newBank = { ...newSampler[bankIndex] };
+                        newBank.steps = [...newBank.steps];
+
+                        if (newBank.steps[step]) {
+                            newBank.steps[step] = { ...newBank.steps[step]!, note: newNote };
                         }
+
+                        newSampler[bankIndex] = newBank;
+                        copy.sampler = newSampler;
+
                         updateStorageForTrack(track, copy.sampler);
                     } else {
-                        if (copy[track].steps[step]) {
-                            copy[track].steps[step]!.note = newNote;
+                        const newTrack = { ...copy[track] };
+                        newTrack.steps = [...newTrack.steps];
+
+                        if (newTrack.steps[step]) {
+                            newTrack.steps[step] = { ...newTrack.steps[step]!, note: newNote };
                         }
+
+                        copy[track] = newTrack;
                         updateStorageForTrack(track, copy[track]);
                     }
                     return copy;
