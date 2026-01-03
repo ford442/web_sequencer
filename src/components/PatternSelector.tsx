@@ -22,6 +22,9 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
 }) => {
     return (
         <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pattern-selector-title"
             className="fixed z-50 bg-gray-900 border border-gray-700 rounded shadow-xl p-2"
             style={{
                 left: Math.min(x, window.innerWidth - 100),
@@ -29,8 +32,8 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
             }}
         >
             <div className="flex justify-between items-center mb-2 px-1">
-                <span className="text-xs font-bold text-gray-400">SELECT PTN</span>
-                <button onClick={onClose} className="text-gray-500 hover:text-white text-xs">✕</button>
+                <span id="pattern-selector-title" className="text-xs font-bold text-gray-400">SELECT PTN</span>
+                <button onClick={onClose} aria-label="Close pattern selector" className="text-gray-500 hover:text-white text-xs">✕</button>
             </div>
 
             <div className="grid grid-cols-2 gap-1.5">
@@ -42,6 +45,8 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
                         <button
                             key={slot}
                             onClick={() => onSelect(slot)}
+                            aria-label={`Select Pattern ${slot + 1}`}
+                            title={`Pattern ${slot + 1}`}
                             className="w-10 h-8 rounded text-xs font-bold flex items-center justify-center transition-all hover:scale-110"
                             style={{
                                 backgroundColor: isSelected ? '#fff' : color,
@@ -59,6 +64,7 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
 
             <button
                 onClick={() => onSelect(null)}
+                aria-label="Clear pattern from step"
                 className="w-full mt-2 py-1 bg-red-900/40 text-red-400 border border-red-900/60 rounded text-[10px] font-bold hover:bg-red-900/60 transition-colors"
             >
                 CLEAR
