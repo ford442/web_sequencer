@@ -235,6 +235,15 @@ export const SongMode = memo(({
                             aria-labelledby="bg-img-label"
                             className="w-32 bg-transparent text-xs text-cyan-300 focus:outline-none border-b border-gray-700 focus:border-cyan-500 font-mono"
                         />
+                        {backgroundImage && (
+                            <button
+                                onClick={() => onSetBackgroundImage('')}
+                                className="text-gray-500 hover:text-white px-1 text-xs"
+                                aria-label="Clear Background Image"
+                            >
+                                ✕
+                            </button>
+                        )}
                     </div>
                     <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all">- BAR</button>
                     <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all">+ BAR</button>
