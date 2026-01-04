@@ -1487,6 +1487,20 @@ export const App: React.FC = () => {
         handlePatternChange(k, i, undefined, { length: len });
     }, [handlePatternChange]);
 
+    const handleRemoveMeasure = useCallback(() => {
+        const currentStructure = songStructure;
+        if (currentStructure.length === 0) return;
+
+        const last = currentStructure[currentStructure.length - 1];
+        const hasData = Object.values(last).some(v => v !== null);
+
+        if (hasData) {
+            if (!window.confirm("The last measure contains patterns. Are you sure you want to remove it?")) return;
+        }
+
+        setSongStructure(prev => prev.slice(0, -1));
+    }, [songStructure]);
+
     // --- NEW: HANDLE LOAD SAMPLE ---
     const handleLoadSample = useCallback((name: string, buffer: AudioBuffer) => {
         if (!audioEngine) return;
@@ -2011,7 +2025,7 @@ export const App: React.FC = () => {
                     });
                 }}
                 onAddMeasure={() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }])}
-                onRemoveMeasure={() => setSongStructure(prev => prev.slice(0, -1))}
+                onRemoveMeasure={handleRemoveMeasure}
                 onExportXM={() => {
                     exportSongToXM(
                         songStructure, trackStorage,

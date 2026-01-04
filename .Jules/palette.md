@@ -9,3 +9,7 @@
 ## 2025-05-24 - Accessibility of Single-Panel Tab Interfaces
 **Learning:** `role="tablist"` needs `role="tabpanel"` and proper `aria-controls` / `aria-labelledby` relationships to be truly semantic. A single dynamic panel is a valid pattern if attributes update dynamically.
 **Action:** Always verify that `tablist` implementations include the corresponding `tabpanel` and linkage attributes, even if the content is just swapping in place.
+
+## 2025-05-25 - Explicit Clear Actions for Text Inputs
+**Learning:** Text inputs that control significant UI state (like background images) benefit from an explicit "Clear" button (`✕`) when they have a value. Relying on users to manually select and delete text is high-friction, especially for long URLs.
+**Action:** When a state-driving text input has a value, conditionally render a clear button next to it. Ensure it has an `aria-label` (e.g., "Clear Background Image") so screen reader users know exactly what it does.
