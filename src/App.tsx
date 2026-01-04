@@ -721,6 +721,7 @@ export const App: React.FC = () => {
         startMidi: number;
         hasMoved: boolean;
         lastMidi: number;
+        pendingSequence?: PartSequence | PartSequence[];
     } | null>(null);
 
     // --- STORAGE STATE ---
@@ -1326,7 +1327,8 @@ export const App: React.FC = () => {
                         newSampler[bankIndex] = newBank;
                         copy.sampler = newSampler;
 
-                        updateStorageForTrack(track, copy.sampler);
+                        // PERFORMANCE: Store pending sequence to commit later
+                        if (noteDragRef.current) noteDragRef.current.pendingSequence = copy.sampler;
                     } else {
                         const newTrack = { ...copy[track] };
                         newTrack.steps = [...newTrack.steps];
@@ -1336,13 +1338,15 @@ export const App: React.FC = () => {
                         }
 
                         copy[track] = newTrack;
-                        updateStorageForTrack(track, copy[track]);
+
+                        // PERFORMANCE: Store pending sequence to commit later
+                        if (noteDragRef.current) noteDragRef.current.pendingSequence = copy[track];
                     }
                     return copy;
                 });
             }
         }
-    }, [isNoteDragging, activeSamplerBank, updateStorageForTrack]);
+    }, [isNoteDragging, activeSamplerBank]);
 
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
         if (!isNoteDragging || !noteDragRef.current) return;
@@ -1351,12 +1355,15 @@ export const App: React.FC = () => {
         if (!noteDragRef.current.hasMoved) {
             const { track, step } = noteDragRef.current;
             setContextMenu({ x: e.clientX, y: e.clientY, track, step });
+        } else if (noteDragRef.current.pendingSequence) {
+            // PERFORMANCE: Commit changes to storage only on release
+            updateStorageForTrack(noteDragRef.current.track, noteDragRef.current.pendingSequence);
         }
 
         setIsNoteDragging(false);
         noteDragRef.current = null;
         document.body.style.cursor = 'default';
-    }, [isNoteDragging]);
+    }, [isNoteDragging, updateStorageForTrack]);
 
     useEffect(() => {
         if (isNoteDragging) {
