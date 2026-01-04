@@ -60,4 +60,24 @@ describe('SongMode Accessibility', () => {
         expect(screen.getByText('BASS')).toBeInTheDocument();
         expect(screen.getByText('KICK')).toBeInTheDocument();
     });
+
+    it('shows clear button only when background image is present', () => {
+        const onSetBackgroundImage = vi.fn();
+        const { rerender } = render(<SongMode {...defaultProps} onSetBackgroundImage={onSetBackgroundImage} />);
+
+        // Initially empty, should not show clear button
+        const input = screen.getByLabelText('BG IMG:');
+        expect(input).toBeInTheDocument();
+        expect(screen.queryByLabelText('Clear Background Image')).not.toBeInTheDocument();
+
+        // Rerender with background image
+        rerender(<SongMode {...defaultProps} backgroundImage="test.jpg" onSetBackgroundImage={onSetBackgroundImage} />);
+
+        const clearBtn = screen.getByLabelText('Clear Background Image');
+        expect(clearBtn).toBeInTheDocument();
+
+        // Click clear button
+        fireEvent.click(clearBtn);
+        expect(onSetBackgroundImage).toHaveBeenCalledWith('');
+    });
 });
