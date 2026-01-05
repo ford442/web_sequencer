@@ -10,6 +10,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const designerRef = useRef<VoiceDesigner | null>(null);
     const [status, setStatus] = useState("Ready");
+    const [isApplying, setIsApplying] = useState(false);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -56,11 +57,15 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
 
         const raw = designerRef.current.getRawData();
         if (raw.ttl && raw.dp) {
+            setIsApplying(true);
+            setStatus("Applying...");
             service.updateStyleFromRaw(raw.ttl, raw.dp, raw.ttlDims, raw.dpDims);
             setStatus("Style Applied to Engine!");
             setTimeout(onClose, 500);
         }
     };
+
+    const btnClass = "text-xs py-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-colors";
 
     return (
         <div
@@ -72,7 +77,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
             <div className="bg-gray-900 border border-purple-500 rounded-xl p-6 w-[600px] shadow-2xl">
                 <div className="flex justify-between items-center mb-4">
                     <h2 id="voice-designer-title" className="text-xl font-orbitron text-purple-400">VOICE DESIGNER <span className="text-xs text-gray-500 ml-2">(WebGPU)</span></h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close Voice Designer">✕</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-400 rounded" aria-label="Close Voice Designer">✕</button>
                 </div>
 
                 {/* Heatmap Area */}
@@ -82,21 +87,21 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
                         className="w-full h-full block"
                         style={{ imageRendering: 'pixelated' }}
                         role="img"
-                        aria-label="Voice Heatmap Visualization"
+                        aria-label="Voice Heatmap Visualization - Interactive Canvas"
                     />
                 </div>
 
                 {/* Controls */}
                 <div className="grid grid-cols-4 gap-2 mb-6 font-mono">
-                    <button onClick={() => handleOp('mirrorX')} className="bg-gray-800 text-xs py-2 hover:bg-gray-700 text-gray-300 rounded">Mirror X</button>
-                    <button onClick={() => handleOp('mirrorY')} className="bg-gray-800 text-xs py-2 hover:bg-gray-700 text-gray-300 rounded">Mirror Y</button>
-                    <button onClick={() => handleOp('invertSign')} className="bg-gray-800 text-xs py-2 hover:bg-gray-700 text-gray-300 rounded">Invert</button>
-                    <button onClick={() => handleOp('randomShift')} className="bg-gray-800 text-xs py-2 hover:bg-gray-700 text-gray-300 rounded">Rand Shift</button>
+                    <button onClick={() => handleOp('mirrorX')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} title="Mirror the voice pattern horizontally">Mirror X</button>
+                    <button onClick={() => handleOp('mirrorY')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} title="Mirror the voice pattern vertically">Mirror Y</button>
+                    <button onClick={() => handleOp('invertSign')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} title="Invert the phase of the voice pattern">Invert</button>
+                    <button onClick={() => handleOp('randomShift')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} title="Randomly shift voice characteristics">Rand Shift</button>
 
-                    <button onClick={() => handleOp('dspSharpen')} className="bg-purple-900/30 text-xs py-2 hover:bg-purple-900/50 text-purple-300 rounded border border-purple-900/50">Sharpen</button>
-                    <button onClick={() => handleOp('dspTremolo')} className="bg-purple-900/30 text-xs py-2 hover:bg-purple-900/50 text-purple-300 rounded border border-purple-900/50">Tremolo</button>
-                    <button onClick={() => handleOp('dspEcho')} className="bg-purple-900/30 text-xs py-2 hover:bg-purple-900/50 text-purple-300 rounded border border-purple-900/50">Echo</button>
-                    <button onClick={() => handleOp('reset')} className="bg-red-900/30 text-xs py-2 hover:bg-red-900/50 text-red-300 rounded border border-red-900/50">Reset</button>
+                    <button onClick={() => handleOp('dspSharpen')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} title="Enhance contrast in voice features">Sharpen</button>
+                    <button onClick={() => handleOp('dspTremolo')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} title="Apply amplitude modulation">Tremolo</button>
+                    <button onClick={() => handleOp('dspEcho')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} title="Add delay/echo effect">Echo</button>
+                    <button onClick={() => handleOp('reset')} className={`${btnClass} bg-red-900/30 hover:bg-red-900/50 text-red-300 border border-red-900/50`} title="Reset to original voice style">Reset</button>
                 </div>
 
                 <div className="flex justify-between items-center">
@@ -109,9 +114,19 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
                     </span>
                     <button
                         onClick={handleApply}
-                        className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-[0_0_15px_rgba(34,197,94,0.3)] font-mono text-sm"
+                        disabled={isApplying}
+                        className={`px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-[0_0_15px_rgba(34,197,94,0.3)] font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-50 disabled:cursor-wait`}
+                        aria-busy={isApplying}
                     >
-                        APPLY TO ENGINE
+                        {isApplying ? (
+                           <span className="flex items-center gap-2">
+                               <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                               </svg>
+                               APPLYING...
+                           </span>
+                        ) : "APPLY TO ENGINE"}
                     </button>
                 </div>
             </div>
