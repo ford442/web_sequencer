@@ -131,7 +131,7 @@ export const useWebGPUScope = (
   const accentColorBufferRef = useRef<GPUBuffer | null>(null);
   const bindGroupRef = useRef<GPUBindGroup | null>(null);
   const animationRef = useRef<number>(0);
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(0);
 
   const WORKGROUP_SIZE = 64;
   const NUM_POINTS = 1024;
@@ -214,6 +214,7 @@ export const useWebGPUScope = (
     let isCleanedUp = false;
     const initTimeoutId = setTimeout(() => {
       if (isCleanedUp) return;
+      startTimeRef.current = Date.now();
       initWebGPU();
     }, initDelay);
 
