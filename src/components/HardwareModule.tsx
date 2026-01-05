@@ -31,6 +31,7 @@ export const HardwareModule = React.memo(
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
         const controlsRef = useRef(controls);
+        const colorHexRef = useRef(colorHex); // PERFORMANCE: Track color changes without re-init
         const activeKnobIndex = useRef<number | null>(null);
         const startY = useRef(0);
         const startVal = useRef(0);
@@ -41,11 +42,16 @@ export const HardwareModule = React.memo(
         // Refs for accessibility elements to enable focus management
         const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+        // Sync refs
         useEffect(() => {
             controlsRef.current = controls;
-            // Trigger a re-render when controls change
             if (renderRef.current) renderRef.current();
         }, [controls]);
+
+        useEffect(() => {
+            colorHexRef.current = colorHex;
+            if (renderRef.current) renderRef.current();
+        }, [colorHex]);
 
         // --- INTERACTION LOGIC (Mouse) ---
         useEffect(() => {
@@ -246,11 +252,12 @@ export const HardwareModule = React.memo(
             const timeUniform = new Float32Array(4); // [time, ratio, 0, 0]
             const colorUniform = new Float32Array(4); // [...colorHex, 0]
 
-            // Set static color uniform once
-            colorUniform.set([...colorHex, 0]);
-
             const render = () => {
                 if (!isActive || !device || !pipeline || !bindGroup) return;
+
+                // PERFORMANCE: Reset buffers to ensure clean state when switching between tracks with fewer controls
+                vals.fill(0);
+                positions.fill(0);
 
                 // Update dynamic values in pre-allocated buffers
                 controlsRef.current.forEach((c, i) => {
@@ -266,6 +273,12 @@ export const HardwareModule = React.memo(
                 // Update time uniform
                 timeUniform[0] = performance.now() / 1000;
                 timeUniform[1] = width / height;
+
+                // PERFORMANCE: Use color from ref to avoid re-init
+                const c = colorHexRef.current;
+                colorUniform[0] = c[0];
+                colorUniform[1] = c[1];
+                colorUniform[2] = c[2];
 
                 device.queue.writeBuffer(uniformBuffer, 0, timeUniform);
                 device.queue.writeBuffer(uniformBuffer, 16, colorUniform);
@@ -294,7 +307,7 @@ export const HardwareModule = React.memo(
                 renderRef.current = null;
                 if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
             };
-        }, [colorHex]);
+        }, []); // PERFORMANCE: Removed colorHex dependency to prevent re-initialization on track switch
 
         return (
             <div ref={containerRef} className="relative rounded-lg shadow-xl overflow-hidden bg-gray-900 border border-gray-700" style={{ width: '100%', height: '100%', minHeight: '220px' }}>
