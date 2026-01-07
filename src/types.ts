@@ -118,6 +118,7 @@ export interface AudioEngine {
   processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
   setSustainMode?: (mode: 'loop' | 'stretch' | 'wavetable') => void;
   setSustainGrainSize?: (size: number) => void;
+  playSinging?: (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote?: string) => void;
 }
 
 // Automation recording types
