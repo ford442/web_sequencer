@@ -11,7 +11,7 @@ echo "Compiling Rubber Band WASM..."
 # Check if library exists
 if [ ! -d "rubberband" ]; then
     echo "Error: rubberband directory not found."
-    echo "Please run: git clone https://github.com/breakfastquay/rubberband.git"
+    echo "Please run: git clone https://github.com/breakfastquay/rubberband.git emscripten/rubberband"
     exit 1
 fi
 
