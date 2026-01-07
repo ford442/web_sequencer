@@ -1,5 +1,5 @@
-# Architectural Implementation of High-Fidelity Singing Synthesis in Web Sequencers
-*Technical Analysis: Supertonic TTS + Rubber Band WASM*
+# Architectural Implementation of High-Fidelity Singing Synthesis
+*Technical Integration: Supertonic TTS + Rubber Band WASM*
 
 ## 1. Introduction
 This document outlines the architecture for integrating a singing voice synthesizer into the Hyphon DAW. The goal is to converge high-latency neural phoneme generation (Supertonic) with low-latency, phase-coherent time-stretching (Rubber Band Library) to create a "zero-latency" feeling vocal instrument.
@@ -48,11 +48,5 @@ To prevent "slurred" consonants when stretching words to fit long notes:
 * **Implementation:** Use Rubber Band's "Time Map" feature to apply variable stretch ratios across the sample.
 
 ### 4.2 Expression (Vibrato & Portamento)
-* **Vibrato:** Implemented via LFO (Sine Oscillator) modulating the pitch target in real-time, or a post-processing delay line.
+* **Vibrato:** Implemented via LFO (Sine Oscillator) modulating the pitch target in real-time.
 * **Portamento:** Calculated pitch glides updated at control rate (e.g., 10ms) sent to Rubber Band's `setPitch`.
-
-## 5. Implementation Stages
-1.  **Build:** Compile `rubberband` to WASM using Emscripten.
-2.  **Transport:** Implement `SharedArrayBuffer` Ring Buffer.
-3.  **Worklet:** Create `RubberBandProcessor.ts`.
-4.  **Integration:** Connect `SupertonicService` output to the Worklet.
