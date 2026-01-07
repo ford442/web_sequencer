@@ -55,7 +55,9 @@ em++ -O3 -std=c++17 \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s ENVIRONMENT='web,worker' \
     --bind \
-    -o "$OUTPUT_JS"
+    -o "$OUTPUT_JS" \
+    -I rubberband \
+    -I rubberband/rubberband
 
 if [ $? -eq 0 ]; then
     echo "Build successful!"
