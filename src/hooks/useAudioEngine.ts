@@ -1,12 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
+import { noteToMidi } from '../utils/musicTheory';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
+import { SingingVoice } from '../engines/SingingVoice';
 
 export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
     const audioEngineRef = useRef<AudioEngine | null>(null);
+    const singingVoiceRef = useRef<SingingVoice | null>(null);
     const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
@@ -111,6 +114,17 @@ export const useAudioEngine = (pyodide: any) => {
         } catch (e) {
             console.warn('Sustain worklet not available:', e);
             sustainNodeRef.current = null;
+        }
+
+        // Initialize Singing Voice
+        try {
+            const singingVoice = new SingingVoice(context);
+            await singingVoice.init();
+            singingVoice.getSourceNode().connect(masterGainRef.current!);
+            singingVoiceRef.current = singingVoice;
+            console.log('SingingVoice initialized');
+        } catch (e) {
+            console.error('Failed to initialize SingingVoice:', e);
         }
 
         // Create a white noise buffer
@@ -951,6 +965,19 @@ export const useAudioEngine = (pyodide: any) => {
             });
         };
 
+        const playSinging = (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote = 'C4') => {
+            if (!singingVoiceRef.current) return;
+
+            const timeRatio = buffer.duration / duration;
+            singingVoiceRef.current.setTimeRatio(timeRatio);
+
+            const sourceNoteMidi = noteToMidi(sourceNote);
+            const targetNoteMidi = noteToMidi(targetNote);
+            const pitchScale = Math.pow(2, (targetNoteMidi - sourceNoteMidi) / 12);
+
+            singingVoiceRef.current.setPitch(pitchScale);
+            singingVoiceRef.current.process(buffer.getChannelData(0));
+        };
 
         audioEngineRef.current = {
             context,
