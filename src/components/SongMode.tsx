@@ -20,7 +20,7 @@ interface SongModeProps {
     onToggle: () => void;
     onAddMeasure: () => void;
     onRemoveMeasure: () => void;
-    onExportXM: () => void;
+    onExportXM: () => Promise<void> | void;
 }
 
 const ROWS: { key: TrackKey, label: string, color: string }[] = [
@@ -56,6 +56,7 @@ export const SongMode = memo(({
 
     // Menu state
     const [menu, setMenu] = useState<{ x: number, y: number, sIdx: number, track: TrackKey, currentVal: number | null } | null>(null);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Double Click State
     const lastRightClickTimeRef = useRef<number>(0);
@@ -247,7 +248,26 @@ export const SongMode = memo(({
                     </div>
                     <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all">- BAR</button>
                     <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all">+ BAR</button>
-                    <button onClick={onExportXM} className="ml-2 px-4 py-1.5 bg-gradient-to-r from-cyan-900/40 to-cyan-800/40 text-cyan-400 text-xs font-bold border border-cyan-700/50 rounded-lg hover:from-cyan-800/60 hover:to-cyan-700/60 shadow-lg transition-all">EXPORT XM</button>
+                    <button
+                        onClick={async () => {
+                            if (isExporting) return;
+                            setIsExporting(true);
+                            try {
+                                await onExportXM();
+                            } finally {
+                                setIsExporting(false);
+                            }
+                        }}
+                        disabled={isExporting}
+                        className={`ml-2 px-4 py-1.5 bg-gradient-to-r text-cyan-400 text-xs font-bold border border-cyan-700/50 rounded-lg shadow-lg transition-all ${
+                            isExporting
+                            ? 'from-cyan-900/20 to-cyan-800/20 opacity-70 cursor-wait'
+                            : 'from-cyan-900/40 to-cyan-800/40 hover:from-cyan-800/60 hover:to-cyan-700/60'
+                        }`}
+                        aria-busy={isExporting}
+                    >
+                        {isExporting ? 'EXPORTING...' : 'EXPORT XM'}
+                    </button>
                     <button onClick={onToggle} aria-label="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors">✕</button>
                 </div>
             </div>
