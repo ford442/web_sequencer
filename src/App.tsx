@@ -2033,8 +2033,8 @@ export const App: React.FC = () => {
                 }}
                 onAddMeasure={() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }])}
                 onRemoveMeasure={handleRemoveMeasure}
-                onExportXM={() => {
-                    exportSongToXM(
+                onExportXM={async () => {
+                    await exportSongToXM(
                         songStructure, trackStorage,
                         { synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler },
                         tempo, pattern,
