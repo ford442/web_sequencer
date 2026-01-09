@@ -128,7 +128,7 @@ const findZeroCrossing = (buffer: Float32Array, position: number, direction: num
 
 /**
  * Find optimal loop points for a synth sample by detecting the steady-state region.
- * This addresses Task 3: Implement sustain for rendered synths (auto-looping).
+ * Improved robustness to ensure loops are found even for complex or short waveforms.
  * @param buffer Audio buffer
  * @param sampleRate Sample rate
  * @param attackDecayTime Estimated attack+decay time in seconds
@@ -137,33 +137,104 @@ const findZeroCrossing = (buffer: Float32Array, position: number, direction: num
 const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, attackDecayTime: number = 0.3): { loopStart: number, loopEnd: number } => {
     const len = buffer.length;
 
-    // Skip attack/decay phase - start searching after attackDecayTime
-    const steadyStateStart = Math.min(Math.floor(attackDecayTime * sampleRate), Math.floor(len * 0.3));
+    // 1. Define Search Region (Steady State)
+    // Be less aggressive with skipping if buffer is short.
+    // Ensure we at least have 200ms or 50% of buffer.
+    let steadyStateStart = Math.min(Math.floor(attackDecayTime * sampleRate), Math.floor(len * 0.4));
+    let steadyStateEnd = Math.floor(len * 0.95); // Use up to 95%
 
-    // End before release phase (last 10% of buffer)
-    const steadyStateEnd = Math.floor(len * 0.9);
+    // Minimum loop: 20ms is enough for a cycle (50Hz)
+    const minLoopLength = Math.floor(sampleRate * 0.02);
 
-    // Ensure we have enough samples for a loop
-    const minLoopLength = Math.floor(sampleRate * 0.05); // Minimum 50ms loop
-
+    // Fallback for short buffers: Use 25% to 75% of buffer
     if (steadyStateEnd - steadyStateStart < minLoopLength * 2) {
-        // Buffer too short for proper looping, return no loop
-        return { loopStart: 0, loopEnd: 0 };
+        steadyStateStart = Math.floor(len * 0.25);
+        steadyStateEnd = Math.floor(len * 0.75);
     }
 
-    // Find loop start - first zero crossing in steady state
-    const loopStart = findZeroCrossing(buffer, steadyStateStart, 1, Math.floor(sampleRate * 0.1));
-
-    // Find loop end - zero crossing near end of steady state, at least minLoopLength away from start
-    const loopEndSearchStart = Math.max(steadyStateEnd, loopStart + minLoopLength);
-    const loopEnd = findZeroCrossing(buffer, loopEndSearchStart, -1, Math.floor(sampleRate * 0.2));
-
-    // Validate loop points
-    if (loopEnd <= loopStart + minLoopLength) {
-        return { loopStart: 0, loopEnd: 0 };
+    if (steadyStateEnd - steadyStateStart < minLoopLength) {
+         return { loopStart: 0, loopEnd: 0 };
     }
 
-    return { loopStart, loopEnd };
+    // 2. Find Loop Start (Zero Crossing)
+    // Scan a reasonable window (e.g. 200ms) around steadyStateStart
+    const searchWindow = Math.floor(sampleRate * 0.2);
+
+    // Helper to find crossing with specific direction
+    const findCross = (start: number, end: number, step: number): number => {
+        if (step > 0) {
+            for (let i = start; i < end; i += step) {
+                if (i < 1 || i >= len - 1) continue;
+                if (buffer[i] >= 0 && buffer[i - 1] < 0) return i;
+            }
+        } else {
+            for (let i = start; i > end; i += step) {
+                if (i < 1 || i >= len - 1) continue;
+                if (buffer[i] >= 0 && buffer[i - 1] < 0) return i;
+            }
+        }
+        return -1;
+    };
+
+    let loopStart = findCross(steadyStateStart, Math.min(steadyStateStart + searchWindow, len-1), 1);
+
+    if (loopStart === -1) {
+        // Fallback: Just pick the start of the region
+        loopStart = steadyStateStart;
+    }
+
+    // 3. Find Loop End (Matching Start)
+    // We want a point where value is close to buffer[loopStart] and slope is similar.
+    // Ideally, another zero crossing if loopStart was one.
+
+    // Search backwards from steadyStateEnd
+    let loopEnd = -1;
+
+    // Search for zero crossing near end
+    const endSearchLimit = Math.max(loopStart + minLoopLength, steadyStateEnd - searchWindow);
+    loopEnd = findCross(steadyStateEnd, endSearchLimit, -1);
+
+    if (loopEnd === -1) {
+        // If no zero crossing at end, search for value match
+        const targetVal = buffer[loopStart];
+        const targetSlope = buffer[loopStart] - buffer[loopStart-1] || 1; // avoid 0
+
+        let bestErr = Infinity;
+        let bestIdx = -1;
+
+        // Scan last 30% of valid region
+        const scanStart = Math.max(loopStart + minLoopLength, Math.floor(len * 0.6));
+        for(let i = steadyStateEnd; i > scanStart; i--) {
+            const val = buffer[i];
+            const slope = buffer[i] - buffer[i-1];
+            // Check slope direction matches (roughly)
+            if (Math.sign(slope) === Math.sign(targetSlope)) {
+                const err = Math.abs(val - targetVal);
+                if (err < bestErr) {
+                    bestErr = err;
+                    bestIdx = i;
+                }
+            }
+        }
+
+        // Only accept if error is reasonably small (e.g. < 0.1)
+        if (bestIdx !== -1 && bestErr < 0.2) {
+            loopEnd = bestIdx;
+        }
+    }
+
+    // Validation
+    if (loopEnd !== -1 && loopEnd > loopStart + minLoopLength) {
+        return { loopStart, loopEnd };
+    }
+
+    // Ultimate Fallback: just loop steady state region if we have space
+    // This might click, but it's better than silence for a synth pad
+    if (steadyStateEnd > steadyStateStart + minLoopLength) {
+        return { loopStart: steadyStateStart, loopEnd: steadyStateEnd };
+    }
+
+    return { loopStart: 0, loopEnd: 0 };
 };
 
 /**
