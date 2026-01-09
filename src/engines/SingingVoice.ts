@@ -29,6 +29,17 @@ export const REFERENCE_FREQUENCIES = {
     high: 523.25   // C5
 };
 
+/** 
+ * Pitch ratio limits for optimal Rubber Band quality.
+ * Shifts outside this range introduce more artifacts.
+ */
+export const PITCH_RATIO_LIMITS = {
+    /** Minimum pitch ratio (one octave down) */
+    MIN: 0.5,
+    /** Maximum pitch ratio (one octave up) */
+    MAX: 2.0
+};
+
 /** Configuration for SingingVoice initialization */
 export interface SingingVoiceConfig {
     /** Use high quality (Finer engine) - higher CPU, better quality */
@@ -183,9 +194,9 @@ export class SingingVoice {
         const targetFreq = midiToFreq(targetMidiNote);
         const baseFreq = midiToFreq(baseMidiNote);
         
-        // Calculate pitch ratio, clamped to ±1 octave for best quality
+        // Calculate pitch ratio, clamped to optimal range for best quality
         let pitchRatio = targetFreq / baseFreq;
-        pitchRatio = Math.max(0.5, Math.min(2.0, pitchRatio));
+        pitchRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, pitchRatio));
         
         this.setPitch(pitchRatio);
     }
@@ -252,7 +263,10 @@ export class SingingVoice {
         // Calculate pitch shift from the cached base to the target
         const baseFreq = REFERENCE_FREQUENCIES[cacheLevel];
         const targetFreq = midiToFreq(targetMidiNote);
-        const pitchRatio = Math.max(0.5, Math.min(2.0, targetFreq / baseFreq));
+        const pitchRatio = Math.max(
+            PITCH_RATIO_LIMITS.MIN, 
+            Math.min(PITCH_RATIO_LIMITS.MAX, targetFreq / baseFreq)
+        );
         
         this.setPitch(pitchRatio);
         this.process(cachedAudio);

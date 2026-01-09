@@ -136,11 +136,11 @@ class RubberbandProcessor extends AudioWorkletProcessor {
             }
         } else if (type === 'setQuality') {
             // Toggle between high quality (Finer) and fast (Faster) engines
-            // Useful for adaptive quality based on CPU load (Section 7)
-            this.config.useHighQuality = data.highQuality;
             // Note: Engine switch requires re-initialization of the stretcher
-            // For now, log a warning - full implementation would recreate the stretcher
-            console.warn('Quality mode change requires processor reinitialization');
+            // The config is NOT updated here since it would create inconsistent state
+            // Clients should recreate the processor with new config for quality changes
+            console.warn('Quality mode change requires processor reinitialization. ' +
+                         'Recreate SingingVoice with new config for quality changes.');
         } else if (type === 'getLatency') {
             // Return current latency for synchronization purposes
             if (this.rubberband) {

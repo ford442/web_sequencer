@@ -136,6 +136,9 @@ export class ExpressiveVoiceProcessor {
         this.delayLine = new DelayLine(maxDelay);
         
         // Pre-generate noise for breath effect
+        // Note: Math.random() is used here as a stub. Production implementation
+        // should use a proper PRNG with seeding (e.g., xorshift128) for consistent
+        // and higher-quality noise generation suitable for audio applications.
         this.noiseBuffer = new Float32Array(this.config.sampleRate);
         for (let i = 0; i < this.noiseBuffer.length; i++) {
             this.noiseBuffer[i] = Math.random() * 2 - 1;

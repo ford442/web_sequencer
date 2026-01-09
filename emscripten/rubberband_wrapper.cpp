@@ -33,12 +33,16 @@ public:
         stretcher->setPitchScale(scale);
     }
 
+    // Formant option constants for JavaScript interop
+    static const int FORMANT_SHIFTED = 0;
+    static const int FORMANT_PRESERVED = 1;
+
     // Formant preservation option (for vocal processing)
-    // 0 = Formants shifted with pitch (default)
-    // 1 = Formants preserved (avoid chipmunk effect)
+    // FORMANT_SHIFTED (0) = Formants shift with pitch (default)
+    // FORMANT_PRESERVED (1) = Formants preserved (avoid chipmunk effect)
     void setFormantOption(int option) {
         RubberBand::RubberBandStretcher::Options opts;
-        if (option == 1) {
+        if (option == FORMANT_PRESERVED) {
             opts = RubberBand::RubberBandStretcher::OptionFormantPreserved;
         } else {
             opts = RubberBand::RubberBandStretcher::OptionFormantShifted;

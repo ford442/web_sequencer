@@ -96,17 +96,27 @@ export class PerformanceOptimizer {
     
     /**
      * Check if SIMD instructions are supported.
+     * Uses a minimal WASM module with v128 type to test for SIMD support.
      */
     isSimdSupported(): boolean {
+        // Minimal WASM module bytes that use SIMD (v128) type
+        // Reference: https://webassembly.github.io/spec/core/binary/modules.html
+        const WASM_MAGIC = [0x00, 0x61, 0x73, 0x6d];     // "\0asm" magic number
+        const WASM_VERSION = [0x01, 0x00, 0x00, 0x00];   // Version 1
+        const TYPE_SECTION = [0x01, 0x05, 0x01, 0x60];   // Type section header
+        const V128_FUNC_TYPE = [0x00, 0x01, 0x7b];       // Function type returning v128 (0x7b)
+        
+        const simdTestModule = new Uint8Array([
+            ...WASM_MAGIC,
+            ...WASM_VERSION,
+            ...TYPE_SECTION,
+            ...V128_FUNC_TYPE
+        ]);
+        
         try {
-            // Check for WebAssembly SIMD support
+            // Check for WebAssembly SIMD support by validating module with v128 type
             return typeof WebAssembly.validate === 'function' &&
-                WebAssembly.validate(new Uint8Array([
-                    0x00, 0x61, 0x73, 0x6d, // WASM magic
-                    0x01, 0x00, 0x00, 0x00, // Version 1
-                    0x01, 0x05, 0x01, 0x60, // Type section
-                    0x00, 0x01, 0x7b        // v128 type
-                ]));
+                WebAssembly.validate(simdTestModule);
         } catch {
             return false;
         }

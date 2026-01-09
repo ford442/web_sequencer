@@ -161,15 +161,26 @@ export class LatencyCompensator {
      * Get current timing information.
      */
     getTimingInfo(): TimingInfo {
-        const timestamp = this.config.audioContext.getOutputTimestamp?.() ?? {
-            contextTime: this.config.audioContext.currentTime,
-            performanceTime: performance.now()
-        };
+        const audioContext = this.config.audioContext;
+        const currentTime = audioContext.currentTime;
+        
+        // getOutputTimestamp provides precise output timing when available
+        // Fall back to currentTime and performance.now() when not supported
+        let outputTime = currentTime;
+        let perfTime = performance.now();
+        
+        if (typeof audioContext.getOutputTimestamp === 'function') {
+            const timestamp = audioContext.getOutputTimestamp();
+            if (timestamp) {
+                outputTime = timestamp.contextTime ?? currentTime;
+                perfTime = timestamp.performanceTime ?? performance.now();
+            }
+        }
         
         return {
-            contextTime: this.config.audioContext.currentTime,
-            outputTime: timestamp.contextTime ?? this.config.audioContext.currentTime,
-            performanceTime: timestamp.performanceTime ?? performance.now(),
+            contextTime: currentTime,
+            outputTime,
+            performanceTime: perfTime,
             processorLatency: this.processorLatency
         };
     }
