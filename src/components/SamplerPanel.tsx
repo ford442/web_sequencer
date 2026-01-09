@@ -83,12 +83,12 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
         filterResonance: 0,
         drive: 0,
         delaySend: 0,
-        mode: 'loop' as const,
+        mode: 'loop' as 'loop' | 'stretch' | 'wavetable',
         grainSize: 4410
     };
 
     // Update single param for active bank
-    const updateParam = (key: keyof typeof currentParams, value: number) => {
+    const updateParam = (key: keyof typeof currentParams, value: number | string) => {
         const newParams = [...params];
         newParams[activeBankIdx] = { ...currentParams, [key]: value };
         onChange(newParams);
@@ -327,7 +327,44 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                 )}
             </div>
 
-            {/* ROW 4: INSTANT HARMONIZER */}
+            {/* ROW 4: PLAYBACK MODE SELECTOR */}
+            <div className="mt-1 bg-gray-800/30 p-1 rounded flex gap-1 items-center">
+                <span className="text-[10px] text-gray-400 mr-1">Mode:</span>
+                <div className="flex gap-1 flex-1">
+                    <button
+                        onClick={() => updateParam('mode', 'loop')}
+                        className={`flex-1 px-2 py-0.5 text-[10px] rounded border transition-all ${
+                            currentParams.mode === 'loop'
+                                ? 'bg-green-600 border-green-400 text-white'
+                                : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                        }`}
+                    >
+                        Loop
+                    </button>
+                    <button
+                        onClick={() => updateParam('mode', 'stretch')}
+                        className={`flex-1 px-2 py-0.5 text-[10px] rounded border transition-all ${
+                            currentParams.mode === 'stretch'
+                                ? 'bg-blue-600 border-blue-400 text-white'
+                                : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                        }`}
+                    >
+                        Stretch
+                    </button>
+                    <button
+                        onClick={() => updateParam('mode', 'wavetable')}
+                        className={`flex-1 px-2 py-0.5 text-[10px] rounded border transition-all ${
+                            currentParams.mode === 'wavetable'
+                                ? 'bg-purple-600 border-purple-400 text-white'
+                                : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                        }`}
+                    >
+                        Wavetable
+                    </button>
+                </div>
+            </div>
+
+            {/* ROW 5: INSTANT HARMONIZER */}
             <div className="mt-1 bg-gray-800/30 p-1 rounded flex gap-1 items-center">
                 <select
                     value={chordType}
