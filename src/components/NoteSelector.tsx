@@ -38,10 +38,11 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
             {/* NEW: Duration Control */}
             <div className="flex flex-col gap-1">
                 <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
-                    <span>Duration</span>
+                    <label htmlFor="note-duration">Duration</label>
                     <span className="text-cyan-400">{currentLength} Steps</span>
                 </div>
                 <input
+                    id="note-duration"
                     type="range"
                     min="1"
                     max="16"

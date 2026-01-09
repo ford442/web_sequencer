@@ -10,6 +10,9 @@ type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' |
 // --- Configuration Constants ---
 /** Peak level threshold below which normalization is applied */
 const NORMALIZATION_PEAK_THRESHOLD = 0.5;
+
+// @migrate-target: assemblyscript
+// @perf-bottleneck: Double iteration over buffer for peak finding and scaling
 /** Minimum sample duration (in seconds) to enable looping for samplers */
 const SAMPLER_LOOP_DURATION_THRESHOLD = 0.5;
 /** Base render duration for synths (in seconds) for steady-state detection */
@@ -55,7 +58,10 @@ const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1): Float3
         const gain = targetPeak / peak;
         const output = new Float32Array(input.length);
         for (let i = 0; i < input.length; i++) {
-            output[i] = Math.max(-1, Math.min(1, input[i] * gain));
+            const val = input[i] * gain;
+            if (val > 1) output[i] = 1;
+            else if (val < -1) output[i] = -1;
+            else output[i] = val;
         }
         return output;
     }
@@ -63,29 +69,36 @@ const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1): Float3
     return input;
 };
 
+// @migrate-target: assemblyscript
+// @perf-optimized: Replaced broken/slow tanh soft-clip with fast hard-clip and optimized float->int conversion
 /**
- * Convert float32 buffer to int16 with proper handling to preserve harmonic content.
- * Uses soft-clipping and proper dithering for better fidelity.
- * This addresses Task 1: Fix waveform & fidelity loss in XM export.
+ * Convert float32 buffer to int16.
+ * Uses hard-clipping for performance and linear consistency.
+ * Previous implementation used Math.tanh > 0.95 which introduced a severe discontinuity (0.95 -> 0.74).
  * @param input Float32Array audio buffer
  * @returns Int16Array for XM sample
  */
-const floatTo16BitPCM = (input: Float32Array): Int16Array => {
+export const floatTo16BitPCM = (input: Float32Array): Int16Array => {
     const output = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
-        // Soft clipping using tanh to preserve harmonic content better
         let s = input[i];
-        if (s > 0.95 || s < -0.95) {
-            // Apply soft clipping for values near the limit
-            s = Math.tanh(s);
-        }
-        s = Math.max(-1, Math.min(1, s));
-        // Symmetric scaling for 16-bit (use 32767 for both positive and negative for symmetry)
-        output[i] = Math.round(s * 32767);
+
+        // Fast Hard Clip
+        // Since input is likely normalized, this only catches rare peaks.
+        if (s > 1.0) s = 1.0;
+        else if (s < -1.0) s = -1.0;
+
+        // Optimized conversion (truncation via bitwise OR is faster than Math.round)
+        // 0.5 added for rounding behavior (s * 32767 + 0.5) | 0
+        // But for pure speed and 16-bit, truncation is acceptable.
+        // We use direct multiplication and casting which is very fast in JS engines.
+        output[i] = (s * 32767) | 0;
     }
     return output;
 };
 
+// @migrate-target: assemblyscript
+// @perf-bottleneck: Tight loop searching for values, called frequently by findSynthLoopPoints
 /**
  * Find a zero-crossing point near the given position.
  * @param buffer Audio buffer
@@ -96,13 +109,18 @@ const floatTo16BitPCM = (input: Float32Array): Int16Array => {
  */
 const findZeroCrossing = (buffer: Float32Array, position: number, direction: number = 1, maxSearch: number = 1000): number => {
     const len = buffer.length;
-    for (let i = 0; i < maxSearch; i++) {
-        const idx = position + (i * direction);
-        if (idx < 1 || idx >= len - 1) break;
 
-        // Check for zero crossing (positive going)
-        if (buffer[idx] >= 0 && buffer[idx - 1] < 0) {
-            return idx;
+    if (direction === 1) {
+        if (position < 1 || position >= len - 1) return position;
+        const limit = Math.min(position + maxSearch, len - 1);
+        for (let idx = position; idx < limit; idx++) {
+            if (buffer[idx] >= 0 && buffer[idx - 1] < 0) return idx;
+        }
+    } else {
+        if (position < 1 || position >= len - 1) return position;
+        const limit = Math.max(position - maxSearch + 1, 1);
+        for (let idx = position; idx >= limit; idx--) {
+            if (buffer[idx] >= 0 && buffer[idx - 1] < 0) return idx;
         }
     }
     return position;
@@ -185,6 +203,29 @@ const findSamplerLoopPoints = (buffer: Float32Array, loopEnabled: boolean, sampl
     return { loopStart, loopEnd, loopType: LoopType.Forward };
 };
 
+/**
+ * Calculate XM relative note and finetune for a given sample rate
+ * so that the sample plays at its original pitch when C-4 is triggered.
+ * * XM standard C-4 frequency is 8363 Hz.
+ * Formula: RelNote = 12 * log2(SampleRate / 8363)
+ */
+const calculateXMPitchParams = (sampleRate: number) => {
+    const C4_FREQ = 8363;
+    const totalSemitones = 12 * Math.log2(sampleRate / C4_FREQ);
+    
+    // Relative Note (Semitone offset)
+    const relativeNote = Math.round(totalSemitones);
+    
+    // Fine Tune (1/128th of a semitone)
+    // Range: -128 to +127
+    const fineTune = Math.round((totalSemitones - relativeNote) * 128);
+    
+    return {
+        relativeNote: Math.max(-128, Math.min(127, relativeNote)),
+        fineTune: Math.max(-128, Math.min(127, fineTune))
+    };
+};
+
 export const exportSongToXM = async (
     songStructure: { [key in TrackKey]: number | null }[],
     trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
@@ -225,6 +266,9 @@ export const exportSongToXM = async (
     const normalizedDataA = normalizeBuffer(rawDataA);
     const loopPointsA = findSynthLoopPoints(normalizedDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay);
 
+    // UPDATED: Calculate pitch for Synths too (handles 44.1k/48k correctly)
+    const pitchA = calculateXMPitchParams(bufA.sampleRate);
+
     const sampleA = createSample({
         name: 'Lead',
         data: floatTo16BitPCM(normalizedDataA),
@@ -232,7 +276,8 @@ export const exportSongToXM = async (
         loopType: loopPointsA.loopEnd > loopPointsA.loopStart ? LoopType.Forward : LoopType.None,
         loopStart: loopPointsA.loopStart,
         loopLength: loopPointsA.loopEnd > loopPointsA.loopStart ? loopPointsA.loopEnd - loopPointsA.loopStart : 0,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchA.relativeNote,
+        fineTune: pitchA.fineTune
     });
     const instA = createInstrument('Lead Synth');
     addSampleToInstrument(instA, sampleA);
@@ -244,6 +289,10 @@ export const exportSongToXM = async (
     const rawDataB = bufB.getChannelData(0);
     const normalizedDataB = normalizeBuffer(rawDataB);
     const loopPointsB = findSynthLoopPoints(normalizedDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay);
+    
+    // UPDATED: Calculate pitch for Synths
+    const pitchB = calculateXMPitchParams(bufB.sampleRate);
+
     const sampleB = createSample({
         name: 'Bass',
         data: floatTo16BitPCM(normalizedDataB),
@@ -251,7 +300,8 @@ export const exportSongToXM = async (
         loopType: loopPointsB.loopEnd > loopPointsB.loopStart ? LoopType.Forward : LoopType.None,
         loopStart: loopPointsB.loopStart,
         loopLength: loopPointsB.loopEnd > loopPointsB.loopStart ? loopPointsB.loopEnd - loopPointsB.loopStart : 0,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchB.relativeNote,
+        fineTune: pitchB.fineTune
     });
     const instB = createInstrument('Bass Synth');
     addSampleToInstrument(instB, sampleB);
@@ -260,11 +310,14 @@ export const exportSongToXM = async (
     // Kick
     const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide);
     const normalizedKick = normalizeBuffer(bufKick.getChannelData(0));
+    const pitchKick = calculateXMPitchParams(bufKick.sampleRate);
+    
     const sampleKick = createSample({
         name: 'Kick',
         data: floatTo16BitPCM(normalizedKick),
         volume: 64,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchKick.relativeNote,
+        fineTune: pitchKick.fineTune
     });
     const instKick = createInstrument('Kick');
     addSampleToInstrument(instKick, sampleKick);
@@ -273,11 +326,14 @@ export const exportSongToXM = async (
     // Snare
     const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide);
     const normalizedSnare = normalizeBuffer(bufSnare.getChannelData(0));
+    const pitchSnare = calculateXMPitchParams(bufSnare.sampleRate);
+
     const sampleSnare = createSample({
         name: 'Snare',
         data: floatTo16BitPCM(normalizedSnare),
         volume: 64,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchSnare.relativeNote,
+        fineTune: pitchSnare.fineTune
     });
     const instSnare = createInstrument('Snare');
     addSampleToInstrument(instSnare, sampleSnare);
@@ -286,11 +342,14 @@ export const exportSongToXM = async (
     // CH
     const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide);
     const normalizedCH = normalizeBuffer(bufCH.getChannelData(0));
+    const pitchCH = calculateXMPitchParams(bufCH.sampleRate);
+
     const sampleCH = createSample({
         name: 'Closed Hat',
         data: floatTo16BitPCM(normalizedCH),
         volume: 64,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchCH.relativeNote,
+        fineTune: pitchCH.fineTune
     });
     const instCH = createInstrument('Closed Hat');
     addSampleToInstrument(instCH, sampleCH);
@@ -299,11 +358,14 @@ export const exportSongToXM = async (
     // OH
     const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
     const normalizedOH = normalizeBuffer(bufOH.getChannelData(0));
+    const pitchOH = calculateXMPitchParams(bufOH.sampleRate);
+
     const sampleOH = createSample({
         name: 'Open Hat',
         data: floatTo16BitPCM(normalizedOH),
         volume: 64,
-        relativeNoteNumber: 12
+        relativeNoteNumber: pitchOH.relativeNote,
+        fineTune: pitchOH.fineTune
     });
     const instOH = createInstrument('Open Hat');
     addSampleToInstrument(instOH, sampleOH);
@@ -323,11 +385,16 @@ export const exportSongToXM = async (
              const enableLoop = buffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
              const loopPoints = findSamplerLoopPoints(normalizedData, enableLoop, buffer.sampleRate);
 
+             // UPDATED: Calculate pitch correction for the sample rate
+             const { relativeNote, fineTune } = calculateXMPitchParams(buffer.sampleRate);
+
              const sample = createSample({
                 name: params.sampler[i].sampleName || `Sample ${i}`,
                 data: floatTo16BitPCM(normalizedData),
                 volume: Math.min(64, Math.floor(params.sampler[i].volume * 64)),
-                relativeNoteNumber: 24 + pitchShift,
+                // Add pitchShift (from playback speed) to the base relativeNote (from sample rate)
+                relativeNoteNumber: relativeNote + pitchShift,
+                fineTune: fineTune,
                 loopType: loopPoints.loopType,
                 loopStart: loopPoints.loopStart,
                 loopLength: loopPoints.loopEnd > loopPoints.loopStart ? loopPoints.loopEnd - loopPoints.loopStart : 0,

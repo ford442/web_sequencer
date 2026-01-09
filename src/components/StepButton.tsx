@@ -22,14 +22,14 @@ export const StepButton: React.FC<StepButtonProps> = ({ isActive, isCurrent, onC
   };
 
   const classes = getColorClasses(color);
-  const baseClasses = 'w-full aspect-square rounded-md transition-all duration-100 ease-in-out transform focus:outline-none';
+  // UPDATED: Removed 'aspect-square', added 'h-10' (or h-9/h-8 depending on preference) to allow width stretching
+  const baseClasses = 'w-full h-10 rounded-md transition-all duration-100 ease-in-out transform focus:outline-none';
   const inactiveClasses = 'bg-gray-700 hover:bg-gray-600';
   const activeClasses = classes.active;
   const currentClasses = `ring-2 ring-offset-2 ring-offset-gray-800 ${classes.current}`;
 
   const handleClick = () => {
     onClick();
-    // Prevent flickering by ensuring the button doesn't re-render unnecessarily
   };
 
   return (

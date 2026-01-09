@@ -15,6 +15,8 @@ describe('NoteSelector', () => {
         onSelect: vi.fn(),
         onClose: vi.fn(),
         getNoteColor: getNoteColor,
+        currentLength: 1,
+        onLengthChange: vi.fn(),
     };
 
     it('renders with accessibility roles and labels', () => {

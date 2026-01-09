@@ -30,7 +30,9 @@ describe('SamplerPanel TTS per-bank functionality', () => {
       filterCutoff: 20000,
       filterResonance: 0,
       drive: 0,
-      delaySend: 0
+      delaySend: 0,
+      mode: 'loop' as const,
+      grainSize: 4410
     }),
     onChange: vi.fn(),
     onLoadSample: vi.fn(),
@@ -217,5 +219,35 @@ describe('SamplerPanel TTS per-bank functionality', () => {
     );
 
     expect(input.value).toBe("Hello World");
+  });
+
+  it('has accessible labels and live region for status', () => {
+    render(<SamplerPanel {...defaultProps} />);
+
+    // Check status live region
+    const statusDivs = screen.getAllByRole('status');
+    // We expect 2 status roles: one for text feedback, one for TTS light
+    expect(statusDivs.length).toBeGreaterThanOrEqual(1);
+
+    const statusTextRegion = statusDivs.find(el => el.getAttribute('aria-live') === 'polite');
+    expect(statusTextRegion).toBeInTheDocument();
+
+    // Check buttons have labels
+    expect(screen.getByLabelText('Load Sample from File')).toBeInTheDocument();
+
+    // Check toggle button label (starts as Record)
+    expect(screen.getByLabelText('Record Sample from Microphone')).toBeInTheDocument();
+
+    // Check TTS input label
+    expect(screen.getByLabelText('Text to Speech Phrase')).toBeInTheDocument();
+
+    // Check Gen button label
+    expect(screen.getByLabelText('Generate Speech')).toBeInTheDocument();
+
+    // Check Chord selector label
+    expect(screen.getByLabelText('Harmonization Chord Type')).toBeInTheDocument();
+
+    // Check Harm button label
+    expect(screen.getByLabelText('Apply Harmonization')).toBeInTheDocument();
   });
 });

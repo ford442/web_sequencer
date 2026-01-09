@@ -13,7 +13,8 @@ const waveforms: Waveform[] = [
   'wav-saw', 'wav-sqr',
   'pyodide-saw', 'pyodide-square', 'pyodide-sine',
   'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin',
-  'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'
+  'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin',
+  'rust-saw', 'rust-sqr'
 ];
 
 const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
@@ -66,6 +67,11 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>TRI</div>;
     case 'wam-sin':
       return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>SIN</div>;
+    // NEW: Rust icons
+    case 'rust-saw':
+      return <div className="font-bold text-[10px] leading-none text-center text-orange-500">RUST<br/>SAW</div>;
+    case 'rust-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center text-orange-500">RUST<br/>SQR</div>;
     default:
       return null;
   }
