@@ -1,33 +1,36 @@
 #!/bin/bash
-
-# Exit on error
-set -e
+set -euo pipefail
 
 # Ensure we are in the emscripten directory
 cd "$(dirname "$0")"
 
-echo "Compiling Rubber Band WASM..."
+echo "Compiling Rubber Band WASM (Direct Source Build)..."
 
-# Check if library exists
+# Verify the library exists
 if [ ! -d "rubberband" ]; then
-    echo "Error: rubberband directory not found."
+    echo "Error: 'rubberband' directory not found in emscripten/."
+    echo "Run: git clone https://github.com/breakfastquay/rubberband.git"
     exit 1
 fi
 
-SOURCES="rubberband/src/*.cpp rubberband_wrapper.cpp"
+# Define sources: The wrapper + all .cpp files in rubberband/src
+SOURCES="rubberband_wrapper.cpp rubberband/src/*.cpp"
 
-# Use em++ for C++ linking
-# -O3 implies -fno-rtti, so we place -frtti AFTER it to override.
-# We also define the macro to disable the unbound type name check just in case.
-
+# Build command
+# -O3: Optimize
+# -frtti: Enable RTTI (Required for Embind)
+# -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0: Suppress strict type checks
+# -DUSE_KISSFFT: Use internal FFT implementation
 em++ -O3 \
     -frtti \
     -fexceptions \
     -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 \
-    $SOURCES \
+    -DUSE_KISSFFT \
+    -DPROCESS_CMAKE_PROJECT \
     -I . \
     -I rubberband \
     -I rubberband/rubberband \
+    $SOURCES \
     --bind \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
@@ -36,9 +39,6 @@ em++ -O3 \
     -s EXPORT_NAME='createRubberBandModule' \
     -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]' \
     -s ENVIRONMENT='web,worker' \
-    -s DISABLE_EXCEPTION_CATCHING=0 \
-    -DUSE_KISSFFT \
-    -DPROCESS_CMAKE_PROJECT \
     -o ../public/rubberband.js
 
-echo "Done. Build artifacts saved to ../public/rubberband.js"
+echo "Success! Created ../public/rubberband.js"
