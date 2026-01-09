@@ -1,6 +1,8 @@
 #include <emscripten/bind.h>
 #include <vector>
-// Point to the header inside the cloned repo structure
+#include <iostream>
+
+// Include the Rubber Band header from the cloned directory
 #include "rubberband/rubberband/RubberBandStretcher.h"
 
 using namespace emscripten;
@@ -47,15 +49,16 @@ public:
     void process(uintptr_t inputPtr, int frames, bool final) {
         const float* input = reinterpret_cast<const float*>(inputPtr);
         
-        // Handle de-interleaving if necessary. 
-        // For simplicity, we assume the input is a single block of memory.
-        // If stereo, Rubber Band expects float* buffers[channels].
+        // Rubber Band expects an array of pointers (one per channel).
+        // We assume the input from JS is a flat array (non-interleaved or mono).
+        // If your JS sends interleaved data, you would de-interleave here.
+        // For this implementation, we assume Planar (LLLL RRRR) or Mono.
         
         std::vector<const float*> channelPointers(stretcher->getChannelCount());
         int channelCount = stretcher->getChannelCount();
         
-        // If input is non-interleaved (Planar):
         for (int c = 0; c < channelCount; ++c) {
+            // Offset the pointer for each channel
             channelPointers[c] = input + (c * frames);
         }
 
@@ -78,6 +81,7 @@ public:
 };
 
 // Bindings
+// We disable allow_raw_pointers() because we are passing uintptr_t (numbers), not C++ pointers.
 EMSCRIPTEN_BINDINGS(rubberband_module) {
     class_<RubberBandWrapper>("RubberBandStretcher")
         .constructor<int, int, int, double, double>()
