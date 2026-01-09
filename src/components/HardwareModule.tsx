@@ -31,6 +31,7 @@ export const HardwareModule = React.memo(
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
         const controlsRef = useRef(controls);
+        const colorHexRef = useRef(colorHex); // PERFORMANCE: Track color changes without re-init
         const activeKnobIndex = useRef<number | null>(null);
         const startY = useRef(0);
         const startVal = useRef(0);
@@ -41,11 +42,16 @@ export const HardwareModule = React.memo(
         // Refs for accessibility elements to enable focus management
         const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+        // Sync refs
         useEffect(() => {
             controlsRef.current = controls;
-            // Trigger a re-render when controls change
             if (renderRef.current) renderRef.current();
         }, [controls]);
+
+        useEffect(() => {
+            colorHexRef.current = colorHex;
+            if (renderRef.current) renderRef.current();
+        }, [colorHex]);
 
         // --- INTERACTION LOGIC (Mouse) ---
         useEffect(() => {
@@ -109,6 +115,7 @@ export const HardwareModule = React.memo(
             let device: GPUDevice;
             let pipeline: GPURenderPipeline;
             let uniformBuffer: GPUBuffer;
+            let bindGroup: GPUBindGroup; // Performance: Reuse bindGroup
             let isActive = true;
 
             const init = async () => {
@@ -224,6 +231,12 @@ export const HardwareModule = React.memo(
 
                     uniformBuffer = device.createBuffer({ size: 320, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 
+                    // Optimization: Create BindGroup once
+                    bindGroup = device.createBindGroup({
+                        layout: pipeline.getBindGroupLayout(0),
+                        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+                    });
+
                     // Assign render function for external calls
                     renderRef.current = render;
 
@@ -233,51 +246,59 @@ export const HardwareModule = React.memo(
             };
 
             // Pre-allocate buffers to avoid garbage collection in the render loop
-            const vals = new Float32Array(12);
-            const positions = new Float32Array(48); // 12 knobs * 4 floats each
-            const valsWithPad = new Float32Array(16);
-            const timeUniform = new Float32Array(4); // [time, ratio, 0, 0]
-            const colorUniform = new Float32Array(4); // [...colorHex, 0]
-
-            // Set static color uniform once
-            colorUniform.set([...colorHex, 0]);
+            // Optimization: Single staging buffer for batched upload
+            // Size: 288 bytes / 4 = 72 floats (matches struct size exactly)
+            // Layout:
+            // 0-3: Time (vec4: time, ratio, pad, pad)
+            // 4-7: Color (vec4: r, g, b, pad)
+            // 8-23: Vals (vec4[4]: 16 floats, padded)
+            // 24-71: Positions (vec4[12]: 48 floats)
+            const stagingBuffer = new Float32Array(72);
 
             const render = () => {
-                if (!isActive || !device || !pipeline) return;
-
-                // Update dynamic values in pre-allocated buffers
-                controlsRef.current.forEach((c, i) => {
-                    if (i < 12) {
-                        vals[i] = c.value;
-                        const o = i * 4;
-                        positions[o] = c.x; positions[o + 1] = c.y; positions[o + 2] = c.size;
-                    }
-                });
+                if (!isActive || !device || !pipeline || !bindGroup) return;
 
                 const width = canvas.width, height = canvas.height;
 
-                // Update time uniform
-                timeUniform[0] = performance.now() / 1000;
-                timeUniform[1] = width / height;
+                // Clear dynamic regions (Vals and Positions) to ensure clean state
+                // Vals: indices 8 to 23 (16 floats)
+                // Positions: indices 24 to 71 (48 floats)
+                stagingBuffer.fill(0, 8, 72);
 
-                device.queue.writeBuffer(uniformBuffer, 0, timeUniform);
-                device.queue.writeBuffer(uniformBuffer, 16, colorUniform);
+                // 1. Update Time Uniform [0-3]
+                stagingBuffer[0] = performance.now() / 1000;
+                stagingBuffer[1] = width / height;
 
-                // vals: 12 floats = 3 vec4f, padded to 4 vec4f (16 floats)
-                valsWithPad.fill(0); // Reset padding
-                valsWithPad.set(vals);
-                device.queue.writeBuffer(uniformBuffer, 32, valsWithPad);
-                device.queue.writeBuffer(uniformBuffer, 96, positions);
+                // 2. Update Color Uniform [4-7]
+                const c = colorHexRef.current;
+                stagingBuffer[4] = c[0];
+                stagingBuffer[5] = c[1];
+                stagingBuffer[6] = c[2];
+
+                // 3. Update Controls (Vals and Positions)
+                controlsRef.current.forEach((ctrl, i) => {
+                    if (i < 12) {
+                        // Vals start at index 8
+                        stagingBuffer[8 + i] = ctrl.value;
+
+                        // Positions start at index 24, stride 4
+                        const posOffset = 24 + (i * 4);
+                        stagingBuffer[posOffset] = ctrl.x;
+                        stagingBuffer[posOffset + 1] = ctrl.y;
+                        stagingBuffer[posOffset + 2] = ctrl.size;
+                        // posOffset + 3 (radius/pad) is already 0 from fill
+                    }
+                });
+
+                // PERFORMANCE: Single batched write instead of 4 separate calls
+                device.queue.writeBuffer(uniformBuffer, 0, stagingBuffer);
 
                 const encoder = device.createCommandEncoder();
                 const pass = encoder.beginRenderPass({
                     colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: 'clear', clearValue: { r: 0, g: 0, b: 0, a: 1 }, storeOp: 'store' }]
                 });
                 pass.setPipeline(pipeline);
-                pass.setBindGroup(0, device.createBindGroup({
-                    layout: pipeline.getBindGroupLayout(0),
-                    entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
-                }));
+                pass.setBindGroup(0, bindGroup);
                 pass.draw(3);
                 pass.end();
                 device.queue.submit([encoder.finish()]);
@@ -290,7 +311,7 @@ export const HardwareModule = React.memo(
                 renderRef.current = null;
                 if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
             };
-        }, [colorHex]);
+        }, []); // PERFORMANCE: Removed colorHex dependency to prevent re-initialization on track switch
 
         return (
             <div ref={containerRef} className="relative rounded-lg shadow-xl overflow-hidden bg-gray-900 border border-gray-700" style={{ width: '100%', height: '100%', minHeight: '220px' }}>

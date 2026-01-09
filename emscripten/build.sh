@@ -35,7 +35,7 @@ COMPILE_FLAGS="-O3 -msimd128 -mrelaxed-simd -ffast-math -flto -flto=thin -fno-ex
 # ---------------------------------------------------------
 # -s MINIFY_WASM_IMPORTS_AND_EXPORTS=0: CRITICAL FIX. Prevents renaming 'env' to 'a'
 # -s SHRINK_LEVEL=0: Disables aggressive shrinking
-LINK_FLAGS="-O3 -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s EXPORT_ES6=1 -s MODULARIZE=1 -s EXPORT_NAME='createHyphonNative' -s ENVIRONMENT='web','worker' -flto -flto=thin "
+LINK_FLAGS="-O3 -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s ENVIRONMENT='web','worker' -flto -flto=thin --post-js $SCRIPT_DIR/pyodide_bootstrap.js"
 
 EXPORTS="[ \
     '_main', \

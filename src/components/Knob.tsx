@@ -110,7 +110,7 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
   };
 
   return (
-    <div className="flex flex-col items-center space-y-1" aria-label={`${label}: ${value.toFixed(2)}`}>
+    <div className="flex flex-col items-center space-y-1">
       <div
         ref={knobRef}
         className={`w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center cursor-pointer select-none border-2 border-gray-600 focus:outline-none ${focusBorderClasses[color]}`}
@@ -135,14 +135,13 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
         aria-valuemax={max}
         aria-valuenow={value}
         aria-orientation="vertical"
-        style={{
-          transform: `rotate(${rotation}deg)`,
-          transition: isDragging ? 'none' : 'transform 0.3s ease-out',
-        }}
       >
         <div
           className="w-12 h-12 bg-gray-800 rounded-full relative shadow-inner"
-          style={{ transform: `rotate(${rotation}deg)` }}
+          style={{
+            transform: `rotate(${rotation}deg)`,
+            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+          }}
         >
           <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full ${colorClasses[color]}`}></div>
         </div>

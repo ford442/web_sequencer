@@ -67,12 +67,12 @@ export const Sequencer: React.FC<SequencerProps> = ({
       {/* DYNAMIC SAMPLER TRACK */}
       <div className="bg-slate-900/50 rounded p-2 -mx-2 border border-purple-900/30">
         <TrackRow
-            label={`SMP ${activeSamplerBank + 1}`} // Dynamic Label
+            label={`SMP ${activeSamplerBank + 1}`} 
             color="purple"
             steps={activeSamplerSequence.steps}
             currentStep={currentStep}
             isPlaying={isPlaying}
-            onToggle={(i) => onPatternChange('sampler', i, activeSamplerBank)} // Pass bank index
+            onToggle={(i) => onPatternChange('sampler', i, activeSamplerBank)}
         />
         <div className="text-[10px] text-purple-400 text-right mt-1 pr-2">
             Editing Bank {activeSamplerBank + 1} Pattern
@@ -91,21 +91,51 @@ const TrackRow: React.FC<{
     currentStep: number,
     isPlaying: boolean,
     onToggle: (i: number) => void
-}> = ({ label, color, steps, currentStep, isPlaying, onToggle }) => (
-    <div className="flex items-center gap-3">
-        <span className="w-16 text-right text-xs font-bold uppercase text-slate-400 shrink-0 truncate">{label}</span>
-        <div className="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-1.5 flex-1">
-            {Array.from({ length: NUM_STEPS }).map((_, i) => (
-                <div key={i} className={`${(i + 1) % 4 === 0 && i < 15 ? 'mr-2' : ''}`}>
+}> = ({ label, color, steps, currentStep, isPlaying, onToggle }) => {
+    
+    // UPDATED: Custom Rendering Loop to handle Note Lengths
+    const renderSteps = () => {
+        const elements = [];
+        
+        for (let i = 0; i < NUM_STEPS; i++) {
+            const stepData = steps[i];
+            const length = stepData?.length || 1;
+            
+            // Determine if this step (or the long note covering it) is currently playing
+            // For a note starting at 'i' with length 'L', it is playing if currentStep is within [i, i+L-1]
+            const isCurrent = isPlaying && currentStep >= i && currentStep < (i + length);
+            
+            elements.push(
+                <div 
+                    key={i} 
+                    className={`${(i + length) % 4 === 0 && i < (NUM_STEPS - 1) ? 'mr-2' : ''}`}
+                    style={{ gridColumn: `span ${length}` }}
+                >
                     <StepButton
-                        isActive={!!steps[i]}
-                        isCurrent={isPlaying && currentStep === i}
+                        isActive={!!stepData}
+                        isCurrent={isCurrent}
                         onClick={() => onToggle(i)}
                         color={color}
                         aria-label={`${label} step ${i + 1}`}
                     />
                 </div>
-            ))}
+            );
+            
+            // Skip the next indices if length > 1 because they are covered by this note
+            if (length > 1) {
+                i += (length - 1);
+            }
+        }
+        return elements;
+    };
+
+    return (
+        <div className="flex items-center gap-3">
+            <span className="w-16 text-right text-xs font-bold uppercase text-slate-400 shrink-0 truncate">{label}</span>
+            {/* UPDATED: grid-cols matches NUM_STEPS (32) to prevent wrapping logic issues */}
+            <div className={`grid grid-cols-[repeat(32,minmax(0,1fr))] gap-1.5 flex-1`}>
+                {renderSteps()}
+            </div>
         </div>
-    </div>
-);
+    );
+};

@@ -20,6 +20,7 @@ import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
 import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
 import {
+    noteToFrequency,
     INITIAL_PATTERN,
     NUM_STEPS,
     DEFAULT_TEMPO,
@@ -42,7 +43,8 @@ const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     filterResonance: 0,
     drive: 0,
     delaySend: 0,
-    mode: 'loop'
+    mode: 'loop',
+    grainSize: 4410
 };
 
 // Initial Sampler Params (Array of 8)
@@ -180,7 +182,9 @@ const SvgStep = memo(({
     rowKey,
     onToggle,
     onRightMouseDown,
-    length = 1
+    onEditLength,
+    length = 1,
+    isSlide
 }: {
     stepIndex: number,
     active: boolean,
@@ -190,7 +194,9 @@ const SvgStep = memo(({
     rowKey: TrackKey,
     onToggle: (k: TrackKey, i: number, e: any) => void,
     onRightMouseDown: (k: TrackKey, i: number, e: React.MouseEvent) => void,
-    length?: number
+    onEditLength: (k: TrackKey, i: number, len: number) => void,
+    length?: number,
+    isSlide?: boolean
 }) => {
     // Dimensions
     const baseWidth = 18;
@@ -212,6 +218,51 @@ const SvgStep = memo(({
     const isAltGroup = groupIndex % 2 === 1;
     const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
+    const handlePointerDown = (e: React.PointerEvent) => {
+        // Right click handled by separate handler
+        if (e.button === 2) {
+             onRightMouseDown(rowKey, stepIndex, e);
+             return;
+        }
+
+        // 1. Shift + Click/Drag -> Adjust Length
+        if (e.shiftKey && active) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const target = e.currentTarget as Element;
+            target.setPointerCapture(e.pointerId);
+
+            const startX = e.clientX;
+            const startLength = length;
+            const sensitivity = 20; // Pixels per step
+
+            const handlePointerMove = (ev: PointerEvent) => {
+                const delta = ev.clientX - startX;
+                const stepsToAdd = Math.floor(delta / sensitivity);
+                // Clamp length between 1 and 16
+                const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
+
+                if (newLength !== length) {
+                    onEditLength(rowKey, stepIndex, newLength);
+                }
+            };
+
+            const handlePointerUp = (ev: PointerEvent) => {
+                target.removeEventListener('pointermove', handlePointerMove as any);
+                target.removeEventListener('pointerup', handlePointerUp as any);
+                target.releasePointerCapture(ev.pointerId);
+            };
+
+            target.addEventListener('pointermove', handlePointerMove as any);
+            target.addEventListener('pointerup', handlePointerUp as any);
+        }
+        // 2. Normal Click -> Toggle
+        else if (!e.shiftKey) {
+            onToggle(rowKey, stepIndex, e);
+        }
+    };
+
     return (
         <g transform={`translate(${x}, 0)`}
             ref={(el) => { refsArray.current[stepIndex] = el; }}
@@ -219,21 +270,16 @@ const SvgStep = memo(({
             role="button"
             tabIndex={0}
             aria-label={`${rowLabel} step ${stepIndex + 1}`}
-            onClick={(e) => onToggle(rowKey, stepIndex, e)}
+            onPointerDown={handlePointerDown}
             onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onToggle(rowKey, stepIndex, e);
                 }
             }}
-            onMouseDown={(e) => {
-                if (e.button === 2) {
-                    onRightMouseDown(rowKey, stepIndex, e);
-                }
-            }}
             onContextMenu={(e) => e.preventDefault()}
             cursor="pointer"
-            style={{ transition: 'all 0.1s ease' }}
+            style={{ transition: 'all 0.1s ease', touchAction: 'none' }}
         >
             {/* Active Glow */}
             {active && (
@@ -250,6 +296,18 @@ const SvgStep = memo(({
 
             {/* Base/Shadow */}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
+
+            {/* Slide Indicator: Amber Rect at bottom */}
+            {active && isSlide && (
+                 <rect
+                    x={4} y={height - 8}
+                    width={totalWidth - 8} height={3}
+                    rx={1}
+                    fill="#fbbf24" // Amber-400
+                    fillOpacity={1}
+                    style={{ mixBlendMode: 'plus-lighter' }}
+                 />
+            )}
 
             {/* Main Body */}
             <rect
@@ -274,12 +332,21 @@ const SvgStep = memo(({
                 strokeWidth={active ? 1 : 0}
             />
 
-            {/* Grip Lines for Long Notes */}
+            {/* Grip Lines & Label for Long Notes */}
             {length > 1 && (
-                <g opacity={0.3} fill="#000">
-                    <rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} />
-                    <rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} />
-                    <rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} />
+                <g pointerEvents="none">
+                    <g opacity={0.3} fill="#000">
+                        <rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} />
+                        <rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} />
+                        <rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} />
+                    </g>
+                    {/* Visual Length Indicator */}
+                    <g transform={`translate(${totalWidth - 25}, 8)`}>
+                         <rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} />
+                         <text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">
+                             {length}x
+                         </text>
+                    </g>
                 </g>
             )}
 
@@ -322,6 +389,7 @@ const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: 
                     onSelect(trackKey, index);
                 }
             }}
+            onContextMenu={(e) => e.preventDefault()}
         >
             <rect
                 width={18} height={18} rx={2}
@@ -354,6 +422,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     trackSlots: (PartSequence | PartSequence[] | null)[],
     onToggle: (k: any, i: number, e: any) => void,
     onRightMouseDown: (k: TrackKey, i: number, e: any) => void,
+    onEditLength: (k: TrackKey, i: number, len: number) => void, // NEW: Prop for length edits
     onSelectRow: (k: any) => void,
     onSelectSlot: (k: TrackKey, slot: number) => void
 }>((props, ref) => {
@@ -367,26 +436,62 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         trackSlots,
         onToggle,
         onRightMouseDown,
+        onEditLength,
         onSelectRow,
         onSelectSlot
     } = props;
 
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
+    const lastActiveIndexRef = useRef(-1);
 
+    // PERFORMANCE: Optimized to avoid iterating all steps (O(1) instead of O(N))
     const updateClasses = useCallback((step: number) => {
-        stepRefs.current.forEach((el, i) => {
-            if (!el) return;
-            const length = steps[i]?.length || 1;
-            const isCurrent = step >= i && step < (i + length);
+        // Find new active index by searching backwards from current step
+        // (to account for long notes that started earlier)
+        let newActiveIndex = -1;
+        for (let i = step; i >= 0; i--) {
+            if (stepRefs.current[i]) {
+                const length = steps[i]?.length || 1;
+                // Verify the note actually covers the current step
+                if (i + length > step) {
+                    newActiveIndex = i;
+                }
+                // Once we found a note (or gap), we stop because notes are sequential
+                break;
+            }
+        }
 
-            if (isCurrent) el.classList.add('is-current');
-            else el.classList.remove('is-current');
-        });
+        // Only update DOM if the active note index changed
+        if (newActiveIndex !== lastActiveIndexRef.current) {
+            // Remove highlight from old
+            if (lastActiveIndexRef.current !== -1) {
+                stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
+            }
+            // Add highlight to new
+            if (newActiveIndex !== -1) {
+                stepRefs.current[newActiveIndex]?.classList.add('is-current');
+            }
+            lastActiveIndexRef.current = newActiveIndex;
+        } else {
+             // Ensure class is present (handles re-renders where element might be recreated)
+             if (newActiveIndex !== -1) {
+                stepRefs.current[newActiveIndex]?.classList.add('is-current');
+            }
+        }
     }, [steps]);
 
     useImperativeHandle(ref, () => ({
         setHighlight: (step: number) => {
+            if (step === -1) {
+                // Reset everything
+                if (lastActiveIndexRef.current !== -1) {
+                    stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
+                    lastActiveIndexRef.current = -1;
+                }
+                lastStepRef.current = -1;
+                return;
+            }
             lastStepRef.current = step;
             updateClasses(step);
         }
@@ -394,8 +499,16 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
 
     // Re-apply highlight if steps change while paused or playing
     useLayoutEffect(() => {
+        // Force re-evaluation on render to handle mounting/unmounting
+        // We temporarily reset lastActiveIndexRef so logic runs again if needed
+        const currentActive = lastActiveIndexRef.current;
+        lastActiveIndexRef.current = -1;
+
         if (lastStepRef.current !== -1) {
             updateClasses(lastStepRef.current);
+        } else {
+             // Restore if we didn't update
+             lastActiveIndexRef.current = currentActive;
         }
     }, [updateClasses]);
 
@@ -421,11 +534,13 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 active={!!stepData}
                 note={stepData ? stepData.note : null}
                 length={length}
+                isSlide={!!stepData?.slide}
                 refsArray={stepRefs}
                 rowLabel={label}
                 rowKey={rowKey}
                 onToggle={onToggle}
                 onRightMouseDown={onRightMouseDown}
+                onEditLength={onEditLength}
             />
         );
 
@@ -495,21 +610,81 @@ const ROWS = [
     { key: 'sampler', label: 'SMP' },
 ] as const
 
+const StartOverlay = ({
+    onStart,
+    isReady
+}: {
+    onStart: () => void,
+    isReady: boolean
+}) => {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm">
+            <div className="text-center p-8 bg-[#1f2937] border-2 border-cyan-500 rounded-2xl shadow-2xl max-w-lg w-full">
+                <h1 className="text-4xl font-bold font-orbitron text-cyan-400 mb-2 tracking-widest drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]">
+                    HYPHON
+                </h1>
+                <p className="text-gray-400 mb-8 font-mono text-sm tracking-wide">
+                    BROWSER AUDIO WORKSTATION
+                </p>
+
+                <div className="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700 text-left font-mono text-xs text-gray-300">
+                    <p className="mb-2 text-cyan-500 font-bold">SYSTEM CHECK:</p>
+                    <div className="flex justify-between mb-1">
+                        <span>AUDIO ENGINE:</span>
+                        <span className="text-green-400">READY</span>
+                    </div>
+                    <div className="flex justify-between mb-1">
+                        <span>WEBGPU:</span>
+                        <span className="text-green-400">DETECTED</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span>CORE (PYODIDE):</span>
+                        {isReady ? <span className="text-green-400">LOADED</span> : <span className="text-yellow-400 animate-pulse">LOADING...</span>}
+                    </div>
+                </div>
+
+                <button
+                    onClick={onStart}
+                    disabled={!isReady}
+                    className={`
+                        w-full py-4 rounded-xl font-orbitron text-xl font-bold tracking-widest transition-all duration-300
+                        ${isReady
+                            ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.6)] hover:shadow-[0_0_30px_rgba(6,182,212,0.8)] border border-cyan-400 cursor-pointer transform hover:scale-[1.02]'
+                            : 'bg-gray-700 text-gray-500 cursor-wait border border-gray-600'}
+                    `}
+                >
+                    {isReady ? 'INITIALIZE SYSTEM' : 'LOADING RESOURCES...'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
+    const [hasStarted, setHasStarted] = useState(false); // NEW: Track start state
+
+    // Track the last played frequency for each track to enable sliding FROM it
+    const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
 
     // UPDATED: Destructure init function for auto-load
     const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide)
 
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
-    // --- AUTO INITIALIZE AUDIO ---
-    useEffect(() => {
-        // Automatically try to init audio engines on mount
-        initializeAudio();
-    }, [initializeAudio]);
+    // REMOVED: Auto initialize on mount
+    // useEffect(() => {
+    //    initializeAudio();
+    // }, [initializeAudio]);
+
+    // NEW: Handle Start
+    const handleStart = async () => {
+        await initializeAudio();
+        setIsInitialized(true);
+        setHasStarted(true);
+    };
 
     // --- STATE ---
     const [pattern, setPattern] = useState<Pattern>(UPDATED_INITIAL_PATTERN)
@@ -545,28 +720,9 @@ export const App: React.FC = () => {
         startY: number;
         startMidi: number;
         hasMoved: boolean;
+        lastMidi: number;
+        pendingSequence?: PartSequence | PartSequence[];
     } | null>(null);
-
-
-    // --- ANIMATION LOOP ---
-    const [loadingTick, setLoadingTick] = useState(0);
-    useEffect(() => {
-        if (isPyodideReady) return;
-        const interval = setInterval(() => {
-            setLoadingTick(t => (t + 1) % 1000);
-        }, 100);
-        return () => clearInterval(interval);
-    }, [isPyodideReady]);
-
-    const getLoadingStepData = (rIdx: number) => {
-        return Array(32).fill(null).map((_, i) => {
-            const diag = (i + rIdx + loadingTick) % 8 === 0;
-            const scanPos = loadingTick % 32;
-            const scanner = (i === scanPos) || (i === 31 - scanPos);
-            const active = diag || scanner;
-            return active ? { note: 'C4', velocity: 1 } : null;
-        });
-    }
 
     // --- STORAGE STATE ---
     // Updated type definition to handle PartSequence | PartSequence[]
@@ -586,6 +742,9 @@ export const App: React.FC = () => {
 
     // --- NEW: Multi-Bank Sampler State ---
     const [activeSamplerBank, setActiveSamplerBank] = useState(0);
+    const activeSamplerBankRef = useRef(activeSamplerBank);
+    useEffect(() => { activeSamplerBankRef.current = activeSamplerBank; }, [activeSamplerBank]);
+
     // Stores the raw audio buffers for all 8 banks so we can save them later
     const [sampleBuffers, setSampleBuffers] = useState<(AudioBuffer | null)[]>(new Array(8).fill(null));
     // TTS text phrases for each bank
@@ -726,6 +885,10 @@ export const App: React.FC = () => {
     const isFirstStepRef = useRef(true);
 
     const onStep = useCallback((step: number) => {
+        // PERFORMANCE: Update Visuals Imperatively
+        currentStepRef.current = step;
+        rowRefs.current.forEach(r => r?.setHighlight(step));
+
         if (!audioEngine) return
         const time = audioEngine.context.currentTime
 
@@ -783,8 +946,33 @@ export const App: React.FC = () => {
         const stepTime = 60 / tempo / 4;
 
         // UPDATED PLAY CALLS: Pass length and stepTime for duration
-        if (p.partA.steps[step]) audioEngine.playSynth(synthARef.current, p.partA.steps[step]!.note, time, p.partA.steps[step]!.length, stepTime)
-        if (p.partB.steps[step]) audioEngine.playSynth(synthBRef.current, p.partB.steps[step]!.note, time, p.partB.steps[step]!.length, stepTime)
+
+        const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
+            const stepData = p[trackKey].steps[step];
+            if (stepData) {
+                // 1. Calculate Current Frequency (for tracking)
+                const currentBaseFreq = noteToFrequency(stepData.note) * Math.pow(2, params.pitch / 12);
+
+                // 2. Determine Slide Source
+                let slideFrom = null;
+                if (stepData.slide && lastFreqRef.current[trackKey] > 0) {
+                    slideFrom = lastFreqRef.current[trackKey];
+                }
+
+                // 3. Prepare Notes (Root + Chord)
+                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+
+                // 4. Play
+                // @ts-ignore
+                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom);
+
+                // 5. Update History
+                lastFreqRef.current[trackKey] = currentBaseFreq;
+            }
+        };
+
+        triggerSynth('partA', synthARef.current);
+        triggerSynth('partB', synthBRef.current);
 
         if (p.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
         if (p.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
@@ -802,7 +990,8 @@ export const App: React.FC = () => {
 
     }, [audioEngine, tempo])
 
-    const { isPlaying: schedPlaying, currentStep: schedStep, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
+    // PERFORMANCE: schedStep is no longer used for reactive updates
+    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
 
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
 
@@ -810,22 +999,16 @@ export const App: React.FC = () => {
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
 
     // We still keep currentStepRef for logic that needs to read it (like Keyboard)
-    const currentStepRef = useRef(schedStep);
-
-    useEffect(() => {
-        currentStepRef.current = schedStep;
-
-        // Imperative Update of Grid
-        rowRefs.current.forEach(r => r?.setHighlight(schedStep));
-
-        // We do NOT call setCurrentStep(schedStep) here anymore!
-    }, [schedStep])
+    const currentStepRef = useRef(-1);
 
     useEffect(() => {
         if (!schedPlaying) {
             songMeasureRef.current = 0;
             setCurrentSongMeasure(0);
             isFirstStepRef.current = true;
+            // Clear highlights when stopped
+            rowRefs.current.forEach(r => r?.setHighlight(-1));
+            currentStepRef.current = -1;
         }
     }, [schedPlaying]);
 
@@ -842,11 +1025,27 @@ export const App: React.FC = () => {
         audioEngine?.setMasterVolume(v);
     };
 
+    const handleMasterVolumeKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            setMasterVolume(0.8);
+            audioEngine?.setMasterVolume(0.8);
+        }
+    };
+
     const handleGlobalPan = (e: React.ChangeEvent<HTMLInputElement>) => {
         const p = parseFloat(e.target.value);
         const val = (p > -0.1 && p < 0.1) ? 0 : p;
         setGlobalPan(val);
         audioEngine?.setGlobalPan(val);
+    };
+
+    const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            setGlobalPan(0);
+            audioEngine?.setGlobalPan(0);
+        }
     };
 
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => {
@@ -859,13 +1058,19 @@ export const App: React.FC = () => {
     }, []);
 
     // UPDATED TOGGLE STEP: Handles Sampler Bank Index (subIndex)
-    const toggleStep = useCallback((rowKey: keyof Pattern, i: number, subIndex?: number | any) => {
+    // Refactored to 'handlePatternChange' to support length updates
+    const handlePatternChange = useCallback((
+        rowKey: keyof Pattern,
+        i: number,
+        subIndex?: number | unknown,
+        updates?: { length?: number, slide?: boolean, chord?: string[] }
+    ) => {
         setPattern(prev => {
             const copy = { ...prev };
 
             if (rowKey === 'sampler') {
                 // Use activeSamplerBank from state (closure capture)
-                const bankIndex = activeSamplerBank;
+                const bankIndex = activeSamplerBankRef.current;
 
                 // Deep copy sampler array
                 const newSampler = [...prev.sampler];
@@ -877,10 +1082,33 @@ export const App: React.FC = () => {
                 // Removed unused _e, _isShiftKey, suppressed subIndex
                 void subIndex;
 
-                if (existing) {
-                    steps[i] = null;
+                if (updates) {
+                    if (existing) {
+                        // Always clone the step first to prevent mutation of previous state
+                        const newStep = { ...existing };
+                        if (updates.length !== undefined) newStep.length = updates.length;
+                        if (updates.slide !== undefined) newStep.slide = updates.slide;
+                        if (updates.chord !== undefined) newStep.chord = updates.chord;
+
+                        steps[i] = newStep;
+
+                        // Clean up overlapping steps in the new length's shadow if length changed
+                        if (updates.length !== undefined) {
+                            for (let k = 1; k < updates.length; k++) {
+                                const nextStepIdx = i + k;
+                                if (nextStepIdx < steps.length) {
+                                    steps[nextStepIdx] = null;
+                                }
+                            }
+                        }
+                    }
                 } else {
-                    steps[i] = { note: 'C4', velocity: 1, length: 1 };
+                    // CASE B: Normal Toggle (Click)
+                    if (existing) {
+                        steps[i] = null;
+                    } else {
+                        steps[i] = { note: 'C4', velocity: 1, length: 1, slide: false };
+                    }
                 }
 
                 copy.sampler = newSampler;
@@ -894,17 +1122,85 @@ export const App: React.FC = () => {
                 const steps = copy[rowKey].steps;
                 const existing = steps[i];
 
-                if (existing) {
-                    steps[i] = null;
+                if (updates) {
+                    if (existing) {
+                        // Always clone the step first to prevent mutation of previous state
+                        const newStep = { ...existing };
+                        if (updates.length !== undefined) newStep.length = updates.length;
+                        if (updates.slide !== undefined) newStep.slide = updates.slide;
+                        if (updates.chord !== undefined) newStep.chord = updates.chord;
+
+                        steps[i] = newStep;
+
+                        // Clean up overlapping steps
+                        if (updates.length !== undefined) {
+                            for (let k = 1; k < updates.length; k++) {
+                                const nextStepIdx = i + k;
+                                if (nextStepIdx < steps.length) {
+                                    steps[nextStepIdx] = null;
+                                }
+                            }
+                        }
+                    }
                 } else {
-                    const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
-                    steps[i] = { note: defaultNote, velocity: 1, length: 1 };
+                    // CASE B: Normal Toggle (Click)
+                    if (existing) {
+                        steps[i] = null;
+                    } else {
+                        const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
+                        steps[i] = { note: defaultNote, velocity: 1, length: 1, slide: false };
+                    }
                 }
                 updateStorageForTrack(rowKey, copy[rowKey]);
             }
             return copy;
         });
-    }, [updateStorageForTrack, activeSamplerBank]);
+    }, [updateStorageForTrack]);
+
+    const handleStepToggle = useCallback((rowKey: TrackKey, index: number, e: any) => {
+        // A. Alt + Click = Toggle Slide
+        if (e.altKey) {
+            e.preventDefault();
+            let step = null;
+            if (rowKey === 'sampler') {
+                step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index];
+            } else {
+                step = patternRef.current[rowKey].steps[index];
+            }
+
+            if (step) {
+                handlePatternChange(rowKey, index, undefined, { slide: !step.slide });
+            }
+            return;
+        }
+
+        // B. Ctrl + Click = Add/Remove Chord (Testing Polyphony)
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            let step = null;
+             if (rowKey === 'sampler') {
+                step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index];
+            } else {
+                step = patternRef.current[rowKey].steps[index];
+            }
+
+            if (step) {
+                // Toggle a simple Major chord
+                if (step.chord && step.chord.length > 0) {
+                    handlePatternChange(rowKey, index, undefined, { chord: [] }); // Remove chord
+                } else {
+                    // Calc Major 3rd and Perfect 5th
+                    const root = noteToMidi(step.note);
+                    const chord = [midiToNote(root + 4), midiToNote(root + 7)];
+                    handlePatternChange(rowKey, index, undefined, { chord });
+                }
+            }
+            return;
+        }
+
+        // C. Normal Click
+        handlePatternChange(rowKey, index, e);
+    }, [handlePatternChange]);
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
 
@@ -968,7 +1264,7 @@ export const App: React.FC = () => {
 
         let stepData = null;
         if (track === 'sampler') {
-            stepData = patternRef.current.sampler[activeSamplerBank].steps[step];
+            stepData = patternRef.current.sampler[activeSamplerBankRef.current].steps[step];
         } else {
             stepData = patternRef.current[track].steps[step];
         }
@@ -976,15 +1272,17 @@ export const App: React.FC = () => {
         if (!stepData) return;
 
         setIsNoteDragging(true);
+        const startMidi = noteToMidi(stepData.note);
         noteDragRef.current = {
             track,
             step,
             startY: e.clientY,
-            startMidi: noteToMidi(stepData.note),
-            hasMoved: false
+            startMidi,
+            hasMoved: false,
+            lastMidi: startMidi
         };
         document.body.style.cursor = 'ns-resize';
-    }, [activeSamplerBank]);
+    }, []);
 
     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
         if (!isNoteDragging || !noteDragRef.current) return;
@@ -999,30 +1297,56 @@ export const App: React.FC = () => {
 
         if (noteDragRef.current.hasMoved) {
             const semitoneChange = Math.round(dy / 10); // 10px per semitone
-            if (semitoneChange !== 0) {
-                const newMidi = startMidi + semitoneChange;
-                // Clamp midi
-                const clampedMidi = Math.max(24, Math.min(108, newMidi)); // C1 to C8
+
+            // PERFORMANCE: Calculate newMidi before scheduling update
+            const newMidi = startMidi + semitoneChange;
+            const clampedMidi = Math.max(24, Math.min(108, newMidi)); // C1 to C8
+
+            // PERFORMANCE: Only update if value actually changed from last frame
+            if (clampedMidi !== noteDragRef.current.lastMidi) {
+                noteDragRef.current.lastMidi = clampedMidi;
                 const newNote = midiToNote(clampedMidi);
 
                 setPattern(prev => {
-                    const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+                    // PERFORMANCE: Use shallow copy instead of expensive JSON.parse(JSON.stringify(prev))
+                    const copy = { ...prev };
+
                     if (track === 'sampler') {
-                        if (copy.sampler[activeSamplerBank].steps[step]) {
-                            copy.sampler[activeSamplerBank].steps[step]!.note = newNote;
+                        // Use activeSamplerBank from state (closure capture) since we depend on it
+                        // (Safe because handleGlobalMouseMove depends on activeSamplerBank)
+                        const bankIndex = activeSamplerBank;
+
+                        const newSampler = [...copy.sampler];
+                        const newBank = { ...newSampler[bankIndex] };
+                        newBank.steps = [...newBank.steps];
+
+                        if (newBank.steps[step]) {
+                            newBank.steps[step] = { ...newBank.steps[step]!, note: newNote };
                         }
-                        updateStorageForTrack(track, copy.sampler);
+
+                        newSampler[bankIndex] = newBank;
+                        copy.sampler = newSampler;
+
+                        // PERFORMANCE: Store pending sequence to commit later
+                        if (noteDragRef.current) noteDragRef.current.pendingSequence = copy.sampler;
                     } else {
-                        if (copy[track].steps[step]) {
-                            copy[track].steps[step]!.note = newNote;
+                        const newTrack = { ...copy[track] };
+                        newTrack.steps = [...newTrack.steps];
+
+                        if (newTrack.steps[step]) {
+                            newTrack.steps[step] = { ...newTrack.steps[step]!, note: newNote };
                         }
-                        updateStorageForTrack(track, copy[track]);
+
+                        copy[track] = newTrack;
+
+                        // PERFORMANCE: Store pending sequence to commit later
+                        if (noteDragRef.current) noteDragRef.current.pendingSequence = copy[track];
                     }
                     return copy;
                 });
             }
         }
-    }, [isNoteDragging, activeSamplerBank, updateStorageForTrack]);
+    }, [isNoteDragging, activeSamplerBank]);
 
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
         if (!isNoteDragging || !noteDragRef.current) return;
@@ -1031,12 +1355,15 @@ export const App: React.FC = () => {
         if (!noteDragRef.current.hasMoved) {
             const { track, step } = noteDragRef.current;
             setContextMenu({ x: e.clientX, y: e.clientY, track, step });
+        } else if (noteDragRef.current.pendingSequence) {
+            // PERFORMANCE: Commit changes to storage only on release
+            updateStorageForTrack(noteDragRef.current.track, noteDragRef.current.pendingSequence);
         }
 
         setIsNoteDragging(false);
         noteDragRef.current = null;
         document.body.style.cursor = 'default';
-    }, [isNoteDragging]);
+    }, [isNoteDragging, updateStorageForTrack]);
 
     useEffect(() => {
         if (isNoteDragging) {
@@ -1163,6 +1490,24 @@ export const App: React.FC = () => {
 
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
 
+    const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => {
+        handlePatternChange(k, i, undefined, { length: len });
+    }, [handlePatternChange]);
+
+    const handleRemoveMeasure = useCallback(() => {
+        const currentStructure = songStructure;
+        if (currentStructure.length === 0) return;
+
+        const last = currentStructure[currentStructure.length - 1];
+        const hasData = Object.values(last).some(v => v !== null);
+
+        if (hasData) {
+            if (!window.confirm("The last measure contains patterns. Are you sure you want to remove it?")) return;
+        }
+
+        setSongStructure(prev => prev.slice(0, -1));
+    }, [songStructure]);
+
     // --- NEW: HANDLE LOAD SAMPLE ---
     const handleLoadSample = useCallback((name: string, buffer: AudioBuffer) => {
         if (!audioEngine) return;
@@ -1255,6 +1600,8 @@ export const App: React.FC = () => {
     }, [songStorage]);
 
     // --- NEW: CLOUD / FILE EXPORT ---
+    // PERFORMANCE: Use Refs to avoid re-creating this function on every pattern change (e.g. dragging notes)
+    // This prevents CloudLibrary (and other consumers) from re-rendering unnecessarily
     const getSongData = useCallback(async () => {
         // Encode samples on demand
         const encodedSamples: { [k: number]: string } = {};
@@ -1268,18 +1615,26 @@ export const App: React.FC = () => {
 
         return {
             version: 1,
-            pattern,
-            tempo,
+            pattern: patternRef.current,
+            tempo: tempoRef.current,
             ambianceUrl,
             backgroundImage,
-            params: { synthA, synthB, kick, snare, closedHat, openHat, sampler },
-            trackStorage,
-            activeTrackSlots,
-            songStructure,
+            params: {
+                synthA: synthARef.current,
+                synthB: synthBRef.current,
+                kick: kickRef.current,
+                snare: snareRef.current,
+                closedHat: closedHatRef.current,
+                openHat: openHatRef.current,
+                sampler: samplerRef.current
+            },
+            trackStorage: trackStorageRef.current,
+            activeTrackSlots: activeTrackSlotsRef.current,
+            songStructure: songStructureRef.current,
             embeddedSamples: encodedSamples,
             ttsPhrases
         } as SavedSongData;
-    }, [pattern, tempo, ambianceUrl, backgroundImage, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure, sampleBuffers, ttsPhrases]);
+    }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]); // Removed rapidly changing deps like pattern, params
 
     // --- DATA EXTRACTORS FOR CLOUD ---
     // 2. Pattern Bank (Just the storage)
@@ -1499,12 +1854,13 @@ export const App: React.FC = () => {
     ), [synthB.waveform, updateSynthB]);
 
     const samplerChild = useMemo(() => (
-        <div className="absolute top-4 left-[30%] w-[40%] h-[120px] pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm">
+        <div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm">
             <SamplerPanel
                 params={sampler}
                 onChange={(u) => updateSampler(u)}
                 onLoadSample={handleLoadSample}
                 audioContext={audioEngine?.context!}
+                audioEngine={audioEngine || undefined}
                 activeBankIdx={activeSamplerBank}
                 onBankChange={setActiveSamplerBank}
                 onOpenEditor={() => setIsVoiceEditorOpen(true)}
@@ -1547,6 +1903,9 @@ export const App: React.FC = () => {
             {/* Dark overlay for readability if BG image is set */}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
 
+            {/* START OVERLAY */}
+            {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
+
             <CloudLibrary 
                 isOpen={isCloudLibraryOpen} 
                 onClose={() => setIsCloudLibraryOpen(false)}
@@ -1575,16 +1934,26 @@ export const App: React.FC = () => {
                     </h1>
                     <div className="flex items-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 p-2 rounded-lg border border-cyan-900/30 shadow-lg">
                         <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Song</span>
-                        {[0, 1, 2, 3].map(slot => (
-                            <button
-                                key={slot}
-                                onClick={() => { if (songStorage[slot]) loadSong(slot); else handleSaveSong(slot); }}
-                                onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }}
-                                className={`w-6 h-6 text-xs font-mono rounded transition-all ${activeSongSlot === slot ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : (songStorage[slot] ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')}`}
-                            >
-                                {slot + 1}
-                            </button>
-                        ))}
+                        {[0, 1, 2, 3].map(slot => {
+                            const isSaved = !!songStorage[slot];
+                            const isActive = activeSongSlot === slot;
+                            const label = `Song Slot ${slot + 1}${isActive ? ' (Active)' : ''}${isSaved ? ' - Saved' : ' - Empty'}`;
+                            const title = isSaved ? `Load Song ${slot + 1} • Right-click to Overwrite` : `Save current song to Slot ${slot + 1}`;
+
+                            return (
+                                <button
+                                    key={slot}
+                                    onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }}
+                                    onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }}
+                                    className={`w-6 h-6 text-xs font-mono rounded transition-all ${isActive ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : (isSaved ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')}`}
+                                    aria-label={label}
+                                    title={title}
+                                    aria-pressed={isActive}
+                                >
+                                    {slot + 1}
+                                </button>
+                            );
+                        })}
                     </div>
                     <div className="flex items-center gap-1">
                         <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 hover:text-green-300 border border-green-900/50 bg-gradient-to-r from-green-900/10 to-green-900/20 hover:bg-green-900/40 px-2 py-1 rounded transition-all" title="Export song to file" aria-label="Export song to file">
@@ -1605,31 +1974,33 @@ export const App: React.FC = () => {
 
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 mr-4">
-                        <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click slider to reset">Vol</label>
+                        <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click or Press Delete to reset">Vol</label>
                         <input
                             id="master-volume"
                             type="range"
                             min="0" max="1.2" step="0.01"
                             value={masterVolume}
                             onChange={handleMasterVolume}
+                            onKeyDown={handleMasterVolumeKeyDown}
                             onDoubleClick={() => { setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); }}
                             className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                             aria-label="Master Volume"
-                            title="Master Volume (Double-click to reset)"
+                            title="Master Volume (Double-click or Delete to reset)"
                         />
                     </div>
                     <div className="flex items-center gap-2 mr-4">
-                        <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click slider to reset">Pan</label>
+                        <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase cursor-pointer" title="Double-click or Press Delete to reset">Pan</label>
                         <input
                             id="global-pan"
                             type="range"
                             min="-1" max="1" step="0.01"
                             value={globalPan}
                             onChange={handleGlobalPan}
+                            onKeyDown={handleGlobalPanKeyDown}
                             onDoubleClick={() => { setGlobalPan(0); audioEngine?.setGlobalPan(0); }}
                             className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                             aria-label="Global Pan"
-                            title="Global Pan (Double-click to reset)"
+                            title="Global Pan (Double-click or Delete to reset)"
                         />
                     </div>
                     <div className="flex items-center gap-2">
@@ -1670,25 +2041,34 @@ export const App: React.FC = () => {
                 currentSongStep={currentSongMeasure}
                 backgroundImage={backgroundImage}
                 onSetBackgroundImage={setBackgroundImage}
-                onToggle={() => setIsSongModeOpen(!isSongModeOpen)}
-                onUpdateStep={(idx, key, val) => {
+                onToggle={useCallback(() => setIsSongModeOpen(prev => !prev), [])}
+                onUpdateStep={useCallback((idx: number, key: TrackKey, val: number | null) => {
                     setSongStructure(prev => {
                         const copy = [...prev];
                         copy[idx] = { ...copy[idx], [key]: val };
                         return copy;
                     });
-                }}
-                onAddMeasure={() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }])}
-                onRemoveMeasure={() => setSongStructure(prev => prev.slice(0, -1))}
-                onExportXM={() => {
+                }, [])}
+                onAddMeasure={useCallback(() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }]), [])}
+                onRemoveMeasure={handleRemoveMeasure}
+                onExportXM={useCallback(() => {
+                    // PERFORMANCE: Use Refs to prevent SongMode re-renders during note drags
                     exportSongToXM(
-                        songStructure, trackStorage,
-                        { synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler },
-                        tempo, pattern,
+                        songStructureRef.current, trackStorageRef.current,
+                        {
+                            synthA: synthARef.current,
+                            synthB: synthBRef.current,
+                            kick: kickRef.current,
+                            snare: snareRef.current,
+                            closedHat: closedHatRef.current,
+                            openHat: openHatRef.current,
+                            sampler: samplerRef.current
+                        },
+                        tempoRef.current, patternRef.current,
                         { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide: pyodide },
-                        sampleBuffers // UPDATED: Pass sampleBuffers array
+                        sampleBuffers
                     );
-                }}
+                }, [audioEngine, pyodide, sampleBuffers])}
             />
 
             {/* --- SEQUENCER --- */}
@@ -1726,7 +2106,14 @@ export const App: React.FC = () => {
                     <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div></div>
                     <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-md border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-800 rotate-45"></div></div>
 
-                    <svg viewBox="0 0 1050 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" className="drop-shadow-lg">
+                    <svg
+                        viewBox="0 0 1050 420"
+                        width="100%"
+                        height="100%"
+                        preserveAspectRatio="xMidYMid meet"
+                        className="drop-shadow-lg"
+                        onContextMenu={(e) => e.preventDefault()}
+                    >
                         <defs>
                             <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                                 <stop offset="0%" stopColor="white" stopOpacity="0.5" />
@@ -1742,12 +2129,13 @@ export const App: React.FC = () => {
                                     rowKey={row.key}
                                     label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label}
                                     rowIndex={rIdx}
-                                    steps={!isPyodideReady ? getLoadingStepData(rIdx) : (row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
+                                    steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
-                                    onToggle={toggleStep}
+                                    onToggle={handleStepToggle}
                                     onRightMouseDown={handleRightMouseDown}
+                                    onEditLength={handleEditLength}
                                     onSelectRow={handleSelectRow}
                                     onSelectSlot={handleTrackSlotClick}
                                 />

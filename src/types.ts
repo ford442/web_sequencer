@@ -3,7 +3,8 @@ export type Waveform =
   | 'pyodide-saw' | 'pyodide-square' | 'pyodide-sine'
   | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin'
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
-  | 'wav-saw' | 'wav-sqr';
+  | 'wav-saw' | 'wav-sqr'
+  | 'rust-saw' | 'rust-sqr';
 
 export interface SynthParams {
   waveform: Waveform;
@@ -51,7 +52,8 @@ export interface SamplerBankParams {
   filterResonance: number; // Q factor
   drive: number; // 0-1 (Distortion amount)
   delaySend: number; // 0-1 (Amount sent to delay bus)
-  mode: 'loop' | 'stretch' | 'wavetable'; // Playback mode
+  mode?: 'loop' | 'stretch' | 'wavetable'; // Sustain processor mode (0=loop, 1=stretch, 2=wavetable)
+  grainSize?: number; // Grain size for stretch mode (in samples)
 }
 
 // SamplerParams is now an array of banks
@@ -68,6 +70,8 @@ export interface Note {
   note: string; // e.g., 'C4' for synths, placeholder for drums
   velocity: number;
   length?: number; // Duration in steps (default 1)
+  slide?: boolean; // Triggers portamento from previous note
+  chord?: string[]; // Additional notes to play simultaneously
 }
 
 export interface PartSequence {
@@ -112,6 +116,9 @@ export interface AudioEngine {
   detectSamplePitch?: (buffer: AudioBuffer) => Promise<any>;
   processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
   processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
+  setSustainMode?: (mode: 'loop' | 'stretch' | 'wavetable') => void;
+  setSustainGrainSize?: (size: number) => void;
+  playSinging?: (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote?: string) => void;
 }
 
 // Automation recording types

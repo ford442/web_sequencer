@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import type { SamplerParams } from '../types'; // Note: This is now SamplerBankParams[]
+import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 
@@ -8,6 +8,7 @@ interface SamplerPanelProps {
     onChange: (updates: SamplerParams) => void; // Expecting full array update
     onLoadSample: (name: string, buffer: AudioBuffer) => void;
     audioContext: AudioContext;
+    audioEngine?: AudioEngine; // For sustain processor controls
     activeBankIdx: number;           // Controlled by Parent
     onBankChange: (i: number) => void; // Controlled by Parent
     onOpenEditor?: () => void;
@@ -19,9 +20,13 @@ interface SamplerPanelProps {
 // 8 Banks
 const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 
+// Helper functions for grain size calculations
+const grainSizeToMs = (size: number) => Math.round(size / 441 * 10);
+const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100);
+
 export const SamplerPanel: React.FC<SamplerPanelProps> = ({
-    params, onChange, onLoadSample, audioContext, activeBankIdx, onBankChange, onOpenEditor,
-    onTtsPhraseChange,
+    params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
+    ttsPhrases, onTtsPhraseChange,
     onHarmonize
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,7 +83,8 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
         filterResonance: 0,
         drive: 0,
         delaySend: 0,
-        mode: 'loop' as 'loop' | 'stretch' | 'wavetable'
+        mode: 'loop' as 'loop' | 'stretch' | 'wavetable',
+        grainSize: 4410
     };
 
     // Update single param for active bank
@@ -87,6 +93,40 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
         newParams[activeBankIdx] = { ...currentParams, [key]: value };
         onChange(newParams);
     };
+
+    // Handle mode change
+    const handleModeChange = (mode: 'loop' | 'stretch' | 'wavetable') => {
+        const newParams = [...params];
+        newParams[activeBankIdx] = { ...currentParams, mode };
+        onChange(newParams);
+        
+        // Update audio engine immediately
+        if (audioEngine?.setSustainMode) {
+            audioEngine.setSustainMode(mode);
+        }
+    };
+
+    // Handle grain size change
+    const handleGrainSizeChange = (size: number) => {
+        const newParams = [...params];
+        newParams[activeBankIdx] = { ...currentParams, grainSize: size };
+        onChange(newParams);
+        
+        // Update audio engine immediately
+        if (audioEngine?.setSustainGrainSize) {
+            audioEngine.setSustainGrainSize(size);
+        }
+    };
+
+    // Apply current mode and grain size to audio engine when bank changes
+    useEffect(() => {
+        if (audioEngine?.setSustainMode && currentParams.mode) {
+            audioEngine.setSustainMode(currentParams.mode);
+        }
+        if (audioEngine?.setSustainGrainSize && currentParams.grainSize) {
+            audioEngine.setSustainGrainSize(currentParams.grainSize);
+        }
+    }, [activeBankIdx, audioEngine, currentParams.mode, currentParams.grainSize]);
 
     useEffect(() => {
         const initTTS = async () => {
@@ -196,11 +236,13 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                 {SAMPLE_BANKS.map((label, i) => (
                     <button
                         key={i}
+                        id={`sampler-bank-tab-${i}`}
                         role="tab"
                         aria-selected={activeBankIdx === i}
+                        aria-controls="sampler-bank-panel"
                         aria-label={`Select Bank ${i + 1}`}
                         onClick={() => onBankChange(i)}
-                        className={`min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all ${
+                        className={`min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                             flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
                             activeBankIdx === i
                                 ? 'bg-purple-600 border-purple-400 text-white shadow-md'
@@ -213,34 +255,76 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                 ))}
             </div>
 
-            {/* ROW 2: Actions */}
-            <div className="flex justify-between items-center gap-2">
+            {/* Tab Panel Content */}
+            <div
+                role="tabpanel"
+                id="sampler-bank-panel"
+                aria-labelledby={`sampler-bank-tab-${activeBankIdx}`}
+                className="flex flex-col gap-2"
+            >
+                {/* ROW 2: Actions */}
+                <div className="flex justify-between items-center gap-2">
                 <div className="flex gap-1">
                     <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                    <button onClick={() => fileInputRef.current?.click()} className="btn-mini px-2 py-0.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600">LOAD</button>
-                    <button onClick={toggleRecording} className={`btn-mini px-2 py-0.5 rounded border ${isRecording ? 'bg-red-900 border-red-500 animate-pulse text-white' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}>
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="btn-mini px-2 py-0.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600"
+                        aria-label="Load Sample from File"
+                    >
+                        LOAD
+                    </button>
+                    <button
+                        onClick={toggleRecording}
+                        className={`btn-mini px-2 py-0.5 rounded border ${isRecording ? 'bg-red-900 border-red-500 animate-pulse text-white' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}
+                        aria-label={isRecording ? "Stop Recording" : "Record Sample from Microphone"}
+                    >
                         {isRecording ? 'STOP' : 'REC'}
                     </button>
                 </div>
-                <div className="text-[10px] text-right truncate w-24 text-yellow-500" title={status}>{status}</div>
+                <div
+                    className="text-[10px] text-right truncate w-24 text-yellow-500"
+                    title={status}
+                    role="status"
+                    aria-live="polite"
+                >
+                    {status}
+                </div>
             </div>
 
             {/* ROW 3: TTS */}
-            <div className="flex gap-1 mt-1">
+            <div className="flex gap-1 mt-1 items-center">
                 <input
                     value={currentTtsText}
                     onChange={e => setCurrentTtsText(e.target.value)}
                     className="flex-1 bg-gray-900 border border-gray-700 rounded px-1 text-white text-[10px] outline-none focus:border-purple-500"
                     placeholder="Phrase..."
+                    aria-label="Text to Speech Phrase"
+                />
+                {/* TTS Status Light */}
+                <div
+                    className={`w-3 h-3 border border-black shadow-sm flex-shrink-0 rounded-sm transition-colors ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}
+                    title={ttsReady ? "TTS Engine Ready" : "TTS Engine Loading/Unavailable"}
+                    role="status"
+                    aria-label={ttsReady ? "TTS Engine Ready" : "TTS Engine Not Ready"}
                 />
                 <button
                     onClick={handleTTS}
                     disabled={isGenerating || !ttsReady}
                     className="px-2 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50"
+                    aria-label="Generate Speech"
+                    aria-busy={isGenerating}
                 >
                     GEN
                 </button>
-                {onOpenEditor && <button onClick={onOpenEditor} className="text-[10px] text-purple-400 underline hover:text-white px-1">EDIT</button>}
+                {onOpenEditor && (
+                    <button
+                        onClick={onOpenEditor}
+                        className="text-[10px] text-purple-400 underline hover:text-white px-1"
+                        aria-label="Open Voice Editor"
+                    >
+                        EDIT
+                    </button>
+                )}
             </div>
 
             {/* ROW 4: PLAYBACK MODE SELECTOR */}
@@ -286,6 +370,7 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                     value={chordType}
                     onChange={(e) => setChordType(e.target.value)}
                     className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500"
+                    aria-label="Harmonization Chord Type"
                 >
                     <option value="major">Major</option>
                     <option value="minor">Minor</option>
@@ -298,17 +383,86 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
                     onClick={handleHarmonizeClick}
                     disabled={isProcessingHarmonize || !onHarmonize}
                     className="px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold"
+                    aria-label="Apply Harmonization"
+                    aria-busy={isProcessingHarmonize}
                 >
                     {isProcessingHarmonize ? '...' : 'HARM'}
                 </button>
             </div>
 
-            {/* ROW 6: Parameters for Active Bank */}
-            <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
-                <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={v => updateParam('playbackSpeed', v)} min={0.1} max={4.0} color="purple" />
-                <Knob label="Vol" value={currentParams.volume} onChange={v => updateParam('volume', v)} min={0} max={2.0} color="purple" />
-                <Knob label="Filter" value={currentParams.filterCutoff} onChange={v => updateParam('filterCutoff', v)} min={100} max={20000} color="purple" logarithmic />
-                <Knob label="Drive" value={currentParams.drive} onChange={v => updateParam('drive', v)} min={0} max={1} color="red" />
+            {/* ROW 5: SAMPLER MODE */}
+            <div className="mt-1 bg-gray-800/30 p-1 rounded">
+                <div className="flex gap-1 items-center mb-1">
+                    <label className="text-[10px] text-gray-400 font-bold w-12">MODE:</label>
+                    <div className="flex gap-1 flex-1">
+                        <button
+                            onClick={() => handleModeChange('loop')}
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                                (currentParams.mode || 'loop') === 'loop'
+                                    ? 'bg-purple-600 border-purple-400 text-white'
+                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                            }`}
+                            aria-label="Loop Mode"
+                            title="Standard sample looping"
+                        >
+                            LOOP
+                        </button>
+                        <button
+                            onClick={() => handleModeChange('stretch')}
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                                (currentParams.mode || 'loop') === 'stretch'
+                                    ? 'bg-purple-600 border-purple-400 text-white'
+                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                            }`}
+                            aria-label="Stretch Mode"
+                            title="Granular time-stretch for infinite sustain"
+                        >
+                            STRETCH
+                        </button>
+                        <button
+                            onClick={() => handleModeChange('wavetable')}
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                                (currentParams.mode || 'loop') === 'wavetable'
+                                    ? 'bg-purple-600 border-purple-400 text-white'
+                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                            }`}
+                            aria-label="Wavetable Mode"
+                            title="Single-cycle oscillator mode"
+                        >
+                            WAVE
+                        </button>
+                    </div>
+                </div>
+                {/* Grain Size Control - Only visible in stretch mode */}
+                {(currentParams.mode || 'loop') === 'stretch' && (
+                    <div className="flex gap-1 items-center">
+                        <label className="text-[9px] text-gray-500 w-12">Grain:</label>
+                        <input
+                            type="range"
+                            min="441"
+                            max="22050"
+                            step="441"
+                            value={currentParams.grainSize || 4410}
+                            onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
+                            className="flex-1 h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                            style={{
+                                background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
+                            }}
+                            aria-label="Grain Size"
+                            title={`Grain size: ${grainSizeToMs(currentParams.grainSize || 4410)}ms`}
+                        />
+                        <span className="text-[9px] text-gray-500 w-10 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
+                    </div>
+                )}
+            </div>
+
+                {/* ROW 6: Parameters for Active Bank */}
+                <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
+                    <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={v => updateParam('playbackSpeed', v)} min={0.1} max={4.0} color="purple" />
+                    <Knob label="Vol" value={currentParams.volume} onChange={v => updateParam('volume', v)} min={0} max={2.0} color="purple" />
+                    <Knob label="Filter" value={currentParams.filterCutoff} onChange={v => updateParam('filterCutoff', v)} min={100} max={20000} color="purple" logarithmic />
+                    <Knob label="Drive" value={currentParams.drive} onChange={v => updateParam('drive', v)} min={0} max={1} color="red" />
+                </div>
             </div>
         </div>
     );

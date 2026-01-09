@@ -1,9 +1,10 @@
-import  { useState, useEffect, memo, useRef, useMemo } from 'react';
+import { useState, useEffect, memo, useRef, useMemo } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
 
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; const OCTAVES = [5, 4, 3, 2]; // Top to bottom
+const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; 
+const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
 // Mapping based on user request: // Right side (F8) = Lower Pitch (C3) // Left side (F1) = Higher Pitch (C4)
 const KEY_TO_NOTE: Record<string, string> = {
@@ -16,6 +17,19 @@ const KEY_TO_NOTE: Record<string, string> = {
     // Octave 4
     'F1': 'C4',
     'Digit2': 'C#4'
+};
+
+// 1. Generate Reverse Mapping for Visual Overlay
+const NOTE_TO_KEY = Object.entries(KEY_TO_NOTE).reduce((acc, [keyCode, note]) => {
+    acc[note] = keyCode;
+    return acc;
+}, {} as Record<string, string>);
+
+// 2. Helper to format key codes for display (e.g. 'Digit9' -> '9')
+const formatKeyLabel = (code: string) => {
+    if (code.startsWith('Digit')) return code.replace('Digit', '');
+    if (code.startsWith('Key')) return code.replace('Key', '');
+    return code;
 };
 
 export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: LiveKeyboardProps) => {
@@ -125,24 +139,10 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
     };
 
     const handleMouseEnter = (note: string) => {
-        // Only switch notes if we are currently holding the mouse down (dragging)
-        // We know we are dragging if heldByMouse is not null.
-        // Note: This relies on setHeldByMouse(null) on global mouseup.
-        // However, we need to check if the primary button is actually pressed.
-        // But since we track state, if heldByMouse is active, we assume we are dragging.
-        // To be safe against "mouse up happened outside window and we missed it",
-        // we might want to check e.buttons in mouse enter, but React SyntheticEvent
-        // doesn't always have it reliable on enter.
-        // We'll stick to our state + global mouse up.
-
         if (heldByMouse !== null) {
             setHeldByMouse(note);
         }
     };
-
-    // We don't need handleMouseUp on individual keys because global handles it,
-    // but stopping propagation might be useful or just rely on state.
-    // Actually, simply relying on state is cleaner.
 
     // Width calculations
     const totalWidth = 920;
@@ -152,13 +152,25 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
     const rowGap = 6;
 
     return (
-        <div className="w-full max-w-[920px] mx-auto mt-4 select-none">
+        <div className="w-full max-w-[920px] mx-auto mt-4 select-none relative">
+            {/* Legend / Tip */}
+            <div className="absolute -top-6 right-0 text-[10px] text-gray-500 font-mono tracking-wider opacity-70">
+                DESKTOP KEY BINDINGS (MIRRORED)
+            </div>
+
             <svg viewBox={`0 0 ${totalWidth} ${keyHeight * 4 + rowGap * 3}`} className="w-full drop-shadow-lg">
                 <defs>
                     <linearGradient id="keyGlass" x1="0%" y1="0%" x2="0%" y2="100%">
                         <stop offset="0%" stopColor="white" stopOpacity="0.3" />
                         <stop offset="100%" stopColor="white" stopOpacity="0" />
                     </linearGradient>
+                    <filter id="keyGlow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="2" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                    <style>{`
+                        g:focus > .focus-ring { opacity: 1 !important; }
+                    `}</style>
                 </defs>
 
                 {OCTAVES.map((octave, rowIndex) => (
@@ -166,14 +178,14 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                         {NOTES.map((noteName, colIndex) => {
                             const fullNote = `${noteName}${octave}`;
                             const isBlack = noteName.includes('#');
-
                             const isActive = targetActiveNotes.has(fullNote);
+                            
+                            // Check for binding
+                            const bindKey = NOTE_TO_KEY[fullNote];
+                            const label = bindKey ? formatKeyLabel(bindKey) : null;
 
                             // Visuals
-                            const baseColor = isBlack ? '#080a0c' : '#151a21'; // Dark vs Light(er) Dark
-
-                            // UPDATED: Use getNoteColor for active state to match sequencer steps
-                            // Inactive keys are subtly tinted to their note color for visual consistency
+                            const baseColor = isBlack ? '#080a0c' : '#151a21'; 
                             const noteColor = getNoteColor(fullNote);
                             const activeColor = isActive ? noteColor : activeTrackColor;
                             const inactiveTint = isBlack ? '#0b1220' : noteColor;
@@ -184,25 +196,57 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                                 <g
                                     key={fullNote}
                                     transform={`translate(${x}, 0)`}
+                                    role="button"
+                                    aria-label={`Play ${fullNote}`}
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            handleMouseDown(fullNote);
+                                        }
+                                    }}
+                                    onKeyUp={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setHeldByMouse(null);
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        // Safety: stop note if tabbing away while holding Enter/Space
+                                        if (heldByMouse === fullNote) {
+                                            setHeldByMouse(null);
+                                        }
+                                    }}
                                     onMouseDown={(e) => {
-                                        if (e.button === 0) handleMouseDown(fullNote);
+                                        if (e.button === 0) {
+                                            handleMouseDown(fullNote);
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            (e.currentTarget as any).focus();
+                                        }
                                     }}
                                     onMouseEnter={(e) => {
-                                        // Optional: check e.buttons === 1 to ensure left click is held
-                                        // This helps if the user released mouse outside and came back in
                                         if (e.buttons === 1) {
                                             handleMouseEnter(fullNote);
                                         } else if (heldByMouse) {
-                                            // Recovery: User is not pressing button but we think they are
                                             setHeldByMouse(null);
                                         }
                                     }}
                                     onTouchStart={(e) => { e.preventDefault(); handleMouseDown(fullNote); }}
-                                    // Touch end handled by clearing state if needed, or rely on global?
-                                    // Touch is tricky with glissando. For now, simple touch support:
                                     onTouchEnd={(e) => { e.preventDefault(); setHeldByMouse(null); }}
                                     cursor="pointer"
+                                    className="focus:outline-none"
                                 >
+                                    {/* Focus Ring Indicator (only visible when focused) */}
+                                    <rect
+                                        x={-2} y={-2} width={keyWidth + 4} height={keyHeight + 4} rx={6}
+                                        fill="none"
+                                        stroke="#a855f7"
+                                        strokeWidth={2}
+                                        opacity={0}
+                                        className="focus-ring"
+                                        style={{ transition: 'opacity 0.2s' }}
+                                    />
+
                                     {/* Base / Bevel Shadow */}
                                     <rect width={keyWidth} height={keyHeight} rx={4} fill="#000" />
 
@@ -234,7 +278,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                                         pointerEvents="none"
                                     />
 
-                                    {/* Label - color coded by note */}
+                                    {/* Note Name Label */}
                                     <text
                                         x={keyWidth/2} y={keyHeight - 8}
                                         textAnchor="middle"
@@ -246,6 +290,29 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                                     >
                                         {fullNote}
                                     </text>
+
+                                    {/* Desktop Key Binding Overlay */}
+                                    {label && (
+                                        <g pointerEvents="none">
+                                            <rect
+                                                x={keyWidth/2 - 9} y={5} width={18} height={14} rx={3}
+                                                fill={isActive ? '#fff' : '#000'}
+                                                fillOpacity={isActive ? 0.9 : 0.6}
+                                                stroke={isActive ? activeColor : '#444'}
+                                                strokeWidth={1}
+                                            />
+                                            <text
+                                                x={keyWidth/2} y={15}
+                                                textAnchor="middle"
+                                                fontSize={9}
+                                                fontFamily="Arial, sans-serif"
+                                                fontWeight="bold"
+                                                fill={isActive ? '#000' : '#ccc'}
+                                            >
+                                                {label}
+                                            </text>
+                                        </g>
+                                    )}
 
                                     {/* Active LED Glow */}
                                     {isActive && (
