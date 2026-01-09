@@ -14,16 +14,21 @@ if [ ! -d "rubberband" ]; then
     exit 1
 fi
 
-# Define sources: Main wrapper + RubberBand Library implementation
 SOURCES="rubberband/src/*.cpp rubberband_wrapper.cpp"
 
-emcc -O3 \
+# Use em++ for C++ linking
+# -O3 implies -fno-rtti, so we place -frtti AFTER it to override.
+# We also define the macro to disable the unbound type name check just in case.
+
+em++ -O3 \
+    -frtti \
+    -fexceptions \
+    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 \
     $SOURCES \
     -I . \
     -I rubberband \
     -I rubberband/rubberband \
     --bind \
-    -frtti \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s MODULARIZE=1 \
@@ -31,6 +36,7 @@ emcc -O3 \
     -s EXPORT_NAME='createRubberBandModule' \
     -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]' \
     -s ENVIRONMENT='web,worker' \
+    -s DISABLE_EXCEPTION_CATCHING=0 \
     -DUSE_KISSFFT \
     -DPROCESS_CMAKE_PROJECT \
     -o ../public/rubberband.js
