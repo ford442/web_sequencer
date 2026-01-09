@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 
 echo "Compiling Rubber Band WASM (Direct Source Build)..."
 
-# 1. Check if the library is present
+# 1. Check if the library is present; clone if missing
 if [ ! -d "rubberband" ]; then
     echo "Cloning Rubber Band Library..."
     git clone https://github.com/breakfastquay/rubberband.git
