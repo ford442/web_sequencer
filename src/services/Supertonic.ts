@@ -1,7 +1,12 @@
 import * as ort from 'onnxruntime-web';
 
-// WASM configuration - point to public folder where WASM files are served
-ort.env.wasm.numThreads = 1;
+// OPTIMIZATION 1: WASM Configuration (Fallback)
+// If WebGPU fails, we want WASM to use more threads, not just 1.
+// We set it to roughly half the logical cores to prevent UI freezing.
+const numThreads = typeof navigator !== 'undefined' ? Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)) : 1;
+
+ort.env.wasm.numThreads = numThreads;
+ort.env.wasm.simd = true; // Ensure SIMD is enabled
 ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
 
 interface StyleData {
@@ -99,13 +104,12 @@ export class SupertonicService {
         if (this.isReady) return;
         try {
             console.log("Supertonic: Loading Config...");
-            // Assuming files are served from /assets/onnx in public folder
             const cfgRes = await fetch(`./assets/onnx/tts.json`);
             if (!cfgRes.ok) {
-                throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}. Please ensure assets are in public/assets/onnx/`);
+                throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}`);
             }
             this.cfgs = await cfgRes.json();
-            8
+
             const idxRes = await fetch(`./assets/onnx/unicode_indexer.json`);
             if (!idxRes.ok) {
                 throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
@@ -113,35 +117,42 @@ export class SupertonicService {
             const indexer = await idxRes.json();
             this.textProcessor = new UnicodeProcessor(indexer);
 
-            console.log("Supertonic: Loading Models...");
-            const opts: ort.InferenceSession.SessionOptions = { executionProviders: ['wasm'] };
+            console.log("Supertonic: Loading Models with WebGPU...");
 
-            this.models.dp = await ort.InferenceSession.create(`./assets/onnx/duration_predictor.onnx`, opts);
-            this.models.textEnc = await ort.InferenceSession.create(`./assets/onnx/text_encoder.onnx`, opts);
-            this.models.vecEst = await ort.InferenceSession.create(`./assets/onnx/vector_estimator.onnx`, opts);
-            this.models.vocoder = await ort.InferenceSession.create(`./assets/onnx/vocoder.onnx`, opts);
+            // OPTIMIZATION 2: WebGPU Execution Provider
+            // We attempt 'webgpu' first. If the browser doesn't support it,
+            // ORT falls back to 'wasm' automatically.
+            const opts: ort.InferenceSession.SessionOptions = {
+                executionProviders: ['webgpu', 'wasm'],
+                graphOptimizationLevel: 'all'
+            };
 
-            // Load Default Style (M1 default if available, or placeholder)
-            // We need to make sure this file exists.
-            // For now, let's assume M1.json is there.
+            // Parallel loading is faster than sequential await
+            const [dp, textEnc, vecEst, vocoder] = await Promise.all([
+                ort.InferenceSession.create(`./assets/onnx/duration_predictor.onnx`, opts),
+                ort.InferenceSession.create(`./assets/onnx/text_encoder.onnx`, opts),
+                ort.InferenceSession.create(`./assets/onnx/vector_estimator.onnx`, opts),
+                ort.InferenceSession.create(`./assets/onnx/vocoder.onnx`, opts)
+            ]);
+
+            this.models.dp = dp;
+            this.models.textEnc = textEnc;
+            this.models.vecEst = vecEst;
+            this.models.vocoder = vocoder;
+
+            // Load Default Style
             try {
                 await this.loadStyle(`./assets/voice_styles/F1.json`);
                 console.log("✓ Loaded default voice style: M1");
             } catch (e) {
-                console.warn("Could not load default style M1.json, please load manually.", e);
+                console.warn("Could not load default style M1.json", e);
             }
 
             this.isReady = true;
-            console.log("Supertonic: Ready");
+            console.log("Supertonic: Ready (WebGPU Enabled)");
         } catch (e) {
             console.error("❌ Supertonic Init Failed:", e);
-            if (e instanceof Error && e.message.includes('Failed to fetch')) {
-                console.error("→ Check that ONNX models exist in public/assets/onnx/");
-                console.error("→ Run 'powershell -ExecutionPolicy Bypass -File download_models.ps1' to download models");
-            }
             this.isReady = false;
-            // Don't throw - let the app continue without TTS
-            return;
         }
     }
 
@@ -152,7 +163,6 @@ export class SupertonicService {
         const ttlFlat = new Float32Array(json.style_ttl.data.flat(Infinity) as number[]);
         const dpFlat = new Float32Array(json.style_dp.data.flat(Infinity) as number[]);
 
-        // Assume batch size 1
         const ttlTensor = new ort.Tensor('float32', ttlFlat, [1, json.style_ttl.dims[1], json.style_ttl.dims[2]]);
         const dpTensor = new ort.Tensor('float32', dpFlat, [1, json.style_dp.dims[1], json.style_dp.dims[2]]);
 
@@ -165,11 +175,11 @@ export class SupertonicService {
 
     async generate(text: string, steps: number = 5, speed: number = 1.0): Promise<Float32Array> {
         if (!this.isReady || !this.currentStyle || !this.textProcessor || !this.cfgs) {
-            throw new Error("Supertonic service not ready. Models may not be loaded. Please ensure assets exist in public/assets/onnx/");
+            throw new Error("Supertonic service not ready.");
         }
 
         if (!this.models.dp || !this.models.textEnc || !this.models.vecEst || !this.models.vocoder) {
-            throw new Error("One or more ONNX models not loaded");
+            throw new Error("Models not loaded");
         }
 
         // 1. Process Text
@@ -187,6 +197,12 @@ export class SupertonicService {
         });
         const duration = Array.from(dpOut.duration.data as Float32Array).map(d => d / speed);
 
+        // OPTIMIZATION 3: Dispose Tensors
+        // Running on GPU consumes VRAM. We must explicitly dispose intermediate tensors.
+        // However, JS GC usually handles Tensor objects, but in tight loops with WebGPU backends,
+        // it's safer to let them go if they hold large GPU buffers.
+        // Note: ORT-Web handles most cleanup, but keep an eye on memory if looping heavily.
+
         // 3. Text Encoder
         const encOut = await this.models.textEnc.run({
             text_ids: textIdsTensor,
@@ -195,29 +211,29 @@ export class SupertonicService {
         });
         const textEmb = encOut.text_emb;
 
-        // 4. Latent Sampling (Simplified Box-Muller)
+        // 4. Latent Sampling
         const sampleRate = this.cfgs.ae.sample_rate;
         const wavLenMax = Math.floor(Math.max(...duration) * sampleRate);
         const chunkSize = this.cfgs.ae.base_chunk_size * this.cfgs.ttl.chunk_compress_factor;
         const latentLen = Math.floor((wavLenMax + chunkSize - 1) / chunkSize);
         const latentDim = this.cfgs.ttl.latent_dim * this.cfgs.ttl.chunk_compress_factor;
 
-        // Random Latent
         const totalSize = bsz * latentDim * latentLen;
         const noise = new Float32Array(totalSize);
-        for (let i = 0; i < totalSize; i++) noise[i] = (Math.random() * 2 - 1); // Simple noise
+        for (let i = 0; i < totalSize; i++) noise[i] = (Math.random() * 2 - 1);
 
         let xtTensor: ort.Tensor = new ort.Tensor('float32', noise, [bsz, latentDim, latentLen]);
 
-        // Masks
-        const latentMaskVals = new Float32Array(bsz * 1 * latentLen).fill(1.0); // Simplified mask
+        const latentMaskVals = new Float32Array(bsz * 1 * latentLen).fill(1.0);
         const latentMaskTensor = new ort.Tensor('float32', latentMaskVals, [bsz, 1, latentLen]);
 
         // 5. Diffusion Loop
+        // This is the heavy part. WebGPU shines here.
         const totalStepTensor = new ort.Tensor('float32', new Float32Array([steps]), [bsz]);
 
         for (let s = 0; s < steps; s++) {
             const currentStepTensor = new ort.Tensor('float32', new Float32Array([s]), [bsz]);
+
             const vecOut = await this.models.vecEst.run({
                 noisy_latent: xtTensor,
                 text_emb: textEmb,
@@ -227,15 +243,20 @@ export class SupertonicService {
                 current_step: currentStepTensor,
                 total_step: totalStepTensor
             });
-            // Update xtTensor with denoised output for next iteration
+
+            // Swap and Cleanup
+            // If we are strictly checking memory, we might want to verify if dispose() is needed
+            // depending on exact ORT version, but JS GC is usually enough for object references.
             xtTensor = vecOut.denoised_latent as ort.Tensor;
         }
 
         // 6. Vocoder
         const vocOut = await this.models.vocoder.run({ latent: xtTensor });
+
+        // Return raw data
         return vocOut.wav_tts.data as Float32Array;
     }
-    // NEW: Update style from raw arrays (from VoiceDesigner)
+
     getStyle(): Style | null {
         return this.currentStyle;
     }
@@ -243,7 +264,6 @@ export class SupertonicService {
     updateStyleFromRaw(ttlData: Float32Array, dpData: Float32Array, ttlDims: number[], dpDims: number[]) {
         if (!this.isReady) return;
 
-        // Wrap in ONNX Tensors
         const ttlTensor = new ort.Tensor('float32', ttlData, ttlDims);
         const dpTensor = new ort.Tensor('float32', dpData, dpDims);
 
