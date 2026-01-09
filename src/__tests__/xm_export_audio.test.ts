@@ -151,39 +151,69 @@ describe('XM Export Audio Processing', () => {
     });
 
     describe('Loop Point Detection', () => {
-        // Replicate the synth loop points function
+        // Replicate the synth loop points function (updated to robust logic)
         const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, attackDecayTime: number = 0.3): { loopStart: number, loopEnd: number } => {
             const len = buffer.length;
-            const steadyStateStart = Math.min(Math.floor(attackDecayTime * sampleRate), Math.floor(len * 0.3));
-            const steadyStateEnd = Math.floor(len * 0.9);
-            const minLoopLength = Math.floor(sampleRate * 0.05);
+            // More permissive steady state definition
+            let steadyStateStart = Math.min(Math.floor(attackDecayTime * sampleRate), Math.floor(len * 0.4));
+            let steadyStateEnd = Math.floor(len * 0.95);
+            const minLoopLength = Math.floor(sampleRate * 0.02);
 
+            // Fallback for short buffers
             if (steadyStateEnd - steadyStateStart < minLoopLength * 2) {
+                steadyStateStart = Math.floor(len * 0.25);
+                steadyStateEnd = Math.floor(len * 0.75);
+            }
+
+            if (steadyStateEnd - steadyStateStart < minLoopLength) {
                 return { loopStart: 0, loopEnd: 0 };
             }
 
-            // Simplified zero crossing search
-            let loopStart = steadyStateStart;
-            for (let i = steadyStateStart; i < len / 2; i++) {
-                if (buffer[i] >= 0 && buffer[i - 1] < 0) {
-                    loopStart = i;
-                    break;
+            // Helper to find crossing with specific direction
+            const findCross = (start: number, end: number, step: number): number => {
+                if (step > 0) {
+                    for (let i = start; i < end; i += step) {
+                        if (buffer[i] >= 0 && buffer[i - 1] < 0) return i;
+                    }
+                } else {
+                    for (let i = start; i > end; i += step) {
+                        if (buffer[i] >= 0 && buffer[i - 1] < 0) return i;
+                    }
+                }
+                return -1;
+            };
+
+            // Find start
+            const searchWindow = Math.floor(sampleRate * 0.2);
+            const limitStart = Math.min(steadyStateStart + searchWindow, len - 1);
+
+            let loopStart = findCross(steadyStateStart, limitStart, 1);
+            if (loopStart === -1) loopStart = steadyStateStart;
+
+            // Find end
+            let loopEnd = -1;
+            const endSearchLimit = Math.max(loopStart + minLoopLength, steadyStateEnd - searchWindow);
+
+            loopEnd = findCross(steadyStateEnd, endSearchLimit, -1);
+
+            // Simplified fallback logic for test
+            if (loopEnd === -1) {
+                // If no zero crossing at end, force fallback to steadyStateEnd if valid
+                if (steadyStateEnd > loopStart + minLoopLength) {
+                    loopEnd = steadyStateEnd;
                 }
             }
 
-            let loopEnd = steadyStateEnd;
-            for (let i = steadyStateEnd; i > loopStart + minLoopLength; i--) {
-                if (buffer[i] >= 0 && buffer[i - 1] < 0) {
-                    loopEnd = i;
-                    break;
-                }
+            if (loopEnd > loopStart + minLoopLength) {
+                return { loopStart, loopEnd };
             }
 
-            if (loopEnd <= loopStart + minLoopLength) {
-                return { loopStart: 0, loopEnd: 0 };
+            // Ultimate fallback
+            if (steadyStateEnd > steadyStateStart + minLoopLength) {
+                return { loopStart: steadyStateStart, loopEnd: steadyStateEnd };
             }
 
-            return { loopStart, loopEnd };
+            return { loopStart: 0, loopEnd: 0 };
         };
 
         it('should find loop points in a sustained synth waveform', () => {
@@ -205,18 +235,26 @@ describe('XM Export Audio Processing', () => {
             expect(loopPoints.loopEnd - loopPoints.loopStart).toBeGreaterThan(sampleRate * 0.05);
         });
 
-        it('should return no loop for very short buffers', () => {
-            // Very short buffer (50ms)
-            const buffer = new Float32Array(2205); // 50ms at 44.1kHz
+        it('should fallback to partial loop for short buffers', () => {
+            // Short buffer (100ms) - previously might have failed, now should try to loop
+            // With 100ms, steady state region is small but should be > minLoop (20ms)
+            const buffer = new Float32Array(4410); // 100ms at 44.1kHz
             for (let i = 0; i < buffer.length; i++) {
                 buffer[i] = Math.sin(2 * Math.PI * 440 * i / 44100);
             }
 
             const loopPoints = findSynthLoopPoints(buffer, 44100, 0.1);
 
-            // Should not set loop for very short sounds
-            expect(loopPoints.loopStart).toBe(0);
-            expect(loopPoints.loopEnd).toBe(0);
+            // Should set loop now with new logic
+            expect(loopPoints.loopEnd).toBeGreaterThan(loopPoints.loopStart);
+        });
+
+        it('should return no loop for extremely short buffers (e.g. < 20ms)', () => {
+             // Extremely short buffer
+             const buffer = new Float32Array(500); // ~11ms
+             const loopPoints = findSynthLoopPoints(buffer, 44100, 0.1);
+             expect(loopPoints.loopStart).toBe(0);
+             expect(loopPoints.loopEnd).toBe(0);
         });
     });
 
