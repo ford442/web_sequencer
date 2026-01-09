@@ -18,6 +18,9 @@ package-lock.json
 assets/
 public/assets/onnx/*.onnx
 public/assets/onnx/voice_styles/
+public/oscillators.wasm
+public/hyphon_native.wasm
+public/hyphon_native.js
 
 # Editor directories and files
 .vscode/*
