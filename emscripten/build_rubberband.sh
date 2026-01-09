@@ -6,21 +6,23 @@ cd "$(dirname "$0")"
 
 echo "Compiling Rubber Band WASM (Direct Source Build)..."
 
-# Verify the library exists
+# 1. Check if the library is present
 if [ ! -d "rubberband" ]; then
-    echo "Error: 'rubberband' directory not found in emscripten/."
-    echo "Run: git clone https://github.com/breakfastquay/rubberband.git"
-    exit 1
+    echo "Cloning Rubber Band Library..."
+    git clone https://github.com/breakfastquay/rubberband.git
 fi
 
-# Define sources: The wrapper + all .cpp files in rubberband/src
+# 2. Define Source Files
+# We compile the wrapper AND the library sources together.
+# This eliminates the need for 'librubberband.a'
 SOURCES="rubberband_wrapper.cpp rubberband/src/*.cpp"
 
-# Build command
-# -O3: Optimize
-# -frtti: Enable RTTI (Required for Embind)
-# -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0: Suppress strict type checks
-# -DUSE_KISSFFT: Use internal FFT implementation
+# 3. Compile with Emscripten
+# -O3: Aggressive optimization
+# -frtti: Enable RTTI (REQUIRED for Embind to work)
+# -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0: Suppress strict type name checks
+# -DUSE_KISSFFT: Force Rubber Band to use its internal FFT (no external deps)
+# --bind: Link Embind
 em++ -O3 \
     -frtti \
     -fexceptions \
@@ -41,4 +43,4 @@ em++ -O3 \
     -s ENVIRONMENT='web,worker' \
     -o ../public/rubberband.js
 
-echo "Success! Created ../public/rubberband.js"
+echo "Success! Build artifacts saved to ../public/rubberband.js"
