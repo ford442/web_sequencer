@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, memo } from 'react';
 import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
@@ -24,7 +24,7 @@ const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 const grainSizeToMs = (size: number) => Math.round(size / 441 * 10);
 const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100);
 
-export const SamplerPanel: React.FC<SamplerPanelProps> = ({
+const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
     ttsPhrases, onTtsPhraseChange,
     onHarmonize
@@ -467,3 +467,24 @@ export const SamplerPanel: React.FC<SamplerPanelProps> = ({
         </div>
     );
 };
+
+// Custom comparison for memoization to prevent re-renders when other banks update
+export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
+    // 1. Must be looking at same bank
+    if (prev.activeBankIdx !== next.activeBankIdx) return false;
+
+    // 2. Active bank params must be referentially equal
+    // (App.tsx ensures immutable updates: new array + new object for changed bank)
+    if (prev.params[prev.activeBankIdx] !== next.params[next.activeBankIdx]) return false;
+
+    // 3. TTS phrases for active bank must be same
+    const prevTTS = prev.ttsPhrases?.[prev.activeBankIdx];
+    const nextTTS = next.ttsPhrases?.[next.activeBankIdx];
+    if (prevTTS !== nextTTS) return false;
+
+    // 4. Critical props check
+    if (prev.audioEngine !== next.audioEngine) return false;
+    // We assume handler functions are stable or we don't care if they change as long as data is same
+
+    return true;
+});
