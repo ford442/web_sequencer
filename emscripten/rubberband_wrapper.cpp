@@ -106,10 +106,10 @@ EMSCRIPTEN_BINDINGS(rubberband_module) {
         .function("setTimeRatio", &RubberBandWrapper::setTimeRatio)
         .function("setPitchScale", &RubberBandWrapper::setPitchScale)
         .function("getSamplesRequired", &RubberBandWrapper::getSamplesRequired)
-        .function("study", &RubberBandWrapper::study, allow_raw_pointers())
-        .function("process", &RubberBandWrapper::process, allow_raw_pointers())
+        .function("study", &RubberBandWrapper::study)
+        .function("process", &RubberBandWrapper::process)
         .function("available", &RubberBandWrapper::available)
-        .function("retrieve", &RubberBandWrapper::retrieve, allow_raw_pointers())
+        .function("retrieve", &RubberBandWrapper::retrieve)
         .function("getLatency", &RubberBandWrapper::getLatency);
         
     // Export Options enum constants if needed, or just pass integers from JS
