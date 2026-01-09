@@ -1,17 +1,15 @@
-// emscripten/rubberband_wrapper.cpp
 #include <emscripten/bind.h>
 #include <vector>
-
-// Explicit relative path to the header
+// Point to the header inside the cloned repo structure
 #include "rubberband/rubberband/RubberBandStretcher.h"
 
 using namespace emscripten;
 
-// Wrapper class to expose RubberBandStretcher to JavaScript
 class RubberBandWrapper {
 public:
     RubberBand::RubberBandStretcher* stretcher;
 
+    // Constructor matching Rubber Band's options
     RubberBandWrapper(int sampleRate, int channels, int options, double initialTimeRatio, double initialPitchScale) {
         RubberBand::RubberBandStretcher::Options opts = (RubberBand::RubberBandStretcher::Options)options;
         stretcher = new RubberBand::RubberBandStretcher(sampleRate, channels, opts, initialTimeRatio, initialPitchScale);
@@ -37,35 +35,26 @@ public:
         return stretcher->getSamplesRequired();
     }
 
-    void study(uintptr_t inputPtr, int frames, bool final) {
-        const float* input = reinterpret_cast<const float*>(inputPtr);
-        
-        // De-interleave if necessary, but RubberBand usually takes float** or interleaved depending on method.
-        // Process takes float* const* (array of channel buffers).
-        // For simplicity in JS <-> WASM, we often pass a single Float32Array and assume mono or handle de-interleaving here.
-        // Let's assume input is a pointer to the start of the channel data (non-interleaved) or handle 1 channel for now.
-        
-        // To handle multiple channels properly from JS:
-        // We accept a flat pointer. If stereo, we expect LLLL RRRR in memory? 
-        // Or we create temporary pointers.
-        
-        std::vector<const float*> channelPointers(stretcher->getChannelCount());
-        int channelCount = stretcher->getChannelCount();
-        
-        // Assuming input is non-interleaved (Planar) for simplicity in transfer
-        for (int c = 0; c < channelCount; ++c) {
-            channelPointers[c] = input + (c * frames);
-        }
-
-        stretcher->study(channelPointers.data(), frames, final);
+    int getLatency() {
+        return stretcher->getLatency();
     }
 
+    int available() {
+        return stretcher->available();
+    }
+
+    // Process: Takes a pointer (heap offset) to the input float array
     void process(uintptr_t inputPtr, int frames, bool final) {
         const float* input = reinterpret_cast<const float*>(inputPtr);
         
+        // Handle de-interleaving if necessary. 
+        // For simplicity, we assume the input is a single block of memory.
+        // If stereo, Rubber Band expects float* buffers[channels].
+        
         std::vector<const float*> channelPointers(stretcher->getChannelCount());
         int channelCount = stretcher->getChannelCount();
         
+        // If input is non-interleaved (Planar):
         for (int c = 0; c < channelCount; ++c) {
             channelPointers[c] = input + (c * frames);
         }
@@ -73,12 +62,7 @@ public:
         stretcher->process(channelPointers.data(), frames, final);
     }
 
-    int available() {
-        return stretcher->available();
-    }
-
-    // Returns number of frames retrieved. 
-    // Output must be pre-allocated in JS side to hold max possible output.
+    // Retrieve: Writes output to the provided pointer
     int retrieve(uintptr_t outputPtr, int frames) {
         float* output = reinterpret_cast<float*>(outputPtr);
         
@@ -91,11 +75,6 @@ public:
 
         return stretcher->retrieve(channelPointers.data(), frames);
     }
-    
-    // Quick helper to get expected latency
-    int getLatency() {
-        return stretcher->getLatency();
-    }
 };
 
 // Bindings
@@ -106,11 +85,8 @@ EMSCRIPTEN_BINDINGS(rubberband_module) {
         .function("setTimeRatio", &RubberBandWrapper::setTimeRatio)
         .function("setPitchScale", &RubberBandWrapper::setPitchScale)
         .function("getSamplesRequired", &RubberBandWrapper::getSamplesRequired)
-        .function("study", &RubberBandWrapper::study)
-        .function("process", &RubberBandWrapper::process)
+        .function("getLatency", &RubberBandWrapper::getLatency)
         .function("available", &RubberBandWrapper::available)
-        .function("retrieve", &RubberBandWrapper::retrieve)
-        .function("getLatency", &RubberBandWrapper::getLatency);
-        
-    // Export Options enum constants if needed, or just pass integers from JS
+        .function("process", &RubberBandWrapper::process)
+        .function("retrieve", &RubberBandWrapper::retrieve);
 }
