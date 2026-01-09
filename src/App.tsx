@@ -1600,6 +1600,8 @@ export const App: React.FC = () => {
     }, [songStorage]);
 
     // --- NEW: CLOUD / FILE EXPORT ---
+    // PERFORMANCE: Use Refs to avoid re-creating this function on every pattern change (e.g. dragging notes)
+    // This prevents CloudLibrary (and other consumers) from re-rendering unnecessarily
     const getSongData = useCallback(async () => {
         // Encode samples on demand
         const encodedSamples: { [k: number]: string } = {};
@@ -1613,18 +1615,26 @@ export const App: React.FC = () => {
 
         return {
             version: 1,
-            pattern,
-            tempo,
+            pattern: patternRef.current,
+            tempo: tempoRef.current,
             ambianceUrl,
             backgroundImage,
-            params: { synthA, synthB, kick, snare, closedHat, openHat, sampler },
-            trackStorage,
-            activeTrackSlots,
-            songStructure,
+            params: {
+                synthA: synthARef.current,
+                synthB: synthBRef.current,
+                kick: kickRef.current,
+                snare: snareRef.current,
+                closedHat: closedHatRef.current,
+                openHat: openHatRef.current,
+                sampler: samplerRef.current
+            },
+            trackStorage: trackStorageRef.current,
+            activeTrackSlots: activeTrackSlotsRef.current,
+            songStructure: songStructureRef.current,
             embeddedSamples: encodedSamples,
             ttsPhrases
         } as SavedSongData;
-    }, [pattern, tempo, ambianceUrl, backgroundImage, synthA, synthB, kick, snare, closedHat, openHat, sampler, trackStorage, activeTrackSlots, songStructure, sampleBuffers, ttsPhrases]);
+    }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]); // Removed rapidly changing deps like pattern, params
 
     // --- DATA EXTRACTORS FOR CLOUD ---
     // 2. Pattern Bank (Just the storage)
@@ -2023,25 +2033,34 @@ export const App: React.FC = () => {
                 currentSongStep={currentSongMeasure}
                 backgroundImage={backgroundImage}
                 onSetBackgroundImage={setBackgroundImage}
-                onToggle={() => setIsSongModeOpen(!isSongModeOpen)}
-                onUpdateStep={(idx, key, val) => {
+                onToggle={useCallback(() => setIsSongModeOpen(prev => !prev), [])}
+                onUpdateStep={useCallback((idx: number, key: TrackKey, val: number | null) => {
                     setSongStructure(prev => {
                         const copy = [...prev];
                         copy[idx] = { ...copy[idx], [key]: val };
                         return copy;
                     });
-                }}
-                onAddMeasure={() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }])}
+                }, [])}
+                onAddMeasure={useCallback(() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }]), [])}
                 onRemoveMeasure={handleRemoveMeasure}
-                onExportXM={async () => {
-                    await exportSongToXM(
-                        songStructure, trackStorage,
-                        { synthA: synthA, synthB: synthB, kick: kick, snare: snare, closedHat: closedHat, openHat: openHat, sampler: sampler },
-                        tempo, pattern,
+                onExportXM={useCallback(() => {
+                    // PERFORMANCE: Use Refs to prevent SongMode re-renders during note drags
+                    exportSongToXM(
+                        songStructureRef.current, trackStorageRef.current,
+                        {
+                            synthA: synthARef.current,
+                            synthB: synthBRef.current,
+                            kick: kickRef.current,
+                            snare: snareRef.current,
+                            closedHat: closedHatRef.current,
+                            openHat: openHatRef.current,
+                            sampler: samplerRef.current
+                        },
+                        tempoRef.current, patternRef.current,
                         { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide: pyodide },
-                        sampleBuffers // UPDATED: Pass sampleBuffers array
+                        sampleBuffers
                     );
-                }}
+                }, [audioEngine, pyodide, sampleBuffers])}
             />
 
             {/* --- SEQUENCER --- */}
