@@ -37,9 +37,10 @@ const downloadBlob = (blob: Blob, filename: string) => {
  * This addresses Task 4: Fix low sampler volume.
  * @param input Float32Array audio buffer
  * @param targetPeakDb Target peak in dB (default -1)
+ * @param canMutate Whether the input buffer can be modified in-place (default false)
  * @returns Normalized Float32Array
  */
-const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1): Float32Array => {
+const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1, canMutate: boolean = false): Float32Array => {
     // Find peak amplitude
     let peak = 0;
     for (let i = 0; i < input.length; i++) {
@@ -56,7 +57,7 @@ const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1): Float3
     // Only normalize if peak is below threshold
     if (peak < NORMALIZATION_PEAK_THRESHOLD) {
         const gain = targetPeak / peak;
-        const output = new Float32Array(input.length);
+        const output = canMutate ? input : new Float32Array(input.length);
         for (let i = 0; i < input.length; i++) {
             const val = input[i] * gain;
             if (val > 1) output[i] = 1;
@@ -92,6 +93,45 @@ export const floatTo16BitPCM = (input: Float32Array): Int16Array => {
         // 0.5 added for rounding behavior (s * 32767 + 0.5) | 0
         // But for pure speed and 16-bit, truncation is acceptable.
         // We use direct multiplication and casting which is very fast in JS engines.
+        output[i] = (s * 32767) | 0;
+    }
+    return output;
+};
+
+// @perf-optimized: Combines normalization and int16 conversion to avoid intermediate buffer allocation
+/**
+ * Normalize and convert float32 buffer to int16 in a single pass (after peak finding).
+ * Reduces memory allocation by skipping the intermediate Float32Array.
+ * @param input Float32Array audio buffer
+ * @param targetPeakDb Target peak in dB (default -1)
+ * @returns Int16Array for XM sample
+ */
+const normalizeAndConvertTo16Bit = (input: Float32Array, targetPeakDb: number = -1): Int16Array => {
+    // 1. Find Peak
+    let peak = 0;
+    for (let i = 0; i < input.length; i++) {
+        const abs = Math.abs(input[i]);
+        if (abs > peak) peak = abs;
+    }
+
+    const output = new Int16Array(input.length);
+    let gain = 1.0;
+
+    // Calculate gain if normalization is needed
+    if (peak >= 0.001 && peak < NORMALIZATION_PEAK_THRESHOLD) {
+        const targetPeak = Math.pow(10, targetPeakDb / 20);
+        gain = targetPeak / peak;
+    }
+
+    // 2. Convert with Gain
+    for (let i = 0; i < input.length; i++) {
+        let s = input[i] * gain;
+
+        // Fast Hard Clip
+        if (s > 1.0) s = 1.0;
+        else if (s < -1.0) s = -1.0;
+
+        // Optimized conversion
         output[i] = (s * 32767) | 0;
     }
     return output;
@@ -334,7 +374,8 @@ export const exportSongToXM = async (
     const synthADuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthA.attack + params.synthA.decay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufA = await renderSynthToBuffer(params.synthA, 'C4', synthADuration, engines);
     const rawDataA = bufA.getChannelData(0);
-    const normalizedDataA = normalizeBuffer(rawDataA);
+    // OPTIMIZED: Mutate in place to avoid allocation
+    const normalizedDataA = normalizeBuffer(rawDataA, -1, true);
     const loopPointsA = findSynthLoopPoints(normalizedDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay);
 
     // UPDATED: Calculate pitch for Synths too (handles 44.1k/48k correctly)
@@ -358,7 +399,8 @@ export const exportSongToXM = async (
     const synthBDuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthB.attack + params.synthB.decay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufB = await renderSynthToBuffer(params.synthB, 'C4', synthBDuration, engines);
     const rawDataB = bufB.getChannelData(0);
-    const normalizedDataB = normalizeBuffer(rawDataB);
+    // OPTIMIZED: Mutate in place to avoid allocation
+    const normalizedDataB = normalizeBuffer(rawDataB, -1, true);
     const loopPointsB = findSynthLoopPoints(normalizedDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay);
     
     // UPDATED: Calculate pitch for Synths
@@ -380,12 +422,13 @@ export const exportSongToXM = async (
 
     // Kick
     const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide);
-    const normalizedKick = normalizeBuffer(bufKick.getChannelData(0));
     const pitchKick = calculateXMPitchParams(bufKick.sampleRate);
+    // OPTIMIZED: Combined normalization and conversion (No loop points needed)
+    const dataKick = normalizeAndConvertTo16Bit(bufKick.getChannelData(0));
     
     const sampleKick = createSample({
         name: 'Kick',
-        data: floatTo16BitPCM(normalizedKick),
+        data: dataKick,
         volume: 64,
         relativeNoteNumber: pitchKick.relativeNote,
         fineTune: pitchKick.fineTune
@@ -396,12 +439,13 @@ export const exportSongToXM = async (
 
     // Snare
     const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide);
-    const normalizedSnare = normalizeBuffer(bufSnare.getChannelData(0));
     const pitchSnare = calculateXMPitchParams(bufSnare.sampleRate);
+    // OPTIMIZED: Combined normalization and conversion
+    const dataSnare = normalizeAndConvertTo16Bit(bufSnare.getChannelData(0));
 
     const sampleSnare = createSample({
         name: 'Snare',
-        data: floatTo16BitPCM(normalizedSnare),
+        data: dataSnare,
         volume: 64,
         relativeNoteNumber: pitchSnare.relativeNote,
         fineTune: pitchSnare.fineTune
@@ -412,12 +456,13 @@ export const exportSongToXM = async (
 
     // CH
     const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide);
-    const normalizedCH = normalizeBuffer(bufCH.getChannelData(0));
     const pitchCH = calculateXMPitchParams(bufCH.sampleRate);
+    // OPTIMIZED: Combined normalization and conversion
+    const dataCH = normalizeAndConvertTo16Bit(bufCH.getChannelData(0));
 
     const sampleCH = createSample({
         name: 'Closed Hat',
-        data: floatTo16BitPCM(normalizedCH),
+        data: dataCH,
         volume: 64,
         relativeNoteNumber: pitchCH.relativeNote,
         fineTune: pitchCH.fineTune
@@ -428,12 +473,13 @@ export const exportSongToXM = async (
 
     // OH
     const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
-    const normalizedOH = normalizeBuffer(bufOH.getChannelData(0));
     const pitchOH = calculateXMPitchParams(bufOH.sampleRate);
+    // OPTIMIZED: Combined normalization and conversion
+    const dataOH = normalizeAndConvertTo16Bit(bufOH.getChannelData(0));
 
     const sampleOH = createSample({
         name: 'Open Hat',
-        data: floatTo16BitPCM(normalizedOH),
+        data: dataOH,
         volume: 64,
         relativeNoteNumber: pitchOH.relativeNote,
         fineTune: pitchOH.fineTune
@@ -452,16 +498,21 @@ export const exportSongToXM = async (
              const buffer = sampleBuffers[i]!;
              const pitchShift = Math.round(Math.log2(params.sampler[i].playbackSpeed) * 12);
              const rawData = buffer.getChannelData(0);
-             const normalizedData = normalizeBuffer(rawData, -1);
+
+             // Loop points on RAW data (Scale Invariant)
              const enableLoop = buffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
-             const loopPoints = findSamplerLoopPoints(normalizedData, enableLoop, buffer.sampleRate);
+             const loopPoints = findSamplerLoopPoints(rawData, enableLoop, buffer.sampleRate);
+
+             // OPTIMIZED: Combined normalization and conversion
+             // Keeps rawData pristine (Sampler buffers are shared)
+             const data16 = normalizeAndConvertTo16Bit(rawData, -1);
 
              // UPDATED: Calculate pitch correction for the sample rate
              const { relativeNote, fineTune } = calculateXMPitchParams(buffer.sampleRate);
 
              const sample = createSample({
                 name: params.sampler[i].sampleName || `Sample ${i}`,
-                data: floatTo16BitPCM(normalizedData),
+                data: data16,
                 volume: Math.min(64, Math.floor(params.sampler[i].volume * 64)),
                 // Add pitchShift (from playback speed) to the base relativeNote (from sample rate)
                 relativeNoteNumber: relativeNote + pitchShift,
