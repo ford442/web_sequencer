@@ -8,6 +8,7 @@ export interface KnobConfig {
     size: number;
     value: number;
     isRecording?: boolean;
+    valueDisplay?: string;
 }
 
 interface HardwareModuleProps {
@@ -321,7 +322,7 @@ export const HardwareModule = React.memo(
                     {controls.map((c) => (
                         <div key={c.id} className="absolute text-center transform -translate-x-1/2" style={{ left: `${c.x * 100}%`, top: `${(c.y + c.size * 0.8) * 100}%`, color: `rgba(${colorHex[0] * 255},${colorHex[1] * 255},${colorHex[2] * 255},0.8)` }}>
                             <span className="text-[10px] font-mono font-bold tracking-wider drop-shadow-md">{c.label}</span>
-                            <div className="text-[9px] opacity-60 font-mono">{Math.round(c.value * 100)}</div>
+                            <div className="text-[9px] opacity-60 font-mono">{c.valueDisplay ?? Math.round(c.value * 100)}</div>
                         </div>
                     ))}
                     {onRecordToggle && controls.map((c) => (
@@ -342,6 +343,7 @@ export const HardwareModule = React.memo(
                             ref={(el) => { sliderRefs.current[i] = el; }}
                             role="slider"
                             aria-label={c.label}
+                            aria-valuetext={c.valueDisplay}
                             aria-valuemin={0}
                             aria-valuemax={100}
                             aria-valuenow={Math.round(c.value * 100)}
