@@ -44,19 +44,11 @@ echo "Compiling & Linking..."
 rm -f "$OUTPUT_JS" "$REPO_ROOT/public/hyphon_native.wasm" "$REPO_ROOT/public/hyphon_native.worker.js"
 
 # Source files for the main application (wrapper and main)
-SOURCES="$SCRIPT_DIR/main.cpp $SCRIPT_DIR/rubberband_wrapper.cpp"
-
-# Include paths for the rubberband library
-INCLUDES="-I $SCRIPT_DIR/rubberband/rubberband"
-
-# Link against the static library built by Meson
-RUBBERBAND_LIB_PATH="$SCRIPT_DIR/rubberband/build/librubberband.a"
+SOURCES="$SCRIPT_DIR/main.cpp"
 
 em++ $SOURCES -o "$OUTPUT_JS" \
-  $INCLUDES \
   $COMPILE_FLAGS \
   $LINK_FLAGS \
-  $RUBBERBAND_LIB_PATH \
   -s EXPORTED_FUNCTIONS="$EXPORTS"
 
 if [ $? -eq 0 ]; then

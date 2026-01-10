@@ -1,46 +1,55 @@
 #!/bin/bash
+# emscripten/build_rubberband.sh
 set -euo pipefail
 
-# Ensure we are in the emscripten directory
+# Navigate to script directory
 cd "$(dirname "$0")"
 
-echo "Compiling Rubber Band WASM (Direct Source Build)..."
+echo "🔨 Building Rubber Band (Standalone Module)..."
 
-# 1. Check if the library is present; clone if missing
-if [ ! -d "rubberband" ]; then
-    echo "Cloning Rubber Band Library..."
-    git clone https://github.com/breakfastquay/rubberband.git
+# 1. Initialize Submodule if missing
+if [ ! -d "rubberband/src" ]; then
+    echo "⬇️  Cloning Rubber Band..."
+    git submodule update --init --recursive
+    if [ ! -d "rubberband/src" ]; then
+        git clone https://github.com/breakfastquay/rubberband.git
+    fi
 fi
 
-# 2. Define Source Files
-# We compile the wrapper AND the library sources together.
-# This eliminates the need for 'librubberband.a'
-SOURCES="rubberband_wrapper.cpp rubberband/src/*.cpp"
+# 1.5 Patch Rubber Band Source (Fix include path issue in VectorOpsComplex.cpp)
+# The file includes "system/sysutils.h" but the file structure puts it in "common/sysutils.h"
+# and the build environment doesn't expose "system" as an include root.
+sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' rubberband/src/common/VectorOpsComplex.cpp || true
 
-# 3. Compile with Emscripten
-# -O3: Aggressive optimization
-# -frtti: Enable RTTI (REQUIRED for Embind to work)
-# -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0: Suppress strict type name checks
-# -DUSE_KISSFFT: Force Rubber Band to use its internal FFT (no external deps)
-# --bind: Link Embind
+# 2. Compile Rubber Band -> public/rubberband.js
+# We use -s EXPORTED_FUNCTIONS=['_malloc','_free'] so TS can manage memory
 em++ -O3 \
     -frtti \
     -fexceptions \
     -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 \
-    -DUSE_KISSFFT \
+    -DHAVE_KISSFFT \
+    -DUSE_SPEEX \
+    -DNO_THREADING \
     -DPROCESS_CMAKE_PROJECT \
-    -I . \
-    -I rubberband \
-    -I rubberband/rubberband \
-    $SOURCES \
+    -I "$(pwd)" \
+    -I "$(pwd)/rubberband" \
+    -I "$(pwd)/rubberband/rubberband" \
+    -I "$(pwd)/rubberband/src" \
+    -I "$(pwd)/rubberband/src/ext/kissfft" \
+    -I "$(pwd)/rubberband/src/ext/speex" \
+    rubberband_wrapper.cpp \
+    $(find rubberband/src -name "*.cpp" -not -path "*jni*" -not -path "*test*") \
+    $(find rubberband/src/ext/kissfft -name "*.c") \
+    $(find rubberband/src/ext/speex -name "*.c") \
     --bind \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s MODULARIZE=1 \
     -s EXPORT_ES6=1 \
     -s EXPORT_NAME='createRubberBandModule' \
-    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]' \
+    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue"]' \
+    -s EXPORTED_FUNCTIONS='["_malloc", "_free"]' \
     -s ENVIRONMENT='web,worker' \
     -o ../public/rubberband.js
 
-echo "Success! Build artifacts saved to ../public/rubberband.js"
+echo "✅ Success: public/rubberband.js created."
