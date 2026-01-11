@@ -24,4 +24,14 @@ describe('DragValue', () => {
     fireEvent.keyDown(slider, { key: 'ArrowUp' });
     expect(onChange).toHaveBeenCalled();
   });
+
+  test('focuses on mousedown', () => {
+    const onChange = vi.fn();
+    const { getByRole } = render(<DragValue value={120} onChange={onChange} min={30} max={300} step={1} label="Tempo" />);
+    const slider = getByRole('slider');
+
+    expect(document.activeElement).not.toBe(slider);
+    fireEvent.mouseDown(slider);
+    expect(document.activeElement).toBe(slider);
+  });
 });

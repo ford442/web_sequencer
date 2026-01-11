@@ -14,6 +14,7 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
   const [isDragging, setIsDragging] = useState(false);
   const startY = useRef(0);
   const startValue = useRef(value);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -55,6 +56,7 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    sliderRef.current?.focus();
     startY.current = e.clientY;
     startValue.current = value;
     setIsDragging(true);
@@ -123,6 +125,7 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
           −
         </button>
         <div
+          ref={sliderRef}
           className="bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none min-w-[60px] text-center focus:outline-none focus:ring-2 focus:ring-yellow-400"
           onMouseDown={handleMouseDown}
           onWheel={handleWheel}
