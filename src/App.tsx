@@ -122,6 +122,13 @@ const COLOR_CH = [0.8, 0.8, 0.0] as [number, number, number];
 const COLOR_OH = [0.9, 0.5, 0.0] as [number, number, number];
 const COLOR_SAMPLER = [0.6, 0.4, 1.0] as [number, number, number];
 
+// --- OPTIMIZATION CONSTANTS ---
+// Cached empty sequences to prevent garbage collection in render loops
+const EMPTY_STEPS = Array(32).fill(null);
+const EMPTY_SEQ = { steps: EMPTY_STEPS };
+// Sampler needs an array of 8 sequences. We can reuse the steps array reference since it's read-only in onStep.
+const EMPTY_SAMPLER_SEQUENCE = Array.from({ length: 8 }, () => ({ steps: EMPTY_STEPS }));
+
 // --- MODULE CONTROL HELPERS ---
 const getSynthControls = (params: SynthParams): KnobConfig[] => [
     { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack, valueDisplay: `${params.attack.toFixed(2)}s` },
@@ -919,13 +926,15 @@ export const App: React.FC = () => {
                     const slot = measureData[key];
                     if (slot === null) {
                         // Return empty based on type
-                        if (key === 'sampler') return Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) }));
-                        return { steps: Array(32).fill(null) };
+                        // PERFORMANCE: Use cached constants to avoid allocation
+                        if (key === 'sampler') return EMPTY_SAMPLER_SEQUENCE;
+                        return EMPTY_SEQ;
                     }
                     const stored = trackStorageRef.current[key][slot];
                     if (!stored) {
-                        if (key === 'sampler') return Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) }));
-                        return { steps: Array(32).fill(null) };
+                        // PERFORMANCE: Use cached constants to avoid allocation
+                        if (key === 'sampler') return EMPTY_SAMPLER_SEQUENCE;
+                        return EMPTY_SEQ;
                     }
                     return stored;
                 };
