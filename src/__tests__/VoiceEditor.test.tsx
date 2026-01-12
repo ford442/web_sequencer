@@ -2,7 +2,6 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { VoiceEditor } from '../components/VoiceEditor';
-import { SupertonicService } from '../services/Supertonic';
 
 // Mock the SupertonicService and VoiceDesigner
 vi.mock('../services/Supertonic', () => ({

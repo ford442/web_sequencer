@@ -60,14 +60,10 @@ export interface PhonemeAlignerConfig {
  * 3. SharedArrayBuffer for real-time communication with AudioWorklet
  */
 export class PhonemeAligner {
-    private config: PhonemeAlignerConfig;
     
     constructor(config: PhonemeAlignerConfig = {}) {
-        this.config = {
-            alignerServiceUrl: config.alignerServiceUrl,
-            useLocalAlignment: config.useLocalAlignment ?? false,
-            language: config.language ?? 'en-us'
-        };
+        // Config logic would be here
+        void config;
     }
     
     /**

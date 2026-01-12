@@ -1,5 +1,21 @@
 import { RingBuffer } from "../utils/ringBuffer";
 
+interface AudioWorkletProcessor {
+  readonly port: MessagePort;
+  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
+}
+
+declare var AudioWorkletProcessor: {
+  prototype: AudioWorkletProcessor;
+  new (options?: any): AudioWorkletProcessor;
+};
+
+declare function registerProcessor(name: string, processorCtor: (new (options?: any) => AudioWorkletProcessor)): void;
+
+declare const globalThis: {
+  sampleRate: number;
+};
+
 class RubberBandProcessor extends AudioWorkletProcessor {
   private rubberBand: any = null;
   private inputRingBuffer: RingBuffer | null = null;
@@ -70,7 +86,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     }
   }
 
-  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
+  process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const outputChannel = outputs[0][0];
 
     // Pass-through if not ready
