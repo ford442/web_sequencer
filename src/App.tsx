@@ -1685,7 +1685,7 @@ export const App: React.FC = () => {
                     // Ensure backward compatibility: add default mode if missing
                     const samplerWithMode = songData.params.sampler.map(bank => ({
                         ...bank,
-                        mode: (bank.mode || 'loop') as const
+                        mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable'
                     }));
                     setSampler(samplerWithMode);
                     samplerRef.current = samplerWithMode;

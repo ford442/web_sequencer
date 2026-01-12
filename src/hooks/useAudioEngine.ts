@@ -719,7 +719,7 @@ export const useAudioEngine = (pyodide: any) => {
                     const ratio = targetFreq / baseFreq * params.playbackSpeed;
                     sustainNodeRef.current.port.postMessage({ 
                         type: 'noteOn', 
-                        data: { pitch: ratio, mode: modeToWorkletValue(params.mode) } 
+                        data: { pitch: ratio, mode: modeToWorkletValue(params.mode || 'loop') }
                     });
                     const id = nextSamplerNoteId.current++;
                     activeSamplerNotes.current.set(id, { source: null as any, envGain: null as any });
@@ -973,19 +973,6 @@ export const useAudioEngine = (pyodide: any) => {
             });
         };
 
-        const playSinging = (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote = 'C4') => {
-            if (!singingVoiceRef.current) return;
-
-            const timeRatio = buffer.duration / duration;
-            singingVoiceRef.current.setTimeRatio(timeRatio);
-
-            const sourceNoteMidi = noteToMidi(sourceNote);
-            const targetNoteMidi = noteToMidi(targetNote);
-            const pitchScale = Math.pow(2, (targetNoteMidi - sourceNoteMidi) / 12);
-
-            singingVoiceRef.current.setPitch(pitchScale);
-            singingVoiceRef.current.process(buffer.getChannelData(0));
-        };
 
         audioEngineRef.current = {
             context,

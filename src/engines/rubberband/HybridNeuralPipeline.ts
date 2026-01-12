@@ -83,7 +83,6 @@ export interface HybridPipelineConfig {
  */
 export class HybridNeuralPipeline {
     private config: HybridPipelineConfig;
-    private vocoder: unknown | null = null;
     private isInitialized: boolean = false;
     
     constructor(config: HybridPipelineConfig = {}) {
