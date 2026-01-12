@@ -87,12 +87,10 @@ export const VOICE_FORMANTS: Record<VoiceCharacter, FormantFrequencies> = {
  */
 export class FormantShifter {
     private audioContext: AudioContext;
-    private config: FormantShifterConfig;
     private filterNodes: BiquadFilterNode[] = [];
     
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
-        this.config = config;
     }
     
     /**

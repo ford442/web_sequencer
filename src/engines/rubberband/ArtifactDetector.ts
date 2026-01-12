@@ -69,7 +69,6 @@ export const DEFAULT_ARTIFACT_CONFIG: ArtifactDetectorConfig = {
  */
 export class ArtifactDetector {
     private config: ArtifactDetectorConfig;
-    private previousSpectrum: Float32Array | null = null;
     private artifactHistory: ArtifactDetection[] = [];
     private readonly HISTORY_SIZE = 100;
     
@@ -209,7 +208,6 @@ export class ArtifactDetector {
      */
     clearHistory(): void {
         this.artifactHistory = [];
-        this.previousSpectrum = null;
     }
     
     /**

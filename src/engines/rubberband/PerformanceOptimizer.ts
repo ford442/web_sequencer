@@ -68,8 +68,6 @@ export interface WasmMemoryAllocation {
 export class PerformanceOptimizer {
     private config: PerformanceConfig;
     private workers: Worker[] = [];
-    private wasmModule: unknown | null = null;
-    private memoryAllocation: WasmMemoryAllocation | null = null;
     private processingTimes: number[] = [];
     private readonly SAMPLE_WINDOW = 30;
     
@@ -83,7 +81,8 @@ export class PerformanceOptimizer {
      * @param wasmModule The Rubber Band WASM module
      */
     async init(wasmModule: unknown): Promise<void> {
-        this.wasmModule = wasmModule;
+        // Use wasmModule if needed in future
+        void wasmModule;
         
         // STUB: Would allocate WASM memory and create workers
         console.warn('PerformanceOptimizer.init: STUB - not fully implemented');
