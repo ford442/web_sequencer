@@ -75,6 +75,12 @@ compile_c() {
     emcc -c "$src" -o "$obj" $INCLUDES $CFLAGS
 }
 
+# --- PATCH START ---
+# Fix include path issue in VectorOpsComplex.cpp for the main build
+echo "  [Patch] Fixing VectorOpsComplex.cpp include..."
+sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' "$SCRIPT_DIR/rubberband/src/common/VectorOpsComplex.cpp" || true
+# --- PATCH END ---
+
 # 1. Compile C sources (KissFFT, Speex)
 for f in $SCRIPT_DIR/rubberband/src/ext/kissfft/*.c; do compile_c "$f"; done
 for f in $SCRIPT_DIR/rubberband/src/ext/speex/*.c; do compile_c "$f"; done
