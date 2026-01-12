@@ -68,6 +68,7 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    knobRef.current?.focus();
     setIsDragging(true);
     setDragStartY(e.clientY);
     setDragStartValue(value);
