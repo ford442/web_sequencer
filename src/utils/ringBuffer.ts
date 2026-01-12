@@ -71,4 +71,10 @@ export class RingBuffer {
         Atomics.store(this.atomicIndices, TAIL_INDEX, tail + toRead);
         return toRead;
     }
+
+    availableRead(): number {
+        const head = Atomics.load(this.atomicIndices, HEAD_INDEX);
+        const tail = Atomics.load(this.atomicIndices, TAIL_INDEX);
+        return head - tail;
+    }
 }
