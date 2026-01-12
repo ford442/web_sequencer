@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build script for Candy World Emscripten WASM module
+# Build script for Hyphon Emscripten WASM module
 # Optimized for: Multithreading (Pthreads) + SIMD + Reliability
 
 set -euo pipefail
