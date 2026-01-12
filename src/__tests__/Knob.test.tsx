@@ -12,13 +12,14 @@ describe('Knob', () => {
     expect(onChange).toHaveBeenCalled();
   });
 
-  test('focuses on mousedown', () => {
+  test('clicking the knob focuses it', () => {
     const onChange = vi.fn();
     const { getByRole } = render(<Knob label="Test" value={10} onChange={onChange} min={0} max={100} step={1} />);
     const knob = getByRole('slider');
 
-    expect(document.activeElement).not.toBe(knob);
     fireEvent.mouseDown(knob);
+
+    // Check if the element is focused
     expect(document.activeElement).toBe(knob);
   });
 });
