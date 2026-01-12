@@ -1,186 +1,183 @@
-/// <reference lib="webworker" />
+import { RingBuffer } from "../utils/ringBuffer";
 
-import { RingBuffer } from '../utils/ringBuffer';
+class RubberBandProcessor extends AudioWorkletProcessor {
+  private rubberBand: any = null;
+  private inputRingBuffer: RingBuffer | null = null;
+  private outputRingBuffer: RingBuffer | null = null;
 
-declare const globalThis: AudioWorkletGlobalScope & {
-    createRubberbandModule: () => Promise<any>;
-};
+  // WASM Memory Management
+  private inputHeapPtr: number = 0;
+  private outputHeapPtr: number = 0;
+  private heapSizeFrames: number = 0; // Current size of allocated buffers
 
-/**
- * Rubberband Audio Worklet Processor
- * 
- * Enhanced for vocal synthesis with formant preservation and optimized settings.
- * Part of the RUBBERBAND_ENHANCEMENT_PLAN implementation.
- * 
- * Key vocal optimizations applied:
- * - OptionFormantPreserved: Prevents "chipmunk effect" when pitch shifting vocals
- * - OptionPhaseLaminar: Better phase coherence for monophonic voice
- * - OptionTransientsMixed: Preserves consonant articulation (t, k, etc.)
- * - OptionChannelsTogether: Maintains stereo coherence for stereo sources
- */
+  // Audio State
+  private sampleRate = 44100;
+  private lfoPhase = 0;
+  private initialized = false;
 
-/** Configuration for processor quality modes */
-interface ProcessorConfig {
-    /** Use high quality (Finer engine) for better vocal fidelity */
-    useHighQuality: boolean;
-    /** Preserve formants to avoid chipmunk effect (CRITICAL for vocals) */
-    preserveFormants: boolean;
-    /** Number of audio channels */
-    channels: number;
-}
+  static get parameterDescriptors() {
+    return [
+      { name: 'pitchScale', defaultValue: 1.0, minValue: 0.1, maxValue: 4.0 },
+      { name: 'timeRatio', defaultValue: 1.0, minValue: 0.1, maxValue: 4.0 },
+      { name: 'vibratoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'vibratoRate', defaultValue: 5.0, minValue: 0.1, maxValue: 20.0 },
+      { name: 'tremoloDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'tremoloRate', defaultValue: 0.0, minValue: 0.1, maxValue: 20.0 },
+      { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+    ];
+  }
 
-class RubberbandProcessor extends AudioWorkletProcessor {
-    private inputRingBuffer: RingBuffer | null = null;
-    private outputRingBuffer: RingBuffer | null = null;
-    private rubberband: any = null;
-    private rubberbandModule: any = null;
-    private tempInputBuffer: Float32Array;
-    private tempOutputBuffer: Float32Array;
-    private config: ProcessorConfig = {
-        useHighQuality: false,
-        preserveFormants: true,
-        channels: 1
-    };
+  constructor() {
+    super();
+    this.port.onmessage = this.handleMessage.bind(this);
+    // @ts-ignore
+    if (globalThis.sampleRate) {
+        this.sampleRate = globalThis.sampleRate;
+    }
+  }
 
-    constructor() {
-        super();
-        this.tempInputBuffer = new Float32Array(4096);
-        this.tempOutputBuffer = new Float32Array(4096);
-        this.port.onmessage = this.handleMessage.bind(this);
+  async handleMessage(event: MessageEvent) {
+    if (event.data.type === 'INIT_WASM') {
+      try {
+        // Fix: RingBuffer constructor takes only 1 argument (shared buffer)
+        this.inputRingBuffer = new RingBuffer(event.data.inputBuffer);
+        this.outputRingBuffer = new RingBuffer(event.data.outputBuffer);
+
+        // Load WASM
+        // @ts-ignore
+        const moduleFactory = await import(event.data.moduleUrl || '/rubberband.js');
+        const createRubberBandModule = moduleFactory.default;
+
+        // @ts-ignore
+        const module = await createRubberBandModule();
+
+        this.rubberBand = new module.RubberBandStretcher(
+          this.sampleRate,
+          1, // Mono
+          1 | 32 | 1048576, // RealTime | Finer | FormantPreserved
+          1.0,
+          1.0
+        );
+
+        // Store module reference to access _malloc/_free and HEAPF32
+        this.rubberBand.module = module;
+        this.initialized = true;
+        this.port.postMessage({ type: 'READY' });
+      } catch (e) {
+        console.error("RubberBand WASM Failed:", e);
+        this.port.postMessage({ type: 'ERROR', error: String(e) });
+      }
+    }
+  }
+
+  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
+    const outputChannel = outputs[0][0];
+
+    // Pass-through if not ready
+    if (!this.initialized || !this.rubberBand || !this.inputRingBuffer || !this.outputRingBuffer) {
+      return true;
     }
 
-    /**
-     * Build optimal stretcher options for vocal processing.
-     * Combines options based on configuration and use case.
-     */
-    private buildVocalOptions(module: any): number {
-        let options = 0;
+    // 1. DSP Parameters
+    const pitch = parameters.pitchScale[0];
+    const time = parameters.timeRatio[0];
+    const vibDepth = parameters.vibratoDepth[0];
+    const vibRate = parameters.vibratoRate[0];
+    const tremDepth = parameters.tremoloDepth[0];
+    const breath = parameters.breathIntensity[0];
 
-        // Real-time processing with lookahead for lower latency
-        options |= module.RubberBandStretcher.OptionProcessRealTime;
+    // 2. Expression (Vibrato)
+    const dt = 128 / this.sampleRate;
+    this.lfoPhase += (vibRate * dt * 2 * Math.PI);
+    if (this.lfoPhase > 2 * Math.PI) this.lfoPhase -= 2 * Math.PI;
+    const lfoSine = Math.sin(this.lfoPhase);
 
-        // Precise stretching for accurate timing
-        options |= module.RubberBandStretcher.OptionStretchPrecise;
+    // Apply Pitch Modulation
+    // vibDepth 0-1 maps to approx 0-50 cents
+    const vibFactor = Math.pow(2, (vibDepth * lfoSine * 0.5) / 12);
+    this.rubberBand.setPitchScale(pitch * vibFactor);
+    this.rubberBand.setTimeRatio(time);
 
-        // CRITICAL: Preserve formants to avoid "chipmunk" effect on vocals
-        if (this.config.preserveFormants) {
-            options |= module.RubberBandStretcher.OptionFormantPreserved;
+    // 3. Process Audio Logic (Memory Managed)
+    try {
+        // A. PULL from RingBuffer -> WASM
+        const required = this.rubberBand.getSamplesRequired();
+        // Fix: Use availableRead() from modified RingBuffer
+        const available = this.inputRingBuffer.availableRead();
+
+        // Process in chunks if we have enough data
+        if (available >= required && required > 0) {
+            this.ensureHeapSize(required); // Ensure heap buffer is large enough
+
+            // 1. Read from RingBuffer into temp JS array
+            const inputTemp = new Float32Array(required);
+            // Fix: Use pull() instead of pop()
+            this.inputRingBuffer.pull(inputTemp);
+
+            // 2. Copy JS Array -> WASM Heap
+            // HEAPF32 is a view of memory. We calculate offset in 32-bit floats (bytes / 4)
+            this.rubberBand.module.HEAPF32.set(inputTemp, this.inputHeapPtr >> 2);
+
+            // 3. Process (Pass the POINTER, not the array)
+            this.rubberBand.process(this.inputHeapPtr, required, false);
         }
 
-        // Pitch-coherent mode for monophonic voice (laminar phase)
-        options |= module.RubberBandStretcher.OptionPhaseLaminar;
+        // B. RETRIEVE from WASM -> Output
+        // We want to fill the current Web Audio block (128 frames)
 
-        // Mixed transients: preserve consonants like 't', 'k' while smoothing vowels
-        options |= module.RubberBandStretcher.OptionTransientsMixed;
-
-        // Use higher quality pitch shifting for better vocal fidelity
-        options |= module.RubberBandStretcher.OptionPitchHighQuality;
-
-        // Use Finer engine for offline/high-quality rendering
-        if (this.config.useHighQuality) {
-            options |= module.RubberBandStretcher.OptionEngineFiner;
-        } else {
-            // Use Faster engine for real-time preview (lower CPU)
-            options |= module.RubberBandStretcher.OptionEngineFaster;
-        }
-
-        return options;
-    }
-
-    private handleMessage(event: MessageEvent) {
-        const { type, data } = event.data;
-        if (type === 'init') {
-            this.inputRingBuffer = new RingBuffer(data.inputSab);
-            this.outputRingBuffer = new RingBuffer(data.outputSab);
+        const availOutput = this.rubberBand.available();
+        if (availOutput > 0) {
+            const framesToRead = Math.min(availOutput, 128); // Read up to block size
+            this.ensureHeapSize(framesToRead);
             
-            // Apply configuration from init data
-            if (data.config) {
-                this.config = { ...this.config, ...data.config };
-            }
+            // 1. Retrieve (Pass POINTER)
+            const retrieved = this.rubberBand.retrieve(this.outputHeapPtr, framesToRead);
 
-            importScripts('/rubberband.js');
-            globalThis.createRubberbandModule().then(module => {
-                this.rubberbandModule = module;
-                const stretcherOptions = this.buildVocalOptions(module);
+            // 2. Copy WASM Heap -> Output Buffer
+            const outputView = this.rubberBand.module.HEAPF32.subarray(
+                this.outputHeapPtr >> 2,
+                (this.outputHeapPtr >> 2) + retrieved
+            );
 
-                this.rubberband = new module.RubberBandStretcher(
-                    sampleRate,
-                    this.config.channels,
-                    stretcherOptions,
-                    1.0, // initial time ratio
-                    1.0 // initial pitch ratio
-                );
-                
-                // Report latency for synchronization (Section 9 of enhancement plan)
-                const latency = this.rubberband.getLatency();
-                this.port.postMessage({ 
-                    type: 'ready',
-                    latency: latency,
-                    sampleRate: sampleRate
-                });
-            });
-        } else if (type === 'pitch') {
-            if (this.rubberband) {
-                this.rubberband.setPitchScale(data.pitchScale);
-            }
-        } else if (type === 'timeRatio') {
-            if (this.rubberband) {
-                this.rubberband.setTimeRatio(data.timeRatio);
-            }
-        } else if (type === 'setFormantPreservation') {
-            // Dynamic formant option switching (Section 4 of enhancement plan)
-            if (this.rubberband) {
-                // 1 = preserved, 0 = shifted
-                this.rubberband.setFormantOption(data.preserve ? 1 : 0);
-                this.config.preserveFormants = data.preserve;
-            }
-        } else if (type === 'setQuality') {
-            // Toggle between high quality (Finer) and fast (Faster) engines
-            // Note: Engine switch requires re-initialization of the stretcher
-            // The config is NOT updated here since it would create inconsistent state
-            // Clients should recreate the processor with new config for quality changes
-            console.warn('Quality mode change requires processor reinitialization. ' +
-                         'Recreate SingingVoice with new config for quality changes.');
-        } else if (type === 'getLatency') {
-            // Return current latency for synchronization purposes
-            if (this.rubberband) {
-                const latency = this.rubberband.getLatency();
-                this.port.postMessage({ type: 'latency', latency: latency });
-            }
+            outputChannel.set(outputView);
+        }
+
+    } catch (e) {
+        console.error("DSP Error:", e);
+    }
+
+    // 4. Post-Processing Effects (Tremolo & Breath)
+    // Applied directly to the output buffer
+    for (let i = 0; i < outputChannel.length; i++) {
+        // Tremolo
+        if (tremDepth > 0) {
+           const amp = 1.0 - (tremDepth * 0.5 * (1 + lfoSine));
+           outputChannel[i] *= amp;
+        }
+
+        // Breath (White Noise)
+        if (breath > 0) {
+           const noise = (Math.random() * 2 - 1) * breath * 0.05;
+           outputChannel[i] += noise;
         }
     }
 
-    process(
-        inputs: Float32Array[][],
-        outputs: Float32Array[][],
-    ): boolean {
-        const output = outputs[0];
-        const channel = output[0];
+    return true;
+  }
 
-        if (!this.inputRingBuffer || !this.outputRingBuffer || !this.rubberband) {
-            channel.fill(0);
-            return true;
-        }
+  // Helper: Resize WASM heap buffers if needed to avoid constant malloc/free
+  private ensureHeapSize(frames: number) {
+      if (frames > this.heapSizeFrames) {
+          // Free old if exists
+          if (this.inputHeapPtr) this.rubberBand.module._free(this.inputHeapPtr);
+          if (this.outputHeapPtr) this.rubberBand.module._free(this.outputHeapPtr);
 
-        const availableToRead = this.inputRingBuffer.pull(this.tempInputBuffer);
-        if (availableToRead > 0) {
-            const planarInput = [this.tempInputBuffer.subarray(0, availableToRead)];
-            this.rubberband.process(planarInput, availableToRead, false);
-        }
-
-        const availableSamples = this.rubberband.available();
-        if (availableSamples > 0) {
-            const retrieved = this.rubberband.retrieve([this.tempOutputBuffer], availableSamples);
-            this.outputRingBuffer.push(this.tempOutputBuffer.subarray(0, retrieved));
-        }
-
-        const readFromOutput = this.outputRingBuffer.pull(channel);
-        if (readFromOutput < channel.length) {
-            channel.fill(0, readFromOutput);
-        }
-
-        return true;
-    }
+          // Alloc new (Bytes = frames * 4)
+          this.inputHeapPtr = this.rubberBand.module._malloc(frames * 4);
+          this.outputHeapPtr = this.rubberBand.module._malloc(frames * 4);
+          this.heapSizeFrames = frames;
+      }
+  }
 }
 
-registerProcessor('rubberband-processor', RubberbandProcessor);
+registerProcessor('rubberband-processor', RubberBandProcessor);
