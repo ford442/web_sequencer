@@ -30,6 +30,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private sampleRate = 44100;
   private lfoPhase = 0;
   private initialized = false;
+  private playing = false;
+  private isDoneProcessing = false;
+  private fullSampleBuffer: Float32Array | null = null;
+
 
   static get parameterDescriptors() {
     return [
@@ -53,36 +57,59 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   }
 
   async handleMessage(event: MessageEvent) {
-    if (event.data.type === 'INIT_WASM') {
-      try {
-        // Fix: RingBuffer constructor takes only 1 argument (shared buffer)
-        this.inputRingBuffer = new RingBuffer(event.data.inputBuffer);
-        this.outputRingBuffer = new RingBuffer(event.data.outputBuffer);
+    const { type, data } = event.data;
+    switch (type) {
+      case 'INIT_WASM':
+        try {
+          // Fix: RingBuffer constructor takes only 1 argument (shared buffer)
+          this.inputRingBuffer = new RingBuffer(event.data.inputBuffer);
+          this.outputRingBuffer = new RingBuffer(event.data.outputBuffer);
 
-        // Load WASM
-        // @ts-ignore
-        const moduleFactory = await import(event.data.moduleUrl || '/rubberband.js');
-        const createRubberBandModule = moduleFactory.default;
+          // Load WASM
+          // @ts-ignore
+          const moduleFactory = await import(data.moduleUrl || '/rubberband.js');
+          const createRubberBandModule = moduleFactory.default;
 
-        // @ts-ignore
-        const module = await createRubberBandModule();
+          // @ts-ignore
+          const module = await createRubberBandModule();
 
-        this.rubberBand = new module.RubberBandStretcher(
-          this.sampleRate,
-          1, // Mono
-          1 | 32 | 1048576, // RealTime | Finer | FormantPreserved
-          1.0,
-          1.0
-        );
+          this.rubberBand = new module.RubberBandStretcher(
+            this.sampleRate,
+            1, // Mono
+            1 | 32 | 1048576, // RealTime | Finer | FormantPreserved
+            1.0,
+            1.0
+          );
 
-        // Store module reference to access _malloc/_free and HEAPF32
-        this.rubberBand.module = module;
-        this.initialized = true;
-        this.port.postMessage({ type: 'READY' });
-      } catch (e) {
-        console.error("RubberBand WASM Failed:", e);
-        this.port.postMessage({ type: 'ERROR', error: String(e) });
-      }
+          // Store module reference to access _malloc/_free and HEAPF32
+          this.rubberBand.module = module;
+          this.initialized = true;
+          this.port.postMessage({ type: 'READY' });
+        } catch (e) {
+          console.error("RubberBand WASM Failed:", e);
+          this.port.postMessage({ type: 'ERROR', error: String(e) });
+        }
+        break;
+
+      case 'loadBuffer':
+        this.fullSampleBuffer = new Float32Array(data.buffer);
+        break;
+
+      case 'noteOn':
+        if (!this.initialized || !this.fullSampleBuffer) return;
+        this.playing = true;
+        this.isDoneProcessing = false;
+        this.rubberBand.reset();
+        this.rubberBand.setPitchScale(data.pitch || 1.0);
+        this.rubberBand.setTimeRatio(1.0);
+        this.ensureHeapSize(this.fullSampleBuffer.length);
+        this.rubberBand.module.HEAPF32.set(this.fullSampleBuffer, this.inputHeapPtr >> 2);
+        this.rubberBand.process(this.inputHeapPtr, this.fullSampleBuffer.length, false);
+        break;
+
+      case 'noteOff':
+        this.playing = false;
+        break;
     }
   }
 
