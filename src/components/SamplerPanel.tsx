@@ -190,7 +190,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
             loadBufferToBank(audioBuffer);
             setStatus(`Loaded: ${file.name.substring(0, 10)}...`);
-        } catch (err) {
+        } catch {
             setStatus('Load Error');
         }
     };
@@ -218,14 +218,14 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                         loadBufferToBank(audioBuffer);
                         setStatus('Recorded!');
-                    } catch (e) { setStatus('Decode Error'); }
+                    } catch { setStatus('Decode Error'); }
                     stream.getTracks().forEach(track => track.stop());
                 };
 
                 mediaRecorder.start();
                 setIsRecording(true);
                 setStatus('Recording...');
-            } catch (err) { setStatus('Mic Error'); }
+            } catch { setStatus('Mic Error'); }
         }
     };
 
@@ -393,8 +393,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             {/* ROW 5: SAMPLER MODE */}
             <div className="mt-1 bg-gray-800/30 p-1 rounded">
                 <div className="flex gap-1 items-center mb-1">
-                    <label className="text-[10px] text-gray-400 font-bold w-12">MODE:</label>
-                    <div className="flex gap-1 flex-1">
+                    <label className="text-[10px] text-gray-400 font-bold w-12" id="sampler-mode-label">MODE:</label>
+                    <div className="flex gap-1 flex-1" role="radiogroup" aria-labelledby="sampler-mode-label">
                         <button
                             onClick={() => handleModeChange('loop')}
                             className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
@@ -404,6 +404,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             }`}
                             aria-label="Loop Mode"
                             title="Standard sample looping"
+                            role="radio"
+                            aria-checked={(currentParams.mode || 'loop') === 'loop'}
                         >
                             LOOP
                         </button>
@@ -416,6 +418,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             }`}
                             aria-label="Stretch Mode"
                             title="Granular time-stretch for infinite sustain"
+                            role="radio"
+                            aria-checked={(currentParams.mode || 'loop') === 'stretch'}
                         >
                             STRETCH
                         </button>
@@ -428,6 +432,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             }`}
                             aria-label="Wavetable Mode"
                             title="Single-cycle oscillator mode"
+                            role="radio"
+                            aria-checked={(currentParams.mode || 'loop') === 'wavetable'}
                         >
                             WAVE
                         </button>
