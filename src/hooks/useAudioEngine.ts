@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
-import { noteToMidi } from '../utils/musicTheory';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { SingingVoice } from '../engines/SingingVoice';
@@ -146,7 +145,7 @@ export const useAudioEngine = (pyodide: any) => {
         const generatorCache = new Map<string, AudioBuffer>();
         const BASE_GENERATION_FREQ = 220; // Hz
 
-        const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl' | 'wam' | 'pyodide', type: 'saw' | 'sqr' | 'tri' | 'sin', filterCutoff: number = 20000, filterResonance: number = 0): Promise<AudioBuffer | null> => {
+        const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl' | 'wam' | 'pyodide', type: 'saw' | 'sqr' | 'tri' | 'sin', filterCutoff: number = 20000, filterResonance: number = 0): Promise<[...]>
             const sampleRate = context.sampleRate;
             const key = `${engine}:${type}:${BASE_GENERATION_FREQ}:${sampleRate}:${filterCutoff}:${filterResonance}`;
             if (generatorCache.has(key)) return generatorCache.get(key)!;
@@ -298,7 +297,7 @@ export const useAudioEngine = (pyodide: any) => {
                         delay.connect(wetGain);
                         wetGain.connect(destination);
                     } else {
-                         envGain.connect(destination);
+                          envGain.connect(destination);
                     }
 
                     // Connect: Source -> Filter -> Env -> (Output or Delay)
@@ -522,7 +521,7 @@ export const useAudioEngine = (pyodide: any) => {
                     const oldestId = activeSynthNotes.current.keys().next().value;
                     if (oldestId !== undefined) {
                         const oldest = activeSynthNotes.current.get(oldestId as number);
-                        if (oldest && oldest.stop) oldest.stop();
+                            if (oldest && oldest.stop) oldest.stop();
                     }
                 }
                 const id = nextSynthNoteId.current++;
