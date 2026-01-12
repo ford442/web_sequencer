@@ -146,9 +146,8 @@ export const HardwareModule = React.memo(
                         color: vec3f, pad3: f32,
                         vals1: vec4f, vals2: vec4f, vals3: vec4f,
                         pad4: vec4f,
-                        pos0: vec4f, pos1: vec4f, pos2: vec4f, pos3: vec4f,
-                        pos4: vec4f, pos5: vec4f, pos6: vec4f, pos7: vec4f,
-                        pos8: vec4f, pos9: vec4f, pos10: vec4f, pos11: vec4f,
+                        // Optimized: Use array for positions to avoid branching
+                        pos: array<vec4f, 12>,
                     };
                     @group(0) @binding(0) var<uniform> u: Uniforms;
 
@@ -167,6 +166,7 @@ export const HardwareModule = React.memo(
                     }
 
                     fn get_knob_val(idx: i32) -> f32 {
+                        // WGSL Dynamic Indexing into vec4 is efficient
                         if (idx < 4) { return u.vals1[idx]; }
                         if (idx < 8) { return u.vals2[idx - 4]; }
                         return u.vals3[idx - 8];
@@ -183,13 +183,8 @@ export const HardwareModule = React.memo(
                         col *= 0.9 + 0.1 * sin(uv.y * 200.0);
 
                         for (var i = 0; i < 12; i++) {
-                            var k_pos_uv: vec4f;
-                            if(i==0){k_pos_uv=u.pos0;} else if(i==1){k_pos_uv=u.pos1;}
-                            else if(i==2){k_pos_uv=u.pos2;} else if(i==3){k_pos_uv=u.pos3;}
-                            else if(i==4){k_pos_uv=u.pos4;} else if(i==5){k_pos_uv=u.pos5;}
-                            else if(i==6){k_pos_uv=u.pos6;} else if(i==7){k_pos_uv=u.pos7;}
-                            else if(i==8){k_pos_uv=u.pos8;} else if(i==9){k_pos_uv=u.pos9;}
-                            else if(i==10){k_pos_uv=u.pos10;} else {k_pos_uv=u.pos11;}
+                            // OPTIMIZED: Direct array access removes massive if/else chain
+                            let k_pos_uv = u.pos[i];
 
                             if (k_pos_uv.z == 0.0) { continue; }
 
