@@ -11,4 +11,15 @@ describe('Knob', () => {
     fireEvent.keyDown(knob, { key: 'ArrowUp' });
     expect(onChange).toHaveBeenCalled();
   });
+
+  test('clicking the knob focuses it', () => {
+    const onChange = vi.fn();
+    const { getByRole } = render(<Knob label="Test" value={10} onChange={onChange} min={0} max={100} step={1} />);
+    const knob = getByRole('slider');
+
+    fireEvent.mouseDown(knob);
+
+    // Check if the element is focused
+    expect(document.activeElement).toBe(knob);
+  });
 });
