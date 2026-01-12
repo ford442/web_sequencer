@@ -145,7 +145,7 @@ export const useAudioEngine = (pyodide: any) => {
         const generatorCache = new Map<string, AudioBuffer>();
         const BASE_GENERATION_FREQ = 220; // Hz
 
-        const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl' | 'wam' | 'pyodide', type: 'saw' | 'sqr' | 'tri' | 'sin', filterCutoff: number = 20000, filterResonance: number = 0): Promise<[...]>
+        const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl' | 'wam' | 'pyodide', type: 'saw' | 'sqr' | 'tri' | 'sin', filterCutoff: number = 20000, filterResonance: number = 0): Promise<AudioBuffer | null> => {
             const sampleRate = context.sampleRate;
             const key = `${engine}:${type}:${BASE_GENERATION_FREQ}:${sampleRate}:${filterCutoff}:${filterResonance}`;
             if (generatorCache.has(key)) return generatorCache.get(key)!;
@@ -521,7 +521,7 @@ export const useAudioEngine = (pyodide: any) => {
                     const oldestId = activeSynthNotes.current.keys().next().value;
                     if (oldestId !== undefined) {
                         const oldest = activeSynthNotes.current.get(oldestId as number);
-                            if (oldest && oldest.stop) oldest.stop();
+                        if (oldest && oldest.stop) oldest.stop();
                     }
                 }
                 const id = nextSynthNoteId.current++;
@@ -635,7 +635,6 @@ export const useAudioEngine = (pyodide: any) => {
 
                 // 3. Create Audio Source
                 const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
-                buffer.getChannelData(0).set(audioSamples);
 
                 const source = context.createBufferSource();
                 source.buffer = buffer;
@@ -739,7 +738,6 @@ export const useAudioEngine = (pyodide: any) => {
                 if (!audioSamples || audioSamples.length === 0) return null;
 
                 const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
-                buffer.getChannelData(0).set(audioSamples);
 
                 const source = context.createBufferSource();
                 source.buffer = buffer;
@@ -803,7 +801,7 @@ export const useAudioEngine = (pyodide: any) => {
 
             // Stop all sampler notes
             activeSamplerNotes.current.forEach((_entry, id) => {
-                 noteOffSampler(id);
+                  noteOffSampler(id);
             });
             // noteOffSampler removes them from map, but let's be safe
             activeSamplerNotes.current.clear();
