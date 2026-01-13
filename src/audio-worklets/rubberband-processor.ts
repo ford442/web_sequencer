@@ -30,8 +30,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private sampleRate = 44100;
   private lfoPhase = 0;
   private initialized = false;
-  private playing = false;
-  private isDoneProcessing = false;
   private fullSampleBuffer: Float32Array | null = null;
 
 
@@ -97,8 +95,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
       case 'noteOn':
         if (!this.initialized || !this.fullSampleBuffer) return;
-        this.playing = true;
-        this.isDoneProcessing = false;
         this.rubberBand.reset();
         this.rubberBand.setPitchScale(data.pitch || 1.0);
         this.rubberBand.setTimeRatio(1.0);
@@ -108,7 +104,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         break;
 
       case 'noteOff':
-        this.playing = false;
         break;
     }
   }
