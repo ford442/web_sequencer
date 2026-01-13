@@ -32,6 +32,24 @@ const downloadBlob = (blob: Blob, filename: string) => {
     URL.revokeObjectURL(url);
 };
 
+// @perf-optimized: extracted for reuse to avoid redundant iterations
+/**
+ * Find the peak amplitude in a buffer.
+ * @param input Float32Array audio buffer
+ * @returns peak amplitude (0 to 1+)
+ */
+const getPeak = (input: Float32Array): number => {
+    let peak = 0;
+    const len = input.length;
+    // Unrolling loop slightly for potential speedup in some engines, or just keep simple.
+    // Simple is fine for JIT.
+    for (let i = 0; i < len; i++) {
+        const abs = Math.abs(input[i]);
+        if (abs > peak) peak = abs;
+    }
+    return peak;
+};
+
 /**
  * Normalize an audio buffer to a target peak level (default -1dB).
  * This addresses Task 4: Fix low sampler volume.
@@ -42,11 +60,7 @@ const downloadBlob = (blob: Blob, filename: string) => {
  */
 const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1, canMutate: boolean = false): Float32Array => {
     // Find peak amplitude
-    let peak = 0;
-    for (let i = 0; i < input.length; i++) {
-        const abs = Math.abs(input[i]);
-        if (abs > peak) peak = abs;
-    }
+    const peak = getPeak(input);
 
     // If peak is already near target or buffer is silent, return as-is
     if (peak < 0.001) return input;
@@ -104,15 +118,12 @@ export const floatTo16BitPCM = (input: Float32Array): Int16Array => {
  * Reduces memory allocation by skipping the intermediate Float32Array.
  * @param input Float32Array audio buffer
  * @param targetPeakDb Target peak in dB (default -1)
+ * @param knownPeak Optional pre-calculated peak to skip iteration
  * @returns Int16Array for XM sample
  */
-const normalizeAndConvertTo16Bit = (input: Float32Array, targetPeakDb: number = -1): Int16Array => {
-    // 1. Find Peak
-    let peak = 0;
-    for (let i = 0; i < input.length; i++) {
-        const abs = Math.abs(input[i]);
-        if (abs > peak) peak = abs;
-    }
+const normalizeAndConvertTo16Bit = (input: Float32Array, targetPeakDb: number = -1, knownPeak?: number): Int16Array => {
+    // 1. Find Peak (if not provided)
+    const peak = (knownPeak !== undefined) ? knownPeak : getPeak(input);
 
     const output = new Int16Array(input.length);
     let gain = 1.0;
@@ -169,13 +180,23 @@ const findZeroCrossing = (buffer: Float32Array, position: number, direction: num
 /**
  * Find optimal loop points for a synth sample by detecting the steady-state region.
  * Improved robustness to ensure loops are found even for complex or short waveforms.
- * @param buffer Audio buffer
+ * @param buffer Audio buffer (can be un-normalized if peakAmplitude is provided)
  * @param sampleRate Sample rate
  * @param attackDecayTime Estimated attack+decay time in seconds
+ * @param peakAmplitude Peak amplitude of the buffer (default 1.0) to scale thresholds
  * @returns Object with loopStart and loopEnd in samples
  */
-const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, attackDecayTime: number = 0.3): { loopStart: number, loopEnd: number } => {
+const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, attackDecayTime: number = 0.3, peakAmplitude: number = 1.0): { loopStart: number, loopEnd: number } => {
     const len = buffer.length;
+
+    // Adjust threshold based on peak amplitude if it would have been normalized
+    // Target normalized peak is approx 0.89 (-1dB)
+    // If peak is small (e.g. 0.1), effective threshold should be smaller relative to signal
+    // Formula: 0.2 * (peak / 0.89) if peak < 0.5, else 0.2
+    let threshold = 0.2;
+    if (peakAmplitude < NORMALIZATION_PEAK_THRESHOLD && peakAmplitude > 0.001) {
+         threshold = 0.2 * (peakAmplitude / 0.891);
+    }
 
     // 1. Define Search Region (Steady State)
     // Be less aggressive with skipping if buffer is short.
@@ -257,8 +278,8 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
             }
         }
 
-        // Only accept if error is reasonably small (e.g. < 0.1)
-        if (bestIdx !== -1 && bestErr < 0.2) {
+        // Only accept if error is reasonably small
+        if (bestIdx !== -1 && bestErr < threshold) {
             loopEnd = bestIdx;
         }
     }
@@ -374,16 +395,21 @@ export const exportSongToXM = async (
     const synthADuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthA.attack + params.synthA.decay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufA = await renderSynthToBuffer(params.synthA, 'C4', synthADuration, engines);
     const rawDataA = bufA.getChannelData(0);
-    // OPTIMIZED: Mutate in place to avoid allocation
-    const normalizedDataA = normalizeBuffer(rawDataA, -1, true);
-    const loopPointsA = findSynthLoopPoints(normalizedDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay);
+
+    // OPTIMIZED: Combined normalization and loop finding
+    // 1. Find Peak (once)
+    const peakA = getPeak(rawDataA);
+    // 2. Find Loop Points (using scaled threshold on raw data)
+    const loopPointsA = findSynthLoopPoints(rawDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay, peakA);
+    // 3. Normalize & Convert (passing known peak to skip re-scan)
+    const dataA = normalizeAndConvertTo16Bit(rawDataA, -1, peakA);
 
     // UPDATED: Calculate pitch for Synths too (handles 44.1k/48k correctly)
     const pitchA = calculateXMPitchParams(bufA.sampleRate);
 
     const sampleA = createSample({
         name: 'Lead',
-        data: floatTo16BitPCM(normalizedDataA),
+        data: dataA,
         volume: 64,
         loopType: loopPointsA.loopEnd > loopPointsA.loopStart ? LoopType.Forward : LoopType.None,
         loopStart: loopPointsA.loopStart,
@@ -399,16 +425,18 @@ export const exportSongToXM = async (
     const synthBDuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthB.attack + params.synthB.decay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufB = await renderSynthToBuffer(params.synthB, 'C4', synthBDuration, engines);
     const rawDataB = bufB.getChannelData(0);
-    // OPTIMIZED: Mutate in place to avoid allocation
-    const normalizedDataB = normalizeBuffer(rawDataB, -1, true);
-    const loopPointsB = findSynthLoopPoints(normalizedDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay);
+
+    // OPTIMIZED: Combined normalization and loop finding
+    const peakB = getPeak(rawDataB);
+    const loopPointsB = findSynthLoopPoints(rawDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay, peakB);
+    const dataB = normalizeAndConvertTo16Bit(rawDataB, -1, peakB);
     
     // UPDATED: Calculate pitch for Synths
     const pitchB = calculateXMPitchParams(bufB.sampleRate);
 
     const sampleB = createSample({
         name: 'Bass',
-        data: floatTo16BitPCM(normalizedDataB),
+        data: dataB,
         volume: 64,
         loopType: loopPointsB.loopEnd > loopPointsB.loopStart ? LoopType.Forward : LoopType.None,
         loopStart: loopPointsB.loopStart,
