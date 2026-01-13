@@ -293,13 +293,25 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
 
             {/* ROW 3: TTS */}
             <div className="flex gap-1 mt-1 items-center">
-                <input
-                    value={currentTtsText}
-                    onChange={e => setCurrentTtsText(e.target.value)}
-                    className="flex-1 bg-gray-900 border border-gray-700 rounded px-1 text-white text-[10px] outline-none focus:border-purple-500"
-                    placeholder="Phrase..."
-                    aria-label="Text to Speech Phrase"
-                />
+                <div className="relative flex-1 flex items-center">
+                    <input
+                        value={currentTtsText}
+                        onChange={e => setCurrentTtsText(e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded px-1 pr-4 text-white text-[10px] outline-none focus:border-purple-500"
+                        placeholder="Phrase..."
+                        aria-label="Text to Speech Phrase"
+                    />
+                    {currentTtsText && (
+                        <button
+                            onClick={() => setCurrentTtsText('')}
+                            className="absolute right-1 text-gray-500 hover:text-white text-[10px] focus:outline-none"
+                            aria-label="Clear Phrase"
+                            title="Clear"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
                 {/* TTS Status Light */}
                 <div
                     className={`w-3 h-3 border border-black shadow-sm flex-shrink-0 rounded-sm transition-colors ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}
