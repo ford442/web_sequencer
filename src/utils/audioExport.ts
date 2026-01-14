@@ -13,7 +13,6 @@ export function audioBufferToWav(buffer: AudioBuffer): Blob {
   const out = new ArrayBuffer(length);
   const view = new DataView(out);
   const channels = [];
-  let sample;
   let offset = 0;
   let pos = 0;
 
@@ -38,16 +37,45 @@ export function audioBufferToWav(buffer: AudioBuffer): Blob {
   for (let i = 0; i < buffer.numberOfChannels; i++)
     channels.push(buffer.getChannelData(i));
 
-  while (pos < buffer.length) {
-    for (let i = 0; i < numOfChan; i++) {
-      // Clamp the value to -1..1
-      sample = Math.max(-1, Math.min(1, channels[i][pos]));
-      // Scale to 16-bit integer
-      sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
-      view.setInt16(44 + offset, sample, true);
-      offset += 2;
+  // @perf-optimized: Use Int16Array for direct memory access (avoiding DataView overhead)
+  // Also fixes a bug where 'pos' (starting at 44) was used as sample index, skipping first 44 samples.
+  const isLittleEndian = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+  const len = buffer.length;
+
+  if (isLittleEndian) {
+    const sampleData = new Int16Array(out, 44);
+    let outputIndex = 0;
+
+    for (let i = 0; i < len; i++) {
+      for (let ch = 0; ch < numOfChan; ch++) {
+        let s = channels[ch][i];
+
+        // Clamp
+        if (s > 1.0) s = 1.0;
+        else if (s < -1.0) s = -1.0;
+
+        // Scale to 16-bit integer
+        s = s < 0 ? s * 32768 : s * 32767;
+
+        sampleData[outputIndex++] = s;
+      }
     }
-    pos++;
+  } else {
+    // Fallback for Big Endian systems
+    let sampleIndex = 0;
+    while (sampleIndex < len) {
+      for (let i = 0; i < numOfChan; i++) {
+        let s = channels[i][sampleIndex];
+        // Clamp
+        if (s > 1.0) s = 1.0;
+        else if (s < -1.0) s = -1.0;
+
+        s = (s < 0 ? s * 32768 : s * 32767) | 0;
+        view.setInt16(44 + offset, s, true);
+        offset += 2;
+      }
+      sampleIndex++;
+    }
   }
 
   return new Blob([out], { type: 'audio/wav' });
