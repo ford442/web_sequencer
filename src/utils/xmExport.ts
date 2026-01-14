@@ -58,6 +58,8 @@ const getPeak = (input: Float32Array): number => {
  * @param canMutate Whether the input buffer can be modified in-place (default false)
  * @returns Normalized Float32Array
  */
+
+/*
 const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1, canMutate: boolean = false): Float32Array => {
     // Find peak amplitude
     const peak = getPeak(input);
@@ -83,6 +85,7 @@ const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1, canMuta
 
     return input;
 };
+*/
 
 // @migrate-target: assemblyscript
 // @perf-optimized: Replaced broken/slow tanh soft-clip with fast hard-clip and optimized float->int conversion
