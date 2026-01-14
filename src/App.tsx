@@ -625,16 +625,25 @@ const StartOverlay = ({
     isReady: boolean
 }) => {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="start-overlay-title"
+        >
             <div className="text-center p-8 bg-[#1f2937] border-2 border-cyan-500 rounded-2xl shadow-2xl max-w-lg w-full">
-                <h1 className="text-4xl font-bold font-orbitron text-cyan-400 mb-2 tracking-widest drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]">
+                <h1 id="start-overlay-title" className="text-4xl font-bold font-orbitron text-cyan-400 mb-2 tracking-widest drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]">
                     HYPHON
                 </h1>
                 <p className="text-gray-400 mb-8 font-mono text-sm tracking-wide">
                     BROWSER AUDIO WORKSTATION
                 </p>
 
-                <div className="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700 text-left font-mono text-xs text-gray-300">
+                <div
+                    className="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700 text-left font-mono text-xs text-gray-300"
+                    role="status"
+                    aria-live="polite"
+                >
                     <p className="mb-2 text-cyan-500 font-bold">SYSTEM CHECK:</p>
                     <div className="flex justify-between mb-1">
                         <span>AUDIO ENGINE:</span>
@@ -653,6 +662,7 @@ const StartOverlay = ({
                 <button
                     onClick={onStart}
                     disabled={!isReady}
+                    aria-busy={!isReady}
                     className={`
                         w-full py-4 rounded-xl font-orbitron text-xl font-bold tracking-widest transition-all duration-300
                         ${isReady
