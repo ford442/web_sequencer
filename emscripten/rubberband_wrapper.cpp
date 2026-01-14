@@ -33,6 +33,11 @@ public:
         stretcher->setPitchScale(scale);
     }
 
+    void setFormantOption(int option) {
+        RubberBand::RubberBandStretcher::Options opts = (RubberBand::RubberBandStretcher::Options)option;
+        stretcher->setFormantOption(opts);
+    }
+
     int getSamplesRequired() {
         return stretcher->getSamplesRequired();
     }
@@ -86,9 +91,45 @@ EMSCRIPTEN_BINDINGS(rubberband_module) {
         .function("reset", &RubberBandWrapper::reset)
         .function("setTimeRatio", &RubberBandWrapper::setTimeRatio)
         .function("setPitchScale", &RubberBandWrapper::setPitchScale)
+        .function("setFormantOption", &RubberBandWrapper::setFormantOption)
         .function("getSamplesRequired", &RubberBandWrapper::getSamplesRequired)
         .function("getLatency", &RubberBandWrapper::getLatency)
         .function("available", &RubberBandWrapper::available)
         .function("process", &RubberBandWrapper::process)
         .function("retrieve", &RubberBandWrapper::retrieve);
+
+    // Export Rubber Band option constants
+    // Process options
+    constant("OptionProcessRealTime", (int)RubberBand::RubberBandStretcher::OptionProcessRealTime);
+    constant("OptionProcessOffline", (int)RubberBand::RubberBandStretcher::OptionProcessOffline);
+    
+    // Stretch options
+    constant("OptionStretchElastic", (int)RubberBand::RubberBandStretcher::OptionStretchElastic);
+    constant("OptionStretchPrecise", (int)RubberBand::RubberBandStretcher::OptionStretchPrecise);
+    
+    // Transient options
+    constant("OptionTransientsCrisp", (int)RubberBand::RubberBandStretcher::OptionTransientsCrisp);
+    constant("OptionTransientsMixed", (int)RubberBand::RubberBandStretcher::OptionTransientsMixed);
+    constant("OptionTransientsSmooth", (int)RubberBand::RubberBandStretcher::OptionTransientsSmooth);
+    
+    // Phase options
+    constant("OptionPhaseLaminar", (int)RubberBand::RubberBandStretcher::OptionPhaseLaminar);
+    constant("OptionPhaseIndependent", (int)RubberBand::RubberBandStretcher::OptionPhaseIndependent);
+    
+    // Formant options
+    constant("OptionFormantShifted", (int)RubberBand::RubberBandStretcher::OptionFormantShifted);
+    constant("OptionFormantPreserved", (int)RubberBand::RubberBandStretcher::OptionFormantPreserved);
+    
+    // Engine options
+    constant("OptionEngineFaster", (int)RubberBand::RubberBandStretcher::OptionEngineFaster);
+    constant("OptionEngineFiner", (int)RubberBand::RubberBandStretcher::OptionEngineFiner);
+    
+    // Pitch options
+    constant("OptionPitchHighSpeed", (int)RubberBand::RubberBandStretcher::OptionPitchHighSpeed);
+    constant("OptionPitchHighQuality", (int)RubberBand::RubberBandStretcher::OptionPitchHighQuality);
+    constant("OptionPitchHighConsistency", (int)RubberBand::RubberBandStretcher::OptionPitchHighConsistency);
+    
+    // Channel options
+    constant("OptionChannelsApart", (int)RubberBand::RubberBandStretcher::OptionChannelsApart);
+    constant("OptionChannelsTogether", (int)RubberBand::RubberBandStretcher::OptionChannelsTogether);
 }
