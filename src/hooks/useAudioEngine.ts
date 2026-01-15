@@ -635,6 +635,7 @@ export const useAudioEngine = (pyodide: any) => {
 
                 // 3. Create Audio Source
                 const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+                buffer.getChannelData(0).set(audioSamples);
 
                 const source = context.createBufferSource();
                 source.buffer = buffer;
@@ -738,6 +739,7 @@ export const useAudioEngine = (pyodide: any) => {
                 if (!audioSamples || audioSamples.length === 0) return null;
 
                 const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+                buffer.getChannelData(0).set(audioSamples);
 
                 const source = context.createBufferSource();
                 source.buffer = buffer;
