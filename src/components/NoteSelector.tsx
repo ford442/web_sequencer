@@ -32,7 +32,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
         >
             <div className="flex justify-between items-center pb-2 border-b border-slate-700">
                 <span id="note-selector-title" className="text-xs font-bold text-slate-300">NOTE PROPERTIES</span>
-                <button onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-white">✕</button>
+                <button onClick={onClose} aria-label="Close" title="Close" className="text-slate-500 hover:text-white">✕</button>
             </div>
 
             {/* NEW: Duration Control */}
@@ -49,6 +49,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                     value={currentLength || 1}
                     onChange={(e) => onLengthChange(parseInt(e.target.value))}
                     className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                    aria-valuetext={`${currentLength} Steps`}
                 />
             </div>
 
