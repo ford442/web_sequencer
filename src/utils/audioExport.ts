@@ -46,18 +46,45 @@ export function audioBufferToWav(buffer: AudioBuffer): Blob {
     const sampleData = new Int16Array(out, 44);
     let outputIndex = 0;
 
-    for (let i = 0; i < len; i++) {
-      for (let ch = 0; ch < numOfChan; ch++) {
-        let s = channels[ch][i];
+    // OPTIMIZATION: Unroll loops for common Mono and Stereo cases
+    // This avoids repeated array lookups and branch checks in the hot loop
+    if (numOfChan === 2) {
+      const ch0 = channels[0];
+      const ch1 = channels[1];
+      for (let i = 0; i < len; i++) {
+        let s = ch0[i];
+        // Clamp & Scale Left
+        if (s > 1.0) s = 1.0; else if (s < -1.0) s = -1.0;
+        sampleData[outputIndex++] = s < 0 ? s * 32768 : s * 32767;
 
-        // Clamp
-        if (s > 1.0) s = 1.0;
-        else if (s < -1.0) s = -1.0;
+        s = ch1[i];
+        // Clamp & Scale Right
+        if (s > 1.0) s = 1.0; else if (s < -1.0) s = -1.0;
+        sampleData[outputIndex++] = s < 0 ? s * 32768 : s * 32767;
+      }
+    } else if (numOfChan === 1) {
+      const ch0 = channels[0];
+      for (let i = 0; i < len; i++) {
+        let s = ch0[i];
+        // Clamp & Scale
+        if (s > 1.0) s = 1.0; else if (s < -1.0) s = -1.0;
+        sampleData[outputIndex++] = s < 0 ? s * 32768 : s * 32767;
+      }
+    } else {
+      // General case for N channels
+      for (let i = 0; i < len; i++) {
+        for (let ch = 0; ch < numOfChan; ch++) {
+          let s = channels[ch][i];
 
-        // Scale to 16-bit integer
-        s = s < 0 ? s * 32768 : s * 32767;
+          // Clamp
+          if (s > 1.0) s = 1.0;
+          else if (s < -1.0) s = -1.0;
 
-        sampleData[outputIndex++] = s;
+          // Scale to 16-bit integer
+          s = s < 0 ? s * 32768 : s * 32767;
+
+          sampleData[outputIndex++] = s;
+        }
       }
     }
   } else {
