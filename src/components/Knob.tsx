@@ -85,11 +85,20 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
   }, [step, value, min, max, onChange]);
 
   const formatValue = (val: number) => {
+    // Special case: milliseconds
     if (unit === 's' && val < 1) return `${(val * 1000).toFixed(0)}ms`;
+
+    // Special case: kilohertz
     if (unit === 'Hz' && val >= 1000) return `${(val / 1000).toFixed(1)}k`;
-    if (val >= 10 || val === 0) return val.toFixed(0);
-    if (val < 0.1) return val.toFixed(3);
-    return val.toFixed(2);
+
+    // Standard formatting
+    let formatted: string;
+    if (val >= 10 || val === 0) formatted = val.toFixed(0);
+    else if (val < 0.1) formatted = val.toFixed(3);
+    else formatted = val.toFixed(2);
+
+    // Append unit if it exists (always, unless handled by special cases above)
+    return `${formatted}${unit || ''}`;
   };
 
   const colorClasses = {
@@ -135,6 +144,7 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
         aria-valuemin={min}
         aria-valuemax={max}
         aria-valuenow={value}
+        aria-valuetext={formatValue(value)}
         aria-orientation="vertical"
       >
         <div
@@ -148,7 +158,7 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
         </div>
       </div>
       <span className="text-xs text-gray-400 uppercase tracking-wider">{label}</span>
-      <span className="text-sm font-mono text-gray-300">{formatValue(value)}{unit && unit !== 'Hz' && unit !== 's' ? unit : ''}</span>
+      <span className="text-sm font-mono text-gray-300">{formatValue(value)}</span>
     </div>
   );
 };
