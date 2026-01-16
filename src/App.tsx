@@ -549,7 +549,7 @@ export const App: React.FC = () => {
     const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } };
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...copy[track]]; copy[track][activeTrackSlotsRef.current[track]] = sequence; return copy; }); }, []);
 
-    const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
+    const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
         setPattern(prev => {
             const copy = { ...prev };
             if (rowKey === 'sampler') {
@@ -716,27 +716,19 @@ export const App: React.FC = () => {
             <div className="flex items-center gap-4">
                 {/* Volume & Pan */}
                 <div className="flex items-center gap-2 mr-4">
-                    <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
-                    <input id="master-volume" type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Master Volume" />
-                </div>
-                <div className="flex items-center gap-2 mr-4">
-                    <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
-                    <input id="global-pan" type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Global Pan" />
+                    <label className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
+                    <input type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
-                        <button onMouseDown={() => handleTempoHoldStart(-1)} onMouseUp={handleTempoHoldEnd} onMouseLeave={handleTempoHoldEnd} onKeyDown={(e) => handleTempoKeyDown(e, -1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700">-</button>
+                        <button onClick={() => adjustTempo(-1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700">-</button>
                         <span className="w-12 text-center font-mono text-cyan-300 text-sm">{tempo}</span>
-                        <button onMouseDown={() => handleTempoHoldStart(1)} onMouseUp={handleTempoHoldEnd} onMouseLeave={handleTempoHoldEnd} onKeyDown={(e) => handleTempoKeyDown(e, 1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700">+</button>
+                        <button onClick={() => adjustTempo(1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700">+</button>
                     </div>
                 </div>
                 <button onClick={handlePanic} className="w-8 h-8 rounded-full bg-red-900/50 text-red-500 flex items-center justify-center font-bold text-xs mr-2">!</button>
                 <button onClick={() => setIsRecording(!isRecording)} className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-700'}`}>REC</button>
                 <button onClick={() => setIsSongModeOpen(!isSongModeOpen)} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300' : 'bg-gray-800 text-gray-400'}`}>SONG</button>
-                <div className="flex items-center gap-2 mr-2">
-                    <label htmlFor="song-mode-toggle" className="text-[10px] text-gray-500 font-mono uppercase">Song Mode</label>
-                    <input id="song-mode-toggle" type="checkbox" checked={isSongModeActive} onChange={(e) => setIsSongModeActive(e.target.checked)} />
-                </div>
                 <button onClick={handlePlayToggle} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide ${isPlaying ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>{isPlaying ? 'STOP' : 'PLAY'}</button>
 
                 {/* 3D TOGGLE */}
