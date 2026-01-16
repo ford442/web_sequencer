@@ -32,7 +32,7 @@ describe('audioBufferToWav Performance', () => {
             numberOfChannels: 2,
             length: length,
             sampleRate: 44100
-        }) as AudioBuffer;
+        }) as unknown as AudioBuffer;
 
         // Fill with random data
         for (let ch = 0; ch < 2; ch++) {
