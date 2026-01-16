@@ -7,6 +7,9 @@
 // - Input: Float32Array of audio samples
 // - Output: Direct memory writes of Int16 PCM data
 
+// @perf-optimized: Hoist endianness check to module scope to avoid repeated allocation
+const IS_LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+
 export function audioBufferToWav(buffer: AudioBuffer): Blob {
   const numOfChan = buffer.numberOfChannels;
   const length = buffer.length * numOfChan * 2 + 44;
@@ -37,12 +40,11 @@ export function audioBufferToWav(buffer: AudioBuffer): Blob {
   for (let i = 0; i < buffer.numberOfChannels; i++)
     channels.push(buffer.getChannelData(i));
 
-  // @perf-optimized: Use Int16Array for direct memory access (avoiding DataView overhead)
-  // Also fixes a bug where 'pos' (starting at 44) was used as sample index, skipping first 44 samples.
-  const isLittleEndian = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
   const len = buffer.length;
 
-  if (isLittleEndian) {
+  if (IS_LITTLE_ENDIAN) {
+    // @perf-optimized: Use Int16Array for direct memory access (avoiding DataView overhead)
+    // Also fixes a bug where 'pos' (starting at 44) was used as sample index, skipping first 44 samples.
     const sampleData = new Int16Array(out, 44);
     let outputIndex = 0;
 
