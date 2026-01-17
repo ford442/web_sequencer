@@ -23,12 +23,11 @@ describe('App', () => {
     const songElements = screen.getAllByText(/Song/i);
     expect(songElements.length).toBeGreaterThan(0);
 
-    // Check for the new Song Mode toggle
-    expect(screen.getByText('Song Mode')).toBeInTheDocument();
-
-    // Check for the Song button
-    // The button has aria-label="Open Song Mode" when closed
-    const songModeButtons = screen.getAllByRole('button', { name: /Song Mode/i });
+    // Check for the Song button (now accessible via aria-label)
+    const songModeButtons = screen.getAllByRole('button', { name: /Toggle Song Mode/i });
     expect(songModeButtons.length).toBeGreaterThan(0);
+
+    // Check visible text
+    expect(screen.getByText('SONG')).toBeInTheDocument();
   });
 });
