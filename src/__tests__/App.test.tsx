@@ -24,7 +24,7 @@ describe('App', () => {
     expect(songElements.length).toBeGreaterThan(0);
 
     // Check for the new Song Mode toggle
-    expect(screen.getByText('Song Mode')).toBeInTheDocument();
+    expect(screen.getByText('SONG')).toBeInTheDocument();
 
     // Check for the Song button
     // The button has aria-label="Open Song Mode" when closed
