@@ -538,15 +538,15 @@ export const App: React.FC = () => {
         }
     }, [schedPlaying]);
 
-    const handlePlayToggle = useCallback(async () => {
+    const handlePlayToggle = async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
         setSchedPlaying(!schedPlaying)
-    }, [isInitialized, initializeAudio, schedPlaying, setSchedPlaying]);
+    }
 
-    const handleMasterVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v); }, [audioEngine]);
-    const handleMasterVolumeKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); } }, [audioEngine]);
-    const handleGlobalPan = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const p = parseFloat(e.target.value); const val = (p > -0.1 && p < 0.1) ? 0 : p; setGlobalPan(val); audioEngine?.setGlobalPan(val); }, [audioEngine]);
-    const handleGlobalPanKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } }, [audioEngine]);
+    const handleMasterVolume = (e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v); };
+    const handleMasterVolumeKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); } };
+    const handleGlobalPan = (e: React.ChangeEvent<HTMLInputElement>) => { const p = parseFloat(e.target.value); const val = (p > -0.1 && p < 0.1) ? 0 : p; setGlobalPan(val); audioEngine?.setGlobalPan(val); };
+    const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } };
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...copy[track]]; copy[track][activeTrackSlotsRef.current[track]] = sequence; return copy; }); }, []);
 
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
@@ -637,16 +637,16 @@ export const App: React.FC = () => {
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => { if (!isNoteDragging || !noteDragRef.current) return; if (!noteDragRef.current.hasMoved) { const { track, step } = noteDragRef.current; setContextMenu({ x: e.clientX, y: e.clientY, track, step }); } else if (noteDragRef.current.pendingSequence) { updateStorageForTrack(noteDragRef.current.track, noteDragRef.current.pendingSequence); } setIsNoteDragging(false); noteDragRef.current = null; document.body.style.cursor = 'default'; }, [isNoteDragging, updateStorageForTrack]);
     useEffect(() => { if (isNoteDragging) { window.addEventListener('mousemove', handleGlobalMouseMove); window.addEventListener('mouseup', handleGlobalMouseUp); } return () => { window.removeEventListener('mousemove', handleGlobalMouseMove); window.removeEventListener('mouseup', handleGlobalMouseUp); }; }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
 
-    const handleNoteSelect = useCallback((note: string) => { if (!contextMenu) return; setPattern(prev => { const copy = JSON.parse(JSON.stringify(prev)) as Pattern; if (contextMenu.track === 'sampler') { const stepData = copy.sampler[activeSamplerBankRef.current].steps[contextMenu.step]; if (stepData) stepData.note = note; updateStorageForTrack('sampler', copy.sampler); } else { const stepData = copy[contextMenu.track].steps[contextMenu.step]; if (stepData) stepData.note = note; updateStorageForTrack(contextMenu.track, copy[contextMenu.track]); } return copy; }); setContextMenu(null); }, [contextMenu, updateStorageForTrack]);
-    const handleNoteLengthChange = useCallback((newLength: number) => { if (!contextMenu) return; setPattern(prev => { const copy = JSON.parse(JSON.stringify(prev)) as Pattern; const trackKey = contextMenu.track; const stepIndex = contextMenu.step; const isSampler = trackKey === 'sampler'; let stepsArray; if (isSampler) { stepsArray = copy.sampler[activeSamplerBankRef.current].steps; } else { stepsArray = (copy[trackKey] as any).steps; } const stepData = stepsArray[stepIndex]; if (stepData) { stepData.length = newLength; for (let i = 1; i < newLength; i++) { const nextStepIdx = stepIndex + i; if (nextStepIdx < stepsArray.length) { stepsArray[nextStepIdx] = null; } } } if (isSampler) { updateStorageForTrack('sampler', copy.sampler); } else { updateStorageForTrack(trackKey, copy[trackKey]); } return copy; }); }, [contextMenu, updateStorageForTrack]);
-    const handleClearPattern = useCallback(() => { if (window.confirm("Clear current pattern?")) { const emptyPattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({length:8}, () => ({ steps: Array(32).fill(null) })), } as any as Pattern; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlotsRef.current[key]] = emptyPattern[key]; }); return storageCopy; }); } }, []);
+    const handleNoteSelect = (note: string) => { if (!contextMenu) return; setPattern(prev => { const copy = JSON.parse(JSON.stringify(prev)) as Pattern; if (contextMenu.track === 'sampler') { const stepData = copy.sampler[activeSamplerBank].steps[contextMenu.step]; if (stepData) stepData.note = note; updateStorageForTrack('sampler', copy.sampler); } else { const stepData = copy[contextMenu.track].steps[contextMenu.step]; if (stepData) stepData.note = note; updateStorageForTrack(contextMenu.track, copy[contextMenu.track]); } return copy; }); setContextMenu(null); };
+    const handleNoteLengthChange = (newLength: number) => { if (!contextMenu) return; setPattern(prev => { const copy = JSON.parse(JSON.stringify(prev)) as Pattern; const trackKey = contextMenu.track; const stepIndex = contextMenu.step; const isSampler = trackKey === 'sampler'; let stepsArray; if (isSampler) { stepsArray = copy.sampler[activeSamplerBank].steps; } else { stepsArray = (copy[trackKey] as any).steps; } const stepData = stepsArray[stepIndex]; if (stepData) { stepData.length = newLength; for (let i = 1; i < newLength; i++) { const nextStepIdx = stepIndex + i; if (nextStepIdx < stepsArray.length) { stepsArray[nextStepIdx] = null; } } } if (isSampler) { updateStorageForTrack('sampler', copy.sampler); } else { updateStorageForTrack(trackKey, copy[trackKey]); } return copy; }); };
+    const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({length:8}, () => ({ steps: Array(32).fill(null) })), } as any as Pattern; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => { handlePatternChange(k, i, undefined, { length: len }); }, [handlePatternChange]);
     const handleRemoveMeasure = useCallback(() => { const currentStructure = songStructure; if (currentStructure.length === 0) return; const last = currentStructure[currentStructure.length - 1]; const hasData = Object.values(last).some(v => v !== null); if (hasData) { if (!window.confirm("The last measure contains patterns. Are you sure you want to remove it?")) return; } setSongStructure(prev => prev.slice(0, -1)); }, [songStructure]);
     const handleLoadSample = useCallback((name: string, buffer: AudioBuffer) => { if (!audioEngine) return; audioEngine.loadSampleToEngine(name, buffer); setSampleBuffers(prev => { const next = [...prev]; next[activeSamplerBank] = buffer; return next; }); const bankName = `bank_${activeSamplerBank}`; setSampler(prev => { const newParams = [...prev]; newParams[activeSamplerBank] = { ...newParams[activeSamplerBank], sampleName: bankName }; return newParams; }); }, [audioEngine, activeSamplerBank]);
 
-    const handleSaveSong = useCallback(async (slot: number) => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); const snapshot: SongSnapshot = { pattern, tempo, ambianceUrl, backgroundImage, params: { synthA, synthB, kick, snare, closedHat, openHat, sampler } }; setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; }); setActiveSongSlot(slot); }, [sampleBuffers, pattern, tempo, ambianceUrl, backgroundImage, synthA, synthB, kick, snare, closedHat, openHat, sampler]);
+    const handleSaveSong = async (slot: number) => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); const snapshot: SongSnapshot = { pattern, tempo, ambianceUrl, backgroundImage, params: { synthA, synthB, kick, snare, closedHat, openHat, sampler } }; setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; }); setActiveSongSlot(slot); };
     const loadSong = useCallback((slot: number) => { const snapshot = songStorage[slot]; if (!snapshot) return; setPattern(snapshot.pattern); setTempo(snapshot.tempo); setAmbianceUrl(snapshot.ambianceUrl); setBackgroundImage(snapshot.backgroundImage); setSynthA(snapshot.params.synthA); setSynthB(snapshot.params.synthB); setKick(snapshot.params.kick); setSnare(snapshot.params.snare); setClosedHat(snapshot.params.closedHat); setOpenHat(snapshot.params.openHat); setSampler(snapshot.params.sampler); setActiveSongSlot(slot); synthARef.current = snapshot.params.synthA; synthBRef.current = snapshot.params.synthB; kickRef.current = snapshot.params.kick; snareRef.current = snapshot.params.snare; closedHatRef.current = snapshot.params.closedHat; openHatRef.current = snapshot.params.openHat; samplerRef.current = snapshot.params.sampler; }, [songStorage]);
     const getSongData = useCallback(async () => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); return { version: 1, pattern: patternRef.current, tempo: tempoRef.current, ambianceUrl, backgroundImage, params: { synthA: synthARef.current, synthB: synthBRef.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, trackStorage: trackStorageRef.current, activeTrackSlots: activeTrackSlotsRef.current, songStructure: songStructureRef.current, embeddedSamples: encodedSamples, ttsPhrases } as SavedSongData; }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
     const getBankData = useCallback(() => { return { type: 'bank', trackStorage }; }, [trackStorage]);
@@ -678,7 +678,7 @@ export const App: React.FC = () => {
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
     const samplerChild = useMemo(() => (<div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={setTtsPhrases} /></div>), [sampler, updateSampler, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases]);
 
-    const renderModulePanel = useCallback(() => {
+    const renderModulePanel = () => {
         if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange}>{synthAChild}</HardwareModule>;
         if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange}>{synthBChild}</HardwareModule>;
         if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} />;
@@ -687,11 +687,11 @@ export const App: React.FC = () => {
         if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} />;
         if (selectedTrack === 'sampler') { return (<HardwareModule title={`SAMPLER // BANK ${activeSamplerBank + 1}`} colorHex={COLOR_SAMPLER} controls={samplerControls} onParamChange={handleSamplerChange}>{samplerChild}</HardwareModule>); }
         return null;
-    }, [selectedTrack, activeSamplerBank, synthAControls, onSynthAParamChange, synthAChild, synthBControls, onSynthBParamChange, synthBChild, kickControls, handleKickChange, snareControls, handleSnareChange, closedHatControls, handleClosedHatChange, openHatControls, handleOpenHatChange, samplerControls, handleSamplerChange, samplerChild]);
+    };
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
-    const headerNode = useMemo(() => (
+    const renderHeader = () => (
         <header className="h-16 flex items-center justify-between px-6 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 shadow-2xl shrink-0 relative backdrop-blur-sm w-full">
             <div className="flex items-center gap-6">
                 <h1 className="text-xl font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">HYPHON</h1>
@@ -715,13 +715,9 @@ export const App: React.FC = () => {
 
             <div className="flex items-center gap-4">
                 {/* Volume & Pan */}
-                <div className="flex items-center gap-2 mr-2">
-                    <label className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
-                    <input type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} aria-label="Master Volume" className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
-                </div>
                 <div className="flex items-center gap-2 mr-4">
-                    <label className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
-                    <input type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} aria-label="Global Pan" className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                    <label className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
+                    <input type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
@@ -732,7 +728,7 @@ export const App: React.FC = () => {
                 </div>
                 <button onClick={handlePanic} className="w-8 h-8 rounded-full bg-red-900/50 text-red-500 flex items-center justify-center font-bold text-xs mr-2">!</button>
                 <button onClick={() => setIsRecording(!isRecording)} className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-700'}`}>REC</button>
-                <button onClick={() => setIsSongModeOpen(!isSongModeOpen)} aria-label="Song Mode" className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300' : 'bg-gray-800 text-gray-400'}`}>SONG</button>
+                <button onClick={() => setIsSongModeOpen(!isSongModeOpen)} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300' : 'bg-gray-800 text-gray-400'}`}>SONG</button>
                 <button onClick={handlePlayToggle} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide ${isPlaying ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>{isPlaying ? 'STOP' : 'PLAY'}</button>
 
                 {/* 3D TOGGLE */}
@@ -744,9 +740,9 @@ export const App: React.FC = () => {
                 </button>
             </div>
         </header>
-    ), [songStorage, activeSongSlot, masterVolume, globalPan, tempo, isRecording, isSongModeOpen, isPlaying, is3DMode, loadSong, handleSaveSong, exportSongToFile, importSongFromFile, handleClearPattern, handleMasterVolume, handleMasterVolumeKeyDown, handleGlobalPan, handleGlobalPanKeyDown, adjustTempo, handlePanic, handlePlayToggle]);
+    );
 
-    const sequencerNode = useMemo(() => (
+    const renderSequencer = () => (
         <div className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative">
              <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
              {/* Screws */}
@@ -779,29 +775,29 @@ export const App: React.FC = () => {
                 </div>
             )}
         </div>
-    ), [pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange]);
+    );
 
-    const keyboardNode = useMemo(() => (
+    const renderKeyboard = () => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
             <LiveKeyboard onPlayNote={handleKeyboardPlay} onStopNote={handleKeyboardStop} activeTrackColor={selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') : selectedTrack === 'kick' ? '#f97316' : selectedTrack === 'snare' ? '#22c55e' : selectedTrack === 'sampler' ? '#a855f7' : '#eab308'} />
         </div>
-    ), [handleKeyboardPlay, handleKeyboardStop, selectedTrack]);
+    );
 
-    const rackNode = useMemo(() => (
+    const renderRack = () => (
         <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative">
              <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
              {renderModulePanel()}
         </div>
-    ), [renderModulePanel]);
+    );
 
     // --- MAIN RENDER ---
     if (is3DMode) {
         return (
             <Studio3D
-                header={headerNode}
-                sequencer={sequencerNode}
-                keyboard={keyboardNode}
-                rack={rackNode}
+                header={renderHeader()}
+                sequencer={renderSequencer()}
+                keyboard={renderKeyboard()}
+                rack={renderRack()}
                 onExit={() => setIs3DMode(false)}
             />
         );
@@ -816,23 +812,23 @@ export const App: React.FC = () => {
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
 
             {/* Standard 2D Layout */}
-            {headerNode}
+            {renderHeader()}
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={useCallback(() => setIsSongModeOpen(prev => !prev), [])} onUpdateStep={useCallback((idx: number, key: TrackKey, val: number | null) => { setSongStructure(prev => { const copy = [...prev]; copy[idx] = { ...copy[idx], [key]: val }; return copy; }); }, [])} onAddMeasure={useCallback(() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }]), [])} onRemoveMeasure={handleRemoveMeasure} onExportXM={useCallback(() => { exportSongToXM(songStructureRef.current, trackStorageRef.current, { synthA: synthARef.current, synthB: synthBRef.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, tempoRef.current, patternRef.current, { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide: pyodide }, sampleBuffers); }, [audioEngine, pyodide, sampleBuffers])} />
 
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
                 {contextMenu && (<NoteSelector x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'} currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''} currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1} onSelect={handleNoteSelect} onLengthChange={handleNoteLengthChange} onClose={() => setContextMenu(null)} getNoteColor={getNoteColor} />)}
                 <div className="w-full max-w-[1000px] mx-auto h-[480px]">
-                    {sequencerNode}
+                    {renderSequencer()}
                 </div>
                 <div className="shrink-0 pb-4 mt-6 max-w-[1000px] mx-auto w-full">
-                    {keyboardNode}
+                    {renderKeyboard()}
                 </div>
             </main>
 
             <div className="h-[320px] bg-gradient-to-b from-[#0d0f12] to-[#0f1215] border-t-2 border-cyan-900/30 relative shadow-[0_-10px_60px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(6,182,212,0.1)] z-30 shrink-0 fixed bottom-0 w-full">
                 <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
                 <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
-                    {rackNode}
+                    {renderRack()}
                 </div>
             </div>
         </div>
