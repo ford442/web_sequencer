@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
 import path from 'path';
 
 export default defineConfig({
@@ -16,7 +18,9 @@ export default defineConfig({
           dest: 'assets/onnx'
         }
       ]
-    })
+    }),
+    wasm(),
+    topLevelAwait()
   ],
   server: {
     port: 3000,
