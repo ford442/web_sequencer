@@ -766,40 +766,64 @@ export const App: React.FC = () => {
         </header>
     );
 
-    const renderSequencer = () => (
-        <div className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative">
-             <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
-             {/* Screws */}
-             <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-             <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-             <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-             <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-
-             <svg viewBox="0 0 1050 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" onContextMenu={(e) => e.preventDefault()}>
-                <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
-                <g transform="translate(100, 40)">
-                    {ROWS.map((row, rIdx) => (
-                        <SequencerRow
-                            key={row.key} ref={(el) => { rowRefs.current[rIdx] = el; }} rowKey={row.key} label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label} rowIndex={rIdx}
-                            steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
-                            isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
-                            onToggle={handleStepToggle} onRightMouseDown={handleRightMouseDown} onEditLength={handleEditLength} onSelectRow={handleSelectRow} onSelectSlot={handleTrackSlotClick}
-                        />
-                    ))}
-                </g>
-            </svg>
-            {contextMenu && (
-                <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
-                    <NoteSelector
-                        x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
-                        currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
-                        currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
-                        onSelect={handleNoteSelect} onLengthChange={handleNoteLengthChange} onClose={() => setContextMenu(null)} getNoteColor={getNoteColor}
-                    />
+    const renderSequencer = () => {
+        if (isSongModeOpen && is3DMode) {
+             return (
+                <div className="w-full h-[480px] p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-hidden">
+                     <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none z-50"></div>
+                     <SongMode
+                        isVisible={true}
+                        is3D={true}
+                        songStructure={songStructure}
+                        currentSongStep={currentSongMeasure}
+                        backgroundImage={backgroundImage}
+                        onSetBackgroundImage={setBackgroundImage}
+                        onToggle={handleSongModeToggle}
+                        onUpdateStep={handleSongStructureUpdate}
+                        onAddMeasure={handleAddMeasure}
+                        onRemoveMeasure={handleRemoveMeasure}
+                        onExportXM={handleExportXM}
+                        isSongModeActive={isSongModeActive}
+                        onSetIsSongModeActive={setIsSongModeActive}
+                     />
                 </div>
-            )}
-        </div>
-    );
+             );
+        }
+        return (
+            <div className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative">
+                <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
+                {/* Screws */}
+                <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+                <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+                <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+                <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+
+                <svg viewBox="0 0 1050 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" onContextMenu={(e) => e.preventDefault()}>
+                    <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
+                    <g transform="translate(100, 40)">
+                        {ROWS.map((row, rIdx) => (
+                            <SequencerRow
+                                key={row.key} ref={(el) => { rowRefs.current[rIdx] = el; }} rowKey={row.key} label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label} rowIndex={rIdx}
+                                steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
+                                isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
+                                onToggle={handleStepToggle} onRightMouseDown={handleRightMouseDown} onEditLength={handleEditLength} onSelectRow={handleSelectRow} onSelectSlot={handleTrackSlotClick}
+                            />
+                        ))}
+                    </g>
+                </svg>
+                {contextMenu && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
+                        <NoteSelector
+                            x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
+                            currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
+                            currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
+                            onSelect={handleNoteSelect} onLengthChange={handleNoteLengthChange} onClose={() => setContextMenu(null)} getNoteColor={getNoteColor}
+                        />
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const renderKeyboard = () => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
@@ -808,9 +832,26 @@ export const App: React.FC = () => {
     );
 
     const renderRack = () => (
-        <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative">
+        <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
              <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
-             {renderModulePanel()}
+
+             {is3DMode && (
+                 <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
+                    {ROWS.map(row => (
+                        <button
+                            key={row.key}
+                            onClick={() => setSelectedTrack(row.key)}
+                            className={`px-4 py-2 rounded text-xs font-bold font-orbitron border transition-all ${selectedTrack === row.key ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500 shadow-[0_0_10px_cyan]' : 'bg-gray-800 text-gray-500 border-gray-700 hover:bg-gray-700 hover:text-gray-300'}`}
+                        >
+                            {row.label.toUpperCase()}
+                        </button>
+                    ))}
+                 </div>
+             )}
+
+             <div className="flex-1 relative overflow-hidden">
+                {renderModulePanel()}
+             </div>
         </div>
     );
 
