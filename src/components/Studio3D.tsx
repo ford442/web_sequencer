@@ -32,7 +32,7 @@ const CameraRig = () => {
         const speed = 15 * delta; // Movement speed
         const direction = new THREE.Vector3();
         camera.getWorldDirection(direction);
-        direction.y = 0; // Flatten movement to XZ plane for "walking" feel (optional, but good for studio)
+        direction.y = 0; // Flatten movement to XZ plane
         direction.normalize();
 
         const right = new THREE.Vector3();
@@ -50,19 +50,14 @@ const CameraRig = () => {
 
         // Clamp Position (Stay within the "studio")
         position.current.x = Math.max(-20, Math.min(20, position.current.x));
-        position.current.y = Math.max(1, Math.min(20, position.current.y)); // Don't go below floor
-        position.current.z = Math.max(5, Math.min(40, position.current.z)); // Don't go through the rack
+        position.current.y = Math.max(1, Math.min(20, position.current.y));
+        position.current.z = Math.max(5, Math.min(40, position.current.z));
 
         // Smoothly interpolate camera position
         camera.position.lerp(position.current, 0.1);
 
         // Parallax Look Logic
-        // Calculate a target point that shifts based on mouse position
-        // This creates a "looking around" effect while keeping the cursor free
         const lookTarget = new THREE.Vector3(0, 0, 0); // Focus on the center stage
-
-        // Dampened mouse influence (50% response feel)
-        // pointer.x is -1 to 1. Multiplier determines how far the "head" turns.
         lookTarget.x += pointer.x * 8;
         lookTarget.y += pointer.y * 5;
 
@@ -80,7 +75,7 @@ const Panel = ({ children, position, rotation, scale = 1 }: any) => {
         transform
         occlude="blending"
         style={{
-          width: '1000px', // Matches your UI max-width
+          width: '1000px',
           height: 'auto',
           backgroundColor: 'rgba(0,0,0,0.8)',
           borderRadius: '12px',
@@ -89,7 +84,7 @@ const Panel = ({ children, position, rotation, scale = 1 }: any) => {
           pointerEvents: 'auto'
         }}
       >
-        {/* Stop propagation to allow clicking UI without interfering with scene if needed */}
+        {/* Stop propagation so clicks don't fall through to the scene */}
         <div className="w-[1000px] pointer-events-auto select-none" onPointerDown={(e) => e.stopPropagation()}>
           {children}
         </div>
@@ -113,18 +108,18 @@ export const Studio3D: React.FC<Studio3DProps> = ({ header, sequencer, keyboard,
         {/* Environment */}
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
 
-        {/* Custom First Person Camera */}
+        {/* Custom First Person Camera - OrbitControls REMOVED */}
         <CameraRig />
 
         <Suspense fallback={null}>
           <group position={[0, -0.5, 0]}>
-
+            
             {/* Header - Floating Top HUD */}
             <Float speed={2} rotationIntensity={0.1} floatIntensity={0.2}>
               <Panel position={[0, 3.5, -1]} rotation={[0.1, 0, 0]} scale={0.25}>
                 {header}
                 <div className="absolute top-2 right-2">
-                    <button
+                    <button 
                         onClick={onExit}
                         className="px-4 py-2 bg-red-900/50 border border-red-500 text-red-200 rounded font-orbitron text-xs hover:bg-red-800 transition-colors"
                     >
@@ -160,7 +155,7 @@ export const Studio3D: React.FC<Studio3DProps> = ({ header, sequencer, keyboard,
         </Suspense>
       </Canvas>
 
-      {/* HUD Instructions for Camera */}
+      {/* HUD Instructions */}
       <div className="absolute bottom-4 right-4 text-gray-500 text-xs font-mono pointer-events-none opacity-50">
           <p>WASD to Move • Shift/Space Up/Down</p>
       </div>
