@@ -347,8 +347,20 @@ export const HardwareModule = React.memo(
 
                     // Initial render
                     render();
+
+                    // Start animation loop for holographic effects in 3D mode
+                    if (is3D) {
+                        const loop = () => {
+                            if (!isActive) return;
+                            render();
+                            animationFrameId = requestAnimationFrame(loop);
+                        };
+                        animationFrameId = requestAnimationFrame(loop);
+                    }
                 } catch (e) { console.error("WebGPU Init Failed", e); }
             };
+
+            let animationFrameId: number;
 
             // Pre-allocate buffers to avoid garbage collection in the render loop
             // Optimization: Single staging buffer for batched upload
@@ -413,6 +425,7 @@ export const HardwareModule = React.memo(
 
             return () => {
                 isActive = false;
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
                 renderRef.current = null;
                 if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
             };
