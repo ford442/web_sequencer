@@ -13,18 +13,31 @@ interface Studio3DProps {
 
 // Custom First-Person Camera Rig with Parallax
 const CameraRig = () => {
-    const { camera, pointer } = useThree();
+    const { camera } = useThree();
     const position = useRef(new THREE.Vector3(0, 5, 18)); // Initial position
     const keys = useRef(new Set<string>());
+
+    // Use a ref to track mouse position globally, avoiding canvas raycasting interference
+    const mouseRef = useRef({ x: 0, y: 0 });
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => keys.current.add(e.code);
         const handleKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
+
+        const handleMouseMove = (e: MouseEvent) => {
+            // Normalize to -1..1
+            mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseRef.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        };
+
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('mousemove', handleMouseMove);
+
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('mousemove', handleMouseMove);
         };
     }, []);
 
@@ -58,8 +71,10 @@ const CameraRig = () => {
 
         // Parallax Look Logic
         const lookTarget = new THREE.Vector3(0, 0, 0); // Focus on the center stage
-        lookTarget.x += pointer.x * 8;
-        lookTarget.y += pointer.y * 5;
+
+        // Use the global mouse ref instead of state.pointer
+        lookTarget.x += mouseRef.current.x * 8;
+        lookTarget.y += mouseRef.current.y * 5;
 
         camera.lookAt(lookTarget);
     });
