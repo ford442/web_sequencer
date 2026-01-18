@@ -26,7 +26,7 @@ export const useSustainProcessor = (audioContext: AudioContext | null) => {
 
         try {
             // Load the worklet module
-            await audioContext.audioWorklet.addModule('/sustain-processor.js');
+            await audioContext.audioWorklet.addModule('sustain-processor.js');
 
             // Create the node
             const sustainNode = new AudioWorkletNode(audioContext, 'sustain-processor', {
