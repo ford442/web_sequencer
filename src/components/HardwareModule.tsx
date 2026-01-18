@@ -18,6 +18,7 @@ interface HardwareModuleProps {
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void;
     children?: React.ReactNode;
+    is3D?: boolean; // Enable holographic shader in 3D mode
 }
 
 export const HardwareModule = React.memo(
@@ -27,7 +28,8 @@ export const HardwareModule = React.memo(
         controls,
         onParamChange,
         onRecordToggle,
-        children
+        children,
+        is3D = false
     }: HardwareModuleProps) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
@@ -140,13 +142,14 @@ export const HardwareModule = React.memo(
                     });
 
                     // Shader logic - supports up to 12 knobs
-                    const shaderCode = `
+                    // Two shader modes: standard and holographic (3D mode)
+                    const shaderCode = is3D ? `
+                    // HOLOGRAPHIC SHADER FOR 3D MODE
                     struct Uniforms {
                         time: f32, ratio: f32, pad1: f32, pad2: f32,
                         color: vec3f, pad3: f32,
                         vals1: vec4f, vals2: vec4f, vals3: vec4f,
                         pad4: vec4f,
-                        // Optimized: Use array for positions to avoid branching
                         pos: array<vec4f, 12>,
                     };
                     @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -166,7 +169,115 @@ export const HardwareModule = React.memo(
                     }
 
                     fn get_knob_val(idx: i32) -> f32 {
-                        // WGSL Dynamic Indexing into vec4 is efficient
+                        if (idx < 4) { return u.vals1[idx]; }
+                        if (idx < 8) { return u.vals2[idx - 4]; }
+                        return u.vals3[idx - 8];
+                    }
+
+                    fn rotate(angle: f32) -> mat2x2f {
+                        let c = cos(angle);
+                        let s = sin(angle);
+                        return mat2x2f(c, -s, s, c);
+                    }
+
+                    @fragment
+                    fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+                        var uv = in.uv * 0.5 + 0.5; 
+                        uv.y = 1.0 - uv.y;
+                        var p = uv; p.x = p.x * u.ratio;
+
+                        // Dark background with subtle grain
+                        var col = vec3f(0.08, 0.1, 0.12);
+                        col += (fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453) * 0.02);
+                        
+                        // Holographic scanlines
+                        let scanline = sin(uv.y * 300.0 + u.time * 8.0) * 0.5 + 0.5;
+                        col *= 0.92 + 0.08 * scanline;
+
+                        for (var i = 0; i < 12; i++) {
+                            let k_pos_uv = u.pos[i];
+                            if (k_pos_uv.z == 0.0) { continue; }
+
+                            let center_draw = vec2f(k_pos_uv.x * u.ratio, k_pos_uv.y);
+                            let delta = p - center_draw;
+                            let dist = length(delta);
+                            let radius = k_pos_uv.z;
+                            let val = get_knob_val(i);
+
+                            if (dist < radius * 1.2) {
+                                // Outer glow/halo effect
+                                let halo = smoothstep(radius * 1.2, radius * 0.9, dist);
+                                col += u.color * halo * 0.3 * (0.8 + 0.2 * sin(u.time * 3.0));
+
+                                if (dist < radius) {
+                                    // Rotating data ring
+                                    let rot_delta = rotate(u.time * 0.5) * delta;
+                                    let ring_dist = abs(length(rot_delta) - (radius * 0.85));
+                                    let angle_rot = atan2(rot_delta.y, rot_delta.x);
+                                    let dash = sin(angle_rot * 15.0);
+                                    if (ring_dist < 0.01 && dash > 0.3) {
+                                        col = mix(col, u.color * 1.5, smoothstep(0.01, 0.0, ring_dist));
+                                    }
+
+                                    // Inner holographic disc with fresnel
+                                    if (dist < radius * 0.7) {
+                                        let fresnel = pow(1.0 - (dist / (radius * 0.7)), 2.0);
+                                        col = mix(col, u.color * 0.3, 0.4 * fresnel);
+                                        
+                                        // Holographic shimmer
+                                        let shimmer = sin(dist * 100.0 - u.time * 10.0) * 0.5 + 0.5;
+                                        col += u.color * shimmer * 0.15 * fresnel;
+                                    }
+
+                                    // Value indicator needle with glow
+                                    let ang = mix(-2.4, 2.4, val) - 1.5708;
+                                    let dir = vec2f(cos(ang), sin(ang));
+                                    let proj = dot(delta, dir);
+                                    let perp_dist = length(delta - dir * proj);
+                                    
+                                    if (proj > 0.0 && proj < radius * 0.6 && perp_dist < 0.015) {
+                                        let needle_glow = 1.0 / (perp_dist * 80.0 + 1.0);
+                                        col = mix(col, vec3f(1.0, 1.0, 1.0), needle_glow * 0.8);
+                                        col += u.color * needle_glow * 0.5;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Holographic glitch effect (occasional)
+                        let glitch = step(0.97, sin(u.time * 15.0 + p.x * 50.0));
+                        if (glitch > 0.5) {
+                            col += u.color * 0.2 * (sin(u.time * 100.0) * 0.5 + 0.5);
+                        }
+
+                        return vec4f(col, 1.0);
+                    }
+                ` : `
+                    // STANDARD SHADER FOR 2D MODE
+                    struct Uniforms {
+                        time: f32, ratio: f32, pad1: f32, pad2: f32,
+                        color: vec3f, pad3: f32,
+                        vals1: vec4f, vals2: vec4f, vals3: vec4f,
+                        pad4: vec4f,
+                        pos: array<vec4f, 12>,
+                    };
+                    @group(0) @binding(0) var<uniform> u: Uniforms;
+
+                    struct VertexOutput {
+                        @builtin(position) position: vec4f,
+                        @location(0) uv: vec2f,
+                    };
+
+                    @vertex
+                    fn vs_main(@builtin(vertex_index) vIdx: u32) -> VertexOutput {
+                        var pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+                        var output: VertexOutput;
+                        output.position = vec4f(pos[vIdx], 0.0, 1.0);
+                        output.uv = pos[vIdx];
+                        return output;
+                    }
+
+                    fn get_knob_val(idx: i32) -> f32 {
                         if (idx < 4) { return u.vals1[idx]; }
                         if (idx < 8) { return u.vals2[idx - 4]; }
                         return u.vals3[idx - 8];
@@ -183,9 +294,7 @@ export const HardwareModule = React.memo(
                         col *= 0.9 + 0.1 * sin(uv.y * 200.0);
 
                         for (var i = 0; i < 12; i++) {
-                            // OPTIMIZED: Direct array access removes massive if/else chain
                             let k_pos_uv = u.pos[i];
-
                             if (k_pos_uv.z == 0.0) { continue; }
 
                             let center_draw = vec2f(k_pos_uv.x * u.ratio, k_pos_uv.y);
@@ -307,7 +416,7 @@ export const HardwareModule = React.memo(
                 renderRef.current = null;
                 if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
             };
-        }, []); // PERFORMANCE: Removed colorHex dependency to prevent re-initialization on track switch
+        }, [is3D]); // Re-initialize when switching between 2D and 3D mode
 
         return (
             <div ref={containerRef} className="relative rounded-lg shadow-xl overflow-hidden bg-gray-900 border border-gray-700" style={{ width: '100%', height: '100%', minHeight: '220px' }}>
