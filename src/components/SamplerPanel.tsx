@@ -339,44 +339,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 )}
             </div>
 
-            {/* ROW 4: PLAYBACK MODE SELECTOR */}
-            <div className="mt-1 bg-gray-800/30 p-1 rounded flex gap-1 items-center">
-                <span className="text-[10px] text-gray-400 mr-1">Mode:</span>
-                <div className="flex gap-1 flex-1">
-                    <button
-                        onClick={() => updateParam('mode', 'loop')}
-                        className={`flex-1 px-2 py-0.5 text-[10px] rounded border transition-all ${
-                            currentParams.mode === 'loop'
-                                ? 'bg-green-600 border-green-400 text-white'
-                                : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                        }`}
-                    >
-                        Loop
-                    </button>
-                    <button
-                        onClick={() => updateParam('mode', 'stretch')}
-                        className={`flex-1 px-2 py-0.5 text-[10px] rounded border transition-all ${
-                            currentParams.mode === 'stretch'
-                                ? 'bg-blue-600 border-blue-400 text-white'
-                                : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                        }`}
-                    >
-                        Stretch
-                    </button>
-                    <button
-                        onClick={() => updateParam('mode', 'wavetable')}
-                        className={`flex-1 px-2 py-0.5 text-[10px] rounded border transition-all ${
-                            currentParams.mode === 'wavetable'
-                                ? 'bg-purple-600 border-purple-400 text-white'
-                                : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                        }`}
-                    >
-                        Wavetable
-                    </button>
-                </div>
-            </div>
-
-            {/* ROW 5: INSTANT HARMONIZER */}
+            {/* ROW 4: INSTANT HARMONIZER */}
             <div className="mt-1 bg-gray-800/30 p-1 rounded flex gap-1 items-center">
                 <select
                     value={chordType}
@@ -394,7 +357,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 <button
                     onClick={handleHarmonizeClick}
                     disabled={isProcessingHarmonize || !onHarmonize}
-                    className="px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold"
+                    className={`px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
                     aria-label="Apply Harmonization"
                     aria-busy={isProcessingHarmonize}
                 >
@@ -409,7 +372,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     <div className="flex gap-1 flex-1" role="radiogroup" aria-labelledby="sampler-mode-label">
                         <button
                             onClick={() => handleModeChange('loop')}
-                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                                 (currentParams.mode || 'loop') === 'loop'
                                     ? 'bg-purple-600 border-purple-400 text-white'
                                     : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
@@ -423,7 +386,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         </button>
                         <button
                             onClick={() => handleModeChange('stretch')}
-                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                                 (currentParams.mode || 'loop') === 'stretch'
                                     ? 'bg-purple-600 border-purple-400 text-white'
                                     : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
@@ -437,7 +400,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         </button>
                         <button
                             onClick={() => handleModeChange('wavetable')}
-                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all ${
+                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                                 (currentParams.mode || 'loop') === 'wavetable'
                                     ? 'bg-purple-600 border-purple-400 text-white'
                                     : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
