@@ -21,6 +21,8 @@ interface SongModeProps {
     onAddMeasure: () => void;
     onRemoveMeasure: () => void;
     onExportXM: () => Promise<void> | void;
+    isSongModeActive: boolean;
+    onSetIsSongModeActive: (active: boolean) => void;
 }
 
 const ROWS: { key: TrackKey, label: string, color: string }[] = [
@@ -43,7 +45,9 @@ export const SongMode = memo(({
     onToggle,
     onAddMeasure,
     onRemoveMeasure,
-    onExportXM
+    onExportXM,
+    isSongModeActive,
+    onSetIsSongModeActive
 }: SongModeProps) => {
 
     // VISUAL CONSTANTS
@@ -248,6 +252,13 @@ export const SongMode = memo(({
                     </div>
                     <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all">- BAR</button>
                     <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all">+ BAR</button>
+                    <button
+                        onClick={() => onSetIsSongModeActive(!isSongModeActive)}
+                        aria-pressed={isSongModeActive}
+                        className={`px-3 py-1.5 text-xs rounded-lg border font-bold transition-all ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
+                    >
+                        {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
+                    </button>
                     <button
                         onClick={async () => {
                             if (isExporting) return;
