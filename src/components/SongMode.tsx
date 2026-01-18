@@ -47,8 +47,9 @@ export const SongMode = memo(({
     onRemoveMeasure,
     onExportXM,
     isSongModeActive,
-    onSetIsSongModeActive
-}: SongModeProps) => {
+    onSetIsSongModeActive,
+    is3D = false
+}: SongModeProps & { is3D?: boolean }) => {
 
     // VISUAL CONSTANTS
     const CELL_WIDTH = 40;
@@ -201,6 +202,80 @@ export const SongMode = memo(({
     }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
     const totalHeight = HEADER_HEIGHT + (ROWS.length * CELL_HEIGHT);
+
+    if (is3D) {
+        return (
+            <div className="w-full h-full flex flex-col bg-[#0a0d10]">
+                 {/* Context Menu */}
+                {menu && (
+                    <PatternSelector
+                        x={menu.x}
+                        y={menu.y}
+                        currentPattern={menu.currentVal}
+                        onSelect={(val) => {
+                            onUpdateStep(menu.sIdx, menu.track, val);
+                            setMenu(null);
+                        }}
+                        onClose={() => setMenu(null)}
+                    />
+                )}
+
+                 {/* Header */}
+                <div className="h-14 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 flex items-center justify-between px-6 shrink-0 relative">
+                     <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest">SONG ARRANGER</h2>
+                     <div className="flex gap-3 items-center">
+                        <button onClick={onRemoveMeasure} className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg border border-gray-600">- BAR</button>
+                        <button onClick={onAddMeasure} className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50">+ BAR</button>
+                        <button
+                            onClick={() => onSetIsSongModeActive(!isSongModeActive)}
+                            className={`px-3 py-1.5 text-xs rounded-lg border font-bold ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
+                        >
+                            {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
+                        </button>
+                     </div>
+                </div>
+
+                {/* Grid Container */}
+                <div className="flex-1 overflow-auto p-6 custom-scrollbar bg-gradient-to-b from-[#0a0d10] to-[#080a0b]">
+                    <div className="relative" style={{ width: Math.max(totalWidth, 760), height: totalHeight }}>
+                         {/* Time Ruler */}
+                        <div className="absolute left-0 top-0 h-[30px] flex border-b border-gray-800">
+                            <div style={{ width: ROW_HEADER_WIDTH }} className="shrink-0 bg-[#0b0d10] z-10 sticky left-0 border-r border-gray-800"></div>
+                            {songStructure.map((_, i) => (
+                                <div key={i} style={{ width: CELL_WIDTH }} className={`shrink-0 flex items-center justify-center text-[10px] font-mono border-r border-gray-800/30 ${i === currentSongStep ? 'bg-cyan-900/20 text-cyan-400 font-bold' : 'text-gray-600'}`}>{i + 1}</div>
+                            ))}
+                        </div>
+                        {/* Tracks */}
+                        <div className="absolute left-0 top-[30px]">
+                            {ROWS.map((row) => (
+                                <div key={row.key} className="flex h-[30px]">
+                                    <div style={{ width: ROW_HEADER_WIDTH }} className="shrink-0 bg-[#0b0d10] border-r border-gray-800 flex items-center px-2 sticky left-0 z-10">
+                                        <span className="text-[10px] font-bold tracking-wider" style={{ color: row.color }}>{row.label}</span>
+                                    </div>
+                                    {songStructure.map((step, sIdx) => {
+                                        const val = step[row.key];
+                                        const hasVal = val !== null;
+                                        const isPlaying = sIdx === currentSongStep;
+                                        return (
+                                            <div
+                                                key={`${row.key}-${sIdx}`}
+                                                style={{ width: CELL_WIDTH }}
+                                                className={`shrink-0 border-r border-b border-gray-800/30 relative cursor-pointer ${isPlaying ? 'bg-white/5' : 'bg-transparent'} ${hasVal ? '' : 'hover:bg-gray-800/50'}`}
+                                                onMouseDown={(e) => handleCellMouseDown(e, sIdx, row.key, val)}
+                                            >
+                                                {hasVal && <div className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black pointer-events-none" style={{ backgroundColor: getPatternColor(val!), opacity: isPlaying ? 1 : 0.8 }}>{val! + 1}</div>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="absolute top-0 bottom-0 w-[2px] bg-cyan-500/50 pointer-events-none z-20" style={{ left: ROW_HEADER_WIDTH + currentSongStep * CELL_WIDTH }} />
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div
