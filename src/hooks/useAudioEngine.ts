@@ -106,7 +106,7 @@ export const useAudioEngine = (pyodide: any) => {
         try {
             // FIX: Ensure correct path relative to base or root.
             // Vite serves public at root, so /sustain-processor.js is correct.
-            await context.audioWorklet.addModule('/sustain-processor.js');
+            await context.audioWorklet.addModule('./sustain-processor.js');
             const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
                 numberOfInputs: 0,
                 numberOfOutputs: 1,
