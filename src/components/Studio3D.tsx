@@ -39,7 +39,7 @@ const Panel = ({ children, position, rotation, scale = 1 }: any) => {
 export const Studio3D: React.FC<Studio3DProps> = ({ header, sequencer, keyboard, rack, onExit }) => {
   return (
     <div className="w-full h-screen bg-black">
-      <Canvas camera={{ position: [0, 2, 6], fov: 50 }}>
+      <Canvas camera={{ position: [0, 5, 18], fov: 50 }}>
         <color attach="background" args={['#050709']} />
 
         {/* Cinematic Lighting */}
@@ -55,8 +55,8 @@ export const Studio3D: React.FC<Studio3DProps> = ({ header, sequencer, keyboard,
         <OrbitControls
             enablePan={false}
             maxPolarAngle={Math.PI / 1.8} // Prevent going below floor
-            minDistance={3}
-            maxDistance={12}
+            minDistance={5}
+            maxDistance={40}
             target={[0, 0, 0]}
         />
 
@@ -65,7 +65,7 @@ export const Studio3D: React.FC<Studio3DProps> = ({ header, sequencer, keyboard,
 
             {/* Header - Floating Top HUD */}
             <Float speed={2} rotationIntensity={0.1} floatIntensity={0.2}>
-              <Panel position={[0, 2.8, -1]} rotation={[0.1, 0, 0]} scale={0.8}>
+              <Panel position={[0, 3.5, -1]} rotation={[0.1, 0, 0]} scale={0.25}>
                 {header}
                 <div className="absolute top-2 right-2">
                     <button
@@ -79,28 +79,28 @@ export const Studio3D: React.FC<Studio3DProps> = ({ header, sequencer, keyboard,
             </Float>
 
             {/* Sequencer - Main Desk */}
-            <Panel position={[0, 1.2, 0]} rotation={[-0.2, 0, 0]}>
+            <Panel position={[0, 0, 0]} rotation={[-0.2, 0, 0]} scale={0.3}>
               {sequencer}
             </Panel>
 
             {/* Keyboard - Lower Desk */}
-            <Panel position={[0, 0.1, 0.8]} rotation={[-0.4, 0, 0]}>
+            <Panel position={[0, -3.5, 1.5]} rotation={[-0.4, 0, 0]} scale={0.3}>
               {keyboard}
             </Panel>
 
             {/* Hardware Rack - Bottom/Front */}
-            <Panel position={[0, -1.2, 1.5]} rotation={[-0.6, 0, 0]}>
+            <Panel position={[0, -6.5, 3]} rotation={[-0.6, 0, 0]} scale={0.3}>
               {rack}
             </Panel>
 
           </group>
 
           {/* Floor Reflection */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -10, 0]}>
             <planeGeometry args={[50, 50]} />
             <meshStandardMaterial color="#0a0a0a" roughness={0.1} metalness={0.8} />
           </mesh>
-          <ContactShadows position={[0, -3, 0]} opacity={0.6} scale={40} blur={2} far={4} />
+          <ContactShadows position={[0, -10, 0]} opacity={0.6} scale={40} blur={2} far={4} />
         </Suspense>
       </Canvas>
     </div>
