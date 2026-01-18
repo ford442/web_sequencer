@@ -79,6 +79,10 @@ compile_c() {
 # Fix include path issue in VectorOpsComplex.cpp for the main build
 echo "  [Patch] Fixing VectorOpsComplex.cpp include..."
 sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' "$SCRIPT_DIR/rubberband/src/common/VectorOpsComplex.cpp" || true
+
+# Fix size_t issue in sysutils.h (needed for mathmisc.h etc)
+echo "  [Patch] Fixing size_t in sysutils.h..."
+sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' "$SCRIPT_DIR/rubberband/src/common/sysutils.h" || true
 # --- PATCH END ---
 
 # 1. Compile C sources (KissFFT, Speex)
