@@ -396,22 +396,12 @@ export class XMWriter {
 
     if (is16Bit) {
       // 16-bit sample data (delta encoded)
-      let lastValue = 0;
-      for (let i = 0; i < sample.data.length; i++) {
-        const value = sample.data[i];
-        const delta = value - lastValue;
-        this.writer.writeInt16(delta);
-        lastValue = value;
-      }
+      // Optimized: Use bulk writer to avoid function call overhead for every sample
+      this.writer.writeDeltaEncodedSamples16(sample.data);
     } else {
       // 8-bit sample data (delta encoded)
-      let lastValue = 0;
-      for (let i = 0; i < sample.data.length; i++) {
-        const value = sample.data[i];
-        const delta = value - lastValue;
-        this.writer.writeInt8(delta);
-        lastValue = value;
-      }
+      // Optimized: Use bulk writer
+      this.writer.writeDeltaEncodedSamples8(sample.data);
     }
   }
 }
