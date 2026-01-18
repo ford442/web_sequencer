@@ -166,4 +166,54 @@ export class BinaryWriter {
   writeUint16At(position: number, value: number): void {
     this.view.setUint16(position, value, true);
   }
+
+  /**
+   * Write 16-bit sample data (delta encoded) with optimization
+   * Optimized to avoid function call overhead and repeated capacity checks
+   * @param data Sample data
+   */
+  writeDeltaEncodedSamples16(data: Int16Array | Int8Array): void {
+    const len = data.length;
+    this.ensureCapacity(len * 2);
+
+    let lastValue = 0;
+    let offset = this.offset;
+    const uint8 = this.uint8;
+
+    for (let i = 0; i < len; i++) {
+      const value = data[i];
+      const delta = value - lastValue;
+      lastValue = value;
+
+      // Little Endian write of int16 delta
+      // delta is a JS number. Bitwise operators treat operands as 32-bit integers.
+      uint8[offset++] = delta & 0xFF;
+      uint8[offset++] = (delta >> 8) & 0xFF;
+    }
+    this.offset = offset;
+  }
+
+  /**
+   * Write 8-bit sample data (delta encoded) with optimization
+   * Optimized to avoid function call overhead and repeated capacity checks
+   * @param data Sample data
+   */
+  writeDeltaEncodedSamples8(data: Int16Array | Int8Array): void {
+    const len = data.length;
+    this.ensureCapacity(len);
+
+    let lastValue = 0;
+    let offset = this.offset;
+    const uint8 = this.uint8;
+
+    for (let i = 0; i < len; i++) {
+      const value = data[i];
+      const delta = value - lastValue;
+      lastValue = value;
+
+      // int8 delta
+      uint8[offset++] = delta & 0xFF;
+    }
+    this.offset = offset;
+  }
 }
