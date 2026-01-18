@@ -21,6 +21,9 @@ fi
 # and the build environment doesn't expose "system" as an include root.
 sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' rubberband/src/common/VectorOpsComplex.cpp || true
 
+# Fix size_t issue in sysutils.h
+sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' rubberband/src/common/sysutils.h || true
+
 # 2. Compile Rubber Band -> public/rubberband.js
 # We use -s EXPORTED_FUNCTIONS=['_malloc','_free'] so TS can manage memory
 em++ -O3 \
