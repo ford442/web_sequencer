@@ -5,6 +5,8 @@
 // - Memory management (copying data out of WASM memory)
 // - Error handling and fallback paths
 
+import initOscillators from '../../public/oscillators.wasm?init';
+
 export class WasmOscillator {
     private instance: WebAssembly.Instance | null = null;
     private memory: WebAssembly.Memory | null = null;
@@ -12,18 +14,13 @@ export class WasmOscillator {
 
     async init() {
         try {
-            // Load the WASM
-            const response = await fetch('./oscillators.wasm');
-            const bytes = await response.arrayBuffer();
-
             // Instantiate (Let WASM create its own memory)
-            const module = await WebAssembly.instantiate(bytes, {
+            this.instance = await initOscillators({
                 env: {
                     abort: () => console.error("Wasm Abort")
                 }
             });
 
-            this.instance = module.instance;
             // Grab the exported memory
             this.memory = this.instance.exports.memory as WebAssembly.Memory;
 

@@ -8,6 +8,7 @@
 // @future-plan: Move findLoopPoints and audioBufferToMono to WASM for large buffer processing
 
 import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '../types';
+import initTrackFreezer from '../../public/trackFreezer.wasm?init';
 
 // WASM Module Loader
 interface WasmExports {
@@ -30,10 +31,7 @@ export const setWasmInstance = (instance: WasmExports) => {
 const loadWasm = async () => {
     if (wasmInstance) return;
     try {
-        const response = await fetch('/trackFreezer.wasm');
-        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-        const bytes = await response.arrayBuffer();
-        const { instance } = await WebAssembly.instantiate(bytes, {
+        const instance = await initTrackFreezer({
             env: {
                 abort: () => console.error("WASM Abort")
             }

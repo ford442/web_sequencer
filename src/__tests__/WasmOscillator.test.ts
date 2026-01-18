@@ -11,24 +11,30 @@ describe('WasmOscillator', () => {
 
     beforeEach(() => {
         oscillator = new WasmOscillator();
+        vi.restoreAllMocks();
     });
 
     it('should initialize correctly', async () => {
-        // Mock a fake WASM module
-        const mockMemory = new WebAssembly.Memory({ initial: 1 });
         const mockExports = {
-            memory: mockMemory,
+            memory: new WebAssembly.Memory({ initial: 1 }),
             generate: vi.fn(() => 100) // Returns 100 samples
         };
 
-        // Spy on WebAssembly.instantiate
-        vi.spyOn(WebAssembly, 'instantiate').mockResolvedValue({
+        const wasmResult = {
             instance: { exports: mockExports } as any,
             module: {} as any
-        } as any);
+        };
+
+        // Spy on WebAssembly.instantiate and instantiateStreaming
+        // We mock both to ensure whichever path vite-plugin-wasm takes is covered
+        // and to avoid Node.js strict Response checks in instantiateStreaming.
+        vi.spyOn(WebAssembly, 'instantiate').mockResolvedValue(wasmResult as any);
+        vi.spyOn(WebAssembly, 'instantiateStreaming').mockResolvedValue(wasmResult as any);
 
         // Spy on fetch
         global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            headers: { get: () => 'application/wasm' },
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
         } as any);
 
