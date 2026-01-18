@@ -20,6 +20,8 @@ describe('SongMode Accessibility', () => {
         onAddMeasure: vi.fn(),
         onRemoveMeasure: vi.fn(),
         onExportXM: vi.fn(),
+        isSongModeActive: false,
+        onSetIsSongModeActive: vi.fn(),
     };
 
     it('renders grid cells with correct accessibility attributes', () => {
