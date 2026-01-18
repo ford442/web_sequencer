@@ -549,7 +549,7 @@ export const App: React.FC = () => {
     const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } };
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...copy[track]]; copy[track][activeTrackSlotsRef.current[track]] = sequence; return copy; }); }, []);
 
-    const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
+    const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
         setPattern(prev => {
             const copy = { ...prev };
             if (rowKey === 'sampler') {
@@ -721,13 +721,31 @@ export const App: React.FC = () => {
                 {/* Volume & Pan */}
                 <div className="flex items-center gap-2 mr-4">
                     <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
-                    <input id="master-volume" type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Master Volume" />
+                    <input id="master-volume" type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Master Volume" />
+                </div>
+                <div className="flex items-center gap-2 mr-4">
+                    <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
+                    <input id="global-pan" type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Global Pan" />
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
-                        <button onClick={() => adjustTempo(-1)} className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700" aria-label="Decrease Tempo">-</button>
+                        <button
+                            onMouseDown={() => handleTempoHoldStart(-1)}
+                            onMouseUp={handleTempoHoldEnd}
+                            onMouseLeave={handleTempoHoldEnd}
+                            onKeyDown={(e) => handleTempoKeyDown(e, -1)}
+                            className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                            aria-label="Decrease Tempo"
+                        >-</button>
                         <span className="w-12 text-center font-mono text-cyan-300 text-sm" role="status" aria-live="polite" aria-label={`Tempo: ${tempo} BPM`}>{tempo}</span>
-                        <button onClick={() => adjustTempo(1)} className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700" aria-label="Increase Tempo">+</button>
+                        <button
+                            onMouseDown={() => handleTempoHoldStart(1)}
+                            onMouseUp={handleTempoHoldEnd}
+                            onMouseLeave={handleTempoHoldEnd}
+                            onKeyDown={(e) => handleTempoKeyDown(e, 1)}
+                            className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                            aria-label="Increase Tempo"
+                        >+</button>
                     </div>
                 </div>
                 <button onClick={handlePanic} aria-label="Panic Stop All Notes" className="w-8 h-8 rounded-full bg-red-900/50 text-red-500 flex items-center justify-center font-bold text-xs mr-2">!</button>
@@ -819,7 +837,7 @@ export const App: React.FC = () => {
 
             {/* Standard 2D Layout */}
             {renderHeader()}
-            <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} />
+            <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
                 {contextMenu && (<NoteSelector x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'} currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''} currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1} onSelect={handleNoteSelect} onLengthChange={handleNoteLengthChange} onClose={() => setContextMenu(null)} getNoteColor={getNoteColor} />)}
