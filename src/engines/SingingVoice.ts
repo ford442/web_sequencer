@@ -95,100 +95,62 @@ export class SingingVoice {
             channels: config.channels ?? 1,
             bufferSize: config.bufferSize ?? 16384
         };
-        
-        this.inputRingBuffer = new RingBuffer(this.config.bufferSize!);
-        this.outputRingBuffer = new RingBuffer(this.config.bufferSize!);
     }
 
-    async init(): Promise<void> {
-        await this.audioContext.audioWorklet.addModule('/rubberband-processor.js');
-        this.workletNode = new AudioWorkletNode(this.audioContext, 'rubberband-processor');
+    /**
+     * Initialize the Rubber Band AudioWorklet processor.
+     * Must be called before processing audio.
+     */
+    async initWorklet(): Promise<void> {
+        if (this.workletNode) return;
 
+        await this.audioContext.audioWorklet.addModule('/rubberband-processor.js');
+
+        // Create shared buffers for ring buffers
+        const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
+        const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
+
+        this.inputRingBuffer = new RingBuffer(inputBuffer);
+        this.outputRingBuffer = new RingBuffer(outputBuffer);
+
+        this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
+        
+        // Initialize the worklet
         this.workletNode.port.postMessage({
-            type: 'init',
+            type: 'INIT_WASM',
             data: {
-                inputSab: this.inputRingBuffer.sab,
-                outputSab: this.outputRingBuffer.sab,
-                config: {
-                    useHighQuality: this.config.useHighQuality,
-                    preserveFormants: this.config.preserveFormants,
-                    channels: this.config.channels
-                }
+                inputBuffer,
+                outputBuffer,
+                moduleUrl: '/rubberband.js'
             }
         });
 
-        return new Promise<void>(resolve => {
-            this.workletNode!.port.onmessage = (event) => {
-                if (event.data.type === 'ready') {
-                    // Store latency for synchronization (Section 9)
-                    this.processorLatency = event.data.latency ?? 0;
+        // Wait for ready signal
+        await new Promise<void>((resolve) => {
+            const handler = (event: MessageEvent) => {
+                if (event.data.type === 'READY') {
+                    this.workletNode!.port.removeEventListener('message', handler);
                     resolve();
-                } else if (event.data.type === 'latency') {
-                    this.processorLatency = event.data.latency;
                 }
             };
+            this.workletNode!.port.addEventListener('message', handler);
         });
     }
 
-    getSourceNode(): AudioNode {
-        return this.workletNode!;
-    }
-    
     /**
-     * Get the latency of the Rubber Band processor in seconds.
-     * Useful for MIDI sync compensation (Section 9).
+     * Set the pitch scale ratio.
+     * @param ratio Pitch multiplier (e.g., 2.0 = one octave up, 0.5 = one octave down)
      */
-    getLatencySeconds(): number {
-        return this.processorLatency / this.audioContext.sampleRate;
-    }
-    
-    /**
-     * Get the latency of the Rubber Band processor in samples.
-     */
-    getLatencySamples(): number {
-        return this.processorLatency;
-    }
-
-    /**
-     * Process raw audio through the Rubber Band stretcher.
-     * @param input Float32Array of audio samples
-     */
-    process(input: Float32Array): void {
-        const chunkSize = 4096;
-        let processed = 0;
-        while (processed < input.length) {
-            const chunk = input.subarray(processed, processed + chunkSize);
-            const pushed = this.inputRingBuffer.push(chunk);
-            if (pushed === 0) {
-                // Buffer is full, wait and retry.
-                // In a real application, a more sophisticated back-pressure mechanism
-                // might be needed, but for now, a simple loop is a start.
-                // This is a placeholder for a more robust solution.
-                console.warn("Ring buffer full, dropping audio data.");
-                break;
-            }
-            processed += pushed;
+    setPitch(ratio: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('pitchScale')!.setValueAtTime(ratio, this.audioContext.currentTime);
         }
     }
 
     /**
-     * Set the pitch scale for pitch shifting.
-     * @param pitchScale Pitch multiplier (e.g., 2.0 = one octave up, 0.5 = one octave down)
-     */
-    setPitch(pitchScale: number): void {
-        this.workletNode?.port.postMessage({
-            type: 'pitch',
-            data: { pitchScale }
-        });
-    }
-    
-    /**
-     * Set pitch based on target MIDI note, using the nearest cached base pitch.
-     * This minimizes artifacts by keeping shifts within optimal ±1 octave range.
-     * Implements Section 2 of the enhancement plan.
-     * 
-     * @param targetMidiNote Target MIDI note number
-     * @param baseMidiNote Optional base MIDI note of the source audio (default: 60 = C4)
+     * Set pitch from MIDI note number relative to base note.
+     * @param targetMidiNote Target MIDI note for pitch shifting
+     * @param baseMidiNote Base MIDI note (default: C4 = 60)
      */
     setPitchFromMidi(targetMidiNote: number, baseMidiNote: number = 60): void {
         const targetFreq = midiToFreq(targetMidiNote);
@@ -275,54 +237,63 @@ export class SingingVoice {
     }
 
     /**
+     * Process audio through the Rubber Band worklet.
+     * @param audio Float32Array of mono audio samples
+     * @returns Promise that resolves when processing is complete
+     */
+    async process(audio: Float32Array): Promise<void> {
+        if (!this.workletNode || !this.inputRingBuffer) {
+            throw new Error('SingingVoice not initialized. Call initWorklet() first.');
+        }
+
+        // Send audio to worklet
+        this.workletNode.port.postMessage({
+            type: 'loadBuffer',
+            data: { buffer: audio.buffer.slice(0) } // Copy buffer
+        });
+
+        // Trigger processing
+        this.workletNode.port.postMessage({
+            type: 'noteOn',
+            data: { pitch: 1.0 } // Pitch will be set via parameter
+        });
+    }
+
+    /**
      * Set the time stretch ratio.
      * @param timeRatio Time multiplier (e.g., 2.0 = twice as long, 0.5 = half as long)
      */
     setTimeRatio(timeRatio: number): void {
-        this.workletNode?.port.postMessage({
-            type: 'timeRatio',
-            data: { timeRatio }
-        });
+        if (this.workletNode) {
+            this.workletNode.parameters.get('timeRatio')!.setValueAtTime(timeRatio, this.audioContext.currentTime);
+        }
     }
-    
+
     /**
-     * Enable or disable formant preservation.
-     * When enabled, prevents the "chipmunk effect" on vocals.
-     * Implements Section 4 (Formant Shifting) of the enhancement plan.
-     * 
-     * @param preserve true to preserve formants, false to shift with pitch
+     * Connect the worklet to an audio destination.
+     * @param destination AudioNode to connect to
      */
-    setFormantPreservation(preserve: boolean): void {
-        this.workletNode?.port.postMessage({
-            type: 'setFormantPreservation',
-            data: { preserve }
-        });
+    connect(destination: AudioNode): void {
+        if (this.workletNode) {
+            this.workletNode.connect(destination);
+        }
     }
-    
+
     /**
-     * Set the quality mode.
-     * High quality uses the "Finer" engine for better vocal fidelity.
-     * Fast mode uses the "Faster" engine for lower CPU usage.
-     * 
-     * Note: Changing quality mode may require processor reinitialization.
-     * 
-     * @param highQuality true for high quality, false for fast mode
+     * Disconnect the worklet.
+     * @param destination Optional specific destination to disconnect from
      */
-    setQualityMode(highQuality: boolean): void {
-        this.workletNode?.port.postMessage({
-            type: 'setQuality',
-            data: { highQuality }
-        });
+    disconnect(destination?: AudioNode): void {
+        if (this.workletNode) {
+            this.workletNode.disconnect(destination);
+        }
     }
-    
+
     /**
-     * Clear all cached audio to free memory.
+     * Get the current processor latency in samples.
+     * @returns Latency in samples
      */
-    clearCache(): void {
-        this.pitchCache = {
-            low: null,
-            mid: null,
-            high: null
-        };
+    getLatency(): number {
+        return this.processorLatency;
     }
 }
