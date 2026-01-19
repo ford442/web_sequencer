@@ -1,14 +1,29 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
-import { noteToFrequency, NUM_STEPS } from '../constants';
+import { noteToFrequency, noteToMidi, NUM_STEPS } from '../constants';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
-import { SingingVoice } from '../engines/SingingVoice';
+// Updated Import
+import { SingingVoice, REFERENCE_FREQUENCIES, freqToMidi } from '../engines/SingingVoice'; 
 
 // Helper to convert mode string to worklet numeric value
 const modeToWorkletValue = (mode: 'loop' | 'stretch' | 'wavetable'): number => {
     return mode === 'loop' ? 0 : mode === 'stretch' ? 1 : 2;
 };
+
+// Helper for distortion
+function makeDistortionCurve(amount: number) {
+    const k = typeof amount === 'number' ? amount : 50,
+        n_samples = 44100,
+        curve = new Float32Array(n_samples),
+        deg = Math.PI / 180;
+    let x;
+    for (let i = 0; i < n_samples; ++i) {
+        x = (i * 2) / n_samples - 1;
+        curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+}
 
 export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
@@ -33,7 +48,7 @@ export const useAudioEngine = (pyodide: any) => {
 
     const pyodideRef = useRef(pyodide);
 
-    // Live note tracking refs (must be at top level for hooks rules)
+    // Live note tracking refs
     const nextSynthNoteId = useRef(1);
     const activeSynthNotes = useRef(new Map<number, { stop: () => void }>());
     const nextSamplerNoteId = useRef(1);
@@ -49,12 +64,10 @@ export const useAudioEngine = (pyodide: any) => {
         const context = new (window.AudioContext || (window as any).webkitAudioContext)();
 
         // --- MASTER CHAIN ---
-        // Sources -> MasterGain -> MasterPanner -> Destination
         const masterGain = context.createGain();
-        masterGain.gain.setValueAtTime(0.8, 0); // Default volume
+        masterGain.gain.setValueAtTime(0.8, 0); 
         masterGainRef.current = masterGain;
 
-        // Use StereoPanner if available (standard in modern browsers)
         let masterPanner: StereoPannerNode | null = null;
         if (context.createStereoPanner) {
             masterPanner = context.createStereoPanner();
@@ -64,7 +77,6 @@ export const useAudioEngine = (pyodide: any) => {
             masterGain.connect(masterPanner);
             masterPanner.connect(context.destination);
         } else {
-            // Fallback: Just connect gain to destination
             masterGain.connect(context.destination);
         }
 
@@ -78,7 +90,7 @@ export const useAudioEngine = (pyodide: any) => {
         await wasmEngine.init();
         wasmEngineRef.current = wasmEngine;
 
-        // Load WAV Files (Native Engine)
+        // Load WAV Files
         const loadWav = async (url: string) => {
             try {
                 const res = await fetch(url);
@@ -102,10 +114,8 @@ export const useAudioEngine = (pyodide: any) => {
             await context.resume();
         }
 
-        // Try to initialize SustainProcessor worklet (best-effort)
+        // Initialize SustainProcessor worklet
         try {
-            // FIX: Ensure correct path relative to base or root.
-            // Vite serves public at root, so /sustain-processor.js is correct.
             await context.audioWorklet.addModule('./sustain-processor.js');
             const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
                 numberOfInputs: 0,
@@ -120,13 +130,55 @@ export const useAudioEngine = (pyodide: any) => {
             sustainNodeRef.current = null;
         }
 
-        // Initialize Singing Voice
+        // --- NEW SINGING VOICE INITIALIZATION ---
         try {
-            const singingVoice = new SingingVoice(context);
-            await singingVoice.init();
-            singingVoice.getSourceNode().connect(masterGainRef.current!);
-            singingVoiceRef.current = singingVoice;
-            console.log('SingingVoice initialized');
+            // 1. Initialize Instance
+            singingVoiceRef.current = new SingingVoice(context, {
+                useHighQuality: false,
+                preserveFormants: true,
+                channels: 1,
+                bufferSize: 16384
+            });
+
+            // 2. Init Worklet
+            await singingVoiceRef.current.initWorklet();
+            
+            // Connect SingingVoice output to Master
+            singingVoiceRef.current.getSourceNode().connect(masterGainRef.current!);
+
+            // 3. Pre-cache TTS at reference pitches if Pyodide is ready
+            if (pyodideRef.current) {
+                const cachePromises: Promise<void>[] = [];
+                for (const [level, freq] of Object.entries(REFERENCE_FREQUENCIES)) {
+                    // Safety check for frequency
+                    if (typeof freq !== 'number') continue;
+
+                    const midiNote = Math.round(freqToMidi(freq));
+                    cachePromises.push(
+                        (async () => {
+                            try {
+                                const pyProxy = pyodideRef.current.globals.get('generate_tts_sample')(
+                                    'default_lyrics', // Placeholder lyrics
+                                    midiNote,
+                                    1, // Short duration for caching
+                                    120 // Default tempo
+                                );
+                                const audioSamples = pyProxy.toJs({ array_buffer_type: 'float32' });
+                                pyProxy.destroy();
+                                if (audioSamples && audioSamples.length > 0) {
+                                    singingVoiceRef.current!.setCachedAudio(level, new Float32Array(audioSamples));
+                                }
+                            } catch (e) {
+                                console.warn(`Failed to cache TTS for ${level}:`, e);
+                            }
+                        })()
+                    );
+                }
+                await Promise.all(cachePromises);
+                console.log('SingingVoice initialized and cached');
+            } else {
+                console.warn('Pyodide not ready during audio init, skipping SingingVoice cache.');
+            }
         } catch (e) {
             console.error('Failed to initialize SingingVoice:', e);
         }
@@ -140,17 +192,16 @@ export const useAudioEngine = (pyodide: any) => {
         }
         noiseBufferRef.current = buffer;
 
-        // --- SINGLE CYCLE GENERATOR ---
-        // Moved up to be accessible by playSynth
+        // Single Cycle Generator Cache
         const generatorCache = new Map<string, AudioBuffer>();
-        const BASE_GENERATION_FREQ = 220; // Hz
+        const BASE_GENERATION_FREQ = 220; 
 
         const getOrGenerateSingleCycleBuffer = async (engine: 'wgsl' | 'wam' | 'pyodide', type: 'saw' | 'sqr' | 'tri' | 'sin', filterCutoff: number = 20000, filterResonance: number = 0): Promise<AudioBuffer | null> => {
             const sampleRate = context.sampleRate;
             const key = `${engine}:${type}:${BASE_GENERATION_FREQ}:${sampleRate}:${filterCutoff}:${filterResonance}`;
             if (generatorCache.has(key)) return generatorCache.get(key)!;
 
-            const duration = 1 / BASE_GENERATION_FREQ; // one cycle
+            const duration = 1 / BASE_GENERATION_FREQ; 
             let samples: Float32Array | null = null;
             try {
                 if (engine === 'wgsl' && gpuEngineRef.current?.isSupported) {
@@ -181,8 +232,6 @@ export const useAudioEngine = (pyodide: any) => {
             return audioBuf;
         };
 
-        // --- UPDATED PLAY SYNTH ---
-        // Now handles Polyphony (arrays) and Portamento (slideFromFreq)
         const playSynth = async (
             params: SynthParams,
             noteOrChord: string | string[],
@@ -196,10 +245,8 @@ export const useAudioEngine = (pyodide: any) => {
             const gateTime = seqDuration > 0 ? seqDuration : (params.length || 0.25);
             const totalDuration = gateTime + params.release;
 
-            // 1. Normalize to Array for Polyphony
             const notesToPlay = Array.isArray(noteOrChord) ? noteOrChord : [noteOrChord];
 
-            // 2. Identify Engine Type
             let engine: 'wav' | 'wgsl' | 'wam' | 'pyodide' | 'native' = 'native';
             let waveType = params.waveform;
 
@@ -213,62 +260,49 @@ export const useAudioEngine = (pyodide: any) => {
             // @ts-ignore
             else if (params.waveform.startsWith('pyodide-')) { engine = 'pyodide'; waveType = params.waveform.split('-')[1] as any; }
 
-            // 3. Prepare Buffer (WAV or Generated Single Cycle)
             let buffer: AudioBuffer | null = null;
-            let sampleRootFreq = 440; // Default placeholder
+            let sampleRootFreq = 440; 
 
             if (engine === 'wav') {
                 buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
                 sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
             }
             else if (engine !== 'native') {
-                // Use existing getOrGenerateSingleCycleBuffer to get a looped cycle
-                // This unifies WebGPU, Wasm, and Pyodide into a "Sampler" workflow
                 buffer = await getOrGenerateSingleCycleBuffer(
                     engine,
                     waveType as any,
-                    // Pass extreme defaults because filter is applied per-voice below,
-                    // not baked into the buffer (unless engine forces it)
                     20000,
                     0
                 );
-                sampleRootFreq = 220; // The constant used in getOrGenerateSingleCycleBuffer
+                sampleRootFreq = 220; 
             }
 
-            // 4. Play Each Voice
             notesToPlay.forEach((note) => {
                 const baseFreq = noteToFrequency(note);
-                // Apply Pitch Knob
                 const targetFreq = baseFreq * Math.pow(2, params.pitch / 12);
 
-                // A. BUFFER BASED ENGINES (WAV, WGSL, Wasm, Pyodide)
                 if (buffer) {
                     const source = context.createBufferSource();
                     source.buffer = buffer;
                     source.loop = true;
 
-                    // --- SLIDE LOGIC (Playback Rate) ---
                     const targetRate = targetFreq / sampleRootFreq;
 
                     if (slideFromFreq) {
                         const startRate = slideFromFreq / sampleRootFreq;
                         source.playbackRate.setValueAtTime(startRate, time);
-                        // Slide duration: 0.1s or match Attack if attack is longer
                         const slideDur = Math.max(0.05, params.attack);
                         source.playbackRate.exponentialRampToValueAtTime(targetRate, time + slideDur);
                     } else {
                         source.playbackRate.setValueAtTime(targetRate, time);
                     }
 
-                    // --- ENVELOPE & FILTER CHAIN ---
                     const envGain = context.createGain();
                     envGain.gain.setValueAtTime(0, time);
                     envGain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
                     const sustainLevel = params.volume * params.sustain;
                     envGain.gain.linearRampToValueAtTime(sustainLevel, time + params.attack + params.decay);
-                    // Hold Sustain
                     envGain.gain.setValueAtTime(sustainLevel, time + gateTime);
-                    // Release
                     envGain.gain.linearRampToValueAtTime(0, time + gateTime + params.release);
 
                     const filter = context.createBiquadFilter();
@@ -276,7 +310,6 @@ export const useAudioEngine = (pyodide: any) => {
                     filter.frequency.setValueAtTime(params.filterCutoff, time);
                     filter.Q.setValueAtTime(params.filterResonance, time);
 
-                    // --- DELAY CHAIN (Simplified) ---
                     if (params.delayMix > 0 && params.delayTime > 0) {
                         const dryGain = context.createGain();
                         const wetGain = context.createGain();
@@ -300,14 +333,12 @@ export const useAudioEngine = (pyodide: any) => {
                           envGain.connect(destination);
                     }
 
-                    // Connect: Source -> Filter -> Env -> (Output or Delay)
                     source.connect(filter);
                     filter.connect(envGain);
 
                     source.start(time);
                     source.stop(time + totalDuration + 0.1);
                 }
-                // B. FALLBACK (Native Web Audio Oscillators)
                 else {
                     const osc = context.createOscillator();
                     let typeStr = waveType;
@@ -319,7 +350,6 @@ export const useAudioEngine = (pyodide: any) => {
                     // @ts-ignore
                     osc.type = typeStr as OscillatorType;
 
-                    // --- SLIDE LOGIC (Frequency Param) ---
                     if (slideFromFreq) {
                         osc.frequency.setValueAtTime(slideFromFreq, time);
                         const slideDur = Math.max(0.05, params.attack);
@@ -328,7 +358,6 @@ export const useAudioEngine = (pyodide: any) => {
                         osc.frequency.setValueAtTime(targetFreq, time);
                     }
 
-                    // --- ENVELOPE & FILTER CHAIN ---
                     const envGain = context.createGain();
                     envGain.gain.setValueAtTime(0, time);
                     envGain.gain.linearRampToValueAtTime(params.volume, time + params.attack);
@@ -342,7 +371,6 @@ export const useAudioEngine = (pyodide: any) => {
                     filter.frequency.setValueAtTime(params.filterCutoff, time);
                     filter.Q.setValueAtTime(params.filterResonance, time);
 
-                    // Delay Logic for Native
                     if (params.delayMix > 0 && params.delayTime > 0) {
                         const dryGain = context.createGain();
                         const wetGain = context.createGain();
@@ -377,8 +405,6 @@ export const useAudioEngine = (pyodide: any) => {
 
         // Live note on/off for synths
         const MAX_SYNTH_VOICES = 8;
-
-        // ... (Original getOrGenerateSingleCycleBuffer removed from here as it's hoisted) ...
 
         const noteOnSynth = async (params: SynthParams, note: string, time?: number) => {
             const now = time || context.currentTime;
@@ -435,18 +461,16 @@ export const useAudioEngine = (pyodide: any) => {
                     activeSynthNotes.current.set(id, { stop });
                     return id;
                 }
-                // WGSL / Wasm / Pyodide synthesized waves (generate buffer and loop)
+                
                 if (isWgslWave || isWasmWave || isPyodideWave) {
                     const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';
                     const freqWithPitch = noteToFrequency(note) * Math.pow(2, params.pitch / 12);
-                    // Use cached single-cycle generator to reduce CPU (lower duration)
                     const engine = isWgslWave ? 'wgsl' : isWasmWave ? 'wam' : 'pyodide';
                     const audioBuf = await getOrGenerateSingleCycleBuffer(engine as any, type, params.filterCutoff || 20000, params.filterResonance || 0);
                     if (audioBuf) {
                         const source = context.createBufferSource();
                         source.buffer = audioBuf;
                         source.loop = true;
-                        // playbackRate to transpose from base generation freq to desired freq
                         const playbackRate = freqWithPitch / BASE_GENERATION_FREQ;
                         source.playbackRate.setValueAtTime(playbackRate, now);
 
@@ -466,7 +490,6 @@ export const useAudioEngine = (pyodide: any) => {
                         envGain.connect(masterGainRef.current!);
 
                         source.start(now);
-                        // Voice allocator: enforce max voices
                         if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
                             const oldestId = activeSynthNotes.current.keys().next().value;
                             if (oldestId !== undefined) {
@@ -488,7 +511,7 @@ export const useAudioEngine = (pyodide: any) => {
                     }
                 }
 
-                // Fallback oscillator sustain
+                // Fallback oscillator
                 const baseFreq = noteToFrequency(note);
                 const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
                 const osc = context.createOscillator();
@@ -586,7 +609,6 @@ export const useAudioEngine = (pyodide: any) => {
                 const gainNode = context.createGain();
                 gainNode.gain.setValueAtTime(finalVolume, time);
 
-                // Connect to Master
                 gainNode.connect(masterGainRef.current!);
 
                 const source = context.createBufferSource();
@@ -608,7 +630,6 @@ export const useAudioEngine = (pyodide: any) => {
             // Also load into SustainProcessor (AudioWorklet) if present
             try {
                 if (sustainNodeRef.current) {
-                    // Copy into a transferable Float32Array
                     const floatArr = new Float32Array(channelData.length);
                     floatArr.set(channelData);
                     sustainNodeRef.current.port.postMessage({ type: 'loadBuffer', data: { buffer: floatArr } }, [floatArr.buffer]);
@@ -617,47 +638,34 @@ export const useAudioEngine = (pyodide: any) => {
         };
 
         const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.125) => {
-            console.log("playSampler called:", { name: params.sampleName, note, durationSteps, stepTime, pyodideReady: !!pyodideRef.current });
             if (!pyodideRef.current) return;
 
             try {
-                // 1. Calculate Pitch Ratio
                 const baseFreq = noteToFrequency('C4');
                 const targetFreq = noteToFrequency(note);
                 const ratio = targetFreq / baseFreq * params.playbackSpeed;
 
-                // 2. Generate Audio via Pyodide
                 const pyProxy = pyodideRef.current.globals.get('generate_sampler')(params.sampleName, ratio, params.volume);
                 const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
                 pyProxy.destroy();
 
                 if (audioSamples.length === 0) return;
 
-                // 3. Create Audio Source
                 const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
                 buffer.getChannelData(0).set(audioSamples);
 
                 const source = context.createBufferSource();
                 source.buffer = buffer;
 
-                // --- SUSTAIN ENVELOPE (Gate) ---
-                // Calculate duration in seconds based on steps
                 const noteDuration = durationSteps * stepTime;
-                const attack = 0.01; // Fast attack
-                const release = 0.1; // Short fade out to avoid clicks
+                const attack = 0.01; 
+                const release = 0.1; 
 
                 const envGain = context.createGain();
                 envGain.gain.setValueAtTime(0, time);
                 envGain.gain.linearRampToValueAtTime(1.0, time + attack);
-
-                // Sustain phase (Hold at 1.0)
                 envGain.gain.setValueAtTime(1.0, time + noteDuration);
-
-                // Release phase
                 envGain.gain.linearRampToValueAtTime(0, time + noteDuration + release);
-
-                // --- DSP CHAIN ---
-                // Source -> Filter -> Drive -> Envelope -> Master
 
                 const filter = context.createBiquadFilter();
                 filter.type = 'lowpass';
@@ -669,15 +677,13 @@ export const useAudioEngine = (pyodide: any) => {
                     driveNode.curve = makeDistortionCurve(params.drive * 50);
                     driveNode.oversample = '4x';
                 } else {
-                    driveNode.curve = null; // Bypass
+                    driveNode.curve = null; 
                 }
 
-                // Connections
                 source.connect(filter);
                 filter.connect(driveNode);
-                driveNode.connect(envGain); // Connect to Envelope instead of Master directly
+                driveNode.connect(envGain);
 
-                // Delay Send (Optional)
                 if (params.delaySend > 0) {
                     const delay = context.createDelay(1.0);
                     const feedback = context.createGain();
@@ -687,7 +693,6 @@ export const useAudioEngine = (pyodide: any) => {
                     feedback.gain.setValueAtTime(0.4, time);
                     wetGain.gain.setValueAtTime(params.delaySend, time);
 
-                    // Send from Post-Envelope so delay tails fade out naturally if we cut the note
                     envGain.connect(delay);
                     delay.connect(feedback);
                     feedback.connect(delay);
@@ -695,21 +700,18 @@ export const useAudioEngine = (pyodide: any) => {
                     wetGain.connect(masterGainRef.current!);
                 }
 
-                // Main Output
                 envGain.connect(masterGainRef.current!);
 
                 source.start(time);
-                // Stop source after envelope release to save CPU
                 source.stop(time + noteDuration + release + 0.1);
 
             } catch (e) { console.error("Sampler Error", e); }
         };
 
-        // Live note-on/note-off for Sampler
-
         const noteOnSampler = (params: SamplerBankParams, note: string, time?: number) => {
             if (!pyodideRef.current) return null;
             const now = time || context.currentTime;
+            
             // Prefer Worklet if available
             if (sustainNodeRef.current) {
                 try {
@@ -725,7 +727,6 @@ export const useAudioEngine = (pyodide: any) => {
                     return id;
                 } catch (e) {
                     console.error('Worklet noteOnSampler error', e);
-                    // fallback to existing path
                 }
             }
             try {
@@ -787,7 +788,6 @@ export const useAudioEngine = (pyodide: any) => {
             }
             const now = context.currentTime;
             envGain.gain.cancelScheduledValues(now);
-            // ramp to zero in 0.1s
             envGain.gain.setValueAtTime(envGain.gain.value || 1.0, now);
             envGain.gain.linearRampToValueAtTime(0, now + 0.12);
             try { source.stop(now + 0.12 + 0.05); } catch (e) { }
@@ -795,17 +795,14 @@ export const useAudioEngine = (pyodide: any) => {
         };
 
         const stopAllNotes = () => {
-            // Stop all synth notes
             activeSynthNotes.current.forEach((entry) => {
                 entry.stop();
             });
             activeSynthNotes.current.clear();
 
-            // Stop all sampler notes
             activeSamplerNotes.current.forEach((_entry, id) => {
                   noteOffSampler(id);
             });
-            // noteOffSampler removes them from map, but let's be safe
             activeSamplerNotes.current.clear();
         };
 
@@ -832,7 +829,6 @@ export const useAudioEngine = (pyodide: any) => {
         const playBufferedPart = (buffer: AudioBuffer, time: number) => {
             const source = context.createBufferSource();
             source.buffer = buffer;
-            // Connect to Master
             source.connect(masterGainRef.current!);
             source.start(time);
         };
@@ -854,7 +850,6 @@ export const useAudioEngine = (pyodide: any) => {
 
             if (!ambianceGainNodeRef.current) {
                 ambianceGainNodeRef.current = context.createGain();
-                // Connect to Master
                 ambianceGainNodeRef.current.connect(masterGainRef.current!);
             }
 
@@ -895,7 +890,6 @@ export const useAudioEngine = (pyodide: any) => {
             if (!pyodideRef.current) return null;
             try {
                 const data = Array.from(buffer.getChannelData(0));
-                // Call Python to get JSON string
                 const jsonStr = await pyodideRef.current.globals.get('analyze_sample')(data);
                 return JSON.parse(jsonStr);
             } catch (e) {
@@ -904,30 +898,39 @@ export const useAudioEngine = (pyodide: any) => {
             }
         };
 
+        // --- UPDATED PROCESS SINGING ---
         const processSinging = async (sampleName: string, note: string, steps: number, tempo: number) => {
-            if (!pyodideRef.current) return null;
+            if (!singingVoiceRef.current || !pyodideRef.current) return null;
 
             try {
-                // Call Python
-                const pyProxy = await pyodideRef.current.globals.get('process_singing_sample')(
+                // Generate base TTS at default pitch (C4)
+                const pyProxy = pyodideRef.current.globals.get('process_singing_sample')(
                     sampleName,
-                    note,
+                    'C4', // Base pitch for generation
                     steps,
                     tempo
                 );
 
-                const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
+                const audioSamples = pyProxy.toJs({ array_buffer_type: 'float32' });
                 pyProxy.destroy();
 
                 if (audioSamples.length === 0) return null;
 
-                // Create buffer
-                const buffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
-                buffer.getChannelData(0).set(audioSamples);
+                // Create buffer from TTS output
+                const baseBuffer = context.createBuffer(1, audioSamples.length, context.sampleRate);
+                baseBuffer.getChannelData(0).set(audioSamples);
 
-                return buffer;
+                // Convert target note to MIDI
+                const targetMidiNote = noteToMidi(note);
+
+                // Use SingingVoice to pitch shift to target note
+                singingVoiceRef.current.setPitchFromMidi(targetMidiNote, 60); // C4 = 60
+                await singingVoiceRef.current.process(baseBuffer.getChannelData(0));
+
+                // Return the buffer (which now contains the pitch-shifted data)
+                return baseBuffer;
             } catch (e) {
-                console.error("Process Singing Error:", e);
+                console.error('Process Singing with Pitch Shift Error:', e);
                 return null;
             }
         };
@@ -977,6 +980,8 @@ export const useAudioEngine = (pyodide: any) => {
             context,
             webGpuEngine: gpuEngineRef.current,
             wasmEngine: wasmEngineRef.current,
+            // Exposed SingingVoice instance
+            singingVoice: singingVoiceRef.current, 
             playSynth,
             playDrum,
             playSampler,
@@ -1005,17 +1010,3 @@ export const useAudioEngine = (pyodide: any) => {
 
     return { audioEngine: audioEngineRef.current, isReady, initializeAudio };
 };
-
-// Helper for distortion
-function makeDistortionCurve(amount: number) {
-    const k = typeof amount === 'number' ? amount : 50,
-        n_samples = 44100,
-        curve = new Float32Array(n_samples),
-        deg = Math.PI / 180;
-    let x;
-    for (let i = 0; i < n_samples; ++i) {
-        x = (i * 2) / n_samples - 1;
-        curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
-    }
-    return curve;
-}
