@@ -48,13 +48,15 @@ export const HardwareModule = React.memo(
         // Sync refs
         useEffect(() => {
             controlsRef.current = controls;
-            if (renderRef.current) renderRef.current();
-        }, [controls]);
+            // Optimization: In 3D mode, the animation loop handles rendering.
+            // Avoid redundant render calls to prevent double-work per frame.
+            if (!is3D && renderRef.current) renderRef.current();
+        }, [controls, is3D]);
 
         useEffect(() => {
             colorHexRef.current = colorHex;
-            if (renderRef.current) renderRef.current();
-        }, [colorHex]);
+            if (!is3D && renderRef.current) renderRef.current();
+        }, [colorHex, is3D]);
 
         // --- INTERACTION LOGIC (Mouse) ---
         useEffect(() => {
