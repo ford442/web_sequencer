@@ -94,31 +94,32 @@ export interface AmbianceTrack {
 }
 
 export interface AudioEngine {
-  context: AudioContext;
-  webGpuEngine?: any; // WebGpuOscillator
-  wasmEngine?: any; // WasmOscillator
-  playSynth: (params: SynthParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
-  playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
-  playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
+    context: AudioContext;
+    webGpuEngine?: any; // WebGpuOscillator
+    wasmEngine?: any; // WasmOscillator
+    playSynth: (params: SynthParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
+    playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
+    playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number) => Promise<number | null> | number | null;
     noteOffSynth?: (id: number) => void;
     stopAllNotes?: () => void;
-  loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
-  renderSynthPartToBuffer: (params: SynthParams, sequence: PartSequence, tempo: number) => Promise<AudioBuffer>;
-  playBufferedPart: (buffer: AudioBuffer, time: number) => void;
-  playAmbiance: (url: string) => Promise<void>;
-  stopAmbiance: () => void;
-  setAmbianceVolume: (volume: number) => void;
-  setMasterVolume: (volume: number) => void;
-  setGlobalPan: (pan: number) => void;
-  detectSamplePitch?: (buffer: AudioBuffer) => Promise<any>;
-  processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
-  processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
-  setSustainMode?: (mode: 'loop' | 'stretch' | 'wavetable') => void;
-  setSustainGrainSize?: (size: number) => void;
-  playSinging?: (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote?: string) => void;
+    loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
+    renderSynthPartToBuffer: (params: SynthParams, sequence: PartSequence, tempo: number) => Promise<AudioBuffer>;
+    playBufferedPart: (buffer: AudioBuffer, time: number) => void;
+    playAmbiance: (url: string) => Promise<void>;
+    stopAmbiance: () => void;
+    setAmbianceVolume: (volume: number) => void;
+    setMasterVolume: (volume: number) => void;
+    setGlobalPan: (pan: number) => void;
+    detectSamplePitch?: (buffer: AudioBuffer) => Promise<any>;
+    processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
+    processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
+    setSustainMode?: (mode: 'loop' | 'stretch' | 'wavetable') => void;
+    setSustainGrainSize?: (size: number) => void;
+    playSinging?: (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote?: string) => void;
+    singingVoice?: SingingVoice;  // Add this line
 }
 
 // Automation recording types
