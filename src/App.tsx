@@ -709,12 +709,12 @@ export const App: React.FC = () => {
                 </div>
                 {/* File Ops */}
                 <div className="flex items-center gap-1">
-                    <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 bg-gradient-to-r from-green-900/10 to-green-900/20 px-2 py-1 rounded">💾</button>
-                    <button onClick={importSongFromFile} className="text-[10px] font-bold text-blue-400 bg-gradient-to-r from-blue-900/10 to-blue-900/20 px-2 py-1 rounded">📂</button>
-                    <button onClick={() => setIsCloudLibraryOpen(true)} className="text-[10px] font-bold text-purple-400 bg-gradient-to-r from-purple-900/10 to-purple-900/20 px-2 py-1 rounded">☁️</button>
+                    <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 bg-gradient-to-r from-green-900/10 to-green-900/20 px-2 py-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400" aria-label="Save Song to File" title="Save to JSON">💾</button>
+                    <button onClick={importSongFromFile} className="text-[10px] font-bold text-blue-400 bg-gradient-to-r from-blue-900/10 to-blue-900/20 px-2 py-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="Load Song from File" title="Load from JSON">📂</button>
+                    <button onClick={() => setIsCloudLibraryOpen(true)} className="text-[10px] font-bold text-purple-400 bg-gradient-to-r from-purple-900/10 to-purple-900/20 px-2 py-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400" aria-label="Open Cloud Library" title="Cloud Library">☁️</button>
                     <CloudStatus />
                 </div>
-                <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 border border-red-900/50 bg-gradient-to-r from-red-900/10 to-red-900/20 px-4 py-2 rounded-lg">CLEAR</button>
+                <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 border border-red-900/50 bg-gradient-to-r from-red-900/10 to-red-900/20 px-4 py-2 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400" aria-label="Clear Current Pattern" title="Clear Current Pattern">CLEAR</button>
             </div>
 
             <div className="flex items-center gap-4">
