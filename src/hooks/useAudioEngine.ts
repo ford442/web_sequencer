@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
-import { noteToFrequency, noteToMidi, NUM_STEPS } from '../constants';
+import { noteToFrequency, NUM_STEPS } from '../constants';
+import { noteToMidi } from '../utils/musicTheory';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 // Updated Import

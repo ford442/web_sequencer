@@ -119,10 +119,20 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
             // Pass both data and type so App.tsx knows how to handle it
             onLoadData(payload, item.type);
             onClose();
-        } catch (e) {
+        } catch {
             alert("Failed to load data");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleTabKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'ArrowRight' && activeTab === 'browse') {
+            setActiveTab('upload');
+            setTimeout(() => document.getElementById('tab-upload')?.focus(), 0);
+        } else if (e.key === 'ArrowLeft' && activeTab === 'upload') {
+            setActiveTab('browse');
+            setTimeout(() => document.getElementById('tab-browse')?.focus(), 0);
         }
     };
 
@@ -135,23 +145,44 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
             <div className="w-full max-w-2xl bg-[#0f1215] border border-cyan-900/50 rounded-xl shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col max-h-[80vh]">
 
                 {/* Header Tabs */}
-                <div className="flex border-b border-gray-800 bg-gray-900/50">
+                <div
+                    className="flex border-b border-gray-800 bg-gray-900/50"
+                    role="tablist"
+                    aria-label="Cloud Library Sections"
+                    onKeyDown={handleTabKeyDown}
+                >
                     <button
+                        id="tab-browse"
+                        role="tab"
+                        aria-selected={activeTab === 'browse'}
+                        aria-controls="cloud-library-panel"
+                        tabIndex={activeTab === 'browse' ? 0 : -1}
                         onClick={() => setActiveTab('browse')}
-                        className={`flex-1 py-4 font-orbitron font-bold text-sm tracking-widest transition-colors ${activeTab === 'browse' ? 'text-cyan-400 bg-gray-800/50' : 'text-gray-500 hover:text-gray-300'}`}
+                        className={`flex-1 py-4 font-orbitron font-bold text-sm tracking-widest transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset ${activeTab === 'browse' ? 'text-cyan-400 bg-gray-800/50 border-b-2 border-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
                     >
                         CLOUD LIBRARY
                     </button>
                     <button
+                        id="tab-upload"
+                        role="tab"
+                        aria-selected={activeTab === 'upload'}
+                        aria-controls="cloud-library-panel"
+                        tabIndex={activeTab === 'upload' ? 0 : -1}
                         onClick={() => setActiveTab('upload')}
-                        className={`flex-1 py-4 font-orbitron font-bold text-sm tracking-widest transition-colors ${activeTab === 'upload' ? 'text-pink-400 bg-gray-800/50' : 'text-gray-500 hover:text-gray-300'}`}
+                        className={`flex-1 py-4 font-orbitron font-bold text-sm tracking-widest transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-inset ${activeTab === 'upload' ? 'text-pink-400 bg-gray-800/50 border-b-2 border-pink-400' : 'text-gray-500 hover:text-gray-300'}`}
                     >
                         UPLOAD
                     </button>
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 min-h-[400px]">
+                <div
+                    id="cloud-library-panel"
+                    role="tabpanel"
+                    aria-labelledby={activeTab === 'browse' ? 'tab-browse' : 'tab-upload'}
+                    className="flex-1 overflow-y-auto p-6 min-h-[400px] focus:outline-none"
+                    tabIndex={0}
+                >
                     {activeTab === 'browse' ? (
                         <div className="space-y-4">
                             {/* Filter Bar */}
@@ -161,13 +192,14 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                         <button
                                             key={t}
                                             onClick={() => setFilterType(t as any)}
-                                            className={`px-3 py-1 rounded text-xs font-bold uppercase transition-all ${filterType === t ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-500 hover:bg-gray-700'}`}
+                                            className={`px-3 py-1 rounded text-xs font-bold uppercase transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${filterType === t ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-500 hover:bg-gray-700'}`}
+                                            aria-pressed={filterType === t}
                                         >
                                             {t}
                                         </button>
                                     ))}
                                 </div>
-                                <button onClick={loadLibrary} className="text-xs text-gray-400 hover:text-white">↻ Refresh</button>
+                                <button onClick={loadLibrary} className="text-xs text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">↻ Refresh</button>
                             </div>
 
                             {isLoading ? (
@@ -188,7 +220,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     </p>
                                     <button
                                         onClick={() => setActiveTab('upload')}
-                                        className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 group"
+                                        className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                                         aria-label="Upload your first creation"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform group-hover:-translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -218,7 +250,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                             </div>
                                             <button 
                                                 onClick={() => handleLoadClick(item)}
-                                                className="bg-cyan-900/30 text-cyan-400 border border-cyan-800 px-3 py-1.5 rounded text-xs font-bold font-orbitron hover:bg-cyan-500 hover:text-black transition-all"
+                                                className="bg-cyan-900/30 text-cyan-400 border border-cyan-800 px-3 py-1.5 rounded text-xs font-bold font-orbitron hover:bg-cyan-500 hover:text-black transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                                             >
                                                 LOAD
                                             </button>
@@ -237,15 +269,15 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     <label className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</label>
                                     <div className="flex gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus:ring-1 focus:ring-pink-500"/>
                                             <span className="text-sm text-gray-300">Full Song</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500 focus:ring-1 focus:ring-pink-500"/>
                                             <span className="text-sm text-gray-300">Pattern Bank</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500 focus:ring-1 focus:ring-pink-500"/>
                                             <span className="text-sm text-gray-300">Current Pattern</span>
                                         </label>
                                     </div>
@@ -298,7 +330,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     <button
                                         type="submit"
                                         disabled={uploadStatus === 'uploading' || uploadStatus === 'retrying' || uploadStatus === 'success'}
-                                        className={`w-full py-3 rounded font-orbitron font-bold text-sm tracking-widest transition-all
+                                        className={`w-full py-3 rounded font-orbitron font-bold text-sm tracking-widest transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white
                                             ${uploadStatus === 'success' ? 'bg-green-600 text-white' :
                                               uploadStatus === 'error' ? 'bg-red-600 text-white' :
                                               uploadStatus === 'retrying' ? 'bg-yellow-600 text-white animate-pulse' :
@@ -324,7 +356,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
                 {/* Footer */}
                 <div className="border-t border-gray-800 p-4 bg-gray-900/50 flex justify-end">
-                    <button onClick={onClose} className="text-gray-400 text-xs font-mono hover:text-white px-4">CLOSE</button>
+                    <button onClick={onClose} className="text-gray-400 text-xs font-mono hover:text-white px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded">CLOSE</button>
                 </div>
             </div>
         </div>
