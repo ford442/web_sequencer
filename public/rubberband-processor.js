@@ -1,16 +1,12 @@
-var __defProp = Object.defineProperty;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-
 // src/utils/ringBuffer.ts
 var HEAD_INDEX = 0;
 var TAIL_INDEX = 1;
 var RingBuffer = class {
+  sab;
+  atomicIndices;
+  buffer;
+  bufferSize;
   constructor(arg) {
-    __publicField(this, "sab");
-    __publicField(this, "atomicIndices");
-    __publicField(this, "buffer");
-    __publicField(this, "bufferSize");
     if (typeof arg === "number") {
       const size = arg;
       if (size & size - 1) {
@@ -64,28 +60,170 @@ var RingBuffer = class {
   }
 };
 
-// src/audio-worklets/rubberband-processor.ts
-var RubberBandProcessor = class extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    __publicField(this, "rubberBand", null);
-    __publicField(this, "inputRingBuffer", null);
-    __publicField(this, "outputRingBuffer", null);
-    // WASM Memory Management
-    __publicField(this, "inputHeapPtr", 0);
-    __publicField(this, "outputHeapPtr", 0);
-    __publicField(this, "heapSizeFrames", 0);
-    // Current size of allocated buffers
-    // Audio State
-    __publicField(this, "sampleRate", 44100);
-    __publicField(this, "lfoPhase", 0);
-    __publicField(this, "initialized", false);
-    __publicField(this, "fullSampleBuffer", null);
-    this.port.onmessage = this.handleMessage.bind(this);
-    if (globalThis.sampleRate) {
-      this.sampleRate = globalThis.sampleRate;
+// src/engines/rubberband/ExpressiveVoiceProcessor.ts
+var DEFAULT_EXPRESSIVE_CONFIG = {
+  vibrato: {
+    rate: 5.5,
+    depth: 0.03,
+    enabled: true,
+    delay: 0.2,
+    rampTime: 0.15
+  },
+  tremolo: {
+    rate: 5,
+    depth: 0.1,
+    enabled: false
+  },
+  breath: {
+    amount: 0.05,
+    filterCutoff: 2e3,
+    enabled: true
+  },
+  sampleRate: 44100
+};
+var DelayLine = class {
+  buffer;
+  writeIndex = 0;
+  size;
+  constructor(maxDelaySamples) {
+    this.size = maxDelaySamples;
+    this.buffer = new Float32Array(maxDelaySamples);
+  }
+  write(sample) {
+    this.buffer[this.writeIndex] = sample;
+    this.writeIndex = (this.writeIndex + 1) % this.size;
+  }
+  read(delaySamples) {
+    const intDelay = Math.floor(delaySamples);
+    const frac = delaySamples - intDelay;
+    let index1 = this.writeIndex - intDelay - 1;
+    if (index1 < 0) index1 += this.size;
+    let index2 = index1 - 1;
+    if (index2 < 0) index2 += this.size;
+    return this.buffer[index1] * (1 - frac) + this.buffer[index2] * frac;
+  }
+  clear() {
+    this.buffer.fill(0);
+    this.writeIndex = 0;
+  }
+};
+var ExpressiveVoiceProcessor = class {
+  config;
+  delayLine;
+  // LFO States
+  vibratoPhase = 0;
+  tremoloPhase = 0;
+  // Noise Generation
+  noiseBuffer;
+  noiseIndex = 0;
+  // Time tracking
+  sampleIndex = 0;
+  constructor(config = {}) {
+    this.config = { ...DEFAULT_EXPRESSIVE_CONFIG, ...config };
+    const maxDelaySamples = Math.ceil(0.02 * this.config.sampleRate);
+    this.delayLine = new DelayLine(maxDelaySamples);
+    const noiseSize = this.config.sampleRate;
+    this.noiseBuffer = new Float32Array(noiseSize);
+    for (let i = 0; i < noiseSize; i++) {
+      this.noiseBuffer[i] = Math.random() * 2 - 1;
     }
   }
+  /**
+   * Process a buffer of audio samples in-place or to a new buffer.
+   *
+   * @param input Input buffer
+   * @param output Output buffer (can be same as input)
+   */
+  process(input, output) {
+    const len = input.length;
+    const sampleRate = this.config.sampleRate;
+    const vib = this.config.vibrato;
+    const trem = this.config.tremolo;
+    const breath = this.config.breath;
+    const dt = 1 / sampleRate;
+    const vibIncrement = vib.rate * dt * 2 * Math.PI;
+    const tremIncrement = trem.rate * dt * 2 * Math.PI;
+    const maxVibDelayMs = 10;
+    const maxVibDelaySamples = maxVibDelayMs * sampleRate / 1e3;
+    for (let i = 0; i < len; i++) {
+      let sample = input[i];
+      const currentTime = this.sampleIndex * dt;
+      if (vib.enabled && vib.depth > 0) {
+        this.vibratoPhase += vibIncrement;
+        if (this.vibratoPhase > 2 * Math.PI) this.vibratoPhase -= 2 * Math.PI;
+        let envelope = 1;
+        const delay = vib.delay || 0;
+        const ramp = vib.rampTime || 0.1;
+        if (currentTime < delay) {
+          envelope = 0;
+        } else if (currentTime < delay + ramp) {
+          envelope = (currentTime - delay) / ramp;
+        }
+        const lfo = Math.sin(this.vibratoPhase);
+        const modDelay = (1 + vib.depth * envelope * lfo) * (maxVibDelaySamples * 0.5);
+        this.delayLine.write(sample);
+        sample = this.delayLine.read(modDelay);
+      }
+      if (trem.enabled && trem.depth > 0) {
+        this.tremoloPhase += tremIncrement;
+        if (this.tremoloPhase > 2 * Math.PI) this.tremoloPhase -= 2 * Math.PI;
+        const tremLfo = Math.sin(this.tremoloPhase);
+        const mod = 1 - trem.depth * 0.5 * (1 + tremLfo);
+        sample *= mod;
+      }
+      if (breath.enabled && breath.amount > 0) {
+        const noiseSample = this.noiseBuffer[this.noiseIndex];
+        this.noiseIndex = (this.noiseIndex + 1) % this.noiseBuffer.length;
+        sample += noiseSample * breath.amount * 0.1;
+      }
+      output[i] = sample;
+      this.sampleIndex++;
+    }
+  }
+  /**
+   * Update configuration parameters dynamically.
+   */
+  updateConfig(newConfig) {
+    if (newConfig.vibrato) {
+      this.config.vibrato = { ...this.config.vibrato, ...newConfig.vibrato };
+    }
+    if (newConfig.tremolo) {
+      this.config.tremolo = { ...this.config.tremolo, ...newConfig.tremolo };
+    }
+    if (newConfig.breath) {
+      this.config.breath = { ...this.config.breath, ...newConfig.breath };
+    }
+    if (newConfig.sampleRate) {
+      this.config.sampleRate = newConfig.sampleRate;
+    }
+  }
+  /**
+   * Reset internal state (phases, etc.)
+   */
+  reset() {
+    this.vibratoPhase = 0;
+    this.tremoloPhase = 0;
+    this.noiseIndex = 0;
+    this.sampleIndex = 0;
+    this.delayLine.clear();
+  }
+};
+
+// src/audio-worklets/rubberband-processor.ts
+var RubberBandProcessor = class extends AudioWorkletProcessor {
+  rubberBand = null;
+  inputRingBuffer = null;
+  outputRingBuffer = null;
+  expressiveProcessor;
+  // WASM Memory Management
+  inputHeapPtr = 0;
+  outputHeapPtr = 0;
+  heapSizeFrames = 0;
+  // Current size of allocated buffers
+  // Audio State
+  sampleRate = 44100;
+  initialized = false;
+  fullSampleBuffer = null;
   static get parameterDescriptors() {
     return [
       { name: "pitchScale", defaultValue: 1, minValue: 0.1, maxValue: 4 },
@@ -96,6 +234,16 @@ var RubberBandProcessor = class extends AudioWorkletProcessor {
       { name: "tremoloRate", defaultValue: 0, minValue: 0.1, maxValue: 20 },
       { name: "breathIntensity", defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
+  }
+  constructor() {
+    super();
+    this.port.onmessage = this.handleMessage.bind(this);
+    if (globalThis.sampleRate) {
+      this.sampleRate = globalThis.sampleRate;
+    }
+    this.expressiveProcessor = new ExpressiveVoiceProcessor({
+      sampleRate: this.sampleRate
+    });
   }
   async handleMessage(event) {
     const { type, data } = event.data;
@@ -132,6 +280,7 @@ var RubberBandProcessor = class extends AudioWorkletProcessor {
         this.rubberBand.reset();
         this.rubberBand.setPitchScale(data.pitch || 1);
         this.rubberBand.setTimeRatio(1);
+        this.expressiveProcessor.reset();
         this.ensureHeapSize(this.fullSampleBuffer.length);
         this.rubberBand.module.HEAPF32.set(this.fullSampleBuffer, this.inputHeapPtr >> 2);
         this.rubberBand.process(this.inputHeapPtr, this.fullSampleBuffer.length, false);
@@ -150,13 +299,27 @@ var RubberBandProcessor = class extends AudioWorkletProcessor {
     const vibDepth = parameters.vibratoDepth[0];
     const vibRate = parameters.vibratoRate[0];
     const tremDepth = parameters.tremoloDepth[0];
+    const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
     const breath = parameters.breathIntensity[0];
-    const dt = 128 / this.sampleRate;
-    this.lfoPhase += vibRate * dt * 2 * Math.PI;
-    if (this.lfoPhase > 2 * Math.PI) this.lfoPhase -= 2 * Math.PI;
-    const lfoSine = Math.sin(this.lfoPhase);
-    const vibFactor = Math.pow(2, vibDepth * lfoSine * 0.5 / 12);
-    this.rubberBand.setPitchScale(pitch * vibFactor);
+    this.expressiveProcessor.updateConfig({
+      vibrato: {
+        depth: vibDepth,
+        rate: vibRate,
+        enabled: vibDepth > 0
+      },
+      tremolo: {
+        depth: tremDepth,
+        rate: tremRate,
+        enabled: tremDepth > 0
+      },
+      breath: {
+        amount: breath,
+        enabled: breath > 0,
+        filterCutoff: 2e3
+        // Default value
+      }
+    });
+    this.rubberBand.setPitchScale(pitch);
     this.rubberBand.setTimeRatio(time);
     try {
       const required = this.rubberBand.getSamplesRequired();
@@ -178,19 +341,10 @@ var RubberBandProcessor = class extends AudioWorkletProcessor {
           (this.outputHeapPtr >> 2) + retrieved
         );
         outputChannel.set(outputView);
+        this.expressiveProcessor.process(outputChannel, outputChannel);
       }
     } catch (e) {
       console.error("DSP Error:", e);
-    }
-    for (let i = 0; i < outputChannel.length; i++) {
-      if (tremDepth > 0) {
-        const amp = 1 - tremDepth * 0.5 * (1 + lfoSine);
-        outputChannel[i] *= amp;
-      }
-      if (breath > 0) {
-        const noise = (Math.random() * 2 - 1) * breath * 0.05;
-        outputChannel[i] += noise;
-      }
     }
     return true;
   }
