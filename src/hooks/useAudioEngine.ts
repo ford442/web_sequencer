@@ -982,7 +982,7 @@ export const useAudioEngine = (pyodide: any) => {
             webGpuEngine: gpuEngineRef.current,
             wasmEngine: wasmEngineRef.current,
             // Exposed SingingVoice instance
-            singingVoice: singingVoiceRef.current, 
+            singingVoice: singingVoiceRef.current || undefined,
             playSynth,
             playDrum,
             playSampler,
