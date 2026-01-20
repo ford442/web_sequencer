@@ -74,7 +74,7 @@ export class SingingVoice {
     private audioContext: AudioContext;
     private workletNode: AudioWorkletNode | null = null;
     private inputRingBuffer: RingBuffer | undefined;
-    private outputRingBuffer: RingBuffer | undefined;
+    private _outputRingBuffer: RingBuffer | undefined;
     private config: SingingVoiceConfig;
     
     /** Latency of the Rubber Band processor in samples */
@@ -111,7 +111,7 @@ export class SingingVoice {
         const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
 
         this.inputRingBuffer = new RingBuffer(inputBuffer);
-        this.outputRingBuffer = new RingBuffer(outputBuffer);
+        this._outputRingBuffer = new RingBuffer(outputBuffer);
 
         this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
         
