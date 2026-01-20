@@ -1,4 +1,5 @@
 import { RingBuffer } from "../utils/ringBuffer";
+import { ExpressiveVoiceProcessor } from "../engines/rubberband/ExpressiveVoiceProcessor";
 
 interface AudioWorkletProcessor {
   readonly port: MessagePort;
@@ -20,6 +21,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private rubberBand: any = null;
   private inputRingBuffer: RingBuffer | null = null;
   private outputRingBuffer: RingBuffer | null = null;
+  private expressiveProcessor: ExpressiveVoiceProcessor;
 
   // WASM Memory Management
   private inputHeapPtr: number = 0;
@@ -28,7 +30,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
   // Audio State
   private sampleRate = 44100;
-  private lfoPhase = 0;
   private initialized = false;
   private fullSampleBuffer: Float32Array | null = null;
 
@@ -52,6 +53,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     if (globalThis.sampleRate) {
         this.sampleRate = globalThis.sampleRate;
     }
+
+    // Initialize Expressive Processor
+    this.expressiveProcessor = new ExpressiveVoiceProcessor({
+        sampleRate: this.sampleRate
+    });
   }
 
   async handleMessage(event: MessageEvent) {
@@ -98,6 +104,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.rubberBand.reset();
         this.rubberBand.setPitchScale(data.pitch || 1.0);
         this.rubberBand.setTimeRatio(1.0);
+        this.expressiveProcessor.reset(); // Reset LFOs
         this.ensureHeapSize(this.fullSampleBuffer.length);
         this.rubberBand.module.HEAPF32.set(this.fullSampleBuffer, this.inputHeapPtr >> 2);
         this.rubberBand.process(this.inputHeapPtr, this.fullSampleBuffer.length, false);
@@ -122,25 +129,35 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const vibDepth = parameters.vibratoDepth[0];
     const vibRate = parameters.vibratoRate[0];
     const tremDepth = parameters.tremoloDepth[0];
+    const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
     const breath = parameters.breathIntensity[0];
 
-    // 2. Expression (Vibrato)
-    const dt = 128 / this.sampleRate;
-    this.lfoPhase += (vibRate * dt * 2 * Math.PI);
-    if (this.lfoPhase > 2 * Math.PI) this.lfoPhase -= 2 * Math.PI;
-    const lfoSine = Math.sin(this.lfoPhase);
+    // 2. Update Expression Processor
+    this.expressiveProcessor.updateConfig({
+        vibrato: {
+            depth: vibDepth,
+            rate: vibRate,
+            enabled: vibDepth > 0
+        },
+        tremolo: {
+            depth: tremDepth,
+            rate: tremRate,
+            enabled: tremDepth > 0
+        },
+        breath: {
+            amount: breath,
+            enabled: breath > 0
+        }
+    });
 
-    // Apply Pitch Modulation
-    // vibDepth 0-1 maps to approx 0-50 cents
-    const vibFactor = Math.pow(2, (vibDepth * lfoSine * 0.5) / 12);
-    this.rubberBand.setPitchScale(pitch * vibFactor);
+    // Apply Pitch (Base only, vibrato is now post-process)
+    this.rubberBand.setPitchScale(pitch);
     this.rubberBand.setTimeRatio(time);
 
     // 3. Process Audio Logic (Memory Managed)
     try {
         // A. PULL from RingBuffer -> WASM
         const required = this.rubberBand.getSamplesRequired();
-        // Fix: Use availableRead() from modified RingBuffer
         const available = this.inputRingBuffer.availableRead();
 
         // Process in chunks if we have enough data
@@ -149,26 +166,22 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
             // 1. Read from RingBuffer into temp JS array
             const inputTemp = new Float32Array(required);
-            // Fix: Use pull() instead of pop()
             this.inputRingBuffer.pull(inputTemp);
 
             // 2. Copy JS Array -> WASM Heap
-            // HEAPF32 is a view of memory. We calculate offset in 32-bit floats (bytes / 4)
             this.rubberBand.module.HEAPF32.set(inputTemp, this.inputHeapPtr >> 2);
 
-            // 3. Process (Pass the POINTER, not the array)
+            // 3. Process
             this.rubberBand.process(this.inputHeapPtr, required, false);
         }
 
         // B. RETRIEVE from WASM -> Output
-        // We want to fill the current Web Audio block (128 frames)
-
         const availOutput = this.rubberBand.available();
         if (availOutput > 0) {
             const framesToRead = Math.min(availOutput, 128); // Read up to block size
             this.ensureHeapSize(framesToRead);
             
-            // 1. Retrieve (Pass POINTER)
+            // 1. Retrieve
             const retrieved = this.rubberBand.retrieve(this.outputHeapPtr, framesToRead);
 
             // 2. Copy WASM Heap -> Output Buffer
@@ -177,27 +190,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 (this.outputHeapPtr >> 2) + retrieved
             );
 
+            // Copy to outputChannel (needed because outputView is a view on WASM memory)
             outputChannel.set(outputView);
+
+            // 4. Post-Processing Effects (Expressive Layer)
+            // Apply in-place on the output buffer
+            this.expressiveProcessor.process(outputChannel, outputChannel);
         }
 
     } catch (e) {
         console.error("DSP Error:", e);
-    }
-
-    // 4. Post-Processing Effects (Tremolo & Breath)
-    // Applied directly to the output buffer
-    for (let i = 0; i < outputChannel.length; i++) {
-        // Tremolo
-        if (tremDepth > 0) {
-           const amp = 1.0 - (tremDepth * 0.5 * (1 + lfoSine));
-           outputChannel[i] *= amp;
-        }
-
-        // Breath (White Noise)
-        if (breath > 0) {
-           const noise = (Math.random() * 2 - 1) * breath * 0.05;
-           outputChannel[i] += noise;
-        }
     }
 
     return true;
