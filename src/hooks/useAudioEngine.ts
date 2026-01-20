@@ -167,7 +167,7 @@ export const useAudioEngine = (pyodide: any) => {
                                 const audioSamples = pyProxy.toJs({ array_buffer_type: 'float32' });
                                 pyProxy.destroy();
                                 if (audioSamples && audioSamples.length > 0) {
-                                    singingVoiceRef.current!.setCachedAudio(level, new Float32Array(audioSamples));
+                                    singingVoiceRef.current!.setCachedAudio(level as keyof typeof REFERENCE_FREQUENCIES, new Float32Array(audioSamples));
                                 }
                             } catch (e) {
                                 console.warn(`Failed to cache TTS for ${level}:`, e);
@@ -982,7 +982,7 @@ export const useAudioEngine = (pyodide: any) => {
             webGpuEngine: gpuEngineRef.current,
             wasmEngine: wasmEngineRef.current,
             // Exposed SingingVoice instance
-            singingVoice: singingVoiceRef.current, 
+            singingVoice: singingVoiceRef.current || undefined,
             playSynth,
             playDrum,
             playSampler,
