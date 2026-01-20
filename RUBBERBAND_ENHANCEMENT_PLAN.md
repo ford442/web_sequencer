@@ -352,6 +352,7 @@ Last updated: January 2026
 |---------|--------|---------------|
 | **Section 1: Vocal Fidelity Tuning** | ✅ IMPLEMENTED | `src/audio-worklets/rubberband-processor.ts` |
 | **Section 2: Multi-Resolution Pitch** | ✅ IMPLEMENTED | `src/engines/SingingVoice.ts` |
+| **Section 5: Expression Layer** | ✅ IMPLEMENTED | `src/engines/rubberband/ExpressiveVoiceProcessor.ts` |
 
 #### Section 1 Implementation Details
 - Added vocal-optimized options to rubberband-processor.ts:
@@ -371,6 +372,13 @@ Last updated: January 2026
 - Added `setPitchFromMidi` method with ±1 octave clamping
 - Added `processWithOptimalPitch` method for automatic cache usage
 - Added `SingingVoiceConfig` for flexible initialization
+
+#### Section 5 Implementation Details
+- Implemented `ExpressiveVoiceProcessor` class for AudioWorklet
+- Added delay-line based Vibrato (pitch modulation) for natural sounding oscillation
+- Added Tremolo (AM) with configurable rate and depth
+- Added Breath Noise generator with pre-calculated noise buffer and enabled switch
+- Integrated into `RubberBandProcessor` pipeline as a post-processing stage
 
 ### WASM Wrapper Updates ✅
 
@@ -394,7 +402,7 @@ Exposed option constants for JavaScript:
 |---------|------|--------|
 | **Section 3: Phoneme Alignment** | `src/engines/rubberband/PhonemeAligner.ts` | STUB |
 | **Section 4: Formant Shifting** | `src/engines/rubberband/FormantShifter.ts` | STUB |
-| **Section 5: Expression Layer** | `src/engines/rubberband/ExpressiveVoiceProcessor.ts` | STUB (partial impl) |
+| **Section 5: Expression Layer** | `src/engines/rubberband/ExpressiveVoiceProcessor.ts` | ✅ IMPLEMENTED |
 | **Section 6: Hybrid Neural** | `src/engines/rubberband/HybridNeuralPipeline.ts` | STUB |
 | **Section 7: Performance** | `src/engines/rubberband/PerformanceOptimizer.ts` | STUB |
 | **Section 8: Concatenative** | `src/engines/rubberband/ConcatenativeHybrid.ts` | STUB (partial impl) |
@@ -422,6 +430,5 @@ src/engines/
 
 1. **Rebuild WASM module** - Run `./emscripten/build_rubberband.sh` to compile updated wrapper
 2. **Test Section 1 & 2** - Verify vocal fidelity improvements with TTS output
-3. **Implement Section 5** - Complete ExpressiveVoiceProcessor for AudioWorklet
-4. **Integrate MFA** - Add phoneme alignment backend for Section 3
-5. **Add HiFi-GAN WASM** - Find or compile neural vocoder for Section 6
+3. **Integrate MFA** - Add phoneme alignment backend for Section 3
+4. **Add HiFi-GAN WASM** - Find or compile neural vocoder for Section 6
