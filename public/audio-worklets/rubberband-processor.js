@@ -314,7 +314,9 @@ var RubberBandProcessor = class extends AudioWorkletProcessor {
       },
       breath: {
         amount: breath,
-        enabled: breath > 0
+        enabled: breath > 0,
+        filterCutoff: 2e3
+        // Default value
       }
     });
     this.rubberBand.setPitchScale(pitch);

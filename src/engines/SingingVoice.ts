@@ -73,8 +73,8 @@ export function freqToMidi(freq: number): number {
 export class SingingVoice {
     private audioContext: AudioContext;
     private workletNode: AudioWorkletNode | null = null;
-    private inputRingBuffer: RingBuffer;
-    private outputRingBuffer: RingBuffer;
+    private inputRingBuffer: RingBuffer | undefined;
+    private outputRingBuffer: RingBuffer | undefined;
     private config: SingingVoiceConfig;
     
     /** Latency of the Rubber Band processor in samples */
@@ -270,6 +270,17 @@ export class SingingVoice {
     }
 
     /**
+     * Get the underlying AudioWorkletNode.
+     * @returns The AudioWorkletNode
+     */
+    getSourceNode(): AudioWorkletNode {
+        if (!this.workletNode) {
+            throw new Error('SingingVoice not initialized. Call initWorklet() first.');
+        }
+        return this.workletNode;
+    }
+
+    /**
      * Connect the worklet to an audio destination.
      * @param destination AudioNode to connect to
      */
@@ -285,7 +296,11 @@ export class SingingVoice {
      */
     disconnect(destination?: AudioNode): void {
         if (this.workletNode) {
-            this.workletNode.disconnect(destination);
+            if (destination) {
+                this.workletNode.disconnect(destination);
+            } else {
+                this.workletNode.disconnect();
+            }
         }
     }
 

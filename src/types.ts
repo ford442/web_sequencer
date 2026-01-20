@@ -1,3 +1,5 @@
+import { SingingVoice } from './engines/SingingVoice';
+
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
   | 'pyodide-saw' | 'pyodide-square' | 'pyodide-sine'
@@ -119,7 +121,7 @@ export interface AudioEngine {
     setSustainMode?: (mode: 'loop' | 'stretch' | 'wavetable') => void;
     setSustainGrainSize?: (size: number) => void;
     playSinging?: (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote?: string) => void;
-    singingVoice?: SingingVoice;  // Add this line
+    singingVoice?: SingingVoice;
 }
 
 // Automation recording types

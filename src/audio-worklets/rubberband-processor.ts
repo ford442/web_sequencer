@@ -146,7 +146,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         },
         breath: {
             amount: breath,
-            enabled: breath > 0
+            enabled: breath > 0,
+            filterCutoff: 2000 // Default value
         }
     });
 
