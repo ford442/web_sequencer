@@ -695,7 +695,10 @@ export const App: React.FC = () => {
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
-    const renderHeader = () => (
+
+    // PERFORMANCE: Memoize main UI sections to prevent unnecessary VDOM regeneration
+    // when unrelated state updates (e.g. playing a sequence vs editing a pattern).
+    const headerNode = useMemo(() => (
         <header className="h-16 flex items-center justify-between px-6 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 shadow-2xl shrink-0 relative backdrop-blur-sm w-full">
             <div className="flex items-center gap-6">
                 <h1 className="text-xl font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">HYPHON</h1>
@@ -764,9 +767,9 @@ export const App: React.FC = () => {
                 </button>
             </div>
         </header>
-    );
+    ), [is3DMode, songStorage, activeSongSlot, masterVolume, globalPan, tempo, isRecording, isPlaying, isSongModeOpen, loadSong, handleSaveSong, exportSongToFile, importSongFromFile, handleClearPattern, handleMasterVolume, handleMasterVolumeKeyDown, handleGlobalPan, handleGlobalPanKeyDown, handleTempoHoldStart, handleTempoHoldEnd, handleTempoKeyDown, handlePanic, handlePlayToggle, setIsRecording, setIsSongModeOpen, setIs3DMode, setIsCloudLibraryOpen]);
 
-    const renderSequencer = () => {
+    const sequencerNode = useMemo(() => {
         if (isSongModeOpen && is3DMode) {
              return (
                 <div className="w-full h-[480px] p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-hidden">
@@ -823,15 +826,15 @@ export const App: React.FC = () => {
                 )}
             </div>
         );
-    };
+    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange]);
 
-    const renderKeyboard = () => (
+    const keyboardNode = useMemo(() => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
             <LiveKeyboard onPlayNote={handleKeyboardPlay} onStopNote={handleKeyboardStop} activeTrackColor={selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') : selectedTrack === 'kick' ? '#f97316' : selectedTrack === 'snare' ? '#22c55e' : selectedTrack === 'sampler' ? '#a855f7' : '#eab308'} />
         </div>
-    );
+    ), [selectedTrack, handleKeyboardPlay, handleKeyboardStop]);
 
-    const renderRack = () => (
+    const rackNode = useMemo(() => (
         <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
              <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
 
@@ -853,16 +856,16 @@ export const App: React.FC = () => {
                 {renderModulePanel()}
              </div>
         </div>
-    );
+    ), [is3DMode, selectedTrack, synthA, synthB, kick, snare, closedHat, openHat, sampler, activeSamplerBank, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, samplerChild, renderModulePanel]);
 
     // --- MAIN RENDER ---
     if (is3DMode) {
         return (
             <Studio3D
-                header={renderHeader()}
-                sequencer={renderSequencer()}
-                keyboard={renderKeyboard()}
-                rack={renderRack()}
+                header={headerNode}
+                sequencer={sequencerNode}
+                keyboard={keyboardNode}
+                rack={rackNode}
                 onExit={() => setIs3DMode(false)}
             />
         );
@@ -877,23 +880,23 @@ export const App: React.FC = () => {
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
 
             {/* Standard 2D Layout */}
-            {renderHeader()}
+            {headerNode}
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
                 {contextMenu && (<NoteSelector x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'} currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''} currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1} onSelect={handleNoteSelect} onLengthChange={handleNoteLengthChange} onClose={() => setContextMenu(null)} getNoteColor={getNoteColor} />)}
                 <div className="w-full max-w-[1000px] mx-auto h-[480px]">
-                    {renderSequencer()}
+                    {sequencerNode}
                 </div>
                 <div className="shrink-0 pb-4 mt-6 max-w-[1000px] mx-auto w-full">
-                    {renderKeyboard()}
+                    {keyboardNode}
                 </div>
             </main>
 
             <div className="h-[320px] bg-gradient-to-b from-[#0d0f12] to-[#0f1215] border-t-2 border-cyan-900/30 relative shadow-[0_-10px_60px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(6,182,212,0.1)] z-30 shrink-0 fixed bottom-0 w-full">
                 <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
                 <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
-                    {renderRack()}
+                    {rackNode}
                 </div>
             </div>
         </div>
