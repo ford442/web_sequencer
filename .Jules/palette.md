@@ -21,3 +21,7 @@
 ## 2025-05-25 - Accessible Icon-Only Buttons
 **Learning:** Icon-only buttons (like Save/Load) are invisible to screen reader users without explicit labels, and often confusing to sighted users without tooltips. They also need proper focus indication for keyboard users who might skip over them if they don't look interactive.
 **Action:** Always add `aria-label` for screen readers and `title` for mouse users to icon-only buttons. Ensure `focus-visible` styles are present so keyboard users can track their position.
+
+## 2025-05-25 - Keyboard Navigation in React Tabs
+**Learning:** Adding ARIA roles to tabs is not enough; `tabIndex` management and `keydown` handlers are essential for the expected arrow-key navigation behavior defined in the ARIA Authoring Practices.
+**Action:** When converting buttons to tabs, always implement a `handleKeyDown` function for ArrowLeft/ArrowRight to switch tabs and manage focus, ensuring a native-like experience.
