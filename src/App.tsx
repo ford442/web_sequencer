@@ -682,17 +682,6 @@ export const App: React.FC = () => {
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
     const samplerChild = useMemo(() => (<div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={setTtsPhrases} /></div>), [sampler, updateSampler, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases]);
 
-    const renderModulePanel = () => {
-        if (selectedTrack === 'partA') return <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange} is3D={is3DMode}>{synthAChild}</HardwareModule>;
-        if (selectedTrack === 'partB') return <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange} is3D={is3DMode}>{synthBChild}</HardwareModule>;
-        if (selectedTrack === 'kick') return <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} is3D={is3DMode} />;
-        if (selectedTrack === 'snare') return <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} is3D={is3DMode} />;
-        if (selectedTrack === 'closedHat') return <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} is3D={is3DMode} />;
-        if (selectedTrack === 'openHat') return <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} is3D={is3DMode} />;
-        if (selectedTrack === 'sampler') { return (<HardwareModule title={`SAMPLER // BANK ${activeSamplerBank + 1}`} colorHex={COLOR_SAMPLER} controls={samplerControls} onParamChange={handleSamplerChange} is3D={is3DMode}>{samplerChild}</HardwareModule>); }
-        return null;
-    };
-
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
 
@@ -834,29 +823,42 @@ export const App: React.FC = () => {
         </div>
     ), [selectedTrack, handleKeyboardPlay, handleKeyboardStop]);
 
-    const rackNode = useMemo(() => (
-        <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
-             <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
+    const rackNode = useMemo(() => {
+        // PERFORMANCE: Inline conditional rendering to avoid dependency on unstable function reference.
+        // This ensures the Rack only re-renders when relevant props/state change.
+        let modulePanel = null;
+        if (selectedTrack === 'partA') modulePanel = <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange} is3D={is3DMode}>{synthAChild}</HardwareModule>;
+        else if (selectedTrack === 'partB') modulePanel = <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange} is3D={is3DMode}>{synthBChild}</HardwareModule>;
+        else if (selectedTrack === 'kick') modulePanel = <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} is3D={is3DMode} />;
+        else if (selectedTrack === 'snare') modulePanel = <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} is3D={is3DMode} />;
+        else if (selectedTrack === 'closedHat') modulePanel = <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} is3D={is3DMode} />;
+        else if (selectedTrack === 'openHat') modulePanel = <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} is3D={is3DMode} />;
+        else if (selectedTrack === 'sampler') { modulePanel = (<HardwareModule title={`SAMPLER // BANK ${activeSamplerBank + 1}`} colorHex={COLOR_SAMPLER} controls={samplerControls} onParamChange={handleSamplerChange} is3D={is3DMode}>{samplerChild}</HardwareModule>); }
 
-             {is3DMode && (
-                 <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
-                    {ROWS.map(row => (
-                        <button
-                            key={row.key}
-                            onClick={() => setSelectedTrack(row.key)}
-                            className={`px-4 py-2 rounded text-xs font-bold font-orbitron border transition-all ${selectedTrack === row.key ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500 shadow-[0_0_10px_cyan]' : 'bg-gray-800 text-gray-500 border-gray-700 hover:bg-gray-700 hover:text-gray-300'}`}
-                        >
-                            {row.label.toUpperCase()}
-                        </button>
-                    ))}
-                 </div>
-             )}
+        return (
+            <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
+                <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
 
-             <div className="flex-1 relative overflow-hidden">
-                {renderModulePanel()}
-             </div>
-        </div>
-    ), [is3DMode, selectedTrack, synthA, synthB, kick, snare, closedHat, openHat, sampler, activeSamplerBank, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, samplerChild, renderModulePanel]);
+                {is3DMode && (
+                    <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
+                        {ROWS.map(row => (
+                            <button
+                                key={row.key}
+                                onClick={() => setSelectedTrack(row.key)}
+                                className={`px-4 py-2 rounded text-xs font-bold font-orbitron border transition-all ${selectedTrack === row.key ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500 shadow-[0_0_10px_cyan]' : 'bg-gray-800 text-gray-500 border-gray-700 hover:bg-gray-700 hover:text-gray-300'}`}
+                            >
+                                {row.label.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                <div className="flex-1 relative overflow-hidden">
+                    {modulePanel}
+                </div>
+            </div>
+        );
+    }, [is3DMode, selectedTrack, activeSamplerBank, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, samplerChild]);
 
     // --- MAIN RENDER ---
     if (is3DMode) {
