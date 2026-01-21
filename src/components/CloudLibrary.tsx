@@ -13,6 +13,21 @@ interface CloudLibraryProps {
     getPatternData: () => any;
 }
 
+const TABS = [
+    {
+        id: 'browse',
+        label: 'CLOUD LIBRARY',
+        activeClass: 'text-cyan-400 bg-gray-800/50 border-b-2 border-cyan-400',
+        focusClass: 'focus-visible:ring-cyan-500'
+    },
+    {
+        id: 'upload',
+        label: 'UPLOAD',
+        activeClass: 'text-pink-400 bg-gray-800/50 border-b-2 border-pink-400',
+        focusClass: 'focus-visible:ring-pink-500'
+    }
+] as const;
+
 const SkeletonRow = () => (
     <div className="bg-gray-800/20 border border-gray-800 rounded-lg p-3 flex justify-between items-center animate-pulse" aria-hidden="true">
         <div className="w-full">
@@ -127,13 +142,30 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
     };
 
     const handleTabKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'ArrowRight' && activeTab === 'browse') {
-            setActiveTab('upload');
-            setTimeout(() => document.getElementById('tab-upload')?.focus(), 0);
-        } else if (e.key === 'ArrowLeft' && activeTab === 'upload') {
-            setActiveTab('browse');
-            setTimeout(() => document.getElementById('tab-browse')?.focus(), 0);
+        const currentIndex = TABS.findIndex(t => t.id === activeTab);
+        let nextIndex = currentIndex;
+
+        switch (e.key) {
+            case 'ArrowRight':
+                nextIndex = (currentIndex + 1) % TABS.length;
+                break;
+            case 'ArrowLeft':
+                nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+                break;
+            case 'Home':
+                nextIndex = 0;
+                break;
+            case 'End':
+                nextIndex = TABS.length - 1;
+                break;
+            default:
+                return;
         }
+
+        e.preventDefault();
+        const nextTab = TABS[nextIndex];
+        setActiveTab(nextTab.id as any);
+        setTimeout(() => document.getElementById(`tab-${nextTab.id}`)?.focus(), 0);
     };
 
     const filteredSongs = songs.filter(s => filterType === 'all' || s.type === filterType);
@@ -151,35 +183,31 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                     aria-label="Cloud Library Sections"
                     onKeyDown={handleTabKeyDown}
                 >
-                    <button
-                        id="tab-browse"
-                        role="tab"
-                        aria-selected={activeTab === 'browse'}
-                        aria-controls="cloud-library-panel"
-                        tabIndex={activeTab === 'browse' ? 0 : -1}
-                        onClick={() => setActiveTab('browse')}
-                        className={`flex-1 py-4 font-orbitron font-bold text-sm tracking-widest transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset ${activeTab === 'browse' ? 'text-cyan-400 bg-gray-800/50 border-b-2 border-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                        CLOUD LIBRARY
-                    </button>
-                    <button
-                        id="tab-upload"
-                        role="tab"
-                        aria-selected={activeTab === 'upload'}
-                        aria-controls="cloud-library-panel"
-                        tabIndex={activeTab === 'upload' ? 0 : -1}
-                        onClick={() => setActiveTab('upload')}
-                        className={`flex-1 py-4 font-orbitron font-bold text-sm tracking-widest transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-inset ${activeTab === 'upload' ? 'text-pink-400 bg-gray-800/50 border-b-2 border-pink-400' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                        UPLOAD
-                    </button>
+                    {TABS.map(tab => (
+                        <button
+                            key={tab.id}
+                            id={`tab-${tab.id}`}
+                            role="tab"
+                            aria-selected={activeTab === tab.id}
+                            aria-controls="cloud-library-panel"
+                            tabIndex={activeTab === tab.id ? 0 : -1}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex-1 py-4 font-orbitron font-bold text-sm tracking-widest transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset ${tab.focusClass} ${
+                                activeTab === tab.id
+                                    ? tab.activeClass
+                                    : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Content */}
                 <div
                     id="cloud-library-panel"
                     role="tabpanel"
-                    aria-labelledby={activeTab === 'browse' ? 'tab-browse' : 'tab-upload'}
+                    aria-labelledby={`tab-${activeTab}`}
                     className="flex-1 overflow-y-auto p-6 min-h-[400px] focus:outline-none"
                     tabIndex={0}
                 >
