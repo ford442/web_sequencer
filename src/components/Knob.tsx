@@ -78,7 +78,8 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const direction = e.deltaY > 0 ? -1 : 1; // normalize: up increases
-    let newValue = value + direction * step;
+    const modifier = e.shiftKey ? 10 : 1;
+    let newValue = value + direction * step * modifier;
     newValue = Math.round(newValue / step) * step;
     newValue = Math.max(min, Math.min(max, newValue));
     onChange(newValue);
@@ -128,14 +129,38 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
         title={label}
         aria-label={label}
         onKeyDown={(e) => {
+          let newVal = value;
+          let handled = false;
+          const isShift = e.shiftKey;
+          const isFine = e.altKey || e.ctrlKey || e.metaKey;
+          const effectiveStep = step * (isShift ? 10 : (isFine ? 0.1 : 1));
+
           if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
-            e.preventDefault();
-            const newVal = Math.max(min, Math.min(max, Math.round((value + step) / step) * step));
-            onChange(newVal);
+            newVal += effectiveStep;
+            handled = true;
           } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+            newVal -= effectiveStep;
+            handled = true;
+          } else if (e.key === 'PageUp') {
+            newVal += step * 5;
+            handled = true;
+          } else if (e.key === 'PageDown') {
+            newVal -= step * 5;
+            handled = true;
+          } else if (e.key === 'Home') {
+            newVal = min;
+            handled = true;
+          } else if (e.key === 'End') {
+            newVal = max;
+            handled = true;
+          }
+
+          if (handled) {
             e.preventDefault();
-            const newVal = Math.max(min, Math.min(max, Math.round((value - step) / step) * step));
-            onChange(newVal);
+            if (!isFine) {
+               newVal = Math.round(newVal / step) * step;
+            }
+            onChange(Math.max(min, Math.min(max, newVal)));
           }
         }}
         onMouseDown={handleMouseDown}
