@@ -25,3 +25,7 @@
 ## 2025-05-25 - Keyboard Navigation in React Tabs
 **Learning:** Adding ARIA roles to tabs is not enough; `tabIndex` management and `keydown` handlers are essential for the expected arrow-key navigation behavior defined in the ARIA Authoring Practices.
 **Action:** When converting buttons to tabs, always implement a `handleKeyDown` function for ArrowLeft/ArrowRight to switch tabs and manage focus, ensuring a native-like experience.
+
+## 2025-05-25 - Advanced Keyboard Control for Sliders
+**Learning:** Adding Shift (coarse) and Alt (fine) modifiers to standard arrow key navigation significantly improves usability for precise parameter controls without cluttering the UI. Standard ARIA sliders benefit greatly from Home/End/Page keys.
+**Action:** Implement standard modifier logic (Shift=x10, Alt=x0.1) and full navigation key support (Home, End, PageUp, PageDown) on all custom range inputs or knobs.

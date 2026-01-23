@@ -470,14 +470,36 @@ export const HardwareModule = React.memo(
                                 height: `${c.size * 200}%`
                             }}
                             onKeyDown={(e) => {
-                                let delta = 0;
-                                if (e.key === 'ArrowUp' || e.key === 'ArrowRight') delta = 0.05;
-                                if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') delta = -0.05;
-                                if (delta !== 0) {
+                                let newVal = c.value;
+                                let handled = false;
+                                const isShift = e.shiftKey;
+                                const isFine = e.altKey || e.ctrlKey || e.metaKey;
+                                const step = isShift ? 0.2 : (isFine ? 0.005 : 0.05);
+
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+                                    newVal += step;
+                                    handled = true;
+                                } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+                                    newVal -= step;
+                                    handled = true;
+                                } else if (e.key === 'PageUp') {
+                                    newVal += 0.1;
+                                    handled = true;
+                                } else if (e.key === 'PageDown') {
+                                    newVal -= 0.1;
+                                    handled = true;
+                                } else if (e.key === 'Home') {
+                                    newVal = 0;
+                                    handled = true;
+                                } else if (e.key === 'End') {
+                                    newVal = 1;
+                                    handled = true;
+                                }
+
+                                if (handled) {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    const newVal = Math.max(0, Math.min(1, c.value + delta));
-                                    onParamChange(c.id, newVal);
+                                    onParamChange(c.id, Math.max(0, Math.min(1, newVal)));
                                 }
                             }}
                         />
