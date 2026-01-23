@@ -34,10 +34,14 @@ export const HardwareModule = React.memo(
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
         const controlsRef = useRef(controls);
-        const colorHexRef = useRef(colorHex); // PERFORMANCE: Track color changes without re-init
         const activeKnobIndex = useRef<number | null>(null);
         const startY = useRef(0);
         const startVal = useRef(0);
+
+        // PERFORMANCE: Staging buffer for WebGPU to avoid allocation per frame.
+        // We use a Ref so it persists across renders and can be updated by effects.
+        // Size: 288 bytes / 4 = 72 floats (matches shader struct size exactly)
+        const stagingBufferRef = useRef(new Float32Array(72));
 
         // Ref to store the render function for demand-based rendering
         const renderRef = useRef<(() => void) | null>(null);
@@ -45,18 +49,42 @@ export const HardwareModule = React.memo(
         // Refs for accessibility elements to enable focus management
         const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-        // Sync refs
+        // Sync refs & Update Staging Buffer
         useEffect(() => {
             controlsRef.current = controls;
+
+            // Update Staging Buffer (Static Data)
+            // This moves the overhead of populating controls/color from the 60fps render loop
+            // to this effect which only runs when props actually change.
+            const buf = stagingBufferRef.current;
+
+            // Clear dynamic regions (Vals and Positions) - indices 8 to 71
+            // This ensures if we switch from 12 knobs to 4, the old data is cleared.
+            buf.fill(0, 8, 72);
+
+            // Update Color [4-7]
+            buf[4] = colorHex[0];
+            buf[5] = colorHex[1];
+            buf[6] = colorHex[2];
+
+            // Update Controls (Vals and Positions)
+            controls.forEach((ctrl, i) => {
+                if (i < 12) {
+                    // Vals start at index 8
+                    buf[8 + i] = ctrl.value;
+
+                    // Positions start at index 24, stride 4
+                    const posOffset = 24 + (i * 4);
+                    buf[posOffset] = ctrl.x;
+                    buf[posOffset + 1] = ctrl.y;
+                    buf[posOffset + 2] = ctrl.size;
+                }
+            });
+
             // Optimization: In 3D mode, the animation loop handles rendering.
             // Avoid redundant render calls to prevent double-work per frame.
             if (!is3D && renderRef.current) renderRef.current();
-        }, [controls, is3D]);
-
-        useEffect(() => {
-            colorHexRef.current = colorHex;
-            if (!is3D && renderRef.current) renderRef.current();
-        }, [colorHex, is3D]);
+        }, [controls, colorHex, is3D]);
 
         // --- INTERACTION LOGIC (Mouse) ---
         useEffect(() => {
@@ -364,53 +392,20 @@ export const HardwareModule = React.memo(
 
             let animationFrameId: number;
 
-            // Pre-allocate buffers to avoid garbage collection in the render loop
-            // Optimization: Single staging buffer for batched upload
-            // Size: 288 bytes / 4 = 72 floats (matches struct size exactly)
-            // Layout:
-            // 0-3: Time (vec4: time, ratio, pad, pad)
-            // 4-7: Color (vec4: r, g, b, pad)
-            // 8-23: Vals (vec4[4]: 16 floats, padded)
-            // 24-71: Positions (vec4[12]: 48 floats)
-            const stagingBuffer = new Float32Array(72);
-
             const render = () => {
                 if (!isActive || !device || !pipeline || !bindGroup) return;
 
+                const buf = stagingBufferRef.current;
                 const width = canvas.width, height = canvas.height;
 
-                // Clear dynamic regions (Vals and Positions) to ensure clean state
-                // Vals: indices 8 to 23 (16 floats)
-                // Positions: indices 24 to 71 (48 floats)
-                stagingBuffer.fill(0, 8, 72);
+                // Update Dynamic Data (Time/Ratio)
+                // We only update what changes every frame.
+                // Static data (Controls, Color) is updated in the useEffect above.
+                buf[0] = performance.now() / 1000;
+                buf[1] = width / height;
 
-                // 1. Update Time Uniform [0-3]
-                stagingBuffer[0] = performance.now() / 1000;
-                stagingBuffer[1] = width / height;
-
-                // 2. Update Color Uniform [4-7]
-                const c = colorHexRef.current;
-                stagingBuffer[4] = c[0];
-                stagingBuffer[5] = c[1];
-                stagingBuffer[6] = c[2];
-
-                // 3. Update Controls (Vals and Positions)
-                controlsRef.current.forEach((ctrl, i) => {
-                    if (i < 12) {
-                        // Vals start at index 8
-                        stagingBuffer[8 + i] = ctrl.value;
-
-                        // Positions start at index 24, stride 4
-                        const posOffset = 24 + (i * 4);
-                        stagingBuffer[posOffset] = ctrl.x;
-                        stagingBuffer[posOffset + 1] = ctrl.y;
-                        stagingBuffer[posOffset + 2] = ctrl.size;
-                        // posOffset + 3 (radius/pad) is already 0 from fill
-                    }
-                });
-
-                // PERFORMANCE: Single batched write instead of 4 separate calls
-                device.queue.writeBuffer(uniformBuffer, 0, stagingBuffer);
+                // PERFORMANCE: Single batched write
+                device.queue.writeBuffer(uniformBuffer, 0, buf);
 
                 const encoder = device.createCommandEncoder();
                 const pass = encoder.beginRenderPass({
