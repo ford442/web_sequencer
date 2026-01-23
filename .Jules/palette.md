@@ -29,3 +29,7 @@
 ## 2025-05-25 - Advanced Keyboard Control for Sliders
 **Learning:** Adding Shift (coarse) and Alt (fine) modifiers to standard arrow key navigation significantly improves usability for precise parameter controls without cluttering the UI. Standard ARIA sliders benefit greatly from Home/End/Page keys.
 **Action:** Implement standard modifier logic (Shift=x10, Alt=x0.1) and full navigation key support (Home, End, PageUp, PageDown) on all custom range inputs or knobs.
+
+## 2025-05-25 - Stabilizing Live Regions for Status Updates
+**Learning:** If a component conditionally renders different root elements (e.g., returning `null` or swapping `div`/`button`) based on state, `aria-live` announcements may be unreliable because the live region itself is being destroyed and recreated. Screen readers generally need the live region container to be stable in the DOM to observe content changes.
+**Action:** Wrap conditional status content in a stable parent `div` with `role="status"` and `aria-live="polite"` that persists across state changes, even if empty.
