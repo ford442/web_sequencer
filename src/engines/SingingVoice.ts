@@ -2,11 +2,9 @@ import { RingBuffer } from '../utils/ringBuffer';
 
 /**
  * SingingVoice - High-fidelity vocal synthesis engine
- * 
- * Part of the RUBBERBAND_ENHANCEMENT_PLAN implementation.
+ * * Part of the RUBBERBAND_ENHANCEMENT_PLAN implementation.
  * Integrates Supertonic TTS with Rubber Band for singing synthesis.
- * 
- * Key features:
+ * * Key features:
  * - Multi-resolution pitch caching (Section 2): Pre-render at multiple base pitches
  * - Formant preservation: Avoids "chipmunk effect"
  * - Latency compensation for MIDI sync (Section 9)
@@ -29,8 +27,7 @@ export const REFERENCE_FREQUENCIES = {
     high: 523.25   // C5
 };
 
-/** 
- * Pitch ratio limits for optimal Rubber Band quality.
+/** * Pitch ratio limits for optimal Rubber Band quality.
  * Shifts outside this range introduce more artifacts.
  */
 export const PITCH_RATIO_LIMITS = {
@@ -138,6 +135,14 @@ export class SingingVoice {
     }
 
     /**
+     * Get the output ring buffer instance.
+     * Useful for visualizing output or analyzing processed audio on the main thread.
+     */
+    get outputRingBuffer(): RingBuffer | undefined {
+        return this._outputRingBuffer;
+    }
+
+    /**
      * Set the pitch scale ratio.
      * @param ratio Pitch multiplier (e.g., 2.0 = one octave up, 0.5 = one octave down)
      */
@@ -166,8 +171,7 @@ export class SingingVoice {
     /**
      * Get the nearest base pitch level for a target frequency.
      * Used for multi-resolution pitch caching (Section 2).
-     * 
-     * @param targetMidiNote Target MIDI note number
+     * * @param targetMidiNote Target MIDI note number
      * @returns The cache key ('low', 'mid', or 'high') for the nearest base pitch
      */
     getNearestBasePitch(targetMidiNote: number): keyof PitchCache {
@@ -189,8 +193,7 @@ export class SingingVoice {
     /**
      * Set cached audio for a specific pitch level.
      * Call this with pre-rendered TTS audio at different reference pitches.
-     * 
-     * @param level The pitch cache level ('low', 'mid', 'high')
+     * * @param level The pitch cache level ('low', 'mid', 'high')
      * @param audio Float32Array of audio samples rendered at the reference pitch
      */
     setCachedAudio(level: keyof PitchCache, audio: Float32Array): void {
@@ -209,8 +212,7 @@ export class SingingVoice {
     /**
      * Process audio with optimal pitch shifting using cached base pitches.
      * Automatically selects the nearest cached base pitch to minimize artifacts.
-     * 
-     * @param targetMidiNote Target MIDI note for pitch shifting
+     * * @param targetMidiNote Target MIDI note for pitch shifting
      * @returns true if processing succeeded, false if no cached audio available
      */
     processWithOptimalPitch(targetMidiNote: number): boolean {
