@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 
 export interface KnobConfig {
     id: string;
@@ -20,6 +20,119 @@ interface HardwareModuleProps {
     children?: React.ReactNode;
     is3D?: boolean; // Enable holographic shader in 3D mode
 }
+
+// PERFORMANCE: Memoized Knob Overlay Component
+// This component encapsulates the DOM overlays for each knob (Label, Record Button, A11y Slider).
+// It accepts primitive props to ensure React.memo works efficiently even when the parent 'KnobConfig' object changes reference.
+interface KnobOverlayProps {
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    size: number;
+    value: number;
+    valueDisplay?: string;
+    isRecording?: boolean;
+    colorHex: [number, number, number];
+    index: number;
+    onParamChange: (id: string, value: number) => void;
+    onRecordToggle?: (id: string) => void;
+    onRegisterRef: (index: number, el: HTMLDivElement | null) => void;
+}
+
+const KnobOverlay = React.memo(({
+    id, label, x, y, size, value, valueDisplay, isRecording, colorHex, index, onParamChange, onRecordToggle, onRegisterRef
+}: KnobOverlayProps) => {
+    return (
+        <>
+            {/* 1. Label and Value Display - zIndex 10 ensures labels are below buttons */}
+            <div
+                className="absolute text-center transform -translate-x-1/2"
+                style={{
+                    left: `${x * 100}%`,
+                    top: `${(y + size * 0.8) * 100}%`,
+                    color: `rgba(${colorHex[0] * 255},${colorHex[1] * 255},${colorHex[2] * 255},0.8)`,
+                    zIndex: 10
+                }}
+            >
+                <span className="text-[10px] font-mono font-bold tracking-wider drop-shadow-md">{label}</span>
+                <div className="text-[9px] opacity-60 font-mono">{valueDisplay ?? Math.round(value * 100)}</div>
+            </div>
+
+            {/* 2. Record Button (Conditional) - zIndex 20 ensures buttons are above labels */}
+            {onRecordToggle && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); onRecordToggle(id); }}
+                    className="absolute pointer-events-auto transform -translate-x-1/2"
+                    style={{
+                        left: `${x * 100}%`,
+                        top: `${(y - size * 1.3) * 100}%`,
+                        width: '16px',
+                        height: '16px',
+                        zIndex: 20
+                    }}
+                    title="Record Automation"
+                    aria-label={`Record Automation for ${label}`}
+                >
+                    <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
+                </button>
+            )}
+
+            {/* 3. Accessibility Slider (Invisible) - zIndex 30 ensures top interactivity */}
+            <div
+                ref={(el) => onRegisterRef(index, el)}
+                role="slider"
+                aria-label={label}
+                aria-valuetext={valueDisplay}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(value * 100)}
+                tabIndex={0}
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:ring-2 focus:ring-white focus:outline-none pointer-events-none"
+                style={{
+                    left: `${x * 100}%`,
+                    top: `${y * 100}%`,
+                    width: `${size * 200}%`,
+                    height: `${size * 200}%`,
+                    zIndex: 30
+                }}
+                onKeyDown={(e) => {
+                    let newVal = value;
+                    let handled = false;
+                    const isShift = e.shiftKey;
+                    const isFine = e.altKey || e.ctrlKey || e.metaKey;
+                    const step = isShift ? 0.2 : (isFine ? 0.005 : 0.05);
+
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+                        newVal += step;
+                        handled = true;
+                    } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+                        newVal -= step;
+                        handled = true;
+                    } else if (e.key === 'PageUp') {
+                        newVal += 0.1;
+                        handled = true;
+                    } else if (e.key === 'PageDown') {
+                        newVal -= 0.1;
+                        handled = true;
+                    } else if (e.key === 'Home') {
+                        newVal = 0;
+                        handled = true;
+                    } else if (e.key === 'End') {
+                        newVal = 1;
+                        handled = true;
+                    }
+
+                    if (handled) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onParamChange(id, Math.max(0, Math.min(1, newVal)));
+                    }
+                }}
+            />
+        </>
+    );
+});
 
 export const HardwareModule = React.memo(
     ({
@@ -48,6 +161,11 @@ export const HardwareModule = React.memo(
 
         // Refs for accessibility elements to enable focus management
         const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+        // PERFORMANCE: Stable callback for registering refs from child components
+        const handleRegisterRef = useCallback((index: number, el: HTMLDivElement | null) => {
+            sliderRefs.current[index] = el;
+        }, []);
 
         // Sync refs & Update Staging Buffer
         useEffect(() => {
@@ -433,77 +551,27 @@ export const HardwareModule = React.memo(
                 <canvas ref={canvasRef} width={800} height={400} className="w-full h-full block" />
                 <div className="absolute inset-0 pointer-events-none">
                     <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">{title.toUpperCase()}</div>
-                    {controls.map((c) => (
-                        <div key={c.id} className="absolute text-center transform -translate-x-1/2" style={{ left: `${c.x * 100}%`, top: `${(c.y + c.size * 0.8) * 100}%`, color: `rgba(${colorHex[0] * 255},${colorHex[1] * 255},${colorHex[2] * 255},0.8)` }}>
-                            <span className="text-[10px] font-mono font-bold tracking-wider drop-shadow-md">{c.label}</span>
-                            <div className="text-[9px] opacity-60 font-mono">{c.valueDisplay ?? Math.round(c.value * 100)}</div>
-                        </div>
-                    ))}
-                    {onRecordToggle && controls.map((c) => (
-                        <button
-                            key={`rec-${c.id}`}
-                            onClick={(e) => { e.stopPropagation(); onRecordToggle(c.id); }}
-                            className="absolute pointer-events-auto transform -translate-x-1/2"
-                            style={{ left: `${c.x * 100}%`, top: `${(c.y - c.size * 1.3) * 100}%`, width: '16px', height: '16px' }}
-                            title="Record Automation"
-                            aria-label={`Record Automation for ${c.label}`}
-                        >
-                            <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${c.isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
-                        </button>
-                    ))}
+
+                    {/* PERFORMANCE: Optimized Single Loop using Memoized Overlay Components */}
                     {controls.map((c, i) => (
-                        <div
-                            key={`a11y-${c.id}`}
-                            ref={(el) => { sliderRefs.current[i] = el; }}
-                            role="slider"
-                            aria-label={c.label}
-                            aria-valuetext={c.valueDisplay}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-valuenow={Math.round(c.value * 100)}
-                            tabIndex={0}
-                            className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:ring-2 focus:ring-white focus:outline-none pointer-events-none"
-                            style={{
-                                left: `${c.x * 100}%`,
-                                top: `${c.y * 100}%`,
-                                width: `${c.size * 200}%`,
-                                height: `${c.size * 200}%`
-                            }}
-                            onKeyDown={(e) => {
-                                let newVal = c.value;
-                                let handled = false;
-                                const isShift = e.shiftKey;
-                                const isFine = e.altKey || e.ctrlKey || e.metaKey;
-                                const step = isShift ? 0.2 : (isFine ? 0.005 : 0.05);
-
-                                if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
-                                    newVal += step;
-                                    handled = true;
-                                } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
-                                    newVal -= step;
-                                    handled = true;
-                                } else if (e.key === 'PageUp') {
-                                    newVal += 0.1;
-                                    handled = true;
-                                } else if (e.key === 'PageDown') {
-                                    newVal -= 0.1;
-                                    handled = true;
-                                } else if (e.key === 'Home') {
-                                    newVal = 0;
-                                    handled = true;
-                                } else if (e.key === 'End') {
-                                    newVal = 1;
-                                    handled = true;
-                                }
-
-                                if (handled) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    onParamChange(c.id, Math.max(0, Math.min(1, newVal)));
-                                }
-                            }}
+                        <KnobOverlay
+                            key={c.id}
+                            id={c.id}
+                            label={c.label}
+                            x={c.x}
+                            y={c.y}
+                            size={c.size}
+                            value={c.value}
+                            valueDisplay={c.valueDisplay}
+                            isRecording={c.isRecording}
+                            colorHex={colorHex}
+                            index={i}
+                            onParamChange={onParamChange}
+                            onRecordToggle={onRecordToggle}
+                            onRegisterRef={handleRegisterRef}
                         />
                     ))}
+
                 </div>
                 {children && <div className="absolute inset-0 pointer-events-none">{children}</div>}
             </div>
