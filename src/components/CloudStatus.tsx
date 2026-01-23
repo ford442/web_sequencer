@@ -23,7 +23,7 @@ export const CloudStatus: React.FC = () => {
             } else {
                 setConnectionStatus('ERROR');
             }
-        } catch (e) {
+        } catch {
             setConnectionStatus('SLEEPING');
         }
     };
@@ -55,55 +55,52 @@ export const CloudStatus: React.FC = () => {
 
     // Determine what to show
     // Priority: Uploading/Complete > Waking > Error > Sleeping > Online (Passive)
+    let content: React.ReactNode = null;
 
     if (uploadStatus === 'uploading') {
-        return (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-900/20 border border-blue-800 rounded text-[10px] font-mono text-blue-400 mr-2">
+        content = (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-900/20 border border-blue-800 rounded text-[10px] font-mono text-blue-400">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce"></div>
                 UPLOADING...
             </div>
         );
-    }
-
-    if (uploadStatus === 'complete') {
-        return (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-green-900/20 border border-green-800 rounded text-[10px] font-mono text-green-400 mr-2">
+    } else if (uploadStatus === 'complete') {
+        content = (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-green-900/20 border border-green-800 rounded text-[10px] font-mono text-green-400">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
                 UPLOAD COMPLETE
             </div>
         );
-    }
-
-    if (connectionStatus === 'WAKING') {
-        return (
-             <div className="flex items-center gap-1.5 px-2 py-1 bg-cyan-900/20 border border-cyan-800 rounded text-[10px] font-mono text-cyan-400 mr-2">
+    } else if (connectionStatus === 'WAKING') {
+        content = (
+             <div className="flex items-center gap-1.5 px-2 py-1 bg-cyan-900/20 border border-cyan-800 rounded text-[10px] font-mono text-cyan-400">
                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping"></div>
                  WAKING UP...
              </div>
          );
-    }
-
-    if (connectionStatus === 'SLEEPING' || connectionStatus === 'ERROR') {
-        return (
+    } else if (connectionStatus === 'SLEEPING' || connectionStatus === 'ERROR') {
+        content = (
             <button
                 onClick={handleWake}
-                className="flex items-center gap-1.5 px-2 py-1 bg-yellow-900/20 border border-yellow-800 rounded text-[10px] font-mono text-yellow-400 hover:bg-yellow-900/40 transition-colors mr-2"
+                className="flex items-center gap-1.5 px-2 py-1 bg-yellow-900/20 border border-yellow-800 rounded text-[10px] font-mono text-yellow-400 hover:bg-yellow-900/40 transition-colors"
                 title="Click to wake up cloud storage"
             >
                 <div className="w-1.5 h-1.5 rounded-full bg-yellow-600"></div>
                 {connectionStatus === 'SLEEPING' ? 'CLOUD ASLEEP' : 'CLOUD OFFLINE'}
             </button>
         );
-    }
-
-    if (connectionStatus === 'ONLINE') {
-        return (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-green-900/20 border border-green-800 rounded text-[10px] font-mono text-green-400 mr-2">
+    } else if (connectionStatus === 'ONLINE') {
+        content = (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-green-900/20 border border-green-800 rounded text-[10px] font-mono text-green-400">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
                 CLOUD READY
             </div>
         );
     }
 
-    return null;
+    return (
+        <div role="status" aria-live="polite" aria-atomic="true" className="mr-2 min-h-[24px]">
+            {content}
+        </div>
+    );
 };
