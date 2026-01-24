@@ -41,7 +41,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'vibratoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'vibratoRate', defaultValue: 5.0, minValue: 0.1, maxValue: 20.0 },
       { name: 'tremoloDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'tremoloRate', defaultValue: 0.0, minValue: 0.1, maxValue: 20.0 },
+      { name: 'tremoloRate', defaultValue: 0.1, minValue: 0.1, maxValue: 20.0 },
       { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }

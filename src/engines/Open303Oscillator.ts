@@ -95,7 +95,7 @@ export class Open303Oscillator {
             }
 
             // Initialize the synthesizer
-            const bufferSize = 256;
+            const bufferSize = 2048;
             const success = this.wasmModule.ccall(
                 'jc303_init', 
                 'number', 
@@ -175,7 +175,7 @@ export class Open303Oscillator {
 
         // Create gain node for output level control
         this.gainNode = this.audioContext.createGain();
-        this.gainNode.gain.value = 1.0;
+        this.gainNode.gain.value = 4.0;
 
         // Create output node for external connection
         this.outputNode = this.audioContext.createGain();
