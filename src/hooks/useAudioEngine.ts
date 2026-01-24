@@ -6,7 +6,8 @@ import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 // Updated Import
-import { SingingVoice, REFERENCE_FREQUENCIES, freqToMidi } from '../engines/SingingVoice'; 
+import { SingingVoice, REFERENCE_FREQUENCIES, freqToMidi } from '../engines/SingingVoice';
+import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 
 // Helper to convert mode string to worklet numeric value
 const modeToWorkletValue = (mode: 'loop' | 'stretch' | 'wavetable'): number => {
@@ -141,7 +142,7 @@ export const useAudioEngine = (pyodide: any) => {
 
         // Initialize SustainProcessor worklet
         try {
-            await context.audioWorklet.addModule('./sustain-processor.js');
+            await context.audioWorklet.addModule(sustainProcessorUrl);
             const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
                 numberOfInputs: 0,
                 numberOfOutputs: 1,
