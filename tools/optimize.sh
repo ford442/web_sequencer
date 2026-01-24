@@ -5,7 +5,9 @@ echo "🚀 Starting Post-Build Optimization..."
 
 # 1. Define Paths
 PUBLIC_DIR="public"
-PHYSICS_WASM="$PUBLIC_DIR/oscillators.wasm"
+SRC_WASM_DIR="src/wasm"
+PHYSICS_WASM="$SRC_WASM_DIR/oscillators.wasm"
+FREEZER_WASM="$SRC_WASM_DIR/trackFreezer.wasm"
 NATIVE_WASM="$PUBLIC_DIR/hyphon_native.wasm"
 NATIVE_JS="$PUBLIC_DIR/hyphon_native.js"
 WORKER_JS="$PUBLIC_DIR/hyphon_native.worker.js"
@@ -43,8 +45,18 @@ wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --enable-relaxed-simd \
   --enable-nontrapping-float-to-int
 
-echo "🔧 Optimizing Oscillator WASM (wasmedge)..."
-wasmedge compile --optimize=3 --enable-all "$PHYSICS_WASM" "$PHYSICS_WASM"
+echo "🔧 Optimizing Track Freezer WASM..."
+wasm-opt "$FREEZER_WASM" -o "$FREEZER_WASM" \
+  -O4 \
+  --converge \
+  --strip-debug \
+  --enable-simd \
+  --enable-bulk-memory \
+  --enable-relaxed-simd \
+  --enable-nontrapping-float-to-int
+
+# echo "🔧 Optimizing Oscillator WASM (wasmedge)..."
+# wasmedge compile --optimize=3 --enable-all "$PHYSICS_WASM" "$PHYSICS_WASM"
 
 # 4. Optimize Emscripten WASM (Native Effects)
 # Emscripten -O3 does a lot, but wasm-opt can usually squeeze another 5-10%
