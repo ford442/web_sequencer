@@ -8,7 +8,7 @@
 // @future-plan: Move findLoopPoints and audioBufferToMono to WASM for large buffer processing
 
 import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '../types';
-import initTrackFreezer from '../../public/trackFreezer.wasm?init';
+import initTrackFreezer from '../wasm/trackFreezer.wasm?init';
 
 // WASM Module Loader
 interface WasmExports {

@@ -22,6 +22,9 @@ public/oscillators.wasm
 public/hyphon_native.wasm
 public/hyphon_native.js
 
+# Generated WASM
+src/wasm/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
