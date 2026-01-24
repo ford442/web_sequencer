@@ -308,7 +308,7 @@ export const useAudioEngine = (pyodide: any) => {
                 buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
                 sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
             }
-            else if (engine !== 'native') {
+            else if (engine !== 'native' && engine !== '303') {
                 buffer = await getOrGenerateSingleCycleBuffer(
                     engine,
                     waveType as any,
