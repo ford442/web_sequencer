@@ -73,9 +73,20 @@ echo -e "${YELLOW}Creating build directory...${NC}"
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
+# Check for libomp.a
+LIBOMP_PATH="$REPO_ROOT/emscripten/libomp.a"
+if [ ! -f "$LIBOMP_PATH" ]; then
+    echo -e "${RED}Error: libomp.a not found at $LIBOMP_PATH${NC}"
+    exit 1
+fi
+echo -e "${GREEN}Found libomp.a: $LIBOMP_PATH${NC}"
+
 # OpenMP flags for Emscripten
-OMP_FLAGS="-pthread -fopenmp"
-LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0"
+# Note: We use -fopenmp for compilation but link manually against libomp.a
+# We add -I to find omp.h
+OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
+OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
+LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0 ${LIBOMP_PATH}"
 
 # Configure with CMake using Emscripten toolchain
 echo -e "${YELLOW}Configuring with CMake (OpenMP enabled)...${NC}"
