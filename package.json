@@ -13,7 +13,7 @@
     "build:wasm:jc303": "bash tools/build_jc303_omp.sh",
     "build:emcc": "bash emscripten/build.sh",
     "optimize": "bash tools/optimize.sh",
-    "build": "npm run build:wasm && npm run build:emcc && npm run optimize && tsc -b && vite build",
+    "build": "npm run build:wasm && npm run build:emcc && npm run build:wasm:rust && npm run build:wasm:jc303 && npm run optimize && tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
