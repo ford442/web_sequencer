@@ -221,4 +221,4 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('rubberband-processor', RubberBandProcessor);
+registerProcessor('RubberBandProcessor', RubberBandProcessor);
