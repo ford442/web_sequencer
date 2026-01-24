@@ -72,7 +72,7 @@ export class Open303Oscillator {
 
             // Check if JC303Module is available
             if (typeof window.JC303Module === 'undefined') {
-                console.warn('JC303Module not loaded. Loading jc303.js dynamically...');
+                console.log('JC303Module not globally available. Loading jc303.js dynamically...');
                 await this.loadWasmScript();
             }
 
