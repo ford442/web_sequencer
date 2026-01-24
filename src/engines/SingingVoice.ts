@@ -1,4 +1,5 @@
 import { RingBuffer } from '../utils/ringBuffer';
+import processorUrl from '../audio-worklets/rubberband-processor.ts?worker&url';
 
 /**
  * SingingVoice - High-fidelity vocal synthesis engine
@@ -101,7 +102,7 @@ export class SingingVoice {
     async initWorklet(): Promise<void> {
         if (this.workletNode) return;
 
-        await this.audioContext.audioWorklet.addModule('/rubberband-processor.js');
+        await this.audioContext.audioWorklet.addModule(processorUrl);
 
         // Create shared buffers for ring buffers
         const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
