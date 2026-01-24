@@ -83,7 +83,10 @@ export class Open303Oscillator {
             // Load the WASM module
             this.wasmModule = await window.JC303Module();
 
-            // Ensure HEAPF32 exists on the returned module
+            // HEAPF32 workaround: Some Emscripten builds don't include HEAPF32 in 
+            // EXPORTED_RUNTIME_METHODS, but we need it to read the audio output buffer.
+            // This creates a getter that provides a Float32Array view over the WASM memory,
+            // refreshed on each access to handle memory growth.
             if (typeof this.wasmModule.HEAPF32 === 'undefined' && this.wasmModule.memory) {
                 Object.defineProperty(this.wasmModule, 'HEAPF32', {
                     configurable: true,
@@ -134,6 +137,10 @@ export class Open303Oscillator {
 
     /**
      * Create the audio processing chain
+     * Note: Using deprecated ScriptProcessorNode for compatibility.
+     * AudioWorklet is preferred but requires additional setup for WASM loading
+     * in the worker context. See jc303_wasm/wasm/jc303-worklet-processor.js
+     * for an AudioWorklet implementation if migration is needed.
      */
     private createAudioChain(bufferSize: number): void {
         if (!this.audioContext) return;
