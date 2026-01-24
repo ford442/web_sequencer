@@ -4,6 +4,7 @@ import { noteToFrequency, NUM_STEPS } from '../constants';
 import { noteToMidi } from '../utils/musicTheory';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
+import { Open303Oscillator } from '../engines/Open303Oscillator';
 // Updated Import
 import { SingingVoice, REFERENCE_FREQUENCIES, freqToMidi } from '../engines/SingingVoice'; 
 
@@ -38,6 +39,7 @@ export const useAudioEngine = (pyodide: any) => {
     const rendererWorkerRef = useRef<Worker | null>(null);
     const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
+    const open303EngineRef = useRef<Open303Oscillator | null>(null);
 
     // Native WAV buffers
     const wavSawBufferRef = useRef<AudioBuffer | null>(null);
@@ -90,6 +92,17 @@ export const useAudioEngine = (pyodide: any) => {
         const wasmEngine = new WasmOscillator();
         await wasmEngine.init();
         wasmEngineRef.current = wasmEngine;
+
+        // Initialize Open303 Engine (TB-303 clone)
+        const open303Engine = new Open303Oscillator();
+        const open303Ready = await open303Engine.init(context);
+        if (open303Ready) {
+            open303Engine.connect(masterGain);
+            open303EngineRef.current = open303Engine;
+            console.log('Open303 Engine Ready');
+        } else {
+            console.warn('Open303 Engine failed to initialize - 303 waveforms will not be available');
+        }
 
         // Load WAV Files
         const loadWav = async (url: string) => {
@@ -248,7 +261,7 @@ export const useAudioEngine = (pyodide: any) => {
 
             const notesToPlay = Array.isArray(noteOrChord) ? noteOrChord : [noteOrChord];
 
-            let engine: 'wav' | 'wgsl' | 'wam' | 'pyodide' | 'native' = 'native';
+            let engine: 'wav' | 'wgsl' | 'wam' | 'pyodide' | 'native' | '303' = 'native';
             let waveType = params.waveform;
 
             if (params.waveform.startsWith('wav-')) { engine = 'wav'; }
@@ -260,6 +273,29 @@ export const useAudioEngine = (pyodide: any) => {
             else if (params.waveform.startsWith('rust-')) { engine = 'rust' as any; waveType = params.waveform.split('-')[1] as any; }
             // @ts-ignore
             else if (params.waveform.startsWith('pyodide-')) { engine = 'pyodide'; waveType = params.waveform.split('-')[1] as any; }
+            // @ts-ignore
+            else if (params.waveform.startsWith('303-')) { engine = '303'; waveType = params.waveform.split('-')[1] as any; }
+
+            // Handle 303 engine separately (it has its own audio processing)
+            if (engine === '303' && open303EngineRef.current?.isReady) {
+                notesToPlay.forEach((note) => {
+                    const midiNote = noteToMidi(note) + params.pitch;
+                    // Set waveform (0 = saw, 1 = square)
+                    open303EngineRef.current!.setWaveform(waveType === 'sqr' ? 1.0 : 0.0);
+                    // Map synth params to 303 params
+                    open303EngineRef.current!.setCutoff(Math.min(1, params.filterCutoff / 2394));
+                    open303EngineRef.current!.setResonance(Math.min(1, params.filterResonance / 30));
+                    open303EngineRef.current!.setDecay(params.decay);
+                    open303EngineRef.current!.setVolume(params.volume);
+                    // Trigger note
+                    open303EngineRef.current!.noteOn(midiNote, 100);
+                    // Schedule note off
+                    setTimeout(() => {
+                        open303EngineRef.current?.noteOff(midiNote);
+                    }, gateTime * 1000);
+                });
+                return;
+            }
 
             let buffer: AudioBuffer | null = null;
             let sampleRootFreq = 440; 
@@ -414,6 +450,31 @@ export const useAudioEngine = (pyodide: any) => {
                 const isWgslWave = params.waveform.startsWith('wgsl-');
                 const isWasmWave = params.waveform.startsWith('wam-');
                 const isPyodideWave = params.waveform.startsWith('pyodide-');
+                const is303Wave = params.waveform.startsWith('303-');
+
+                // Handle 303 waveforms
+                if (is303Wave && open303EngineRef.current?.isReady) {
+                    const midiNote = noteToMidi(note) + params.pitch;
+                    const waveType = params.waveform.split('-')[1];
+                    // Set waveform (0 = saw, 1 = square)
+                    open303EngineRef.current.setWaveform(waveType === 'sqr' ? 1.0 : 0.0);
+                    // Map synth params to 303 params
+                    open303EngineRef.current.setCutoff(Math.min(1, params.filterCutoff / 2394));
+                    open303EngineRef.current.setResonance(Math.min(1, params.filterResonance / 30));
+                    open303EngineRef.current.setDecay(params.decay);
+                    open303EngineRef.current.setVolume(params.volume);
+                    // Trigger note
+                    open303EngineRef.current.noteOn(midiNote, 100);
+
+                    const id = nextSynthNoteId.current++;
+                    const stop = () => {
+                        open303EngineRef.current?.noteOff(midiNote);
+                        activeSynthNotes.current.delete(id);
+                    };
+                    activeSynthNotes.current.set(id, { stop });
+                    return id;
+                }
+
                 if (isWavWave) {
                     const buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
                     if (!buffer) return null;
@@ -981,6 +1042,7 @@ export const useAudioEngine = (pyodide: any) => {
             context,
             webGpuEngine: gpuEngineRef.current,
             wasmEngine: wasmEngineRef.current,
+            open303Engine: open303EngineRef.current,
             // Exposed SingingVoice instance
             singingVoice: singingVoiceRef.current || undefined,
             playSynth,
