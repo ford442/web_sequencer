@@ -5,7 +5,7 @@
 // - Memory management (copying data out of WASM memory)
 // - Error handling and fallback paths
 
-import initOscillators from '../../public/oscillators.wasm?init';
+import initOscillators from '../wasm/oscillators.wasm?init';
 
 export class WasmOscillator {
     private instance: WebAssembly.Instance | null = null;
