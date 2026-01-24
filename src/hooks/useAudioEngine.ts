@@ -27,6 +27,17 @@ function makeDistortionCurve(amount: number) {
     return curve;
 }
 
+// Helper to map SynthParams to Open303 parameter values
+function apply303Params(engine: Open303Oscillator, params: SynthParams, waveType: string): void {
+    // Set waveform (0 = saw, 1 = square)
+    engine.setWaveform(waveType === 'sqr' ? 1.0 : 0.0);
+    // Map synth params to 303 params (normalize to 0-1 range)
+    engine.setCutoff(Math.min(1, params.filterCutoff / 2394));
+    engine.setResonance(Math.min(1, params.filterResonance / 30));
+    engine.setDecay(params.decay);
+    engine.setVolume(params.volume);
+}
+
 export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
     const audioEngineRef = useRef<AudioEngine | null>(null);
@@ -278,16 +289,9 @@ export const useAudioEngine = (pyodide: any) => {
 
             // Handle 303 engine separately (it has its own audio processing)
             if (engine === '303' && open303EngineRef.current?.isReady) {
+                apply303Params(open303EngineRef.current, params, waveType as string);
                 notesToPlay.forEach((note) => {
                     const midiNote = noteToMidi(note) + params.pitch;
-                    // Set waveform (0 = saw, 1 = square)
-                    open303EngineRef.current!.setWaveform(waveType === 'sqr' ? 1.0 : 0.0);
-                    // Map synth params to 303 params
-                    open303EngineRef.current!.setCutoff(Math.min(1, params.filterCutoff / 2394));
-                    open303EngineRef.current!.setResonance(Math.min(1, params.filterResonance / 30));
-                    open303EngineRef.current!.setDecay(params.decay);
-                    open303EngineRef.current!.setVolume(params.volume);
-                    // Trigger note
                     open303EngineRef.current!.noteOn(midiNote, 100);
                     // Schedule note off
                     setTimeout(() => {
@@ -456,14 +460,7 @@ export const useAudioEngine = (pyodide: any) => {
                 if (is303Wave && open303EngineRef.current?.isReady) {
                     const midiNote = noteToMidi(note) + params.pitch;
                     const waveType = params.waveform.split('-')[1];
-                    // Set waveform (0 = saw, 1 = square)
-                    open303EngineRef.current.setWaveform(waveType === 'sqr' ? 1.0 : 0.0);
-                    // Map synth params to 303 params
-                    open303EngineRef.current.setCutoff(Math.min(1, params.filterCutoff / 2394));
-                    open303EngineRef.current.setResonance(Math.min(1, params.filterResonance / 30));
-                    open303EngineRef.current.setDecay(params.decay);
-                    open303EngineRef.current.setVolume(params.volume);
-                    // Trigger note
+                    apply303Params(open303EngineRef.current, params, waveType);
                     open303EngineRef.current.noteOn(midiNote, 100);
 
                     const id = nextSynthNoteId.current++;
