@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 import { noteToMidi } from '../utils/musicTheory';
@@ -456,7 +456,7 @@ export const useAudioEngine = (pyodide: any) => {
                         envGain.gain.cancelScheduledValues(t);
                         envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                         envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                        try { source.stop(t + params.release + 0.05); } catch (e) { }
+                            try { source.stop(t + params.release + 0.05); } catch { /* ignore */ }
                         activeSynthNotes.current.delete(id);
                     };
                     activeSynthNotes.current.set(id, { stop });
@@ -504,7 +504,7 @@ export const useAudioEngine = (pyodide: any) => {
                             envGain.gain.cancelScheduledValues(t);
                             envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                             envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                            try { source.stop(t + params.release + 0.05); } catch (e) { }
+                            try { source.stop(t + params.release + 0.05); } catch { /* ignore */ }
                             activeSynthNotes.current.delete(id2);
                         };
                         activeSynthNotes.current.set(id2, { stop: stop2 });
@@ -554,7 +554,7 @@ export const useAudioEngine = (pyodide: any) => {
                     envGain.gain.cancelScheduledValues(t);
                     envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                     envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                    try { osc.stop(t + params.release + 0.05); } catch (e) { }
+                        try { osc.stop(t + params.release + 0.05); } catch { /* ignore */ }
                     activeSynthNotes.current.delete(id);
                 };
                 activeSynthNotes.current.set(id, { stop });
@@ -791,7 +791,7 @@ export const useAudioEngine = (pyodide: any) => {
             envGain.gain.cancelScheduledValues(now);
             envGain.gain.setValueAtTime(envGain.gain.value || 1.0, now);
             envGain.gain.linearRampToValueAtTime(0, now + 0.12);
-            try { source.stop(now + 0.12 + 0.05); } catch (e) { }
+            try { source.stop(now + 0.12 + 0.05); } catch { /* ignore */ }
             activeSamplerNotes.current.delete(id);
         };
 
@@ -1009,5 +1009,11 @@ export const useAudioEngine = (pyodide: any) => {
         setIsReady(true);
     }, []);
 
-    return { audioEngine: audioEngineRef.current, isReady, initializeAudio };
+    const result = useMemo(() => ({
+        audioEngine: audioEngineRef.current,
+        isReady,
+        initializeAudio
+    }), [isReady, initializeAudio]);
+
+    return result;
 };
