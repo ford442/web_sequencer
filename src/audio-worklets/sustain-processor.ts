@@ -30,13 +30,11 @@ class SustainProcessor extends AudioWorkletProcessor {
     private basePitch = 1.0; // The pitch of the sample
 
     // Arpeggiator State
-    private arpEnabled = false;
     private arpCounter = 0;     // Counts samples
     private arpStepIndex = 0;   // Which step of the pattern are we on?
     private arpPattern: number[] = [0, 4, 7, 12]; // Default: Major Triad + Octave (semitones)
 
     // Parameters
-    private mode = 0;         // 0=LOOP, 1=STRETCH, 2=WAVETABLE
     private loopStart = 0;
     private loopEnd = 0;
     private grainSize = 4410; // Default grain size (~100ms at 44.1kHz)
@@ -47,7 +45,6 @@ class SustainProcessor extends AudioWorkletProcessor {
 
     // Stretch mode state (for crossfade grains)
     private grainPhase = 0;
-    private grainFadeLength = 441; // ~10ms fade for smooth transitions
 
     // Pre-computed zero-crossing positions (optional optimization)
     private zeroCrossings: Int32Array | null = null;
@@ -67,10 +64,6 @@ class SustainProcessor extends AudioWorkletProcessor {
                     this.playhead = 0;
                     // Pre-compute zero crossings for this buffer
                     this.zeroCrossings = this.findZeroCrossings(this.buffer);
-                    // Accept optional mode in loadBuffer message
-                    if (data.mode !== undefined) {
-                        this.mode = data.mode;
-                    }
                     break;
 
                 case 'setLoopPoints':
@@ -88,10 +81,6 @@ class SustainProcessor extends AudioWorkletProcessor {
                     this.playhead = this.loopStart;
                     this.basePitch = data.pitch || 1.0;
                     this.grainPhase = 0;
-                    // Accept mode in noteOn message (optional, falls back to current mode)
-                    if (data.mode !== undefined) {
-                        this.mode = data.mode;
-                    }
                     break;
 
                 case 'noteOff':
@@ -100,10 +89,6 @@ class SustainProcessor extends AudioWorkletProcessor {
 
                 case 'setGrainSize':
                     this.grainSize = data.size || 4410;
-                    break;
-
-                case 'setMode':
-                    this.mode = data.mode || 0;
                     break;
             }
         };
@@ -202,7 +187,7 @@ class SustainProcessor extends AudioWorkletProcessor {
         return this.loopStart + (randomFactor * windowSize);
     }
 
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
+    process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
         const output = outputs[0];
         if (!output || output.length === 0) return true;
 
