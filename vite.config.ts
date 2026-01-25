@@ -22,9 +22,6 @@ export default defineConfig({
   build: {
     sourcemap: true,
     outDir: 'dist',
-    rollupOptions: {
-      external: ['hyphon_native.js'],
-    },
   },
   worker: {
     format: 'es',
