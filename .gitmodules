@@ -1,3 +1,6 @@
 [submodule "rubberband"]
 	path = rubberband
 	url = https://github.com/breakfastquay/rubberband.git
+[submodule "jc303_wasm"]
+	path = jc303_wasm
+	url = https://github.com/ford442/jc303_wasm.git
