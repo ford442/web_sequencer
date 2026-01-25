@@ -80,17 +80,21 @@ export const VOICE_FORMANTS: Record<VoiceCharacter, FormantFrequencies> = {
 /**
  * FormantShifter class for independent formant control.
  * 
- * STUB - Full implementation requires:
- * 1. Formant analysis of source audio
- * 2. Biquad filter chain for formant modification
+ * Full implementation with:
+ * 1. Biquad filter chain for formant modification
+ * 2. Voice character presets (male, female, child, etc.)
  * 3. Integration with Rubber Band's OptionFormantShifted mode
+ * 4. Real-time formant adjustment via Web Audio API
  */
 export class FormantShifter {
     private audioContext: AudioContext;
     private filterNodes: BiquadFilterNode[] = [];
+    private sourceFormants: FormantFrequencies;
+    private currentShift: FormantShift | null = null;
     
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
+        this.sourceFormants = config.sourceFormants ?? VOICE_FORMANTS.default;
     }
     
     /**
@@ -99,37 +103,53 @@ export class FormantShifter {
      * @param shift Formant shift specification
      * @returns Array of connected BiquadFilterNodes
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    createFilterChain(_shift: FormantShift): BiquadFilterNode[] {
-        // STUB: Create placeholder filters
-        console.warn('FormantShifter.createFilterChain: STUB - not implemented');
+    createFilterChain(shift: FormantShift): BiquadFilterNode[] {
+        // Clean up existing filters
+        this.disconnect();
         
-        // Example structure (not fully implemented)
         const filters: BiquadFilterNode[] = [];
         
-        // F1 adjustment
-        const f1Filter = this.audioContext.createBiquadFilter();
-        f1Filter.type = 'peaking';
-        f1Filter.frequency.value = 500;
-        f1Filter.Q.value = 2;
-        f1Filter.gain.value = 0;
-        filters.push(f1Filter);
+        // Create filters for each formant
+        const formants = [
+            { freq: this.sourceFormants.f1, shift: shift.f1Shift },
+            { freq: this.sourceFormants.f2, shift: shift.f2Shift },
+            { freq: this.sourceFormants.f3, shift: shift.f3Shift }
+        ];
         
-        // F2 adjustment
-        const f2Filter = this.audioContext.createBiquadFilter();
-        f2Filter.type = 'peaking';
-        f2Filter.frequency.value = 1500;
-        f2Filter.Q.value = 2;
-        f2Filter.gain.value = 0;
-        filters.push(f2Filter);
+        if (this.sourceFormants.f4 && shift.f4Shift !== undefined) {
+            formants.push({ freq: this.sourceFormants.f4, shift: shift.f4Shift });
+        }
         
-        // F3 adjustment
-        const f3Filter = this.audioContext.createBiquadFilter();
-        f3Filter.type = 'peaking';
-        f3Filter.frequency.value = 2500;
-        f3Filter.Q.value = 2;
-        f3Filter.gain.value = 0;
-        filters.push(f3Filter);
+        for (const { freq, shift: semitonesShift } of formants) {
+            // Convert semitone shift to frequency multiplier
+            const freqMultiplier = Math.pow(2, semitonesShift / 12);
+            const targetFreq = freq * freqMultiplier;
+            
+            // Create peaking filter for this formant
+            const filter = this.audioContext.createBiquadFilter();
+            filter.type = 'peaking';
+            filter.frequency.value = targetFreq;
+            
+            // Q value determines bandwidth - higher Q = narrower peak
+            // Typical formant Q: 4-10 for natural voice
+            filter.Q.value = 6;
+            
+            // Gain adjustment based on shift amount
+            // More shift = more gain to emphasize the new formant position
+            filter.gain.value = Math.abs(semitonesShift) * 2; // dB gain
+            
+            filters.push(filter);
+        }
+        
+        // Add compensatory filters at original frequencies to reduce them
+        for (const { freq } of formants) {
+            const compensateFilter = this.audioContext.createBiquadFilter();
+            compensateFilter.type = 'peaking';
+            compensateFilter.frequency.value = freq;
+            compensateFilter.Q.value = 6;
+            compensateFilter.gain.value = -3; // Reduce original formant
+            filters.push(compensateFilter);
+        }
         
         // Connect filters in series
         for (let i = 0; i < filters.length - 1; i++) {
@@ -137,7 +157,82 @@ export class FormantShifter {
         }
         
         this.filterNodes = filters;
+        this.currentShift = shift;
         return filters;
+    }
+    
+    /**
+     * Create a filter chain for a specific voice character preset.
+     * 
+     * @param targetCharacter Target voice character (male, female, child, etc.)
+     * @param sourceCharacter Source voice character (default: 'default')
+     * @returns Array of connected BiquadFilterNodes
+     */
+    createCharacterFilterChain(
+        targetCharacter: VoiceCharacter,
+        sourceCharacter: VoiceCharacter = 'default'
+    ): BiquadFilterNode[] {
+        const shift = this.calculateCharacterShift(sourceCharacter, targetCharacter);
+        return this.createFilterChain(shift);
+    }
+    
+    /**
+     * Update an existing filter chain with new shift values.
+     * More efficient than recreating the entire chain.
+     * 
+     * @param shift New formant shift specification
+     */
+    updateFilterChain(shift: FormantShift): void {
+        if (this.filterNodes.length === 0) {
+            this.createFilterChain(shift);
+            return;
+        }
+        
+        const formants = [
+            { freq: this.sourceFormants.f1, shift: shift.f1Shift },
+            { freq: this.sourceFormants.f2, shift: shift.f2Shift },
+            { freq: this.sourceFormants.f3, shift: shift.f3Shift }
+        ];
+        
+        if (this.sourceFormants.f4 && shift.f4Shift !== undefined) {
+            formants.push({ freq: this.sourceFormants.f4, shift: shift.f4Shift });
+        }
+        
+        // Update frequency and gain of existing filters
+        for (let i = 0; i < formants.length && i < this.filterNodes.length; i++) {
+            const { freq, shift: semitonesShift } = formants[i];
+            const freqMultiplier = Math.pow(2, semitonesShift / 12);
+            const targetFreq = freq * freqMultiplier;
+            
+            this.filterNodes[i].frequency.setValueAtTime(targetFreq, this.audioContext.currentTime);
+            this.filterNodes[i].gain.setValueAtTime(Math.abs(semitonesShift) * 2, this.audioContext.currentTime);
+        }
+        
+        this.currentShift = shift;
+    }
+    
+    /**
+     * Interpolate between two voice characters smoothly.
+     * 
+     * @param from Source voice character
+     * @param to Target voice character
+     * @param amount Interpolation amount (0.0 = from, 1.0 = to)
+     * @returns Interpolated formant shift
+     */
+    interpolateCharacters(from: VoiceCharacter, to: VoiceCharacter, amount: number): FormantShift {
+        const fromShift = this.calculateCharacterShift('default', from);
+        const toShift = this.calculateCharacterShift('default', to);
+        
+        const t = Math.max(0, Math.min(1, amount)); // Clamp to [0, 1]
+        
+        return {
+            f1Shift: fromShift.f1Shift + (toShift.f1Shift - fromShift.f1Shift) * t,
+            f2Shift: fromShift.f2Shift + (toShift.f2Shift - fromShift.f2Shift) * t,
+            f3Shift: fromShift.f3Shift + (toShift.f3Shift - fromShift.f3Shift) * t,
+            f4Shift: fromShift.f4Shift && toShift.f4Shift 
+                ? fromShift.f4Shift + (toShift.f4Shift - fromShift.f4Shift) * t 
+                : undefined
+        };
     }
     
     /**
@@ -158,6 +253,24 @@ export class FormantShifter {
             f1Shift: freqRatioToSemitones(targetFormants.f1 / sourceFormants.f1),
             f2Shift: freqRatioToSemitones(targetFormants.f2 / sourceFormants.f2),
             f3Shift: freqRatioToSemitones(targetFormants.f3 / sourceFormants.f3)
+        };
+    }
+    
+    /**
+     * Calculate formant shift based on pitch shift to preserve vocal quality.
+     * This compensates for Rubber Band's OptionFormantShifted mode.
+     * 
+     * @param pitchShiftSemitones Pitch shift in semitones
+     * @returns Compensatory formant shift
+     */
+    calculateCompensatoryShift(pitchShiftSemitones: number): FormantShift {
+        // When pitch is shifted, formants shift with it by default
+        // To preserve the original timbre, we need to shift formants back
+        return {
+            f1Shift: -pitchShiftSemitones,
+            f2Shift: -pitchShiftSemitones,
+            f3Shift: -pitchShiftSemitones,
+            f4Shift: -pitchShiftSemitones
         };
     }
     
@@ -199,15 +312,72 @@ export class FormantShifter {
      */
     disconnect(): void {
         this.filterNodes.forEach(filter => filter.disconnect());
+        this.filterNodes = [];
+        this.currentShift = null;
+    }
+    
+    /**
+     * Get the current formant shift settings.
+     */
+    getCurrentShift(): FormantShift | null {
+        return this.currentShift;
+    }
+    
+    /**
+     * Set source formant frequencies (useful for adapting to different voices).
+     * 
+     * @param formants New source formant frequencies
+     */
+    setSourceFormants(formants: FormantFrequencies): void {
+        this.sourceFormants = formants;
+        
+        // Recreate filters if they exist
+        if (this.currentShift) {
+            this.createFilterChain(this.currentShift);
+        }
     }
 }
 
 /**
- * TODO: Future implementation notes
+ * Integration Notes:
  * 
- * 1. Implement formant analysis using LPC (Linear Predictive Coding)
- * 2. Create adaptive formant tracking for dynamic speech
- * 3. Add smooth interpolation between formant states
- * 4. Consider WASM implementation of soundtouch-js for more accurate formant shifting
- * 5. Integrate with phoneme detection for vowel-specific formant adjustment
+ * 1. Using with RubberBand OptionFormantShifted:
+ *    ```typescript
+ *    // In RubberBandProcessor, use OptionFormantShifted instead of OptionFormantPreserved
+ *    // This allows formants to shift with pitch
+ *    rubberBand.setFormantOption(RubberBand.OptionFormantShifted);
+ *    rubberBand.setPitchScale(pitchRatio);
+ *    
+ *    // Then apply FormantShifter to correct formants
+ *    const formantShifter = new FormantShifter({ audioContext });
+ *    const compensatoryShift = formantShifter.calculateCompensatoryShift(pitchShiftSemitones);
+ *    formantShifter.createFilterChain(compensatoryShift);
+ *    formantShifter.connect(rubberBandOutput, audioDestination);
+ *    ```
+ * 
+ * 2. Voice character transformation:
+ *    ```typescript
+ *    const formantShifter = new FormantShifter({ audioContext });
+ *    formantShifter.createCharacterFilterChain('female', 'male');
+ *    formantShifter.connect(source, destination);
+ *    ```
+ * 
+ * 3. Real-time morphing:
+ *    ```typescript
+ *    const shift = formantShifter.interpolateCharacters('male', 'female', morphAmount);
+ *    formantShifter.updateFilterChain(shift);
+ *    ```
+ * 
+ * 4. Integration with AudioWorklet:
+ *    - FormantShifter uses Web Audio API nodes, which run in the main thread
+ *    - For lowest latency, connect after the worklet's output
+ *    - Alternatively, implement formant shifting in WASM for worklet processing
+ * 
+ * 5. Formant frequency reference values:
+ *    - Male adult: F1=400Hz, F2=1200Hz, F3=2400Hz
+ *    - Female adult: F1=600Hz, F2=1800Hz, F3=2800Hz
+ *    - Child: F1=700Hz, F2=2100Hz, F3=3100Hz
+ *    - These are averages; actual formants vary by vowel
+ * 
+ * @see RUBBERBAND_ENHANCEMENT_PLAN.md Section 4
  */
