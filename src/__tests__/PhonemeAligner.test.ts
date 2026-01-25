@@ -1,6 +1,6 @@
 // src/__tests__/PhonemeAligner.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { PhonemeAligner, PhonemeSegment } from '../engines/rubberband/PhonemeAligner';
+import { PhonemeAligner, type PhonemeSegment } from '../engines/rubberband/PhonemeAligner';
 
 describe('PhonemeAligner', () => {
     let aligner: PhonemeAligner;
