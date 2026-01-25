@@ -17,15 +17,13 @@ if [ ! -d "rubberband/src" ]; then
 fi
 
 # 1.5 Patch Rubber Band Source (Fix include path issue in VectorOpsComplex.cpp)
-# The file includes "system/sysutils.h" but the file structure puts it in "common/sysutils.h"
-# and the build environment doesn't expose "system" as an include root.
 sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' rubberband/src/common/VectorOpsComplex.cpp || true
 
 # Fix size_t issue in sysutils.h
 sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' rubberband/src/common/sysutils.h || true
 
-# 2. Compile Rubber Band -> public/rubberband.js
-# We use -s EXPORTED_FUNCTIONS=['_malloc','_free'] so TS can manage memory
+# 2. Compile Rubber Band -> src/audio-worklets/rubberband-lib.js
+# We output the JS to src (for bundling) and will move the WASM to public
 em++ -O3 \
     -frtti \
     -fexceptions \
@@ -53,6 +51,11 @@ em++ -O3 \
     -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue"]' \
     -s EXPORTED_FUNCTIONS='["_malloc", "_free"]' \
     -s ENVIRONMENT='web,worker' \
-    -o ../public/rubberband.js
+    -o ../src/audio-worklets/rubberband-lib.js
 
-echo "✅ Success: public/rubberband.js created."
+# 3. Move the WASM file to public so it can be fetched
+# The compiler outputs rubberband-lib.wasm next to the JS
+mv ../src/audio-worklets/rubberband-lib.wasm ../public/rubberband.wasm
+
+echo "✅ Success: JS lib written to src/audio-worklets/rubberband-lib.js"
+echo "✅ Success: WASM binary moved to public/rubberband.wasm"
