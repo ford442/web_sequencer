@@ -1,4 +1,4 @@
-import { useState, useEffect, memo, useRef, useMemo } from 'react';
+import { useState, useEffect, memo, useRef, useMemo, useCallback } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
@@ -32,10 +32,174 @@ const formatKeyLabel = (code: string) => {
     return code;
 };
 
+// PERFORMANCE: Memoized Key Component to prevent full keyboard re-renders
+interface LiveKeyProps {
+    note: string;
+    isActive: boolean;
+    isHeldByMouse: boolean;
+    x: number;
+    width: number;
+    height: number;
+    label: string | null;
+    noteColor: string;
+    activeColor: string; // Used for stroke/highlights
+    baseColor: string;
+    inactiveTint: string;
+    onMouseDown: (note: string) => void;
+    onMouseEnter: (note: string) => void;
+    onStopMouse: () => void;
+}
+
+const LiveKey = memo(({
+    note, isActive, isHeldByMouse, x, width, height, label,
+    noteColor, activeColor, baseColor, inactiveTint,
+    onMouseDown, onMouseEnter, onStopMouse
+}: LiveKeyProps) => {
+    return (
+        <g
+            transform={`translate(${x}, 0)`}
+            role="button"
+            aria-label={`Play ${note}`}
+            tabIndex={0}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onMouseDown(note);
+                }
+            }}
+            onKeyUp={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onStopMouse();
+                }
+            }}
+            onBlur={() => {
+                // Safety: stop note if tabbing away while holding Enter/Space
+                if (isHeldByMouse) {
+                    onStopMouse();
+                }
+            }}
+            onMouseDown={(e) => {
+                if (e.button === 0) {
+                    onMouseDown(note);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (e.currentTarget as any).focus();
+                }
+            }}
+            onMouseEnter={(e) => {
+                if (e.buttons === 1) {
+                    onMouseEnter(note);
+                } else {
+                    // Check if we need to clear global state (logic delegated to parent via check,
+                    // but here we just call onStopMouse if we aren't pressing anything)
+                    // The parent logic was: else if (heldByMouse) setHeldByMouse(null);
+                    // We can always call onStopMouse() if buttons !== 1 safely if the handler is stable.
+                    onStopMouse();
+                }
+            }}
+            onTouchStart={(e) => { e.preventDefault(); onMouseDown(note); }}
+            onTouchEnd={(e) => { e.preventDefault(); onStopMouse(); }}
+            cursor="pointer"
+            className="focus:outline-none"
+        >
+            {/* Focus Ring Indicator (only visible when focused) */}
+            <rect
+                x={-2} y={-2} width={width + 4} height={height + 4} rx={6}
+                fill="none"
+                stroke="#a855f7"
+                strokeWidth={2}
+                opacity={0}
+                className="focus-ring"
+                style={{ transition: 'opacity 0.2s' }}
+            />
+
+            {/* Base / Bevel Shadow */}
+            <rect width={width} height={height} rx={4} fill="#000" />
+
+            {/* Main Body */}
+            <rect
+                x={1} y={1} width={width - 2} height={height - 2} rx={3}
+                fill={isActive ? '#1f2e25' : baseColor}
+            />
+
+            {/* Top Highlight (Bevel) */}
+            <path d={`M 2 2 L ${width - 2} 2 L ${width - 4} 4 L 4 4 Z`} fill="rgba(255,255,255,0.2)" />
+
+            {/* Bottom Shadow (Bevel) */}
+            <path d={`M 2 ${height - 2} L ${width - 2} ${height - 2} L ${width - 4} ${height - 4} L 4 ${height - 4} Z`} fill="rgba(0,0,0,0.6)" />
+
+            {/* Inner Cap */}
+            <rect
+                x={3} y={3} width={width - 6} height={height - 6} rx={2}
+                fill={isActive ? activeColor : inactiveTint}
+                fillOpacity={isActive ? 0.6 : (note.includes('#') ? 1 : 0.12)}
+                stroke={isActive ? activeColor : 'none'}
+                strokeWidth={1}
+            />
+
+            {/* Glassy Shine */}
+            <rect
+                x={4} y={4} width={width - 8} height={(height - 8) / 2} rx={2}
+                fill="url(#keyGlass)"
+                pointerEvents="none"
+            />
+
+            {/* Note Name Label */}
+            <text
+                x={width / 2} y={height - 8}
+                textAnchor="middle"
+                fontSize={10}
+                fontFamily="monospace"
+                fontWeight="bold"
+                fill={isActive ? '#fff' : noteColor}
+                pointerEvents="none"
+            >
+                {note}
+            </text>
+
+            {/* Desktop Key Binding Overlay */}
+            {label && (
+                <g pointerEvents="none">
+                    <rect
+                        x={width / 2 - 9} y={5} width={18} height={14} rx={3}
+                        fill={isActive ? '#fff' : '#000'}
+                        fillOpacity={isActive ? 0.9 : 0.6}
+                        stroke={isActive ? activeColor : '#444'}
+                        strokeWidth={1}
+                    />
+                    <text
+                        x={width / 2} y={15}
+                        textAnchor="middle"
+                        fontSize={9}
+                        fontFamily="Arial, sans-serif"
+                        fontWeight="bold"
+                        fill={isActive ? '#000' : '#ccc'}
+                    >
+                        {label}
+                    </text>
+                </g>
+            )}
+
+            {/* Active LED Glow */}
+            {isActive && (
+                <rect
+                    x={6} y={height - 5} width={width - 12} height={2} rx={1}
+                    fill="#fff"
+                    filter="drop-shadow(0 0 4px #fff)"
+                />
+            )}
+        </g>
+    );
+});
+
 export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: LiveKeyboardProps) => {
     // State to track which notes are held by which source
     const [heldByKeys, setHeldByKeys] = useState<Set<string>>(new Set());
     const [heldByMouse, setHeldByMouse] = useState<string | null>(null);
+
+    // PERFORMANCE: Use ref to track heldByMouse for stable event handlers
+    const heldByMouseRef = useRef(heldByMouse);
+    useEffect(() => { heldByMouseRef.current = heldByMouse; }, [heldByMouse]);
 
     // We use a ref to track what we *think* is currently playing externally, to avoid redundant calls
     // and ensure we stop everything we started.
@@ -134,15 +298,24 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
         };
     }, []);
 
-    const handleMouseDown = (note: string) => {
+    // PERFORMANCE: Stable Handlers
+    const handleMouseDownStable = useCallback((note: string) => {
         setHeldByMouse(note);
-    };
+    }, []);
 
-    const handleMouseEnter = (note: string) => {
-        if (heldByMouse !== null) {
+    const handleMouseEnterStable = useCallback((note: string) => {
+        // Only update if we are already holding the mouse down (glissando)
+        if (heldByMouseRef.current !== null) {
             setHeldByMouse(note);
         }
-    };
+    }, []);
+
+    const handleStopMouseStable = useCallback(() => {
+        // Only trigger update if we actually have a note held
+        if (heldByMouseRef.current !== null) {
+            setHeldByMouse(null);
+        }
+    }, []);
 
     // Width calculations
     const totalWidth = 920;
@@ -193,136 +366,23 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                             const x = colIndex * (keyWidth + gap);
 
                             return (
-                                <g
+                                <LiveKey
                                     key={fullNote}
-                                    transform={`translate(${x}, 0)`}
-                                    role="button"
-                                    aria-label={`Play ${fullNote}`}
-                                    tabIndex={0}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
-                                            handleMouseDown(fullNote);
-                                        }
-                                    }}
-                                    onKeyUp={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
-                                            setHeldByMouse(null);
-                                        }
-                                    }}
-                                    onBlur={() => {
-                                        // Safety: stop note if tabbing away while holding Enter/Space
-                                        if (heldByMouse === fullNote) {
-                                            setHeldByMouse(null);
-                                        }
-                                    }}
-                                    onMouseDown={(e) => {
-                                        if (e.button === 0) {
-                                            handleMouseDown(fullNote);
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            (e.currentTarget as any).focus();
-                                        }
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        if (e.buttons === 1) {
-                                            handleMouseEnter(fullNote);
-                                        } else if (heldByMouse) {
-                                            setHeldByMouse(null);
-                                        }
-                                    }}
-                                    onTouchStart={(e) => { e.preventDefault(); handleMouseDown(fullNote); }}
-                                    onTouchEnd={(e) => { e.preventDefault(); setHeldByMouse(null); }}
-                                    cursor="pointer"
-                                    className="focus:outline-none"
-                                >
-                                    {/* Focus Ring Indicator (only visible when focused) */}
-                                    <rect
-                                        x={-2} y={-2} width={keyWidth + 4} height={keyHeight + 4} rx={6}
-                                        fill="none"
-                                        stroke="#a855f7"
-                                        strokeWidth={2}
-                                        opacity={0}
-                                        className="focus-ring"
-                                        style={{ transition: 'opacity 0.2s' }}
-                                    />
-
-                                    {/* Base / Bevel Shadow */}
-                                    <rect width={keyWidth} height={keyHeight} rx={4} fill="#000" />
-
-                                    {/* Main Body */}
-                                    <rect
-                                        x={1} y={1} width={keyWidth-2} height={keyHeight-2} rx={3}
-                                        fill={isActive ? '#1f2e25' : baseColor}
-                                    />
-
-                                    {/* Top Highlight (Bevel) */}
-                                    <path d={`M 2 2 L ${keyWidth-2} 2 L ${keyWidth-4} 4 L 4 4 Z`} fill="rgba(255,255,255,0.2)" />
-
-                                    {/* Bottom Shadow (Bevel) */}
-                                    <path d={`M 2 ${keyHeight-2} L ${keyWidth-2} ${keyHeight-2} L ${keyWidth-4} ${keyHeight-4} L 4 ${keyHeight-4} Z`} fill="rgba(0,0,0,0.6)" />
-
-                                    {/* Inner Cap */}
-                                    <rect
-                                        x={3} y={3} width={keyWidth-6} height={keyHeight-6} rx={2}
-                                        fill={isActive ? activeColor : inactiveTint}
-                                        fillOpacity={isActive ? 0.6 : (isBlack ? 1 : 0.12)}
-                                        stroke={isActive ? activeColor : 'none'}
-                                        strokeWidth={1}
-                                    />
-
-                                    {/* Glassy Shine */}
-                                    <rect
-                                        x={4} y={4} width={keyWidth-8} height={(keyHeight-8)/2} rx={2}
-                                        fill="url(#keyGlass)"
-                                        pointerEvents="none"
-                                    />
-
-                                    {/* Note Name Label */}
-                                    <text
-                                        x={keyWidth/2} y={keyHeight - 8}
-                                        textAnchor="middle"
-                                        fontSize={10}
-                                        fontFamily="monospace"
-                                        fontWeight="bold"
-                                        fill={isActive ? '#fff' : noteColor}
-                                        pointerEvents="none"
-                                    >
-                                        {fullNote}
-                                    </text>
-
-                                    {/* Desktop Key Binding Overlay */}
-                                    {label && (
-                                        <g pointerEvents="none">
-                                            <rect
-                                                x={keyWidth/2 - 9} y={5} width={18} height={14} rx={3}
-                                                fill={isActive ? '#fff' : '#000'}
-                                                fillOpacity={isActive ? 0.9 : 0.6}
-                                                stroke={isActive ? activeColor : '#444'}
-                                                strokeWidth={1}
-                                            />
-                                            <text
-                                                x={keyWidth/2} y={15}
-                                                textAnchor="middle"
-                                                fontSize={9}
-                                                fontFamily="Arial, sans-serif"
-                                                fontWeight="bold"
-                                                fill={isActive ? '#000' : '#ccc'}
-                                            >
-                                                {label}
-                                            </text>
-                                        </g>
-                                    )}
-
-                                    {/* Active LED Glow */}
-                                    {isActive && (
-                                        <rect
-                                            x={6} y={keyHeight - 5} width={keyWidth - 12} height={2} rx={1}
-                                            fill="#fff"
-                                            filter="drop-shadow(0 0 4px #fff)"
-                                        />
-                                    )}
-                                </g>
+                                    note={fullNote}
+                                    isActive={isActive}
+                                    isHeldByMouse={heldByMouse === fullNote}
+                                    x={x}
+                                    width={keyWidth}
+                                    height={keyHeight}
+                                    label={label}
+                                    noteColor={noteColor}
+                                    activeColor={activeColor}
+                                    baseColor={baseColor}
+                                    inactiveTint={inactiveTint}
+                                    onMouseDown={handleMouseDownStable}
+                                    onMouseEnter={handleMouseEnterStable}
+                                    onStopMouse={handleStopMouseStable}
+                                />
                             );
                         })}
                     </g>
