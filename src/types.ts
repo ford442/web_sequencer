@@ -6,7 +6,8 @@ export type Waveform =
   | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin'
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
-  | 'rust-saw' | 'rust-sqr';
+  | 'rust-saw' | 'rust-sqr'
+  | '303-saw' | '303-sqr';
 
 export interface SynthParams {
   waveform: Waveform;
@@ -99,6 +100,7 @@ export interface AudioEngine {
     context: AudioContext;
     webGpuEngine?: any; // WebGpuOscillator
     wasmEngine?: any; // WasmOscillator
+    open303Engine?: any; // Open303Oscillator
     playSynth: (params: SynthParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
     playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;

@@ -9,7 +9,7 @@ describe('trackFreezer', () => {
 
     // Setup WASM for tests
     beforeAll(async () => {
-        const wasmPath = path.resolve(__dirname, '../../public/trackFreezer.wasm');
+        const wasmPath = path.resolve(__dirname, '../wasm/trackFreezer.wasm');
         if (fs.existsSync(wasmPath)) {
             const buffer = fs.readFileSync(wasmPath);
             const { instance } = await WebAssembly.instantiate(buffer, {

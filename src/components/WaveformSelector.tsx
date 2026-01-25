@@ -14,7 +14,8 @@ const waveforms: Waveform[] = [
   'pyodide-saw', 'pyodide-square', 'pyodide-sine',
   'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin',
   'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin',
-  'rust-saw', 'rust-sqr'
+  'rust-saw', 'rust-sqr',
+  '303-saw', '303-sqr'
 ];
 
 const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
@@ -72,6 +73,11 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center text-orange-500">RUST<br/>SAW</div>;
     case 'rust-sqr':
       return <div className="font-bold text-[10px] leading-none text-center text-orange-500">RUST<br/>SQR</div>;
+    // NEW: Open303 (TB-303 clone) icons
+    case '303-saw':
+      return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SAW</div>;
+    case '303-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SQR</div>;
     default:
       return null;
   }

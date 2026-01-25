@@ -1,11 +1,13 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
 import { noteToFrequency, NUM_STEPS } from '../constants';
 import { noteToMidi } from '../utils/musicTheory';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
+import { Open303Oscillator } from '../engines/Open303Oscillator';
 // Updated Import
-import { SingingVoice, REFERENCE_FREQUENCIES, freqToMidi } from '../engines/SingingVoice'; 
+import { SingingVoice, REFERENCE_FREQUENCIES, freqToMidi } from '../engines/SingingVoice';
+import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 
 // Helper to convert mode string to worklet numeric value
 const modeToWorkletValue = (mode: 'loop' | 'stretch' | 'wavetable'): number => {
@@ -26,6 +28,17 @@ function makeDistortionCurve(amount: number) {
     return curve;
 }
 
+// Helper to map SynthParams to Open303 parameter values
+function apply303Params(engine: Open303Oscillator, params: SynthParams, waveType: string): void {
+    // Set waveform (0 = saw, 1 = square)
+    engine.setWaveform(waveType === 'sqr' ? 1.0 : 0.0);
+    // Map synth params to 303 params (normalize to 0-1 range)
+    engine.setCutoff(Math.min(1, params.filterCutoff / 2394));
+    engine.setResonance(Math.min(1, params.filterResonance / 30));
+    engine.setDecay(params.decay);
+    engine.setVolume(params.volume);
+}
+
 export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
     const audioEngineRef = useRef<AudioEngine | null>(null);
@@ -38,6 +51,7 @@ export const useAudioEngine = (pyodide: any) => {
     const rendererWorkerRef = useRef<Worker | null>(null);
     const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
+    const open303EngineRef = useRef<Open303Oscillator | null>(null);
 
     // Native WAV buffers
     const wavSawBufferRef = useRef<AudioBuffer | null>(null);
@@ -91,6 +105,17 @@ export const useAudioEngine = (pyodide: any) => {
         await wasmEngine.init();
         wasmEngineRef.current = wasmEngine;
 
+        // Initialize Open303 Engine (TB-303 clone)
+        const open303Engine = new Open303Oscillator();
+        const open303Ready = await open303Engine.init(context);
+        if (open303Ready) {
+            open303Engine.connect(masterGain);
+            open303EngineRef.current = open303Engine;
+            console.log('Open303 Engine Ready');
+        } else {
+            console.warn('Open303 Engine failed to initialize - 303 waveforms will not be available');
+        }
+
         // Load WAV Files
         const loadWav = async (url: string) => {
             try {
@@ -117,7 +142,7 @@ export const useAudioEngine = (pyodide: any) => {
 
         // Initialize SustainProcessor worklet
         try {
-            await context.audioWorklet.addModule('./sustain-processor.js');
+            await context.audioWorklet.addModule(sustainProcessorUrl);
             const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
                 numberOfInputs: 0,
                 numberOfOutputs: 1,
@@ -248,7 +273,7 @@ export const useAudioEngine = (pyodide: any) => {
 
             const notesToPlay = Array.isArray(noteOrChord) ? noteOrChord : [noteOrChord];
 
-            let engine: 'wav' | 'wgsl' | 'wam' | 'pyodide' | 'native' = 'native';
+            let engine: 'wav' | 'wgsl' | 'wam' | 'pyodide' | 'native' | '303' = 'native';
             let waveType = params.waveform;
 
             if (params.waveform.startsWith('wav-')) { engine = 'wav'; }
@@ -260,6 +285,22 @@ export const useAudioEngine = (pyodide: any) => {
             else if (params.waveform.startsWith('rust-')) { engine = 'rust' as any; waveType = params.waveform.split('-')[1] as any; }
             // @ts-ignore
             else if (params.waveform.startsWith('pyodide-')) { engine = 'pyodide'; waveType = params.waveform.split('-')[1] as any; }
+            // @ts-ignore
+            else if (params.waveform.startsWith('303-')) { engine = '303'; waveType = params.waveform.split('-')[1] as any; }
+
+            // Handle 303 engine separately (it has its own audio processing)
+            if (engine === '303' && open303EngineRef.current?.isReady) {
+                apply303Params(open303EngineRef.current, params, waveType as string);
+                notesToPlay.forEach((note) => {
+                    const midiNote = noteToMidi(note) + params.pitch;
+                    open303EngineRef.current!.noteOn(midiNote, 100);
+                    // Schedule note off
+                    setTimeout(() => {
+                        open303EngineRef.current?.noteOff(midiNote);
+                    }, gateTime * 1000);
+                });
+                return;
+            }
 
             let buffer: AudioBuffer | null = null;
             let sampleRootFreq = 440; 
@@ -268,7 +309,7 @@ export const useAudioEngine = (pyodide: any) => {
                 buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
                 sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
             }
-            else if (engine !== 'native') {
+            else if (engine !== 'native' && engine !== '303') {
                 buffer = await getOrGenerateSingleCycleBuffer(
                     engine,
                     waveType as any,
@@ -414,6 +455,24 @@ export const useAudioEngine = (pyodide: any) => {
                 const isWgslWave = params.waveform.startsWith('wgsl-');
                 const isWasmWave = params.waveform.startsWith('wam-');
                 const isPyodideWave = params.waveform.startsWith('pyodide-');
+                const is303Wave = params.waveform.startsWith('303-');
+
+                // Handle 303 waveforms
+                if (is303Wave && open303EngineRef.current?.isReady) {
+                    const midiNote = noteToMidi(note) + params.pitch;
+                    const waveType = params.waveform.split('-')[1];
+                    apply303Params(open303EngineRef.current, params, waveType);
+                    open303EngineRef.current.noteOn(midiNote, 100);
+
+                    const id = nextSynthNoteId.current++;
+                    const stop = () => {
+                        open303EngineRef.current?.noteOff(midiNote);
+                        activeSynthNotes.current.delete(id);
+                    };
+                    activeSynthNotes.current.set(id, { stop });
+                    return id;
+                }
+
                 if (isWavWave) {
                     const buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
                     if (!buffer) return null;
@@ -456,7 +515,7 @@ export const useAudioEngine = (pyodide: any) => {
                         envGain.gain.cancelScheduledValues(t);
                         envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                         envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                        try { source.stop(t + params.release + 0.05); } catch (e) { }
+                            try { source.stop(t + params.release + 0.05); } catch { /* ignore */ }
                         activeSynthNotes.current.delete(id);
                     };
                     activeSynthNotes.current.set(id, { stop });
@@ -504,7 +563,7 @@ export const useAudioEngine = (pyodide: any) => {
                             envGain.gain.cancelScheduledValues(t);
                             envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                             envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                            try { source.stop(t + params.release + 0.05); } catch (e) { }
+                            try { source.stop(t + params.release + 0.05); } catch { /* ignore */ }
                             activeSynthNotes.current.delete(id2);
                         };
                         activeSynthNotes.current.set(id2, { stop: stop2 });
@@ -554,7 +613,7 @@ export const useAudioEngine = (pyodide: any) => {
                     envGain.gain.cancelScheduledValues(t);
                     envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
                     envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                    try { osc.stop(t + params.release + 0.05); } catch (e) { }
+                        try { osc.stop(t + params.release + 0.05); } catch { /* ignore */ }
                     activeSynthNotes.current.delete(id);
                 };
                 activeSynthNotes.current.set(id, { stop });
@@ -791,7 +850,7 @@ export const useAudioEngine = (pyodide: any) => {
             envGain.gain.cancelScheduledValues(now);
             envGain.gain.setValueAtTime(envGain.gain.value || 1.0, now);
             envGain.gain.linearRampToValueAtTime(0, now + 0.12);
-            try { source.stop(now + 0.12 + 0.05); } catch (e) { }
+            try { source.stop(now + 0.12 + 0.05); } catch { /* ignore */ }
             activeSamplerNotes.current.delete(id);
         };
 
@@ -981,6 +1040,7 @@ export const useAudioEngine = (pyodide: any) => {
             context,
             webGpuEngine: gpuEngineRef.current,
             wasmEngine: wasmEngineRef.current,
+            open303Engine: open303EngineRef.current,
             // Exposed SingingVoice instance
             singingVoice: singingVoiceRef.current || undefined,
             playSynth,
@@ -1009,5 +1069,11 @@ export const useAudioEngine = (pyodide: any) => {
         setIsReady(true);
     }, []);
 
-    return { audioEngine: audioEngineRef.current, isReady, initializeAudio };
+    const result = useMemo(() => ({
+        audioEngine: audioEngineRef.current,
+        isReady,
+        initializeAudio
+    }), [isReady, initializeAudio]);
+
+    return result;
 };
