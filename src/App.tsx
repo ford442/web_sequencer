@@ -104,6 +104,15 @@ const SEQUENCER_STYLES = `
     .svg-step.is-current .step-glow { fill: rgba(255, 255, 255, 0.3) !important; }
     .svg-step.is-current .step-cap { stroke: #ffffff !important; stroke-width: 2px !important; }
     .svg-step.is-current .step-led { fill: #ff3333 !important; fill-opacity: 1 !important; filter: url(#glow) !important; }
+
+    /* Accessibility Focus Styles */
+    .track-label:focus { outline: none; }
+    .track-label:focus text { filter: drop-shadow(0 0 4px white); }
+
+    .track-slot:focus { outline: none; }
+    .track-slot:focus rect { filter: drop-shadow(0 0 3px white); }
+
+    .svg-step:focus { outline: none; filter: drop-shadow(0 0 3px cyan); }
 `;
 
 const COLOR_LEAD = [0.0, 0.9, 1.0] as [number, number, number];
@@ -228,7 +237,7 @@ const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: 
     const patternColor = getPatternColor(index);
     const inactiveColor = hasData ? patternColor : '#0f1812';
     return (
-        <g transform={`translate(${index * 22}, 0)`} onClick={() => onSelect(trackKey, index)} cursor="pointer" role="button" tabIndex={0} aria-label={`Pattern Slot ${index + 1}`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(trackKey, index); } }} onContextMenu={(e) => e.preventDefault()}>
+        <g className="track-slot" transform={`translate(${index * 22}, 0)`} onClick={() => onSelect(trackKey, index)} cursor="pointer" role="button" tabIndex={0} aria-label={`Pattern Slot ${index + 1}`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(trackKey, index); } }} onContextMenu={(e) => e.preventDefault()}>
             <rect width={18} height={18} rx={2} fill={isActive ? patternColor : inactiveColor} fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)} stroke={isActive ? '#fff' : patternColor} strokeOpacity={isActive ? 1 : 0.6} strokeWidth={1} />
             <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : patternColor} fontFamily="monospace" fontWeight="bold">{index + 1}</text>
         </g>
@@ -296,7 +305,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
 
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
-            <g onClick={() => onSelectRow(rowKey)} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRow(rowKey); } }}>
+            <g className="track-label" onClick={() => onSelectRow(rowKey)} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRow(rowKey); } }}>
                 {isSelected && <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />}
                 <text x={-20} y={30} textAnchor="end" fontFamily="Orbitron, monospace" fontSize={12} fill={isSelected ? '#3fa34d' : '#5a6b60'} fontWeight={isSelected ? 'bold' : 'normal'} style={{ textShadow: isSelected ? '0 0 8px rgba(63,163,77,0.5)' : 'none' }}>{label.toUpperCase()}</text>
             </g>
