@@ -24,6 +24,12 @@ OUTPUT_JS="$REPO_ROOT/public/hyphon_native.js"
 TEMP_DIR="$SCRIPT_DIR/temp_build"
 mkdir -p "$TEMP_DIR"
 
+# Copy Rubberband Source to Temp Directory
+RUBBERBAND_SRC="$TEMP_DIR/rubberband"
+mkdir -p "$RUBBERBAND_SRC"
+echo "Copying Rubberband source from $REPO_ROOT/rubberband to $RUBBERBAND_SRC..."
+cp -r "$REPO_ROOT/rubberband/"* "$RUBBERBAND_SRC/"
+
 # ---------------------------------------------------------
 # FLAGS
 # ---------------------------------------------------------
@@ -51,11 +57,12 @@ EXPORTS="[ \
 # ---------------------------------------------------------
 # Added -I $SCRIPT_DIR to find the local omp.h
 INCLUDES="-I $SCRIPT_DIR \
-          -I $SCRIPT_DIR/rubberband \
-          -I $SCRIPT_DIR/rubberband/rubberband \
-          -I $SCRIPT_DIR/rubberband/src \
-          -I $SCRIPT_DIR/rubberband/src/ext/kissfft \
-          -I $SCRIPT_DIR/rubberband/src/ext/speex"
+          -I $TEMP_DIR \
+          -I $RUBBERBAND_SRC \
+          -I $RUBBERBAND_SRC/rubberband \
+          -I $RUBBERBAND_SRC/src \
+          -I $RUBBERBAND_SRC/src/ext/kissfft \
+          -I $RUBBERBAND_SRC/src/ext/speex"
 
 echo "Compiling Objects..."
 
@@ -78,25 +85,25 @@ compile_c() {
 # --- PATCH START ---
 # Fix include path issue in VectorOpsComplex.cpp for the main build
 echo "  [Patch] Fixing VectorOpsComplex.cpp include..."
-sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' "$SCRIPT_DIR/rubberband/src/common/VectorOpsComplex.cpp" || true
+sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' "$RUBBERBAND_SRC/src/common/VectorOpsComplex.cpp" || true
 
 # Fix size_t issue in sysutils.h (needed for mathmisc.h etc)
 echo "  [Patch] Fixing size_t in sysutils.h..."
-sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' "$SCRIPT_DIR/rubberband/src/common/sysutils.h" || true
+sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' "$RUBBERBAND_SRC/src/common/sysutils.h" || true
 # --- PATCH END ---
 
 # 1. Compile C sources (KissFFT, Speex)
-for f in $SCRIPT_DIR/rubberband/src/ext/kissfft/*.c; do compile_c "$f"; done
-for f in $SCRIPT_DIR/rubberband/src/ext/speex/*.c; do compile_c "$f"; done
+for f in $RUBBERBAND_SRC/src/ext/kissfft/*.c; do compile_c "$f"; done
+for f in $RUBBERBAND_SRC/src/ext/speex/*.c; do compile_c "$f"; done
 
 # 2. Compile C++ sources (Rubber Band Core)
-compile_cpp "$SCRIPT_DIR/rubberband/src/RubberBandStretcher.cpp"
-compile_cpp "$SCRIPT_DIR/rubberband/src/RubberBandLiveShifter.cpp"
-compile_cpp "$SCRIPT_DIR/rubberband/src/rubberband-c.cpp"
+compile_cpp "$RUBBERBAND_SRC/src/RubberBandStretcher.cpp"
+compile_cpp "$RUBBERBAND_SRC/src/RubberBandLiveShifter.cpp"
+compile_cpp "$RUBBERBAND_SRC/src/rubberband-c.cpp"
 
-for f in $SCRIPT_DIR/rubberband/src/common/*.cpp; do compile_cpp "$f"; done
-for f in $SCRIPT_DIR/rubberband/src/faster/*.cpp; do compile_cpp "$f"; done
-for f in $SCRIPT_DIR/rubberband/src/finer/*.cpp; do compile_cpp "$f"; done
+for f in $RUBBERBAND_SRC/src/common/*.cpp; do compile_cpp "$f"; done
+for f in $RUBBERBAND_SRC/src/faster/*.cpp; do compile_cpp "$f"; done
+for f in $RUBBERBAND_SRC/src/finer/*.cpp; do compile_cpp "$f"; done
 
 # 3. Compile Wrapper & Main
 compile_cpp "$SCRIPT_DIR/rubberband_wrapper.cpp"
