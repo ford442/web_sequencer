@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, memo,
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
+import { useGamepad } from './hooks/useGamepad';
+import { GamepadDebugger } from './components/GamepadDebugger';
 import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
@@ -347,7 +349,11 @@ export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
+    const [showGamepadDebug, setShowGamepadDebug] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
+
+    // Initialize Gamepad Support
+    useGamepad();
 
     // NEW: 3D Mode State
     const [is3DMode, setIs3DMode] = useState(false);
@@ -803,6 +809,15 @@ export const App: React.FC = () => {
                 >
                     3D
                 </button>
+
+                {/* Gamepad Debug Toggle */}
+                <button
+                    onClick={() => setShowGamepadDebug(true)}
+                    className="ml-2 p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors border border-transparent hover:border-slate-600"
+                    title="Gamepad Debugger"
+                >
+                    <span role="img" aria-label="joystick" className="text-lg">🎮</span>
+                </button>
             </div>
         </header>
     ), [is3DMode, songStorage, activeSongSlot, masterVolume, globalPan, tempo, isRecording, isPlaying, isSongModeOpen, loadSong, handleSaveSong, exportSongToFile, importSongFromFile, handleClearPattern, handleMasterVolume, handleMasterVolumeKeyDown, handleGlobalPan, handleGlobalPanKeyDown, handleTempoHoldStart, handleTempoHoldEnd, handleTempoKeyDown, handlePanic, handlePlayToggle, setIsRecording, setIsSongModeOpen, setIs3DMode, setIsCloudLibraryOpen]);
@@ -929,6 +944,7 @@ export const App: React.FC = () => {
             {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
+            {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
 
             {/* Standard 2D Layout */}
             {headerNode}
