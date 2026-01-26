@@ -55,29 +55,38 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.sampleRate = globalThis.sampleRate;
     }
 
-    // Initialize Expressive Processor
     this.expressiveProcessor = new ExpressiveVoiceProcessor({
         sampleRate: this.sampleRate
     });
   }
 
   async handleMessage(event: MessageEvent) {
+    // We access 'data' here for standard events (noteOn, loadBuffer),
+    // but we will ignore it for INIT_WASM which uses a flat structure.
     const { type, data } = event.data;
+
     switch (type) {
       case 'INIT_WASM':
         try {
-          this.inputRingBuffer = new RingBuffer(event.data.inputBuffer);
-          this.outputRingBuffer = new RingBuffer(event.data.outputBuffer);
+          // FIX: Access properties directly from event.data for the flat INIT message
+          // This matches the structure sent from SingingVoice.ts
+          const { inputBuffer, outputBuffer, wasmBinary } = event.data;
 
-          // Instantiate WASM module with static import
+          this.inputRingBuffer = new RingBuffer(inputBuffer);
+          this.outputRingBuffer = new RingBuffer(outputBuffer);
+
+          if (!wasmBinary) {
+              throw new Error("WASM binary not provided in INIT_WASM message");
+          }
+
+          // Instantiate WASM module with the provided binary
           // @ts-ignore
           const module = await createRubberBandModule({
-            // Tell Emscripten to look for the WASM file at the public root
+            wasmBinary: wasmBinary,
+            // Fallback locateFile just in case, though wasmBinary should take precedence
             locateFile: (path: string) => {
-              if (path.endsWith('.wasm')) {
-                return '/rubberband.wasm';
-              }
-              return path;
+                if (path.endsWith('.wasm')) return '/rubberband.wasm';
+                return path;
             }
           });
 
@@ -99,11 +108,15 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         break;
 
       case 'loadBuffer':
-        this.fullSampleBuffer = new Float32Array(data.buffer);
+        // Uses the nested 'data' property
+        if (data && data.buffer) {
+            this.fullSampleBuffer = new Float32Array(data.buffer);
+        }
         break;
 
       case 'noteOn':
-        if (!this.initialized || !this.fullSampleBuffer) return;
+        // Uses the nested 'data' property
+        if (!this.initialized || !this.fullSampleBuffer || !data) return;
         this.rubberBand.reset();
         this.rubberBand.setPitchScale(data.pitch || 1.0);
         this.rubberBand.setTimeRatio(1.0);

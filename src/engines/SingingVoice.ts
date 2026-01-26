@@ -146,6 +146,13 @@ export class SingingVoice {
 
         await this.audioContext.audioWorklet.addModule(processorUrl);
 
+        // Fetch the WASM binary on the main thread to bypass worklet restrictions
+        const response = await fetch('/rubberband.wasm');
+        if (!response.ok) {
+            throw new Error(`Failed to fetch rubberband.wasm: ${response.statusText}`);
+        }
+        const wasmBinary = await response.arrayBuffer();
+
         // Create shared buffers for ring buffers
         const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
         const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
@@ -155,14 +162,13 @@ export class SingingVoice {
 
         this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
         
-        // Initialize the worklet
+        // Initialize the worklet with the fetched binary and buffers (flat structure)
         this.workletNode.port.postMessage({
             type: 'INIT_WASM',
-            data: {
-                inputBuffer,
-                outputBuffer,
-                moduleUrl: '/rubberband.js'
-            }
+            inputBuffer,
+            outputBuffer,
+            wasmBinary,
+            moduleUrl: '/rubberband.js'
         });
 
         // Wait for ready signal
