@@ -9,3 +9,7 @@
 ## 2024-05-24 - React List Performance Trap
 **Learning:** In interactive lists (like a keyboard) where only one item changes state at a time, mapping over a large array inside the parent component forces the entire list to re-render. `React.memo` on the parent is useless if the children are not memoized components.
 **Action:** Extract the list item into a separate `React.memo` component and ensure event handlers passed to it are stable (using `useCallback` + `useRef` for state access) to isolate updates to the single modified item.
+
+## 2024-05-25 - State Updater Purity
+**Learning:** Found multiple instances where `setPattern` functional updates contained side-effects (calling `updateStorageForTrack` which calls `setTrackStorage`). This violates React's purity requirement for updaters and can lead to unpredictable re-renders or de-opts.
+**Action:** Always extract side-effects from functional state updaters. Use `setTimeout` to schedule the dependent update if immediate execution is required but cannot be batched synchronously in the event handler (e.g. when the new state is calculated *inside* the updater).
