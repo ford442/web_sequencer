@@ -104,13 +104,20 @@ export class SupertonicService {
         if (this.isReady) return;
         try {
             console.log("Supertonic: Loading Config...");
-            const cfgRes = await fetch(`./assets/onnx/tts.json`);
+
+            // Helper to handle relative paths correctly in deployment
+            const getAssetUrl = (path: string) => {
+                const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+                return import.meta.env.BASE_URL + cleanPath;
+            };
+
+            const cfgRes = await fetch(getAssetUrl('assets/onnx/tts.json'));
             if (!cfgRes.ok) {
                 throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}`);
             }
             this.cfgs = await cfgRes.json();
 
-            const idxRes = await fetch(`./assets/onnx/unicode_indexer.json`);
+            const idxRes = await fetch(getAssetUrl('assets/onnx/unicode_indexer.json'));
             if (!idxRes.ok) {
                 throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
             }
@@ -129,10 +136,10 @@ export class SupertonicService {
 
             // Parallel loading is faster than sequential await
             const [dp, textEnc, vecEst, vocoder] = await Promise.all([
-                ort.InferenceSession.create(`./assets/onnx/duration_predictor.onnx`, opts),
-                ort.InferenceSession.create(`./assets/onnx/text_encoder.onnx`, opts),
-                ort.InferenceSession.create(`./assets/onnx/vector_estimator.onnx`, opts),
-                ort.InferenceSession.create(`./assets/onnx/vocoder.onnx`, opts)
+                ort.InferenceSession.create(getAssetUrl('assets/onnx/duration_predictor.onnx'), opts),
+                ort.InferenceSession.create(getAssetUrl('assets/onnx/text_encoder.onnx'), opts),
+                ort.InferenceSession.create(getAssetUrl('assets/onnx/vector_estimator.onnx'), opts),
+                ort.InferenceSession.create(getAssetUrl('assets/onnx/vocoder.onnx'), opts)
             ]);
 
             this.models.dp = dp;
@@ -142,7 +149,7 @@ export class SupertonicService {
 
             // Load Default Style
             try {
-                await this.loadStyle(`./assets/voice_styles/F1.json`);
+                await this.loadStyle(getAssetUrl('assets/voice_styles/F1.json'));
                 console.log("✓ Loaded default voice style: M1");
             } catch (e) {
                 console.warn("Could not load default style M1.json", e);
