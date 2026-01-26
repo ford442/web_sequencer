@@ -48,7 +48,14 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="hyphon_native.js"></script>
+    <script type="module">
+      // Use Vite's ?url import to get the path to the public asset, then import it dynamically
+      // We use new Function to bypass Vite's import transformation which adds ?import and fails on public assets
+      import moduleUrl from '/hyphon_native.js?url';
+      const importModule = new Function('url', 'return import(url)');
+      const { default: Module } = await importModule(moduleUrl);
+      window.Module = await Module();
+    </script>
     <!-- Pyodide initialization is now automatic from hyphon_native.js -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
