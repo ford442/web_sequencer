@@ -6,17 +6,43 @@ interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; 
 const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
-// Mapping based on user request: // Right side (F8) = Lower Pitch (C3) // Left side (F1) = Higher Pitch (C4)
+// Configuration for "Chromatic Zig-Zag" style playing
+// Mimics a piano layout or chromatic button accordion:
+// - F-Keys (Bottom Row)  -> White Keys (mostly)
+// - Digit Keys (Top Row) -> Black Keys (mostly)
+// This creates a continuous chromatic run moving up/down between rows.
 const KEY_TO_NOTE: Record<string, string> = {
-    // Octave 3
-    'F8': 'C3', 'Digit9': 'C#3', 'F7': 'D3', 'Digit8': 'D#3', 'F6': 'E3',
-    // Digit7 skipped (No sharp between E and F)
-    'F5': 'F3', 'Digit6': 'F#3', 'F4': 'G3', 'Digit5': 'G#3', 'F3': 'A3', 'Digit4': 'A#3', 'F2': 'B3',
-    // Digit3 skipped (No sharp between B and C)
+    // --- Col 1 ---
+    'F1':     'C4',
+    'Digit1': 'C#4',
 
-    // Octave 4
-    'F1': 'C4',
-    'Digit2': 'C#4'
+    // --- Col 2 ---
+    'F2':     'D4',
+    'Digit2': 'D#4',
+
+    // --- Col 3 ---
+    'F3':     'E4',
+    'Digit3': 'F4', // E->F is semitone
+
+    // --- Col 4 ---
+    'F4':     'F#4',
+    'Digit4': 'G4',
+
+    // --- Col 5 ---
+    'F5':     'G#4',
+    'Digit5': 'A4',
+
+    // --- Col 6 ---
+    'F6':     'A#4',
+    'Digit6': 'B4',
+
+    // --- Col 7 (Next Octave) ---
+    'F7':     'C5',
+    'Digit7': 'C#5',
+
+    // --- Col 8 ---
+    'F8':     'D5',
+    'Digit8': 'D#5',
 };
 
 // 1. Generate Reverse Mapping for Visual Overlay
