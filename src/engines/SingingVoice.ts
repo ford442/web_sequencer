@@ -147,7 +147,7 @@ export class SingingVoice {
         await this.audioContext.audioWorklet.addModule(processorUrl);
 
         // Fetch the WASM binary on the main thread to bypass worklet restrictions
-        const response = await fetch('/rubberband.wasm');
+        const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');
         if (!response.ok) {
             throw new Error(`Failed to fetch rubberband.wasm: ${response.statusText}`);
         }
