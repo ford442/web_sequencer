@@ -556,44 +556,48 @@ export const App: React.FC = () => {
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...copy[track]]; copy[track][activeTrackSlotsRef.current[track]] = sequence; return copy; }); }, []);
 
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
-        setPattern(prev => {
-            const copy = { ...prev };
-            if (rowKey === 'sampler') {
-                const bankIndex = activeSamplerBankRef.current;
-                const newSampler = [...prev.sampler];
-                newSampler[bankIndex] = { ...newSampler[bankIndex], steps: [...newSampler[bankIndex].steps] };
-                const steps = newSampler[bankIndex].steps;
-                const existing = steps[i];
-                if (updates) {
-                    if (existing) {
-                        const newStep = { ...existing };
-                        if (updates.length !== undefined) newStep.length = updates.length;
-                        if (updates.slide !== undefined) newStep.slide = updates.slide;
-                        if (updates.chord !== undefined) newStep.chord = updates.chord;
-                        steps[i] = newStep;
-                        if (updates.length !== undefined) { for (let k = 1; k < updates.length; k++) { const nextStepIdx = i + k; if (nextStepIdx < steps.length) { steps[nextStepIdx] = null; } } }
-                    }
-                } else { if (existing) { steps[i] = null; } else { steps[i] = { note: 'C4', velocity: 1, length: 1, slide: false }; } }
-                copy.sampler = newSampler;
-                updateStorageForTrack(rowKey, newSampler);
-            } else {
-                copy[rowKey] = { ...prev[rowKey], steps: [...prev[rowKey].steps] };
-                const steps = copy[rowKey].steps;
-                const existing = steps[i];
-                if (updates) {
-                    if (existing) {
-                        const newStep = { ...existing };
-                        if (updates.length !== undefined) newStep.length = updates.length;
-                        if (updates.slide !== undefined) newStep.slide = updates.slide;
-                        if (updates.chord !== undefined) newStep.chord = updates.chord;
-                        steps[i] = newStep;
-                        if (updates.length !== undefined) { for (let k = 1; k < updates.length; k++) { const nextStepIdx = i + k; if (nextStepIdx < steps.length) { steps[nextStepIdx] = null; } } }
-                    }
-                } else { if (existing) { steps[i] = null; } else { const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4'; steps[i] = { note: defaultNote, velocity: 1, length: 1, slide: false }; } }
-                updateStorageForTrack(rowKey, copy[rowKey]);
-            }
-            return copy;
-        });
+        // Use Ref to access current state without dependency to avoid re-renders of all rows
+        const prev = patternRef.current;
+        const copy = { ...prev };
+        let changedSequence;
+
+        if (rowKey === 'sampler') {
+            const bankIndex = activeSamplerBankRef.current;
+            const newSampler = [...prev.sampler];
+            newSampler[bankIndex] = { ...newSampler[bankIndex], steps: [...newSampler[bankIndex].steps] };
+            const steps = newSampler[bankIndex].steps;
+            const existing = steps[i];
+            if (updates) {
+                if (existing) {
+                    const newStep = { ...existing };
+                    if (updates.length !== undefined) newStep.length = updates.length;
+                    if (updates.slide !== undefined) newStep.slide = updates.slide;
+                    if (updates.chord !== undefined) newStep.chord = updates.chord;
+                    steps[i] = newStep;
+                    if (updates.length !== undefined) { for (let k = 1; k < updates.length; k++) { const nextStepIdx = i + k; if (nextStepIdx < steps.length) { steps[nextStepIdx] = null; } } }
+                }
+            } else { if (existing) { steps[i] = null; } else { steps[i] = { note: 'C4', velocity: 1, length: 1, slide: false }; } }
+            copy.sampler = newSampler;
+            changedSequence = newSampler;
+        } else {
+            copy[rowKey] = { ...prev[rowKey], steps: [...prev[rowKey].steps] };
+            const steps = copy[rowKey].steps;
+            const existing = steps[i];
+            if (updates) {
+                if (existing) {
+                    const newStep = { ...existing };
+                    if (updates.length !== undefined) newStep.length = updates.length;
+                    if (updates.slide !== undefined) newStep.slide = updates.slide;
+                    if (updates.chord !== undefined) newStep.chord = updates.chord;
+                    steps[i] = newStep;
+                    if (updates.length !== undefined) { for (let k = 1; k < updates.length; k++) { const nextStepIdx = i + k; if (nextStepIdx < steps.length) { steps[nextStepIdx] = null; } } }
+                }
+            } else { if (existing) { steps[i] = null; } else { const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4'; steps[i] = { note: defaultNote, velocity: 1, length: 1, slide: false }; } }
+            changedSequence = copy[rowKey];
+        }
+
+        setPattern(copy);
+        updateStorageForTrack(rowKey, changedSequence);
     }, [updateStorageForTrack]);
 
     const handleStepToggle = useCallback((rowKey: TrackKey, index: number, e: any) => {
@@ -643,8 +647,47 @@ export const App: React.FC = () => {
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => { if (!isNoteDragging || !noteDragRef.current) return; if (!noteDragRef.current.hasMoved) { const { track, step } = noteDragRef.current; setContextMenu({ x: e.clientX, y: e.clientY, track, step }); } else if (noteDragRef.current.pendingSequence) { updateStorageForTrack(noteDragRef.current.track, noteDragRef.current.pendingSequence); } setIsNoteDragging(false); noteDragRef.current = null; document.body.style.cursor = 'default'; }, [isNoteDragging, updateStorageForTrack]);
     useEffect(() => { if (isNoteDragging) { window.addEventListener('mousemove', handleGlobalMouseMove); window.addEventListener('mouseup', handleGlobalMouseUp); } return () => { window.removeEventListener('mousemove', handleGlobalMouseMove); window.removeEventListener('mouseup', handleGlobalMouseUp); }; }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
 
-    const handleNoteSelect = (note: string) => { if (!contextMenu) return; setPattern(prev => { const copy = JSON.parse(JSON.stringify(prev)) as Pattern; if (contextMenu.track === 'sampler') { const stepData = copy.sampler[activeSamplerBank].steps[contextMenu.step]; if (stepData) stepData.note = note; updateStorageForTrack('sampler', copy.sampler); } else { const stepData = copy[contextMenu.track].steps[contextMenu.step]; if (stepData) stepData.note = note; updateStorageForTrack(contextMenu.track, copy[contextMenu.track]); } return copy; }); setContextMenu(null); };
-    const handleNoteLengthChange = (newLength: number) => { if (!contextMenu) return; setPattern(prev => { const copy = JSON.parse(JSON.stringify(prev)) as Pattern; const trackKey = contextMenu.track; const stepIndex = contextMenu.step; const isSampler = trackKey === 'sampler'; let stepsArray; if (isSampler) { stepsArray = copy.sampler[activeSamplerBank].steps; } else { stepsArray = (copy[trackKey] as any).steps; } const stepData = stepsArray[stepIndex]; if (stepData) { stepData.length = newLength; for (let i = 1; i < newLength; i++) { const nextStepIdx = stepIndex + i; if (nextStepIdx < stepsArray.length) { stepsArray[nextStepIdx] = null; } } } if (isSampler) { updateStorageForTrack('sampler', copy.sampler); } else { updateStorageForTrack(trackKey, copy[trackKey]); } return copy; }); };
+    const handleNoteSelect = (note: string) => {
+        if (!contextMenu) return;
+        const prev = patternRef.current;
+        const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+        let changedSequence;
+        let trackKey: TrackKey;
+        if (contextMenu.track === 'sampler') {
+            trackKey = 'sampler';
+            const stepData = copy.sampler[activeSamplerBank].steps[contextMenu.step];
+            if (stepData) stepData.note = note;
+            changedSequence = copy.sampler;
+        } else {
+            trackKey = contextMenu.track;
+            const stepData = copy[trackKey].steps[contextMenu.step];
+            if (stepData) stepData.note = note;
+            changedSequence = copy[trackKey];
+        }
+        setPattern(copy);
+        updateStorageForTrack(trackKey, changedSequence);
+        setContextMenu(null);
+    };
+
+    const handleNoteLengthChange = (newLength: number) => {
+        if (!contextMenu) return;
+        const prev = patternRef.current;
+        const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+        const trackKey = contextMenu.track;
+        const stepIndex = contextMenu.step;
+        const isSampler = trackKey === 'sampler';
+        let stepsArray;
+        if (isSampler) { stepsArray = copy.sampler[activeSamplerBank].steps; } else { stepsArray = (copy[trackKey] as any).steps; }
+        const stepData = stepsArray[stepIndex];
+        if (stepData) {
+            stepData.length = newLength;
+            for (let i = 1; i < newLength; i++) { const nextStepIdx = stepIndex + i; if (nextStepIdx < stepsArray.length) { stepsArray[nextStepIdx] = null; } }
+        }
+        let changedSequence;
+        if (isSampler) { changedSequence = copy.sampler; } else { changedSequence = copy[trackKey]; }
+        setPattern(copy);
+        updateStorageForTrack(trackKey, changedSequence);
+    };
     const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({length:8}, () => ({ steps: Array(32).fill(null) })), } as any as Pattern; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
