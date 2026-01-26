@@ -781,3 +781,8 @@ if (!globalThis.WorkerGlobalScope && globalThis.window) {
         }
     }, 0);
 }
+
+// 4. Ensure Module is global if using ES6 module output
+if (typeof Module !== 'undefined') {
+    globalThis.Module = Module;
+}
