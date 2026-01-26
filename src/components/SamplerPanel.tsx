@@ -36,6 +36,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
 
+    // Keyboard Navigation Refs
+    const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+    const shouldFocusRef = useRef(false);
+
     const [ttsReady, setTtsReady] = useState(false);
     const [flashBankIdx, setFlashBankIdx] = useState<number | null>(null);
     const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,6 +131,14 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             audioEngine.setSustainGrainSize(currentParams.grainSize);
         }
     }, [activeBankIdx, audioEngine, currentParams.mode, currentParams.grainSize]);
+
+    // Handle focus for keyboard navigation
+    useEffect(() => {
+        if (shouldFocusRef.current) {
+            tabRefs.current[activeBankIdx]?.focus();
+            shouldFocusRef.current = false;
+        }
+    }, [activeBankIdx]);
 
     useEffect(() => {
         const initTTS = async () => {
@@ -229,6 +241,25 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+        let nextIndex = -1;
+        if (e.key === 'ArrowRight') {
+            nextIndex = (index + 1) % 8;
+        } else if (e.key === 'ArrowLeft') {
+            nextIndex = (index - 1 + 8) % 8;
+        } else if (e.key === 'Home') {
+            nextIndex = 0;
+        } else if (e.key === 'End') {
+            nextIndex = 7;
+        }
+
+        if (nextIndex !== -1) {
+            e.preventDefault();
+            shouldFocusRef.current = true;
+            onBankChange(nextIndex);
+        }
+    };
+
     return (
         <div className="flex flex-col gap-2 p-3 text-xs font-mono text-gray-400 h-full">
             {/* ROW 1: Bank Selectors (8 Banks) */}
@@ -236,12 +267,15 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 {SAMPLE_BANKS.map((label, i) => (
                     <button
                         key={i}
+                        ref={(el) => { tabRefs.current[i] = el; }}
                         id={`sampler-bank-tab-${i}`}
                         role="tab"
                         aria-selected={activeBankIdx === i}
                         aria-controls="sampler-bank-panel"
                         aria-label={`Select Bank ${i + 1}`}
+                        tabIndex={activeBankIdx === i ? 0 : -1}
                         onClick={() => onBankChange(i)}
+                        onKeyDown={(e) => handleKeyDown(e, i)}
                         className={`min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                             flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
                             activeBankIdx === i
