@@ -45,7 +45,7 @@ const MAPPINGS = {
 type KeyState = { [key: string]: boolean };
 
 export function useGamepad() {
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number | undefined>(undefined);
   const keyState = useRef<KeyState>({});
 
   // Helper to dispatch keyboard events
