@@ -15,7 +15,12 @@ const modeToWorkletValue = (mode: 'loop' | 'stretch' | 'wavetable'): number => {
 };
 
 // Helper for distortion
+const distortionCurveCache = new Map<number, Float32Array>();
+
 function makeDistortionCurve(amount: number) {
+    if (distortionCurveCache.has(amount)) {
+        return distortionCurveCache.get(amount)!;
+    }
     const k = typeof amount === 'number' ? amount : 50,
         n_samples = 44100,
         curve = new Float32Array(n_samples),
@@ -25,6 +30,7 @@ function makeDistortionCurve(amount: number) {
         x = (i * 2) / n_samples - 1;
         curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
     }
+    distortionCurveCache.set(amount, curve);
     return curve;
 }
 
