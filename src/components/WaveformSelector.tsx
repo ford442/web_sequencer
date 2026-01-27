@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Waveform } from '../types';
 
 interface WaveformSelectorProps {
@@ -7,16 +7,6 @@ interface WaveformSelectorProps {
   onChange: (waveform: Waveform) => void;
   accentColor: 'cyan' | 'pink';
 }
-
-const waveforms: Waveform[] = [
-  'sawtooth', 'square', 'triangle', 'sine',
-  'wav-saw', 'wav-sqr',
-  'pyodide-saw', 'pyodide-square', 'pyodide-sine',
-  'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin',
-  'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin',
-  'rust-saw', 'rust-sqr',
-  '303-saw', '303-sqr'
-];
 
 const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
   switch (type) {
@@ -83,29 +73,98 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
   }
 };
 
+const GROUPS = [
+  { label: 'BASIC', items: ['sawtooth', 'square', 'triangle', 'sine'] as Waveform[] },
+  { label: 'VINTAGE', items: ['wav-saw', 'wav-sqr', '303-saw', '303-sqr'] as Waveform[] },
+  { label: 'WASM/JS', items: ['pyodide-saw', 'pyodide-square', 'pyodide-sine', 'rust-saw', 'rust-sqr'] as Waveform[] },
+  { label: 'GPU/WEB', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin', 'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
+];
+
 export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, onChange, accentColor }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
   const accentClasses = {
-    cyan: 'bg-cyan-500 text-gray-900',
-    pink: 'bg-pink-500 text-gray-900',
+    cyan: 'bg-cyan-500 text-gray-900 border-cyan-400 ring-cyan-400',
+    pink: 'bg-pink-500 text-gray-900 border-pink-400 ring-pink-400',
+  };
+
+  const bgClasses = {
+      cyan: 'hover:bg-cyan-900/30 text-cyan-400',
+      pink: 'hover:bg-pink-900/30 text-pink-400'
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    }
   };
 
   return (
-    <div className="flex justify-around items-center bg-gray-800 rounded-md p-1">
-      {waveforms.map((wave) => (
-        <button
-          key={wave}
-          onClick={() => onChange(wave)}
-          aria-pressed={selected === wave}
-          aria-label={`Select ${wave} waveform`}
-          className={`w-10 h-10 p-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 ring-offset-2 ring-offset-gray-900 ${
-            selected === wave
-              ? accentClasses[accentColor]
-              : 'text-gray-500 hover:bg-gray-700 hover:text-gray-300'
-          } ${accentColor === 'cyan' ? 'focus:ring-cyan-400' : 'focus:ring-pink-400'}`}
-        >
-          <WaveformIcon type={wave} />
-        </button>
-      ))}
+    <div className="relative inline-block" ref={containerRef} onKeyDown={handleKeyDown}>
+      {/* Trigger Button */}
+      <button
+        ref={triggerRef}
+        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        aria-label={`Current waveform: ${selected}. Click to change.`}
+        className={`w-10 h-10 p-2 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-800 hover:bg-gray-700 flex items-center justify-center ${isOpen ? 'ring-2' : ''} ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'}`}
+      >
+        <WaveformIcon type={selected} />
+        {/* Subtle indicator triangle */}
+        <div className="absolute bottom-0.5 right-0.5 w-0 h-0 border-l-[4px] border-l-transparent border-t-[4px] border-t-gray-400 transform rotate-[-45deg] opacity-50"></div>
+      </button>
+
+      {/* Popover */}
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+          <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
+            {GROUPS.map((group) => (
+              <div key={group.label} className="flex flex-col gap-1">
+                <div className="text-[9px] font-bold text-gray-500 px-1 border-b border-gray-800 pb-0.5 mb-0.5 tracking-wider">
+                  {group.label}
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {group.items.map((wave) => (
+                    <button
+                      key={wave}
+                      onClick={() => { onChange(wave); setIsOpen(false); triggerRef.current?.focus(); }}
+                      aria-pressed={selected === wave}
+                      aria-label={`Select ${wave}`}
+                      title={wave}
+                      className={`w-10 h-10 p-2 rounded transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center ${
+                        selected === wave
+                          ? `${accentClasses[accentColor]} shadow-lg`
+                          : `bg-gray-800/50 ${bgClasses[accentColor]} border border-transparent hover:border-gray-600`
+                      }`}
+                    >
+                      <WaveformIcon type={wave} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
