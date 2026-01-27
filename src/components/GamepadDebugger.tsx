@@ -5,7 +5,7 @@ import React, { useEffect, useState, useRef } from 'react';
 
 export const GamepadDebugger: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [gamepads, setGamepads] = useState<Gamepad[]>([]);
-  const reqRef = useRef<number>();
+  const reqRef = useRef<number | null>(null);
 
   useEffect(() => {
     const loop = () => {
