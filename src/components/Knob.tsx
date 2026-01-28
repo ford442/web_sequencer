@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 
 interface KnobProps {
   label: string;
@@ -12,7 +12,7 @@ interface KnobProps {
   logarithmic?: boolean;
 }
 
-export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, step = 1, color = 'cyan', unit = '', logarithmic = false }) => {
+export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, max, step = 1, color = 'cyan', unit = '', logarithmic = false }) => {
   const knobRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
@@ -186,4 +186,4 @@ export const Knob: React.FC<KnobProps> = ({ label, value, onChange, min, max, st
       <span className="text-sm font-mono text-gray-300">{formatValue(value)}</span>
     </div>
   );
-};
+});
