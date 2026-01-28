@@ -101,6 +101,16 @@ const getPatternColor = (slotIndex: number): string => {
     return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
 };
 
+const TRACK_COLORS: Record<string, string> = {
+    partA: '#06b6d4',
+    partB: '#d946ef',
+    kick: '#f97316',
+    snare: '#22c55e',
+    closedHat: '#eab308',
+    openHat: '#eab308',
+    sampler: '#a855f7',
+};
+
 // --- PERFORMANCE STYLES ---
 const SEQUENCER_STYLES = `
     .svg-step.is-current .step-glow { fill: rgba(255, 255, 255, 0.3) !important; }
@@ -109,7 +119,7 @@ const SEQUENCER_STYLES = `
 
     /* Focus Styles for Accessibility */
     .svg-step:focus, .track-slot:focus, .track-label:focus { outline: none; }
-    .svg-step:focus .step-cap { stroke: #22d3ee !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px #22d3ee); }
+    .svg-step:focus .step-cap { stroke: var(--focus-color, #22d3ee) !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px var(--focus-color, #22d3ee)); }
     .track-slot:focus rect { stroke: #22d3ee !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px #22d3ee); }
     .track-label:focus text { fill: #22d3ee !important; text-shadow: 0 0 8px rgba(34,211,238,0.8) !important; }
 `;
@@ -187,6 +197,7 @@ const SvgStep = memo(({
     const x = 220 + stepIndex * (baseWidth + gap);
     const totalWidth = (baseWidth * length) + (gap * (length - 1));
     const color = note ? getNoteColor(note) : '#06b6d4';
+    const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
     const groupIndex = Math.floor(stepIndex / 4);
     const isAltGroup = groupIndex % 2 === 1;
     const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
@@ -217,7 +228,7 @@ const SvgStep = memo(({
     };
 
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} onPointerDown={handlePointerDown} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none' }}>
+        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} onPointerDown={handlePointerDown} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
             {active && isSlide && <rect x={4} y={height - 8} width={totalWidth - 8} height={3} rx={1} fill="#fbbf24" fillOpacity={1} style={{ mixBlendMode: 'plus-lighter' }} />}
