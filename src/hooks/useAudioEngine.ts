@@ -15,15 +15,15 @@ const modeToWorkletValue = (mode: 'loop' | 'stretch' | 'wavetable'): number => {
 };
 
 // Helper for distortion
-const distortionCurveCache = new Map<number, Float32Array>();
+const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
 
-function makeDistortionCurve(amount: number) {
+function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
     if (distortionCurveCache.has(amount)) {
         return distortionCurveCache.get(amount)!;
     }
     const k = typeof amount === 'number' ? amount : 50,
         n_samples = 44100,
-        curve = new Float32Array(n_samples),
+        curve = new Float32Array(n_samples) as Float32Array<ArrayBuffer>,
         deg = Math.PI / 180;
     let x;
     for (let i = 0; i < n_samples; ++i) {
