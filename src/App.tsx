@@ -722,6 +722,18 @@ export const App: React.FC = () => {
     const handleSamplerChange = useCallback((id: string, val: number) => { let realVal = val; if (id === 'playbackSpeed') realVal = val * 4.0; else if (id === 'filterCutoff') realVal = val * 20000; else if (id === 'filterResonance') realVal = val * 20; setSampler(prev => { const next = [...prev]; const currentBank = next[activeSamplerBank]; // @ts-ignore
     next[activeSamplerBank] = { ...currentBank, [id]: realVal }; return next; }); }, [activeSamplerBank]);
 
+    // Stable handler for SamplerPanel to avoid re-renders
+    const handleSamplerParamChange = useCallback((bankIdx: number, key: string, val: any) => {
+        setSampler(prev => {
+            const next = [...prev];
+            if (next[bankIdx]) {
+                next[bankIdx] = { ...next[bankIdx], [key as keyof SamplerBankParams]: val };
+            }
+            samplerRef.current = next;
+            return next;
+        });
+    }, []);
+
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
 
@@ -735,7 +747,7 @@ export const App: React.FC = () => {
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
-    const samplerChild = useMemo(() => (<div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={setTtsPhrases} /></div>), [sampler, updateSampler, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases]);
+    const samplerChild = useMemo(() => (<div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={setTtsPhrases} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases]);
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view

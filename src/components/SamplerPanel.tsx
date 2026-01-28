@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, memo } from 'react';
+import React, { useRef, useState, useEffect, memo, useCallback } from 'react';
 import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
@@ -15,6 +15,7 @@ interface SamplerPanelProps {
     ttsPhrases: string[];            // Array of 8 TTS phrases
     onTtsPhraseChange: (phrases: string[]) => void; // Update TTS phrases
     onHarmonize?: (bankIndex: number, chordType: string) => Promise<void>; // New prop
+    onParamChange?: (bankIndex: number, key: string, value: any) => void;
 }
 
 // 8 Banks
@@ -27,7 +28,7 @@ const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100
 const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
     ttsPhrases, onTtsPhraseChange,
-    onHarmonize
+    onHarmonize, onParamChange
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -98,11 +99,40 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         onChange(newParams);
     };
 
+    // Ref to access updateParam stably in callbacks even if params change
+    const updateParamRef = useRef(updateParam);
+    useEffect(() => { updateParamRef.current = updateParam; });
+
+    // Stable Handlers for Knobs to prevent re-renders
+    const handleSpeedChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'playbackSpeed', v);
+        else updateParamRef.current('playbackSpeed', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleVolumeChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'volume', v);
+        else updateParamRef.current('volume', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleFilterChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'filterCutoff', v);
+        else updateParamRef.current('filterCutoff', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleDriveChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'drive', v);
+        else updateParamRef.current('drive', v);
+    }, [activeBankIdx, onParamChange]);
+
     // Handle mode change
     const handleModeChange = (mode: 'loop' | 'stretch' | 'wavetable') => {
-        const newParams = [...params];
-        newParams[activeBankIdx] = { ...currentParams, mode };
-        onChange(newParams);
+        if (onParamChange) {
+            onParamChange(activeBankIdx, 'mode', mode);
+        } else {
+            const newParams = [...params];
+            newParams[activeBankIdx] = { ...currentParams, mode };
+            onChange(newParams);
+        }
         
         // Update audio engine immediately
         if (audioEngine?.setSustainMode) {
@@ -112,9 +142,13 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
 
     // Handle grain size change
     const handleGrainSizeChange = (size: number) => {
-        const newParams = [...params];
-        newParams[activeBankIdx] = { ...currentParams, grainSize: size };
-        onChange(newParams);
+        if (onParamChange) {
+            onParamChange(activeBankIdx, 'grainSize', size);
+        } else {
+            const newParams = [...params];
+            newParams[activeBankIdx] = { ...currentParams, grainSize: size };
+            onChange(newParams);
+        }
         
         // Update audio engine immediately
         if (audioEngine?.setSustainGrainSize) {
@@ -473,10 +507,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
 
                 {/* ROW 6: Parameters for Active Bank */}
                 <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
-                    <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={v => updateParam('playbackSpeed', v)} min={0.1} max={4.0} color="purple" />
-                    <Knob label="Vol" value={currentParams.volume} onChange={v => updateParam('volume', v)} min={0} max={2.0} color="purple" />
-                    <Knob label="Filter" value={currentParams.filterCutoff} onChange={v => updateParam('filterCutoff', v)} min={100} max={20000} color="purple" logarithmic />
-                    <Knob label="Drive" value={currentParams.drive} onChange={v => updateParam('drive', v)} min={0} max={1} color="red" />
+                    <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" />
+                    <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
+                    <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic />
+                    <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />
                 </div>
             </div>
         </div>
