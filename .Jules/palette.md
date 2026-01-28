@@ -33,3 +33,7 @@
 ## 2025-05-25 - Stabilizing Live Regions for Status Updates
 **Learning:** If a component conditionally renders different root elements (e.g., returning `null` or swapping `div`/`button`) based on state, `aria-live` announcements may be unreliable because the live region itself is being destroyed and recreated. Screen readers generally need the live region container to be stable in the DOM to observe content changes.
 **Action:** Wrap conditional status content in a stable parent `div` with `role="status"` and `aria-live="polite"` that persists across state changes, even if empty.
+
+## 2025-05-25 - Visible Focus in Dense Grids
+**Learning:** In dense grids of interactive elements (like a sequencer), the default `focus:outline-none` style (often used for aesthetics) leaves keyboard users completely lost.
+**Action:** Always replace `focus:outline-none` with a high-contrast `focus-visible` ring that contrasts with the background, ideally matching the element's semantic color if applicable.
