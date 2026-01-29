@@ -131,15 +131,39 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
           onWheel={handleWheel}
           tabIndex={0}
           onKeyDown={(e) => {
+            let newVal = value;
+            let handled = false;
+
+            // Modifier multipliers
+            const isShift = e.shiftKey;
+            const multiplier = isShift ? 10 : 1;
+            const currentStep = step * multiplier;
+
             if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
-              e.preventDefault();
-              let newVal = value + step;
-              newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
-              onChange(newVal);
+              newVal += currentStep;
+              handled = true;
             } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+              newVal -= currentStep;
+              handled = true;
+            } else if (e.key === 'PageUp') {
+              newVal += step * 5;
+              handled = true;
+            } else if (e.key === 'PageDown') {
+              newVal -= step * 5;
+              handled = true;
+            } else if (e.key === 'Home') {
+              newVal = min;
+              handled = true;
+            } else if (e.key === 'End') {
+              newVal = max;
+              handled = true;
+            }
+
+            if (handled) {
               e.preventDefault();
-              let newVal = value - step;
-              newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
+              // Apply stepping logic
+              newVal = Math.round(newVal / step) * step;
+              newVal = Math.max(min, Math.min(max, newVal));
               onChange(newVal);
             }
           }}
