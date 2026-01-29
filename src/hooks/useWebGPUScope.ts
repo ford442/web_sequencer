@@ -133,19 +133,36 @@ export const useWebGPUScope = (
   const animationRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
 
+  // PERFORMANCE: Use refs to hold latest params/color to avoid re-running the effect loop
+  // This allows the animation loop to persist while parameters update.
+  const paramsRef = useRef(params);
+  const accentColorRef = useRef(accentColor);
+
   const WORKGROUP_SIZE = 64;
   const NUM_POINTS = 1024;
 
+  // Sync props to refs
   useEffect(() => {
+    paramsRef.current = params;
+    accentColorRef.current = accentColor;
+  }, [params, accentColor]);
+
+  useEffect(() => {
+    let isCleanedUp = false;
+
     const initWebGPU = async () => {
       if (!canvasRef.current || !navigator.gpu) return;
 
       const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        console.warn("WebGPU not available");
+      if (!adapter || isCleanedUp) {
+        if (!adapter) console.warn("WebGPU not available");
         return;
       }
       const device = await adapter.requestDevice();
+      if (isCleanedUp) {
+          device.destroy();
+          return;
+      }
       deviceRef.current = device;
 
       const context = canvasRef.current.getContext('webgpu');
@@ -208,13 +225,93 @@ export const useWebGPUScope = (
           { binding: 2, resource: { buffer: accentColorBufferRef.current } },
         ],
       });
+
+      // ---------------------------------------------------------
+      // 3. Render Loop
+      // ---------------------------------------------------------
+      const renderFrame = () => {
+        if (isCleanedUp || !deviceRef.current) return;
+
+        const device = deviceRef.current;
+        const currentParams = paramsRef.current;
+        const currentAccent = accentColorRef.current;
+
+        // Map Waveform string to int
+        // Handle other waveform types by defaulting to basic ones
+        let waveIndex = 0;
+        if (currentParams.waveform.includes('saw')) waveIndex = 0;
+        else if (currentParams.waveform.includes('squ') || currentParams.waveform.includes('sqr')) waveIndex = 1;
+        else if (currentParams.waveform.includes('tri')) waveIndex = 2;
+        else if (currentParams.waveform.includes('sin')) waveIndex = 3;
+
+        // Normalize frequency purely for visualization scale
+        const freq = noteToFrequency('C4') / 1000.0;
+
+        // WRITE PARAMS TO GPU
+        // Structure must match WGSL struct Params exactly
+        const paramData = new Float32Array([
+          0, // placeholder for u32 waveform (we'll cast view)
+          freq,
+          currentParams.filterCutoff,
+          currentParams.filterResonance,
+          currentParams.attack,
+          currentParams.decay,
+          currentParams.volume,
+          (Date.now() - startTimeRef.current) / 1000.0 // Update time
+        ]);
+
+        // Cast to uint32 for the first slot
+        const uintView = new Uint32Array(paramData.buffer);
+        uintView[0] = waveIndex;
+
+        // UPDATE ACCENT COLOR
+        const colorData = currentAccent === 'cyan'
+          ? new Float32Array([0.2, 0.9, 1.0, 1.0])
+          : new Float32Array([1.0, 0.2, 0.8, 1.0]);
+
+        // Check refs before writing to avoid null access if something went wrong
+        if (accentColorBufferRef.current) {
+             device.queue.writeBuffer(accentColorBufferRef.current, 0, colorData);
+        }
+        if (uniformBufferRef.current) {
+            device.queue.writeBuffer(uniformBufferRef.current, 0, paramData);
+        }
+
+        const commandEncoder = device.createCommandEncoder();
+
+        // COMPUTE PASS
+        const computePass = commandEncoder.beginComputePass();
+        computePass.setPipeline(pipelineRef.current!);
+        computePass.setBindGroup(0, bindGroupRef.current!);
+        computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
+        computePass.end();
+
+        // RENDER PASS
+        const textureView = context.getCurrentTexture().createView();
+        const renderPass = commandEncoder.beginRenderPass({
+          colorAttachments: [{
+            view: textureView,
+            clearValue: { r: 0.05, g: 0.05, b: 0.07, a: 1.0 }, // bg-gray-900 equivalent
+            loadOp: 'clear',
+            storeOp: 'store',
+          }],
+        });
+
+        renderPass.setPipeline(renderPipelineRef.current!);
+        renderPass.setBindGroup(0, bindGroupRef.current!);
+        renderPass.draw(NUM_POINTS);
+        renderPass.end();
+
+        device.queue.submit([commandEncoder.finish()]);
+        animationRef.current = requestAnimationFrame(renderFrame);
+      };
+
+      startTimeRef.current = Date.now();
+      renderFrame();
     };
 
     // Use setTimeout to stagger WebGPU initialization between components
-    let isCleanedUp = false;
     const initTimeoutId = setTimeout(() => {
-      if (isCleanedUp) return;
-      startTimeRef.current = Date.now();
       initWebGPU();
     }, initDelay);
 
@@ -223,92 +320,7 @@ export const useWebGPUScope = (
       isCleanedUp = true;
       clearTimeout(initTimeoutId);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (deviceRef.current) deviceRef.current.destroy();
     };
-  }, [initDelay]);
-
-  // ---------------------------------------------------------
-  // 3. Render Loop & Param Update
-  // ---------------------------------------------------------
-  useEffect(() => {
-    if (!deviceRef.current || !uniformBufferRef.current || !accentColorBufferRef.current || !bindGroupRef.current || !pipelineRef.current || !renderPipelineRef.current || !canvasRef.current) return;
-
-    const device = deviceRef.current;
-    const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext;
-
-    // Map Waveform string to int
-    // Handle other waveform types by defaulting to basic ones
-    let waveIndex = 0;
-    if (params.waveform.includes('saw')) waveIndex = 0;
-    else if (params.waveform.includes('squ') || params.waveform.includes('sqr')) waveIndex = 1;
-    else if (params.waveform.includes('tri')) waveIndex = 2;
-    else if (params.waveform.includes('sin')) waveIndex = 3;
-
-    // Normalize frequency purely for visualization scale
-    const freq = noteToFrequency('C4') / 1000.0;
-
-    // WRITE PARAMS TO GPU
-    // Structure must match WGSL struct Params exactly
-    const paramData = new Float32Array([
-      0, // placeholder for u32 waveform (we'll cast view)
-      freq,
-      params.filterCutoff,
-      params.filterResonance,
-      params.attack,
-      params.decay,
-      params.volume,
-      0 // placeholder for time
-    ]);
-
-    // Cast to uint32 for the first slot
-    const uintView = new Uint32Array(paramData.buffer);
-    uintView[0] = waveIndex;
-
-    // UPDATE ACCENT COLOR
-    const colorData = accentColor === 'cyan'
-      ? new Float32Array([0.2, 0.9, 1.0, 1.0])
-      : new Float32Array([1.0, 0.2, 0.8, 1.0]);
-    device.queue.writeBuffer(accentColorBufferRef.current!, 0, colorData);
-
-    const renderFrame = () => {
-      const time = (Date.now() - startTimeRef.current) / 1000.0;
-      paramData[7] = time; // Update time
-
-      device.queue.writeBuffer(uniformBufferRef.current!, 0, paramData);
-
-      const commandEncoder = device.createCommandEncoder();
-
-      // COMPUTE PASS
-      const computePass = commandEncoder.beginComputePass();
-      computePass.setPipeline(pipelineRef.current!);
-      computePass.setBindGroup(0, bindGroupRef.current!);
-      computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
-      computePass.end();
-
-      // RENDER PASS
-      const textureView = context.getCurrentTexture().createView();
-      const renderPass = commandEncoder.beginRenderPass({
-        colorAttachments: [{
-          view: textureView,
-          clearValue: { r: 0.05, g: 0.05, b: 0.07, a: 1.0 }, // bg-gray-900 equivalent
-          loadOp: 'clear',
-          storeOp: 'store',
-        }],
-      });
-
-      renderPass.setPipeline(renderPipelineRef.current!);
-      renderPass.setBindGroup(0, bindGroupRef.current!);
-      renderPass.draw(NUM_POINTS);
-      renderPass.end();
-
-      device.queue.submit([commandEncoder.finish()]);
-      animationRef.current = requestAnimationFrame(renderFrame);
-    };
-
-    renderFrame();
-
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-
-  }, [params, accentColor]); // Re-run effect when params change to update buffer mapping context
+  }, [initDelay, canvasRef]);
 };
