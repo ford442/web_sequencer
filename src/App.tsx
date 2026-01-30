@@ -568,8 +568,11 @@ export const App: React.FC = () => {
 
     const handleMasterVolume = (e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v); };
     const handleMasterVolumeKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); } };
+    const handleMasterVolumeReset = () => { setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); };
+
     const handleGlobalPan = (e: React.ChangeEvent<HTMLInputElement>) => { const p = parseFloat(e.target.value); const val = (p > -0.1 && p < 0.1) ? 0 : p; setGlobalPan(val); audioEngine?.setGlobalPan(val); };
     const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } };
+    const handleGlobalPanReset = () => { setGlobalPan(0); audioEngine?.setGlobalPan(0); };
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...copy[track]]; copy[track][activeTrackSlotsRef.current[track]] = sequence; return copy; }); }, []);
 
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
@@ -791,11 +794,21 @@ export const App: React.FC = () => {
                 {/* Volume & Pan */}
                 <div className="flex items-center gap-2 mr-4">
                     <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
-                    <input id="master-volume" type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Master Volume" />
+                    <div className="flex items-center gap-1">
+                        <input id="master-volume" type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Master Volume" />
+                        {Math.abs(masterVolume - 0.8) > 0.01 && (
+                            <button onClick={handleMasterVolumeReset} className="text-gray-500 hover:text-white px-1 text-[10px]" aria-label="Reset Volume" title="Reset to 80%">✕</button>
+                        )}
+                    </div>
                 </div>
                 <div className="flex items-center gap-2 mr-4">
                     <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
-                    <input id="global-pan" type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Global Pan" />
+                    <div className="flex items-center gap-1">
+                        <input id="global-pan" type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Global Pan" />
+                        {Math.abs(globalPan) > 0.01 && (
+                            <button onClick={handleGlobalPanReset} className="text-gray-500 hover:text-white px-1 text-[10px]" aria-label="Reset Pan" title="Reset to Center">✕</button>
+                        )}
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
