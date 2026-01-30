@@ -3,6 +3,7 @@ import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
 import { useGamepad } from './hooks/useGamepad';
+import { useStableKnobConfig } from './hooks/useStableKnobConfig';
 import { GamepadDebugger } from './components/GamepadDebugger';
 import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
@@ -751,13 +752,13 @@ export const App: React.FC = () => {
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
 
-    const synthAControls = useMemo(() => getSynthControls(synthA), [synthA]);
-    const synthBControls = useMemo(() => getSynthControls(synthB), [synthB]);
-    const kickControls = useMemo(() => getKickControls(kick), [kick]);
-    const snareControls = useMemo(() => getSnareControls(snare), [snare]);
-    const closedHatControls = useMemo(() => getClosedHatControls(closedHat), [closedHat]);
-    const openHatControls = useMemo(() => getOpenHatControls(openHat), [openHat]);
-    const samplerControls = useMemo(() => getSamplerControls(sampler[activeSamplerBank]), [sampler, activeSamplerBank]);
+    const synthAControls = useStableKnobConfig(getSynthControls, synthA);
+    const synthBControls = useStableKnobConfig(getSynthControls, synthB);
+    const kickControls = useStableKnobConfig(getKickControls, kick);
+    const snareControls = useStableKnobConfig(getSnareControls, snare);
+    const closedHatControls = useStableKnobConfig(getClosedHatControls, closedHat);
+    const openHatControls = useStableKnobConfig(getOpenHatControls, openHat);
+    const samplerControls = useStableKnobConfig(getSamplerControls, sampler[activeSamplerBank]);
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);

@@ -147,6 +147,8 @@ export const HardwareModule = React.memo(
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
         const controlsRef = useRef(controls);
+        // Ref to track previous controls for optimized diffing
+        const prevControlsRef = useRef<KnobConfig[]>([]);
         const activeKnobIndex = useRef<number | null>(null);
         const startY = useRef(0);
         const startVal = useRef(0);
@@ -175,10 +177,14 @@ export const HardwareModule = React.memo(
             // This moves the overhead of populating controls/color from the 60fps render loop
             // to this effect which only runs when props actually change.
             const buf = stagingBufferRef.current;
+            const prev = prevControlsRef.current;
 
-            // Clear dynamic regions (Vals and Positions) - indices 8 to 71
+            // Clear dynamic regions if length changed (layout change)
             // This ensures if we switch from 12 knobs to 4, the old data is cleared.
-            buf.fill(0, 8, 72);
+            const fullUpdate = controls.length !== prev.length;
+            if (fullUpdate) {
+                buf.fill(0, 8, 72);
+            }
 
             // Update Color [4-7]
             buf[4] = colorHex[0];
@@ -188,16 +194,22 @@ export const HardwareModule = React.memo(
             // Update Controls (Vals and Positions)
             controls.forEach((ctrl, i) => {
                 if (i < 12) {
-                    // Vals start at index 8
-                    buf[8 + i] = ctrl.value;
+                    // Optimization: Only update buffer if control object changed reference
+                    // (Requires parent to use useStableKnobConfig)
+                    if (fullUpdate || ctrl !== prev[i]) {
+                        // Vals start at index 8
+                        buf[8 + i] = ctrl.value;
 
-                    // Positions start at index 24, stride 4
-                    const posOffset = 24 + (i * 4);
-                    buf[posOffset] = ctrl.x;
-                    buf[posOffset + 1] = ctrl.y;
-                    buf[posOffset + 2] = ctrl.size;
+                        // Positions start at index 24, stride 4
+                        const posOffset = 24 + (i * 4);
+                        buf[posOffset] = ctrl.x;
+                        buf[posOffset + 1] = ctrl.y;
+                        buf[posOffset + 2] = ctrl.size;
+                    }
                 }
             });
+
+            prevControlsRef.current = controls;
 
             // Optimization: In 3D mode, the animation loop handles rendering.
             // Avoid redundant render calls to prevent double-work per frame.
