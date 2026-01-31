@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, memo, useMemo, forwardRef, useImperativeHandle } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, memo, useMemo, forwardRef, useImperativeHandle, lazy, Suspense } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -22,7 +22,8 @@ import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
 import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
-import { Studio3D } from './components/Studio3D'; // IMPORT 3D STUDIO
+
+const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
 import {
     noteToFrequency,
@@ -964,13 +965,15 @@ export const App: React.FC = () => {
     // --- MAIN RENDER ---
     if (is3DMode) {
         return (
-            <Studio3D
-                header={headerNode}
-                sequencer={sequencerNode}
-                keyboard={keyboardNode}
-                rack={rackNode}
-                onExit={() => setIs3DMode(false)}
-            />
+            <Suspense fallback={<div className="flex items-center justify-center h-screen w-screen bg-black text-cyan-400 font-orbitron text-xl tracking-widest animate-pulse">LOADING 3D STUDIO...</div>}>
+                <Studio3D
+                    header={headerNode}
+                    sequencer={sequencerNode}
+                    keyboard={keyboardNode}
+                    rack={rackNode}
+                    onExit={() => setIs3DMode(false)}
+                />
+            </Suspense>
         );
     }
 
