@@ -81,4 +81,21 @@ describe('DragValue Keyboard Navigation', () => {
         fireEvent.keyDown(slider, { key: 'End' });
         expect(onChange).toHaveBeenCalledWith(100);
     });
+
+    it('handles keyboard activation on increment/decrement buttons', () => {
+        const onChange = vi.fn();
+        render(<DragValue {...defaultProps} onChange={onChange} />);
+
+        const plusBtn = screen.getByLabelText('Increase Test Label');
+        const minusBtn = screen.getByLabelText('Decrease Test Label');
+
+        // Simulate Enter key on buttons (which fires click in browsers)
+        // We use detail: 0 to simulate keyboard-triggered click
+        fireEvent.click(plusBtn, { detail: 0 });
+        expect(onChange).toHaveBeenCalledWith(51);
+
+        onChange.mockClear();
+        fireEvent.click(minusBtn, { detail: 0 });
+        expect(onChange).toHaveBeenCalledWith(49);
+    });
 });

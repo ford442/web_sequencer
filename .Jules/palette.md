@@ -37,3 +37,7 @@
 ## 2025-05-25 - Visible Focus in Dense Grids
 **Learning:** In dense grids of interactive elements (like a sequencer), the default `focus:outline-none` style (often used for aesthetics) leaves keyboard users completely lost.
 **Action:** Always replace `focus:outline-none` with a high-contrast `focus-visible` ring that contrasts with the background, ideally matching the element's semantic color if applicable.
+
+## 2025-05-26 - Keyboard Support for Mouse-Repeat Buttons
+**Learning:** Buttons designed for "press and hold" (repeat) actions using `onMouseDown` are often inaccessible to keyboard users because standard `onClick` is omitted. A keyboard "click" (Enter/Space) needs to trigger a single step action to ensure functionality parity.
+**Action:** Always handle `onClick` or `onKeyDown` (Enter/Space) for repeat buttons to perform a single step, ensuring keyboard users can interact with the control. Use `event.detail === 0` to distinguish keyboard activation from mouse clicks if necessary.
