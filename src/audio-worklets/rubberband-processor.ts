@@ -91,7 +91,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           });
 
           this.rubberBand = new module.RubberBandStretcher(
-            this.sampleRate,
+            Math.floor(this.sampleRate),
             1, // Mono
             1 | 32 | 1048576, // RealTime | Finer | FormantPreserved
             1.0,
