@@ -7,10 +7,6 @@ const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const OCTAVES = [5, 4, 3, 2]; // Top to bottom
 
 // Configuration for "Chromatic Zig-Zag" style playing
-// Mimics a piano layout or chromatic button accordion:
-// - F-Keys (Bottom Row)  -> White Keys (mostly)
-// - Digit Keys (Top Row) -> Black Keys (mostly)
-// This creates a continuous chromatic run moving up/down between rows.
 const KEY_TO_NOTE: Record<string, string> = {
     // --- Col 1 ---
     'F1':     'C4',
@@ -56,6 +52,79 @@ const formatKeyLabel = (code: string) => {
     if (code.startsWith('Digit')) return code.replace('Digit', '');
     if (code.startsWith('Key')) return code.replace('Key', '');
     return code;
+};
+
+// --- KEYBOARD GUIDE COMPONENT ---
+const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
+    return (
+        <div
+            className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-xl animate-fadeIn"
+            onClick={onClose}
+        >
+            <div className="relative p-8 border-2 border-dashed border-cyan-500/50 rounded-2xl bg-[#0d1015] shadow-[0_0_50px_rgba(6,182,212,0.15)] max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+                    aria-label="Close Guide"
+                >
+                    ✕
+                </button>
+
+                <div className="text-center mb-8">
+                    <h3 className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">FLIPPED MODE</h3>
+                    <p className="text-gray-400 font-mono text-sm">Rotate your physical keyboard 180° to play chromatically.</p>
+                </div>
+
+                <div className="flex justify-center mb-8">
+                    {/* Schematic Drawing */}
+                    <svg width="400" height="220" viewBox="0 0 400 220" className="drop-shadow-2xl">
+                        {/* Keyboard Outline (Flipped) */}
+                        <rect x="10" y="10" width="380" height="200" rx="10" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="5,5" />
+
+                        {/* Spacebar Area (Top because flipped) */}
+                        <rect x="80" y="25" width="240" height="30" rx="4" fill="#1e293b" stroke="#334155" strokeWidth="1" />
+                        <text x="200" y="44" textAnchor="middle" fill="#475569" fontSize="10" fontFamily="monospace">SPACEBAR (TOP)</text>
+
+                        {/* Connection Lines (Abstract) */}
+                        <path d="M 60 80 L 340 80" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+
+                        {/* Digit Row (Middle - Acts as Black Keys) */}
+                        <g transform="translate(40, 100)">
+                            <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">DIGITS</text>
+                            <text x="-25" y="32" fill="#06b6d4" fontSize="9" fontFamily="monospace" textAnchor="end">(Sharps)</text>
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((num, i) => (
+                                <g key={num} transform={`translate(${i * 40}, 0)`}>
+                                    <rect width="32" height="32" rx="4" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
+                                    <text x="16" y="20" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="14" fontFamily="monospace">{num}</text>
+                                </g>
+                            ))}
+                        </g>
+
+                        {/* F-Key Row (Bottom - Acts as White Keys) */}
+                        <g transform="translate(40, 150)">
+                            <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">F-KEYS</text>
+                            <text x="-25" y="32" fill="#fff" fontSize="9" fontFamily="monospace" textAnchor="end">(Naturals)</text>
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((num, i) => (
+                                <g key={num} transform={`translate(${i * 40}, 0)`}>
+                                    <rect width="32" height="32" rx="4" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1" />
+                                    <text x="16" y="20" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="12" fontFamily="monospace">F{num}</text>
+                                </g>
+                            ))}
+                        </g>
+                    </svg>
+                </div>
+
+                <div className="text-center">
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-300 border border-cyan-700/50 rounded font-orbitron text-xs tracking-wider transition-all"
+                    >
+                        GOT IT
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // PERFORMANCE: Memoized Key Component to prevent full keyboard re-renders
@@ -222,6 +291,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
     // State to track which notes are held by which source
     const [heldByKeys, setHeldByKeys] = useState<Set<string>>(new Set());
     const [heldByMouse, setHeldByMouse] = useState<string | null>(null);
+    const [showGuide, setShowGuide] = useState(false);
 
     // PERFORMANCE: Use ref to track heldByMouse for stable event handlers
     const heldByMouseRef = useRef(heldByMouse);
@@ -352,10 +422,19 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
 
     return (
         <div className="w-full max-w-[920px] mx-auto mt-4 select-none relative">
-            {/* Legend / Tip */}
-            <div className="absolute -top-6 right-0 text-[10px] text-gray-500 font-mono tracking-wider opacity-70">
-                DESKTOP KEY BINDINGS (MIRRORED)
+            {/* Guide Toggle */}
+            <div className="absolute -top-7 right-0 flex items-center gap-2 z-40">
+                <button
+                    onClick={() => setShowGuide(true)}
+                    className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all"
+                    title="Show Keyboard Layout Guide"
+                >
+                    <span className="text-xs">⌨</span> FLIPPED LAYOUT INFO
+                </button>
             </div>
+
+            {/* Guide Overlay */}
+            {showGuide && <KeyboardGuide onClose={() => setShowGuide(false)} />}
 
             <svg viewBox={`0 0 ${totalWidth} ${keyHeight * 4 + rowGap * 3}`} className="w-full drop-shadow-lg">
                 <defs>
