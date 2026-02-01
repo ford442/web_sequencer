@@ -336,14 +336,14 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="btn-mini px-2 py-0.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600"
+                        className="btn-mini px-2 py-0.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                         aria-label="Load Sample from File"
                     >
                         LOAD
                     </button>
                     <button
                         onClick={toggleRecording}
-                        className={`btn-mini px-2 py-0.5 rounded border ${isRecording ? 'bg-red-900 border-red-500 animate-pulse text-white' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}
+                        className={`btn-mini px-2 py-0.5 rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${isRecording ? 'bg-red-900 border-red-500 animate-pulse text-white' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}
                         aria-label={isRecording ? "Stop Recording" : "Record Sample from Microphone"}
                     >
                         {isRecording ? 'STOP' : 'REC'}
@@ -372,7 +372,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     {currentTtsText && (
                         <button
                             onClick={() => setCurrentTtsText('')}
-                            className="absolute right-1 text-gray-500 hover:text-white text-[10px] focus:outline-none"
+                            className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                             aria-label="Clear Phrase"
                             title="Clear"
                         >
@@ -390,7 +390,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 <button
                     onClick={handleTTS}
                     disabled={isGenerating || !ttsReady}
-                    className="px-2 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50"
+                    className="px-2 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                     aria-label="Generate Speech"
                     aria-busy={isGenerating}
                 >
@@ -399,7 +399,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 {onOpenEditor && (
                     <button
                         onClick={onOpenEditor}
-                        className="text-[10px] text-purple-400 underline hover:text-white px-1"
+                        className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                         aria-label="Open Voice Editor"
                     >
                         EDIT
@@ -412,7 +412,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 <select
                     value={chordType}
                     onChange={(e) => setChordType(e.target.value)}
-                    className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500"
+                    className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-400"
                     aria-label="Harmonization Chord Type"
                 >
                     <option value="major">Major</option>
@@ -425,7 +425,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 <button
                     onClick={handleHarmonizeClick}
                     disabled={isProcessingHarmonize || !onHarmonize}
-                    className={`px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
+                    className={`px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
                     aria-label="Apply Harmonization"
                     aria-busy={isProcessingHarmonize}
                 >
