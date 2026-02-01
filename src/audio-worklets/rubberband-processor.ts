@@ -51,7 +51,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     super();
     this.port.onmessage = this.handleMessage.bind(this);
     // @ts-ignore
-    if (globalThis.sampleRate) {
+    if (typeof globalThis.sampleRate === 'number' && Number.isFinite(globalThis.sampleRate)) {
         this.sampleRate = globalThis.sampleRate;
     }
 
@@ -90,12 +90,22 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             }
           });
 
+          // Ensure sampleRate is a valid integer
+          const safeSampleRate = (Number.isFinite(this.sampleRate) && this.sampleRate > 0)
+            ? Math.floor(this.sampleRate)
+            : 44100;
+
+          // Options: RealTime (1) | Finer (32) | FormantPreserved (1048576) = 1048609
+          const options = 1 | 32 | 1048576;
+
+          console.log(`[RubberBandProcessor] Initializing with: Rate=${safeSampleRate}, Ch=1, Opts=${options}`);
+
           this.rubberBand = new module.RubberBandStretcher(
-            Math.floor(this.sampleRate),
+            safeSampleRate,
             1, // Mono
-            1 | 32 | 1048576, // RealTime | Finer | FormantPreserved
-            1.0,
-            1.0
+            options,
+            1.0, // Initial Time Ratio
+            1.0  // Initial Pitch Scale
           );
 
           this.rubberBand.module = module;
