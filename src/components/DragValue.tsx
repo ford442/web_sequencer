@@ -109,12 +109,23 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
     return () => stopRepeat();
   }, []);
 
+  const handleButtonClick = (e: React.MouseEvent, direction: 1 | -1) => {
+    // Only handle keyboard activation (Enter/Space) where detail is 0
+    // Mouse clicks (detail > 0) are handled by onMouseDown for repeat behavior
+    if (e.detail === 0) {
+      let newVal = valueRef.current + direction * step;
+      newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
+      onChange(newVal);
+    }
+  };
+
   return (
     <div className={`flex flex-col items-center ${className || ''}`}>
       {label && <label className="text-xs text-gray-400 uppercase tracking-wider">{label}</label>}
       <div className="flex items-center gap-1">
         {/* Minus button */}
         <button
+          onClick={(e) => handleButtonClick(e, -1)}
           onMouseDown={() => startRepeat(-1)}
           onMouseUp={stopRepeat}
           onMouseLeave={stopRepeat}
@@ -177,6 +188,7 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
         </div>
         {/* Plus button */}
         <button
+          onClick={(e) => handleButtonClick(e, 1)}
           onMouseDown={() => startRepeat(1)}
           onMouseUp={stopRepeat}
           onMouseLeave={stopRepeat}
