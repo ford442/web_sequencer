@@ -18,11 +18,19 @@ const modeToWorkletValue = (mode: 'loop' | 'stretch' | 'wavetable'): number => {
 const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
 
 function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
-    if (distortionCurveCache.has(amount)) {
-        return distortionCurveCache.get(amount)!;
+    // Quantize the amount to reduce cache fragmentation (0.1 steps).
+    // Original input range 0-50, so this creates ~500 possible cache entries.
+    const k_raw = typeof amount === 'number' ? amount : 50;
+    const k = Math.round(k_raw * 10) / 10;
+
+    if (distortionCurveCache.has(k)) {
+        return distortionCurveCache.get(k)!;
     }
-    const k = typeof amount === 'number' ? amount : 50,
-        n_samples = 44100,
+
+    // Reduce sample size from 44100 to 8192.
+    // 8192 is sufficient for smooth distortion with WaveShaper interpolation.
+    // Reduces memory usage per entry by ~5.4x (176KB -> 32KB).
+    const n_samples = 8192,
         curve = new Float32Array(n_samples) as Float32Array<ArrayBuffer>,
         deg = Math.PI / 180;
     let x;
@@ -30,7 +38,7 @@ function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
         x = (i * 2) / n_samples - 1;
         curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
     }
-    distortionCurveCache.set(amount, curve);
+    distortionCurveCache.set(k, curve);
     return curve;
 }
 
