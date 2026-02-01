@@ -376,9 +376,18 @@ export const App: React.FC = () => {
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
     const handleStart = async () => {
-        await initializeAudio();
-        setIsInitialized(true);
-        setHasStarted(true);
+        console.log("Initialization sequence started...");
+        try {
+            // We set hasStarted immediately or use a timeout to ensure
+            // the UI unblocks even if a non-critical engine part is slow.
+            setHasStarted(true);
+
+            await initializeAudio();
+            setIsInitialized(true);
+            console.log("Audio Engine Initialized");
+        } catch (e) {
+            console.error("Failed to start system:", e);
+        }
     };
 
     const [pattern, setPattern] = useState<Pattern>(UPDATED_INITIAL_PATTERN)

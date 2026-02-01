@@ -90,10 +90,16 @@ export const useAudioEngine = (pyodide: any) => {
     const initializeAudio = useCallback(async () => {
         if (audioEngineRef.current) return;
 
-        const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+        try {
+            const context = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-        // --- MASTER CHAIN ---
-        const masterGain = context.createGain();
+            // Ensure context resumes on user gesture
+            if (context.state === 'suspended') {
+                await context.resume();
+            }
+
+            // --- MASTER CHAIN ---
+            const masterGain = context.createGain();
         masterGain.gain.setValueAtTime(0.8, 0); 
         masterGainRef.current = masterGain;
 
@@ -109,52 +115,48 @@ export const useAudioEngine = (pyodide: any) => {
             masterGain.connect(context.destination);
         }
 
-        // Initialize GPU Engine
-        const gpuEngine = new WebGpuOscillator();
-        await gpuEngine.init();
-        gpuEngineRef.current = gpuEngine;
+            // Initialize GPU Engine
+            const gpuEngine = new WebGpuOscillator();
+            await gpuEngine.init();
+            gpuEngineRef.current = gpuEngine;
 
-        // Initialize Wasm Engine
-        const wasmEngine = new WasmOscillator();
-        await wasmEngine.init();
-        wasmEngineRef.current = wasmEngine;
+            // Initialize Wasm Engine
+            const wasmEngine = new WasmOscillator();
+            await wasmEngine.init();
+            wasmEngineRef.current = wasmEngine;
 
-        // Initialize Open303 Engine (TB-303 clone)
-        const open303Engine = new Open303Oscillator();
-        const open303Ready = await open303Engine.init(context);
-        if (open303Ready) {
-            open303Engine.connect(masterGain);
-            open303EngineRef.current = open303Engine;
-            console.log('Open303 Engine Ready');
-        } else {
-            console.warn('Open303 Engine failed to initialize - 303 waveforms will not be available');
-        }
-
-        // Load WAV Files
-        const loadWav = async (url: string) => {
-            try {
-                const res = await fetch(url);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const arrayBuf = await res.arrayBuffer();
-                return await context.decodeAudioData(arrayBuf);
-            } catch (e) {
-                console.error(`Failed to load ${url}`, e);
-                return null;
+            // Initialize Open303 Engine (TB-303 clone)
+            const open303Engine = new Open303Oscillator();
+            const open303Ready = await open303Engine.init(context);
+            if (open303Ready) {
+                open303Engine.connect(masterGain);
+                open303EngineRef.current = open303Engine;
+                console.log('Open303 Engine Ready');
+            } else {
+                console.warn('Open303 Engine failed to initialize - 303 waveforms will not be available');
             }
-        };
 
-        const [sawBuf, sqrBuf] = await Promise.all([
-            loadWav('./assets/saw.wav'),
-            loadWav('./assets/square.wav')
-        ]);
-        wavSawBufferRef.current = sawBuf;
-        wavSqrBufferRef.current = sqrBuf;
+            // Load WAV Files
+            const loadWav = async (url: string) => {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const arrayBuf = await res.arrayBuffer();
+                    return await context.decodeAudioData(arrayBuf);
+                } catch (e) {
+                    console.error(`Failed to load ${url}`, e);
+                    return null;
+                }
+            };
 
-        if (context.state === 'suspended') {
-            await context.resume();
-        }
+            const [sawBuf, sqrBuf] = await Promise.all([
+                loadWav('./assets/saw.wav'),
+                loadWav('./assets/square.wav')
+            ]);
+            wavSawBufferRef.current = sawBuf;
+            wavSqrBufferRef.current = sqrBuf;
 
-        // Initialize SustainProcessor worklet
+            // Initialize SustainProcessor worklet
         try {
             await context.audioWorklet.addModule(sustainProcessorUrl);
             const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
@@ -1050,37 +1052,41 @@ export const useAudioEngine = (pyodide: any) => {
         };
 
 
-        audioEngineRef.current = {
-            context,
-            webGpuEngine: gpuEngineRef.current,
-            wasmEngine: wasmEngineRef.current,
-            open303Engine: open303EngineRef.current,
-            // Exposed SingingVoice instance
-            singingVoice: singingVoiceRef.current || undefined,
-            playSynth,
-            playDrum,
-            playSampler,
-            noteOnSampler,
-            noteOffSampler,
-            noteOnSynth,
-            noteOffSynth,
-            stopAllNotes,
-            loadSampleToEngine,
-            renderSynthPartToBuffer,
-            playBufferedPart,
-            playAmbiance,
-            stopAmbiance,
-            setAmbianceVolume,
-            setMasterVolume,
-            setGlobalPan,
-            detectSamplePitch,
-            processSinging,
-            processSpoon,
-            setSustainMode,
-            setSustainGrainSize
-        };
+            audioEngineRef.current = {
+                context,
+                webGpuEngine: gpuEngineRef.current,
+                wasmEngine: wasmEngineRef.current,
+                open303Engine: open303EngineRef.current,
+                // Exposed SingingVoice instance
+                singingVoice: singingVoiceRef.current || undefined,
+                playSynth,
+                playDrum,
+                playSampler,
+                noteOnSampler,
+                noteOffSampler,
+                noteOnSynth,
+                noteOffSynth,
+                stopAllNotes,
+                loadSampleToEngine,
+                renderSynthPartToBuffer,
+                playBufferedPart,
+                playAmbiance,
+                stopAmbiance,
+                setAmbianceVolume,
+                setMasterVolume,
+                setGlobalPan,
+                detectSamplePitch,
+                processSinging,
+                processSpoon,
+                setSustainMode,
+                setSustainGrainSize
+            };
 
-        setIsReady(true);
+            setIsReady(true);
+        } catch (criticalError) {
+            console.error("CRITICAL AUDIO INIT FAILURE:", criticalError);
+            setIsReady(true);
+        }
     }, []);
 
     const result = useMemo(() => ({
