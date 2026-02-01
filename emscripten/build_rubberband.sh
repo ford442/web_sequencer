@@ -51,6 +51,7 @@ em++ -O3 \
     -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue"]' \
     -s EXPORTED_FUNCTIONS='["_malloc", "_free"]' \
     -s ENVIRONMENT='web,worker' \
+    --pre-js rubberband-pre.js \
     -o ../src/audio-worklets/rubberband-lib.js
 
 # 3. Move the WASM file to public so it can be fetched
