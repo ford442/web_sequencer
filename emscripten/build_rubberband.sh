@@ -27,7 +27,7 @@ sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::si
 em++ -O3 \
     -frtti \
     -fexceptions \
-    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 \
+    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=1 \
     -DHAVE_KISSFFT \
     -DUSE_SPEEX \
     -DNO_THREADING \
