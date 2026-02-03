@@ -35,6 +35,60 @@ const ROWS: { key: TrackKey, label: string, color: string }[] = [
     { key: 'sampler', label: 'SMP', color: '#a855f7' },
 ];
 
+// VISUAL CONSTANTS
+const CELL_WIDTH = 40;
+const CELL_HEIGHT = 30;
+const ROW_HEADER_WIDTH = 80;
+const HEADER_HEIGHT = 30;
+
+// Extracted & Memoized Cell Component to prevent massive re-renders during playback
+const SongModeCell = memo(({
+    sIdx,
+    rowKey,
+    rowLabel,
+    val,
+    isPlaying,
+    onMouseDown,
+    onKeyDown
+}: {
+    sIdx: number;
+    rowKey: TrackKey;
+    rowLabel: string;
+    val: number | null;
+    isPlaying: boolean;
+    onMouseDown: (e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => void;
+    onKeyDown: (e: React.KeyboardEvent, sIdx: number, track: TrackKey, currentVal: number | null) => void;
+}) => {
+    const hasVal = val !== null;
+    return (
+        <div
+            data-testid={`cell-${rowKey}-${sIdx}`}
+            style={{ width: CELL_WIDTH }}
+            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none focus:outline-none focus:ring-1 focus:ring-cyan-500
+                ${isPlaying ? 'bg-white/5' : 'bg-transparent'}
+                ${hasVal ? '' : 'hover:bg-gray-800/50'}
+            `}
+            role="button"
+            tabIndex={0}
+            aria-label={`${rowLabel} Measure ${sIdx + 1}, ${hasVal ? 'Pattern ' + (val! + 1) : 'Empty'}`}
+            onMouseDown={(e) => onMouseDown(e, sIdx, rowKey, val)}
+            onKeyDown={(e) => onKeyDown(e, sIdx, rowKey, val)}
+            onContextMenu={(e) => {
+                e.preventDefault();
+            }}
+        >
+            {hasVal && (
+                <div
+                    className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black select-none pointer-events-none"
+                    style={{ backgroundColor: getPatternColor(val!), opacity: isPlaying ? 1 : 0.8 }}
+                >
+                    {val! + 1}
+                </div>
+            )}
+        </div>
+    );
+});
+
 export const SongMode = memo(({
     isVisible,
     songStructure,
@@ -50,12 +104,6 @@ export const SongMode = memo(({
     onSetIsSongModeActive,
     is3D = false
 }: SongModeProps & { is3D?: boolean }) => {
-
-    // VISUAL CONSTANTS
-    const CELL_WIDTH = 40;
-    const CELL_HEIGHT = 30;
-    const ROW_HEADER_WIDTH = 80;
-    const HEADER_HEIGHT = 30;
 
     const totalWidth = ROW_HEADER_WIDTH + (songStructure.length * CELL_WIDTH);
 
@@ -254,17 +302,17 @@ export const SongMode = memo(({
                                     </div>
                                     {songStructure.map((step, sIdx) => {
                                         const val = step[row.key];
-                                        const hasVal = val !== null;
-                                        const isPlaying = sIdx === currentSongStep;
                                         return (
-                                            <div
+                                            <SongModeCell
                                                 key={`${row.key}-${sIdx}`}
-                                                style={{ width: CELL_WIDTH }}
-                                                className={`shrink-0 border-r border-b border-gray-800/30 relative cursor-pointer ${isPlaying ? 'bg-white/5' : 'bg-transparent'} ${hasVal ? '' : 'hover:bg-gray-800/50'}`}
-                                                onMouseDown={(e) => handleCellMouseDown(e, sIdx, row.key, val)}
-                                            >
-                                                {hasVal && <div className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black pointer-events-none" style={{ backgroundColor: getPatternColor(val!), opacity: isPlaying ? 1 : 0.8 }}>{val! + 1}</div>}
-                                            </div>
+                                                sIdx={sIdx}
+                                                rowKey={row.key}
+                                                rowLabel={row.label}
+                                                val={val}
+                                                isPlaying={sIdx === currentSongStep}
+                                                onMouseDown={handleCellMouseDown}
+                                                onKeyDown={handleCellKeyDown}
+                                            />
                                         );
                                     })}
                                 </div>
@@ -391,38 +439,17 @@ export const SongMode = memo(({
                                 {/* Cells */}
                                 {songStructure.map((step, sIdx) => {
                                     const val = step[row.key];
-                                    const hasVal = val !== null;
-
-                                    // Current Step Highlight
-                                    const isPlaying = sIdx === currentSongStep;
-
                                     return (
-                                        <div
+                                        <SongModeCell
                                             key={`${row.key}-${sIdx}`}
-                                            data-testid={`cell-${row.key}-${sIdx}`}
-                                            style={{ width: CELL_WIDTH }}
-                                            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none focus:outline-none focus:ring-1 focus:ring-cyan-500
-                                                ${isPlaying ? 'bg-white/5' : 'bg-transparent'}
-                                                ${hasVal ? '' : 'hover:bg-gray-800/50'}
-                                            `}
-                                            role="button"
-                                            tabIndex={0}
-                                            aria-label={`${row.label} Measure ${sIdx + 1}, ${hasVal ? 'Pattern ' + (val! + 1) : 'Empty'}`}
-                                            onMouseDown={(e) => handleCellMouseDown(e, sIdx, row.key, val)}
-                                            onKeyDown={(e) => handleCellKeyDown(e, sIdx, row.key, val)}
-                                            onContextMenu={(e) => {
-                                                e.preventDefault();
-                                            }}
-                                        >
-                                            {hasVal && (
-                                                <div
-                                                    className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black select-none pointer-events-none"
-                                                    style={{ backgroundColor: getPatternColor(val!), opacity: isPlaying ? 1 : 0.8 }}
-                                                >
-                                                    {val! + 1}
-                                                </div>
-                                            )}
-                                        </div>
+                                            sIdx={sIdx}
+                                            rowKey={row.key}
+                                            rowLabel={row.label}
+                                            val={val}
+                                            isPlaying={sIdx === currentSongStep}
+                                            onMouseDown={handleCellMouseDown}
+                                            onKeyDown={handleCellKeyDown}
+                                        />
                                     );
                                 })}
                             </div>
