@@ -161,6 +161,9 @@ export const HardwareModule = React.memo(
         // Ref to store the render function for demand-based rendering
         const renderRef = useRef<(() => void) | null>(null);
 
+        // Ref to track dirty state for GPU buffer updates
+        const dirtyRef = useRef(true);
+
         // Refs for accessibility elements to enable focus management
         const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -172,6 +175,7 @@ export const HardwareModule = React.memo(
         // Sync refs & Update Staging Buffer
         useEffect(() => {
             controlsRef.current = controls;
+            dirtyRef.current = true; // Mark as dirty when props change
 
             // Update Staging Buffer (Static Data)
             // This moves the overhead of populating controls/color from the 60fps render loop
@@ -534,8 +538,15 @@ export const HardwareModule = React.memo(
                 buf[0] = performance.now() / 1000;
                 buf[1] = width / height;
 
-                // PERFORMANCE: Single batched write
-                device.queue.writeBuffer(uniformBuffer, 0, buf);
+                // PERFORMANCE: Optimized partial write
+                // Only write the full buffer if static data changed (dirtyRef)
+                // Otherwise, only write the first 8 bytes (2 floats: time, ratio)
+                if (dirtyRef.current) {
+                    device.queue.writeBuffer(uniformBuffer, 0, buf);
+                    dirtyRef.current = false;
+                } else {
+                    device.queue.writeBuffer(uniformBuffer, 0, buf, 0, 2);
+                }
 
                 const encoder = device.createCommandEncoder();
                 const pass = encoder.beginRenderPass({
