@@ -1,6 +1,6 @@
 // src/__tests__/NoteSelector.test.tsx
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { NoteSelector } from '../components/NoteSelector';
 
 // Mock getNoteColor since it's used in the component
@@ -55,5 +55,19 @@ describe('NoteSelector', () => {
         // Drum has octave 2
         expect(screen.getByText('OCT 2')).toBeInTheDocument();
         expect(screen.queryByText('OCT 3')).not.toBeInTheDocument();
+    });
+
+    it('closes on Escape key press', () => {
+        const onClose = vi.fn();
+        render(<NoteSelector {...defaultProps} onClose={onClose} />);
+
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(onClose).toHaveBeenCalled();
+    });
+
+    it('focuses the dialog on mount', () => {
+        render(<NoteSelector {...defaultProps} />);
+        const dialog = screen.getByRole('dialog');
+        expect(document.activeElement).toBe(dialog);
     });
 });
