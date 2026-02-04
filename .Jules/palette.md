@@ -41,3 +41,7 @@
 ## 2025-05-26 - Keyboard Support for Mouse-Repeat Buttons
 **Learning:** Buttons designed for "press and hold" (repeat) actions using `onMouseDown` are often inaccessible to keyboard users because standard `onClick` is omitted. A keyboard "click" (Enter/Space) needs to trigger a single step action to ensure functionality parity.
 **Action:** Always handle `onClick` or `onKeyDown` (Enter/Space) for repeat buttons to perform a single step, ensuring keyboard users can interact with the control. Use `event.detail === 0` to distinguish keyboard activation from mouse clicks if necessary.
+
+## 2025-05-26 - Accessible Modals and Backdrops
+**Learning:** Right-click context menus are essentially modal dialogs and require the same accessibility treatments: focus trapping, `Escape` key support, and a click-outside backdrop. Without these, keyboard users can get trapped or lost, and the UI state feels "sticky" to mouse users.
+**Action:** When implementing custom context menus, always wrap them in a `fixed` transparent backdrop for easy dismissal and use `useEffect` to capture focus on mount and listen for `Escape`.
