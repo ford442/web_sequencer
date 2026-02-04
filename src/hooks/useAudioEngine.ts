@@ -150,8 +150,8 @@ export const useAudioEngine = (pyodide: any) => {
             };
 
             const [sawBuf, sqrBuf] = await Promise.all([
-                loadWav('./assets/saw.wav'),
-                loadWav('./assets/square.wav')
+                loadWav('/saw.wav'),
+                loadWav('/square.wav')
             ]);
             wavSawBufferRef.current = sawBuf;
             wavSqrBufferRef.current = sqrBuf;
@@ -491,51 +491,53 @@ export const useAudioEngine = (pyodide: any) => {
 
                 if (isWavWave) {
                     const buffer = params.waveform === 'wav-saw' ? wavSawBufferRef.current : wavSqrBufferRef.current;
-                    if (!buffer) return null;
-                    const source = context.createBufferSource();
-                    source.buffer = buffer;
-                    source.loop = true;
+                    if (buffer) {
+                        const source = context.createBufferSource();
+                        source.buffer = buffer;
+                        source.loop = true;
 
-                    const baseFreq = noteToFrequency(note);
-                    const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
-                    const sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
-                    source.playbackRate.setValueAtTime(freqWithPitch / sampleRootFreq, now);
+                        const baseFreq = noteToFrequency(note);
+                        const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
+                        const sampleRootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
+                        source.playbackRate.setValueAtTime(freqWithPitch / sampleRootFreq, now);
 
-                    const envGain = context.createGain();
-                    envGain.gain.setValueAtTime(0, now);
-                    envGain.gain.linearRampToValueAtTime(params.volume, now + params.attack);
-                    const sustainLevel = params.volume * params.sustain;
-                    envGain.gain.linearRampToValueAtTime(sustainLevel, now + params.attack + params.decay);
+                        const envGain = context.createGain();
+                        envGain.gain.setValueAtTime(0, now);
+                        envGain.gain.linearRampToValueAtTime(params.volume, now + params.attack);
+                        const sustainLevel = params.volume * params.sustain;
+                        envGain.gain.linearRampToValueAtTime(sustainLevel, now + params.attack + params.decay);
 
-                    const filter = context.createBiquadFilter();
-                    filter.type = 'lowpass';
-                    filter.frequency.setValueAtTime(params.filterCutoff || 20000, now);
-                    filter.Q.setValueAtTime(params.filterResonance || 0, now);
+                        const filter = context.createBiquadFilter();
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(params.filterCutoff || 20000, now);
+                        filter.Q.setValueAtTime(params.filterResonance || 0, now);
 
-                    source.connect(filter);
-                    filter.connect(envGain);
-                    envGain.connect(masterGainRef.current!);
+                        source.connect(filter);
+                        filter.connect(envGain);
+                        envGain.connect(masterGainRef.current!);
 
-                    source.start(now);
+                        source.start(now);
 
-                    if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
-                        const oldestId = activeSynthNotes.current.keys().next().value;
-                        if (oldestId !== undefined) {
-                            const oldest = activeSynthNotes.current.get(oldestId as number);
-                            if (oldest && oldest.stop) oldest.stop();
+                        if (activeSynthNotes.current.size >= MAX_SYNTH_VOICES) {
+                            const oldestId = activeSynthNotes.current.keys().next().value;
+                            if (oldestId !== undefined) {
+                                const oldest = activeSynthNotes.current.get(oldestId as number);
+                                if (oldest && oldest.stop) oldest.stop();
+                            }
                         }
+                        const id = nextSynthNoteId.current++;
+                        const stop = () => {
+                            const t = context.currentTime;
+                            envGain.gain.cancelScheduledValues(t);
+                            envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
+                            envGain.gain.linearRampToValueAtTime(0, t + params.release);
+                                try { source.stop(t + params.release + 0.05); } catch { /* ignore */ }
+                            activeSynthNotes.current.delete(id);
+                        };
+                        activeSynthNotes.current.set(id, { stop });
+                        return id;
                     }
-                    const id = nextSynthNoteId.current++;
-                    const stop = () => {
-                        const t = context.currentTime;
-                        envGain.gain.cancelScheduledValues(t);
-                        envGain.gain.setValueAtTime(envGain.gain.value || sustainLevel, t);
-                        envGain.gain.linearRampToValueAtTime(0, t + params.release);
-                            try { source.stop(t + params.release + 0.05); } catch { /* ignore */ }
-                        activeSynthNotes.current.delete(id);
-                    };
-                    activeSynthNotes.current.set(id, { stop });
-                    return id;
+                    console.warn('Wav buffer for ' + params.waveform + ' missing, falling back to oscillator.');
                 }
                 
                 if (isWgslWave || isWasmWave || isPyodideWave) {
