@@ -333,6 +333,10 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
     // --- KEYBOARD INTERACTION ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
             const note = KEY_TO_NOTE[e.code];
             if (note) {
                 // Prevent default browser actions for F-keys (Help, Find, Refresh, etc.)
@@ -349,6 +353,10 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
         };
 
         const handleKeyUp = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
             const note = KEY_TO_NOTE[e.code];
             if (note) {
                 e.preventDefault();
