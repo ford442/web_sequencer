@@ -117,7 +117,7 @@ const TRACK_COLORS: Record<string, string> = {
 const SEQUENCER_STYLES = `
     .svg-step.is-current .step-glow { fill: rgba(255, 255, 255, 0.3) !important; }
     .svg-step.is-current .step-cap { stroke: #ffffff !important; stroke-width: 2px !important; }
-    .svg-step.is-current .step-led { fill: #ff3333 !important; fill-opacity: 1 !important; filter: url(#glow) !important; }
+    .svg-step.is-current .step-led { fill: #ff3333 !important; fill-opacity: 1 !important; }
 
     /* Focus Styles for Accessibility */
     .svg-step:focus, .track-slot:focus, .track-label:focus { outline: none; }
@@ -240,7 +240,7 @@ const SvgStep = memo(({
             <rect className="step-cap" x={3} y={4} width={totalWidth - 6} height={height - 8} rx={1} fill={active ? color : '#1a2026'} fillOpacity={active ? 0.6 : 1} stroke={active ? color : 'none'} strokeWidth={active ? 1 : 0} />
             {length > 1 && (<g pointerEvents="none"><g opacity={0.3} fill="#000"><rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} /></g><g transform={`translate(${totalWidth - 25}, 8)`}><rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} /><text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">{length}x</text></g></g>)}
             <rect x={4} y={5} width={totalWidth - 8} height={(height - 10) / 2} rx={1} fill="url(#glassGrad)" fillOpacity={0.3} pointerEvents="none" />
-            <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} filter={active ? "url(#glow)" : "none"} />
+            <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} />
         </g>
     )
 })
