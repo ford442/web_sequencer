@@ -1,0 +1,38 @@
+# Web Sequencer: Living Roadmap
+
+**Mission:** Build the ultimate browser-based DAW, fusing classic MIDI workflow (Cubase-style) with next-generation AI Vocal Synthesis (TTS Sampling).
+
+**Current Velocity:** 1 Feature per Run
+**Architectural Focus:** Polyphony & Vocal Granularity
+
+---
+
+## 🚀 Active Backlog (Prioritized)
+
+### Domain A: Audio Engine (Synth & Sampler)
+- [ ] **Hybrid Polyphony:** Finalize `VoiceManager` to handle 8-voice polyphony for `synth-1` while keeping `synth-2` strictly monophonic (legato priority).
+- [ ] **TTS Slice Triggering:** Implement a logic where a MIDI Note NoteOn event can trigger a specific *slice* or *word* from the TTS buffer (e.g., Note C3 = "Hello", Note D3 = "World").
+- [ ] **Phoneme Elasticity:** Connect `rubberband.wasm` to the sequencer steps. If a note is dragged longer, the specific phoneme should time-stretch to match the duration without altering pitch.
+
+### Domain B: Editor Workflow (The "Cubase" Feel)
+- [ ] **Rubber-Band Selection:** Implement multi-note selection via mouse drag in `Sequencer.tsx`.
+- [ ] **Clipboard Operations:** Standardize `Ctrl+C` / `Ctrl+V` logic to handle both Note Data *and* associated TTS Metadata (which word is attached to the note).
+- [ ] **Per-Step Parameters:** Create a UI to edit "Expression" or "Timbre" for individual sequencer steps (vital for humanizing TTS output).
+
+### Domain C: Accessibility & Mobile
+- [ ] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
+- [ ] **A11y Colors:** Verify high-contrast separation between `synth-1` (Chords) and `synth-2` (Lead) notes.
+
+---
+
+## 🧠 Innovation Lab (The "Dream" Log)
+*These are concepts to be fleshed out by the agent during "Architect Mode".*
+
+* **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
+* **Idea:** "Glitch Mode" - A probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis).
+* **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect.
+
+---
+
+## 📜 Changelog
+* [Date] - Roadmap re-initialized for long-term recursion.
