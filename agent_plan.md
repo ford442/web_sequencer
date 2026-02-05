@@ -10,7 +10,7 @@
 ## 🚀 Active Backlog (Prioritized)
 
 ### Domain A: Audio Engine (Synth & Sampler)
-- [ ] **Refactor SingingVoice State:** Expose alignment state setters in `SingingVoice` to avoid type casting hacks and improve multi-bank alignment handling.
+- [x] **Refactor SingingVoice State:** Expose alignment state setters in `SingingVoice` to avoid type casting hacks and improve multi-bank alignment handling.
 - [ ] **Hybrid Polyphony:** Finalize `VoiceManager` to handle 8-voice polyphony for `synth-1` while keeping `synth-2` strictly monophonic (legato priority).
 - [ ] **TTS Slice Triggering:** Implement a logic where a MIDI Note NoteOn event can trigger a specific *slice* or *word* from the TTS buffer (e.g., Note C3 = "Hello", Note D3 = "World").
 - [x] **Phoneme Elasticity:** Connect `rubberband.wasm` to the sequencer steps. If a note is dragged longer, the specific phoneme should time-stretch to match the duration without altering pitch.
@@ -38,3 +38,4 @@
 ## 📜 Changelog
 * [Date] - Roadmap re-initialized for long-term recursion.
 * [2026-02-05] - Implemented Phoneme Elasticity in Sampler Engine.
+* [2026-05-21] - Refactored SingingVoice state management to eliminate type casting hacks and improve multi-bank alignment handling.

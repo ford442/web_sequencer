@@ -395,6 +395,16 @@ export class SingingVoice {
     }
     
     /**
+     * Set the current alignment result manually.
+     * Useful for multi-bank setups where alignment is pre-calculated/cached.
+     *
+     * @param alignment The alignment result to use
+     */
+    setAlignment(alignment: AlignmentResult | null): void {
+        this.lastAlignment = alignment;
+    }
+
+    /**
      * Get the last phoneme alignment result.
      */
     getLastAlignment(): AlignmentResult | null {

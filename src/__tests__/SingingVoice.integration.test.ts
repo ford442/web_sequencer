@@ -133,6 +133,20 @@ describe('SingingVoice Integration', () => {
             
             consoleWarnSpy.mockRestore();
         });
+
+        it('should allow manual setting of alignment result', () => {
+            const mockAlignment: any = {
+                phonemes: [],
+                sampleRate: 44100,
+                duration: 1.0,
+                text: "manual"
+            };
+
+            voice.setAlignment(mockAlignment);
+
+            expect(voice.getLastAlignment()).toBe(mockAlignment);
+            expect(voice.getLastAlignment()?.text).toBe("manual");
+        });
     });
     
     describe('Formant Shifting (Section 4)', () => {
