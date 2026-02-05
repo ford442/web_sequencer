@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { AudioEngine, SynthParams, DrumSound, KickParams, SnareParams, HatParams, SamplerBankParams, PartSequence } from '../types';
-import { noteToFrequency, NUM_STEPS } from '../constants';
+import { noteToFrequency } from '../constants';
 import { noteToMidi } from '../utils/musicTheory';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
-import { SingingVoice, REFERENCE_FREQUENCIES, freqToMidi } from '../engines/SingingVoice';
+import { SingingVoice } from '../engines/SingingVoice';
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 // Import the new processor URL (we will create this file next)
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
@@ -18,16 +18,13 @@ function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
     if (distortionCurveCache.has(k)) return distortionCurveCache.get(k)!;
     const n_samples = 8192, curve = new Float32Array(n_samples), deg = Math.PI / 180;
     for (let i = 0; i < n_samples; ++i) {
-        let x = (i * 2) / n_samples - 1;
+        const x = (i * 2) / n_samples - 1;
         curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
     }
     distortionCurveCache.set(k, curve);
     return curve;
 }
 
-const modeToWorkletValue = (mode: 'loop' | 'stretch' | 'wavetable'): number => {
-    return mode === 'loop' ? 0 : mode === 'stretch' ? 1 : 2;
-};
 
 // Map UI params to Engine params
 function apply303Params(engine: Open303Oscillator, params: SynthParams, waveType: string): void {
@@ -49,7 +46,6 @@ export const useAudioEngine = (pyodide: any) => {
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
     const ambianceGainNodeRef = useRef<GainNode | null>(null);
     const loadedAmbianceBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
-    const rendererWorkerRef = useRef<Worker | null>(null);
     const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
     const open303EngineRef = useRef<Open303Oscillator | null>(null);
@@ -391,7 +387,7 @@ export const useAudioEngine = (pyodide: any) => {
                 loadedSampleBuffersRef.current.set(name, buffer);
             };
 
-            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2) => {
+            const playSampler = (params: SamplerBankParams, _note: string, time: number, _durationSteps: number = 1, _stepTime: number = 0.2) => {
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 if (!buffer || !masterGainRef.current) return;
 
@@ -425,7 +421,7 @@ export const useAudioEngine = (pyodide: any) => {
                 // No auto-stop for one-shots usually, unless gated
             };
 
-            const noteOnSampler = (params: SamplerBankParams, note: string, time?: number): number | null => {
+            const noteOnSampler = (params: SamplerBankParams, _note: string, time?: number): number | null => {
                 // Interactive trigger (e.g. keyboard)
                 const now = time || context.currentTime;
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
@@ -458,7 +454,7 @@ export const useAudioEngine = (pyodide: any) => {
                 }
             };
 
-            const noteOnSynth = (params: SynthParams, note: string, time?: number) => {
+            const noteOnSynth = (params: SynthParams, note: string, _time?: number) => {
                  // Interactive Synth trigger
                  if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
                      if (open303EngineRef.current) {
@@ -492,7 +488,7 @@ export const useAudioEngine = (pyodide: any) => {
             };
 
             // Helpers for Render/Ambiance
-            const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {
+            const renderSynthPartToBuffer = (_params: SynthParams, _sequence: PartSequence, _tempo: number): Promise<AudioBuffer> => {
                  // Placeholder for actual offline rendering logic
                  return Promise.resolve(context.createBuffer(2, context.sampleRate * 2, context.sampleRate));
             };
@@ -555,11 +551,11 @@ export const useAudioEngine = (pyodide: any) => {
                 }
             };
 
-            const detectSamplePitch = async (b: AudioBuffer) => null;
-            const processSinging = async (sampleName: string, note: string, steps: number, tempo: number) => null;
-            const processSpoon = async (sampleName: string, note: string) => null;
-            const setSustainMode = (mode: 'loop' | 'stretch' | 'wavetable') => {};
-            const setSustainGrainSize = (size: number) => {};
+            const detectSamplePitch = async (_b: AudioBuffer) => null;
+            const processSinging = async (_sampleName: string, _note: string, _steps: number, _tempo: number) => null;
+            const processSpoon = async (_sampleName: string, _note: string) => null;
+            const setSustainMode = (_mode: 'loop' | 'stretch' | 'wavetable') => {};
+            const setSustainGrainSize = (_size: number) => {};
 
 
             // Re-assign the refs and state

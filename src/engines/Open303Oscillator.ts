@@ -9,7 +9,6 @@ declare global {
 }
 
 export class Open303Oscillator {
-    private audioContext: AudioContext | null = null;
 
     // -- Strategy 1: AudioWorklet --
     private workletNode: AudioWorkletNode | null = null;
@@ -26,7 +25,6 @@ export class Open303Oscillator {
     useWorklet: boolean = false;
 
     async init(audioContext: AudioContext, workletUrl?: string): Promise<boolean> {
-        this.audioContext = audioContext;
         this.outputNode = audioContext.createGain();
         this.gainNode = audioContext.createGain();
         this.gainNode.gain.value = 1.0;
@@ -119,7 +117,7 @@ export class Open303Oscillator {
                 }
             };
 
-            this.processorNode.connect(this.gainNode);
+            if (this.gainNode) { this.processorNode.connect(this.gainNode); }
             this.isReady = true;
             this.useWorklet = false;
             this.applyAllParameters();
