@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { WaveformSelector } from '../components/WaveformSelector';
-import type { Waveform } from '../types';
 
 describe('WaveformSelector', () => {
   it('renders the wav-saw and wav-sqr buttons', async () => {
