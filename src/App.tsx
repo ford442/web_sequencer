@@ -728,7 +728,18 @@ export const App: React.FC = () => {
     const handleAddMeasure = useCallback(() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }]), []);
     const handleExportXM = useCallback(() => { exportSongToXM(songStructureRef.current, trackStorageRef.current, { synthA: synthARef.current, synthB: synthBRef.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, tempoRef.current, patternRef.current, { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide: pyodide }, sampleBuffers); }, [audioEngine, pyodide, sampleBuffers]);
     const handleRemoveMeasure = useCallback(() => { const currentStructure = songStructure; if (currentStructure.length === 0) return; const last = currentStructure[currentStructure.length - 1]; const hasData = Object.values(last).some(v => v !== null); if (hasData) { if (!window.confirm("The last measure contains patterns. Are you sure you want to remove it?")) return; } setSongStructure(prev => prev.slice(0, -1)); }, [songStructure]);
-    const handleLoadSample = useCallback((name: string, buffer: AudioBuffer) => { if (!audioEngine) return; audioEngine.loadSampleToEngine(name, buffer); setSampleBuffers(prev => { const next = [...prev]; next[activeSamplerBank] = buffer; return next; }); const bankName = `bank_${activeSamplerBank}`; setSampler(prev => { const newParams = [...prev]; newParams[activeSamplerBank] = { ...newParams[activeSamplerBank], sampleName: bankName }; return newParams; }); }, [audioEngine, activeSamplerBank]);
+    const handleLoadSample = useCallback((name: string, buffer: AudioBuffer) => {
+        if (!audioEngine) return;
+        audioEngine.loadSampleToEngine(name, buffer);
+        setSampleBuffers(prev => { const next = [...prev]; next[activeSamplerBank] = buffer; return next; });
+        const bankName = `bank_${activeSamplerBank}`;
+        setSampler(prev => { const newParams = [...prev]; newParams[activeSamplerBank] = { ...newParams[activeSamplerBank], sampleName: bankName }; return newParams; });
+
+        if (audioEngine.prepareVocal) {
+            const text = ttsPhrases[activeSamplerBank] || "Hello World";
+            audioEngine.prepareVocal(activeSamplerBank, text);
+        }
+    }, [audioEngine, activeSamplerBank, ttsPhrases]);
 
     const handleSaveSong = async (slot: number) => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); const snapshot: SongSnapshot = { pattern, tempo, ambianceUrl, backgroundImage, params: { synthA, synthB, kick, snare, closedHat, openHat, sampler } }; setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; }); setActiveSongSlot(slot); };
     const loadSong = useCallback((slot: number) => { const snapshot = songStorage[slot]; if (!snapshot) return; setPattern(snapshot.pattern); setTempo(snapshot.tempo); setAmbianceUrl(snapshot.ambianceUrl); setBackgroundImage(snapshot.backgroundImage); setSynthA(snapshot.params.synthA); setSynthB(snapshot.params.synthB); setKick(snapshot.params.kick); setSnare(snapshot.params.snare); setClosedHat(snapshot.params.closedHat); setOpenHat(snapshot.params.openHat); setSampler(snapshot.params.sampler); setActiveSongSlot(slot); synthARef.current = snapshot.params.synthA; synthBRef.current = snapshot.params.synthB; kickRef.current = snapshot.params.kick; snareRef.current = snapshot.params.snare; closedHatRef.current = snapshot.params.closedHat; openHatRef.current = snapshot.params.openHat; samplerRef.current = snapshot.params.sampler; }, [songStorage]);
@@ -759,6 +770,15 @@ export const App: React.FC = () => {
         });
     }, []);
 
+
+    const handleTtsPhraseChange = useCallback((newPhrases: string[]) => {
+        setTtsPhrases(newPhrases);
+        if (audioEngine?.prepareVocal) {
+             const text = newPhrases[activeSamplerBank];
+             audioEngine.prepareVocal(activeSamplerBank, text);
+        }
+    }, [audioEngine, activeSamplerBank]);
+
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
 
@@ -772,7 +792,7 @@ export const App: React.FC = () => {
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
-    const samplerChild = useMemo(() => (<div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={setTtsPhrases} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases]);
+    const samplerChild = useMemo(() => (<div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases]);
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
