@@ -1,4 +1,3 @@
-
 import { render, fireEvent } from '@testing-library/react';
 import { LiveKeyboard } from '../components/LiveKeyboard';
 
@@ -26,5 +25,26 @@ describe('LiveKeyboard', () => {
     expect(onPlay).toHaveBeenCalled();
     fireEvent.mouseUp(key);
     expect(onStop).toHaveBeenCalled();
+  });
+
+  test('ignores key events when typing in an input', () => {
+    const onPlay = vi.fn();
+    const onStop = vi.fn();
+    const { getByTestId } = render(
+      <div>
+        <input data-testid="test-input" />
+        <LiveKeyboard onPlayNote={onPlay} onStopNote={onStop} activeTrackColor="#ffffff" />
+      </div>
+    );
+
+    const input = getByTestId('test-input');
+    input.focus();
+
+    // Simulate keydown on the input (bubbling up to window)
+    fireEvent.keyDown(input, { code: 'F1', bubbles: true });
+    expect(onPlay).not.toHaveBeenCalled();
+
+    fireEvent.keyUp(input, { code: 'F1', bubbles: true });
+    expect(onStop).not.toHaveBeenCalled();
   });
 });
