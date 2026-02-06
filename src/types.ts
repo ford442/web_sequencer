@@ -57,6 +57,7 @@ export interface SamplerBankParams {
   delaySend: number; // 0-1 (Amount sent to delay bus)
   mode?: 'loop' | 'stretch' | 'wavetable'; // Sustain processor mode (0=loop, 1=stretch, 2=wavetable)
   grainSize?: number; // Grain size for stretch mode (in samples)
+  sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
 }
 
 // SamplerParams is now an array of banks
