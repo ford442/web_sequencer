@@ -89,7 +89,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         drive: 0,
         delaySend: 0,
         mode: 'loop' as 'loop' | 'stretch' | 'wavetable',
-        grainSize: 4410
+        grainSize: 4410,
+        timeRatio: 1.0,
+        pitchScale: 1.0,
+        formantShift: 0,
+        vibratoDepth: 0,
+        breathIntensity: 0
     };
 
     // Update single param for active bank
@@ -122,6 +127,31 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleDriveChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'drive', v);
         else updateParamRef.current('drive', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleTimeRatioChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'timeRatio', v);
+        else updateParamRef.current('timeRatio', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handlePitchScaleChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'pitchScale', v);
+        else updateParamRef.current('pitchScale', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleFormantShiftChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'formantShift', v);
+        else updateParamRef.current('formantShift', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleVibratoDepthChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'vibratoDepth', v);
+        else updateParamRef.current('vibratoDepth', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleBreathIntensityChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'breathIntensity', v);
+        else updateParamRef.current('breathIntensity', v);
     }, [activeBankIdx, onParamChange]);
 
     // Handle mode change
@@ -511,6 +541,16 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
                     <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic />
                     <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />
+                </div>
+
+                {/* ROW 7: Rubberband Controls */}
+                <div className="grid grid-cols-6 gap-1 mt-1 bg-indigo-900/50 p-1 rounded">
+                    <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" />
+                    <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" />
+                    <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />
+                    <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" />
+                    <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
+                    <div className="col-span-1" /> {/* Spacer */}
                 </div>
             </div>
         </div>
