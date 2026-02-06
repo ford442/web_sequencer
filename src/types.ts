@@ -57,11 +57,15 @@ export interface SamplerBankParams {
   delaySend: number; // 0-1 (Amount sent to delay bus)
   mode?: 'loop' | 'stretch' | 'wavetable'; // Sustain processor mode (0=loop, 1=stretch, 2=wavetable)
   grainSize?: number; // Grain size for stretch mode (in samples)
+<<<<<<< HEAD
   timeRatio?: number;      // Rubberband time stretch (0.5-2.0)
   pitchScale?: number;     // Rubberband pitch shift (0.5-2.0)
   formantShift?: number;   // Formant adjustment (-12 to +12 semitones)
   vibratoDepth?: number;   // Vibrato amount (0-100%)
   breathIntensity?: number; // Breath noise (0-1.0)
+=======
+  sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
+>>>>>>> origin/main
 }
 
 // SamplerParams is now an array of banks
