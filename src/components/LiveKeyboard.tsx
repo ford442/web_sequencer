@@ -56,22 +56,80 @@ const formatKeyLabel = (code: string) => {
 
 // --- KEYBOARD GUIDE COMPONENT ---
 const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
+    const modalRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        // 1. Capture previously focused element to restore later
+        const previousFocus = document.activeElement as HTMLElement;
+
+        // 2. Focus the primary action button on mount
+        buttonRef.current?.focus();
+
+        // 3. Handle Keyboard Interactions (Escape + Focus Trap)
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+            } else if (e.key === 'Tab') {
+                // Simple Focus Trap
+                const focusableElements = modalRef.current?.querySelectorAll(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                );
+
+                if (!focusableElements || focusableElements.length === 0) return;
+
+                const firstElement = focusableElements[0] as HTMLElement;
+                const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+                if (e.shiftKey) {
+                    if (document.activeElement === firstElement) {
+                        e.preventDefault();
+                        lastElement.focus();
+                    }
+                } else {
+                    if (document.activeElement === lastElement) {
+                        e.preventDefault();
+                        firstElement.focus();
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        // 4. Cleanup: Restore focus
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            // We use a small timeout to ensure the modal unmount doesn't interfere with focus restoration
+            setTimeout(() => previousFocus?.focus(), 0);
+        };
+    }, [onClose]);
+
     return (
         <div
             className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-xl animate-fadeIn"
             onClick={onClose}
         >
-            <div className="relative p-8 border-2 border-dashed border-cyan-500/50 rounded-2xl bg-[#0d1015] shadow-[0_0_50px_rgba(6,182,212,0.15)] max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div
+                ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="keyboard-guide-title"
+                className="relative p-8 border-2 border-dashed border-cyan-500/50 rounded-2xl bg-[#0d1015] shadow-[0_0_50px_rgba(6,182,212,0.15)] max-w-2xl w-full mx-4 outline-none"
+                onClick={e => e.stopPropagation()}
+                tabIndex={-1}
+            >
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+                    className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors focus:outline-none focus:text-white"
                     aria-label="Close Guide"
                 >
                     ✕
                 </button>
 
                 <div className="text-center mb-8">
-                    <h3 className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">FLIPPED MODE</h3>
+                    <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">FLIPPED MODE</h3>
                     <p className="text-gray-400 font-mono text-sm">Rotate your physical keyboard 180° to play chromatically.</p>
                 </div>
 
@@ -116,8 +174,9 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
 
                 <div className="text-center">
                     <button
+                        ref={buttonRef}
                         onClick={onClose}
-                        className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-300 border border-cyan-700/50 rounded font-orbitron text-xs tracking-wider transition-all"
+                        className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-300 border border-cyan-700/50 rounded font-orbitron text-xs tracking-wider transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     >
                         GOT IT
                     </button>
