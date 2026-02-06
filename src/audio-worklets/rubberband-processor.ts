@@ -132,9 +132,23 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.rubberBand.setPitchScale(data.pitch || 1.0);
         this.rubberBand.setTimeRatio(1.0);
         this.expressiveProcessor.reset();
-        this.ensureHeapSize(this.fullSampleBuffer.length);
-        this.rubberBand.module.HEAPF32.set(this.fullSampleBuffer, this.inputHeapPtr >> 2);
-        this.rubberBand.process(this.inputHeapPtr, this.fullSampleBuffer.length, false);
+
+        // Support for slicing (start/end sample)
+        const startSample = Math.max(0, Math.floor(data.startSample || 0));
+        const endSample = data.endSample
+            ? Math.min(this.fullSampleBuffer.length, Math.floor(data.endSample))
+            : this.fullSampleBuffer.length;
+
+        if (startSample >= endSample) return;
+
+        const sliceLength = endSample - startSample;
+        this.ensureHeapSize(sliceLength);
+
+        // Copy only the requested slice to the WASM heap
+        const slice = this.fullSampleBuffer.subarray(startSample, endSample);
+        this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
+
+        this.rubberBand.process(this.inputHeapPtr, sliceLength, false);
         break;
 
       case 'noteOff':
