@@ -172,9 +172,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         if (available >= required && required > 0) {
             this.ensureHeapSize(required);
-            const inputTemp = new Float32Array(required);
-            this.inputRingBuffer.pull(inputTemp);
-            this.rubberBand.module.HEAPF32.set(inputTemp, this.inputHeapPtr >> 2);
+
+            // ZERO-COPY / ZERO-ALLOCATION OPTIMIZATION:
+            // Instead of allocating a temporary Float32Array and copying twice,
+            // we create a view directly into the WASM heap and pull data there.
+            const inputView = this.rubberBand.module.HEAPF32.subarray(
+                this.inputHeapPtr >> 2,
+                (this.inputHeapPtr >> 2) + required
+            );
+
+            this.inputRingBuffer.pull(inputView);
             this.rubberBand.process(this.inputHeapPtr, required, false);
         }
 
