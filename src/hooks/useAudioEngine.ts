@@ -419,6 +419,21 @@ export const useAudioEngine = (pyodide: any) => {
                     const targetDuration = durationSteps * stepTime;
                     const originalDuration = buffer.duration;
 
+                    // CHECK FOR SLICE TRIGGER MODE
+                    if (params.sliceMode === 'phoneme') {
+                         const alignment = vocalAlignmentsRef.current.get(params.sampleName);
+                         if (alignment) {
+                             const targetMidi = noteToMidi(note);
+                             // Map MIDI C3 (60) to slice 0
+                             const sliceIndex = targetMidi - 60;
+
+                             if (sliceIndex >= 0) {
+                                 voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment);
+                                 return;
+                             }
+                         }
+                    }
+
                     // 1. Calculate Time Ratio
                     // If target is 2s and original is 1s, ratio should be 2.0 (slower? no, Rubber Band ratio > 1 means longer/slower)
                     // Wait, RubberBandStretcher setTimeRatio(r): r > 1 means slower?
