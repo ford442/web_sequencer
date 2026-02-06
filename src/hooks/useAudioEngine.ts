@@ -1,10 +1,19 @@
 import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import {
+    SamplerBankParams, SynthParams, AudioEngine, KickParams, SnareParams, HatParams,
+    DrumSound, PartSequence, SamplerParams
+} from '../types';
+import { WebGpuOscillator } from '../engines/WebGpuOscillator';
+import { WasmOscillator } from '../engines/WasmOscillator';
+import { Open303Oscillator } from '../engines/Open303Oscillator';
+import { SingingVoice } from '../engines/SingingVoice';
+import { noteToFrequency, noteToMidi } from '../utils/noteUtils';
 
-<<<<<<< HEAD
-const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2) => {
-    // ...existing playSampler code...
-=======
+// URLs for worklets
+const sustainProcessorUrl = new URL('../audio-worklets/sustain-processor.ts', import.meta.url).href;
+const open303ProcessorUrl = new URL('../audio-worklets/open303-processor.ts', import.meta.url).href;
+
 // Helper for distortion
 const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
 function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
@@ -196,16 +205,7 @@ export const useAudioEngine = (pyodide: any) => {
                      if (open303EngineRef.current) {
                          apply303Params(open303EngineRef.current, params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
                          const midi = noteToMidi(note);
-                         // Convert time to something the engine handles?
-                         // The engine uses real-time noteOn/Off.
-                         // We need to schedule these.
-                         // Since Open303Oscillator methods are immediate, we use setTimeout or AudioContext scheduling if we refactor Open303 to support scheduling.
-                         // Current Open303 implementation (as refactored) calls port.postMessage immediately.
-                         // For accurate timing in a sequencer, we should rely on the AudioWorklet's clock or schedule parameter automation.
-                         // HOWEVER, for this fix, we will use basic setTimeout to trigger the events at the right time,
-                         // recognizing this is less precise than sample-accurate scheduling.
 
-                         // Determine delay until 'time'
                          const now = context.currentTime;
                          const startDelay = Math.max(0, time - now);
                          const duration = durationSteps * stepTime;
@@ -429,9 +429,6 @@ export const useAudioEngine = (pyodide: any) => {
                     }
 
                     // 1. Calculate Time Ratio
-                    // If target is 2s and original is 1s, ratio should be 2.0 (slower? no, Rubber Band ratio > 1 means longer/slower)
-                    // Wait, RubberBandStretcher setTimeRatio(r): r > 1 means slower?
-                    // Usually timeRatio = output_duration / input_duration.
                     const timeRatio = targetDuration / originalDuration;
                     voice.setTimeRatio(timeRatio);
 
@@ -450,10 +447,7 @@ export const useAudioEngine = (pyodide: any) => {
                     }
 
                     // 4. Process
-                    // 'process' sends the buffer.
                     voice.process(buffer.getChannelData(0));
-
-                    // Note: SingingVoice output is connected to masterGain in initializeAudio.
                     return;
                 }
 
@@ -484,7 +478,6 @@ export const useAudioEngine = (pyodide: any) => {
                 gain.connect(masterGainRef.current);
 
                 source.start(time);
-                // No auto-stop for one-shots usually, unless gated
             };
 
             const noteOnSampler = (params: SamplerBankParams, _note: string, time?: number): number | null => {
@@ -663,49 +656,37 @@ export const useAudioEngine = (pyodide: any) => {
         }
     }, []);
 
+    // Function to update voice parameters in real-time
+    const updateVoiceParams = useCallback((bankIdx: number, key: keyof SamplerBankParams, value: number) => {
+        const voice = singingVoiceRef.current;
+        if (voice && voice.workletNode) {
+            const now = voice.context.currentTime;
+            switch (key) {
+                case 'timeRatio':
+                    voice.workletNode.parameters.get('timeRatio')?.setValueAtTime(value, now);
+                    break;
+                case 'pitchScale':
+                    voice.workletNode.parameters.get('pitchScale')?.setValueAtTime(value, now);
+                    break;
+                case 'formantShift':
+                    voice.workletNode.parameters.get('formantScale')?.setValueAtTime(value / 12, now); // Normalize
+                    break;
+                case 'vibratoDepth':
+                    voice.workletNode.parameters.get('vibratoDepth')?.setValueAtTime(value / 100, now);
+                    break;
+                case 'breathIntensity':
+                    voice.workletNode.parameters.get('breathIntensity')?.setValueAtTime(value, now);
+                    break;
+            }
+        }
+    }, []);
+
     const result = useMemo(() => ({
         audioEngine: audioEngineRef.current,
         isReady,
-        initializeAudio
-    }), [isReady, initializeAudio]);
+        initializeAudio,
+        onParamChange: updateVoiceParams
+    }), [isReady, initializeAudio, updateVoiceParams]);
 
     return result;
->>>>>>> origin/main
-};
-
-const handleSamplerParamChange = (bankIdx: number, key: keyof SamplerBankParams, value: number) => {
-    setSamplerParams(prev => {
-        const newParams = [...prev];
-        newParams[bankIdx] = { ...newParams[bankIdx], [key]: value };
-        return newParams;
-    });
-
-    const voice = singingVoiceRef.current;
-    if (voice && voice.workletNode) {
-        const now = audioContext.currentTime;
-        switch (key) {
-            case 'timeRatio':
-                voice.workletNode.parameters.get('timeRatio')?.setValueAtTime(value, now);
-                break;
-            case 'pitchScale':
-                voice.workletNode.parameters.get('pitchScale')?.setValueAtTime(value, now);
-                break;
-            case 'formantShift':
-                // Map to formant scale or postMessage
-                voice.workletNode.parameters.get('formantScale')?.setValueAtTime(value / 12, now); // Normalize
-                break;
-            case 'vibratoDepth':
-                voice.workletNode.parameters.get('vibratoDepth')?.setValueAtTime(value / 100, now);
-                break;
-            case 'breathIntensity':
-                voice.workletNode.parameters.get('breathIntensity')?.setValueAtTime(value, now);
-                break;
-        }
-    }
-};
-
-return {
-    // ...existing returns...
-    onParamChange: handleSamplerParamChange,
-    // ...existing...
 };
