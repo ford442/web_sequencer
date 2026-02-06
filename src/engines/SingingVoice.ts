@@ -290,9 +290,11 @@ export class SingingVoice {
     /**
      * Process audio through the Rubber Band worklet.
      * @param audio Float32Array of mono audio samples
+     * @param startSample Optional start sample index for slicing
+     * @param endSample Optional end sample index for slicing
      * @returns Promise that resolves when processing is complete
      */
-    async process(audio: Float32Array): Promise<void> {
+    async process(audio: Float32Array, startSample?: number, endSample?: number): Promise<void> {
         if (!this.workletNode || !this.inputRingBuffer) {
             throw new Error('SingingVoice not initialized. Call initWorklet() first.');
         }
@@ -306,8 +308,36 @@ export class SingingVoice {
         // Trigger processing
         this.workletNode.port.postMessage({
             type: 'noteOn',
-            data: { pitch: 1.0 } // Pitch will be set via parameter
+            data: {
+                pitch: 1.0, // Pitch will be set via parameter
+                startSample,
+                endSample
+            }
         });
+    }
+
+    /**
+     * Trigger a specific phoneme slice based on index.
+     *
+     * @param audio Audio buffer
+     * @param sliceIndex Index of the phoneme to play (e.g. from MIDI note)
+     * @param alignment Alignment result containing phoneme timings
+     * @param pitch Optional pitch override (default 1.0)
+     */
+    async triggerSlice(audio: Float32Array, sliceIndex: number, alignment: AlignmentResult, pitch: number = 1.0): Promise<void> {
+        if (sliceIndex < 0 || sliceIndex >= alignment.phonemes.length) {
+            console.warn(`Slice index ${sliceIndex} out of bounds (max ${alignment.phonemes.length - 1})`);
+            return;
+        }
+
+        const phoneme = alignment.phonemes[sliceIndex];
+        const startSample = Math.floor(phoneme.start * alignment.sampleRate);
+        const endSample = Math.floor(phoneme.end * alignment.sampleRate);
+
+        this.setPitch(pitch);
+        this.setTimeRatio(1.0); // Reset time stretch for slice playback usually
+
+        await this.process(audio, startSample, endSample);
     }
 
     /**
