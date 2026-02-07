@@ -7,7 +7,7 @@ interface KnobProps {
   min: number;
   max: number;
   step?: number;
-  color?: 'cyan' | 'pink' | 'yellow' | 'purple' | 'red' | 'green';
+  color?: 'cyan' | 'pink' | 'yellow' | 'purple' | 'red' | 'green' | 'indigo';
   unit?: string;
   logarithmic?: boolean;
 }
@@ -109,6 +109,7 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
     purple: 'bg-purple-500',
     red: 'bg-red-500',
     green: 'bg-green-500',
+    indigo: 'bg-indigo-500',
   };
 
   const focusBorderClasses = {
@@ -118,6 +119,7 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
     purple: 'focus:border-purple-400 focus:ring-1 focus:ring-purple-400',
     red: 'focus:border-red-400 focus:ring-1 focus:ring-red-400',
     green: 'focus:border-green-400 focus:ring-1 focus:ring-green-400',
+    indigo: 'focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400',
   };
 
   return (
