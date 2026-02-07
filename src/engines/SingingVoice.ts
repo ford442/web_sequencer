@@ -539,4 +539,34 @@ export class SingingVoice {
             this.formantShifter.disconnect();
         }
     }
+
+    /**
+     * Set formant shift in semitones.
+     * @param semitones Formant shift in semitones (e.g., -12 to 12)
+     */
+    setFormantShift(semitones: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('formantScale')?.setValueAtTime(semitones / 12, this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set vibrato depth percentage.
+     * @param percent Vibrato depth (0-100)
+     */
+    setVibratoDepth(percent: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('vibratoDepth')?.setValueAtTime(percent / 100, this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set breath intensity.
+     * @param intensity Breath intensity (0-1)
+     */
+    setBreathIntensity(intensity: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('breathIntensity')?.setValueAtTime(intensity, this.audioContext.currentTime);
+        }
+    }
 }
