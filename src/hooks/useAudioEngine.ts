@@ -1,6 +1,6 @@
 import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import {
+import type {
     SamplerBankParams, SynthParams, AudioEngine, KickParams, SnareParams, HatParams,
     DrumSound, PartSequence, SamplerParams
 } from '../types';
@@ -8,7 +8,8 @@ import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { SingingVoice } from '../engines/SingingVoice';
-import { noteToFrequency, noteToMidi } from '../utils/noteUtils';
+import { noteToMidi } from '../utils/musicTheory';
+import { noteToFrequency } from '../constants';
 
 // URLs for worklets
 const sustainProcessorUrl = new URL('../audio-worklets/sustain-processor.ts', import.meta.url).href;
