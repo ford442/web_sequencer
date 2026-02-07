@@ -1,6 +1,7 @@
 // src/components/CloudLibrary.tsx
 import React, { useEffect, useState } from 'react';
 import { CloudStorage } from '../services/CloudStorage';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { CloudSongMeta, CloudItemType } from '../services/CloudStorage';
 
 interface CloudLibraryProps {
@@ -170,11 +171,13 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
     const filteredSongs = songs.filter(s => filterType === 'all' || s.type === filterType);
 
+    const modalRef = useFocusTrap(isOpen, onClose);
+
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="w-full max-w-2xl bg-[#0f1215] border border-cyan-900/50 rounded-xl shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col max-h-[80vh]">
+            <div ref={modalRef} className="w-full max-w-2xl bg-[#0f1215] border border-cyan-900/50 rounded-xl shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col max-h-[80vh]">
 
                 {/* Header Tabs */}
                 <div

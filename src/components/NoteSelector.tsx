@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { NOTES } from '../utils/musicTheory';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface NoteSelectorProps {
     x: number;
@@ -19,24 +20,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
 
-    const dialogRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        // Focus dialog on mount
-        if (dialogRef.current) {
-            dialogRef.current.focus();
-        }
-
-        // Handle Escape key
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                onClose();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
+    const dialogRef = useFocusTrap(true, onClose);
 
     return (
         <>
