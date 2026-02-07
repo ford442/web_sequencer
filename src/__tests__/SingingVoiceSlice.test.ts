@@ -1,7 +1,7 @@
 // src/__tests__/SingingVoiceSlice.test.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SingingVoice } from '../engines/SingingVoice';
-import { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
+import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 
 // Mock AudioContext and related APIs
 class MockAudioWorkletNode {
