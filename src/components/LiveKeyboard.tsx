@@ -1,5 +1,6 @@
 import { useState, useEffect, memo, useRef, useMemo, useCallback } from 'react';
 import { getNoteColor } from '../utils/noteColors';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
 
@@ -56,55 +57,8 @@ const formatKeyLabel = (code: string) => {
 
 // --- KEYBOARD GUIDE COMPONENT ---
 const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
-    const modalRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
-
-    useEffect(() => {
-        // 1. Capture previously focused element to restore later
-        const previousFocus = document.activeElement as HTMLElement;
-
-        // 2. Focus the primary action button on mount
-        buttonRef.current?.focus();
-
-        // 3. Handle Keyboard Interactions (Escape + Focus Trap)
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                onClose();
-            } else if (e.key === 'Tab') {
-                // Simple Focus Trap
-                const focusableElements = modalRef.current?.querySelectorAll(
-                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-                );
-
-                if (!focusableElements || focusableElements.length === 0) return;
-
-                const firstElement = focusableElements[0] as HTMLElement;
-                const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
-
-                if (e.shiftKey) {
-                    if (document.activeElement === firstElement) {
-                        e.preventDefault();
-                        lastElement.focus();
-                    }
-                } else {
-                    if (document.activeElement === lastElement) {
-                        e.preventDefault();
-                        firstElement.focus();
-                    }
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-
-        // 4. Cleanup: Restore focus
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            // We use a small timeout to ensure the modal unmount doesn't interfere with focus restoration
-            setTimeout(() => previousFocus?.focus(), 0);
-        };
-    }, [onClose]);
+    const modalRef = useFocusTrap(true, onClose, buttonRef);
 
     return (
         <div

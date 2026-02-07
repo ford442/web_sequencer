@@ -1,6 +1,7 @@
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { getNoteColor } from '../utils/noteColors';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface PatternSelectorProps {
     x: number;
@@ -20,24 +21,7 @@ const getPatternColor = (slotIndex: number): string => {
 export const PatternSelector: React.FC<PatternSelectorProps> = ({
     x, y, currentPattern, onSelect, onClose
 }) => {
-    const dialogRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        // Focus dialog on mount
-        if (dialogRef.current) {
-            dialogRef.current.focus();
-        }
-
-        // Handle Escape key
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                onClose();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
+    const dialogRef = useFocusTrap(true, onClose);
 
     return (
         <>
