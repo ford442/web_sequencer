@@ -45,6 +45,7 @@ function apply303Params(engine: Open303Oscillator, params: SynthParams, waveType
 export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
+    const isInitializing = useRef(false);
     const singingVoiceRef = useRef<SingingVoice | null>(null);
     const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
@@ -83,7 +84,8 @@ export const useAudioEngine = (pyodide: any) => {
     }, [pyodide]);
 
     const initializeAudio = useCallback(async () => {
-        if (audioEngine) return;
+        if (audioEngine || isInitializing.current) return;
+        isInitializing.current = true;
 
         try {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -650,10 +652,12 @@ export const useAudioEngine = (pyodide: any) => {
             });
 
             setIsReady(true);
+            isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             // Even if audio fails, set ready so UI doesn't lock up
             setIsReady(true);
+            isInitializing.current = false;
         }
     }, [audioEngine]);
 
@@ -682,10 +686,10 @@ export const useAudioEngine = (pyodide: any) => {
         }
     }, []);
 
-    return {
+    return useMemo(() => ({
         audioEngine,
         isReady,
         initializeAudio,
         onParamChange: updateVoiceParams
-    };
+    }), [audioEngine, isReady, initializeAudio, updateVoiceParams]);
 };
