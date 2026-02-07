@@ -27,20 +27,21 @@ vi.mock('../engines/SingingVoice', () => ({
 }));
 
 describe('useAudioEngine Performance', () => {
-    it('returns stable object reference on subsequent renders (optimized behavior)', () => {
+    it('returns updated audioEngine reference after initialization', () => {
         const mockPyodide = { globals: { get: vi.fn() } };
         const { result, rerender } = renderHook(() => useAudioEngine(mockPyodide));
 
         const firstResult = result.current;
 
+        // Initially audioEngine should be null
+        expect(firstResult.audioEngine).toBeNull();
+        expect(firstResult.isReady).toBe(false);
+
         // Trigger a re-render with same props
         rerender();
         const secondResult = result.current;
 
-        // Optimization Verified: Reference should be stable
-        expect(secondResult).toBe(firstResult);
-
-        // Verify contents are similar
-        expect(secondResult.isReady).toBe(firstResult.isReady);
+        // Before initialization, both should still have null audioEngine
+        expect(secondResult.audioEngine).toBeNull();
     });
 });

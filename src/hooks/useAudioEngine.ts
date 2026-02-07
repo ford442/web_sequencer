@@ -44,7 +44,8 @@ function apply303Params(engine: Open303Oscillator, params: SynthParams, waveType
 
 export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
-    const audioEngineRef = useRef<AudioEngine | null>(null);
+    const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
+    const isInitializing = useRef(false);
     const singingVoiceRef = useRef<SingingVoice | null>(null);
     const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
@@ -83,7 +84,8 @@ export const useAudioEngine = (pyodide: any) => {
     }, [pyodide]);
 
     const initializeAudio = useCallback(async () => {
-        if (audioEngineRef.current) return;
+        if (audioEngine || isInitializing.current) return;
+        isInitializing.current = true;
 
         try {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -618,8 +620,8 @@ export const useAudioEngine = (pyodide: any) => {
             const setSustainGrainSize = (_size: number) => {};
 
 
-            // Re-assign the refs and state
-            audioEngineRef.current = {
+            // Re-assign to state
+            setAudioEngine({
                 context,
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
@@ -647,15 +649,17 @@ export const useAudioEngine = (pyodide: any) => {
                 prepareVocal,
                 setSustainMode,
                 setSustainGrainSize
-            };
+            });
 
             setIsReady(true);
+            isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             // Even if audio fails, set ready so UI doesn't lock up
             setIsReady(true);
+            isInitializing.current = false;
         }
-    }, []);
+    }, [audioEngine]);
 
     // Function to update voice parameters in real-time
     const updateVoiceParams = useCallback((bankIdx: number, key: keyof SamplerBankParams, value: number) => {
@@ -682,12 +686,10 @@ export const useAudioEngine = (pyodide: any) => {
         }
     }, []);
 
-    const result = useMemo(() => ({
-        audioEngine: audioEngineRef.current,
+    return useMemo(() => ({
+        audioEngine,
         isReady,
         initializeAudio,
         onParamChange: updateVoiceParams
-    }), [isReady, initializeAudio, updateVoiceParams]);
-
-    return result;
+    }), [audioEngine, isReady, initializeAudio, updateVoiceParams]);
 };
