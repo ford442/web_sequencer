@@ -16,7 +16,7 @@
 - [x] **Phoneme Elasticity:** Connect `rubberband.wasm` to the sequencer steps. If a note is dragged longer, the specific phoneme should time-stretch to match the duration without altering pitch.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
-- [ ] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
+- [x] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
 - [ ] **Rubber-Band Selection:** Implement multi-note selection via mouse drag in `Sequencer.tsx`.
 - [ ] **Clipboard Operations:** Standardize `Ctrl+C` / `Ctrl+V` logic to handle both Note Data *and* associated TTS Metadata (which word is attached to the note).
 - [ ] **Per-Step Parameters:** Create a UI to edit "Expression" or "Timbre" for individual sequencer steps (vital for humanizing TTS output).
@@ -33,6 +33,7 @@
 * **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
 * **Idea:** "Glitch Mode" - A probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis).
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect.
+* **Idea:** "Visual Slice Feedback" - Highlight the active phoneme slice in the UI during playback.
 
 ---
 
@@ -41,3 +42,4 @@
 * [2026-02-05] - Implemented Phoneme Elasticity in Sampler Engine.
 * [2026-05-21] - Refactored SingingVoice state management to eliminate type casting hacks and improve multi-bank alignment handling.
 * [2026-05-22] - Implemented TTS Slice Triggering (Phoneme Mode) in Audio Engine.
+* [2026-05-23] - Implemented Slice Mode UI in SamplerPanel, enabling Phoneme Slice Mode triggering via MIDI keys.
