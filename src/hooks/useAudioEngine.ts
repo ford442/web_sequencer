@@ -2,7 +2,7 @@ import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
     SamplerBankParams, SynthParams, AudioEngine, KickParams, SnareParams, HatParams,
-    DrumSound, PartSequence, SamplerParams
+    DrumSound, PartSequence
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -661,26 +661,27 @@ export const useAudioEngine = (pyodide: any) => {
         }
     }, [audioEngine]);
 
+
+
     // Function to update voice parameters in real-time
-    const updateVoiceParams = useCallback((bankIdx: number, key: keyof SamplerBankParams, value: number) => {
+    const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number) => {
         const voice = singingVoiceRef.current;
-        if (voice && voice.workletNode) {
-            const now = voice.context.currentTime;
+        if (voice) {
             switch (key) {
                 case 'timeRatio':
-                    voice.workletNode.parameters.get('timeRatio')?.setValueAtTime(value, now);
+                    voice.setTimeRatio(value);
                     break;
                 case 'pitchScale':
-                    voice.workletNode.parameters.get('pitchScale')?.setValueAtTime(value, now);
+                    voice.setPitch(value);
                     break;
                 case 'formantShift':
-                    voice.workletNode.parameters.get('formantScale')?.setValueAtTime(value / 12, now); // Normalize
+                    voice.setFormantShift(value);
                     break;
                 case 'vibratoDepth':
-                    voice.workletNode.parameters.get('vibratoDepth')?.setValueAtTime(value / 100, now);
+                    voice.setVibratoDepth(value);
                     break;
                 case 'breathIntensity':
-                    voice.workletNode.parameters.get('breathIntensity')?.setValueAtTime(value, now);
+                    voice.setBreathIntensity(value);
                     break;
             }
         }
