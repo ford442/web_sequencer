@@ -514,23 +514,46 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 </div>
                 {/* Grain Size Control - Only visible in stretch mode */}
                 {(currentParams.mode || 'loop') === 'stretch' && (
-                    <div className="flex gap-1 items-center">
-                        <label className="text-[9px] text-gray-500 w-12">Grain:</label>
-                        <input
-                            type="range"
-                            min="441"
-                            max="22050"
-                            step="441"
-                            value={currentParams.grainSize || 4410}
-                            onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
-                            className="flex-1 h-1 bg-gray-700 rounded appearance-none cursor-pointer"
-                            style={{
-                                background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
-                            }}
-                            aria-label="Grain Size"
-                            title={`Grain size: ${grainSizeToMs(currentParams.grainSize || 4410)}ms`}
-                        />
-                        <span className="text-[9px] text-gray-500 w-10 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
+                    <div className="flex flex-col gap-1">
+                        <div className="flex gap-1 items-center">
+                            <label className="text-[9px] text-gray-500 w-12">Grain:</label>
+                            <input
+                                type="range"
+                                min="441"
+                                max="22050"
+                                step="441"
+                                value={currentParams.grainSize || 4410}
+                                onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
+                                className="flex-1 h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                                style={{
+                                    background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
+                                }}
+                                aria-label="Grain Size"
+                                title={`Grain size: ${grainSizeToMs(currentParams.grainSize || 4410)}ms`}
+                            />
+                            <span className="text-[9px] text-gray-500 w-10 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
+                        </div>
+                        {/* Slice Mode Toggle */}
+                        <div className="flex gap-1 items-center">
+                            <label className="text-[9px] text-gray-500 w-12">Slice:</label>
+                            <button
+                                onClick={() => {
+                                    const newVal = (currentParams.sliceMode === 'phoneme') ? 'off' : 'phoneme';
+                                    if (onParamChange) onParamChange(activeBankIdx, 'sliceMode', newVal);
+                                    else updateParamRef.current('sliceMode', newVal);
+                                }}
+                                className={`flex-1 h-4 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                    currentParams.sliceMode === 'phoneme'
+                                        ? 'bg-purple-600 border-purple-400 text-white'
+                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                                }`}
+                                aria-label="Toggle Slice Mode"
+                                title="Map MIDI keys to phoneme slices"
+                                aria-pressed={currentParams.sliceMode === 'phoneme'}
+                            >
+                                {currentParams.sliceMode === 'phoneme' ? 'ON (PHONEMES)' : 'OFF'}
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
