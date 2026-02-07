@@ -26,9 +26,18 @@ class Open303Processor extends AudioWorkletProcessor {
                 // 1. Compile the WASM module
                 const module = await WebAssembly.compile(data.wasmBytes);
 
+                // DEBUG: Inspect imports to debug "module is not an object" error
+                // This helps identify if the module expects 'env', 'a', 'wasi_snapshot_preview1', or something else.
+                try {
+                    const importDescriptors = WebAssembly.Module.imports(module);
+                    console.log("[Open303] WASM Imports Requirement:", JSON.stringify(importDescriptors));
+                } catch (e) {
+                    console.warn("[Open303] Failed to inspect imports:", e);
+                }
+
                 // 2. Prepare Environment Imports
                 // We define the standard Emscripten imports plus stubs for runtime safety.
-                const env = {
+                const env: any = {
                     abort: () => console.error("WASM Abort"),
                     emscripten_notify_memory_growth: () => this.updateHeap(),
                     exp: Math.exp,
@@ -51,15 +60,28 @@ class Open303Processor extends AudioWorkletProcessor {
 
                 // 3. Instantiate with Alias
                 // Emscripten -O3 builds often minify 'env' to 'a'. We provide both to be safe.
-                this.wasmInstance = await WebAssembly.instantiate(module, {
+                // We also add WASI aliases because modern Emscripten might use them.
+                console.log("[Open303] Instantiating with env keys:", Object.keys(env));
+
+                // Construct the imports object explicitly
+                const importsObject = {
                     env: env,
-                    a: env
-                });
+                    a: env,
+                    wasi_snapshot_preview1: env,
+                    wasi_unstable: env,
+                    "": env
+                };
+
+                this.wasmInstance = await WebAssembly.instantiate(module, importsObject);
 
                 this.updateHeap();
 
                 // 4. Initialize the DSP in the WASM
                 const exports = this.wasmInstance.exports as any;
+
+                // Debug exports
+                console.log("[Open303] WASM Exports:", Object.keys(exports));
+
                 if (exports.jc303_init) {
                     exports.jc303_init(data.sampleRate || 44100, 128);
                 }
