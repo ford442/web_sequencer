@@ -45,3 +45,7 @@
 ## 2025-05-26 - Accessible Modals and Backdrops
 **Learning:** Right-click context menus are essentially modal dialogs and require the same accessibility treatments: focus trapping, `Escape` key support, and a click-outside backdrop. Without these, keyboard users can get trapped or lost, and the UI state feels "sticky" to mouse users.
 **Action:** When implementing custom context menus, always wrap them in a `fixed` transparent backdrop for easy dismissal and use `useEffect` to capture focus on mount and listen for `Escape`.
+
+## 2025-05-26 - Replacing Alerts with Toasts
+**Learning:** Native `alert()` calls are blocking and disruptive, breaking the user's flow and immersion, especially in a specialized creative app like a DAW. They also fail to respect the application's visual theme.
+**Action:** Replace all `alert()` usage with a non-blocking `Toast` notification system. Use context or prop drilling (for simple hierarchies) to expose a `showToast` function, and ensure the toast component is accessible (`role="alert"`) and auto-dismissing.

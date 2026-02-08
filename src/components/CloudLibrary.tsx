@@ -8,6 +8,7 @@ interface CloudLibraryProps {
     isOpen: boolean;
     onClose: () => void;
     onLoadData: (data: any, type: CloudItemType) => void;
+    onShowToast: (msg: string, type: 'success' | 'error') => void;
     // Data getters for different types
     getSongData: () => any;
     getBankData: () => any;
@@ -47,7 +48,7 @@ const SkeletonRow = () => (
 );
 
 export const CloudLibrary: React.FC<CloudLibraryProps> = ({ 
-    isOpen, onClose, onLoadData, getSongData, getBankData, getPatternData 
+    isOpen, onClose, onLoadData, onShowToast, getSongData, getBankData, getPatternData
 }) => {
     const [activeTab, setActiveTab] = useState<'browse' | 'upload'>('browse');
     const [filterType, setFilterType] = useState<CloudItemType | 'all'>('all');
@@ -136,7 +137,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
             onLoadData(payload, item.type);
             onClose();
         } catch {
-            alert("Failed to load data");
+            onShowToast("Failed to load data", "error");
         } finally {
             setIsLoading(false);
         }
