@@ -53,7 +53,7 @@ export const Sequencer: React.FC<SequencerProps> = ({
                  if (partKey === 'sampler') {
                      isActiveStep = !!pattern.sampler[activeSamplerBank]?.steps[i];
                  } else {
-                     isActiveStep = !!pattern[partKey as keyof Pattern]?.steps[i];
+                     isActiveStep = !!((pattern[partKey as keyof Pattern] as PartSequence).steps[i]);
                  }
 
                  if (isActiveStep) {
