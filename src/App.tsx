@@ -187,12 +187,16 @@ const getSamplerControls = (params: SamplerBankParams): KnobConfig[] => [
 // --- COMPONENTS ---
 
 const SvgStep = memo(({
-    stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide
+    stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
+    onSelectionStart, onSelectionEnter, isRangeSelected
 }: {
     stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
     onRightMouseDown: (k: TrackKey, i: number, e: React.MouseEvent) => void,
-    onEditLength: (k: TrackKey, i: number, len: number) => void, length?: number, isSlide?: boolean
+    onEditLength: (k: TrackKey, i: number, len: number) => void, length?: number, isSlide?: boolean,
+    onSelectionStart?: (k: TrackKey, i: number) => void,
+    onSelectionEnter?: (k: TrackKey, i: number) => void,
+    isRangeSelected?: boolean
 }) => {
     const baseWidth = 18;
     const gap = 4;
@@ -207,32 +211,43 @@ const SvgStep = memo(({
 
     const handlePointerDown = (e: React.PointerEvent) => {
         if (e.button === 2) { onRightMouseDown(rowKey, stepIndex, e); return; }
-        if (e.shiftKey && active) {
+        if (e.shiftKey) {
             e.preventDefault(); e.stopPropagation();
-            const target = e.currentTarget as Element;
-            target.setPointerCapture(e.pointerId);
-            const startX = e.clientX;
-            const startLength = length;
-            const sensitivity = 20;
-            const handlePointerMove = (ev: PointerEvent) => {
-                const delta = ev.clientX - startX;
-                const stepsToAdd = Math.floor(delta / sensitivity);
-                const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
-                if (newLength !== length) { onEditLength(rowKey, stepIndex, newLength); }
-            };
-            const handlePointerUp = (ev: PointerEvent) => {
-                target.removeEventListener('pointermove', handlePointerMove as any);
-                target.removeEventListener('pointerup', handlePointerUp as any);
-                target.releasePointerCapture(ev.pointerId);
-            };
-            target.addEventListener('pointermove', handlePointerMove as any);
-            target.addEventListener('pointerup', handlePointerUp as any);
-        } else if (!e.shiftKey) { onToggle(rowKey, stepIndex, e); }
+            if (active) {
+                // Length Editing
+                const target = e.currentTarget as Element;
+                target.setPointerCapture(e.pointerId);
+                const startX = e.clientX;
+                const startLength = length;
+                const sensitivity = 20;
+                const handlePointerMove = (ev: PointerEvent) => {
+                    const delta = ev.clientX - startX;
+                    const stepsToAdd = Math.floor(delta / sensitivity);
+                    const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
+                    if (newLength !== length) { onEditLength(rowKey, stepIndex, newLength); }
+                };
+                const handlePointerUp = (ev: PointerEvent) => {
+                    target.removeEventListener('pointermove', handlePointerMove as any);
+                    target.removeEventListener('pointerup', handlePointerUp as any);
+                    target.releasePointerCapture(ev.pointerId);
+                };
+                target.addEventListener('pointermove', handlePointerMove as any);
+                target.addEventListener('pointerup', handlePointerUp as any);
+            } else if (onSelectionStart) {
+                // Range Selection
+                onSelectionStart(rowKey, stepIndex);
+            }
+        } else { onToggle(rowKey, stepIndex, e); }
+    };
+
+    const handlePointerEnter = () => {
+        if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
     };
 
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} onPointerDown={handlePointerDown} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
+        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
+            {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
             {active && isSlide && <rect x={4} y={height - 8} width={totalWidth - 8} height={3} rx={1} fill="#fbbf24" fillOpacity={1} style={{ mixBlendMode: 'plus-lighter' }} />}
             <rect x={1} y={1} width={totalWidth - 2} height={height - 2} rx={2} fill={baseFill} strokeWidth={0} />
@@ -263,9 +278,12 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     rowKey: TrackKey, label: string, rowIndex: number, steps: (any | null)[], isSelected: boolean, activeSlot: number,
     trackSlots: (PartSequence | PartSequence[] | null)[], onToggle: (k: any, i: number, e: any) => void,
     onRightMouseDown: (k: TrackKey, i: number, e: any) => void, onEditLength: (k: TrackKey, i: number, len: number) => void,
-    onSelectRow: (k: any) => void, onSelectSlot: (k: TrackKey, slot: number) => void
+    onSelectRow: (k: any) => void, onSelectSlot: (k: TrackKey, slot: number) => void,
+    onSelectionStart?: (k: TrackKey, i: number) => void,
+    onSelectionEnter?: (k: TrackKey, i: number) => void,
+    selectionRange?: { start: number, end: number } | null
 }>((props, ref) => {
-    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot } = props;
+    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
@@ -312,7 +330,16 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         if (skipCount > 0) { skipCount--; continue; }
         const stepData = steps[i];
         const length = stepData?.length || 1;
-        renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} />);
+
+        let isRangeSelected = false;
+        if (selectionRange) {
+            const low = Math.min(selectionRange.start, selectionRange.end);
+            const high = Math.max(selectionRange.start, selectionRange.end);
+            // Check if step is within range
+            if (i >= low && i <= high) isRangeSelected = true;
+        }
+
+        renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} />);
         if (stepData && length > 1) { skipCount = length - 1; }
     }
 
@@ -419,6 +446,23 @@ export const App: React.FC = () => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
     const [isNoteDragging, setIsNoteDragging] = useState(false);
     const noteDragRef = useRef<{ track: TrackKey; step: number; startY: number; startMidi: number; hasMoved: boolean; lastMidi: number; pendingSequence?: PartSequence | PartSequence[]; } | null>(null);
+
+    // --- SELECTION STATE ---
+    const [selection, setSelection] = useState<{ trackKey: TrackKey; startStep: number; endStep: number; } | null>(null);
+    const [isSelecting, setIsSelecting] = useState(false);
+
+    const handleSelectionStart = useCallback((trackKey: TrackKey, stepIndex: number) => {
+        setSelection({ trackKey, startStep: stepIndex, endStep: stepIndex });
+        setIsSelecting(true);
+    }, []);
+
+    const handleSelectionEnter = useCallback((trackKey: TrackKey, stepIndex: number) => {
+        if (isSelecting && selection && selection.trackKey === trackKey) {
+            setSelection(prev => prev ? { ...prev, endStep: stepIndex } : null);
+        }
+    }, [isSelecting, selection]);
+
+    const handleSelectionEnd = useCallback(() => { setIsSelecting(false); }, []);
 
     const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>(
         getInitialTrackStorage(UPDATED_INITIAL_PATTERN)
@@ -685,6 +729,41 @@ export const App: React.FC = () => {
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => { if (!isNoteDragging || !noteDragRef.current) return; if (!noteDragRef.current.hasMoved) { const { track, step } = noteDragRef.current; setContextMenu({ x: e.clientX, y: e.clientY, track, step }); } else if (noteDragRef.current.pendingSequence) { updateStorageForTrack(noteDragRef.current.track, noteDragRef.current.pendingSequence); } setIsNoteDragging(false); noteDragRef.current = null; document.body.style.cursor = 'default'; }, [isNoteDragging, updateStorageForTrack]);
     useEffect(() => { if (isNoteDragging) { window.addEventListener('mousemove', handleGlobalMouseMove); window.addEventListener('mouseup', handleGlobalMouseUp); } return () => { window.removeEventListener('mousemove', handleGlobalMouseMove); window.removeEventListener('mouseup', handleGlobalMouseUp); }; }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
 
+    // Selection Keyboard/Mouse Handler
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selection) {
+                const { trackKey, startStep, endStep } = selection;
+                const low = Math.min(startStep, endStep);
+                const high = Math.max(startStep, endStep);
+                setPattern(prev => {
+                    const copy = JSON.parse(JSON.stringify(prev));
+                    let changedSequence;
+                    if (trackKey === 'sampler') {
+                        const bankIdx = activeSamplerBankRef.current;
+                        const bank = copy.sampler[bankIdx];
+                        for(let i=low; i<=high; i++) { bank.steps[i] = null; }
+                        changedSequence = copy.sampler;
+                    } else {
+                        const track = copy[trackKey] as any;
+                        for(let i=low; i<=high; i++) { track.steps[i] = null; }
+                        changedSequence = track;
+                    }
+                    updateStorageForTrack(trackKey, changedSequence);
+                    return copy;
+                });
+                setSelection(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('mouseup', handleSelectionEnd);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('mouseup', handleSelectionEnd);
+        };
+    }, [selection, handleSelectionEnd, updateStorageForTrack]);
+
     const handleNoteSelect = (note: string) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
@@ -937,6 +1016,8 @@ export const App: React.FC = () => {
                                 steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
                                 isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
                                 onToggle={handleStepToggle} onRightMouseDown={handleRightMouseDown} onEditLength={handleEditLength} onSelectRow={handleSelectRow} onSelectSlot={handleTrackSlotClick}
+                                onSelectionStart={handleSelectionStart} onSelectionEnter={handleSelectionEnter}
+                                selectionRange={selection && selection.trackKey === row.key ? { start: selection.startStep, end: selection.endStep } : null}
                             />
                         ))}
                     </g>
@@ -953,7 +1034,7 @@ export const App: React.FC = () => {
                 )}
             </div>
         );
-    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange]);
+    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter]);
 
     const keyboardNode = useMemo(() => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
