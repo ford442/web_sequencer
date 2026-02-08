@@ -1,7 +1,6 @@
 import { render, screen, act } from '@testing-library/react';
 import { Toast } from '../Toast';
 import { vi, describe, it, expect } from 'vitest';
-import React from 'react';
 
 describe('Toast', () => {
     it('renders the message', () => {
