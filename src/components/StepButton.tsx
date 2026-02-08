@@ -3,12 +3,24 @@ import React from 'react';
 interface StepButtonProps {
   isActive: boolean;
   isCurrent: boolean;
-  onClick: () => void;
+  isSelected?: boolean;
+  onClick: (e: React.MouseEvent) => void;
+  onMouseDown?: (e: React.MouseEvent) => void;
+  onMouseEnter?: (e: React.MouseEvent) => void;
   color: 'cyan' | 'pink' | 'yellow' | 'purple' | 'red' | 'green' | string;
   'aria-label': string;
 }
 
-export const StepButton: React.FC<StepButtonProps> = ({ isActive, isCurrent, onClick, color, 'aria-label': ariaLabel }) => {
+export const StepButton: React.FC<StepButtonProps> = ({
+  isActive,
+  isCurrent,
+  isSelected,
+  onClick,
+  onMouseDown,
+  onMouseEnter,
+  color,
+  'aria-label': ariaLabel
+}) => {
   const getColorClasses = (c: string) => {
       switch (c) {
           case 'cyan': return { active: 'bg-cyan-500 shadow-[0_0_8px_2px_rgba(6,182,212,0.7)]', current: 'ring-cyan-300' };
@@ -27,17 +39,22 @@ export const StepButton: React.FC<StepButtonProps> = ({ isActive, isCurrent, onC
   const inactiveClasses = 'bg-gray-700 hover:bg-gray-600';
   const activeClasses = classes.active;
   const currentClasses = `ring-2 ring-offset-2 ring-offset-gray-800 ${classes.current}`;
+  // Use a solid white ring for selection to stand out against colored rings
+  const selectedClasses = 'ring-2 ring-white z-10';
 
-  const handleClick = () => {
-    onClick();
+  const handleClick = (e: React.MouseEvent) => {
+    onClick(e);
   };
 
   return (
     <button
       onClick={handleClick}
+      onMouseDown={onMouseDown}
+      onMouseEnter={onMouseEnter}
       aria-pressed={isActive}
       aria-label={ariaLabel}
-      className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses} ${isCurrent ? currentClasses : ''}`}
+      aria-selected={isSelected}
+      className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses} ${isCurrent ? currentClasses : ''} ${isSelected ? selectedClasses : ''}`}
     />
   );
 };
