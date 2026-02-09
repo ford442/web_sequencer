@@ -17,6 +17,50 @@ export interface Open303Params {
     squareDriver: number;   // 0-1 (MOD: square wave driver)
 }
 
+/**
+ * Configuration options for Open303 engine initialization
+ */
+export interface Open303Config {
+    /**
+     * Prefer AudioWorklet over ScriptProcessorNode
+     * @default true
+     */
+    preferWorklet?: boolean;
+    
+    /**
+     * Prefer threaded WASM variant (requires COOP/COEP headers)
+     * Falls back to single-threaded if unavailable
+     * @default false (uses single-threaded for broader compatibility)
+     */
+    preferThreaded?: boolean;
+    
+    /**
+     * Force ScriptProcessorNode mode (disable AudioWorklet)
+     * Useful for debugging or compatibility
+     * @default false
+     */
+    forceScriptProcessor?: boolean;
+    
+    /**
+     * Force single-threaded WASM (disable threaded variant)
+     * Useful when COOP/COEP headers are not available
+     * @default false
+     */
+    forceSingleThreaded?: boolean;
+}
+
+/**
+ * Default configuration for Open303 engine
+ * Prefers broad compatibility over performance
+ */
+export const DEFAULT_303_CONFIG: Open303Config = {
+    preferWorklet: true,
+    preferThreaded: false,
+    forceScriptProcessor: false,
+    forceSingleThreaded: false,
+};
+
+
 export const DEFAULT_303_PARAMS: Open303Params = {
     waveform: 1.0,      // Square wave
     tuning: 0.5,        // 440 Hz (centered)
