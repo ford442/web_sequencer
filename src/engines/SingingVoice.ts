@@ -85,6 +85,8 @@ export function freqToMidi(freq: number): number {
 export class SingingVoice {
     private audioContext: AudioContext;
     private workletNode: AudioWorkletNode | null = null;
+    private scriptProcessorNode: ScriptProcessorNode | null = null;
+    private useWorklet: boolean = true;
     private inputRingBuffer: RingBuffer | undefined;
     private _outputRingBuffer: RingBuffer | undefined;
     private config: SingingVoiceConfig;
@@ -140,47 +142,85 @@ export class SingingVoice {
     /**
      * Initialize the Rubber Band AudioWorklet processor.
      * Must be called before processing audio.
+     * @param forceScriptProcessor If true, will use ScriptProcessorNode fallback
      */
-    async initWorklet(): Promise<void> {
-        if (this.workletNode) return;
-
-        await this.audioContext.audioWorklet.addModule(processorUrl);
-
-        // Fetch the WASM binary on the main thread to bypass worklet restrictions
-        const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');
-        if (!response.ok) {
-            throw new Error(`Failed to fetch rubberband.wasm: ${response.statusText}`);
+    async initWorklet(forceScriptProcessor: boolean = false): Promise<void> {
+        // Clean up existing nodes if reinitializing
+        if (this.workletNode || this.scriptProcessorNode) {
+            if (this.workletNode) {
+                this.workletNode.disconnect();
+                this.workletNode = null;
+            }
+            if (this.scriptProcessorNode) {
+                // Clean up event handler to prevent memory leaks
+                this.scriptProcessorNode.onaudioprocess = null;
+                this.scriptProcessorNode.disconnect();
+                this.scriptProcessorNode = null;
+            }
         }
-        const wasmBinary = await response.arrayBuffer();
 
-        // Create shared buffers for ring buffers
-        const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
-        const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
+        // Try AudioWorklet first (if not forcing fallback)
+        if (!forceScriptProcessor && this.audioContext.audioWorklet) {
+            try {
+                await this.audioContext.audioWorklet.addModule(processorUrl);
 
-        this.inputRingBuffer = new RingBuffer(inputBuffer);
-        this._outputRingBuffer = new RingBuffer(outputBuffer);
-
-        this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
-        
-        // Initialize the worklet with the fetched binary and buffers (flat structure)
-        this.workletNode.port.postMessage({
-            type: 'INIT_WASM',
-            inputBuffer,
-            outputBuffer,
-            wasmBinary,
-            moduleUrl: '/rubberband.js'
-        });
-
-        // Wait for ready signal
-        await new Promise<void>((resolve) => {
-            const handler = (event: MessageEvent) => {
-                if (event.data.type === 'READY') {
-                    this.workletNode!.port.removeEventListener('message', handler);
-                    resolve();
+                // Fetch the WASM binary on the main thread to bypass worklet restrictions
+                const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch rubberband.wasm: ${response.statusText}`);
                 }
-            };
-            this.workletNode!.port.addEventListener('message', handler);
-        });
+                const wasmBinary = await response.arrayBuffer();
+
+                // Create shared buffers for ring buffers
+                const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
+                const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
+
+                this.inputRingBuffer = new RingBuffer(inputBuffer);
+                this._outputRingBuffer = new RingBuffer(outputBuffer);
+
+                this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
+                
+                // Initialize the worklet with the fetched binary and buffers (flat structure)
+                this.workletNode.port.postMessage({
+                    type: 'INIT_WASM',
+                    inputBuffer,
+                    outputBuffer,
+                    wasmBinary,
+                    moduleUrl: '/rubberband.js'
+                });
+
+                // Wait for ready signal
+                await new Promise<void>((resolve) => {
+                    const handler = (event: MessageEvent) => {
+                        if (event.data.type === 'READY') {
+                            this.workletNode!.port.removeEventListener('message', handler);
+                            resolve();
+                        }
+                    };
+                    this.workletNode!.port.addEventListener('message', handler);
+                });
+                
+                this.useWorklet = true;
+                console.log('SingingVoice: AudioWorklet initialized successfully');
+                return;
+            } catch (e) {
+                console.warn('SingingVoice: AudioWorklet initialization failed, falling back to ScriptProcessorNode', e);
+            }
+        }
+
+        // Fallback to ScriptProcessorNode
+        console.log('SingingVoice: Initializing ScriptProcessorNode fallback');
+        this.scriptProcessorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
+        // Note: ScriptProcessorNode has limited functionality - pitch/time shifting won't work
+        // This is a basic pass-through for audio continuity
+        this.scriptProcessorNode.onaudioprocess = (e) => {
+            // Simple pass-through processing
+            const input = e.inputBuffer.getChannelData(0);
+            const output = e.outputBuffer.getChannelData(0);
+            output.set(input);
+        };
+        this.useWorklet = false;
+        console.log('SingingVoice: ScriptProcessorNode fallback initialized (limited functionality)');
     }
 
     /**
@@ -196,9 +236,10 @@ export class SingingVoice {
      * @param ratio Pitch multiplier (e.g., 2.0 = one octave up, 0.5 = one octave down)
      */
     setPitch(ratio: number): void {
-        if (this.workletNode) {
+        if (this.useWorklet && this.workletNode) {
             this.workletNode.parameters.get('pitchScale')!.setValueAtTime(ratio, this.audioContext.currentTime);
         }
+        // ScriptProcessorNode fallback doesn't support pitch shifting
     }
 
     /**
@@ -345,20 +386,24 @@ export class SingingVoice {
      * @param timeRatio Time multiplier (e.g., 2.0 = twice as long, 0.5 = half as long)
      */
     setTimeRatio(timeRatio: number): void {
-        if (this.workletNode) {
+        if (this.useWorklet && this.workletNode) {
             this.workletNode.parameters.get('timeRatio')!.setValueAtTime(timeRatio, this.audioContext.currentTime);
         }
+        // ScriptProcessorNode fallback doesn't support time stretching
     }
 
     /**
-     * Get the underlying AudioWorkletNode.
-     * @returns The AudioWorkletNode
+     * Get the underlying AudioWorkletNode or ScriptProcessorNode.
+     * @returns The audio node
      */
-    getSourceNode(): AudioWorkletNode {
-        if (!this.workletNode) {
-            throw new Error('SingingVoice not initialized. Call initWorklet() first.');
+    getSourceNode(): AudioWorkletNode | ScriptProcessorNode {
+        if (this.useWorklet && this.workletNode) {
+            return this.workletNode;
         }
-        return this.workletNode;
+        if (this.scriptProcessorNode) {
+            return this.scriptProcessorNode;
+        }
+        throw new Error('SingingVoice not initialized. Call initWorklet() first.');
     }
 
     /**
@@ -366,8 +411,9 @@ export class SingingVoice {
      * @param destination AudioNode to connect to
      */
     connect(destination: AudioNode): void {
-        if (this.workletNode) {
-            this.workletNode.connect(destination);
+        const node = this.useWorklet ? this.workletNode : this.scriptProcessorNode;
+        if (node) {
+            node.connect(destination);
         }
     }
 
@@ -376,11 +422,12 @@ export class SingingVoice {
      * @param destination Optional specific destination to disconnect from
      */
     disconnect(destination?: AudioNode): void {
-        if (this.workletNode) {
+        const node = this.useWorklet ? this.workletNode : this.scriptProcessorNode;
+        if (node) {
             if (destination) {
-                this.workletNode.disconnect(destination);
+                node.disconnect(destination);
             } else {
-                this.workletNode.disconnect();
+                node.disconnect();
             }
         }
     }
@@ -515,16 +562,17 @@ export class SingingVoice {
      * @param destination Destination audio node
      */
     connectOutput(destination: AudioNode): void {
-        if (!this.workletNode) {
-            throw new Error('Worklet not initialized. Call initWorklet() first.');
+        const node = this.useWorklet ? this.workletNode : this.scriptProcessorNode;
+        if (!node) {
+            throw new Error('Voice not initialized. Call initWorklet() first.');
         }
         
         if (this.formantShifter && this.config.enableFormantShifting) {
             // Route through formant shifter
-            this.formantShifter.connect(this.workletNode, destination);
+            this.formantShifter.connect(node, destination);
         } else {
             // Direct connection
-            this.workletNode.connect(destination);
+            node.connect(destination);
         }
     }
     
@@ -532,8 +580,9 @@ export class SingingVoice {
      * Disconnect the output.
      */
     disconnectOutput(): void {
-        if (this.workletNode) {
-            this.workletNode.disconnect();
+        const node = this.useWorklet ? this.workletNode : this.scriptProcessorNode;
+        if (node) {
+            node.disconnect();
         }
         if (this.formantShifter) {
             this.formantShifter.disconnect();

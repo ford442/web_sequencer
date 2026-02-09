@@ -24,14 +24,14 @@ export class Open303Oscillator {
     isReady: boolean = false;
     useWorklet: boolean = false;
 
-    async init(audioContext: AudioContext, workletUrl?: string): Promise<boolean> {
+    async init(audioContext: AudioContext, workletUrl?: string, forceScriptProcessor: boolean = false): Promise<boolean> {
         this.outputNode = audioContext.createGain();
         this.gainNode = audioContext.createGain();
         this.gainNode.gain.value = 1.0;
         this.gainNode.connect(this.outputNode);
 
-        // 1. Try Audio Worklet (Preferred)
-        if (audioContext.audioWorklet && workletUrl) {
+        // 1. Try Audio Worklet (Preferred) - unless forcing fallback
+        if (!forceScriptProcessor && audioContext.audioWorklet && workletUrl) {
             try {
                 console.log("Open303: Attempting to load Worklet...");
 
@@ -65,6 +65,8 @@ export class Open303Oscillator {
             } catch (e) {
                 console.warn("Open303: Worklet initialization failed. Falling back.", e);
             }
+        } else if (forceScriptProcessor) {
+            console.log("Open303: ScriptProcessorNode fallback forced by user setting");
         }
 
         // 2. Fallback to ScriptProcessor (Legacy)
