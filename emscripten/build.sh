@@ -90,6 +90,42 @@ sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' "$RUBBERBAND_SRC/
 # Fix size_t issue in sysutils.h (needed for mathmisc.h etc)
 echo "  [Patch] Fixing size_t in sysutils.h..."
 sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' "$RUBBERBAND_SRC/src/common/sysutils.h" || true
+
+# --- OPENMP PARALLELIZATION PATCHES ---
+echo "  [Patch] Adding OpenMP parallelization to rubberband..."
+
+# Add OpenMP include to main headers
+for file in "$RUBBERBAND_SRC/src/faster/R2Stretcher.cpp" \
+            "$RUBBERBAND_SRC/src/faster/StretcherProcess.cpp" \
+            "$RUBBERBAND_SRC/src/finer/R3Stretcher.cpp" \
+            "$RUBBERBAND_SRC/src/finer/R3LiveShifter.cpp"; do
+    if [ -f "$file" ] && ! grep -q "#include <omp.h>" "$file"; then
+        echo "    Adding OpenMP include to $(basename $file)..."
+        sed -i '1s/^/#ifdef _OPENMP\n#include <omp.h>\n#endif\n/' "$file"
+    fi
+done
+
+# Simple patch: Add OpenMP pragma before channel loops
+# Pattern: for (int c = 0; c < ...channels...; ++c) {
+for file in "$RUBBERBAND_SRC/src/faster/R2Stretcher.cpp" \
+            "$RUBBERBAND_SRC/src/faster/StretcherProcess.cpp" \
+            "$RUBBERBAND_SRC/src/finer/R3Stretcher.cpp" \
+            "$RUBBERBAND_SRC/src/finer/R3LiveShifter.cpp"; do
+    if [ -f "$file" ]; then
+        # Count channel loops and patch them
+        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
+        if [ "$count" -gt 0 ]; then
+            echo "    Patching $count channel loops in $(basename $file)..."
+            # Add pragma before each channel loop
+            sed -i '/for (int c = 0; c < .*channels/i \
+#ifdef _OPENMP\
+#pragma omp parallel for schedule(static) if(m_channels > 2 || m_parameters.channels > 2)\
+#endif' "$file"
+        fi
+    fi
+done
+
+echo "  [Patch] OpenMP parallelization complete."
 # --- PATCH END ---
 
 # 1. Compile C sources (KissFFT, Speex)
