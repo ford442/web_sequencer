@@ -86,7 +86,10 @@ echo -e "${GREEN}Found libomp.a: $LIBOMP_PATH${NC}"
 # We add -I to find omp.h
 OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
 OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
-LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0 ${LIBOMP_PATH}"
+# Prevent Emscripten from minifying import/export names so AudioWorklet can resolve them.
+# MINIFY_WASM_IMPORTS=0 keeps imports like "abort" instead of "b". MINIFY_EXPORT_NAME=0 is a fallback
+# (some older Emscripten versions used a different minification pass).
+LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0 -s MINIFY_WASM_IMPORTS=0 -s MINIFY_EXPORT_NAME=0 ${LIBOMP_PATH}"
 
 # Configure with CMake using Emscripten toolchain
 echo -e "${YELLOW}Configuring with CMake (OpenMP enabled)...${NC}"

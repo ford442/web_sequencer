@@ -32,6 +32,17 @@ class Open303Processor extends AudioWorkletProcessor {
                 try {
                     const importDescriptors = WebAssembly.Module.imports(module);
                     console.log("[Open303] WASM Imports Requirement:", JSON.stringify(importDescriptors));
+
+                    // If the module imports single-letter/minified names (e.g. "b"), the wasm
+                    // was built with import minification. Recommend rebuilding with the
+                    // MINIFY_WASM_IMPORTS=0 flag so names like "abort" are preserved.
+                    const importNames = importDescriptors.map((d: any) => d.name || '');
+                    if (importNames.some((n: string) => /^[A-Za-z]$/.test(n))) {
+                        console.warn(
+                            "[Open303] Detected minified import names (e.g. 'b').",
+                            "Rebuild jc303 with: -s MINIFY_WASM_IMPORTS=0 (see tools/build_jc303_omp.sh)"
+                        );
+                    }
                 } catch (e) {
                     console.warn("[Open303] Failed to inspect imports:", e);
                 }
@@ -40,6 +51,7 @@ class Open303Processor extends AudioWorkletProcessor {
                 // We define the standard Emscripten imports plus stubs for runtime safety.
                 const env: any = {
                     abort: () => console.error("WASM Abort"),
+                    b: () => console.error("WASM Abort"),  // Alias for minified abort — TODO: remove after rebuilding jc303 with -s MINIFY_WASM_IMPORTS=0
                     emscripten_notify_memory_growth: () => this.updateHeap(),
                     exp: Math.exp,
                     pow: Math.pow,
