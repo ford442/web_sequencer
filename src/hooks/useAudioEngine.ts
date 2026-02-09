@@ -90,10 +90,9 @@ export const useAudioEngine = (pyodide: any) => {
         try {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-            // --- CRITICAL FIX: Ensure AudioContext is running ---
+            // Ensure AudioContext is running
             if (context.state === 'suspended') {
                 await context.resume();
-                console.log("AudioContext resumed");
             }
 
             // --- MASTER CHAIN ---
@@ -130,9 +129,6 @@ export const useAudioEngine = (pyodide: any) => {
             if (open303Ready) {
                 open303Engine.connect(masterGain);
                 open303EngineRef.current = open303Engine;
-                console.log('Open303 Engine Ready');
-            } else {
-                console.warn('Open303 Engine failed to initialize');
             }
 
             // Load WAV Files
@@ -200,7 +196,7 @@ export const useAudioEngine = (pyodide: any) => {
 
             // Define Playback Functions
 
-            const playSynth = (params: SynthParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, slide: boolean = false) => {
+            const playSynth = (params: SynthParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, _slide: boolean = false) => {
                  if (!masterGainRef.current) return;
 
                  // Open303 Routing
@@ -218,35 +214,65 @@ export const useAudioEngine = (pyodide: any) => {
                          }, startDelay * 1000);
 
                          setTimeout(() => {
-                             if (!slide) {
-                                 open303EngineRef.current?.noteOff(midi);
-                             }
+                             open303EngineRef.current?.noteOff(midi);
                          }, (startDelay + duration) * 1000);
 
                          return;
                      }
                  }
 
-                 // Standard Synth Logic (WASM/WebGPU/Native)
                  const freq = noteToFrequency(note);
-                 const osc = context.createOscillator();
                  const gain = context.createGain();
+                 const filter = context.createBiquadFilter();
+                 filter.type = 'lowpass';
+                 filter.frequency.setValueAtTime(params.filterCutoff, time);
+                 filter.Q.value = params.filterResonance;
 
-                 // Type selection
+                 // Handle WAV buffer playback
                  let customBuffer: AudioBuffer | null = null;
                  if (params.waveform === 'wav-saw') customBuffer = wavSawBufferRef.current;
                  else if (params.waveform === 'wav-sqr') customBuffer = wavSqrBufferRef.current;
 
                  if (customBuffer) {
                      // WAV playback logic
-                     // ...
+                     const source = context.createBufferSource();
+                     source.buffer = customBuffer;
+                     source.playbackRate.value = freq / 440; // Adjust pitch based on frequency
+                     
+                     // Envelope for WAV playback
+                     const attackEnd = time + params.attack;
+                     const decayEnd = attackEnd + params.decay;
+                     const releaseStart = time + (durationSteps * stepTime);
+                     const releaseEnd = releaseStart + params.release;
+                     
+                     gain.gain.setValueAtTime(0, time);
+                     gain.gain.linearRampToValueAtTime(params.volume, attackEnd);
+                     gain.gain.exponentialRampToValueAtTime(Math.max(0.001, params.volume * params.sustain), decayEnd);
+                     gain.gain.setValueAtTime(Math.max(0.001, params.volume * params.sustain), releaseStart);
+                     gain.gain.exponentialRampToValueAtTime(0.001, releaseEnd);
+                     
+                     source.connect(filter);
+                     filter.connect(gain);
+                     gain.connect(masterGainRef.current);
+                     
+                     source.start(time);
+                     source.stop(releaseEnd + 0.1);
+                     
+                     // Cleanup
+                     setTimeout(() => {
+                         source.disconnect();
+                         filter.disconnect();
+                         gain.disconnect();
+                     }, (releaseEnd - time + 1.0) * 1000);
+                     return;
+                 }
+
+                 // Standard Oscillator
+                 const osc = context.createOscillator();
+                 if (params.waveform === 'sawtooth' || params.waveform === 'square' || params.waveform === 'triangle' || params.waveform === 'sine') {
+                    osc.type = params.waveform;
                  } else {
-                     // Standard Oscillator
-                     if (params.waveform === 'sawtooth' || params.waveform === 'square' || params.waveform === 'triangle' || params.waveform === 'sine') {
-                        osc.type = params.waveform;
-                     } else {
-                        osc.type = 'sawtooth'; // Fallback
-                     }
+                    osc.type = 'sawtooth'; // Fallback
                  }
 
                  // Envelope
@@ -261,12 +287,6 @@ export const useAudioEngine = (pyodide: any) => {
                  gain.gain.exponentialRampToValueAtTime(Math.max(0.001, params.volume * params.sustain), decayEnd);
                  gain.gain.setValueAtTime(Math.max(0.001, params.volume * params.sustain), releaseStart);
                  gain.gain.exponentialRampToValueAtTime(0.001, releaseEnd);
-
-                 // Filter
-                 const filter = context.createBiquadFilter();
-                 filter.type = 'lowpass';
-                 filter.frequency.setValueAtTime(params.filterCutoff, now);
-                 filter.Q.value = params.filterResonance;
 
                  // Delay
                  const delay = context.createDelay();
@@ -399,7 +419,6 @@ export const useAudioEngine = (pyodide: any) => {
                     const alignment = await singingVoiceRef.current.alignPhonemes(audio, text);
                     if (alignment) {
                         vocalAlignmentsRef.current.set(bankName, alignment);
-                        console.log(`Aligned phonemes for ${bankName}: ${alignment.phonemes.length}`);
                     }
                 } catch (e) {
                     console.warn('Phoneme alignment failed:', e);

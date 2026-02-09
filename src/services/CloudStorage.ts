@@ -20,7 +20,7 @@ export interface CloudSongPayload {
     author: string;
     description: string;
     type: CloudItemType; // Added type field
-    data: any; 
+    data: unknown; 
 }
 
 // Simple event bus for status updates
@@ -54,7 +54,7 @@ export const CloudStorage = {
     },
 
     // Updated to accept optional type for faster/safer lookup
-    async getSongData(id: string, type?: CloudItemType): Promise<any> {
+    async getSongData(id: string, type?: CloudItemType): Promise<unknown> {
         let url = `${API_BASE_URL}/api/songs/${id}`;
         if (type) url += `?type=${type}`;
 
