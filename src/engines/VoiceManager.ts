@@ -78,12 +78,12 @@ export class Voice {
                 this.source.frequency.setValueAtTime(slideFromFreq!, now);
                 this.source.frequency.exponentialRampToValueAtTime(freq, now + 0.1);
             } else if (this.source instanceof AudioBufferSourceNode) {
-                 const baseFreq = 261.63;
-                 const startRate = slideFromFreq! / baseFreq;
-                 const endRate = freq / baseFreq;
-                 this.source.playbackRate.cancelScheduledValues(now);
-                 this.source.playbackRate.setValueAtTime(startRate, now);
-                 this.source.playbackRate.exponentialRampToValueAtTime(endRate, now + 0.1);
+                const baseFreq = 261.63;
+                const startRate = slideFromFreq! / baseFreq;
+                const endRate = freq / baseFreq;
+                this.source.playbackRate.cancelScheduledValues(now);
+                this.source.playbackRate.setValueAtTime(startRate, now);
+                this.source.playbackRate.exponentialRampToValueAtTime(endRate, now + 0.1);
             }
 
             // Sustain
@@ -157,7 +157,7 @@ export class Voice {
         if (this.source) {
             try {
                 this.source.stop(releaseEnd + 0.1);
-            } catch(e) {}
+            } catch (e) { }
         }
 
         this.cleanupTimer = setTimeout(() => {
@@ -175,7 +175,7 @@ export class Voice {
             try {
                 this.source.stop(time);
                 this.source.disconnect();
-            } catch (e) {}
+            } catch (e) { }
             this.source = null;
         }
         this.isActive = false;
@@ -273,16 +273,16 @@ export class VoiceManager {
 
     noteOff(note: string, time: number, params: SynthParams) {
         if (this.isMonophonic) {
-             const voice = this.voices[0];
-             if (voice && voice.isActive && voice.currentNote === note) {
-                 voice.stopNote(time, params);
-             }
+            const voice = this.voices[0];
+            if (voice && voice.isActive && voice.currentNote === note) {
+                voice.stopNote(time, params);
+            }
         } else {
-             // Find active voice for note
-             const voice = this.voices.find(v => v.currentNote === note && v.isActive);
-             if (voice) {
-                 voice.stopNote(time, params);
-             }
+            // Find active voice for note
+            const voice = this.voices.find(v => v.currentNote === note && v.isActive);
+            if (voice) {
+                voice.stopNote(time, params);
+            }
         }
     }
 
