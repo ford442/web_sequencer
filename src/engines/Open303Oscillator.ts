@@ -20,17 +20,21 @@ export class Open303Oscillator {
     private gainNode: GainNode | null = null;
     private outputNode: GainNode | null = null;
     private params: Open303Params = { ...DEFAULT_303_PARAMS };
-    
+
     isReady: boolean = false;
     useWorklet: boolean = false;
 
-    async init(audioContext: AudioContext, workletUrl?: string, forceScriptProcessor: boolean = false): Promise<boolean> {
+    async init(audioContext: AudioContext, workletUrl?: string, forceScriptProcessor: boolean = true): Promise<boolean> {
+        // Worklet disabled: jc303.wasm expects shared memory (pthreads/OMP build), but AudioWorklet imports non-shared
+        // Fix: rebuild jc303 with USE_PTHREADS=0 in tools/build_jc303_omp.sh (remove OMP_FLAGS/LINK_OMP_FLAGS)
+        console.log("Open303: Using ScriptProcessorNode fallback");
+
         this.outputNode = audioContext.createGain();
         this.gainNode = audioContext.createGain();
         this.gainNode.gain.value = 1.0;
         this.gainNode.connect(this.outputNode);
 
-        // 1. Try Audio Worklet (Preferred) - unless forcing fallback
+        // 1. Try Audio Worklet (Preferred) - unless forcing fallback (defaults to true for stability)
         if (!forceScriptProcessor && audioContext.audioWorklet && workletUrl) {
             try {
                 console.log("Open303: Attempting to load Worklet...");
@@ -77,14 +81,14 @@ export class Open303Oscillator {
         try {
             console.log("Open303: Attempting Legacy Init...");
             if (typeof window.JC303Module === 'undefined') {
-                 // Try to load the JS shim if missing
-                 await new Promise<void>((resolve, reject) => {
+                // Try to load the JS shim if missing
+                await new Promise<void>((resolve, reject) => {
                     const script = document.createElement('script');
                     script.src = './jc303.js';
                     script.onload = () => resolve();
                     script.onerror = () => reject(new Error('jc303.js not found'));
                     document.head.appendChild(script);
-                 });
+                });
             }
 
             if (!window.JC303Module) throw new Error("JC303Module not available");
@@ -95,7 +99,7 @@ export class Open303Oscillator {
             if (typeof this.wasmModule.HEAPF32 === 'undefined' && this.wasmModule.memory) {
                 Object.defineProperty(this.wasmModule, 'HEAPF32', {
                     configurable: true,
-                    get: function() { return new Float32Array(this.memory.buffer); }
+                    get: function () { return new Float32Array(this.memory.buffer); }
                 });
             }
 

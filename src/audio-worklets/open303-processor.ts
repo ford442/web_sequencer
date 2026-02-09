@@ -82,9 +82,23 @@ class Open303Processor extends AudioWorkletProcessor {
                 const memoryImportPages = (data && data.memoryPages) || 256; // 256 pages = 16MB (reasonable default for Emscripten)
                 for (const imp of WebAssembly.Module.imports(module)) {
                     if (imp.kind === 'memory') {
-                        const mem = new WebAssembly.Memory({ initial: memoryImportPages, maximum: memoryImportPages });
+                        let mem: WebAssembly.Memory;
+                        try {
+                            // Try shared memory first (required if WASM was compiled with -pthread)
+                            mem = new WebAssembly.Memory({
+                                initial: memoryImportPages,
+                                maximum: memoryImportPages,
+                                shared: true
+                            });
+                            console.log(`[Open303] created SHARED memory for ${imp.module}.${imp.name} — ${memoryImportPages} pages`);
+                        } catch (e) {
+                            // Fallback to non-shared if SharedArrayBuffer not available (missing COOP/COEP headers)
+                            console.warn(`[Open303] SharedArrayBuffer not available, using regular memory:`, e);
+                            mem = new WebAssembly.Memory({ initial: memoryImportPages, maximum: memoryImportPages });
+                            console.log(`[Open303] created non-shared memory for ${imp.module}.${imp.name} — ${memoryImportPages} pages`);
+                        }
+
                         this.importedMemory = mem;
-                        console.log(`[Open303] created imported memory for ${imp.module}.${imp.name} — ${memoryImportPages} pages`);
 
                         // Ensure the importsObject has the exact module namespace the wasm requests
                         if (!importsObject[imp.module]) importsObject[imp.module] = {};
