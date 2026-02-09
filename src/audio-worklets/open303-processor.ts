@@ -13,6 +13,7 @@ class Open303Processor extends AudioWorkletProcessor {
     private importedMemory: WebAssembly.Memory | null = null;
     private heapFloat32: Float32Array | null = null;
     private isWasmReady: boolean = false;
+    private isThreaded: boolean = false;  // Track if we're using threaded variant
 
     constructor() {
         super();
@@ -24,6 +25,11 @@ class Open303Processor extends AudioWorkletProcessor {
 
         if (type === 'init-wasm') {
             try {
+                const variant = data.variant || 'single';
+                this.isThreaded = data.isThreaded || false;
+                
+                console.log(`[Open303] Initializing with ${variant} WASM variant (threaded: ${this.isThreaded})`);
+                
                 // 1. Compile the WASM module
                 const module = await WebAssembly.compile(data.wasmBytes);
 
@@ -87,27 +93,39 @@ class Open303Processor extends AudioWorkletProcessor {
                     "": env
                 };
 
-                // If the module expects an imported memory, create one and attach it to
-                // the exact module/name the wasm expects (and also to common aliases).
-                // Keep a reference on `this.importedMemory` so updateHeap can use it
-                // when the module does not export the memory.
-                const memoryImportPages = (data && data.memoryPages) || 256; // 256 pages = 16MB (reasonable default for Emscripten)
+                // If the module expects an imported memory, create one and attach it.
+                // For threaded variant: Use SharedArrayBuffer (requires COOP/COEP headers)
+                // For single-threaded: Use regular ArrayBuffer
+                const memoryImportPages = (data && data.memoryPages) || 256; // 256 pages = 16MB
                 for (const imp of WebAssembly.Module.imports(module)) {
                     if (imp.kind === 'memory') {
                         let mem: WebAssembly.Memory;
-                        try {
-                            // Try shared memory first (required if WASM was compiled with -pthread)
-                            mem = new WebAssembly.Memory({
-                                initial: memoryImportPages,
-                                maximum: memoryImportPages,
-                                shared: true
+                        
+                        if (this.isThreaded) {
+                            // Threaded variant requires shared memory
+                            try {
+                                mem = new WebAssembly.Memory({
+                                    initial: memoryImportPages,
+                                    maximum: memoryImportPages,
+                                    shared: true
+                                });
+                                console.log(`[Open303] Created SHARED memory for ${imp.module}.${imp.name} — ${memoryImportPages} pages`);
+                            } catch (e) {
+                                // If SharedArrayBuffer fails, we can't continue with threaded variant
+                                console.error(`[Open303] SharedArrayBuffer not available for threaded variant:`, e);
+                                this.port.postMessage({ 
+                                    type: 'error', 
+                                    error: 'SharedArrayBuffer not available. Ensure Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers are configured correctly on your web server. These headers are required for threaded WASM variants.' 
+                                });
+                                return;
+                            }
+                        } else {
+                            // Single-threaded uses regular memory
+                            mem = new WebAssembly.Memory({ 
+                                initial: memoryImportPages, 
+                                maximum: memoryImportPages 
                             });
-                            console.log(`[Open303] created SHARED memory for ${imp.module}.${imp.name} — ${memoryImportPages} pages`);
-                        } catch (e) {
-                            // Fallback to non-shared if SharedArrayBuffer not available (missing COOP/COEP headers)
-                            console.warn(`[Open303] SharedArrayBuffer not available, using regular memory:`, e);
-                            mem = new WebAssembly.Memory({ initial: memoryImportPages, maximum: memoryImportPages });
-                            console.log(`[Open303] created non-shared memory for ${imp.module}.${imp.name} — ${memoryImportPages} pages`);
+                            console.log(`[Open303] Created non-shared memory for ${imp.module}.${imp.name} — ${memoryImportPages} pages`);
                         }
 
                         this.importedMemory = mem;
