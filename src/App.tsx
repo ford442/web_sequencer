@@ -302,7 +302,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
             lastActiveIndexRef.current = newActiveIndex;
         } else {
-             if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
+            if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
         }
     }, [steps]);
 
@@ -744,11 +744,11 @@ export const App: React.FC = () => {
                     if (trackKey === 'sampler') {
                         const bankIdx = activeSamplerBankRef.current;
                         const bank = copy.sampler[bankIdx];
-                        for(let i=low; i<=high; i++) { bank.steps[i] = null; }
+                        for (let i = low; i <= high; i++) { bank.steps[i] = null; }
                         changedSequence = copy.sampler;
                     } else {
                         const track = copy[trackKey] as any;
-                        for(let i=low; i<=high; i++) { track.steps[i] = null; }
+                        for (let i = low; i <= high; i++) { track.steps[i] = null; }
                         changedSequence = track;
                     }
                     updateStorageForTrack(trackKey, changedSequence);
@@ -806,7 +806,7 @@ export const App: React.FC = () => {
         setPattern(copy);
         updateStorageForTrack(trackKey, changedSequence);
     };
-    const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({length:8}, () => ({ steps: Array(32).fill(null) })), } as any as Pattern; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
+    const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })), } as any as Pattern; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => { handlePatternChange(k, i, undefined, { length: len }); }, [handlePatternChange]);
@@ -842,8 +842,12 @@ export const App: React.FC = () => {
     const handleSnareChange = useCallback((id: string, val: number) => { let realVal = val; if (id === 'tone') realVal = val * 300 + 100; else if (id === 'noise') realVal = val * 7000 + 1000; else if (id === 'decay') realVal = val * 0.5; updateSnare({ [id]: realVal }); }, [updateSnare]);
     const handleClosedHatChange = useCallback((id: string, val: number) => updateClosedHat({ [id]: val }), [updateClosedHat]);
     const handleOpenHatChange = useCallback((id: string, val: number) => updateOpenHat({ [id]: val }), [updateOpenHat]);
-    const handleSamplerChange = useCallback((id: string, val: number) => { let realVal = val; if (id === 'playbackSpeed') realVal = val * 4.0; else if (id === 'filterCutoff') realVal = val * 20000; else if (id === 'filterResonance') realVal = val * 20; setSampler(prev => { const next = [...prev]; const currentBank = next[activeSamplerBank]; // @ts-ignore
-    next[activeSamplerBank] = { ...currentBank, [id]: realVal }; return next; }); }, [activeSamplerBank]);
+    const handleSamplerChange = useCallback((id: string, val: number) => {
+        let realVal = val; if (id === 'playbackSpeed') realVal = val * 4.0; else if (id === 'filterCutoff') realVal = val * 20000; else if (id === 'filterResonance') realVal = val * 20; setSampler(prev => {
+            const next = [...prev]; const currentBank = next[activeSamplerBank]; // @ts-ignore
+            next[activeSamplerBank] = { ...currentBank, [id]: realVal }; return next;
+        });
+    }, [activeSamplerBank]);
 
     // Stable handler for SamplerPanel to avoid re-renders
     const handleSamplerParamChange = useCallback((bankIdx: number, key: string, val: any) => {
@@ -861,8 +865,8 @@ export const App: React.FC = () => {
     const handleTtsPhraseChange = useCallback((newPhrases: string[]) => {
         setTtsPhrases(newPhrases);
         if (audioEngine?.prepareVocal) {
-             const text = newPhrases[activeSamplerBank];
-             audioEngine.prepareVocal(activeSamplerBank, text);
+            const text = newPhrases[activeSamplerBank];
+            audioEngine.prepareVocal(activeSamplerBank, text);
         }
     }, [audioEngine, activeSamplerBank]);
 
@@ -978,10 +982,10 @@ export const App: React.FC = () => {
 
     const sequencerNode = useMemo(() => {
         if (isSongModeOpen && is3DMode) {
-             return (
+            return (
                 <div className="w-full h-[480px] p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-hidden">
-                     <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none z-50"></div>
-                     <SongMode
+                    <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none z-50"></div>
+                    <SongMode
                         isVisible={true}
                         is3D={true}
                         songStructure={songStructure}
@@ -995,9 +999,9 @@ export const App: React.FC = () => {
                         onExportXM={handleExportXM}
                         isSongModeActive={isSongModeActive}
                         onSetIsSongModeActive={setIsSongModeActive}
-                     />
+                    />
                 </div>
-             );
+            );
         }
         return (
             <div className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative">
