@@ -10,6 +10,7 @@ declare function registerProcessor(name: string, processorCtor: new () => AudioW
 
 class Open303Processor extends AudioWorkletProcessor {
     private wasmInstance: WebAssembly.Instance | null = null;
+    private importedMemory: WebAssembly.Memory | null = null;
     private heapFloat32: Float32Array | null = null;
     private isWasmReady: boolean = false;
 
@@ -50,9 +51,11 @@ class Open303Processor extends AudioWorkletProcessor {
                     _emscripten_resize_heap: (_size: number) => false, // Return false to indicate failure if dynamic growth isn't supported/needed
                     _emscripten_memcpy_big: (dest: number, src: number, num: number) => {
                         // Safety check: Instance might not be ready during immediate instantiation
-                        if (!this.wasmInstance) return;
+                        if (!this.wasmInstance && !this.importedMemory) return;
 
-                        const memory = this.wasmInstance.exports.memory as WebAssembly.Memory;
+                        const memory = (this.wasmInstance && (this.wasmInstance.exports && (this.wasmInstance.exports.memory as WebAssembly.Memory))) || this.importedMemory;
+                        if (!memory) return;
+
                         const heap = new Uint8Array(memory.buffer);
                         heap.set(heap.subarray(src, src + num), dest);
                     }
@@ -64,7 +67,7 @@ class Open303Processor extends AudioWorkletProcessor {
                 console.log("[Open303] Instantiating with env keys:", Object.keys(env));
 
                 // Construct the imports object explicitly
-                const importsObject = {
+                const importsObject: any = {
                     env: env,
                     a: env,
                     wasi_snapshot_preview1: env,
@@ -72,8 +75,32 @@ class Open303Processor extends AudioWorkletProcessor {
                     "": env
                 };
 
+                // If the module expects an imported memory, create one and attach it to
+                // the exact module/name the wasm expects (and also to common aliases).
+                // Keep a reference on `this.importedMemory` so updateHeap can use it
+                // when the module does not export the memory.
+                const memoryImportPages = (data && data.memoryPages) || 256; // 256 pages = 16MB (reasonable default for Emscripten)
+                for (const imp of WebAssembly.Module.imports(module)) {
+                    if (imp.kind === 'memory') {
+                        const mem = new WebAssembly.Memory({ initial: memoryImportPages, maximum: memoryImportPages });
+                        this.importedMemory = mem;
+                        console.log(`[Open303] created imported memory for ${imp.module}.${imp.name} — ${memoryImportPages} pages`);
+
+                        // Ensure the importsObject has the exact module namespace the wasm requests
+                        if (!importsObject[imp.module]) importsObject[imp.module] = {};
+                        importsObject[imp.module][imp.name] = mem;
+
+                        // Also attach to the common aliases so other code can access it
+                        importsObject.env = importsObject.env || {};
+                        importsObject.env.memory = mem;
+                        importsObject.a = importsObject.a || {};
+                        importsObject.a.memory = mem;
+                    }
+                }
+
                 this.wasmInstance = await WebAssembly.instantiate(module, importsObject);
 
+                // Ensure updateHeap() can see either the exported memory or the imported one
                 this.updateHeap();
 
                 // 4. Initialize the DSP in the WASM
@@ -111,8 +138,9 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private updateHeap() {
-        if (this.wasmInstance && this.wasmInstance.exports.memory) {
-            const memory = this.wasmInstance.exports.memory as WebAssembly.Memory;
+        // Prefer exported memory, fall back to an imported memory we created for instantiation.
+        const memory = (this.wasmInstance && (this.wasmInstance.exports && (this.wasmInstance.exports.memory as WebAssembly.Memory))) || this.importedMemory;
+        if (memory) {
             this.heapFloat32 = new Float32Array(memory.buffer);
         }
     }
