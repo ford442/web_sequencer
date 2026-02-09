@@ -43,12 +43,12 @@ function apply303Params(engine: Open303Oscillator, params: SynthParams, waveType
     engine.setVolume(params.volume);
 }
 
-export const useAudioEngine = (pyodide: any) => {
+export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = false) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
     const singingVoiceRef = useRef<SingingVoice | null>(null);
-    const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
+    const sustainNodeRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
     const ambianceGainNodeRef = useRef<GainNode | null>(null);
@@ -125,7 +125,7 @@ export const useAudioEngine = (pyodide: any) => {
 
             // Initialize Open303 Engine (TB-303 clone)
             const open303Engine = new Open303Oscillator();
-            const open303Ready = await open303Engine.init(context, open303ProcessorUrl);
+            const open303Ready = await open303Engine.init(context, open303ProcessorUrl, forceScriptProcessor);
 
             if (open303Ready) {
                 open303Engine.connect(masterGain);
@@ -164,17 +164,33 @@ export const useAudioEngine = (pyodide: any) => {
 
 
             // Initialize AudioWorklets
-            try {
-                await context.audioWorklet.addModule(sustainProcessorUrl);
-                const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
-                    numberOfInputs: 0,
-                    numberOfOutputs: 1,
-                    outputChannelCount: [2]
-                });
+            if (!forceScriptProcessor) {
+                try {
+                    await context.audioWorklet.addModule(sustainProcessorUrl);
+                    const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
+                        numberOfInputs: 0,
+                        numberOfOutputs: 1,
+                        outputChannelCount: [2]
+                    });
+                    sustainNode.connect(masterGainRef.current!);
+                    sustainNodeRef.current = sustainNode;
+                    console.log('SustainProcessor AudioWorklet initialized');
+                } catch (e) {
+                    console.warn('Sustain worklet not available:', e);
+                }
+            } else {
+                // Fallback to ScriptProcessorNode for sustain processor
+                console.log('SustainProcessor: Using ScriptProcessorNode fallback');
+                const sustainNode = context.createScriptProcessor(4096, 0, 2);
+                sustainNode.onaudioprocess = (e) => {
+                    // Basic pass-through - limited functionality
+                    const left = e.outputBuffer.getChannelData(0);
+                    const right = e.outputBuffer.getChannelData(1);
+                    left.fill(0);
+                    right.fill(0);
+                };
                 sustainNode.connect(masterGainRef.current!);
                 sustainNodeRef.current = sustainNode;
-            } catch (e) {
-                console.warn('Sustain worklet not available:', e);
             }
 
             // --- Singing Voice Init (Fail-safe) ---
@@ -186,7 +202,7 @@ export const useAudioEngine = (pyodide: any) => {
                     bufferSize: 16384,
                     enablePhonemeStretching: true
                 });
-                await singingVoiceRef.current.initWorklet();
+                await singingVoiceRef.current.initWorklet(forceScriptProcessor);
                 singingVoiceRef.current.getSourceNode().connect(masterGainRef.current!);
                 
                 // Pre-cache if Pyodide ready
@@ -623,7 +639,7 @@ export const useAudioEngine = (pyodide: any) => {
             setIsReady(true);
             isInitializing.current = false;
         }
-    }, [audioEngine]);
+    }, [audioEngine, forceScriptProcessor]);
 
 
 

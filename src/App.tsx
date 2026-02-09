@@ -392,6 +392,7 @@ export const App: React.FC = () => {
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
+    const [forceScriptProcessorFallback, setForceScriptProcessorFallback] = useState(false);
 
     // Initialize Gamepad Support
     useGamepad();
@@ -406,7 +407,7 @@ export const App: React.FC = () => {
     }, []);
 
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
-    const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide)
+    const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide, forceScriptProcessorFallback)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
     const handleStart = async () => {
@@ -976,9 +977,26 @@ export const App: React.FC = () => {
                 >
                     <span role="img" aria-label="joystick" className="text-lg">🎮</span>
                 </button>
+                
+                {/* AudioWorklet Fallback Toggle */}
+                <button
+                    onClick={() => {
+                        setForceScriptProcessorFallback(!forceScriptProcessorFallback);
+                        showToast(
+                            !forceScriptProcessorFallback 
+                                ? "ScriptProcessor fallback enabled. Restart audio to apply." 
+                                : "AudioWorklet mode enabled. Restart audio to apply.",
+                            'success'
+                        );
+                    }}
+                    className={`ml-2 px-2 py-1 rounded text-xs font-mono border transition-all ${forceScriptProcessorFallback ? 'bg-yellow-900/20 text-yellow-400 border-yellow-900/50' : 'bg-gray-800 text-gray-500 border-gray-700'}`}
+                    title={forceScriptProcessorFallback ? "Using ScriptProcessor fallback (click to disable)" : "Using AudioWorklet (click to force fallback)"}
+                >
+                    {forceScriptProcessorFallback ? '⚠️ FALLBACK' : '🔊 AWN'}
+                </button>
             </div>
         </header>
-    ), [is3DMode, songStorage, activeSongSlot, masterVolume, globalPan, tempo, isRecording, isPlaying, isSongModeOpen, loadSong, handleSaveSong, exportSongToFile, importSongFromFile, handleClearPattern, handleMasterVolume, handleMasterVolumeKeyDown, handleGlobalPan, handleGlobalPanKeyDown, handleTempoHoldStart, handleTempoHoldEnd, handleTempoKeyDown, handlePanic, handlePlayToggle, setIsRecording, setIsSongModeOpen, setIs3DMode, setIsCloudLibraryOpen]);
+    ), [is3DMode, forceScriptProcessorFallback, songStorage, activeSongSlot, masterVolume, globalPan, tempo, isRecording, isPlaying, isSongModeOpen, loadSong, handleSaveSong, exportSongToFile, importSongFromFile, handleClearPattern, handleMasterVolume, handleMasterVolumeKeyDown, handleGlobalPan, handleGlobalPanKeyDown, handleTempoHoldStart, handleTempoHoldEnd, handleTempoKeyDown, handlePanic, handlePlayToggle, setIsRecording, setIsSongModeOpen, setIs3DMode, setIsCloudLibraryOpen, showToast]);
 
     const sequencerNode = useMemo(() => {
         if (isSongModeOpen && is3DMode) {
