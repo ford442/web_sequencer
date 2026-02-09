@@ -1,4 +1,4 @@
-import { SynthParams } from '../types';
+import type { SynthParams } from '../types';
 import { noteToFrequency } from '../constants';
 
 export class Voice {
