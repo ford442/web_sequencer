@@ -981,11 +981,12 @@ export const App: React.FC = () => {
                 {/* AudioWorklet Fallback Toggle */}
                 <button
                     onClick={() => {
-                        setForceScriptProcessorFallback(!forceScriptProcessorFallback);
+                        const newValue = !forceScriptProcessorFallback;
+                        setForceScriptProcessorFallback(newValue);
                         showToast(
-                            !forceScriptProcessorFallback 
-                                ? "ScriptProcessor fallback enabled. Restart audio to apply." 
-                                : "AudioWorklet mode enabled. Restart audio to apply.",
+                            newValue
+                                ? "ScriptProcessor fallback enabled. Refresh page to apply." 
+                                : "AudioWorklet mode enabled. Refresh page to apply.",
                             'success'
                         );
                     }}
