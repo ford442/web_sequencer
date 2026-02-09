@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { getNoteColor } from '../../utils/noteColors';
-import type { SvgStepProps, TrackKey } from './types';
+import type { SvgStepProps } from './types';
 import { TRACK_COLORS } from './types';
 
 export const SvgStep = memo(({

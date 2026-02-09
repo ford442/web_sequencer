@@ -10,7 +10,7 @@ import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { SingingVoice } from '../engines/SingingVoice';
 import { VoiceManager } from '../engines/VoiceManager';
 import { noteToMidi } from '../utils/musicTheory';
-import { noteToFrequency } from '../constants';
+
 
 // URLs for worklets
 const sustainProcessorUrl = new URL('../audio-worklets/sustain-processor.ts', import.meta.url).href;

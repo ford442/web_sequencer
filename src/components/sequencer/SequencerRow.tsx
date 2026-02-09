@@ -1,16 +1,15 @@
-import React, { memo, forwardRef, useRef, useCallback, useLayoutEffect, useImperativeHandle } from 'react';
+import { memo, forwardRef, useRef, useCallback, useLayoutEffect, useImperativeHandle } from 'react';
 import { GridIndicators } from '../GridIndicators';
 import { SvgStep } from './SvgStep';
 import { TrackSlotButton } from './TrackSlotButton';
-import { TRACK_COLORS } from './types';
-import type { SequencerRowProps, SequencerRowHandle, TrackKey } from './types';
+import type { SequencerRowProps, SequencerRowHandle } from './types';
 
 export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowHandle>((props, ref) => {
     const { 
         rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, 
         onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, 
         onSelectionStart, onSelectionEnter, selectionRange 
-    } = props as SequencerRowProps;
+    } = props as unknown as SequencerRowProps;
     
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
@@ -88,7 +87,7 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowHand
         if (stepData && length > 1) { skipCount = length - 1; }
     }
 
-    const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
+    
 
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>

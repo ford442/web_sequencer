@@ -12,22 +12,6 @@ import { noteToFrequency } from '../../constants';
 import { noteToMidi } from '../../utils/musicTheory';
 import type { Open303Oscillator } from '../../engines/Open303Oscillator';
 
-// Helper for distortion
-const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
-
-function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
-    const k_raw = typeof amount === 'number' ? amount : 50;
-    const k = Math.round(k_raw * 10) / 10;
-    if (distortionCurveCache.has(k)) return distortionCurveCache.get(k)!;
-    const n_samples = 8192, curve = new Float32Array(n_samples), deg = Math.PI / 180;
-    for (let i = 0; i < n_samples; ++i) {
-        const x = (i * 2) / n_samples - 1;
-        curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
-    }
-    distortionCurveCache.set(k, curve);
-    return curve;
-}
-
 // Map UI params to Engine params
 export function apply303Params(
     engine: Open303Oscillator, 

@@ -13,7 +13,7 @@ describe('AudioDSP OpenMP Module', () => {
 
     beforeEach(() => {
         // Reset mocks
-        mockMalloc = vi.fn((size: number) => 1024);
+        mockMalloc = vi.fn((_size: number) => 1024);
         mockFree = vi.fn();
         
         // Create mock heap arrays
@@ -31,7 +31,7 @@ describe('AudioDSP OpenMP Module', () => {
             applyStereoWidth: vi.fn(),
             getNumThreads: vi.fn(() => 4),
             setNumThreads: vi.fn(),
-        };
+        } as unknown as ReturnType<typeof vi.fn>;
 
         // Setup global WASM module mock
         globalThis.window = {
@@ -56,17 +56,17 @@ describe('AudioDSP OpenMP Module', () => {
         it('should get number of available threads', () => {
             const threads = dsp.getNumThreads();
             expect(threads).toBe(4);
-            expect(mockModule.getNumThreads).toHaveBeenCalled();
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).getNumThreads).toHaveBeenCalled();
         });
 
         it('should set number of threads', () => {
             dsp.setNumThreads(2);
-            expect(mockModule.setNumThreads).toHaveBeenCalledWith(2);
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).setNumThreads).toHaveBeenCalledWith(2);
         });
 
         it('should clamp thread count to minimum of 1', () => {
             dsp.setNumThreads(0);
-            expect(mockModule.setNumThreads).toHaveBeenCalledWith(1);
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).setNumThreads).toHaveBeenCalledWith(1);
         });
     });
 
@@ -76,7 +76,7 @@ describe('AudioDSP OpenMP Module', () => {
             dsp.applyGain(buffer, 2, 2.0);
             
             expect(mockMalloc).toHaveBeenCalled();
-            expect(mockModule.applyGain).toHaveBeenCalled();
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).applyGain).toHaveBeenCalled();
             expect(mockFree).toHaveBeenCalled();
         });
 
@@ -100,7 +100,7 @@ describe('AudioDSP OpenMP Module', () => {
             const buffer = new Float32Array([0.1, -0.5, 0.3, -0.8]);
             const peak = dsp.findPeak(buffer, 2);
             
-            expect(mockModule.findPeak).toHaveBeenCalled();
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).findPeak).toHaveBeenCalled();
             expect(peak).toBeCloseTo(0.8, 5);
         });
 
@@ -118,9 +118,9 @@ describe('AudioDSP OpenMP Module', () => {
     describe('deinterleaveStereo', () => {
         it('should deinterleave stereo buffer', () => {
             const interleaved = new Float32Array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]);
-            const result = dsp.deinterleaveStereo(interleaved);
+            dsp.deinterleaveStereo(interleaved);
             
-            expect(mockModule.deinterleaveStereo).toHaveBeenCalled();
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).deinterleaveStereo).toHaveBeenCalled();
         });
 
         it('should fallback to JS when WASM unavailable', () => {
@@ -144,9 +144,9 @@ describe('AudioDSP OpenMP Module', () => {
     describe('floatToInt16', () => {
         it('should convert float32 to int16 with clipping', () => {
             const floatBuffer = new Float32Array([0.5, -0.5, 1.0, -1.0, 2.0, -2.0]);
-            const result = dsp.floatToInt16(floatBuffer);
+            dsp.floatToInt16(floatBuffer);
             
-            expect(mockModule.floatToInt16).toHaveBeenCalled();
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).floatToInt16).toHaveBeenCalled();
         });
 
         it('should fallback to JS when WASM unavailable', () => {
@@ -178,7 +178,7 @@ describe('AudioDSP OpenMP Module', () => {
             
             dsp.applyStereoWidth(left, right, 1.5);
             
-            expect(mockModule.applyStereoWidth).toHaveBeenCalled();
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).applyStereoWidth).toHaveBeenCalled();
         });
     });
 
@@ -210,7 +210,7 @@ describe('AudioDSP OpenMP Module', () => {
             
             dsp.mixBuffers(buffers, gains);
             
-            expect(mockModule.mixBuffers).toHaveBeenCalled();
+            expect((mockModule as unknown as Record<string, ReturnType<typeof vi.fn>>).mixBuffers).toHaveBeenCalled();
         });
     });
 });
