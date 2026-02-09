@@ -78,7 +78,7 @@ mkdir -p "${DIST_DIR}"
 # Function to build a single variant
 build_variant() {
     local VARIANT_NAME=$1  # "threaded" or "single"
-    local USE_THREADING=$2  # "yes" or "no"
+    local ENABLE_THREADING=$2  # "true" or "false"
     
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN} Building ${VARIANT_NAME} variant${NC}"
@@ -91,7 +91,7 @@ build_variant() {
     cd "${BUILD_DIR}"
     
     # Set up flags based on variant
-    if [ "$USE_THREADING" = "yes" ]; then
+    if [ "$ENABLE_THREADING" = "true" ]; then
         # Threaded variant - requires libomp.a
         LIBOMP_PATH="$REPO_ROOT/emscripten/libomp.a"
         if [ ! -f "$LIBOMP_PATH" ]; then
@@ -155,7 +155,7 @@ build_variant() {
 
 # Build requested variant(s)
 if [ "$BUILD_VARIANT" = "threaded" ] || [ "$BUILD_VARIANT" = "both" ]; then
-    build_variant "threaded" "yes" || {
+    build_variant "threaded" "true" || {
         echo -e "${RED}Threaded variant build failed${NC}"
         if [ "$BUILD_VARIANT" = "threaded" ]; then
             exit 1
@@ -164,7 +164,7 @@ if [ "$BUILD_VARIANT" = "threaded" ] || [ "$BUILD_VARIANT" = "both" ]; then
 fi
 
 if [ "$BUILD_VARIANT" = "single" ] || [ "$BUILD_VARIANT" = "both" ]; then
-    build_variant "single" "no" || {
+    build_variant "single" "false" || {
         echo -e "${RED}Single-threaded variant build failed${NC}"
         exit 1
     }

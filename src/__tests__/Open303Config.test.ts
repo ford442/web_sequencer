@@ -122,18 +122,23 @@ describe('Open303 Configuration', () => {
         });
     });
 
+    // Helper to track script element creation for variant selection tests
+    function mockScriptElementTracking(): HTMLScriptElement[] {
+        const scriptElements: HTMLScriptElement[] = [];
+        const originalCreateElement = document.createElement.bind(document);
+        vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+            const element = originalCreateElement(tagName);
+            if (tagName === 'script') {
+                scriptElements.push(element as HTMLScriptElement);
+            }
+            return element;
+        });
+        return scriptElements;
+    }
+
     describe('WASM variant selection', () => {
         it('should attempt to load threaded variant when preferThreaded is true', async () => {
-            // Mock document.createElement to track script loading
-            const scriptElements: HTMLScriptElement[] = [];
-            const originalCreateElement = document.createElement.bind(document);
-            vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
-                const element = originalCreateElement(tagName);
-                if (tagName === 'script') {
-                    scriptElements.push(element as HTMLScriptElement);
-                }
-                return element;
-            });
+            const scriptElements = mockScriptElementTracking();
 
             const engine = new Open303Oscillator();
             const config: Open303Config = {
@@ -153,16 +158,7 @@ describe('Open303 Configuration', () => {
         });
 
         it('should attempt to load single-threaded variant when preferThreaded is false', async () => {
-            // Mock document.createElement to track script loading
-            const scriptElements: HTMLScriptElement[] = [];
-            const originalCreateElement = document.createElement.bind(document);
-            vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
-                const element = originalCreateElement(tagName);
-                if (tagName === 'script') {
-                    scriptElements.push(element as HTMLScriptElement);
-                }
-                return element;
-            });
+            const scriptElements = mockScriptElementTracking();
 
             const engine = new Open303Oscillator();
             const config: Open303Config = {

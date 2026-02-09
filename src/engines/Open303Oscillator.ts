@@ -8,6 +8,10 @@ declare global {
     }
 }
 
+// WASM variant constants
+const VARIANT_THREADED = 'threaded';
+const VARIANT_SINGLE = 'single';
+
 export class Open303Oscillator {
 
     // -- Strategy 1: AudioWorklet --
@@ -51,13 +55,13 @@ export class Open303Oscillator {
         if (tryWorklet && audioContext.audioWorklet && workletUrl) {
             // Try threaded variant first if preferred
             if (tryThreaded) {
-                const success = await this.tryInitWorklet(audioContext, workletUrl, 'threaded');
+                const success = await this.tryInitWorklet(audioContext, workletUrl, VARIANT_THREADED);
                 if (success) return true;
                 console.warn("Open303: AudioWorklet with threaded WASM failed, trying single-threaded...");
             }
             
             // Try single-threaded variant
-            const success = await this.tryInitWorklet(audioContext, workletUrl, 'single');
+            const success = await this.tryInitWorklet(audioContext, workletUrl, VARIANT_SINGLE);
             if (success) return true;
             console.warn("Open303: AudioWorklet initialization failed. Falling back to ScriptProcessor.");
         } else if (this.config.forceScriptProcessor) {
@@ -71,7 +75,7 @@ export class Open303Oscillator {
     private async tryInitWorklet(
         audioContext: AudioContext,
         workletUrl: string,
-        variant: 'threaded' | 'single'
+        variant: typeof VARIANT_THREADED | typeof VARIANT_SINGLE
     ): Promise<boolean> {
         try {
             console.log(`Open303: Attempting to load AudioWorklet with ${variant} WASM...`);
@@ -125,7 +129,7 @@ export class Open303Oscillator {
 
             this.workletNode.connect(this.gainNode);
             this.useWorklet = true;
-            this.isThreaded = variant === 'threaded';
+            this.isThreaded = variant === VARIANT_THREADED;
             this.isReady = true;
             this.applyAllParameters();
             console.log(`Open303: AudioWorklet initialized successfully with ${variant} WASM.`);
@@ -144,7 +148,9 @@ export class Open303Oscillator {
 
     private async initLegacy(audioContext: AudioContext, preferThreaded: boolean): Promise<boolean> {
         // Try variants in order of preference
-        const variants = preferThreaded ? ['threaded', 'single'] : ['single', 'threaded'];
+        const variants = preferThreaded 
+            ? [VARIANT_THREADED, VARIANT_SINGLE] 
+            : [VARIANT_SINGLE, VARIANT_THREADED];
         
         for (const variant of variants) {
             const success = await this.tryInitLegacyVariant(audioContext, variant);
@@ -155,7 +161,10 @@ export class Open303Oscillator {
         return false;
     }
 
-    private async tryInitLegacyVariant(audioContext: AudioContext, variant: 'threaded' | 'single'): Promise<boolean> {
+    private async tryInitLegacyVariant(
+        audioContext: AudioContext, 
+        variant: typeof VARIANT_THREADED | typeof VARIANT_SINGLE
+    ): Promise<boolean> {
         try {
             console.log(`Open303: Attempting Legacy Init with ${variant} WASM...`);
             
@@ -207,7 +216,7 @@ export class Open303Oscillator {
             if (this.gainNode) { this.processorNode.connect(this.gainNode); }
             this.isReady = true;
             this.useWorklet = false;
-            this.isThreaded = variant === 'threaded';
+            this.isThreaded = variant === VARIANT_THREADED;
             this.applyAllParameters();
             console.log(`Open303: Legacy Engine initialized with ${variant} WASM.`);
             return true;
