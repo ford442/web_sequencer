@@ -66,6 +66,7 @@ class AudioDSPError extends Error {
 export class AudioDSP {
     private module: AudioDSPModule | null = null;
     private heapF32: Float32Array | null = null;
+    // @ts-expect-error heap16 is kept for future use but currently unused
     private heap16: Int16Array | null = null;
 
     constructor() {

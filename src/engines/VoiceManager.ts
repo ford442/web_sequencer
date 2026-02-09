@@ -1,4 +1,4 @@
-import type { SynthParams } from '../types';
+import { type SynthParams } from '../types';
 import { noteToFrequency } from '../constants';
 
 export class Voice {
@@ -96,7 +96,7 @@ export class Voice {
 
             if (isWav) {
                 const src = this.context.createBufferSource();
-                src.buffer = waveform === 'wav-sqr' ? this.wavSqrBuffer : this.wavSawBuffer;
+                src.buffer = (waveform === 'wav-sqr' ? this.wavSqrBuffer : this.wavSawBuffer) ?? null;
                 src.loop = true;
                 const baseFreq = 261.63;
                 src.playbackRate.value = freq / baseFreq;
@@ -202,7 +202,7 @@ export class VoiceManager {
         this.wavSqr = wavSqr;
     }
 
-    private getVoice(note: string): Voice {
+    private getVoice(_note: string): Voice {
         // Find free
         const free = this.voices.find(v => !v.isActive);
         if (free) return free;
