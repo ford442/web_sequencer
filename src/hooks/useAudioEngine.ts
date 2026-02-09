@@ -125,7 +125,12 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
             // Initialize Open303 Engine (TB-303 clone)
             const open303Engine = new Open303Oscillator();
-            const open303Ready = await open303Engine.init(context, open303ProcessorUrl, forceScriptProcessor);
+            const open303Ready = await open303Engine.init(context, open303ProcessorUrl, {
+                preferWorklet: !forceScriptProcessor,
+                forceScriptProcessor: forceScriptProcessor,
+                preferThreaded: false,  // Default to single-threaded for broad compatibility
+                forceSingleThreaded: false
+            });
 
             if (open303Ready) {
                 open303Engine.connect(masterGain);
