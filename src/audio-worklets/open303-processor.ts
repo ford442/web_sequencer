@@ -115,7 +115,7 @@ class Open303Processor extends AudioWorkletProcessor {
                                 console.error(`[Open303] SharedArrayBuffer not available for threaded variant:`, e);
                                 this.port.postMessage({ 
                                     type: 'error', 
-                                    error: 'SharedArrayBuffer not available. COOP/COEP headers may be missing.' 
+                                    error: 'SharedArrayBuffer not available. Ensure Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers are configured correctly on your web server. These headers are required for threaded WASM variants.' 
                                 });
                                 return;
                             }
