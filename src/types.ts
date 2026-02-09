@@ -107,12 +107,12 @@ export interface AudioEngine {
     webGpuEngine?: any; // WebGpuOscillator
     wasmEngine?: any; // WasmOscillator
     open303Engine?: any; // Open303Oscillator
-    playSynth: (params: SynthParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
+    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB') => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
     playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
-    noteOnSynth?: (params: SynthParams, note: string, time?: number) => Promise<number | null> | number | null;
+    noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
     noteOffSynth?: (id: number) => void;
     stopAllNotes?: () => void;
     loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
