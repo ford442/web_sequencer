@@ -145,7 +145,17 @@ export class SingingVoice {
      * @param forceScriptProcessor If true, will use ScriptProcessorNode fallback
      */
     async initWorklet(forceScriptProcessor: boolean = false): Promise<void> {
-        if (this.workletNode || this.scriptProcessorNode) return;
+        // Clean up existing nodes if reinitializing
+        if (this.workletNode || this.scriptProcessorNode) {
+            if (this.workletNode) {
+                this.workletNode.disconnect();
+                this.workletNode = null;
+            }
+            if (this.scriptProcessorNode) {
+                this.scriptProcessorNode.disconnect();
+                this.scriptProcessorNode = null;
+            }
+        }
 
         // Try AudioWorklet first (if not forcing fallback)
         if (!forceScriptProcessor && this.audioContext.audioWorklet) {
