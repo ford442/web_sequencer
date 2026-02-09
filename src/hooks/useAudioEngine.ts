@@ -13,8 +13,8 @@ import { noteToMidi } from '../utils/musicTheory';
 
 
 // URLs for worklets
-const sustainProcessorUrl = new URL('../audio-worklets/sustain-processor.ts', import.meta.url).href;
-const open303ProcessorUrl = new URL('../audio-worklets/open303-processor.ts', import.meta.url).href;
+import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
+import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
 
 // Helper for distortion
 const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
