@@ -8,6 +8,7 @@ import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { SingingVoice } from '../engines/SingingVoice';
+import { VoiceManager } from '../engines/VoiceManager';
 import { noteToMidi } from '../utils/musicTheory';
 import { noteToFrequency } from '../constants';
 
@@ -56,6 +57,10 @@ export const useAudioEngine = (pyodide: any) => {
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
     const open303EngineRef = useRef<Open303Oscillator | null>(null);
 
+    // Voice Managers
+    const voiceManagerARef = useRef<VoiceManager | null>(null);
+    const voiceManagerBRef = useRef<VoiceManager | null>(null);
+
     // Native WAV buffers
     const wavSawBufferRef = useRef<AudioBuffer | null>(null);
     const wavSqrBufferRef = useRef<AudioBuffer | null>(null);
@@ -72,9 +77,6 @@ export const useAudioEngine = (pyodide: any) => {
     const nextSamplerNoteId = useRef(1);
     const activeSamplerNotes = useRef(new Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>());
 
-    // Sampler generator cache (keep track of nodes for garbage collection prevention if needed, but mostly for re-use logic if applicable)
-    // In this implementation, we create new nodes per trigger, so this might be for loaded buffers or similar.
-    // Assuming standard implementation:
     const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
 
@@ -122,9 +124,7 @@ export const useAudioEngine = (pyodide: any) => {
             wasmEngineRef.current = wasmEngine;
 
             // Initialize Open303 Engine (TB-303 clone)
-            // PASS THE WORKLET URL HERE
             const open303Engine = new Open303Oscillator();
-            // Note: We are passing the URL to the init method now
             const open303Ready = await open303Engine.init(context, open303ProcessorUrl);
 
             if (open303Ready) {
@@ -154,6 +154,14 @@ export const useAudioEngine = (pyodide: any) => {
             ]);
             wavSawBufferRef.current = sawBuf;
             wavSqrBufferRef.current = sqrBuf;
+
+            // Initialize Voice Managers
+            // Synth A: Polyphonic (8 voices)
+            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
+
+            // Synth B: Monophonic (1 voice, legato)
+            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined);
+
 
             // Initialize AudioWorklets
             try {
@@ -200,14 +208,20 @@ export const useAudioEngine = (pyodide: any) => {
 
             // Define Playback Functions
 
-            const playSynth = (params: SynthParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, slide: boolean = false) => {
+            const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB') => {
                  if (!masterGainRef.current) return;
 
-                 // Open303 Routing
+                 // Open303 Routing (Specific check for 303 waveforms)
                  if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
                      if (open303EngineRef.current) {
                          apply303Params(open303EngineRef.current, params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
-                         const midi = noteToMidi(note);
+
+                         // Note: 303 Engine is monophonic by nature in this implementation or handles its own logic.
+                         // But noteToMidi expects string. If chord (array), pick first note?
+                         const noteStr = Array.isArray(note) ? note[0] : note;
+                         if (!noteStr) return;
+
+                         const midi = noteToMidi(noteStr);
 
                          const now = context.currentTime;
                          const startDelay = Math.max(0, time - now);
@@ -218,7 +232,7 @@ export const useAudioEngine = (pyodide: any) => {
                          }, startDelay * 1000);
 
                          setTimeout(() => {
-                             if (!slide) {
+                             if (slideFromFreq === undefined) { // Check if slide is active (heuristic)
                                  open303EngineRef.current?.noteOff(midi);
                              }
                          }, (startDelay + duration) * 1000);
@@ -227,85 +241,15 @@ export const useAudioEngine = (pyodide: any) => {
                      }
                  }
 
-                 // Standard Synth Logic (WASM/WebGPU/Native)
-                 const freq = noteToFrequency(note);
-                 const osc = context.createOscillator();
-                 const gain = context.createGain();
+                 // Standard Synth Logic via VoiceManager
+                 const duration = durationSteps * stepTime;
 
-                 // Type selection
-                 let customBuffer: AudioBuffer | null = null;
-                 if (params.waveform === 'wav-saw') customBuffer = wavSawBufferRef.current;
-                 else if (params.waveform === 'wav-sqr') customBuffer = wavSqrBufferRef.current;
-
-                 if (customBuffer) {
-                     // WAV playback logic
-                     // ...
-                 } else {
-                     // Standard Oscillator
-                     if (params.waveform === 'sawtooth' || params.waveform === 'square' || params.waveform === 'triangle' || params.waveform === 'sine') {
-                        osc.type = params.waveform;
-                     } else {
-                        osc.type = 'sawtooth'; // Fallback
-                     }
+                 if (track === 'partB' && voiceManagerBRef.current) {
+                     voiceManagerBRef.current.playNote(params, note, time, duration, slideFromFreq);
+                 } else if (voiceManagerARef.current) {
+                     // Default to Synth A (Poly)
+                     voiceManagerARef.current.playNote(params, note, time, duration, slideFromFreq);
                  }
-
-                 // Envelope
-                 const now = time;
-                 const attackEnd = now + params.attack;
-                 const decayEnd = attackEnd + params.decay;
-                 const releaseStart = now + (durationSteps * stepTime); // Simple gate
-                 const releaseEnd = releaseStart + params.release;
-
-                 gain.gain.setValueAtTime(0, now);
-                 gain.gain.linearRampToValueAtTime(params.volume, attackEnd);
-                 gain.gain.exponentialRampToValueAtTime(Math.max(0.001, params.volume * params.sustain), decayEnd);
-                 gain.gain.setValueAtTime(Math.max(0.001, params.volume * params.sustain), releaseStart);
-                 gain.gain.exponentialRampToValueAtTime(0.001, releaseEnd);
-
-                 // Filter
-                 const filter = context.createBiquadFilter();
-                 filter.type = 'lowpass';
-                 filter.frequency.setValueAtTime(params.filterCutoff, now);
-                 filter.Q.value = params.filterResonance;
-
-                 // Delay
-                 const delay = context.createDelay();
-                 delay.delayTime.value = params.delayTime;
-                 const delayGain = context.createGain();
-                 delayGain.gain.value = params.delayFeedback;
-
-                 const wetGain = context.createGain();
-                 wetGain.gain.value = params.delayMix;
-                 const dryGain = context.createGain();
-                 dryGain.gain.value = 1 - params.delayMix;
-
-                 // Graph
-                 osc.connect(filter);
-                 filter.connect(gain);
-
-                 // Split to Dry/Wet
-                 gain.connect(dryGain);
-                 gain.connect(delay);
-                 delay.connect(delayGain);
-                 delayGain.connect(delay); // Feedback
-                 delay.connect(wetGain);
-
-                 dryGain.connect(masterGainRef.current);
-                 wetGain.connect(masterGainRef.current);
-
-                 osc.frequency.setValueAtTime(freq, now);
-                 osc.start(now);
-                 osc.stop(releaseEnd + 0.1);
-
-                 // Cleanup
-                 setTimeout(() => {
-                     osc.disconnect();
-                     filter.disconnect();
-                     gain.disconnect();
-                     delay.disconnect();
-                     wetGain.disconnect();
-                     dryGain.disconnect();
-                 }, (releaseEnd - now + 1.0) * 1000);
             };
 
             const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
@@ -516,7 +460,9 @@ export const useAudioEngine = (pyodide: any) => {
                 }
             };
 
-            const noteOnSynth = (params: SynthParams, note: string, _time?: number) => {
+            const noteOnSynth = (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => {
+                 const now = time || context.currentTime;
+
                  // Interactive Synth trigger
                  if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
                      if (open303EngineRef.current) {
@@ -528,7 +474,22 @@ export const useAudioEngine = (pyodide: any) => {
                          return id;
                      }
                  }
-                 return null; // For now only 303 interactive
+
+                 // Standard Synth Logic via VoiceManager
+                 let manager = voiceManagerARef.current;
+                 if (track === 'partB') manager = voiceManagerBRef.current;
+
+                 if (manager) {
+                     manager.noteOn(params, note, now);
+                     const id = nextSynthNoteId.current++;
+                     // Capture params for release (not perfect if params change, but acceptable)
+                     activeSynthNotes.current.set(id, {
+                         stop: () => manager?.noteOff(note, context.currentTime, params)
+                     });
+                     return id;
+                 }
+
+                 return null;
             };
 
             const noteOffSynth = (id: number) => {
@@ -547,6 +508,9 @@ export const useAudioEngine = (pyodide: any) => {
                     try { n.source.stop(); } catch {}
                 });
                 activeSamplerNotes.current.clear();
+
+                voiceManagerARef.current?.stopAll();
+                voiceManagerBRef.current?.stopAll();
             };
 
             // Helpers for Render/Ambiance

@@ -592,7 +592,7 @@ export const App: React.FC = () => {
                 if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
                 // @ts-ignore
-                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom);
+                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey);
                 lastFreqRef.current[trackKey] = currentBaseFreq;
             }
         };
@@ -693,8 +693,8 @@ export const App: React.FC = () => {
     const handleKeyboardPlay = useCallback((note: string) => {
         if (!audioEngine) return;
         const time = audioEngine.context.currentTime;
-        if (selectedTrack === 'partA') { const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
-        else if (selectedTrack === 'partB') { const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
+        if (selectedTrack === 'partA') { const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time, 'partA'); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
+        else if (selectedTrack === 'partB') { const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time, 'partB'); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
         else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
         else if (selectedTrack === 'snare') audioEngine.playDrum('snare', snareRef.current, time);
         else if (selectedTrack === 'closedHat') audioEngine.playDrum('closedHat', closedHatRef.current, time);
