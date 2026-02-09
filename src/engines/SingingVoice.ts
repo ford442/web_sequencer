@@ -152,6 +152,8 @@ export class SingingVoice {
                 this.workletNode = null;
             }
             if (this.scriptProcessorNode) {
+                // Clean up event handler to prevent memory leaks
+                this.scriptProcessorNode.onaudioprocess = null;
                 this.scriptProcessorNode.disconnect();
                 this.scriptProcessorNode = null;
             }
