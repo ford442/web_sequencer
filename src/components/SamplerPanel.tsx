@@ -16,6 +16,7 @@ interface SamplerPanelProps {
     onTtsPhraseChange: (phrases: string[]) => void; // Update TTS phrases
     onHarmonize?: (bankIndex: number, chordType: string) => Promise<void>; // New prop
     onParamChange?: (bankIndex: number, key: string, value: any) => void;
+    loadedBanks?: boolean[];         // Visual indicator for loaded samples
 }
 
 // 8 Banks
@@ -28,7 +29,7 @@ const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100
 const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
     ttsPhrases, onTtsPhraseChange,
-    onHarmonize, onParamChange
+    onHarmonize, onParamChange, loadedBanks
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -336,11 +337,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         role="tab"
                         aria-selected={activeBankIdx === i}
                         aria-controls="sampler-bank-panel"
-                        aria-label={`Select Bank ${i + 1}`}
+                        aria-label={`Select Bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
                         tabIndex={activeBankIdx === i ? 0 : -1}
                         onClick={() => onBankChange(i)}
                         onKeyDown={(e) => handleKeyDown(e, i)}
-                        className={`min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                        className={`relative min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                             flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
                             activeBankIdx === i
                                 ? 'bg-purple-600 border-purple-400 text-white shadow-md'
@@ -349,6 +350,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         title={`Select Bank ${i+1}`}
                     >
                         {label}
+                        {loadedBanks?.[i] && (
+                            <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.8)] border border-black" />
+                        )}
                     </button>
                 ))}
             </div>
@@ -596,6 +600,10 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
 
     // 4. Critical props check
     if (prev.audioEngine !== next.audioEngine) return false;
+
+    // 5. Check if loaded banks status changed
+    if (JSON.stringify(prev.loadedBanks) !== JSON.stringify(next.loadedBanks)) return false;
+
     // We assume handler functions are stable or we don't care if they change as long as data is same
 
     return true;
