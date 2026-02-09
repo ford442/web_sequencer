@@ -103,7 +103,6 @@ export class WebGpuOscillator {
             });
 
             this.isSupported = true;
-            console.log("WebGPU Oscillator Engine Initialized (with buffer pooling)");
         } catch (e) {
             console.error("Failed to init WebGPU Audio:", e);
         }

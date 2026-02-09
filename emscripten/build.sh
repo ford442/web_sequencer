@@ -105,7 +105,10 @@ for f in $RUBBERBAND_SRC/src/common/*.cpp; do compile_cpp "$f"; done
 for f in $RUBBERBAND_SRC/src/faster/*.cpp; do compile_cpp "$f"; done
 for f in $RUBBERBAND_SRC/src/finer/*.cpp; do compile_cpp "$f"; done
 
-# 3. Compile Wrapper & Main
+# 3. Compile Audio DSP (OpenMP enabled)
+compile_cpp "$SCRIPT_DIR/audio_dsp.cpp"
+
+# 4. Compile Wrapper & Main
 compile_cpp "$SCRIPT_DIR/rubberband_wrapper.cpp"
 compile_cpp "$SCRIPT_DIR/main.cpp"
 

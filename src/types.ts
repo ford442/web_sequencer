@@ -1,4 +1,7 @@
-import { SingingVoice } from './engines/SingingVoice';
+import type { SingingVoice } from './engines/SingingVoice';
+import type { WebGpuOscillator } from './engines/WebGpuOscillator';
+import type { WasmOscillator } from './engines/WasmOscillator';
+import type { Open303Oscillator } from './engines/Open303Oscillator';
 
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
@@ -104,9 +107,9 @@ export interface AmbianceTrack {
 
 export interface AudioEngine {
     context: AudioContext;
-    webGpuEngine?: any; // WebGpuOscillator
-    wasmEngine?: any; // WasmOscillator
-    open303Engine?: any; // Open303Oscillator
+    webGpuEngine?: WebGpuOscillator | null;
+    wasmEngine?: WasmOscillator | null;
+    open303Engine?: Open303Oscillator | null;
     playSynth: (params: SynthParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
     playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
@@ -171,9 +174,9 @@ export interface SavedSongData {
     openHat: HatParams;
     sampler: SamplerParams;
   };
-  trackStorage: any;
-  activeTrackSlots: any;
-  songStructure: any;
+  trackStorage: Record<string, unknown>;
+  activeTrackSlots: Record<string, number>;
+  songStructure: unknown[];
   tempo: number;
   ambianceUrl?: string;
   backgroundImage?: string;

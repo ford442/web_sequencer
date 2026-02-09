@@ -17,7 +17,7 @@ export class WasmOscillator {
             // Instantiate (Let WASM create its own memory)
             this.instance = await initOscillators({
                 env: {
-                    abort: () => console.error("Wasm Abort")
+                    abort: () => {}
                 }
             });
 
@@ -25,7 +25,6 @@ export class WasmOscillator {
             this.memory = this.instance.exports.memory as WebAssembly.Memory;
 
             this.isReady = true;
-            console.log("Wasm Engine Ready");
         } catch (e) { console.error("Wasm Init Failed", e); }
     }
 
