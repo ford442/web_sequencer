@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, memo, useMemo, forwardRef, useImperativeHandle, lazy, Suspense } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -13,13 +13,11 @@ import { LiveKeyboard } from './components/LiveKeyboard';
 
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
+import { GridIndicators } from './components/GridIndicators';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
 import { CloudStatus } from './components/CloudStatus';
 import { Toast } from './components/Toast';
-import { StartOverlay } from './components/StartOverlay';
-import { SequencerRow } from './components/sequencer';
-import type { SequencerRowHandle, TrackKey } from './components/sequencer';
 import type { CloudItemType } from './services/CloudStorage';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
@@ -66,6 +64,7 @@ const UPDATED_INITIAL_PATTERN: Pattern = {
 };
 
 // --- TYPES FOR STORAGE ---
+type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -83,7 +82,7 @@ type SongSnapshot = {
 };
 
 const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (PartSequence | PartSequence[] | null)[]> => {
-    const storage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]> = {
+    const storage: any = {
         partA: Array(8).fill(null),
         partB: Array(8).fill(null),
         kick: Array(8).fill(null),
@@ -105,7 +104,15 @@ const getPatternColor = (slotIndex: number): string => {
     return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
 };
 
-import { TRACK_COLORS } from './components/sequencer';
+const TRACK_COLORS: Record<string, string> = {
+    partA: '#06b6d4',
+    partB: '#d946ef',
+    kick: '#f97316',
+    snare: '#22c55e',
+    closedHat: '#eab308',
+    openHat: '#eab308',
+    sampler: '#a855f7',
+};
 
 // --- PERFORMANCE STYLES ---
 const SEQUENCER_STYLES = `
@@ -177,15 +184,207 @@ const getSamplerControls = (params: SamplerBankParams): KnobConfig[] => [
     { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend, valueDisplay: `${Math.round(params.delaySend * 100)}%` },
 ];
 
+// --- COMPONENTS ---
+
+const SvgStep = memo(({
+    stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
+    onSelectionStart, onSelectionEnter, isRangeSelected
+}: {
+    stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
+    rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
+    onRightMouseDown: (k: TrackKey, i: number, e: React.MouseEvent) => void,
+    onEditLength: (k: TrackKey, i: number, len: number) => void, length?: number, isSlide?: boolean,
+    onSelectionStart?: (k: TrackKey, i: number) => void,
+    onSelectionEnter?: (k: TrackKey, i: number) => void,
+    isRangeSelected?: boolean
+}) => {
+    const baseWidth = 18;
+    const gap = 4;
+    const height = 50;
+    const x = 220 + stepIndex * (baseWidth + gap);
+    const totalWidth = (baseWidth * length) + (gap * (length - 1));
+    const color = note ? getNoteColor(note) : '#06b6d4';
+    const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
+    const groupIndex = Math.floor(stepIndex / 4);
+    const isAltGroup = groupIndex % 2 === 1;
+    const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        if (e.button === 2) { onRightMouseDown(rowKey, stepIndex, e); return; }
+        if (e.shiftKey) {
+            e.preventDefault(); e.stopPropagation();
+            if (active) {
+                // Length Editing
+                const target = e.currentTarget as Element;
+                target.setPointerCapture(e.pointerId);
+                const startX = e.clientX;
+                const startLength = length;
+                const sensitivity = 20;
+                const handlePointerMove = (ev: PointerEvent) => {
+                    const delta = ev.clientX - startX;
+                    const stepsToAdd = Math.floor(delta / sensitivity);
+                    const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
+                    if (newLength !== length) { onEditLength(rowKey, stepIndex, newLength); }
+                };
+                const handlePointerUp = (ev: PointerEvent) => {
+                    target.removeEventListener('pointermove', handlePointerMove as any);
+                    target.removeEventListener('pointerup', handlePointerUp as any);
+                    target.releasePointerCapture(ev.pointerId);
+                };
+                target.addEventListener('pointermove', handlePointerMove as any);
+                target.addEventListener('pointerup', handlePointerUp as any);
+            } else if (onSelectionStart) {
+                // Range Selection
+                onSelectionStart(rowKey, stepIndex);
+            }
+        } else { onToggle(rowKey, stepIndex, e); }
+    };
+
+    const handlePointerEnter = () => {
+        if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
+    };
+
+    return (
+        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
+            {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
+            {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
+            <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
+            {active && isSlide && <rect x={4} y={height - 8} width={totalWidth - 8} height={3} rx={1} fill="#fbbf24" fillOpacity={1} style={{ mixBlendMode: 'plus-lighter' }} />}
+            <rect x={1} y={1} width={totalWidth - 2} height={height - 2} rx={2} fill={baseFill} strokeWidth={0} />
+            <path d={`M 2 2 L ${totalWidth - 2} 2 L ${totalWidth - 4} 4 L 4 4 L 4 ${height - 4} L 2 ${height - 2} Z`} fill="rgba(255,255,255,0.2)" />
+            <path d={`M ${totalWidth - 2} 2 L ${totalWidth - 2} ${height - 2} L 2 ${height - 2} L 4 ${height - 4} L ${totalWidth - 4} ${height - 4} L ${totalWidth - 4} 4 Z`} fill="rgba(0,0,0,0.5)" />
+            <rect className="step-cap" x={3} y={4} width={totalWidth - 6} height={height - 8} rx={1} fill={active ? color : '#1a2026'} fillOpacity={active ? 0.6 : 1} stroke={active ? color : 'none'} strokeWidth={active ? 1 : 0} />
+            {length > 1 && (<g pointerEvents="none"><g opacity={0.3} fill="#000"><rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} /></g><g transform={`translate(${totalWidth - 25}, 8)`}><rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} /><text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">{length}x</text></g></g>)}
+            <rect x={4} y={5} width={totalWidth - 8} height={(height - 10) / 2} rx={1} fill="url(#glassGrad)" fillOpacity={0.3} pointerEvents="none" />
+            <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} />
+        </g>
+    )
+})
+
+const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
+    const patternColor = getPatternColor(index);
+    const inactiveColor = hasData ? patternColor : '#0f1812';
+    return (
+        <g transform={`translate(${index * 22}, 0)`} className="track-slot" onClick={() => onSelect(trackKey, index)} cursor="pointer" role="button" tabIndex={0} aria-label={`Pattern Slot ${index + 1}`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(trackKey, index); } }} onContextMenu={(e) => e.preventDefault()}>
+            <rect width={18} height={18} rx={2} fill={isActive ? patternColor : inactiveColor} fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)} stroke={isActive ? '#fff' : patternColor} strokeOpacity={isActive ? 1 : 0.6} strokeWidth={1} />
+            <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : patternColor} fontFamily="monospace" fontWeight="bold">{index + 1}</text>
+        </g>
+    );
+});
+
+export interface SequencerRowHandle { setHighlight: (step: number) => void; }
+
+const SequencerRow = memo(forwardRef<SequencerRowHandle, {
+    rowKey: TrackKey, label: string, rowIndex: number, steps: (any | null)[], isSelected: boolean, activeSlot: number,
+    trackSlots: (PartSequence | PartSequence[] | null)[], onToggle: (k: any, i: number, e: any) => void,
+    onRightMouseDown: (k: TrackKey, i: number, e: any) => void, onEditLength: (k: TrackKey, i: number, len: number) => void,
+    onSelectRow: (k: any) => void, onSelectSlot: (k: TrackKey, slot: number) => void,
+    onSelectionStart?: (k: TrackKey, i: number) => void,
+    onSelectionEnter?: (k: TrackKey, i: number) => void,
+    selectionRange?: { start: number, end: number } | null
+}>((props, ref) => {
+    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange } = props;
+    const stepRefs = useRef<(SVGGElement | null)[]>([]);
+    const lastStepRef = useRef(-1);
+    const lastActiveIndexRef = useRef(-1);
+
+    const updateClasses = useCallback((step: number) => {
+        let newActiveIndex = -1;
+        for (let i = step; i >= 0; i--) {
+            if (stepRefs.current[i]) {
+                const length = steps[i]?.length || 1;
+                if (i + length > step) { newActiveIndex = i; }
+                break;
+            }
+        }
+        if (newActiveIndex !== lastActiveIndexRef.current) {
+            if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
+            if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
+            lastActiveIndexRef.current = newActiveIndex;
+        } else {
+             if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
+        }
+    }, [steps]);
+
+    useImperativeHandle(ref, () => ({
+        setHighlight: (step: number) => {
+            if (step === -1) {
+                if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); lastActiveIndexRef.current = -1; }
+                lastStepRef.current = -1;
+                return;
+            }
+            lastStepRef.current = step;
+            updateClasses(step);
+        }
+    }));
+
+    useLayoutEffect(() => {
+        const currentActive = lastActiveIndexRef.current;
+        lastActiveIndexRef.current = -1;
+        if (lastStepRef.current !== -1) { updateClasses(lastStepRef.current); } else { lastActiveIndexRef.current = currentActive; }
+    }, [updateClasses]);
+
+    const renderedSteps = [];
+    let skipCount = 0;
+    for (let i = 0; i < 32; i++) {
+        if (skipCount > 0) { skipCount--; continue; }
+        const stepData = steps[i];
+        const length = stepData?.length || 1;
+
+        let isRangeSelected = false;
+        if (selectionRange) {
+            const low = Math.min(selectionRange.start, selectionRange.end);
+            const high = Math.max(selectionRange.start, selectionRange.end);
+            // Check if step is within range
+            if (i >= low && i <= high) isRangeSelected = true;
+        }
+
+        renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} />);
+        if (stepData && length > 1) { skipCount = length - 1; }
+    }
+
+    return (
+        <g transform={`translate(0, ${rowIndex * 60})`}>
+            <g className="track-label" onClick={() => onSelectRow(rowKey)} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRow(rowKey); } }}>
+                {isSelected && <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />}
+                <text x={-20} y={30} textAnchor="end" fontFamily="Orbitron, monospace" fontSize={12} fill={isSelected ? '#3fa34d' : '#5a6b60'} fontWeight={isSelected ? 'bold' : 'normal'} style={{ textShadow: isSelected ? '0 0 8px rgba(63,163,77,0.5)' : 'none' }}>{label.toUpperCase()}</text>
+            </g>
+            <g transform="translate(30, 16)">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))}
+            </g>
+            <GridIndicators />
+            {renderedSteps}
+        </g>
+    )
+}));
+
 const ROWS = [
-    { key: 'partA' as TrackKey, label: 'Lead' },
-    { key: 'partB' as TrackKey, label: 'Bass' },
-    { key: 'kick' as TrackKey, label: 'Kick' },
-    { key: 'snare' as TrackKey, label: 'Snare' },
-    { key: 'closedHat' as TrackKey, label: 'CH' },
-    { key: 'openHat' as TrackKey, label: 'OH' },
-    { key: 'sampler' as TrackKey, label: 'SMP' },
-];
+    { key: 'partA', label: 'Lead' },
+    { key: 'partB', label: 'Bass' },
+    { key: 'kick', label: 'Kick' },
+    { key: 'snare', label: 'Snare' },
+    { key: 'closedHat', label: 'CH' },
+    { key: 'openHat', label: 'OH' },
+    { key: 'sampler', label: 'SMP' },
+] as const
+
+const StartOverlay = ({ onStart, isReady }: { onStart: () => void, isReady: boolean }) => {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="start-overlay-title">
+            <div className="text-center p-8 bg-[#1f2937] border-2 border-cyan-500 rounded-2xl shadow-2xl max-w-lg w-full">
+                <h1 id="start-overlay-title" className="text-4xl font-bold font-orbitron text-cyan-400 mb-2 tracking-widest drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]">HYPHON</h1>
+                <p className="text-gray-400 mb-8 font-mono text-sm tracking-wide">BROWSER AUDIO WORKSTATION</p>
+                <div className="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700 text-left font-mono text-xs text-gray-300" role="status" aria-live="polite">
+                    <p className="mb-2 text-cyan-500 font-bold">SYSTEM CHECK:</p>
+                    <div className="flex justify-between mb-1"><span>AUDIO ENGINE:</span><span className="text-green-400">READY</span></div>
+                    <div className="flex justify-between mb-1"><span>WEBGPU:</span><span className="text-green-400">DETECTED</span></div>
+                    <div className="flex justify-between"><span>CORE (PYODIDE):</span>{isReady ? <span className="text-green-400">LOADED</span> : <span className="text-yellow-400 animate-pulse">LOADING...</span>}</div>
+                </div>
+                <button onClick={onStart} disabled={!isReady} aria-busy={!isReady} className={`w-full py-4 rounded-xl font-orbitron text-xl font-bold tracking-widest transition-all duration-300 ${isReady ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.6)] hover:shadow-[0_0_30px_rgba(6,182,212,0.8)] border border-cyan-400 cursor-pointer transform hover:scale-[1.02]' : 'bg-gray-700 text-gray-500 cursor-wait border border-gray-600'}`}>{isReady ? 'INITIALIZE SYSTEM' : 'LOADING RESOURCES...'}</button>
+            </div>
+        </div>
+    );
+};
 
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
@@ -211,10 +410,15 @@ export const App: React.FC = () => {
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
     const handleStart = async () => {
+        console.log("Initialization sequence started...");
         try {
+            // We set hasStarted immediately or use a timeout to ensure
+            // the UI unblocks even if a non-critical engine part is slow.
             setHasStarted(true);
+
             await initializeAudio();
             setIsInitialized(true);
+            console.log("Audio Engine Initialized");
         } catch (e) {
             console.error("Failed to start system:", e);
         }
@@ -384,8 +588,11 @@ export const App: React.FC = () => {
             const stepData = p[trackKey].steps[step];
             if (stepData) {
                 const currentBaseFreq = noteToFrequency(stepData.note) * Math.pow(2, params.pitch / 12);
+                let slideFrom = null;
+                if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
-                audioEngine.playSynth(params, notes as string, time, stepData.length ?? 1, stepTime);
+                // @ts-ignore
+                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey);
                 lastFreqRef.current[trackKey] = currentBaseFreq;
             }
         };
@@ -486,8 +693,8 @@ export const App: React.FC = () => {
     const handleKeyboardPlay = useCallback((note: string) => {
         if (!audioEngine) return;
         const time = audioEngine.context.currentTime;
-        if (selectedTrack === 'partA') { const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
-        else if (selectedTrack === 'partB') { const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
+        if (selectedTrack === 'partA') { const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time, 'partA'); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
+        else if (selectedTrack === 'partB') { const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time, 'partB'); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
         else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
         else if (selectedTrack === 'snare') audioEngine.playDrum('snare', snareRef.current, time);
         else if (selectedTrack === 'closedHat') audioEngine.playDrum('closedHat', closedHatRef.current, time);
@@ -626,7 +833,7 @@ export const App: React.FC = () => {
     const getSongData = useCallback(async () => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); return { version: 1, pattern: patternRef.current, tempo: tempoRef.current, ambianceUrl, backgroundImage, params: { synthA: synthARef.current, synthB: synthBRef.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, trackStorage: trackStorageRef.current, activeTrackSlots: activeTrackSlotsRef.current, songStructure: songStructureRef.current, embeddedSamples: encodedSamples, ttsPhrases } as SavedSongData; }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
     const getBankData = useCallback(() => { return { type: 'bank', trackStorage }; }, [trackStorage]);
     const getPatternData = useCallback(() => { return { type: 'pattern', pattern }; }, [pattern]);
-    const loadCloudData = useCallback(async (data: unknown, type: CloudItemType) => { if (type === 'song') { const songData = data as SavedSongData; if (songData.pattern) setPattern(songData.pattern); if (songData.tempo) setTempo(songData.tempo); if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl); if (songData.backgroundImage !== undefined) setBackgroundImage(songData.backgroundImage); if (songData.params) { if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; } if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; } if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; } if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; } if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; } if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; } if (songData.params.sampler) { const samplerWithMode = songData.params.sampler.map(bank => ({ ...bank, mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable' })); setSampler(samplerWithMode); samplerRef.current = samplerWithMode; } } if (songData.trackStorage) setTrackStorage(songData.trackStorage); if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots); if (songData.songStructure) setSongStructure(songData.songStructure); if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) { setTtsPhrases(songData.ttsPhrases); } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) { const normalized = Array(8).fill("Hello World"); songData.ttsPhrases.forEach((phrase, idx) => { if (idx < 8) normalized[idx] = phrase || "Hello World"; }); setTtsPhrases(normalized); } else { setTtsPhrases(Array(8).fill("Hello World")); } if (songData.embeddedSamples && audioEngine) { const loadedBuffers = new Array(8).fill(null); await Promise.all(Object.entries(songData.embeddedSamples).map(async ([idx, b64]) => { try { const fetchRes = await fetch(b64); const arrayBuf = await fetchRes.arrayBuffer(); const audioBuf = await audioEngine.context.decodeAudioData(arrayBuf); const bankIdx = parseInt(idx); const bankName = `bank_${bankIdx}`; audioEngine.loadSampleToEngine(bankName, audioBuf); loadedBuffers[bankIdx] = audioBuf; } catch (e) { console.error(`Failed to load sample bank ${idx}`, e); } })); setSampleBuffers(loadedBuffers); } showToast("Song loaded!", "success"); } else if (type === 'bank') { if (data.trackStorage) { setTrackStorage(data.trackStorage); showToast("Pattern Bank loaded!", "success"); } } else if (type === 'pattern') { if (data.pattern) { setPattern(data.pattern); showToast("Pattern loaded!", "success"); } } }, [audioEngine, sampleBuffers, showToast]);
+    const loadCloudData = useCallback(async (data: any, type: CloudItemType) => { console.log("Loading Cloud Data:", type, data); if (type === 'song') { const songData = data as SavedSongData; if (songData.pattern) setPattern(songData.pattern); if (songData.tempo) setTempo(songData.tempo); if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl); if (songData.backgroundImage !== undefined) setBackgroundImage(songData.backgroundImage); if (songData.params) { if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; } if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; } if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; } if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; } if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; } if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; } if (songData.params.sampler) { const samplerWithMode = songData.params.sampler.map(bank => ({ ...bank, mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable' })); setSampler(samplerWithMode); samplerRef.current = samplerWithMode; } } if (songData.trackStorage) setTrackStorage(songData.trackStorage); if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots); if (songData.songStructure) setSongStructure(songData.songStructure); if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) { setTtsPhrases(songData.ttsPhrases); } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) { const normalized = Array(8).fill("Hello World"); songData.ttsPhrases.forEach((phrase, idx) => { if (idx < 8) normalized[idx] = phrase || "Hello World"; }); setTtsPhrases(normalized); } else { setTtsPhrases(Array(8).fill("Hello World")); } if (songData.embeddedSamples && audioEngine) { const loadedBuffers = new Array(8).fill(null); await Promise.all(Object.entries(songData.embeddedSamples).map(async ([idx, b64]) => { try { const fetchRes = await fetch(b64); const arrayBuf = await fetchRes.arrayBuffer(); const audioBuf = await audioEngine.context.decodeAudioData(arrayBuf); const bankIdx = parseInt(idx); const bankName = `bank_${bankIdx}`; audioEngine.loadSampleToEngine(bankName, audioBuf); loadedBuffers[bankIdx] = audioBuf; } catch (e) { console.error(`Failed to load sample bank ${idx}`, e); } })); setSampleBuffers(loadedBuffers); } showToast("Song loaded!", "success"); } else if (type === 'bank') { if (data.trackStorage) { setTrackStorage(data.trackStorage); showToast("Pattern Bank loaded!", "success"); } } else if (type === 'pattern') { if (data.pattern) { setPattern(data.pattern); showToast("Pattern loaded!", "success"); } } }, [audioEngine, sampleBuffers, showToast]);
     const exportSongToFile = useCallback(async () => { const songData = await getSongData(); const jsonStr = JSON.stringify(songData, null, 2); const blob = new Blob([jsonStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `hyphon-song-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }, [getSongData]);
     const importSongFromFile = useCallback(() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = async (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; try { const text = await file.text(); const songData = JSON.parse(text); await loadCloudData(songData, 'song'); } catch (err) { console.error('Failed to load song:', err); showToast("Failed to load song file.", "error"); } }; input.click(); }, [loadCloudData, showToast]);
 

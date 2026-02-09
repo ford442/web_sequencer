@@ -8,34 +8,42 @@ import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { SingingVoice } from '../engines/SingingVoice';
+import { VoiceManager } from '../engines/VoiceManager';
 import { noteToMidi } from '../utils/musicTheory';
 import { noteToFrequency } from '../constants';
-
-// Import extracted playback functions
-import {
-    playSynth,
-    playDrum,
-    playSampler,
-    noteOnSampler,
-    noteOffSampler,
-    noteOnSynth,
-    noteOffSynth,
-    stopAllSynthNotes,
-    stopAllSamplerNotes,
-    loadSampleToEngine,
-    prepareVocal,
-    type SynthPlaybackContext,
-    type SynthNoteState,
-    type DrumPlaybackContext,
-    type SamplerPlaybackContext,
-    type SamplerState,
-} from '../audio/playback';
 
 // URLs for worklets
 const sustainProcessorUrl = new URL('../audio-worklets/sustain-processor.ts', import.meta.url).href;
 const open303ProcessorUrl = new URL('../audio-worklets/open303-processor.ts', import.meta.url).href;
 
-export const useAudioEngine = (pyodide: unknown) => {
+// Helper for distortion
+const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
+function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
+    const k_raw = typeof amount === 'number' ? amount : 50;
+    const k = Math.round(k_raw * 10) / 10;
+    if (distortionCurveCache.has(k)) return distortionCurveCache.get(k)!;
+    const n_samples = 8192, curve = new Float32Array(n_samples), deg = Math.PI / 180;
+    for (let i = 0; i < n_samples; ++i) {
+        const x = (i * 2) / n_samples - 1;
+        curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+    distortionCurveCache.set(k, curve);
+    return curve;
+}
+
+
+// Map UI params to Engine params
+function apply303Params(engine: Open303Oscillator, params: SynthParams, waveType: string): void {
+    engine.setWaveform(waveType === 'sqr' ? 1.0 : 0.0);
+    // UI Cutoff (0-20000) -> Engine (0-1)
+    engine.setCutoff(Math.max(0, Math.min(1, params.filterCutoff / 8000)));
+    // UI Res (0-20) -> Engine (0-1)
+    engine.setResonance(Math.max(0, Math.min(1, params.filterResonance / 20)));
+    engine.setDecay(params.decay);
+    engine.setVolume(params.volume);
+}
+
+export const useAudioEngine = (pyodide: any) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
@@ -49,6 +57,10 @@ export const useAudioEngine = (pyodide: unknown) => {
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
     const open303EngineRef = useRef<Open303Oscillator | null>(null);
 
+    // Voice Managers
+    const voiceManagerARef = useRef<VoiceManager | null>(null);
+    const voiceManagerBRef = useRef<VoiceManager | null>(null);
+
     // Native WAV buffers
     const wavSawBufferRef = useRef<AudioBuffer | null>(null);
     const wavSqrBufferRef = useRef<AudioBuffer | null>(null);
@@ -60,16 +72,14 @@ export const useAudioEngine = (pyodide: unknown) => {
     const pyodideRef = useRef(pyodide);
 
     // Live note tracking
-    const synthNoteStateRef = useRef<SynthNoteState>({
-        nextNoteId: 1,
-        activeNotes: new Map(),
-    });
-    const samplerNoteStateRef = useRef<SamplerState>({
-        loadedSampleBuffers: new Map(),
-        vocalAlignments: new Map(),
-        nextNoteId: 1,
-        activeNotes: new Map(),
-    });
+    const nextSynthNoteId = useRef(1);
+    const activeSynthNotes = useRef(new Map<number, { stop: () => void }>());
+    const nextSamplerNoteId = useRef(1);
+    const activeSamplerNotes = useRef(new Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>());
+
+    const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
+    const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
+
 
     useEffect(() => {
         pyodideRef.current = pyodide;
@@ -80,11 +90,12 @@ export const useAudioEngine = (pyodide: unknown) => {
         isInitializing.current = true;
 
         try {
-            const context = new (window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+            const context = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-            // Ensure AudioContext is running
+            // --- CRITICAL FIX: Ensure AudioContext is running ---
             if (context.state === 'suspended') {
                 await context.resume();
+                console.log("AudioContext resumed");
             }
 
             // --- MASTER CHAIN ---
@@ -105,11 +116,11 @@ export const useAudioEngine = (pyodide: unknown) => {
 
             // Initialize Engines
             const gpuEngine = new WebGpuOscillator();
-            await gpuEngine.init().catch(() => {});
+            await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
             gpuEngineRef.current = gpuEngine;
 
             const wasmEngine = new WasmOscillator();
-            await wasmEngine.init().catch(() => {});
+            await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
             wasmEngineRef.current = wasmEngine;
 
             // Initialize Open303 Engine (TB-303 clone)
@@ -119,6 +130,9 @@ export const useAudioEngine = (pyodide: unknown) => {
             if (open303Ready) {
                 open303Engine.connect(masterGain);
                 open303EngineRef.current = open303Engine;
+                console.log('Open303 Engine Ready');
+            } else {
+                console.warn('Open303 Engine failed to initialize');
             }
 
             // Load WAV Files
@@ -128,7 +142,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     const arrayBuf = await res.arrayBuffer();
                     return await context.decodeAudioData(arrayBuf);
-                } catch {
+                } catch (e) {
+                    console.error(`Failed to load ${url}`, e);
                     return null;
                 }
             };
@@ -140,6 +155,14 @@ export const useAudioEngine = (pyodide: unknown) => {
             wavSawBufferRef.current = sawBuf;
             wavSqrBufferRef.current = sqrBuf;
 
+            // Initialize Voice Managers
+            // Synth A: Polyphonic (8 voices)
+            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
+
+            // Synth B: Monophonic (1 voice, legato)
+            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined);
+
+
             // Initialize AudioWorklets
             try {
                 await context.audioWorklet.addModule(sustainProcessorUrl);
@@ -150,8 +173,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                 });
                 sustainNode.connect(masterGainRef.current!);
                 sustainNodeRef.current = sustainNode;
-            } catch {
-                // Sustain worklet not available
+            } catch (e) {
+                console.warn('Sustain worklet not available:', e);
             }
 
             // --- Singing Voice Init (Fail-safe) ---
@@ -165,8 +188,13 @@ export const useAudioEngine = (pyodide: unknown) => {
                 });
                 await singingVoiceRef.current.initWorklet();
                 singingVoiceRef.current.getSourceNode().connect(masterGainRef.current!);
-            } catch {
-                // SingingVoice failed to init
+                
+                // Pre-cache if Pyodide ready
+                if (pyodideRef.current) {
+                    // ... (keep existing cache logic or simplify)
+                }
+            } catch (e) {
+                console.warn('SingingVoice failed to init:', e);
             }
 
             // Noise Buffer
@@ -178,72 +206,317 @@ export const useAudioEngine = (pyodide: unknown) => {
             }
             noiseBufferRef.current = buffer;
 
-            // Create playback contexts
-            const synthCtx: SynthPlaybackContext = {
-                context,
-                masterGain,
-                open303Engine: open303EngineRef.current,
-                wavSawBuffer: wavSawBufferRef.current,
-                wavSqrBuffer: wavSqrBufferRef.current,
+            // Define Playback Functions
+
+            const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB') => {
+                 if (!masterGainRef.current) return;
+
+                 // Open303 Routing (Specific check for 303 waveforms)
+                 if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
+                     if (open303EngineRef.current) {
+                         apply303Params(open303EngineRef.current, params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+
+                         // Note: 303 Engine is monophonic by nature in this implementation or handles its own logic.
+                         // But noteToMidi expects string. If chord (array), pick first note?
+                         const noteStr = Array.isArray(note) ? note[0] : note;
+                         if (!noteStr) return;
+
+                         const midi = noteToMidi(noteStr);
+
+                         const now = context.currentTime;
+                         const startDelay = Math.max(0, time - now);
+                         const duration = durationSteps * stepTime;
+
+                         setTimeout(() => {
+                             open303EngineRef.current?.noteOn(midi, 100);
+                         }, startDelay * 1000);
+
+                         setTimeout(() => {
+                             if (slideFromFreq === undefined) { // Check if slide is active (heuristic)
+                                 open303EngineRef.current?.noteOff(midi);
+                             }
+                         }, (startDelay + duration) * 1000);
+
+                         return;
+                     }
+                 }
+
+                 // Standard Synth Logic via VoiceManager
+                 const duration = durationSteps * stepTime;
+
+                 if (track === 'partB' && voiceManagerBRef.current) {
+                     voiceManagerBRef.current.playNote(params, note, time, duration, slideFromFreq);
+                 } else if (voiceManagerARef.current) {
+                     // Default to Synth A (Poly)
+                     voiceManagerARef.current.playNote(params, note, time, duration, slideFromFreq);
+                 }
             };
 
-            const drumCtx: DrumPlaybackContext = {
-                context,
-                masterGain,
-                noiseBuffer: noiseBufferRef.current,
+            const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
+                 if (!masterGainRef.current) return;
+                 const now = time;
+
+                 if (sound === 'kick') {
+                     const p = params as KickParams;
+                     const osc = context.createOscillator();
+                     const gain = context.createGain();
+
+                     osc.frequency.setValueAtTime(150, now);
+                     osc.frequency.exponentialRampToValueAtTime(0.01, now + p.decay);
+
+                     gain.gain.setValueAtTime(p.volume, now);
+                     gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+
+                     osc.connect(gain);
+                     gain.connect(masterGainRef.current);
+
+                     osc.start(now);
+                     osc.stop(now + p.decay);
+                 } else if (sound === 'snare') {
+                     const p = params as SnareParams;
+                     // Tone
+                     const osc = context.createOscillator();
+                     const oscGain = context.createGain();
+                     osc.type = 'triangle';
+                     osc.frequency.setValueAtTime(250, now);
+                     oscGain.gain.setValueAtTime(p.tone * p.volume, now);
+                     oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay); // Using decay for tone too
+
+                     // Noise
+                     if (noiseBufferRef.current) {
+                         const noise = context.createBufferSource();
+                         noise.buffer = noiseBufferRef.current;
+                         const noiseFilter = context.createBiquadFilter();
+                         noiseFilter.type = 'highpass';
+                         noiseFilter.frequency.value = 1000;
+                         const noiseGain = context.createGain();
+                         noiseGain.gain.setValueAtTime(p.noise * p.volume, now);
+                         noiseGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+
+                         noise.connect(noiseFilter);
+                         noiseFilter.connect(noiseGain);
+                         noiseGain.connect(masterGainRef.current);
+                         noise.start(now);
+                         noise.stop(now + p.decay);
+                     }
+
+                     osc.connect(oscGain);
+                     oscGain.connect(masterGainRef.current);
+                     osc.start(now);
+                     osc.stop(now + p.decay);
+
+                 } else {
+                     // Hats
+                     const p = params as HatParams;
+                     if (noiseBufferRef.current) {
+                        const src = context.createBufferSource();
+                        src.buffer = noiseBufferRef.current;
+                        const filter = context.createBiquadFilter();
+                        filter.type = 'highpass';
+                        filter.frequency.value = 5000; // Metallic
+                        const gain = context.createGain();
+                        gain.gain.setValueAtTime(p.volume, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+
+                        src.connect(filter);
+                        filter.connect(gain);
+                        gain.connect(masterGainRef.current);
+                        src.start(now);
+                        src.stop(now + p.decay);
+                     }
+                 }
             };
 
-            const samplerCtx: SamplerPlaybackContext = {
-                context,
-                masterGain,
-                singingVoice: singingVoiceRef.current,
+            const loadSampleToEngine = (name: string, buffer: AudioBuffer) => {
+                loadedSampleBuffersRef.current.set(name, buffer);
             };
 
-            // Wrapped playback functions
-            const wrappedPlaySynth = (params: SynthParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2) => {
-                playSynth(synthCtx, params, note, time, durationSteps, stepTime);
+
+            const prepareVocal = async (bankIndex: number, text: string) => {
+                if (!singingVoiceRef.current) return;
+                const bankName = `bank_${bankIndex}`;
+                const buffer = loadedSampleBuffersRef.current.get(bankName);
+                if (!buffer) return;
+
+                const audio = buffer.getChannelData(0);
+                try {
+                    const alignment = await singingVoiceRef.current.alignPhonemes(audio, text);
+                    if (alignment) {
+                        vocalAlignmentsRef.current.set(bankName, alignment);
+                        console.log(`Aligned phonemes for ${bankName}: ${alignment.phonemes.length}`);
+                    }
+                } catch (e) {
+                    console.warn('Phoneme alignment failed:', e);
+                }
             };
 
-            const wrappedPlayDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
-                playDrum(drumCtx, sound, params, time);
+            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2) => {
+                const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
+                if (!buffer || !masterGainRef.current) return;
+
+                if (params.mode === 'stretch' && singingVoiceRef.current) {
+                    // PHONEME ELASTICITY & SINGING VOICE MODE
+                    const voice = singingVoiceRef.current;
+                    const targetDuration = durationSteps * stepTime;
+                    const originalDuration = buffer.duration;
+
+                    // CHECK FOR SLICE TRIGGER MODE
+                    if (params.sliceMode === 'phoneme') {
+                         const alignment = vocalAlignmentsRef.current.get(params.sampleName);
+                         if (alignment) {
+                             const targetMidi = noteToMidi(note);
+                             // Map MIDI C3 (60) to slice 0
+                             const sliceIndex = targetMidi - 60;
+
+                             if (sliceIndex >= 0) {
+                                 voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment);
+                                 return;
+                             }
+                         }
+                    }
+
+                    // 1. Calculate Time Ratio
+                    const timeRatio = targetDuration / originalDuration;
+                    voice.setTimeRatio(timeRatio);
+
+                    // 2. Pitch Shift
+                    // Assuming base note C4 (60) for the sample
+                    const targetMidi = noteToMidi(note);
+                    voice.setPitchFromMidi(targetMidi, 60);
+
+                    // 3. Phoneme Awareness
+                    const alignment = vocalAlignmentsRef.current.get(params.sampleName);
+
+                    if (alignment) {
+                        // Explicitly set the alignment for this voice operation
+                        voice.setAlignment(alignment);
+                        voice.sendPhonemeDataToWorklet(targetDuration);
+                    }
+
+                    // 4. Process
+                    voice.process(buffer.getChannelData(0));
+                    return;
+                }
+
+                // Standard Loop / One-shot
+                const source = context.createBufferSource();
+                source.buffer = buffer;
+                source.playbackRate.value = params.playbackSpeed;
+
+                const gain = context.createGain();
+                gain.gain.value = params.volume;
+
+                const filter = context.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = params.filterCutoff;
+                filter.Q.value = params.filterResonance;
+
+                // Distortion (Simple waveshaper)
+                const shaper = context.createWaveShaper();
+                if (params.drive > 0) {
+                    shaper.curve = makeDistortionCurve(params.drive * 100);
+                } else {
+                    shaper.curve = null; // Bypass
+                }
+
+                source.connect(filter);
+                filter.connect(shaper);
+                shaper.connect(gain);
+                gain.connect(masterGainRef.current);
+
+                source.start(time);
             };
 
-            const wrappedPlaySampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2) => {
-                playSampler(samplerCtx, samplerNoteStateRef.current, params, note, time, durationSteps, stepTime);
+            const noteOnSampler = (params: SamplerBankParams, _note: string, time?: number): number | null => {
+                // Interactive trigger (e.g. keyboard)
+                const now = time || context.currentTime;
+                const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
+                if (!buffer || !masterGainRef.current) return null;
+
+                const source = context.createBufferSource();
+                source.buffer = buffer;
+                source.playbackRate.value = params.playbackSpeed;
+
+                const gain = context.createGain();
+                gain.gain.value = params.volume;
+
+                source.connect(gain);
+                gain.connect(masterGainRef.current);
+                source.start(now);
+
+                const id = nextSamplerNoteId.current++;
+                activeSamplerNotes.current.set(id, { source, envGain: gain });
+                return id;
             };
 
-            const wrappedNoteOnSampler = (params: SamplerBankParams, _note: string, time?: number): number | null => {
-                return noteOnSampler(samplerCtx, samplerNoteStateRef.current, params, _note, time);
+            const noteOffSampler = (id: number) => {
+                const note = activeSamplerNotes.current.get(id);
+                if (note) {
+                    const now = context.currentTime;
+                    note.envGain.gain.cancelScheduledValues(now);
+                    note.envGain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    note.source.stop(now + 0.1);
+                    activeSamplerNotes.current.delete(id);
+                }
             };
 
-            const wrappedNoteOffSampler = (id: number) => {
-                noteOffSampler(samplerCtx, samplerNoteStateRef.current, id);
+            const noteOnSynth = (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => {
+                 const now = time || context.currentTime;
+
+                 // Interactive Synth trigger
+                 if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
+                     if (open303EngineRef.current) {
+                         apply303Params(open303EngineRef.current, params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+                         const midi = noteToMidi(note);
+                         open303EngineRef.current.noteOn(midi, 100);
+                         const id = nextSynthNoteId.current++;
+                         activeSynthNotes.current.set(id, { stop: () => open303EngineRef.current?.noteOff(midi) });
+                         return id;
+                     }
+                 }
+
+                 // Standard Synth Logic via VoiceManager
+                 let manager = voiceManagerARef.current;
+                 if (track === 'partB') manager = voiceManagerBRef.current;
+
+                 if (manager) {
+                     manager.noteOn(params, note, now);
+                     const id = nextSynthNoteId.current++;
+                     // Capture params for release (not perfect if params change, but acceptable)
+                     activeSynthNotes.current.set(id, {
+                         stop: () => manager?.noteOff(note, context.currentTime, params)
+                     });
+                     return id;
+                 }
+
+                 return null;
             };
 
-            const wrappedNoteOnSynth = (params: SynthParams, note: string, _time?: number): number | null => {
-                return noteOnSynth(synthCtx, synthNoteStateRef.current, params, note, _time);
-            };
-
-            const wrappedNoteOffSynth = (id: number) => {
-                noteOffSynth(synthNoteStateRef.current, id);
+            const noteOffSynth = (id: number) => {
+                const entry = activeSynthNotes.current.get(id);
+                if (entry) {
+                    entry.stop();
+                    activeSynthNotes.current.delete(id);
+                }
             };
 
             const stopAllNotes = () => {
-                stopAllSynthNotes(synthNoteStateRef.current);
-                stopAllSamplerNotes(samplerNoteStateRef.current);
-            };
+                activeSynthNotes.current.forEach(n => n.stop());
+                activeSynthNotes.current.clear();
 
-            const loadSample = (name: string, buffer: AudioBuffer) => {
-                loadSampleToEngine(samplerNoteStateRef.current, name, buffer);
-            };
+                activeSamplerNotes.current.forEach(n => {
+                    try { n.source.stop(); } catch {}
+                });
+                activeSamplerNotes.current.clear();
 
-            const prepareVocalWrapper = async (bankIndex: number, text: string) => {
-                await prepareVocal(samplerNoteStateRef.current, singingVoiceRef.current, bankIndex, text);
+                voiceManagerARef.current?.stopAll();
+                voiceManagerBRef.current?.stopAll();
             };
 
             // Helpers for Render/Ambiance
             const renderSynthPartToBuffer = (_params: SynthParams, _sequence: PartSequence, _tempo: number): Promise<AudioBuffer> => {
-                return Promise.resolve(context.createBuffer(2, context.sampleRate * 2, context.sampleRate));
+                 // Placeholder for actual offline rendering logic
+                 return Promise.resolve(context.createBuffer(2, context.sampleRate * 2, context.sampleRate));
             };
 
             const playBufferedPart = (buffer: AudioBuffer, time: number) => {
@@ -310,6 +583,7 @@ export const useAudioEngine = (pyodide: unknown) => {
             const setSustainMode = (_mode: 'loop' | 'stretch' | 'wavetable') => {};
             const setSustainGrainSize = (_size: number) => {};
 
+
             // Re-assign to state
             setAudioEngine({
                 context,
@@ -317,15 +591,15 @@ export const useAudioEngine = (pyodide: unknown) => {
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303EngineRef.current,
                 singingVoice: singingVoiceRef.current || undefined,
-                playSynth: wrappedPlaySynth,
-                playDrum: wrappedPlayDrum,
-                playSampler: wrappedPlaySampler,
-                noteOnSampler: wrappedNoteOnSampler,
-                noteOffSampler: wrappedNoteOffSampler,
-                noteOnSynth: wrappedNoteOnSynth,
-                noteOffSynth: wrappedNoteOffSynth,
+                playSynth,
+                playDrum,
+                playSampler,
+                noteOnSampler,
+                noteOffSampler,
+                noteOnSynth,
+                noteOffSynth,
                 stopAllNotes,
-                loadSampleToEngine: loadSample,
+                loadSampleToEngine,
                 renderSynthPartToBuffer,
                 playBufferedPart,
                 playAmbiance,
@@ -336,7 +610,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 detectSamplePitch,
                 processSinging,
                 processSpoon,
-                prepareVocal: prepareVocalWrapper,
+                prepareVocal,
                 setSustainMode,
                 setSustainGrainSize
             });
@@ -350,6 +624,8 @@ export const useAudioEngine = (pyodide: unknown) => {
             isInitializing.current = false;
         }
     }, [audioEngine]);
+
+
 
     // Function to update voice parameters in real-time
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number) => {
