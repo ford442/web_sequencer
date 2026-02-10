@@ -368,6 +368,11 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 }
             };
 
+            const getAlignment = (bankIndex: number) => {
+                const bankName = `bank_${bankIndex}`;
+                return vocalAlignmentsRef.current.get(bankName) || null;
+            };
+
             const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2) => {
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 if (!buffer || !masterGainRef.current) return;
@@ -629,6 +634,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 processSinging,
                 processSpoon,
                 prepareVocal,
+                getAlignment,
                 setSustainMode,
                 setSustainGrainSize
             });
