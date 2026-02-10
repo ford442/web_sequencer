@@ -228,7 +228,7 @@ export const SongMode = memo(({
 
     }, [handleGlobalMouseMove, handleGlobalMouseUp, onUpdateStep]);
 
-    // Keyboard Handler: Allows simple toggling via Enter/Space
+    // Keyboard Handler: Allows simple toggling via Enter/Space and value adjustment via Arrows
     const handleCellKeyDown = useCallback((e: React.KeyboardEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -238,6 +238,20 @@ export const SongMode = memo(({
             } else {
                 onUpdateStep(sIdx, track, 0);
             }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            const nextVal = currentVal === null ? 0 : Math.min(7, currentVal + 1);
+            onUpdateStep(sIdx, track, nextVal);
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            e.stopPropagation();
+            const nextVal = currentVal === null ? 0 : Math.max(0, currentVal - 1);
+            onUpdateStep(sIdx, track, nextVal);
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            e.stopPropagation();
+            onUpdateStep(sIdx, track, null);
         }
     }, [onUpdateStep]);
 
