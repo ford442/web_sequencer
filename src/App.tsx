@@ -448,6 +448,9 @@ export const App: React.FC = () => {
     const [isNoteDragging, setIsNoteDragging] = useState(false);
     const noteDragRef = useRef<{ track: TrackKey; step: number; startY: number; startMidi: number; hasMoved: boolean; lastMidi: number; pendingSequence?: PartSequence | PartSequence[]; } | null>(null);
 
+    // Ref for visual slice feedback
+    const sliceHighlightRef = useRef<((slice: number) => void) | null>(null);
+
     // --- SELECTION STATE ---
     const [selection, setSelection] = useState<{ trackKey: TrackKey; startStep: number; endStep: number; } | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
@@ -608,6 +611,29 @@ export const App: React.FC = () => {
             const stepData = seq.steps[step];
             if (stepData) { audioEngine.playSampler(samplerRef.current[bankIdx], stepData.note, time, stepData.length, stepTime); }
         });
+
+        // Visual Slice Feedback for Active Bank
+        if (sliceHighlightRef.current) {
+            const bankIdx = activeSamplerBankRef.current;
+            const bankParams = samplerRef.current[bankIdx];
+
+            // Only update if we are in Phoneme Slice Mode (and bank exists)
+            if (bankParams && bankParams.sliceMode === 'phoneme') {
+                 let activeSlice = -1;
+                 // Look back to find sustaining note
+                 for (let i = step; i >= Math.max(0, step - 15); i--) {
+                     const s = patternRef.current.sampler[bankIdx]?.steps[i];
+                     if (s && s.note) {
+                         const len = s.length || 1;
+                         if (i + len > step) {
+                             activeSlice = noteToMidi(s.note) - 60;
+                             break;
+                         }
+                     }
+                 }
+                 sliceHighlightRef.current(activeSlice);
+            }
+        }
     }, [audioEngine, tempo])
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
@@ -884,7 +910,7 @@ export const App: React.FC = () => {
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
-    const samplerChild = useMemo(() => (<div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} loadedBanks={loadedBanks} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, loadedBanks]);
+    const samplerChild = useMemo(() => (<div className="absolute top-4 left-[30%] w-[40%] h-auto pointer-events-auto z-10 bg-gray-900/80 rounded-lg border border-purple-500/30 backdrop-blur-sm"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, loadedBanks, sampleBuffers]);
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
