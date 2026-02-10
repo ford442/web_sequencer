@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SingingVoice } from '../engines/SingingVoice';
-import { Open303Oscillator } from '../engines/Open303Oscillator';
+// Open303Oscillator tests removed as it no longer supports fallback
 
 // Mock AudioContext and related APIs
 beforeEach(() => {
@@ -30,15 +30,6 @@ describe('AudioWorklet Fallback Support', () => {
         expect(true).toBe(true);
     });
 
-    it('Open303Oscillator accepts forceScriptProcessor parameter', async () => {
-        const mockContext = new AudioContext();
-        const engine = new Open303Oscillator();
-        
-        // Should not throw when forcing script processor
-        const result = await engine.init(mockContext, undefined, true);
-        expect(typeof result).toBe('boolean');
-    });
-
     it('ScriptProcessorNode mode logs appropriate console messages', async () => {
         const consoleSpy = vi.spyOn(console, 'log');
         const mockContext = new AudioContext();
@@ -50,23 +41,6 @@ describe('AudioWorklet Fallback Support', () => {
         // Should log about initializing ScriptProcessor fallback
         expect(consoleSpy).toHaveBeenCalledWith(
             expect.stringContaining('Initializing ScriptProcessorNode fallback')
-        );
-        
-        consoleSpy.mockRestore();
-    });
-
-    it('AudioWorklet mode is preferred when not forcing fallback', async () => {
-        const mockContext = new AudioContext();
-        const engine = new Open303Oscillator();
-        
-        // Not forcing fallback - should attempt worklet first (but will fall back in test env)
-        const consoleSpy = vi.spyOn(console, 'log');
-        await engine.init(mockContext, undefined, false);
-        
-        // In test environment, worklet will fail and fall back to legacy
-        // So we check for the legacy init log instead
-        expect(consoleSpy).toHaveBeenCalledWith(
-            expect.stringContaining('Attempting Legacy Init')
         );
         
         consoleSpy.mockRestore();

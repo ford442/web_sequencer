@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
-import type { Open303Config } from '../engines/Open303Params';
 
 // Mock fetch for WASM files
 global.fetch = vi.fn((url: string) => {
-    if (typeof url === 'string' && url.includes('.wasm')) {
+    if (typeof url === 'string' && url.includes('jc303.wasm')) {
         return Promise.resolve({
             ok: true,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
@@ -16,10 +15,20 @@ global.fetch = vi.fn((url: string) => {
     } as Response);
 }) as any;
 
-describe('Open303 Configuration', () => {
+describe('Open303 Oscillator', () => {
     let mockAudioContext: AudioContext;
+    let mockWorkletNode: any;
 
     beforeEach(() => {
+        mockWorkletNode = {
+            port: {
+                postMessage: vi.fn(),
+                onmessage: null
+            },
+            connect: vi.fn(),
+            disconnect: vi.fn()
+        };
+
         mockAudioContext = {
             createGain: vi.fn(() => ({
                 connect: vi.fn(),
@@ -27,180 +36,78 @@ describe('Open303 Configuration', () => {
                 gain: { value: 1.0 }
             })),
             sampleRate: 44100,
-            audioWorklet: null
-        } as any;
-    });
-
-    describe('Open303Config interface', () => {
-        it('should accept configuration with preferWorklet flag', async () => {
-            const engine = new Open303Oscillator();
-            const config: Open303Config = {
-                preferWorklet: true,
-                preferThreaded: false,
-                forceScriptProcessor: false,
-                forceSingleThreaded: false
-            };
-
-            // Should not throw
-            await engine.init(mockAudioContext, undefined, config);
-            expect(engine).toBeDefined();
-        });
-
-        it('should accept configuration with preferThreaded flag', async () => {
-            const engine = new Open303Oscillator();
-            const config: Open303Config = {
-                preferWorklet: false,
-                preferThreaded: true,
-                forceScriptProcessor: false,
-                forceSingleThreaded: false
-            };
-
-            await engine.init(mockAudioContext, undefined, config);
-            expect(engine).toBeDefined();
-        });
-
-        it('should accept configuration with forceScriptProcessor flag', async () => {
-            const engine = new Open303Oscillator();
-            const config: Open303Config = {
-                preferWorklet: true,
-                preferThreaded: false,
-                forceScriptProcessor: true,
-                forceSingleThreaded: false
-            };
-
-            await engine.init(mockAudioContext, undefined, config);
-            expect(engine.useWorklet).toBe(false);
-        });
-
-        it('should accept configuration with forceSingleThreaded flag', async () => {
-            const engine = new Open303Oscillator();
-            const config: Open303Config = {
-                preferWorklet: false,
-                preferThreaded: true,
-                forceScriptProcessor: false,
-                forceSingleThreaded: true
-            };
-
-            await engine.init(mockAudioContext, undefined, config);
-            expect(engine.isThreaded).toBe(false);
-        });
-    });
-
-    describe('Fallback chain', () => {
-        it('should prefer single-threaded by default', async () => {
-            const engine = new Open303Oscillator();
-            
-            // Default config should prefer single-threaded
-            await engine.init(mockAudioContext);
-            
-            // We can't check the exact variant without mocking deeper,
-            // but we can verify it completed
-            expect(engine).toBeDefined();
-        });
-
-        it('should respect preferThreaded option', async () => {
-            const engine = new Open303Oscillator();
-            const config: Open303Config = {
-                preferThreaded: true
-            };
-
-            await engine.init(mockAudioContext, undefined, config);
-            expect(engine).toBeDefined();
-        });
-
-        it('should handle forceScriptProcessor correctly', async () => {
-            const engine = new Open303Oscillator();
-            const config: Open303Config = {
-                preferWorklet: true,
-                forceScriptProcessor: true
-            };
-
-            await engine.init(mockAudioContext, undefined, config);
-            
-            // Should force ScriptProcessor mode
-            expect(engine.useWorklet).toBe(false);
-        });
-    });
-
-    // Helper to track script element creation for variant selection tests
-    function mockScriptElementTracking(): HTMLScriptElement[] {
-        const scriptElements: HTMLScriptElement[] = [];
-        const originalCreateElement = document.createElement.bind(document);
-        vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
-            const element = originalCreateElement(tagName);
-            if (tagName === 'script') {
-                scriptElements.push(element as HTMLScriptElement);
+            audioWorklet: {
+                addModule: vi.fn().mockResolvedValue(undefined)
             }
-            return element;
-        });
-        return scriptElements;
-    }
+        } as any;
 
-    describe('WASM variant selection', () => {
-        it('should attempt to load threaded variant when preferThreaded is true', async () => {
-            const scriptElements = mockScriptElementTracking();
+        // Mock AudioWorkletNode constructor
+        global.AudioWorkletNode = vi.fn().mockImplementation(() => mockWorkletNode) as any;
+    });
 
-            const engine = new Open303Oscillator();
-            const config: Open303Config = {
-                preferThreaded: true,
-                forceScriptProcessor: false,
-                preferWorklet: false
-            };
+    it('should initialize successfully', async () => {
+        const engine = new Open303Oscillator();
+        const success = await engine.init(mockAudioContext, 'worklet-url.js');
 
-            await engine.init(mockAudioContext, undefined, config);
-            
-            // Should have attempted to load jc303-threaded.js
-            const hasThreadedAttempt = scriptElements.some(script => 
-                script.src.includes('jc303-threaded')
-            );
-            
-            expect(hasThreadedAttempt).toBe(true);
-        });
+        expect(success).toBe(true);
+        expect(engine.isReady).toBe(true);
 
-        it('should attempt to load single-threaded variant when preferThreaded is false', async () => {
-            const scriptElements = mockScriptElementTracking();
+        // Verify fetch was called for WASM
+        expect(global.fetch).toHaveBeenCalledWith('./jc303.wasm');
 
-            const engine = new Open303Oscillator();
-            const config: Open303Config = {
-                preferThreaded: false,
-                forceScriptProcessor: false,
-                preferWorklet: false
-            };
+        // Verify addModule was called
+        expect(mockAudioContext.audioWorklet.addModule).toHaveBeenCalledWith('worklet-url.js');
 
-            await engine.init(mockAudioContext, undefined, config);
-            
-            // Should have attempted to load jc303-single
-            const hasSingleAttempt = scriptElements.some(script => 
-                script.src.includes('jc303-single')
-            );
-            
-            expect(hasSingleAttempt).toBe(true);
+        // Verify init-wasm message was sent
+        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'init-wasm',
+            data: expect.objectContaining({
+                sampleRate: 44100
+            })
+        }));
+    });
+
+    it('should send noteOn messages', async () => {
+        const engine = new Open303Oscillator();
+        await engine.init(mockAudioContext, 'worklet-url.js');
+
+        engine.noteOn(60, 100);
+        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
+            type: 'noteOn',
+            data: { note: 60, velocity: 100 }
         });
     });
 
-    describe('Mode tracking', () => {
-        it('should track useWorklet state', async () => {
-            const engine = new Open303Oscillator();
-            await engine.init(mockAudioContext);
-            
-            // useWorklet should be boolean
-            expect(typeof engine.useWorklet).toBe('boolean');
-        });
+    it('should send noteOff messages', async () => {
+        const engine = new Open303Oscillator();
+        await engine.init(mockAudioContext, 'worklet-url.js');
 
-        it('should track isThreaded state', async () => {
-            const engine = new Open303Oscillator();
-            await engine.init(mockAudioContext);
-            
-            // isThreaded should be boolean
-            expect(typeof engine.isThreaded).toBe('boolean');
+        engine.noteOff(60);
+        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
+            type: 'noteOff',
+            data: { note: 60 }
         });
+    });
 
-        it('should track isReady state', async () => {
-            const engine = new Open303Oscillator();
-            await engine.init(mockAudioContext);
-            
-            // isReady should be boolean
-            expect(typeof engine.isReady).toBe('boolean');
+    it('should send param updates', async () => {
+        const engine = new Open303Oscillator();
+        await engine.init(mockAudioContext, 'worklet-url.js');
+
+        engine.setCutoff(0.5);
+        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
+            type: 'param',
+            data: { func: 'jc303_setCutoff', value: 0.5 }
         });
+    });
+
+    it('should handle initialization failure gracefully', async () => {
+        // Mock fetch failure
+        (global.fetch as any).mockImplementationOnce(() => Promise.resolve({ ok: false, status: 404 }));
+
+        const engine = new Open303Oscillator();
+        const success = await engine.init(mockAudioContext, 'worklet-url.js');
+
+        expect(success).toBe(false);
+        expect(engine.isReady).toBe(false);
     });
 });
