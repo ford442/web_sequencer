@@ -1,7 +1,7 @@
-import { Open303Params, DEFAULT_303_PARAMS } from './Open303Params';
+import type { Open303Params } from './Open303Params';
+import { DEFAULT_303_PARAMS } from './Open303Params';
 
 export class Open303Oscillator {
-    private audioContext: AudioContext | null = null;
     private workletNode: AudioWorkletNode | null = null;
     private gainNode: GainNode | null = null;
     private outputNode: GainNode | null = null;

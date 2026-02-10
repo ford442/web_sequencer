@@ -1,3 +1,4 @@
+import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
 import type { SingingVoice } from './engines/SingingVoice';
 import type { WebGpuOscillator } from './engines/WebGpuOscillator';
 import type { WasmOscillator } from './engines/WasmOscillator';
