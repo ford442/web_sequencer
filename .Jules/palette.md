@@ -49,3 +49,7 @@
 ## 2025-05-26 - Replacing Alerts with Toasts
 **Learning:** Native `alert()` calls are blocking and disruptive, breaking the user's flow and immersion, especially in a specialized creative app like a DAW. They also fail to respect the application's visual theme.
 **Action:** Replace all `alert()` usage with a non-blocking `Toast` notification system. Use context or prop drilling (for simple hierarchies) to expose a `showToast` function, and ensure the toast component is accessible (`role="alert"`) and auto-dismissing.
+
+## 2025-05-26 - Keyboard Value Control in Sequencer Grids
+**Learning:** Grid-based sequencer inputs often rely on mouse drag for value selection, leaving keyboard users with only binary (toggle) control via Enter/Space. This excludes them from precise musical expression (e.g., selecting specific patterns).
+**Action:** Implement `ArrowUp`/`ArrowDown` handlers on grid cells to increment/decrement values, and `Delete`/`Backspace` to clear them, ensuring functional parity with mouse interactions.
