@@ -85,11 +85,15 @@ compile_c() {
 # --- PATCH START ---
 # Fix include path issue in VectorOpsComplex.cpp for the main build
 echo "  [Patch] Fixing VectorOpsComplex.cpp include..."
-sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' "$RUBBERBAND_SRC/src/common/VectorOpsComplex.cpp" || true
+if ! grep -q '#include "sysutils.h"' "$RUBBERBAND_SRC/src/common/VectorOpsComplex.cpp"; then
+    sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' "$RUBBERBAND_SRC/src/common/VectorOpsComplex.cpp" || true
+fi
 
 # Fix size_t issue in sysutils.h (needed for mathmisc.h etc)
 echo "  [Patch] Fixing size_t in sysutils.h..."
-sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' "$RUBBERBAND_SRC/src/common/sysutils.h" || true
+if ! grep -q "using std::size_t;" "$RUBBERBAND_SRC/src/common/sysutils.h"; then
+    sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' "$RUBBERBAND_SRC/src/common/sysutils.h" || true
+fi
 
 # --- OPENMP PARALLELIZATION PATCHES ---
 echo "  [Patch] Adding OpenMP parallelization to rubberband..."
@@ -111,52 +115,68 @@ done
 # Patch R2Stretcher.cpp (uses m_channels only)
 file="$RUBBERBAND_SRC/src/faster/R2Stretcher.cpp"
 if [ -f "$file" ]; then
-    count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
-    if [ "$count" -gt 0 ]; then
-        echo "    Patching $count channel loops in R2Stretcher.cpp..."
-        sed -i '/for (int c = 0; c < .*channels/i \
+    if ! grep -q "#pragma omp parallel for" "$file"; then
+        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
+        if [ "$count" -gt 0 ]; then
+            echo "    Patching $count channel loops in R2Stretcher.cpp..."
+            sed -i '/for (int c = 0; c < .*channels/i \
 #ifdef _OPENMP\
 #pragma omp parallel for schedule(static) if(m_channels > 2)\
 #endif' "$file"
+        fi
+    else
+        echo "    Skipping R2Stretcher.cpp (already patched)"
     fi
 fi
 
 # Patch StretcherProcess.cpp (uses m_channels only)
 file="$RUBBERBAND_SRC/src/faster/StretcherProcess.cpp"
 if [ -f "$file" ]; then
-    count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
-    if [ "$count" -gt 0 ]; then
-        echo "    Patching $count channel loops in StretcherProcess.cpp..."
-        sed -i '/for (int c = 0; c < .*channels/i \
+    if ! grep -q "#pragma omp parallel for" "$file"; then
+        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
+        if [ "$count" -gt 0 ]; then
+            echo "    Patching $count channel loops in StretcherProcess.cpp..."
+            sed -i '/for (int c = 0; c < .*channels/i \
 #ifdef _OPENMP\
 #pragma omp parallel for schedule(static) if(m_channels > 2)\
 #endif' "$file"
+        fi
+    else
+        echo "    Skipping StretcherProcess.cpp (already patched)"
     fi
 fi
 
 # Patch R3Stretcher.cpp (uses m_parameters.channels)
 file="$RUBBERBAND_SRC/src/finer/R3Stretcher.cpp"
 if [ -f "$file" ]; then
-    count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
-    if [ "$count" -gt 0 ]; then
-        echo "    Patching $count channel loops in R3Stretcher.cpp..."
-        sed -i '/for (int c = 0; c < .*channels/i \
+    if ! grep -q "#pragma omp parallel for" "$file"; then
+        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
+        if [ "$count" -gt 0 ]; then
+            echo "    Patching $count channel loops in R3Stretcher.cpp..."
+            sed -i '/for (int c = 0; c < .*channels/i \
 #ifdef _OPENMP\
 #pragma omp parallel for schedule(static) if(m_parameters.channels > 2)\
 #endif' "$file"
+        fi
+    else
+        echo "    Skipping R3Stretcher.cpp (already patched)"
     fi
 fi
 
 # Patch R3LiveShifter.cpp (uses m_parameters.channels)
 file="$RUBBERBAND_SRC/src/finer/R3LiveShifter.cpp"
 if [ -f "$file" ]; then
-    count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
-    if [ "$count" -gt 0 ]; then
-        echo "    Patching $count channel loops in R3LiveShifter.cpp..."
-        sed -i '/for (int c = 0; c < .*channels/i \
+    if ! grep -q "#pragma omp parallel for" "$file"; then
+        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
+        if [ "$count" -gt 0 ]; then
+            echo "    Patching $count channel loops in R3LiveShifter.cpp..."
+            sed -i '/for (int c = 0; c < .*channels/i \
 #ifdef _OPENMP\
 #pragma omp parallel for schedule(static) if(m_parameters.channels > 2)\
 #endif' "$file"
+        fi
+    else
+        echo "    Skipping R3LiveShifter.cpp (already patched)"
     fi
 fi
 
