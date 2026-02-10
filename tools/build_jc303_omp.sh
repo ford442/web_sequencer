@@ -72,59 +72,8 @@ fi
 
 echo -e "${GREEN}Using Emscripten:${NC} $(emcc --version | head -n1)"
 
-# Create build directory
-echo -e "${YELLOW}Creating build directory...${NC}"
-mkdir -p "${BUILD_DIR}"
-cd "${BUILD_DIR}"
-
-# Check for libomp.a
-LIBOMP_PATH="$REPO_ROOT/emscripten/libomp.a"
-if [ ! -f "$LIBOMP_PATH" ]; then
-    echo -e "${RED}Error: libomp.a not found at $LIBOMP_PATH${NC}"
-    exit 1
-fi
-echo -e "${GREEN}Found libomp.a: $LIBOMP_PATH${NC}"
-
-# OpenMP flags for Emscripten
-# Note: We use -fopenmp for compilation but link manually against libomp.a
-# We add -I to find omp.h
-OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
-OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
-# Prevent Emscripten from minifying import/export names so AudioWorklet can resolve them.
-# Using -O1 with -g instead of -O3 -flto to avoid aggressive minification that renames imports (e.g. "abort" -> "b").
-LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0 ${LIBOMP_PATH}"
-
-# Configure with CMake using Emscripten toolchain
-echo -e "${YELLOW}Configuring with CMake (OpenMP enabled)...${NC}"
-if [ "$BUILD_TYPE" = "debug" ]; then
-    CMAKE_BUILD_TYPE="Debug"
-    echo -e "${YELLOW}Using debug flags with OMP...${NC}"
-    cmake_args=(
-        -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
-        -DCMAKE_C_FLAGS="${OMP_FLAGS} -O0 -g"
-        -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O0 -g"
-        -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -sASSERTIONS=2 -sSAFE_HEAP=1"
-    )
-else
-    CMAKE_BUILD_TYPE="Release"
-    cmake_args=(
-        -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
-        -DCMAKE_C_FLAGS="${OMP_FLAGS} -O1 -g"
-        -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O1 -g"
-        -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS}"
-    )
-fi
-
-# Run CMake with guarded args  
-emcmake cmake "$WASM_DIR" "${cmake_args[@]}"
-
-# Build with appropriate parallelism
-echo -e "${YELLOW}Building...${NC}"
-NPROC=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4)
-emmake make -j${NPROC}
-
 # Create distribution directory
-echo -e "${YELLOW}Creating distribution package...${NC}"
+echo -e "${YELLOW}Creating distribution directory...${NC}"
 mkdir -p "${DIST_DIR}"
 
 # Function to build a single variant
@@ -155,12 +104,12 @@ build_variant() {
         
         OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
         OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
-        LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0 -s MINIFY_WASM_IMPORTS=0 -s MINIFY_EXPORT_NAME=0 ${LIBOMP_PATH}"
+        LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0 ${LIBOMP_PATH}"
     else
         # Single-threaded variant - no OpenMP
         echo -e "${YELLOW}Building single-threaded variant (no OpenMP)${NC}"
         OMP_FLAGS=""
-        LINK_OMP_FLAGS="-s MINIFY_WASM_IMPORTS=0 -s MINIFY_EXPORT_NAME=0"
+        LINK_OMP_FLAGS=""
     fi
     
     # Configure with CMake using Emscripten toolchain
@@ -178,8 +127,8 @@ build_variant() {
         CMAKE_BUILD_TYPE="Release"
         cmake_args=(
             -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
-            -DCMAKE_C_FLAGS="${OMP_FLAGS} -O3 -flto"
-            -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O3 -flto"
+            -DCMAKE_C_FLAGS="${OMP_FLAGS} -O1 -g"
+            -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O1 -g"
             -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS}"
         )
     fi
