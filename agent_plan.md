@@ -17,6 +17,7 @@
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
 - [x] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
+- [x] **Visual Slice Feedback:** Highlight the active phoneme slice in the UI during playback, visualizing real-time TTS articulation.
 - [x] **Rubber-Band Selection:** Implement multi-note selection via mouse drag in `Sequencer.tsx` (and `App.tsx` main view).
 - [ ] **Clipboard Operations:** Standardize `Ctrl+C` / `Ctrl+V` logic to handle both Note Data *and* associated TTS Metadata (which word is attached to the note).
 - [ ] **Per-Step Parameters:** Create a UI to edit "Expression" or "Timbre" for individual sequencer steps (vital for humanizing TTS output).
@@ -34,7 +35,6 @@
 * **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
 * **Idea:** "Glitch Mode" - A probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis).
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect.
-* **Idea:** "Visual Slice Feedback" - Highlight the active phoneme slice in the UI during playback.
 
 ---
 
@@ -46,3 +46,4 @@
 * [2026-05-23] - Implemented Slice Mode UI in SamplerPanel, enabling Phoneme Slice Mode triggering via MIDI keys.
 * [2026-05-24] - Implemented Rubber-Band Selection (Shift+Drag) in the main sequencer view (`App.tsx`), enabling multi-step selection and bulk deletion.
 * [2026-05-25] - Implemented Hybrid Polyphony using `VoiceManager`, enabling 8-voice polyphony for Synth A and legato monophony for Synth B.
+* [2026-05-26] - Implemented Visual Slice Feedback in SamplerPanel using canvas-based WaveformDisplay and imperative playback highlighting.
