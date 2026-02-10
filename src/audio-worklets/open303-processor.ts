@@ -45,8 +45,8 @@ class Open303Processor extends AudioWorkletProcessor {
                     const importNames = importDescriptors.map((d: any) => d.name || '');
                     if (importNames.some((n: string) => /^[A-Za-z]$/.test(n))) {
                         console.warn(
-                            \"[Open303] Detected minified import names (e.g. 'b').\",
-                            \"Rebuild jc303 with: -O1 -g (see tools/build_jc303_omp.sh)\"
+                            "[Open303] Detected minified import names (e.g. 'b').",
+                            "Rebuild jc303 with: -O1 -g (see tools/build_jc303_omp.sh)"
                         );
                     }
                 } catch (e) {
@@ -107,16 +107,18 @@ class Open303Processor extends AudioWorkletProcessor {
                     // 3. Instantiate with Alias
                     // Emscripten -O3 builds often minify 'env' to 'a'. We provide both to be safe.
                     // We also add WASI aliases because modern Emscripten might use them.
-                    console.log("[Open303] Instantiating with env keys:", Object.keys(env));
+                };
 
-                    // Construct the imports object explicitly
-                    const importsObject: any = {
-                        env: env,
-                        a: env,
-                        wasi_snapshot_preview1: env,
-                        wasi_unstable: env,
-                        "": env
-                    };
+                console.log("[Open303] Instantiating with env keys:", Object.keys(env));
+
+                // Construct the imports object explicitly
+                const importsObject: any = {
+                    env: env,
+                    a: env,
+                    wasi_snapshot_preview1: env,
+                    wasi_unstable: env,
+                    "": env
+                };
 
                     // If the module expects an imported memory, create one and attach it.
                     // For threaded variant: Use SharedArrayBuffer (requires COOP/COEP headers)
