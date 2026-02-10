@@ -40,13 +40,13 @@ class Open303Processor extends AudioWorkletProcessor {
                     console.log("[Open303] WASM Imports Requirement:", JSON.stringify(importDescriptors));
 
                     // If the module imports single-letter/minified names (e.g. "b"), the wasm
-                    // was built with import minification. Recommend rebuilding with the
-                    // MINIFY_WASM_IMPORTS=0 flag so names like "abort" are preserved.
+                    // was built with import minification. Recommend rebuilding with -O1 -g
+                    // instead of -O3 -flto to avoid aggressive minification.
                     const importNames = importDescriptors.map((d: any) => d.name || '');
                     if (importNames.some((n: string) => /^[A-Za-z]$/.test(n))) {
                         console.warn(
-                            "[Open303] Detected minified import names (e.g. 'b').",
-                            "Rebuild jc303 with: -s MINIFY_WASM_IMPORTS=0 (see tools/build_jc303_omp.sh)"
+                            \"[Open303] Detected minified import names (e.g. 'b').\",
+                            \"Rebuild jc303 with: -O1 -g (see tools/build_jc303_omp.sh)\"
                         );
                     }
                 } catch (e) {
@@ -55,29 +55,54 @@ class Open303Processor extends AudioWorkletProcessor {
 
                 // 2. Prepare Environment Imports
                 // We define the standard Emscripten imports plus stubs for runtime safety.
+                // Based on the rebuilt WASM with -O1 -g, the imports are now full names.
                 const env: any = {
-                    abort: () => console.error("WASM Abort"),
-                    b: () => console.error("WASM Abort"),  // Alias for minified abort — TODO: remove after rebuilding jc303 with -s MINIFY_WASM_IMPORTS=0
+                    // Core runtime
+                    _abort_js: () => console.error("WASM Abort"),
+                    abort: () => console.error("WASM Abort"),  // fallback alias
+                    b: () => console.error("WASM Abort"),  // TODO: remove after confirming no minified builds exist
+
+                    // Memory management
+                    emscripten_resize_heap: (_size: number) => false, // Return false to indicate failure if dynamic growth isn't supported/needed
+                    _emscripten_resize_heap: (_size: number) => false, // alias
+
+                    // Emscripten Runtime Stubs (Prevent crashes on missing symbols)
                     emscripten_notify_memory_growth: () => this.updateHeap(),
+
+                    // Math functions
                     exp: Math.exp,
                     pow: Math.pow,
                     sin: Math.sin,
                     cos: Math.cos,
                     fmod: (x: number, y: number) => x % y,
 
-                    // Emscripten Runtime Stubs (Prevent crashes on missing symbols)
-                    _emscripten_resize_heap: (_size: number) => false, // Return false to indicate failure if dynamic growth isn't supported/needed
-                    _emscripten_memcpy_big: (dest: number, src: number, num: number) => {
-                        // Safety check: Instance might not be ready during immediate instantiation
-                        if (!this.wasmInstance && !this.importedMemory) return;
+                    // Threading (for OMP)
+                    _emscripten_thread_set_strongref: () => {},
+                    emscripten_exit_with_live_runtime: () => {},
+                    _emscripten_notify_mailbox_postmessage: () => {},
+                    emscripten_check_blocking_allowed: () => {},
+                    _emscripten_receive_on_main_thread_js: () => {},
+                    _emscripten_init_main_thread_js: () => {},
+                    _emscripten_thread_mailbox_await: () => {},
+                    _emscripten_thread_cleanup: () => {},
+                    _setitimer_js: () => {},
+                    _emscripten_runtime_keepalive_clear: () => {},
 
-                        const memory = (this.wasmInstance && (this.wasmInstance.exports && (this.wasmInstance.exports.memory as WebAssembly.Memory))) || this.importedMemory;
-                        if (!memory) return;
+                    // Time
+                    clock_time_get: () => Date.now() * 1000000, // nanoseconds
+                    emscripten_get_now: () => performance.now(),
 
-                        const heap = new Uint8Array(memory.buffer);
-                        heap.set(heap.subarray(src, src + num), dest);
-                    }
-                };
+                    // Embind (for C++ bindings)
+                    _embind_register_function: () => {},
+                    _embind_register_void: () => {},
+                    _embind_register_bool: () => {},
+                    _embind_register_std_string: () => {},
+                    _embind_register_std_wstring: () => {},
+                    _embind_register_emval: () => {},
+                    _embind_register_integer: () => {},
+                    _embind_register_bigint: () => {},
+                    _embind_register_float: () => {},
+                    _embind_register_memory_view: () => {},
 
                 // 3. Instantiate with Alias
                 // Emscripten -O3 builds often minify 'env' to 'a'. We provide both to be safe.
