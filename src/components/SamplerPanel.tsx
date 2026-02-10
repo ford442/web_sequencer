@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, memo, useCallback } from 'react';
 import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
+import { WaveformDisplay } from './WaveformDisplay';
 
 interface SamplerPanelProps {
     params: SamplerParams; // Expecting Array[8]
@@ -17,6 +18,8 @@ interface SamplerPanelProps {
     onHarmonize?: (bankIndex: number, chordType: string) => Promise<void>; // New prop
     onParamChange?: (bankIndex: number, key: string, value: any) => void;
     loadedBanks?: boolean[];         // Visual indicator for loaded samples
+    sampleBuffer?: AudioBuffer | null;
+    sliceHighlightRef?: React.MutableRefObject<((slice: number) => void) | null>;
 }
 
 // 8 Banks
@@ -29,9 +32,10 @@ const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100
 const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
     ttsPhrases, onTtsPhraseChange,
-    onHarmonize, onParamChange, loadedBanks
+    onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dummyRef = useRef(null); // Fallback for sliceHighlightRef
     const [isRecording, setIsRecording] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [status, setStatus] = useState<string>('');
@@ -325,8 +329,20 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     };
 
+    // Get alignment
+    const alignment = (audioEngine?.getAlignment && activeBankIdx >= 0)
+        ? audioEngine.getAlignment(activeBankIdx)
+        : null;
+
     return (
         <div className="flex flex-col gap-2 p-3 text-xs font-mono text-gray-400 h-full">
+            {/* ROW 0: Waveform Display */}
+            <WaveformDisplay
+                buffer={sampleBuffer || null}
+                alignment={alignment}
+                sliceHighlightRef={sliceHighlightRef || dummyRef}
+            />
+
             {/* ROW 1: Bank Selectors (8 Banks) */}
             <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar" role="tablist" aria-label="Sample Banks">
                 {SAMPLE_BANKS.map((label, i) => (
@@ -590,7 +606,6 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
     if (prev.activeBankIdx !== next.activeBankIdx) return false;
 
     // 2. Active bank params must be referentially equal
-    // (App.tsx ensures immutable updates: new array + new object for changed bank)
     if (prev.params[prev.activeBankIdx] !== next.params[next.activeBankIdx]) return false;
 
     // 3. TTS phrases for active bank must be same
@@ -604,7 +619,11 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
     // 5. Check if loaded banks status changed
     if (JSON.stringify(prev.loadedBanks) !== JSON.stringify(next.loadedBanks)) return false;
 
-    // We assume handler functions are stable or we don't care if they change as long as data is same
+    // 6. Check sample buffer
+    if (prev.sampleBuffer !== next.sampleBuffer) return false;
+
+    // 7. Check sliceHighlightRef (should be stable, but just in case)
+    if (prev.sliceHighlightRef !== next.sliceHighlightRef) return false;
 
     return true;
 });

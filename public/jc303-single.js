@@ -42,7 +42,7 @@ var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIR
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
-// include: /workspaces/codepit/projects/web_sequencer/jc303_wasm/wasm/early_wasm_table.js
+// include: /app/jc303_wasm/wasm/early_wasm_table.js
 // Ensure a wasmTable exists early during Wasm instantiation so embind
 // registrations that run during module startup can call wasmTable.get()
 // without throwing "wasmTable.get is not a function".
@@ -69,7 +69,7 @@ var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIR
     }
   }
 })();
-// end include: /workspaces/codepit/projects/web_sequencer/jc303_wasm/wasm/early_wasm_table.js
+// end include: /app/jc303_wasm/wasm/early_wasm_table.js
 
 
 var arguments_ = [];
@@ -1929,7 +1929,7 @@ run();
 
 // end include: postamble.js
 
-// include: /workspaces/codepit/projects/web_sequencer/jc303_wasm/wasm/compat_wasm_imports.js
+// include: /app/jc303_wasm/wasm/compat_wasm_imports.js
 // Ensure the minified import module name 'a' is present when instantiating wasm.
 // This covers cases where the linker minified imported module names to 'a'.
 (function(){
@@ -1957,9 +1957,9 @@ run();
     // no-op
   }
 })();
-// end include: /workspaces/codepit/projects/web_sequencer/jc303_wasm/wasm/compat_wasm_imports.js
+// end include: /app/jc303_wasm/wasm/compat_wasm_imports.js
 
-// include: /workspaces/codepit/projects/web_sequencer/jc303_wasm/wasm/safe_unbound_types.js
+// include: /app/jc303_wasm/wasm/safe_unbound_types.js
 // Post-JS shim to avoid calling into WASM when forming unbound type names.
 // Some builds cause __getTypeName to return invalid pointers which causes an
 // immediate abort while trying to create an error message. Replace
@@ -1990,7 +1990,7 @@ run();
     // code, so these should normally exist.
   }
 })();
-// end include: /workspaces/codepit/projects/web_sequencer/jc303_wasm/wasm/safe_unbound_types.js
+// end include: /app/jc303_wasm/wasm/safe_unbound_types.js
 
 // include: postamble_modularize.js
 // In MODULARIZE mode we wrap the generated code in a factory function
