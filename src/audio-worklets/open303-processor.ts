@@ -73,12 +73,12 @@ class Open303Processor extends AudioWorkletProcessor {
                     // NOTE: These functions are called during WASM instantiation, so we need to
                     // handle the case where wasmInstance isn't set yet
                     emscripten_resize_heap: (size: number) => {
-                        // During instantiation, we may not have wasmInstance yet
-                        // Use the imported memory if available
-                        const memory = this.importedMemory;
+                        // Try to get memory from wasmInstance exports (preferred) or fall back to imported memory
+                        const memory = this.wasmInstance?.exports?.memory as WebAssembly.Memory || this.importedMemory;
+                        
                         if (!memory) {
                             console.warn('[Open303] emscripten_resize_heap called but no memory available yet');
-                            return false;
+                            return 0; // Return 0 (failure) in C convention
                         }
                         
                         const currentPages = memory.buffer.byteLength / (64 * 1024);
@@ -90,13 +90,13 @@ class Open303Processor extends AudioWorkletProcessor {
                                 memory.grow(deltaPages);
                                 console.log(`[Open303] Heap grown from ${currentPages} to ${currentPages + deltaPages} pages`);
                                 this.updateHeap();
-                                return true;
+                                return 1; // Return 1 (success) in C convention
                             } catch (e) {
                                 console.error('[Open303] Failed to grow heap:', e);
-                                return false;
+                                return 0; // Return 0 (failure) in C convention
                             }
                         }
-                        return true;
+                        return 1; // Already large enough, return success
                     },
                     _emscripten_resize_heap: (size: number) => { 
                         return env.emscripten_resize_heap(size);
