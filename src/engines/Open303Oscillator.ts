@@ -38,25 +38,42 @@ export class Open303Oscillator {
                 });
 
                 // 4. Send WASM to the Worklet
+                // JC-303 is built with OpenMP and requires shared memory
                 this.workletNode.port.postMessage({
                     type: 'init-wasm',
                     data: {
                         wasmBytes,
-                        sampleRate: audioContext.sampleRate
+                        sampleRate: audioContext.sampleRate,
+                        isThreaded: true  // Required for OpenMP-enabled JC-303 build
                     }
                 });
 
                 // 5. Connect and Listen
                 this.workletNode.connect(this.gainNode);
 
-                // Optional: Listen for readiness confirmation
-                this.workletNode.port.onmessage = (e) => {
-                    if (e.data.type === 'ready') {
-                        // console.log("Open303 Engine Fully Operational");
-                    } else if (e.data.type === 'error') {
-                        console.error("Open303 Worklet Error:", e.data.error);
-                    }
-                };
+                // Wait for worklet to confirm initialization
+                const initSuccess = await new Promise<boolean>((resolve) => {
+                    this.workletNode!.port.onmessage = (e) => {
+                        if (e.data.type === 'ready') {
+                            console.log("[Open303] Engine Fully Operational");
+                            resolve(true);
+                        } else if (e.data.type === 'error') {
+                            console.error("[Open303] Worklet Error:", e.data.error);
+                            resolve(false);
+                        }
+                    };
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        console.error("[Open303] Initialization timeout");
+                        resolve(false);
+                    }, 5000);
+                });
+
+                if (!initSuccess) {
+                    this.cleanup();
+                    return false;
+                }
 
                 this.isReady = true;
                 this.applyAllParameters();
@@ -111,5 +128,22 @@ export class Open303Oscillator {
 
     disconnect() {
         if (this.outputNode) this.outputNode.disconnect();
+    }
+
+    private cleanup() {
+        if (this.workletNode) {
+            this.workletNode.disconnect();
+            this.workletNode.port.close();
+            this.workletNode = null;
+        }
+        if (this.gainNode) {
+            this.gainNode.disconnect();
+            this.gainNode = null;
+        }
+        if (this.outputNode) {
+            this.outputNode.disconnect();
+            this.outputNode = null;
+        }
+        this.isReady = false;
     }
 }

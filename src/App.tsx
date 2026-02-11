@@ -392,7 +392,10 @@ export const App: React.FC = () => {
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
-    const [forceScriptProcessorFallback, setForceScriptProcessorFallback] = useState(false);
+    const [forceScriptProcessorFallback, setForceScriptProcessorFallback] = useState(() => {
+        // Read persisted preference from localStorage
+        return localStorage.getItem('forceScriptProcessorFallback') === 'true';
+    });
 
     // Initialize Gamepad Support
     useGamepad();
@@ -1009,6 +1012,8 @@ export const App: React.FC = () => {
                     onClick={() => {
                         const newValue = !forceScriptProcessorFallback;
                         setForceScriptProcessorFallback(newValue);
+                        // Persist preference to localStorage
+                        localStorage.setItem('forceScriptProcessorFallback', String(newValue));
                         showToast(
                             newValue
                                 ? "ScriptProcessor fallback enabled. Refresh page to apply." 
