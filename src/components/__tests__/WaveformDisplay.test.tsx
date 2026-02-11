@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { WaveformDisplay } from '../WaveformDisplay';
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
 
@@ -41,7 +41,10 @@ describe('WaveformDisplay', () => {
         } as unknown as AudioBuffer;
 
         const mockAlignment: AlignmentResult = {
-            phonemes: [{ phoneme: 'AH', start: 0, end: 1, score: 0.9 }]
+            phonemes: [{ phoneme: 'AH', start: 0, end: 1, isVowel: true }],
+            sampleRate: 44100,
+            duration: 1,
+            text: 'test'
         };
 
         render(<WaveformDisplay buffer={mockBuffer} alignment={mockAlignment} sliceHighlightRef={sliceHighlightRef} />);
