@@ -306,7 +306,7 @@ class SustainProcessor extends AudioWorkletProcessor {
         const currentSampleRate = globalThis.sampleRate || 44100;
         
         // Get mode once for the entire block
-        const mode = modeConstant ? modeParam[0] : modeParam[0];
+        const mode = modeParam[0];
         
         // --- MODE D: RUBBERBAND (high-quality pitch shifting) ---
         if (mode >= 2.5 && this.rubberBandInitialized && this.rubberBand && this.inputRingBuffer && this.outputRingBuffer) {
