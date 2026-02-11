@@ -77,9 +77,9 @@
 │   │   ├── musicTheory.ts        # Note/MIDI conversions
 │   │   └── xm_save_lib/          # XM file format library
 │   ├── audio-worklets/           # AudioWorklet processors
-│   │   ├── sustain-processor.ts  # Sample sustain/loop modes
+│   │   ├── sustain-processor.ts  # Sample sustain/loop modes with Rubber Band pitch shifting
 │   │   ├── open303-processor.ts  # TB-303 audio worklet
-│   │   └── rubberband-processor.ts
+│   │   └── rubberband-processor.ts # Rubber Band pitch shifting processor
 │   ├── workers/                  # Web Workers
 │   │   └── renderer.worker.ts    # Offline audio rendering
 │   ├── types.ts                  # TypeScript type definitions
