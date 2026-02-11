@@ -23,6 +23,7 @@ import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
 import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
+import { copySteps, pasteSteps } from './utils/clipboardUtils';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -38,7 +39,7 @@ import {
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note } from './types'
 
 // --- CONSTANTS ---
 const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
@@ -188,7 +189,7 @@ const getSamplerControls = (params: SamplerBankParams): KnobConfig[] => [
 
 const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
-    onSelectionStart, onSelectionEnter, isRangeSelected
+    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing
 }: {
     stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
@@ -196,7 +197,9 @@ const SvgStep = memo(({
     onEditLength: (k: TrackKey, i: number, len: number) => void, length?: number, isSlide?: boolean,
     onSelectionStart?: (k: TrackKey, i: number) => void,
     onSelectionEnter?: (k: TrackKey, i: number) => void,
-    isRangeSelected?: boolean
+    isRangeSelected?: boolean,
+    onDrawEnter?: (k: TrackKey, i: number) => void,
+    isDrawing?: boolean
 }) => {
     const baseWidth = 18;
     const gap = 4;
@@ -241,6 +244,7 @@ const SvgStep = memo(({
     };
 
     const handlePointerEnter = () => {
+        if (isDrawing && onDrawEnter) onDrawEnter(rowKey, stepIndex);
         if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
     };
 
@@ -281,9 +285,11 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     onSelectRow: (k: any) => void, onSelectSlot: (k: TrackKey, slot: number) => void,
     onSelectionStart?: (k: TrackKey, i: number) => void,
     onSelectionEnter?: (k: TrackKey, i: number) => void,
-    selectionRange?: { start: number, end: number } | null
+    selectionRange?: { start: number, end: number } | null,
+    onDrawEnter?: (k: TrackKey, i: number) => void,
+    isDrawing?: boolean
 }>((props, ref) => {
-    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange } = props;
+    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
@@ -339,7 +345,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             if (i >= low && i <= high) isRangeSelected = true;
         }
 
-        renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} />);
+        renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} />);
         if (stepData && length > 1) { skipCount = length - 1; }
     }
 
@@ -457,6 +463,10 @@ export const App: React.FC = () => {
     // --- SELECTION STATE ---
     const [selection, setSelection] = useState<{ trackKey: TrackKey; startStep: number; endStep: number; } | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
+    const [clipboard, setClipboard] = useState<(Note | null)[] | null>(null);
+    // Drag-to-Edit State
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [drawMode, setDrawMode] = useState<'add' | 'remove' | null>(null);
 
     const handleSelectionStart = useCallback((trackKey: TrackKey, stepIndex: number) => {
         setSelection({ trackKey, startStep: stepIndex, endStep: stepIndex });
@@ -668,6 +678,43 @@ export const App: React.FC = () => {
     const handleGlobalPanReset = () => { setGlobalPan(0); audioEngine?.setGlobalPan(0); };
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...copy[track]]; copy[track][activeTrackSlotsRef.current[track]] = sequence; return copy; }); }, []);
 
+    const handleCopy = useCallback(() => {
+        if (!selection) return;
+        const copied = copySteps(patternRef.current, selection, activeSamplerBankRef.current);
+        if (copied) {
+            setClipboard(copied);
+            showToast("Copied to clipboard!", "success");
+        }
+    }, [selection, showToast]);
+
+    const handlePaste = useCallback(() => {
+        if (!clipboard) return;
+        let targetTrack = selectedTrack;
+        let targetStep = 0;
+
+        // If selection is active, use it as target
+        if (selection) {
+            targetTrack = selection.trackKey;
+            targetStep = selection.startStep;
+        } else {
+            // Default to start of track if no selection, but ask for confirmation or just notify
+             if (!window.confirm(`Paste from clipboard to start of ${targetTrack}?`)) return;
+        }
+
+        const newPattern = pasteSteps(patternRef.current, clipboard, targetTrack, targetStep, activeSamplerBankRef.current);
+        setPattern(newPattern);
+
+        let changedSequence;
+        if (targetTrack === 'sampler') {
+            changedSequence = newPattern.sampler;
+        } else {
+            changedSequence = newPattern[targetTrack];
+        }
+        updateStorageForTrack(targetTrack, changedSequence);
+
+        showToast("Pasted from clipboard!", "success");
+    }, [clipboard, selection, selectedTrack, showToast, updateStorageForTrack]);
+
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
         // Use Ref to access current state without dependency to avoid re-renders of all rows
         const prev = patternRef.current;
@@ -716,8 +763,19 @@ export const App: React.FC = () => {
     const handleStepToggle = useCallback((rowKey: TrackKey, index: number, e: any) => {
         if (e.altKey) { e.preventDefault(); let step = null; if (rowKey === 'sampler') { step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index]; } else { step = patternRef.current[rowKey].steps[index]; } if (step) { handlePatternChange(rowKey, index, undefined, { slide: !step.slide }); } return; }
         if (e.ctrlKey || e.metaKey) { e.preventDefault(); let step = null; if (rowKey === 'sampler') { step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index]; } else { step = patternRef.current[rowKey].steps[index]; } if (step) { if (step.chord && step.chord.length > 0) { handlePatternChange(rowKey, index, undefined, { chord: [] }); } else { const root = noteToMidi(step.note); const chord = [midiToNote(root + 4), midiToNote(root + 7)]; handlePatternChange(rowKey, index, undefined, { chord }); } } return; }
+
+        // Start Drag Drawing
+        const pattern = patternRef.current;
+        let step = null;
+        if (rowKey === 'sampler') { step = pattern.sampler[activeSamplerBankRef.current].steps[index]; }
+        else { step = pattern[rowKey].steps[index]; }
+        const isActive = !!step;
+
+        setIsDrawing(true);
+        setDrawMode(isActive ? 'remove' : 'add');
+
         handlePatternChange(rowKey, index, e);
-    }, [handlePatternChange]);
+    }, [handlePatternChange, activeSamplerBank]);
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
     const handleKeyboardPlay = useCallback((note: string) => {
@@ -757,13 +815,61 @@ export const App: React.FC = () => {
             }
         }
     }, [isNoteDragging, activeSamplerBank]);
-    const handleGlobalMouseUp = useCallback((e: MouseEvent) => { if (!isNoteDragging || !noteDragRef.current) return; if (!noteDragRef.current.hasMoved) { const { track, step } = noteDragRef.current; setContextMenu({ x: e.clientX, y: e.clientY, track, step }); } else if (noteDragRef.current.pendingSequence) { updateStorageForTrack(noteDragRef.current.track, noteDragRef.current.pendingSequence); } setIsNoteDragging(false); noteDragRef.current = null; document.body.style.cursor = 'default'; }, [isNoteDragging, updateStorageForTrack]);
-    useEffect(() => { if (isNoteDragging) { window.addEventListener('mousemove', handleGlobalMouseMove); window.addEventListener('mouseup', handleGlobalMouseUp); } return () => { window.removeEventListener('mousemove', handleGlobalMouseMove); window.removeEventListener('mouseup', handleGlobalMouseUp); }; }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
+    const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+        // Stop Drawing
+        if (isDrawing) { setIsDrawing(false); setDrawMode(null); }
+
+        if (!isNoteDragging || !noteDragRef.current) return;
+        if (!noteDragRef.current.hasMoved) { const { track, step } = noteDragRef.current; setContextMenu({ x: e.clientX, y: e.clientY, track, step }); }
+        else if (noteDragRef.current.pendingSequence) { updateStorageForTrack(noteDragRef.current.track, noteDragRef.current.pendingSequence); }
+        setIsNoteDragging(false); noteDragRef.current = null; document.body.style.cursor = 'default';
+    }, [isNoteDragging, updateStorageForTrack, isDrawing]);
+
+    useEffect(() => {
+        // Add global listener for pointer up to catch drags that end outside
+        window.addEventListener('pointerup', handleGlobalMouseUp as any);
+        if (isNoteDragging) { window.addEventListener('mousemove', handleGlobalMouseMove); window.addEventListener('mouseup', handleGlobalMouseUp); }
+        return () => {
+            window.removeEventListener('pointerup', handleGlobalMouseUp as any);
+            window.removeEventListener('mousemove', handleGlobalMouseMove); window.removeEventListener('mouseup', handleGlobalMouseUp);
+        };
+    }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
+
+    const handleDrawEnter = useCallback((trackKey: TrackKey, stepIndex: number) => {
+        if (!isDrawing || !drawMode) return;
+
+        const pattern = patternRef.current;
+        let step = null;
+        if (trackKey === 'sampler') {
+            step = pattern.sampler[activeSamplerBankRef.current].steps[stepIndex];
+        } else {
+            step = pattern[trackKey].steps[stepIndex];
+        }
+
+        const isActive = !!step;
+
+        if (drawMode === 'add' && !isActive) {
+            handlePatternChange(trackKey, stepIndex, undefined);
+        } else if (drawMode === 'remove' && isActive) {
+            handlePatternChange(trackKey, stepIndex, undefined);
+        }
+    }, [isDrawing, drawMode, handlePatternChange, activeSamplerBank]);
 
     // Selection Keyboard/Mouse Handler
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            // Clipboard
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                e.preventDefault();
+                handleCopy();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                e.preventDefault();
+                handlePaste();
+            }
+
             if ((e.key === 'Delete' || e.key === 'Backspace') && selection) {
                 const { trackKey, startStep, endStep } = selection;
                 const low = Math.min(startStep, endStep);
@@ -793,7 +899,7 @@ export const App: React.FC = () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('mouseup', handleSelectionEnd);
         };
-    }, [selection, handleSelectionEnd, updateStorageForTrack]);
+    }, [selection, handleSelectionEnd, updateStorageForTrack, handleCopy, handlePaste]);
 
     const handleNoteSelect = (note: string) => {
         if (!contextMenu) return;
@@ -1073,6 +1179,7 @@ export const App: React.FC = () => {
                                 onToggle={handleStepToggle} onRightMouseDown={handleRightMouseDown} onEditLength={handleEditLength} onSelectRow={handleSelectRow} onSelectSlot={handleTrackSlotClick}
                                 onSelectionStart={handleSelectionStart} onSelectionEnter={handleSelectionEnter}
                                 selectionRange={selection && selection.trackKey === row.key ? { start: selection.startStep, end: selection.endStep } : null}
+                                onDrawEnter={handleDrawEnter} isDrawing={isDrawing}
                             />
                         ))}
                     </g>
