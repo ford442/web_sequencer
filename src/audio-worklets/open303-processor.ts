@@ -99,7 +99,7 @@ class Open303Processor extends AudioWorkletProcessor {
                         return true;
                     },
                     _emscripten_resize_heap: (size: number) => { 
-                        return (this as any).emscripten_resize_heap(size);
+                        return env.emscripten_resize_heap(size);
                     },
 
                     // Emscripten Runtime Stubs (Prevent crashes on missing symbols)
@@ -199,7 +199,7 @@ class Open303Processor extends AudioWorkletProcessor {
                 
                 if (memoryImport) {
                     // WASM expects imported memory - create it
-                    const memoryImportPages = (data && data.memoryPages) || 256; // 256 pages = 16MB
+                    const memoryImportPages = (data && data.memoryPages) || 512; // 512 pages = 32MB (increased from 256 to prevent memory errors)
                     const maxMemoryPages = 1024; // 1024 pages = 64MB (allows heap growth)
                     let mem: WebAssembly.Memory;
 
