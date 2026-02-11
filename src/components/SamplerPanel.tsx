@@ -335,7 +335,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         : null;
 
     return (
-        <div className="flex flex-col gap-2 p-3 text-xs font-mono text-gray-400 h-full">
+        <div className="flex flex-col gap-1 p-2 text-xs font-mono text-gray-400 h-full overflow-y-auto">
             {/* ROW 0: Waveform Display */}
             <WaveformDisplay
                 buffer={sampleBuffer || null}
@@ -579,7 +579,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             </div>
 
                 {/* ROW 6: Parameters for Active Bank */}
-                <div className="grid grid-cols-4 gap-2 mt-1 bg-gray-800/30 p-1 rounded">
+                <div className="grid grid-cols-4 gap-1 mt-0.5 bg-gray-800/30 p-1 rounded">
                     <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" />
                     <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
                     <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic />
@@ -587,7 +587,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 </div>
 
                 {/* ROW 7: Rubberband Controls */}
-                <div className="grid grid-cols-6 gap-1 mt-1 bg-indigo-900/50 p-1 rounded">
+                <div className="grid grid-cols-6 gap-1 mt-0.5 bg-indigo-900/50 p-1 rounded">
                     <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" />
                     <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" />
                     <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />

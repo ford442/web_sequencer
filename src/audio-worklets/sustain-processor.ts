@@ -296,7 +296,7 @@ class SustainProcessor extends AudioWorkletProcessor {
         const freqParam = parameters['frequency'];
 
         const arpConstant = arpParam.length === 1;
-        const modeConstant = modeParam.length === 1;
+        // modeParam length check not needed - we read mode directly below
         const pitchConstant = pitchParam.length === 1;
         const freqConstant = freqParam.length === 1;
         const bpmConstant = bpmParam.length === 1;
