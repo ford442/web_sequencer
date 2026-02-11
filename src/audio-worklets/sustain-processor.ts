@@ -309,9 +309,10 @@ class SustainProcessor extends AudioWorkletProcessor {
         const mode = modeParam[0];
         
         // --- MODE D: RUBBERBAND (high-quality pitch shifting) ---
+        // Mode 3 (value >= 2.5 to handle float parameter values between modes)
         if (mode >= 2.5 && this.rubberBandInitialized && this.rubberBand && this.inputRingBuffer && this.outputRingBuffer) {
             const outputChannel = output[0];
-            const currentPitch = pitchConstant ? pitchParam[0] : pitchParam[0];
+            const currentPitch = pitchParam[0];
             
             this.rubberBand.setPitchScale(currentPitch);
             this.rubberBand.setTimeRatio(1.0);
