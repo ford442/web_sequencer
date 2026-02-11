@@ -12,49 +12,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. CHECKOUT CODE
-    # set submodules to false to prevent the "No url found" crash.
-    # Your build.sh script handles the cloning manually now.
+    # 1. CHECKOUT (No submodules initially to prevent config errors)
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        submodules: false 
+        submodules: false
         fetch-depth: 0
 
-    # 2. INSTALL PNPM (*** NEW STEP ***)
-    # This must run BEFORE setup-node
+    # 2. INSTALL PNPM (Essential Fix from previous step)
     - name: Install pnpm
       uses: pnpm/action-setup@v3
       with:
         version: 9
 
-    # 3. SETUP NODE.JS
+    # 3. SETUP NODE (Disable caching to avoid service outages)
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'pnpm'
+        # cache: 'pnpm'  <-- COMMENTED OUT to avoid cache errors
 
-    # 4. SETUP EMSCRIPTEN
+    # 4. SETUP EMSCRIPTEN (Disable explicit cache folder)
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
       with:
         version: 3.1.51
-        actions-cache-folder: 'emsdk-cache'
+        no-cache: true   # <-- NEW: Force disable caching to bypass 400 errors
 
     # 5. INSTALL DEPENDENCIES
     - name: Install Dependencies
       run: pnpm install
 
-    # 6. DIAGNOSTIC: Check Files Before Build
-    - name: 🔍 Debug - Verify Source
-      run: |
-        echo "Checking directory structure..."
-        ls -F
-        echo "Checking emscripten folder..."
-        ls -F emscripten/ || echo "emscripten folder missing"
-
-    # 7. RUN THE BUILDS
+    # 6. RUN THE BUILDS
     - name: 🛠️ Build WASM Modules
       run: |
         chmod +x emscripten/*.sh
@@ -66,20 +55,20 @@ jobs:
         echo ">>> Building JC303..."
         ./tools/build_jc303_omp.sh
 
-    # 8. BUILD WEB APP
+    # 7. BUILD WEB APP
     - name: 🏗️ Build Web Application
       run: pnpm build
 
-    # 9. VERIFY OUTPUT
+    # 8. VERIFY OUTPUT
     - name: 🔍 Debug - Verify Output
       run: |
-        echo "Checking public folder artifacts..."
         ls -lh public/*.wasm || echo "❌ No WASM files in public/"
         ls -lh public/*.js || echo "❌ No JS glue files in public/"
 
-    # 10. UPLOAD ARTIFACTS
+    # 9. UPLOAD ARTIFACTS (Attempt upload, but continue if service is down)
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
+      continue-on-error: true # <-- Don't fail the build if GitHub storage is down
       with:
         name: debug-build-output
         path: dist/
