@@ -200,6 +200,7 @@ class Open303Processor extends AudioWorkletProcessor {
                 if (memoryImport) {
                     // WASM expects imported memory - create it
                     const memoryImportPages = (data && data.memoryPages) || 256; // 256 pages = 16MB
+                    const maxMemoryPages = 1024; // 1024 pages = 64MB (allows heap growth)
                     let mem: WebAssembly.Memory;
 
                     if (this.isThreaded) {
@@ -207,10 +208,10 @@ class Open303Processor extends AudioWorkletProcessor {
                         try {
                             mem = new WebAssembly.Memory({
                                 initial: memoryImportPages,
-                                maximum: memoryImportPages,
+                                maximum: maxMemoryPages,
                                 shared: true
                             });
-                            console.log(`[Open303] Created SHARED memory for ${memoryImport.module}.${memoryImport.name} — ${memoryImportPages} pages`);
+                            console.log(`[Open303] Created SHARED memory for ${memoryImport.module}.${memoryImport.name} — ${memoryImportPages} pages (max: ${maxMemoryPages})`);
                         } catch (e) {
                             console.error(`[Open303] SharedArrayBuffer not available for threaded variant:`, e);
                             this.port.postMessage({
@@ -223,9 +224,9 @@ class Open303Processor extends AudioWorkletProcessor {
                         // Single-threaded uses regular memory
                         mem = new WebAssembly.Memory({
                             initial: memoryImportPages,
-                            maximum: memoryImportPages
+                            maximum: maxMemoryPages
                         });
-                        console.log(`[Open303] Created non-shared memory for ${memoryImport.module}.${memoryImport.name} — ${memoryImportPages} pages`);
+                        console.log(`[Open303] Created non-shared memory for ${memoryImport.module}.${memoryImport.name} — ${memoryImportPages} pages (max: ${maxMemoryPages})`);
                     }
 
                     this.importedMemory = mem;
