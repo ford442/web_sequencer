@@ -5,57 +5,58 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch: # Allows you to click a button to run manually
+  workflow_dispatch:
 
 jobs:
   build-and-diagnose:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. CHECKOUT CODE (Crucial: fixes the missing rubberband files)
-    - name: Checkout Code with Submodules
+    # 1. CHECKOUT CODE
+    # set submodules to false to prevent the "No url found" crash.
+    # Your build.sh script handles the cloning manually now.
+    - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        submodules: false  # <--- This fixes "cp: cannot stat" errors
+        submodules: false 
         fetch-depth: 0
 
-    # 2. SETUP NODE.JS
+    # 2. INSTALL PNPM (*** NEW STEP ***)
+    # This must run BEFORE setup-node
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 9
+
+    # 3. SETUP NODE.JS
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         cache: 'pnpm'
 
-    # 3. SETUP EMSCRIPTEN (For WASM compiling)
+    # 4. SETUP EMSCRIPTEN
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
       with:
-        version: 3.1.51 # Pinning version ensures stability
+        version: 3.1.51
         actions-cache-folder: 'emsdk-cache'
 
-    # 4. INSTALL DEPENDENCIES
+    # 5. INSTALL DEPENDENCIES
     - name: Install Dependencies
-      run: |
-        npm install -g pnpm
-        pnpm install
+      run: pnpm install
 
-    # 5. DIAGNOSTIC: Check File Structure Before Build
-    - name: 🔍 Debug - Verify Source Files
+    # 6. DIAGNOSTIC: Check Files Before Build
+    - name: 🔍 Debug - Verify Source
       run: |
-        echo "Checking for Rubberband source..."
-        if [ -d "rubberband" ]; then
-          ls -F rubberband/
-        else 
-          echo "❌ Rubberband directory missing!"
-        fi
-        
-        echo "Checking build scripts..."
-        ls -l emscripten/
+        echo "Checking directory structure..."
+        ls -F
+        echo "Checking emscripten folder..."
+        ls -F emscripten/ || echo "emscripten folder missing"
 
-    # 6. RUN THE BUILDS
+    # 7. RUN THE BUILDS
     - name: 🛠️ Build WASM Modules
       run: |
-        # Make scripts executable
         chmod +x emscripten/*.sh
         chmod +x tools/*.sh
         
@@ -65,18 +66,18 @@ jobs:
         echo ">>> Building JC303..."
         ./tools/build_jc303_omp.sh
 
-    # 7. BUILD WEB APP
+    # 8. BUILD WEB APP
     - name: 🏗️ Build Web Application
       run: pnpm build
 
-    # 8. VERIFY OUTPUT (Did the WASM files actually land in public?)
-    - name: 🔍 Debug - Verify Output Artifacts
+    # 9. VERIFY OUTPUT
+    - name: 🔍 Debug - Verify Output
       run: |
-        echo "Checking public folder for compiled WASM..."
+        echo "Checking public folder artifacts..."
         ls -lh public/*.wasm || echo "❌ No WASM files in public/"
         ls -lh public/*.js || echo "❌ No JS glue files in public/"
 
-    # 9. UPLOAD ARTIFACTS (Download the result to test locally)
+    # 10. UPLOAD ARTIFACTS
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
