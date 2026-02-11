@@ -5,6 +5,7 @@ export class Open303Oscillator {
     private workletNode: AudioWorkletNode | null = null;
     private gainNode: GainNode | null = null;
     private outputNode: GainNode | null = null;
+    private audioContext: AudioContext | null = null;
 
     private params: Open303Params = { ...DEFAULT_303_PARAMS };
     public isReady: boolean = false;
