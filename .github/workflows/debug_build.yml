@@ -41,7 +41,7 @@ jobs:
 
     # 5. INSTALL DEPENDENCIES
     - name: Install Dependencies
-      run: pnpm install
+      run: pnpm install --no-frozen-lockfile
 
     # 6. RUN THE BUILDS
     - name: 🛠️ Build WASM Modules
