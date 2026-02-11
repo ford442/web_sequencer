@@ -29,9 +29,16 @@ class Open303Processor extends AudioWorkletProcessor {
                 this.isThreaded = data.isThreaded || false;
 
                 console.log(`[Open303] Initializing with ${variant} WASM variant (threaded: ${this.isThreaded})`);
+                console.log(`[Open303] WASM bytes received: ${data.wasmBytes?.byteLength || 0} bytes`);
+
+                if (!data.wasmBytes || data.wasmBytes.byteLength === 0) {
+                    throw new Error('No WASM bytes received');
+                }
 
                 // 1. Compile the WASM module
+                console.log('[Open303] Compiling WASM module...');
                 const module = await WebAssembly.compile(data.wasmBytes);
+                console.log('[Open303] WASM module compiled successfully');
 
                 // DEBUG: Inspect imports to debug "module is not an object" error
                 // This helps identify if the module expects 'env', 'a', 'wasi_snapshot_preview1', or something else.
@@ -63,11 +70,16 @@ class Open303Processor extends AudioWorkletProcessor {
                     b: () => console.error("WASM Abort"),  // TODO: remove after confirming no minified builds exist
 
                     // Memory management - allow heap growth
+                    // NOTE: These functions are called during WASM instantiation, so we need to
+                    // handle the case where wasmInstance isn't set yet
                     emscripten_resize_heap: (size: number) => {
-                        if (!this.wasmInstance) return false;
-                        const exports = this.wasmInstance.exports as any;
-                        const memory = exports.memory || this.importedMemory;
-                        if (!memory) return false;
+                        // During instantiation, we may not have wasmInstance yet
+                        // Use the imported memory if available
+                        const memory = this.importedMemory;
+                        if (!memory) {
+                            console.warn('[Open303] emscripten_resize_heap called but no memory available yet');
+                            return false;
+                        }
                         
                         const currentPages = memory.buffer.byteLength / (64 * 1024);
                         const targetPages = Math.ceil(size / (64 * 1024));
@@ -86,8 +98,8 @@ class Open303Processor extends AudioWorkletProcessor {
                         }
                         return true;
                     },
-                    _emscripten_resize_heap: function(size: number) { 
-                        return this.emscripten_resize_heap(size);
+                    _emscripten_resize_heap: (size: number) => { 
+                        return (this as any).emscripten_resize_heap(size);
                     },
 
                     // Emscripten Runtime Stubs (Prevent crashes on missing symbols)
@@ -225,7 +237,17 @@ class Open303Processor extends AudioWorkletProcessor {
                     console.log('[Open303] WASM exports its own memory (no import needed)');
                 }
 
-                this.wasmInstance = await WebAssembly.instantiate(module, importsObject);
+                console.log('[Open303] Instantiating WASM module...');
+                console.log('[Open303] Import object modules:', Object.keys(importsObject));
+                
+                // Set a timeout for instantiation in case it hangs
+                const instantiatePromise = WebAssembly.instantiate(module, importsObject);
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                    setTimeout(() => reject(new Error('WASM instantiation timeout (5s)')), 5000);
+                });
+                
+                this.wasmInstance = await Promise.race([instantiatePromise, timeoutPromise]);
+                console.log('[Open303] WASM instantiated successfully');
 
                 // Ensure updateHeap() can see either the exported memory or the imported one
                 this.updateHeap();
@@ -254,10 +276,12 @@ class Open303Processor extends AudioWorkletProcessor {
                 console.log(`[Open303] Initialized with sampleRate=${sampleRate}`);
 
                 this.isWasmReady = true;
+                console.log('[Open303] Sending ready message');
                 this.port.postMessage({ type: 'ready' });
             } catch (e) {
-                console.error("Open303 Worklet Error:", e);
-                this.port.postMessage({ type: 'error', error: String(e) });
+                const errorMsg = e instanceof Error ? e.message : String(e);
+                console.error("[Open303] Worklet Error:", errorMsg);
+                this.port.postMessage({ type: 'error', error: errorMsg });
             }
         }
 
