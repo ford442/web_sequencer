@@ -16,7 +16,7 @@ jobs:
     - name: Checkout Code with Submodules
       uses: actions/checkout@v4
       with:
-        submodules: recursive  # <--- This fixes "cp: cannot stat" errors
+        submodules: false  # <--- This fixes "cp: cannot stat" errors
         fetch-depth: 0
 
     # 2. SETUP NODE.JS
