@@ -15,6 +15,11 @@ class Open303Processor extends AudioWorkletProcessor {
     private isWasmReady: boolean = false;
     private isThreaded: boolean = false;  // Track if we're using threaded variant
 
+    // Gain compensation for 303 output level matching.
+    // TB-303 emulations typically output at ~-12dB relative to standard
+    // digital oscillators. A 4x multiplier brings the signal to ~0dB/-6dB.
+    private static readonly OUTPUT_GAIN = 4.0;
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
@@ -303,17 +308,13 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private updateHeap() {
-        if (!this.wasmInstance) return;
-        
-        // Get memory from exports (preferred) or fall back to imported memory
-        const exports = this.wasmInstance.exports as any;
-        const memory = exports.memory || this.importedMemory;
+        // Get memory from exports (preferred) or fall back to imported memory.
+        // importedMemory is available before wasmInstance during instantiation,
+        // which is critical for emscripten_resize_heap calls from C++ constructors.
+        const memory = (this.wasmInstance?.exports as any)?.memory || this.importedMemory;
         
         if (memory) {
             this.heapFloat32 = new Float32Array(memory.buffer);
-            console.log('[Open303] Heap updated, memory size:', memory.buffer.byteLength);
-        } else {
-            console.error('[Open303] No memory available for heap');
         }
     }
 
@@ -360,8 +361,9 @@ class Open303Processor extends AudioWorkletProcessor {
 
                 // Safety check
                 if (offset >= 0 && offset + 128 <= this.heapFloat32.length) {
+                    const gain = Open303Processor.OUTPUT_GAIN;
                     for (let i = 0; i < 128; i++) {
-                        const sample = this.heapFloat32[offset + i];
+                        const sample = this.heapFloat32[offset + i] * gain;
                         if (channelL) channelL[i] = sample;
                         if (channelR) channelR[i] = sample;
                     }
