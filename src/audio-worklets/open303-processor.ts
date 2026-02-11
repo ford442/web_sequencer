@@ -374,6 +374,11 @@ class Open303Processor extends AudioWorkletProcessor {
                     if (channelL) channelL.fill(0);
                     if (channelR) channelR.fill(0);
                 }
+
+                // Free the allocated buffer to prevent memory leak
+                if (exports._free) {
+                    exports._free(ptr);
+                }
             } else {
                 // No process function - output silence
                 if (channelL) channelL.fill(0);
