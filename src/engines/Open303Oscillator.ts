@@ -60,8 +60,11 @@ export class Open303Oscillator {
 
                 // Wait for worklet to confirm initialization
                 const initSuccess = await new Promise<boolean>((resolve) => {
+                    let readyReceived = false;
+                    
                     this.workletNode!.port.onmessage = (e) => {
                         if (e.data.type === 'ready') {
+                            readyReceived = true;
                             console.log("[Open303] Engine Fully Operational");
                             resolve(true);
                         } else if (e.data.type === 'error') {
@@ -70,11 +73,13 @@ export class Open303Oscillator {
                         }
                     };
                     
-                    // Timeout after 5 seconds
+                    // Timeout after 10 seconds (increased from 5s for slower systems)
                     setTimeout(() => {
-                        console.error("[Open303] Initialization timeout");
-                        resolve(false);
-                    }, 5000);
+                        if (!readyReceived) {
+                            console.error("[Open303] Initialization timeout (10s) - WASM may be stuck or memory allocation failed");
+                            resolve(false);
+                        }
+                    }, 10000);
                 });
 
                 if (!initSuccess) {

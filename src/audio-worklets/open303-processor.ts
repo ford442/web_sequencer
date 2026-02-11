@@ -62,9 +62,33 @@ class Open303Processor extends AudioWorkletProcessor {
                     abort: () => console.error("WASM Abort"),  // fallback alias
                     b: () => console.error("WASM Abort"),  // TODO: remove after confirming no minified builds exist
 
-                    // Memory management
-                    emscripten_resize_heap: (_size: number) => false, // Return false to indicate failure if dynamic growth isn't supported/needed
-                    _emscripten_resize_heap: (_size: number) => false, // alias
+                    // Memory management - allow heap growth
+                    emscripten_resize_heap: (size: number) => {
+                        if (!this.wasmInstance) return false;
+                        const exports = this.wasmInstance.exports as any;
+                        const memory = exports.memory || this.importedMemory;
+                        if (!memory) return false;
+                        
+                        const currentPages = memory.buffer.byteLength / (64 * 1024);
+                        const targetPages = Math.ceil(size / (64 * 1024));
+                        const deltaPages = targetPages - currentPages;
+                        
+                        if (deltaPages > 0) {
+                            try {
+                                memory.grow(deltaPages);
+                                console.log(`[Open303] Heap grown from ${currentPages} to ${currentPages + deltaPages} pages`);
+                                this.updateHeap();
+                                return true;
+                            } catch (e) {
+                                console.error('[Open303] Failed to grow heap:', e);
+                                return false;
+                            }
+                        }
+                        return true;
+                    },
+                    _emscripten_resize_heap: function(size: number) { 
+                        return this.emscripten_resize_heap(size);
+                    },
 
                     // Emscripten Runtime Stubs (Prevent crashes on missing symbols)
                     emscripten_notify_memory_growth: () => this.updateHeap(),
@@ -269,6 +293,7 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private processErrorCount = 0;
+    private allocationErrorCount = 0;
     
     process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
         const output = outputs[0];
@@ -290,12 +315,15 @@ class Open303Processor extends AudioWorkletProcessor {
 
             if (processFunc) {
                 // Ask WASM to process 128 samples (standard audio block size)
+                // NOTE: jc303_process allocates a new buffer on every call using 'new float[numSamples]'.
+                // This can exhaust the WASM heap over time. The emscripten_resize_heap function
+                // above allows the heap to grow to accommodate this.
                 const ptr = processFunc(128);
                 
                 if (ptr === 0 || ptr === undefined) {
-                    // Invalid pointer
-                    if (this.processErrorCount++ < 5) {
-                        console.error('[Open303] jc303_process returned invalid pointer:', ptr);
+                    // Invalid pointer - likely allocation failure
+                    if (this.allocationErrorCount++ < 5) {
+                        console.error('[Open303] jc303_process returned invalid pointer (likely memory allocation failure). Count:', this.allocationErrorCount);
                     }
                     if (channelL) channelL.fill(0);
                     if (channelR) channelR.fill(0);
