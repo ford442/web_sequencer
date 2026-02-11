@@ -12,38 +12,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. CHECKOUT (No submodules initially to prevent config errors)
+    # 1. CHECKOUT (Fixes: "No url found for submodule" by disabling recursion)
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        submodules: false
+        submodules: false 
         fetch-depth: 0
 
-    # 2. INSTALL PNPM (Essential Fix from previous step)
+    # 2. INSTALL PNPM (*** CRITICAL: MUST RUN BEFORE SETUP-NODE ***)
+    # This ensures the 'pnpm' executable exists when setup-node tries to use it.
     - name: Install pnpm
       uses: pnpm/action-setup@v3
       with:
         version: 9
+        run_install: false # We will run install manually later to control flags
 
-    # 3. SETUP NODE (Disable caching to avoid service outages)
+    # 3. SETUP NODE.JS (Fixes: "Unable to locate pnpm" by running AFTER step 2)
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        # cache: 'pnpm'  <-- COMMENTED OUT to avoid cache errors
+        cache: 'pnpm' # Now safe to use because pnpm is installed
 
-    # 4. SETUP EMSCRIPTEN (Disable explicit cache folder)
+    # 4. SETUP EMSCRIPTEN (Fixes: "400 Bad Request" by disabling cache)
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
       with:
         version: 3.1.51
-        no-cache: true   # <-- NEW: Force disable caching to bypass 400 errors
+        no-cache: true 
 
-    # 5. INSTALL DEPENDENCIES
+    # 5. INSTALL DEPENDENCIES (Fixes: "ERR_PNPM_OUTDATED_LOCKFILE")
     - name: Install Dependencies
       run: pnpm install --no-frozen-lockfile
 
-    # 6. RUN THE BUILDS
+    # 6. DIAGNOSTIC: Check Files
+    - name: 🔍 Debug - Verify Source
+      run: |
+        echo "Checking directory structure..."
+        ls -F
+        echo "Checking emscripten folder..."
+        ls -F emscripten/ || echo "emscripten folder missing"
+
+    # 7. RUN THE BUILDS
     - name: 🛠️ Build WASM Modules
       run: |
         chmod +x emscripten/*.sh
@@ -55,20 +65,21 @@ jobs:
         echo ">>> Building JC303..."
         ./tools/build_jc303_omp.sh
 
-    # 7. BUILD WEB APP
+    # 8. BUILD WEB APP
     - name: 🏗️ Build Web Application
       run: pnpm build
 
-    # 8. VERIFY OUTPUT
+    # 9. VERIFY OUTPUT
     - name: 🔍 Debug - Verify Output
       run: |
+        echo "Checking for build artifacts..."
         ls -lh public/*.wasm || echo "❌ No WASM files in public/"
         ls -lh public/*.js || echo "❌ No JS glue files in public/"
 
-    # 9. UPLOAD ARTIFACTS (Attempt upload, but continue if service is down)
+    # 10. UPLOAD ARTIFACTS
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
-      continue-on-error: true # <-- Don't fail the build if GitHub storage is down
+      continue-on-error: true
       with:
         name: debug-build-output
         path: dist/
