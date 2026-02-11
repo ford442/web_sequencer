@@ -335,72 +335,42 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         : null;
 
     return (
-        <div className="flex flex-col gap-1 p-2 text-xs font-mono text-gray-400 h-full overflow-y-auto">
-            {/* ROW 0: Waveform Display */}
-            <WaveformDisplay
-                buffer={sampleBuffer || null}
-                alignment={alignment}
-                sliceHighlightRef={sliceHighlightRef || dummyRef}
-            />
-
-            {/* ROW 1: Bank Selectors (8 Banks) */}
-            <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar" role="tablist" aria-label="Sample Banks">
-                {SAMPLE_BANKS.map((label, i) => (
-                    <button
-                        key={i}
-                        ref={(el) => { tabRefs.current[i] = el; }}
-                        id={`sampler-bank-tab-${i}`}
-                        role="tab"
-                        aria-selected={activeBankIdx === i}
-                        aria-controls="sampler-bank-panel"
-                        aria-label={`Select Bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
-                        tabIndex={activeBankIdx === i ? 0 : -1}
-                        onClick={() => onBankChange(i)}
-                        onKeyDown={(e) => handleKeyDown(e, i)}
-                        className={`relative min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                            flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
-                            activeBankIdx === i
-                                ? 'bg-purple-600 border-purple-400 text-white shadow-md'
-                                : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
-                        }`}
-                        title={`Select Bank ${i+1}`}
-                    >
-                        {label}
-                        {loadedBanks?.[i] && (
-                            <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.8)] border border-black" />
-                        )}
-                    </button>
-                ))}
-            </div>
-
-            {/* Tab Panel Content */}
-            <div
-                role="tabpanel"
-                id="sampler-bank-panel"
-                aria-labelledby={`sampler-bank-tab-${activeBankIdx}`}
-                className="flex flex-col gap-2"
-            >
-                {/* ROW 2: Actions */}
-                <div className="flex justify-between items-center gap-2">
-                <div className="flex gap-1">
-                    <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="btn-mini px-2 py-0.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                        aria-label="Load Sample from File"
-                    >
-                        LOAD
-                    </button>
-                    <button
-                        onClick={toggleRecording}
-                        className={`btn-mini px-2 py-0.5 rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${isRecording ? 'bg-red-900 border-red-500 animate-pulse text-white' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}
-                        aria-label={isRecording ? "Stop Recording" : "Record Sample from Microphone"}
-                    >
-                        {isRecording ? 'STOP' : 'REC'}
-                    </button>
+        <div className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none">
+            {/* --- FIXED HEADER --- */}
+            <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
+                {/* Bank Tabs */}
+                <div className="flex gap-1 overflow-x-auto scrollbar-none" role="tablist" aria-label="Sample Banks">
+                    {SAMPLE_BANKS.map((label, i) => (
+                        <button
+                            key={i}
+                            ref={(el) => { tabRefs.current[i] = el; }}
+                            id={`sampler-bank-tab-${i}`}
+                            role="tab"
+                            aria-selected={activeBankIdx === i}
+                            aria-controls="sampler-bank-panel"
+                            aria-label={`Select Bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
+                            tabIndex={activeBankIdx === i ? 0 : -1}
+                            onClick={() => onBankChange(i)}
+                            onKeyDown={(e) => handleKeyDown(e, i)}
+                            className={`relative min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
+                                activeBankIdx === i
+                                    ? 'bg-purple-600 border-purple-400 text-white shadow-md'
+                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                            }`}
+                            title={`Select Bank ${i+1}`}
+                        >
+                            {label}
+                            {loadedBanks?.[i] && (
+                                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.8)] border border-black" />
+                            )}
+                        </button>
+                    ))}
                 </div>
+
+                {/* Status Indicator */}
                 <div
-                    className="text-[10px] text-right truncate w-24 text-yellow-500"
+                    className="text-[10px] text-right truncate w-24 text-yellow-500 ml-2"
                     title={status}
                     role="status"
                     aria-live="polite"
@@ -409,191 +379,224 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 </div>
             </div>
 
-            {/* ROW 3: TTS */}
-            <div className="flex gap-1 mt-1 items-center">
-                <div className="relative flex-1 flex items-center">
-                    <input
-                        value={currentTtsText}
-                        onChange={e => setCurrentTtsText(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded px-1 pr-4 text-white text-[10px] outline-none focus:border-purple-500"
-                        placeholder="Phrase..."
-                        aria-label="Text to Speech Phrase"
-                    />
-                    {currentTtsText && (
-                        <button
-                            onClick={() => setCurrentTtsText('')}
-                            className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                            aria-label="Clear Phrase"
-                            title="Clear"
-                        >
-                            ✕
-                        </button>
-                    )}
-                </div>
-                {/* TTS Status Light */}
-                <div
-                    className={`w-3 h-3 border border-black shadow-sm flex-shrink-0 rounded-sm transition-colors ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}
-                    title={ttsReady ? "TTS Engine Ready" : "TTS Engine Loading/Unavailable"}
-                    role="status"
-                    aria-label={ttsReady ? "TTS Engine Ready" : "TTS Engine Not Ready"}
+            {/* --- SCROLLABLE CONTENT --- */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700">
+
+                {/* 1. Waveform Visualization */}
+                <WaveformDisplay
+                    buffer={sampleBuffer || null}
+                    alignment={alignment}
+                    sliceHighlightRef={sliceHighlightRef || dummyRef}
                 />
-                <button
-                    onClick={handleTTS}
-                    disabled={isGenerating || !ttsReady}
-                    className="px-2 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                    aria-label="Generate Speech"
-                    aria-busy={isGenerating}
-                >
-                    GEN
-                </button>
-                {onOpenEditor && (
-                    <button
-                        onClick={onOpenEditor}
-                        className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                        aria-label="Open Voice Editor"
-                    >
-                        EDIT
-                    </button>
-                )}
-            </div>
 
-            {/* ROW 4: INSTANT HARMONIZER */}
-            <div className="mt-1 bg-gray-800/30 p-1 rounded flex gap-1 items-center">
-                <select
-                    value={chordType}
-                    onChange={(e) => setChordType(e.target.value)}
-                    className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-400"
-                    aria-label="Harmonization Chord Type"
-                >
-                    <option value="major">Major</option>
-                    <option value="minor">Minor</option>
-                    <option value="maj7">Major 7</option>
-                    <option value="min7">Minor 7</option>
-                    <option value="octave">Octave</option>
-                    <option value="stack">Power Stack</option>
-                </select>
-                <button
-                    onClick={handleHarmonizeClick}
-                    disabled={isProcessingHarmonize || !onHarmonize}
-                    className={`px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
-                    aria-label="Apply Harmonization"
-                    aria-busy={isProcessingHarmonize}
-                >
-                    {isProcessingHarmonize ? '...' : 'HARM'}
-                </button>
-            </div>
-
-            {/* ROW 5: SAMPLER MODE */}
-            <div className="mt-1 bg-gray-800/30 p-1 rounded">
-                <div className="flex gap-1 items-center mb-1">
-                    <label className="text-[10px] text-gray-400 font-bold w-12" id="sampler-mode-label">MODE:</label>
-                    <div className="flex gap-1 flex-1" role="radiogroup" aria-labelledby="sampler-mode-label">
-                        <button
-                            onClick={() => handleModeChange('loop')}
-                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                (currentParams.mode || 'loop') === 'loop'
-                                    ? 'bg-purple-600 border-purple-400 text-white'
-                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                            }`}
-                            aria-label="Loop Mode"
-                            title="Standard sample looping"
-                            role="radio"
-                            aria-checked={(currentParams.mode || 'loop') === 'loop'}
-                        >
-                            LOOP
-                        </button>
-                        <button
-                            onClick={() => handleModeChange('stretch')}
-                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                (currentParams.mode || 'loop') === 'stretch'
-                                    ? 'bg-purple-600 border-purple-400 text-white'
-                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                            }`}
-                            aria-label="Stretch Mode"
-                            title="Granular time-stretch for infinite sustain"
-                            role="radio"
-                            aria-checked={(currentParams.mode || 'loop') === 'stretch'}
-                        >
-                            STRETCH
-                        </button>
-                        <button
-                            onClick={() => handleModeChange('wavetable')}
-                            className={`flex-1 px-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                (currentParams.mode || 'loop') === 'wavetable'
-                                    ? 'bg-purple-600 border-purple-400 text-white'
-                                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                            }`}
-                            aria-label="Wavetable Mode"
-                            title="Single-cycle oscillator mode"
-                            role="radio"
-                            aria-checked={(currentParams.mode || 'loop') === 'wavetable'}
-                        >
-                            WAVE
-                        </button>
-                    </div>
-                </div>
-                {/* Grain Size Control - Only visible in stretch mode */}
-                {(currentParams.mode || 'loop') === 'stretch' && (
-                    <div className="flex flex-col gap-1">
-                        <div className="flex gap-1 items-center">
-                            <label className="text-[9px] text-gray-500 w-12">Grain:</label>
-                            <input
-                                type="range"
-                                min="441"
-                                max="22050"
-                                step="441"
-                                value={currentParams.grainSize || 4410}
-                                onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
-                                className="flex-1 h-1 bg-gray-700 rounded appearance-none cursor-pointer"
-                                style={{
-                                    background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
-                                }}
-                                aria-label="Grain Size"
-                                title={`Grain size: ${grainSizeToMs(currentParams.grainSize || 4410)}ms`}
-                            />
-                            <span className="text-[9px] text-gray-500 w-10 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
-                        </div>
-                        {/* Slice Mode Toggle */}
-                        <div className="flex gap-1 items-center">
-                            <label className="text-[9px] text-gray-500 w-12">Slice:</label>
+                {/* 2. Actions (Toolbar: Load, Rec, TTS, Harmonize) */}
+                <div className="flex flex-col gap-2 bg-gray-800/20 p-2 rounded border border-gray-800">
+                    {/* Row A: Load / Record */}
+                    <div className="flex justify-between items-center gap-2">
+                        <div className="flex gap-1">
+                            <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
                             <button
-                                onClick={() => {
-                                    const newVal = (currentParams.sliceMode === 'phoneme') ? 'off' : 'phoneme';
-                                    if (onParamChange) onParamChange(activeBankIdx, 'sliceMode', newVal);
-                                    else updateParamRef.current('sliceMode', newVal);
-                                }}
-                                className={`flex-1 h-4 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                    currentParams.sliceMode === 'phoneme'
-                                        ? 'bg-purple-600 border-purple-400 text-white'
-                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                                }`}
-                                aria-label="Toggle Slice Mode"
-                                title="Map MIDI keys to phoneme slices"
-                                aria-pressed={currentParams.sliceMode === 'phoneme'}
+                                onClick={() => fileInputRef.current?.click()}
+                                className="btn-mini px-2 py-0.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px]"
+                                aria-label="Load Sample from File"
                             >
-                                {currentParams.sliceMode === 'phoneme' ? 'ON (PHONEMES)' : 'OFF'}
+                                LOAD
+                            </button>
+                            <button
+                                onClick={toggleRecording}
+                                className={`btn-mini px-2 py-0.5 rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] ${isRecording ? 'bg-red-900 border-red-500 animate-pulse text-white' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}
+                                aria-label={isRecording ? "Stop Recording" : "Record Sample from Microphone"}
+                            >
+                                {isRecording ? 'STOP' : 'REC'}
                             </button>
                         </div>
                     </div>
-                )}
-            </div>
 
-                {/* ROW 6: Parameters for Active Bank */}
-                <div className="grid grid-cols-4 gap-1 mt-0.5 bg-gray-800/30 p-1 rounded">
-                    <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" />
-                    <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
-                    <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic />
-                    <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />
+                    {/* Row B: TTS */}
+                    <div className="flex gap-1 items-center">
+                        <div className="relative flex-1 flex items-center">
+                            <input
+                                value={currentTtsText}
+                                onChange={e => setCurrentTtsText(e.target.value)}
+                                className="w-full bg-gray-900 border border-gray-700 rounded px-1 pr-4 text-white text-[10px] outline-none focus:border-purple-500 h-5"
+                                placeholder="Phrase..."
+                                aria-label="Text to Speech Phrase"
+                            />
+                            {currentTtsText && (
+                                <button
+                                    onClick={() => setCurrentTtsText('')}
+                                    className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                                    aria-label="Clear Phrase"
+                                    title="Clear"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+                        <div
+                            className={`w-2 h-2 border border-black shadow-sm flex-shrink-0 rounded-full transition-colors ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}
+                            title={ttsReady ? "TTS Engine Ready" : "TTS Engine Loading/Unavailable"}
+                        />
+                        <button
+                            onClick={handleTTS}
+                            disabled={isGenerating || !ttsReady}
+                            className="px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                            aria-label="Generate Speech"
+                            aria-busy={isGenerating}
+                        >
+                            GEN
+                        </button>
+                        {onOpenEditor && (
+                            <button
+                                onClick={onOpenEditor}
+                                className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                                aria-label="Open Voice Editor"
+                            >
+                                EDIT
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Row C: Harmonizer */}
+                    <div className="flex gap-1 items-center">
+                        <select
+                            value={chordType}
+                            onChange={(e) => setChordType(e.target.value)}
+                            className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-400"
+                            aria-label="Harmonization Chord Type"
+                        >
+                            <option value="major">Major</option>
+                            <option value="minor">Minor</option>
+                            <option value="maj7">Major 7</option>
+                            <option value="min7">Minor 7</option>
+                            <option value="octave">Octave</option>
+                            <option value="stack">Power Stack</option>
+                        </select>
+                        <button
+                            onClick={handleHarmonizeClick}
+                            disabled={isProcessingHarmonize || !onHarmonize}
+                            className={`px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
+                            aria-label="Apply Harmonization"
+                            aria-busy={isProcessingHarmonize}
+                        >
+                            {isProcessingHarmonize ? '...' : 'HARM'}
+                        </button>
+                    </div>
                 </div>
 
-                {/* ROW 7: Rubberband Controls */}
-                <div className="grid grid-cols-6 gap-1 mt-0.5 bg-indigo-900/50 p-1 rounded">
-                    <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" />
-                    <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" />
-                    <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />
-                    <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" />
-                    <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
-                    <div className="col-span-1" /> {/* Spacer */}
+                {/* 3. Mode Selector */}
+                <div className="bg-gray-800/30 p-1.5 rounded">
+                    <div className="flex gap-1 items-center mb-1.5">
+                        <label className="text-[10px] text-gray-400 font-bold w-10" id="sampler-mode-label">MODE:</label>
+                        <div className="flex gap-1 flex-1" role="radiogroup" aria-labelledby="sampler-mode-label">
+                            <button
+                                onClick={() => handleModeChange('loop')}
+                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                    (currentParams.mode || 'loop') === 'loop'
+                                        ? 'bg-purple-600 border-purple-400 text-white'
+                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                                }`}
+                                aria-label="Loop Mode"
+                                role="radio"
+                                aria-checked={(currentParams.mode || 'loop') === 'loop'}
+                            >
+                                LOOP
+                            </button>
+                            <button
+                                onClick={() => handleModeChange('stretch')}
+                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                    (currentParams.mode || 'loop') === 'stretch'
+                                        ? 'bg-purple-600 border-purple-400 text-white'
+                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                                }`}
+                                aria-label="Stretch Mode"
+                                role="radio"
+                                aria-checked={(currentParams.mode || 'loop') === 'stretch'}
+                            >
+                                STRETCH
+                            </button>
+                            <button
+                                onClick={() => handleModeChange('wavetable')}
+                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                    (currentParams.mode || 'loop') === 'wavetable'
+                                        ? 'bg-purple-600 border-purple-400 text-white'
+                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                                }`}
+                                aria-label="Wavetable Mode"
+                                role="radio"
+                                aria-checked={(currentParams.mode || 'loop') === 'wavetable'}
+                            >
+                                WAVE
+                            </button>
+                        </div>
+                    </div>
+                    {/* Grain Size & Slice Mode (Stretch Mode Only) */}
+                    {(currentParams.mode || 'loop') === 'stretch' && (
+                        <div className="flex flex-col gap-1.5 mt-1 border-t border-white/5 pt-1">
+                            <div className="flex gap-1 items-center">
+                                <label className="text-[9px] text-gray-500 w-10">Grain:</label>
+                                <input
+                                    type="range"
+                                    min="441"
+                                    max="22050"
+                                    step="441"
+                                    value={currentParams.grainSize || 4410}
+                                    onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
+                                    className="flex-1 h-1.5 bg-gray-700 rounded appearance-none cursor-pointer"
+                                    style={{
+                                        background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
+                                    }}
+                                    aria-label="Grain Size"
+                                />
+                                <span className="text-[9px] text-gray-500 w-8 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
+                            </div>
+                            <div className="flex gap-1 items-center">
+                                <label className="text-[9px] text-gray-500 w-10">Slice:</label>
+                                <button
+                                    onClick={() => {
+                                        const newVal = (currentParams.sliceMode === 'phoneme') ? 'off' : 'phoneme';
+                                        if (onParamChange) onParamChange(activeBankIdx, 'sliceMode', newVal);
+                                        else updateParamRef.current('sliceMode', newVal);
+                                    }}
+                                    className={`flex-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                        currentParams.sliceMode === 'phoneme'
+                                            ? 'bg-purple-600 border-purple-400 text-white'
+                                            : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                                    }`}
+                                    aria-label="Toggle Slice Mode"
+                                    aria-pressed={currentParams.sliceMode === 'phoneme'}
+                                >
+                                    {currentParams.sliceMode === 'phoneme' ? 'ON (PHONEMES)' : 'OFF'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* 4. Controls Wrapper - Use flex-wrap to prevent cut-off */}
+                <div className="flex flex-wrap gap-4 mt-1 pb-4">
+                    {/* Basic Params Group */}
+                    <div className="flex-1 min-w-[140px] bg-gray-800/30 p-2 rounded">
+                        <div className="text-[9px] text-gray-500 font-bold mb-1 border-b border-gray-700 pb-0.5">BASIC</div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" />
+                            <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
+                            <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic />
+                            <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />
+                        </div>
+                    </div>
+
+                    {/* Rubberband/Granular Params Group */}
+                    <div className="flex-[2] min-w-[200px] bg-indigo-900/50 p-2 rounded">
+                        <div className="text-[9px] text-indigo-300 font-bold mb-1 border-b border-indigo-800 pb-0.5">ENGINE</div>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                            <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" />
+                            <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" />
+                            <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />
+                            <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" />
+                            <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

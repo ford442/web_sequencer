@@ -50,7 +50,7 @@ describe('SamplerPanel Memoization', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
         // Initial render: 4 knobs
-        expect(Knob).toHaveBeenCalledTimes(4);
+        expect(Knob).toHaveBeenCalledTimes(9);
         vi.clearAllMocks();
 
         // Update params for ACTIVE bank (0)
@@ -61,14 +61,14 @@ describe('SamplerPanel Memoization', () => {
         rerender(<SamplerPanel {...defaultProps} params={newParams} />);
 
         // Should re-render
-        expect(Knob).toHaveBeenCalledTimes(4);
+        expect(Knob).toHaveBeenCalledTimes(9);
     });
 
     it('does NOT re-render children when inactive bank params change', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
         // Initial render: 4 knobs
-        expect(Knob).toHaveBeenCalledTimes(4);
+        expect(Knob).toHaveBeenCalledTimes(9);
         vi.clearAllMocks();
 
         // Update params for INACTIVE bank (1)
@@ -89,6 +89,6 @@ describe('SamplerPanel Memoization', () => {
         rerender(<SamplerPanel {...defaultProps} activeBankIdx={1} />);
 
         // Should re-render
-        expect(Knob).toHaveBeenCalledTimes(4);
+        expect(Knob).toHaveBeenCalledTimes(9);
     });
 });
