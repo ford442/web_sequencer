@@ -1,0 +1,84 @@
+name: Diagnostic Build & Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # Allows you to click a button to run manually
+
+jobs:
+  build-and-diagnose:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. CHECKOUT CODE (Crucial: fixes the missing rubberband files)
+    - name: Checkout Code with Submodules
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive  # <--- This fixes "cp: cannot stat" errors
+        fetch-depth: 0
+
+    # 2. SETUP NODE.JS
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+
+    # 3. SETUP EMSCRIPTEN (For WASM compiling)
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: 3.1.51 # Pinning version ensures stability
+        actions-cache-folder: 'emsdk-cache'
+
+    # 4. INSTALL DEPENDENCIES
+    - name: Install Dependencies
+      run: |
+        npm install -g pnpm
+        pnpm install
+
+    # 5. DIAGNOSTIC: Check File Structure Before Build
+    - name: 🔍 Debug - Verify Source Files
+      run: |
+        echo "Checking for Rubberband source..."
+        if [ -d "rubberband" ]; then
+          ls -F rubberband/
+        else 
+          echo "❌ Rubberband directory missing!"
+        fi
+        
+        echo "Checking build scripts..."
+        ls -l emscripten/
+
+    # 6. RUN THE BUILDS
+    - name: 🛠️ Build WASM Modules
+      run: |
+        # Make scripts executable
+        chmod +x emscripten/*.sh
+        chmod +x tools/*.sh
+        
+        echo ">>> Building Rubberband..."
+        ./emscripten/build.sh
+        
+        echo ">>> Building JC303..."
+        ./tools/build_jc303_omp.sh
+
+    # 7. BUILD WEB APP
+    - name: 🏗️ Build Web Application
+      run: pnpm build
+
+    # 8. VERIFY OUTPUT (Did the WASM files actually land in public?)
+    - name: 🔍 Debug - Verify Output Artifacts
+      run: |
+        echo "Checking public folder for compiled WASM..."
+        ls -lh public/*.wasm || echo "❌ No WASM files in public/"
+        ls -lh public/*.js || echo "❌ No JS glue files in public/"
+
+    # 9. UPLOAD ARTIFACTS (Download the result to test locally)
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-build-output
+        path: dist/
