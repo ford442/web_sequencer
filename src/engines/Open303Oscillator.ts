@@ -38,13 +38,20 @@ export class Open303Oscillator {
                 });
 
                 // 4. Send WASM to the Worklet
-                // JC-303 is built with OpenMP and requires shared memory
+                // Detect if WASM requires shared memory by inspecting imports
+                const module = await WebAssembly.compile(wasmBytes);
+                const imports = WebAssembly.Module.imports(module);
+                const memoryImport = imports.find(i => i.kind === 'memory');
+                const isThreaded = memoryImport !== undefined;
+                
+                console.log(`[Open303Oscillator] WASM imports memory: ${isThreaded}`);
+                
                 this.workletNode.port.postMessage({
                     type: 'init-wasm',
                     data: {
                         wasmBytes,
                         sampleRate: audioContext.sampleRate,
-                        isThreaded: true  // Required for OpenMP-enabled JC-303 build
+                        isThreaded  // Auto-detect based on WASM imports
                     }
                 });
 
