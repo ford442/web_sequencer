@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 
+// Mock WebAssembly.compile and Module.imports to avoid needing a real WASM binary
+const mockWasmModule = {} as WebAssembly.Module;
+vi.stubGlobal('WebAssembly', {
+    ...WebAssembly,
+    compile: vi.fn().mockResolvedValue(mockWasmModule),
+    Module: {
+        imports: vi.fn().mockReturnValue([]),
+    },
+});
+
 // Mock fetch for WASM files
 global.fetch = vi.fn((url: string) => {
     if (typeof url === 'string' && url.includes('jc303.wasm')) {
@@ -23,11 +33,26 @@ describe('Open303 Oscillator', () => {
         mockWorkletNode = {
             port: {
                 postMessage: vi.fn(),
-                onmessage: null
+                onmessage: null as ((ev: any) => void) | null,
+                close: vi.fn()
             },
             connect: vi.fn(),
             disconnect: vi.fn()
         };
+
+        // Intercept onmessage setter to fire 'ready' once the handler is installed
+        let onmessageHandler: ((ev: any) => void) | null = null;
+        Object.defineProperty(mockWorkletNode.port, 'onmessage', {
+            get() { return onmessageHandler; },
+            set(handler: ((ev: any) => void) | null) {
+                onmessageHandler = handler;
+                // Once the init code sets onmessage, simulate the worklet replying
+                if (handler) {
+                    setTimeout(() => handler({ data: { type: 'ready' } }), 0);
+                }
+            },
+            configurable: true
+        });
 
         mockAudioContext = {
             createGain: vi.fn(() => ({
