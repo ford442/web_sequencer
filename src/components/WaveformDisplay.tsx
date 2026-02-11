@@ -50,7 +50,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
             ctx.fillRect(0, 0, width, height);
 
             if (!buffer) {
-                ctx.fillStyle = '#374151';
+                ctx.fillStyle = '#9ca3af';
                 ctx.font = '10px monospace';
                 ctx.textAlign = 'center';
                 ctx.fillText("NO SAMPLE", width / 2, height / 2);
@@ -64,7 +64,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
             const amp = height / 2;
 
             ctx.beginPath();
-            ctx.strokeStyle = '#4b5563'; // gray-600
+            ctx.strokeStyle = '#6b7280'; // gray-500
             ctx.lineWidth = 1;
 
             for (let i = 0; i < width; i++) {
@@ -147,8 +147,18 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
 
     }, [buffer, alignment, sliceHighlightRef]);
 
+    const label = !buffer
+        ? "Waveform visualization: No sample loaded"
+        : `Waveform visualization: Sample loaded${alignment ? " with phoneme alignment" : ""}`;
+
     return (
-        <div ref={containerRef} className="w-full h-12 bg-gray-900 rounded border border-gray-700 overflow-hidden mb-1 relative">
+        <div
+            ref={containerRef}
+            className="w-full h-12 bg-gray-900 rounded border border-gray-700 overflow-hidden mb-1 relative"
+            role="img"
+            aria-label={label}
+            title={label}
+        >
             <canvas ref={canvasRef} className="w-full h-full block" />
         </div>
     );
