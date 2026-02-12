@@ -19,10 +19,19 @@ jobs:
         submodules: false 
         fetch-depth: 0
 
-    # 2. INSTALL PNPM (*** CRITICAL: MUST RUN BEFORE SETUP-NODE ***)
-    # This ensures the 'pnpm' executable exists when setup-node tries to use it.
-    - name: Install pnpm
-      run: npm install -g pnpm@9
+    # 2. SETUP PNPM (*** CRITICAL: MUST RUN BEFORE SETUP-NODE ***)
+    # This ensures the 'pnpm' executable exists and is in PATH when setup-node tries to use it.
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
+    # 3. SETUP NODE.JS (Now safe to use pnpm caching)
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'pnpm' # pnpm is now properly available
 
     # 3. SETUP NODE.JS (Fixes: "Unable to locate pnpm" by running AFTER step 2)
     - name: Setup Node.js
