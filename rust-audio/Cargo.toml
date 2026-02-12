@@ -7,5 +7,14 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasm-bindgen = "0.2"
+wasm-bindgen = "0.2.96"
 js-sys = "0.3"
+
+# Configure wasm-pack to use compatible wasm-opt flags
+[package.metadata.wasm-pack.profile.release]
+# Use safe flags that work across binaryen versions
+wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-simd"]
+
+# Development profile - disable wasm-opt for faster builds
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
