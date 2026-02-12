@@ -33,10 +33,10 @@ fi
 # Check wasm-opt version
 $WASM_OPT --version
 
-if ! command -v terser &> /dev/null; then
-    echo "⚠️  terser not found! Install via 'npm install -g terser'"
-    exit 1
-fi
+# if ! command -v terser &> /dev/null; then
+#     echo "⚠️  terser not found! Install via 'npm install -g terser'"
+#     exit 1
+# fi
 
 if ! command -v wasmedge &> /dev/null; then
     echo "⚠️  wasmedge not found! Installing via 'curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash && source $HOME/.wasmedge/env'"
