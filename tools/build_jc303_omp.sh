@@ -112,26 +112,26 @@ build_variant() {
         LINK_OMP_FLAGS=""
     fi
     
-    # Configure with CMake using Emscripten toolchain
-    echo -e "${YELLOW}Configuring with CMake...${NC}"
-    if [ "$BUILD_TYPE" = "debug" ]; then
-        CMAKE_BUILD_TYPE="Debug"
-        echo -e "${YELLOW}Using debug flags...${NC}"
-        cmake_args=(
-            -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
-            -DCMAKE_C_FLAGS="${OMP_FLAGS} -O0 -g"
-            -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O0 -g"
-            -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -sASSERTIONS=2 -sSAFE_HEAP=1 -s ALLOW_MEMORY_GROWTH=1"
-        )
-    else
-        CMAKE_BUILD_TYPE="Release"
-        cmake_args=(
-            -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
-            -DCMAKE_C_FLAGS="${OMP_FLAGS} -O3"
-            -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O3"
-            -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -O3"
-        )
-    fi
+     if [ "$BUILD_TYPE" = "debug" ]; then
+         CMAKE_BUILD_TYPE="Debug"
+         echo -e "${YELLOW}Using debug flags...${NC}"
+         cmake_args=(
+             -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
+             -DCMAKE_C_FLAGS="${OMP_FLAGS} -O0 -g"
+             -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O0 -g"
+-            -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -sASSERTIONS=2 -sSAFE_HEAP=1 -s ALLOW_MEMORY_GROWTH=1"
++            -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -sASSERTIONS=2 -sSAFE_HEAP=1 -s ALLOW_MEMORY_GROWTH=1 -s TOTAL_STACK=1048576"
+         )
+     else
+         CMAKE_BUILD_TYPE="Release"
+         cmake_args=(
+             -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
+             -DCMAKE_C_FLAGS="${OMP_FLAGS} -O3"
+             -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O3"
+-            -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -O3"
++            -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -O3 -s TOTAL_STACK=1048576"
+         )
+     fi
     
     # Run CMake with guarded args  
     emcmake cmake "$WASM_DIR" "${cmake_args[@]}"
