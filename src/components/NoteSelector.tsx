@@ -12,10 +12,16 @@ interface NoteSelectorProps {
     onLengthChange: (length: number) => void; // NEW: Handle length changes
     onClose: () => void;
     getNoteColor: (note: string) => string;
+    // NEW: Per-step parameters
+    currentTimbre?: number;
+    currentProbability?: number;
+    currentMicrotiming?: number;
+    onPropertyChange?: (key: 'timbre' | 'probability' | 'microtiming', value: number) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
-    x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor
+    x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor,
+    currentTimbre = 0, currentProbability = 1, currentMicrotiming = 0, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -65,6 +71,64 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                         aria-valuetext={`${currentLength} Steps`}
                     />
                 </div>
+
+                {onPropertyChange && (
+                    <>
+                        {/* Timbre Control */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                <label htmlFor="note-timbre">Expression</label>
+                                <span className="text-pink-400">{Math.round((currentTimbre + 0.0001) * 100)}%</span>
+                            </div>
+                            <input
+                                id="note-timbre"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={currentTimbre}
+                                onChange={(e) => onPropertyChange('timbre', parseFloat(e.target.value))}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                            />
+                        </div>
+
+                        {/* Probability Control */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                <label htmlFor="note-prob">Probability</label>
+                                <span className="text-yellow-400">{Math.round((currentProbability + 0.0001) * 100)}%</span>
+                            </div>
+                            <input
+                                id="note-prob"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={currentProbability}
+                                onChange={(e) => onPropertyChange('probability', parseFloat(e.target.value))}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500"
+                            />
+                        </div>
+
+                        {/* Microtiming Control */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                <label htmlFor="note-micro">Microtiming</label>
+                                <span className="text-purple-400">{currentMicrotiming > 0 ? '+' : ''}{currentMicrotiming.toFixed(2)}</span>
+                            </div>
+                            <input
+                                id="note-micro"
+                                type="range"
+                                min="-0.5"
+                                max="0.5"
+                                step="0.01"
+                                value={currentMicrotiming}
+                                onChange={(e) => onPropertyChange('microtiming', parseFloat(e.target.value))}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                            />
+                        </div>
+                    </>
+                )}
 
                 <div className="flex gap-2">
                     {octaves.map(octave => (

@@ -234,10 +234,11 @@ export class SingingVoice {
     /**
      * Set the pitch scale ratio.
      * @param ratio Pitch multiplier (e.g., 2.0 = one octave up, 0.5 = one octave down)
+     * @param time Optional time to apply the change (default: now)
      */
-    setPitch(ratio: number): void {
+    setPitch(ratio: number, time?: number): void {
         if (this.useWorklet && this.workletNode) {
-            this.workletNode.parameters.get('pitchScale')!.setValueAtTime(ratio, this.audioContext.currentTime);
+            this.workletNode.parameters.get('pitchScale')!.setValueAtTime(ratio, time || this.audioContext.currentTime);
         }
         // ScriptProcessorNode fallback doesn't support pitch shifting
     }
@@ -246,8 +247,9 @@ export class SingingVoice {
      * Set pitch from MIDI note number relative to base note.
      * @param targetMidiNote Target MIDI note for pitch shifting
      * @param baseMidiNote Base MIDI note (default: C4 = 60)
+     * @param time Optional time to apply the change (default: now)
      */
-    setPitchFromMidi(targetMidiNote: number, baseMidiNote: number = 60): void {
+    setPitchFromMidi(targetMidiNote: number, baseMidiNote: number = 60, time?: number): void {
         const targetFreq = midiToFreq(targetMidiNote);
         const baseFreq = midiToFreq(baseMidiNote);
         
@@ -255,7 +257,7 @@ export class SingingVoice {
         let pitchRatio = targetFreq / baseFreq;
         pitchRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, pitchRatio));
         
-        this.setPitch(pitchRatio);
+        this.setPitch(pitchRatio, time);
     }
     
     /**
@@ -384,10 +386,11 @@ export class SingingVoice {
     /**
      * Set the time stretch ratio.
      * @param timeRatio Time multiplier (e.g., 2.0 = twice as long, 0.5 = half as long)
+     * @param time Optional time to apply the change (default: now)
      */
-    setTimeRatio(timeRatio: number): void {
+    setTimeRatio(timeRatio: number, time?: number): void {
         if (this.useWorklet && this.workletNode) {
-            this.workletNode.parameters.get('timeRatio')!.setValueAtTime(timeRatio, this.audioContext.currentTime);
+            this.workletNode.parameters.get('timeRatio')!.setValueAtTime(timeRatio, time || this.audioContext.currentTime);
         }
         // ScriptProcessorNode fallback doesn't support time stretching
     }
@@ -592,30 +595,33 @@ export class SingingVoice {
     /**
      * Set formant shift in semitones.
      * @param semitones Formant shift in semitones (e.g., -12 to 12)
+     * @param time Optional time to apply the change (default: now)
      */
-    setFormantShift(semitones: number): void {
+    setFormantShift(semitones: number, time?: number): void {
         if (this.workletNode) {
-            this.workletNode.parameters.get('formantScale')?.setValueAtTime(semitones / 12, this.audioContext.currentTime);
+            this.workletNode.parameters.get('formantScale')?.setValueAtTime(semitones / 12, time || this.audioContext.currentTime);
         }
     }
 
     /**
      * Set vibrato depth percentage.
      * @param percent Vibrato depth (0-100)
+     * @param time Optional time to apply the change (default: now)
      */
-    setVibratoDepth(percent: number): void {
+    setVibratoDepth(percent: number, time?: number): void {
         if (this.workletNode) {
-            this.workletNode.parameters.get('vibratoDepth')?.setValueAtTime(percent / 100, this.audioContext.currentTime);
+            this.workletNode.parameters.get('vibratoDepth')?.setValueAtTime(percent / 100, time || this.audioContext.currentTime);
         }
     }
 
     /**
      * Set breath intensity.
      * @param intensity Breath intensity (0-1)
+     * @param time Optional time to apply the change (default: now)
      */
-    setBreathIntensity(intensity: number): void {
+    setBreathIntensity(intensity: number, time?: number): void {
         if (this.workletNode) {
-            this.workletNode.parameters.get('breathIntensity')?.setValueAtTime(intensity, this.audioContext.currentTime);
+            this.workletNode.parameters.get('breathIntensity')?.setValueAtTime(intensity, time || this.audioContext.currentTime);
         }
     }
 }

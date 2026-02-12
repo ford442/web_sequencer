@@ -85,6 +85,9 @@ export interface Note {
   length?: number; // Duration in steps (default 1)
   slide?: boolean; // Triggers portamento from previous note
   chord?: string[]; // Additional notes to play simultaneously
+  timbre?: number; // 0-1, tonal character (filter/formant)
+  probability?: number; // 0-1, chance of triggering
+  microtiming?: number; // -0.5 to 0.5 steps, rhythmic offset
 }
 
 export interface PartSequence {

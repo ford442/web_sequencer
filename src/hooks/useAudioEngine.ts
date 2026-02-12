@@ -226,13 +226,26 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
             // Define Playback Functions
 
-            const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB') => {
+            const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number }) => {
                  if (!masterGainRef.current) return;
+
+                 // Apply Microtiming
+                 const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
+
+                 // Apply Timbre Modulation (Filter Cutoff)
+                 let effectiveParams = params;
+                 if (noteParams?.timbre !== undefined) {
+                     effectiveParams = { ...params };
+                     // Modulate cutoff: 0.5 is neutral. 0 = -50%, 1 = +50%
+                     // Or just scale: cutoff * (0.5 + timbre)
+                     const mod = 0.5 + noteParams.timbre; // 0.5 to 1.5
+                     effectiveParams.filterCutoff = Math.min(20000, params.filterCutoff * mod);
+                 }
 
                  // Open303 Routing (Specific check for 303 waveforms)
                  if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
                      if (open303EngineRef.current) {
-                         apply303Params(open303EngineRef.current, params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+                         apply303Params(open303EngineRef.current, effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
                          // Note: 303 Engine is monophonic by nature in this implementation or handles its own logic.
                          // But noteToMidi expects string. If chord (array), pick first note?
@@ -242,7 +255,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                          const midi = noteToMidi(noteStr);
 
                          const now = context.currentTime;
-                         const startDelay = Math.max(0, time - now);
+                         const startDelay = Math.max(0, actualTime - now);
                          const duration = durationSteps * stepTime;
 
                          setTimeout(() => {
@@ -263,10 +276,10 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                  const duration = durationSteps * stepTime;
 
                  if (track === 'partB' && voiceManagerBRef.current) {
-                     voiceManagerBRef.current.playNote(params, note, time, duration, slideFromFreq);
+                     voiceManagerBRef.current.playNote(effectiveParams, note, actualTime, duration, slideFromFreq);
                  } else if (voiceManagerARef.current) {
                      // Default to Synth A (Poly)
-                     voiceManagerARef.current.playNote(params, note, time, duration, slideFromFreq);
+                     voiceManagerARef.current.playNote(effectiveParams, note, actualTime, duration, slideFromFreq);
                  }
             };
 
@@ -373,15 +386,27 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 return vocalAlignmentsRef.current.get(bankName) || null;
             };
 
-            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2) => {
+            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number }) => {
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 if (!buffer || !masterGainRef.current) return;
+
+                // Apply Microtiming
+                const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
 
                 if (params.mode === 'stretch' && singingVoiceRef.current) {
                     // PHONEME ELASTICITY & SINGING VOICE MODE
                     const voice = singingVoiceRef.current;
                     const targetDuration = durationSteps * stepTime;
                     const originalDuration = buffer.duration;
+
+                    // Apply Timbre Modulation (Formant Shift)
+                    if (noteParams?.timbre !== undefined) {
+                        const baseShift = params.formantShift || 0;
+                        const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
+                        voice.setFormantShift(baseShift + mod, actualTime);
+                    } else if (params.formantShift !== undefined) {
+                         voice.setFormantShift(params.formantShift, actualTime);
+                    }
 
                     // CHECK FOR SLICE TRIGGER MODE
                     if (params.sliceMode === 'phoneme') {
@@ -400,12 +425,12 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
                     // 1. Calculate Time Ratio
                     const timeRatio = targetDuration / originalDuration;
-                    voice.setTimeRatio(timeRatio);
+                    voice.setTimeRatio(timeRatio, actualTime);
 
                     // 2. Pitch Shift
                     // Assuming base note C4 (60) for the sample
                     const targetMidi = noteToMidi(note);
-                    voice.setPitchFromMidi(targetMidi, 60);
+                    voice.setPitchFromMidi(targetMidi, 60, actualTime);
 
                     // 3. Phoneme Awareness
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
@@ -447,7 +472,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 shaper.connect(gain);
                 gain.connect(masterGainRef.current);
 
-                source.start(time);
+                source.start(actualTime);
             };
 
             const noteOnSampler = (params: SamplerBankParams, _note: string, time?: number): number | null => {
