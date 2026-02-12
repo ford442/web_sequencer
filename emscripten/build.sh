@@ -34,7 +34,8 @@ cp -r "$REPO_ROOT/rubberband/"* "$RUBBERBAND_SRC/"
 # FLAGS
 # ---------------------------------------------------------
 # Common flags
-COMMON_FLAGS="-O3 -msimd128 -mrelaxed-simd -ffast-math -flto -flto=thin -funroll-loops -fopenmp -pthread -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
+# Removed -mrelaxed-simd and -flto/-flto=thin for CI compatibility (Emscripten 3.1.51)
+COMMON_FLAGS="-O3 -msimd128 -ffast-math -funroll-loops -fopenmp -pthread -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
 
 # C Flags
 CFLAGS="$COMMON_FLAGS"
