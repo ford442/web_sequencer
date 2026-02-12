@@ -148,7 +148,7 @@ const getSynthControls = (params: SynthParams): KnobConfig[] => [
     { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2, valueDisplay: `${params.release.toFixed(2)}s` },
     { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000, valueDisplay: `${Math.round(params.filterCutoff)}Hz` },
     { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20, valueDisplay: `${params.filterResonance.toFixed(1)}` },
-    { id: 'filterMode', label: 'MODE', x: 0.65, y: 0.60, size: 0.08, value: params.filterMode ?? 0, valueDisplay: (params.filterMode ?? 0) > 0.5 ? '24dB' : '18dB' },
+    { id: 'filterMode', label: 'MODE', x: 0.65, y: 0.60, size: 0.08, value: params.filterMode ?? 0, valueDisplay: (params.filterMode ?? 0) >= 1 ? '24dB' : '18dB' },
     { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48, valueDisplay: `${params.pitch > 0 ? '+' : ''}${params.pitch.toFixed(1)}st` },
     { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2, valueDisplay: `${(params.length || 0.25).toFixed(2)}s` },
     { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
