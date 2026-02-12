@@ -54,7 +54,7 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
             <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Filter</h3>
             <Knob label="Cutoff" value={params.filterCutoff} onChange={(val) => handleParamChange('filterCutoff', val)} min={20} max={15000} color={accentClasses[accentColor].knob} unit="Hz" logarithmic />
             <Knob label="Resonance" value={params.filterResonance} onChange={(val) => handleParamChange('filterResonance', val)} min={0.1} max={30} color={accentClasses[accentColor].knob} unit="Q" />
-            <Knob label="Mode" value={params.filterMode ?? 0} onChange={(val) => handleParamChange('filterMode', val)} min={0} max={1} step={1} color={accentClasses[accentColor].knob} />
+            <Knob label="Mode" value={(params.filterMode ?? 0) > 0 ? 24 : 18} onChange={(val) => handleParamChange('filterMode', val >= 24 ? 1 : 0)} min={18} max={24} step={6} color={accentClasses[accentColor].knob} unit="dB" />
           </div>
           <div className="space-y-2">
             <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Envelope</h3>
