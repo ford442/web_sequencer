@@ -119,9 +119,14 @@ describe('Open303 Oscillator', () => {
         await engine.init(mockAudioContext, 'worklet-url.js');
 
         engine.setCutoff(0.5);
+        engine.setFilterMode(1);
         expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
             type: 'param',
             data: { func: 'jc303_setCutoff', value: 0.5 }
+        });
+        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
+            type: 'param',
+            data: { func: 'jc303_setFilterMode', value: 1 }
         });
     });
 
