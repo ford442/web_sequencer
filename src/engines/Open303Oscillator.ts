@@ -118,6 +118,7 @@ export class Open303Oscillator {
     setWaveform(v: number) { this.params.waveform = v; this.setParam('setWaveform', v); }
     setCutoff(v: number) { this.params.cutoff = v; this.setParam('setCutoff', v); }
     setResonance(v: number) { this.params.resonance = v; this.setParam('setResonance', v); }
+    setFilterMode(v: number) { this.params.filterMode = v; this.setParam('setFilterMode', v); }
     setDecay(v: number) { this.params.decay = v; this.setParam('setDecay', v); }
     setEnvMod(v: number) { this.params.envMod = v; this.setParam('setEnvMod', v); }
     setAccent(v: number) { this.params.accent = v; this.setParam('setAccent', v); }
@@ -128,6 +129,7 @@ export class Open303Oscillator {
         this.setWaveform(this.params.waveform);
         this.setCutoff(this.params.cutoff);
         this.setResonance(this.params.resonance);
+        this.setFilterMode(this.params.filterMode);
         this.setDecay(this.params.decay);
         this.setEnvMod(this.params.envMod);
         this.setAccent(this.params.accent);
