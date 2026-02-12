@@ -97,6 +97,11 @@ class Open303Processor extends AudioWorkletProcessor {
                     _abort_js: () => console.error("WASM Abort"),
                     abort: () => console.error("WASM Abort"),
                     
+                    // Stack overflow and fault handlers (required by newer Emscripten builds)
+                    __handle_stack_overflow: () => console.error("[Open303] Stack overflow detected"),
+                    segfault: () => console.error("[Open303] Segmentation fault"),
+                    alignfault: () => console.error("[Open303] Alignment fault"),
+                    
                     // Core runtime - minified names (a-o based on typical Emscripten output)
                     a: () => console.error("WASM Abort"),
                     b: () => console.error("WASM Abort"),
@@ -228,18 +233,19 @@ class Open303Processor extends AudioWorkletProcessor {
                     "": env
                 };
                 
+                // Check if WASM imports memory or exports it
+                // Also get all imports for dynamic namespace mapping
+                const imports = WebAssembly.Module.imports(module);
+                
                 // Dynamic import mapping: for each unique import module, provide the env
                 // This handles cases where WASM was built with different minification settings
-                const uniqueModules = new Set(importDescriptors.map((i: any) => i.module));
+                const uniqueModules = new Set(imports.map((i: any) => i.module));
                 for (const mod of uniqueModules) {
                     if (!importsObject[mod]) {
                         console.log(`[Open303] Adding dynamic import namespace: ${mod}`);
                         importsObject[mod] = env;
                     }
                 }
-
-                // Check if WASM imports memory or exports it
-                const imports = WebAssembly.Module.imports(module);
                 const memoryImport = imports.find(i => i.kind === 'memory');
                 
                 if (memoryImport) {
