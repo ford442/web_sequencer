@@ -604,25 +604,48 @@ export const App: React.FC = () => {
         const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
             const stepData = p[trackKey].steps[step];
             if (stepData) {
+                // Probability Check
+                if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
+
                 const currentBaseFreq = noteToFrequency(stepData.note) * Math.pow(2, params.pitch / 12);
                 let slideFrom = null;
                 if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming };
+
                 // @ts-ignore
-                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey);
+                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams);
                 lastFreqRef.current[trackKey] = currentBaseFreq;
             }
         };
 
         triggerSynth('partA', synthARef.current);
         triggerSynth('partB', synthBRef.current);
-        if (p.kick.steps[step]) audioEngine.playDrum('kick', kickRef.current, time)
-        if (p.snare.steps[step]) audioEngine.playDrum('snare', snareRef.current, time)
-        if (p.openHat.steps[step]) audioEngine.playDrum('openHat', openHatRef.current, time)
-        else if (p.closedHat.steps[step]) audioEngine.playDrum('closedHat', closedHatRef.current, time)
+
+        // Drums (Basic probability check)
+        const playDrumIfActive = (trackKey: 'kick' | 'snare' | 'closedHat' | 'openHat', sound: any, params: any) => {
+            const stepData = p[trackKey].steps[step];
+            if (stepData) {
+                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
+                 // Drums don't support timbre/microtiming yet in this simplified call, but we could add it
+                 // For now just probability
+                 audioEngine.playDrum(sound, params, time);
+            }
+        };
+
+        playDrumIfActive('kick', 'kick', kickRef.current);
+        playDrumIfActive('snare', 'snare', snareRef.current);
+        playDrumIfActive('openHat', 'openHat', openHatRef.current);
+        if (!p.openHat.steps[step]) playDrumIfActive('closedHat', 'closedHat', closedHatRef.current); // Only closed if open not playing
+
         p.sampler.forEach((seq, bankIdx) => {
             const stepData = seq.steps[step];
-            if (stepData) { audioEngine.playSampler(samplerRef.current[bankIdx], stepData.note, time, stepData.length, stepTime); }
+            if (stepData) {
+                if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming };
+                audioEngine.playSampler(samplerRef.current[bankIdx], stepData.note, time, stepData.length, stepTime, noteParams);
+            }
         });
 
         // Visual Slice Feedback for Active Bank
@@ -942,6 +965,33 @@ export const App: React.FC = () => {
         setPattern(copy);
         updateStorageForTrack(trackKey, changedSequence);
     };
+
+    const handleNotePropertyChange = (key: 'timbre' | 'probability' | 'microtiming', value: number) => {
+        if (!contextMenu) return;
+        const prev = patternRef.current;
+        const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+        const trackKey = contextMenu.track;
+        const stepIndex = contextMenu.step;
+        const isSampler = trackKey === 'sampler';
+
+        let stepsArray;
+        if (isSampler) {
+            stepsArray = copy.sampler[activeSamplerBank].steps;
+        } else {
+            stepsArray = (copy[trackKey] as any).steps;
+        }
+
+        const stepData = stepsArray[stepIndex];
+        if (stepData) {
+            stepData[key] = value;
+        }
+
+        let changedSequence;
+        if (isSampler) { changedSequence = copy.sampler; } else { changedSequence = copy[trackKey]; }
+        setPattern(copy);
+        updateStorageForTrack(trackKey, changedSequence);
+    };
+
     const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })), } as any as Pattern; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
@@ -1271,7 +1321,23 @@ export const App: React.FC = () => {
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
-                {contextMenu && (<NoteSelector x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'} currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''} currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1} onSelect={handleNoteSelect} onLengthChange={handleNoteLengthChange} onClose={() => setContextMenu(null)} getNoteColor={getNoteColor} />)}
+                {contextMenu && (
+                    <NoteSelector
+                        x={contextMenu.x}
+                        y={contextMenu.y}
+                        trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
+                        currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
+                        currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
+                        currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
+                        currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
+                        currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
+                        onSelect={handleNoteSelect}
+                        onLengthChange={handleNoteLengthChange}
+                        onPropertyChange={handleNotePropertyChange}
+                        onClose={() => setContextMenu(null)}
+                        getNoteColor={getNoteColor}
+                    />
+                )}
                 <div className="w-full max-w-[1000px] mx-auto h-[480px]">
                     {sequencerNode}
                 </div>
