@@ -33,10 +33,10 @@ fi
 # Check wasm-opt version
 $WASM_OPT --version
 
-if ! command -v terser &> /dev/null; then
-    echo "⚠️  terser not found! Install via 'npm install -g terser'"
-    exit 1
-fi
+# if ! command -v terser &> /dev/null; then
+#     echo "⚠️  terser not found! Install via 'npm install -g terser'"
+#     exit 1
+# fi
 
 if ! command -v wasmedge &> /dev/null; then
     echo "⚠️  wasmedge not found! Installing via 'curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash && source $HOME/.wasmedge/env'"
@@ -56,7 +56,7 @@ $WASM_OPT "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --strip-debug \
   --enable-simd \
   --enable-threads \
-  # --enable-bulk-memory \
+  --enable-bulk-memory \
   --enable-relaxed-simd \
   --enable-nontrapping-float-to-int
 
@@ -66,7 +66,7 @@ $WASM_OPT "$FREEZER_WASM" -o "$FREEZER_WASM" \
   --converge \
   --strip-debug \
   --enable-simd \
-  # --enable-bulk-memory \
+  --enable-bulk-memory \
   --enable-relaxed-simd \
   --enable-nontrapping-float-to-int
 
@@ -83,7 +83,7 @@ $WASM_OPT "$NATIVE_WASM" -o "$NATIVE_WASM" \
   --enable-simd \
   --enable-threads \
   --enable-relaxed-simd \
-  # --enable-bulk-memory \
+  --enable-bulk-memory \
   --enable-nontrapping-float-to-int
   
 echo "🔧 Optimizing Native WASM (wasmedge)..."

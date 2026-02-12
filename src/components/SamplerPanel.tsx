@@ -393,20 +393,34 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 <div className="flex flex-col gap-2 bg-gray-800/20 p-2 rounded border border-gray-800">
                     {/* Row A: Load / Record */}
                     <div className="flex justify-between items-center gap-2">
-                        <div className="flex gap-1">
+                        <div className="flex gap-1" role="toolbar" aria-label="Sample Management">
                             <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="btn-mini px-2 py-0.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px]"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold text-gray-300"
                                 aria-label="Load Sample from File"
+                                title="Load audio file into current bank"
                             >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
                                 LOAD
                             </button>
                             <button
                                 onClick={toggleRecording}
-                                className={`btn-mini px-2 py-0.5 rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] ${isRecording ? 'bg-red-900 border-red-500 animate-pulse text-white' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold transition-colors ${
+                                    isRecording
+                                        ? 'bg-red-900 border-red-500 animate-pulse text-white shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                                        : 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:text-white text-gray-300'
+                                }`}
                                 aria-label={isRecording ? "Stop Recording" : "Record Sample from Microphone"}
+                                title={isRecording ? "Stop recording audio" : "Record audio from microphone"}
                             >
+                                {isRecording ? (
+                                    <div className="w-2 h-2 bg-white rounded-sm" />
+                                ) : (
+                                    <div className="w-2 h-2 bg-red-500 rounded-full shadow-[0_0_4px_rgba(239,68,68,0.8)]" />
+                                )}
                                 {isRecording ? 'STOP' : 'REC'}
                             </button>
                         </div>
