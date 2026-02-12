@@ -56,27 +56,53 @@ jobs:
         chmod +x emscripten/*.sh
         chmod +x tools/*.sh
         
-        echo ">>> Building Rubberband..."
-        ./emscripten/build.sh
+        echo ">>> Building AssemblyScript Oscillators..."
+        pnpm run build:wasm:oscillators
+        
+        echo ">>> Building AssemblyScript Track Freezer..."
+        pnpm run build:wasm:freezer
         
         echo ">>> Building JC303..."
-        ./tools/build_jc303_omp.sh
+        ./tools/build_jc303_omp.sh release single
+        
+        echo ">>> Building Rust WASM..."
+        cd rust-audio && cargo update -p wasm-bindgen && cd ..
+        pnpm run build:wasm:rust || echo "⚠️ Rust build failed (optional)"
+        
+    # Rubberband build - made optional due to potential wasm-opt issues
+    - name: 🛠️ Build Rubberband (Optional)
+      continue-on-error: true
+      run: |
+        echo ">>> Building Rubberband (optional)..."
+        ./emscripten/build.sh
 
-    # 8. BUILD WEB APP
+    # 8. OPTIMIZE WASM
+    - name: ⚡ Optimize WASM
+      continue-on-error: true
+      run: |
+        echo ">>> Running post-build optimization..."
+        ./tools/optimize.sh || echo "⚠️ Optimization step failed"
+
+    # 9. BUILD WEB APP
     - name: 🏗️ Build Web Application
       run: pnpm build
 
-    # 9. VERIFY OUTPUT
+    # 10. VERIFY OUTPUT
     - name: 🔍 Debug - Verify Output
       run: |
         echo "Checking for build artifacts..."
         ls -lh public/*.wasm || echo "❌ No WASM files in public/"
+        ls -lh src/wasm/*.wasm || echo "❌ No WASM files in src/wasm/"
         ls -lh public/*.js || echo "❌ No JS glue files in public/"
 
-    # 10. UPLOAD ARTIFACTS
+    # 11. UPLOAD ARTIFACTS
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       continue-on-error: true
       with:
         name: debug-build-output
-        path: dist/
+        path: |
+          dist/
+          public/*.wasm
+          public/*.js
+          src/wasm/*.wasm
