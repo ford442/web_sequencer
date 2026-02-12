@@ -20,6 +20,13 @@ class Open303Processor extends AudioWorkletProcessor {
     // digital oscillators. A 4x multiplier brings the signal to ~0dB/-6dB.
     private static readonly OUTPUT_GAIN = 4.0;
 
+    // Stuck note protection
+    private activeNotes: Map<number, number> = new Map(); // note -> startTime (ms)
+    private static readonly MAX_NOTE_DURATION_MS = 8000; // 8 seconds max note duration
+    private static readonly NOTE_CHECK_INTERVAL = 128 * 10; // Check every 10 process blocks (~1280 samples @ 44.1kHz)
+    private processBlockCount = 0;
+    private stuckNoteWarnings = 0;
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
@@ -342,13 +349,53 @@ class Open303Processor extends AudioWorkletProcessor {
             const exports = this.wasmInstance.exports as any;
 
             if (type === 'noteOn' && exports.jc303_noteOn) {
+                // Stuck note protection: force note-off for any existing note first
+                if (this.activeNotes.has(data.note)) {
+                    console.warn(`[Open303] Note ${data.note} already active, forcing note-off first`);
+                    exports.jc303_noteOff(data.note);
+                }
+                // Clear any other active notes (303 is monophonic)
+                this.clearAllNotes();
+                
                 exports.jc303_noteOn(data.note, data.velocity);
+                this.activeNotes.set(data.note, performance.now());
             }
             if (type === 'noteOff' && exports.jc303_noteOff) {
                 exports.jc303_noteOff(data.note);
+                this.activeNotes.delete(data.note);
             }
             if (type === 'param' && exports[data.func]) {
                 exports[data.func](data.value);
+            }
+        }
+    }
+
+    private clearAllNotes(): void {
+        if (!this.wasmInstance) return;
+        const exports = this.wasmInstance.exports as any;
+        if (!exports.jc303_noteOff) return;
+        
+        for (const note of this.activeNotes.keys()) {
+            exports.jc303_noteOff(note);
+        }
+        this.activeNotes.clear();
+    }
+
+    private checkStuckNotes(): void {
+        if (!this.wasmInstance || this.activeNotes.size === 0) return;
+        
+        const now = performance.now();
+        const exports = this.wasmInstance.exports as any;
+        if (!exports.jc303_noteOff) return;
+        
+        for (const [note, startTime] of this.activeNotes.entries()) {
+            const duration = now - startTime;
+            if (duration > Open303Processor.MAX_NOTE_DURATION_MS) {
+                if (this.stuckNoteWarnings++ < 5) {
+                    console.warn(`[Open303] Stuck note detected: ${note} held for ${duration.toFixed(0)}ms, auto-releasing`);
+                }
+                exports.jc303_noteOff(note);
+                this.activeNotes.delete(note);
             }
         }
     }
@@ -373,6 +420,12 @@ class Open303Processor extends AudioWorkletProcessor {
 
         const channelL = output[0];
         const channelR = output[1];
+
+        // Stuck note protection: periodically check for notes held too long
+        if (++this.processBlockCount >= Open303Processor.NOTE_CHECK_INTERVAL) {
+            this.processBlockCount = 0;
+            this.checkStuckNotes();
+        }
 
         if (!this.isWasmReady || !this.wasmInstance || !this.heapFloat32) {
             // Output silence if not ready
