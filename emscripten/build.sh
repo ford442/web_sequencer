@@ -33,7 +33,7 @@ cp -r "$REPO_ROOT/rubberband/"* "$RUBBERBAND_SRC/"
 # ---------------------------------------------------------
 # FLAGS
 # ---------------------------------------------------------
-# Common flags
+# Common flags # removed -mbulk-memory 
 COMMON_FLAGS="-O3 -msimd128 -mrelaxed-simd -ffast-math -flto -flto=thin -funroll-loops -fopenmp -pthread -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
 
 # C Flags
