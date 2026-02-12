@@ -18,6 +18,7 @@ export interface SynthParams {
   pitch: number; // Semitones adjustment
   filterCutoff: number; // Hz
   filterResonance: number; // Q factor
+  filterMode?: number; // 0-1 (filter mode toggle)
   attack: number; // seconds
   decay: number; // seconds
   sustain: number; // 0-1 (level)

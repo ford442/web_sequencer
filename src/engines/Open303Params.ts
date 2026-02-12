@@ -3,6 +3,7 @@ export interface Open303Params {
     tuning: number;         // 0-1 (maps to 400-480 Hz for A4)
     cutoff: number;         // 0-1 (filter cutoff)
     resonance: number;      // 0-1 (filter resonance)
+    filterMode: number;     // 0-1 (filter mode toggle)
     envMod: number;         // 0-1 (envelope modulation depth)
     decay: number;          // 0-1 (decay time)
     accent: number;         // 0-1 (accent amount)
@@ -66,6 +67,7 @@ export const DEFAULT_303_PARAMS: Open303Params = {
     tuning: 0.5,        // 440 Hz (centered)
     cutoff: 0.0,        // Minimum cutoff
     resonance: 0.92,    // 92%
+    filterMode: 0,
     envMod: 0.0,        // No modulation
     decay: 0.29,        // 29%
     accent: 0.78,       // 78%
