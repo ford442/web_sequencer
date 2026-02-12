@@ -14,6 +14,7 @@ class Open303Processor extends AudioWorkletProcessor {
     private heapFloat32: Float32Array | null = null;
     private isWasmReady: boolean = false;
     private isThreaded: boolean = false;  // Track if we're using threaded variant
+    private outputBufferPtr: number = 0;  // Pointer to the persistent output buffer
 
     // Gain compensation for 303 output level matching.
     // TB-303 emulations typically output at ~-12dB relative to standard
@@ -46,45 +47,24 @@ class Open303Processor extends AudioWorkletProcessor {
                 console.log('[Open303] WASM module compiled successfully');
 
                 // DEBUG: Inspect imports to debug "module is not an object" error
-                // This helps identify if the module expects 'env', 'a', 'wasi_snapshot_preview1', or something else.
                 try {
                     const importDescriptors = WebAssembly.Module.imports(module);
                     console.log("[Open303] WASM Imports Requirement:", JSON.stringify(importDescriptors));
-
-                    // If the module imports single-letter/minified names (e.g. "b"), the wasm
-                    // was built with import minification. Recommend rebuilding with -O1 -g
-                    // instead of -O3 -flto to avoid aggressive minification.
-                    const importNames = importDescriptors.map((d: any) => d.name || '');
-                    if (importNames.some((n: string) => /^[A-Za-z]$/.test(n))) {
-                        console.warn(
-                            "[Open303] Detected minified import names (e.g. 'b').",
-                            "Rebuild jc303 with: -O1 -g (see tools/build_jc303_omp.sh)"
-                        );
-                    }
                 } catch (e) {
                     console.warn("[Open303] Failed to inspect imports:", e);
                 }
 
                 // 2. Prepare Environment Imports
-                // We define the standard Emscripten imports plus stubs for runtime safety.
-                // Based on the rebuilt WASM with -O1 -g, the imports are now full names.
                 const env: any = {
                     // Core runtime
                     _abort_js: () => console.error("WASM Abort"),
-                    abort: () => console.error("WASM Abort"),  // fallback alias
-                    b: () => console.error("WASM Abort"),  // TODO: remove after confirming no minified builds exist
+                    abort: () => console.error("WASM Abort"),
+                    b: () => console.error("WASM Abort"),
 
-                    // Memory management - allow heap growth
-                    // NOTE: These functions are called during WASM instantiation, so we need to
-                    // handle the case where wasmInstance isn't set yet
+                    // Memory management
                     emscripten_resize_heap: (size: number) => {
-                        // Try to get memory from wasmInstance exports (preferred) or fall back to imported memory
                         const memory = this.wasmInstance?.exports?.memory as WebAssembly.Memory || this.importedMemory;
-                        
-                        if (!memory) {
-                            console.warn('[Open303] emscripten_resize_heap called but no memory available yet');
-                            return 0; // Return 0 (failure) in C convention
-                        }
+                        if (!memory) return 0;
                         
                         const currentPages = memory.buffer.byteLength / (64 * 1024);
                         const targetPages = Math.ceil(size / (64 * 1024));
@@ -95,19 +75,17 @@ class Open303Processor extends AudioWorkletProcessor {
                                 memory.grow(deltaPages);
                                 console.log(`[Open303] Heap grown from ${currentPages} to ${currentPages + deltaPages} pages`);
                                 this.updateHeap();
-                                return 1; // Return 1 (success) in C convention
+                                return 1;
                             } catch (e) {
                                 console.error('[Open303] Failed to grow heap:', e);
-                                return 0; // Return 0 (failure) in C convention
+                                return 0;
                             }
                         }
-                        return 1; // Already large enough, return success
+                        return 1;
                     },
                     _emscripten_resize_heap: (size: number) => { 
                         return env.emscripten_resize_heap(size);
                     },
-
-                    // Emscripten Runtime Stubs (Prevent crashes on missing symbols)
                     emscripten_notify_memory_growth: () => this.updateHeap(),
 
                     // Math functions
@@ -117,7 +95,7 @@ class Open303Processor extends AudioWorkletProcessor {
                     cos: Math.cos,
                     fmod: (x: number, y: number) => x % y,
 
-                    // Threading (for OMP)
+                    // Stubs
                     _emscripten_thread_set_strongref: () => { },
                     emscripten_exit_with_live_runtime: () => { },
                     _emscripten_notify_mailbox_postmessage: () => { },
@@ -128,12 +106,8 @@ class Open303Processor extends AudioWorkletProcessor {
                     _emscripten_thread_cleanup: () => { },
                     _setitimer_js: () => { },
                     _emscripten_runtime_keepalive_clear: () => { },
-
-                    // Time
-                    clock_time_get: () => Date.now() * 1000000, // nanoseconds
+                    clock_time_get: () => Date.now() * 1000000,
                     emscripten_get_now: () => performance.now(),
-
-                    // Embind (for C++ bindings)
                     _embind_register_function: () => { },
                     _embind_register_void: () => { },
                     _embind_register_bool: () => { },
@@ -144,19 +118,11 @@ class Open303Processor extends AudioWorkletProcessor {
                     _embind_register_bigint: () => { },
                     _embind_register_float: () => { },
                     _embind_register_memory_view: () => { },
-
-                    // 3. Instantiate with Alias
-                    // Emscripten -O3 builds often minify 'env' to 'a'. We provide both to be safe.
-                    // We also add WASI aliases because modern Emscripten might use them.
                 };
 
-                console.log("[Open303] Instantiating with env keys:", Object.keys(env));
-
-                // WASI imports required by the WASM
+                // WASI imports
                 const wasiImports: any = {
-                    proc_exit: (code: number) => {
-                        console.warn(`[Open303] WASI proc_exit called with code ${code}`);
-                    },
+                    proc_exit: () => { },
                     fd_close: () => 0,
                     fd_write: () => 0,
                     fd_seek: () => 0,
@@ -179,17 +145,12 @@ class Open303Processor extends AudioWorkletProcessor {
                     args_sizes_get: () => 0,
                     args_get: () => 0,
                     clock_res_get: () => 0,
-                    clock_time_get: (_id: number, _precision: number, _ptr: number) => {
-                        // const now = BigInt(Date.now() * 1000000); // nanoseconds
-                        // Would need to write to memory at ptr, but we don't have memory yet
-                        return 0;
-                    },
+                    clock_time_get: () => 0,
                     random_get: () => 0,
                     sched_yield: () => 0,
                     poll_oneoff: () => 0,
                 };
 
-                // Construct the imports object explicitly
                 const importsObject: any = {
                     env: env,
                     a: env,
@@ -198,55 +159,40 @@ class Open303Processor extends AudioWorkletProcessor {
                     "": env
                 };
 
-                // Check if WASM imports memory or exports it
+                // Memory handling
                 const imports = WebAssembly.Module.imports(module);
                 const memoryImport = imports.find(i => i.kind === 'memory');
                 
                 if (memoryImport) {
-                    // WASM expects imported memory - create it
-                    const memoryImportPages = (data && data.memoryPages) || 512; // 512 pages = 32MB (increased from 256 to prevent memory errors)
-                    const maxMemoryPages = 1024; // 1024 pages = 64MB (allows heap growth)
+                    const memoryImportPages = (data && data.memoryPages) || 512;
+                    const maxMemoryPages = 1024;
                     let mem: WebAssembly.Memory;
 
                     if (this.isThreaded) {
-                        // Threaded variant requires shared memory
                         try {
                             mem = new WebAssembly.Memory({
                                 initial: memoryImportPages,
                                 maximum: maxMemoryPages,
                                 shared: true
                             });
-                            console.log(`[Open303] Created SHARED memory for ${memoryImport.module}.${memoryImport.name} — ${memoryImportPages} pages (max: ${maxMemoryPages})`);
                         } catch (e) {
-                            console.error(`[Open303] SharedArrayBuffer not available for threaded variant:`, e);
-                            this.port.postMessage({
-                                type: 'error',
-                                error: 'SharedArrayBuffer not available. Ensure Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers are configured correctly on your web server.'
-                            });
+                            console.error(`[Open303] SharedArrayBuffer not available:`, e);
+                            this.port.postMessage({ type: 'error', error: 'SharedArrayBuffer not available' });
                             return;
                         }
                     } else {
-                        // Single-threaded uses regular memory
                         mem = new WebAssembly.Memory({
                             initial: memoryImportPages,
                             maximum: maxMemoryPages
                         });
-                        console.log(`[Open303] Created non-shared memory for ${memoryImport.module}.${memoryImport.name} — ${memoryImportPages} pages (max: ${maxMemoryPages})`);
                     }
 
                     this.importedMemory = mem;
-
-                    // Attach to the correct import namespace
                     if (!importsObject[memoryImport.module]) importsObject[memoryImport.module] = {};
                     importsObject[memoryImport.module][memoryImport.name] = mem;
-                } else {
-                    console.log('[Open303] WASM exports its own memory (no import needed)');
                 }
 
-                console.log('[Open303] Instantiating WASM module...');
-                console.log('[Open303] Import object modules:', Object.keys(importsObject));
-                
-                // Set a timeout for instantiation in case it hangs
+                // Instantiate
                 const instantiatePromise = WebAssembly.instantiate(module, importsObject);
                 const timeoutPromise = new Promise<never>((_, reject) => {
                     setTimeout(() => reject(new Error('WASM instantiation timeout (5s)')), 5000);
@@ -255,34 +201,35 @@ class Open303Processor extends AudioWorkletProcessor {
                 this.wasmInstance = await Promise.race([instantiatePromise, timeoutPromise]);
                 console.log('[Open303] WASM instantiated successfully');
 
-                // Ensure updateHeap() can see either the exported memory or the imported one
                 this.updateHeap();
 
-                // 4. Initialize the DSP in the WASM
+                // 4. Initialize the DSP
                 const exports = this.wasmInstance.exports as any;
-
-                // Debug exports
-                console.log("[Open303] WASM Exports:", Object.keys(exports));
                 
-                // Check for required functions
-                const hasInit = typeof exports.jc303_init === 'function';
-                const hasProcess = typeof exports.jc303_process === 'function';
-                const hasNoteOn = typeof exports.jc303_noteOn === 'function';
-                const hasNoteOff = typeof exports.jc303_noteOff === 'function';
-                
-                console.log(`[Open303] Required functions: init=${hasInit}, process=${hasProcess}, noteOn=${hasNoteOn}, noteOff=${hasNoteOff}`);
-                
-                if (!hasInit || !hasProcess) {
-                    throw new Error(`Missing required functions: jc303_init=${hasInit}, jc303_process=${hasProcess}`);
-                }
-
                 // Initialize the synthesizer
                 const sampleRate = data.sampleRate || 44100;
                 exports.jc303_init(sampleRate, 128);
                 console.log(`[Open303] Initialized with sampleRate=${sampleRate}`);
 
+                // 5. Get buffer pointer
+                // Critical fix: We use a persistent buffer pointer to avoid dynamic allocation in the audio thread
+                if (typeof exports.jc303_getOutputBuffer === 'function') {
+                    this.outputBufferPtr = exports.jc303_getOutputBuffer();
+                    console.log(`[Open303] Buffer Pointer retrieved: ${this.outputBufferPtr}`);
+
+                    if (this.outputBufferPtr === 0) {
+                        console.warn("[Open303] Buffer pointer is 0 (NULL). Initialization might have failed to allocate memory.");
+                    }
+                } else if (typeof exports.getOutputBuffer === 'function') {
+                    // Try without prefix if bindings are used
+                    this.outputBufferPtr = exports.getOutputBuffer();
+                    console.log(`[Open303] Buffer Pointer retrieved (via bind): ${this.outputBufferPtr}`);
+                } else {
+                    console.warn("[Open303] jc303_getOutputBuffer not found in exports. Check WASM build.");
+                    // We will likely fail in process() but we continue initialization
+                }
+
                 this.isWasmReady = true;
-                console.log('[Open303] Sending ready message');
                 this.port.postMessage({ type: 'ready' });
             } catch (e) {
                 const errorMsg = e instanceof Error ? e.message : String(e);
@@ -308,18 +255,13 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private updateHeap() {
-        // Get memory from exports (preferred) or fall back to imported memory.
-        // importedMemory is available before wasmInstance during instantiation,
-        // which is critical for emscripten_resize_heap calls from C++ constructors.
         const memory = (this.wasmInstance?.exports as any)?.memory || this.importedMemory;
-        
         if (memory) {
             this.heapFloat32 = new Float32Array(memory.buffer);
         }
     }
 
     private processErrorCount = 0;
-    private allocationErrorCount = 0;
     
     process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
         const output = outputs[0];
@@ -328,8 +270,8 @@ class Open303Processor extends AudioWorkletProcessor {
         const channelL = output[0];
         const channelR = output[1];
 
-        if (!this.isWasmReady || !this.wasmInstance || !this.heapFloat32) {
-            // Output silence if not ready
+        if (!this.isWasmReady || !this.wasmInstance || !this.heapFloat32 || this.outputBufferPtr === 0) {
+            // Output silence if not ready or buffer missing
             if (channelL) channelL.fill(0);
             if (channelR) channelR.fill(0);
             return true;
@@ -340,28 +282,19 @@ class Open303Processor extends AudioWorkletProcessor {
             const processFunc = exports.jc303_process;
 
             if (processFunc) {
-                // Ask WASM to process 128 samples (standard audio block size)
-                // NOTE: jc303_process allocates a new buffer on every call using 'new float[numSamples]'.
-                // This can exhaust the WASM heap over time. The emscripten_resize_heap function
-                // above allows the heap to grow to accommodate this.
-                const ptr = processFunc(128);
+                // Perform processing
+                // This call now returns void and writes to the persistent buffer at this.outputBufferPtr
+                processFunc(128);
                 
-                if (ptr === 0 || ptr === undefined) {
-                    // Invalid pointer - likely allocation failure
-                    if (this.allocationErrorCount++ < 5) {
-                        console.error('[Open303] jc303_process returned invalid pointer (likely memory allocation failure). Count:', this.allocationErrorCount);
-                    }
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                    return true;
-                }
-
-                // Pointer is in bytes, divide by 4 for Float32 index
+                const ptr = this.outputBufferPtr;
                 const offset = ptr >> 2;
 
                 // Safety check
                 if (offset >= 0 && offset + 128 <= this.heapFloat32.length) {
                     const gain = Open303Processor.OUTPUT_GAIN;
+
+                    // Optimization: Read directly from heap
+                    // Since it's mono, we read once and write to both channels
                     for (let i = 0; i < 128; i++) {
                         const sample = this.heapFloat32[offset + i] * gain;
                         if (channelL) channelL[i] = sample;
@@ -375,14 +308,7 @@ class Open303Processor extends AudioWorkletProcessor {
                     if (channelR) channelR.fill(0);
                 }
 
-                // Free the allocated buffer to prevent memory leak
-                if (exports._free) {
-                    exports._free(ptr);
-                }
-            } else {
-                // No process function - output silence
-                if (channelL) channelL.fill(0);
-                if (channelR) channelR.fill(0);
+                // NO FREE call here anymore!
             }
         } catch (e) {
             if (this.processErrorCount++ < 5) {
