@@ -612,13 +612,12 @@ export const App: React.FC = () => {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
                 const currentBaseFreq = noteToFrequency(stepData.note) * Math.pow(2, params.pitch / 12);
-                let slideFrom = null;
+                let slideFrom: number | undefined = undefined;
                 if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
 
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming };
 
-                // @ts-ignore
                 audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams);
                 lastFreqRef.current[trackKey] = currentBaseFreq;
             }
