@@ -13,10 +13,25 @@ NATIVE_JS="$PUBLIC_DIR/hyphon_native.js"
 WORKER_JS="$PUBLIC_DIR/hyphon_native.worker.js"
 
 # 2. Check for Tools
-if ! command -v wasm-opt &> /dev/null; then
-    echo "⚠️  wasm-opt not found! Install it via 'npm install -g binaryen' or 'apt install binaryen'"
+echo "🔍 Checking tools..."
+
+# Prefer Emscripten's wasm-opt if available (for version consistency)
+if [ -n "$EMSDK" ] && [ -f "$EMSDK/upstream/bin/wasm-opt" ]; then
+    WASM_OPT="$EMSDK/upstream/bin/wasm-opt"
+    echo "✅ Using Emscripten's wasm-opt: $WASM_OPT"
+elif command -v wasm-opt &> /dev/null; then
+    WASM_OPT="wasm-opt"
+    echo "✅ Using system wasm-opt: $(which wasm-opt)"
+else
+    echo "⚠️  wasm-opt not found! Install it via:"
+    echo "   - Emscripten (preferred): emsdk ships with wasm-opt"
+    echo "   - npm: npm install -g binaryen"
+    echo "   - apt: apt install binaryen"
     exit 1
 fi
+
+# Check wasm-opt version
+$WASM_OPT --version
 
 if ! command -v terser &> /dev/null; then
     echo "⚠️  terser not found! Install via 'npm install -g terser'"
@@ -35,7 +50,7 @@ fi
 # 3. Optimize AssemblyScript WASM (Physics)
 # We must explicitly enable the features we used in compilation.
 echo "🔧 Optimizing Oscillator WASM..."
-wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
+$WASM_OPT "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   -O4 \
   --converge \
   --strip-debug \
@@ -46,7 +61,7 @@ wasm-opt "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --enable-nontrapping-float-to-int
 
 echo "🔧 Optimizing Track Freezer WASM..."
-wasm-opt "$FREEZER_WASM" -o "$FREEZER_WASM" \
+$WASM_OPT "$FREEZER_WASM" -o "$FREEZER_WASM" \
   -O4 \
   --converge \
   --strip-debug \
@@ -61,7 +76,7 @@ wasm-opt "$FREEZER_WASM" -o "$FREEZER_WASM" \
 # 4. Optimize Emscripten WASM (Native Effects)
 # Emscripten -O3 does a lot, but wasm-opt can usually squeeze another 5-10%
 echo "🔧 Optimizing Native WASM..."
-wasm-opt "$NATIVE_WASM" -o "$NATIVE_WASM" \
+$WASM_OPT "$NATIVE_WASM" -o "$NATIVE_WASM" \
   -O4 \
   --converge \
   --strip-debug \
