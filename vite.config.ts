@@ -20,14 +20,8 @@ export default defineConfig({
     exclude: ['onnxruntime-web'],
   },
   build: {
-    sourcemap: false,
+    sourcemap: true,
     outDir: 'dist',
-    chunkSizeWarningLimit: 2000,
-    rollupOptions: {
-      output: {
-        manualChunks: undefined,
-      },
-    },
   },
   worker: {
     format: 'es',
