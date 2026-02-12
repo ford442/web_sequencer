@@ -115,9 +115,9 @@ export interface AudioEngine {
     webGpuEngine?: WebGpuOscillator | null;
     wasmEngine?: WasmOscillator | null;
     open303Engine?: Open303Oscillator | null;
-    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB') => void;
+    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
-    playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number) => void;
+    playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
