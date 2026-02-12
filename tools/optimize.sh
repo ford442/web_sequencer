@@ -56,7 +56,7 @@ $WASM_OPT "$PHYSICS_WASM" -o "$PHYSICS_WASM" \
   --strip-debug \
   --enable-simd \
   --enable-threads \
-  # --enable-bulk-memory \
+  --enable-bulk-memory \
   --enable-relaxed-simd \
   --enable-nontrapping-float-to-int
 
@@ -66,7 +66,7 @@ $WASM_OPT "$FREEZER_WASM" -o "$FREEZER_WASM" \
   --converge \
   --strip-debug \
   --enable-simd \
-  # --enable-bulk-memory \
+  --enable-bulk-memory \
   --enable-relaxed-simd \
   --enable-nontrapping-float-to-int
 
@@ -83,7 +83,7 @@ $WASM_OPT "$NATIVE_WASM" -o "$NATIVE_WASM" \
   --enable-simd \
   --enable-threads \
   --enable-relaxed-simd \
-  # --enable-bulk-memory \
+  --enable-bulk-memory \
   --enable-nontrapping-float-to-int
   
 echo "🔧 Optimizing Native WASM (wasmedge)..."
