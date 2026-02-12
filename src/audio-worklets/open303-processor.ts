@@ -32,6 +32,10 @@ class Open303Processor extends AudioWorkletProcessor {
     private static readonly MIN_NOTE_INTERVAL_MS = 5; // Min 5ms between noteOn calls
     private static readonly MAX_NOTES_PER_SECOND = 50; // Max 50 notes/sec to prevent stack exhaustion
     private noteOnTimes: number[] = []; // Track recent noteOn times
+    
+    // Portamento/slide fix: delay noteOn until next process block after noteOff
+    private pendingNote: { note: number; velocity: number } | null = null;
+    private noteOffJustSent = false;
 
     constructor() {
         super();
@@ -373,28 +377,25 @@ class Open303Processor extends AudioWorkletProcessor {
                     return;
                 }
                 
-                // Stuck note protection: force note-off for any existing note first
-                if (this.activeNotes.has(data.note)) {
-                    console.warn(`[Open303] Note ${data.note} already active, forcing note-off first`);
-                    exports.jc303_noteOff(data.note);
+                // Portamento fix: If we just sent noteOff, delay this noteOn to next process block
+                if (this.noteOffJustSent || this.activeNotes.size > 0) {
+                    // Clear any active notes first
+                    if (this.activeNotes.size > 0) {
+                        this.clearAllNotes();
+                    }
+                    // Queue note for next process block to prevent portamento slide
+                    this.pendingNote = { note: data.note, velocity: data.velocity };
+                    this.noteOffJustSent = true;
+                    return;
                 }
-                // Clear any other active notes (303 is monophonic)
-                this.clearAllNotes();
                 
-                try {
-                    exports.jc303_noteOn(data.note, data.velocity);
-                    this.lastNoteOnTime = now;
-                    this.noteOnTimes.push(now);
-                    this.activeNotes.set(data.note, now);
-                } catch (e) {
-                    console.error(`[Open303] noteOn failed (possible stack overflow):`, e);
-                    // Clear active notes on error to prevent stuck state
-                    this.clearAllNotes();
-                }
+                // Safe to trigger note immediately
+                this.triggerNoteOn(data.note, data.velocity);
             }
             if (type === 'noteOff' && exports.jc303_noteOff) {
                 exports.jc303_noteOff(data.note);
                 this.activeNotes.delete(data.note);
+                this.noteOffJustSent = true;
             }
             if (type === 'param' && exports[data.func]) {
                 exports[data.func](data.value);
@@ -411,6 +412,23 @@ class Open303Processor extends AudioWorkletProcessor {
             exports.jc303_noteOff(note);
         }
         this.activeNotes.clear();
+    }
+
+    private triggerNoteOn(note: number, velocity: number): void {
+        if (!this.wasmInstance) return;
+        const exports = this.wasmInstance.exports as any;
+        if (!exports.jc303_noteOn) return;
+        
+        try {
+            exports.jc303_noteOn(note, velocity);
+            const now = performance.now();
+            this.lastNoteOnTime = now;
+            this.noteOnTimes.push(now);
+            this.activeNotes.set(note, now);
+        } catch (e) {
+            console.error(`[Open303] noteOn failed (possible stack overflow):`, e);
+            this.clearAllNotes();
+        }
     }
 
     private checkStuckNotes(): void {
@@ -457,6 +475,13 @@ class Open303Processor extends AudioWorkletProcessor {
         if (++this.processBlockCount >= Open303Processor.NOTE_CHECK_INTERVAL) {
             this.processBlockCount = 0;
             this.checkStuckNotes();
+        }
+
+        // Portamento fix: trigger pending note after noteOff has been processed
+        if (this.pendingNote && this.isWasmReady) {
+            this.triggerNoteOn(this.pendingNote.note, this.pendingNote.velocity);
+            this.pendingNote = null;
+            this.noteOffJustSent = false;
         }
 
         if (!this.isWasmReady || !this.wasmInstance || !this.heapFloat32) {
