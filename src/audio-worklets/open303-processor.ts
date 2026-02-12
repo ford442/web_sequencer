@@ -27,6 +27,12 @@ class Open303Processor extends AudioWorkletProcessor {
     private processBlockCount = 0;
     private stuckNoteWarnings = 0;
 
+    // Stack protection - rate limit noteOn to prevent stack overflow
+    private lastNoteOnTime = 0;
+    private static readonly MIN_NOTE_INTERVAL_MS = 5; // Min 5ms between noteOn calls
+    private static readonly MAX_NOTES_PER_SECOND = 50; // Max 50 notes/sec to prevent stack exhaustion
+    private noteOnTimes: number[] = []; // Track recent noteOn times
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
@@ -349,6 +355,24 @@ class Open303Processor extends AudioWorkletProcessor {
             const exports = this.wasmInstance.exports as any;
 
             if (type === 'noteOn' && exports.jc303_noteOn) {
+                const now = performance.now();
+                
+                // Stack protection: rate limit noteOn calls
+                // Remove old entries (> 1 second ago)
+                this.noteOnTimes = this.noteOnTimes.filter(t => now - t < 1000);
+                
+                // Check rate limits
+                if (this.noteOnTimes.length >= Open303Processor.MAX_NOTES_PER_SECOND) {
+                    console.warn(`[Open303] Rate limit exceeded: ${this.noteOnTimes.length} notes/sec, dropping note ${data.note}`);
+                    return;
+                }
+                
+                const timeSinceLastNote = now - this.lastNoteOnTime;
+                if (timeSinceLastNote < Open303Processor.MIN_NOTE_INTERVAL_MS) {
+                    console.warn(`[Open303] Note ${data.note} too soon (${timeSinceLastNote.toFixed(1)}ms < ${Open303Processor.MIN_NOTE_INTERVAL_MS}ms), dropping`);
+                    return;
+                }
+                
                 // Stuck note protection: force note-off for any existing note first
                 if (this.activeNotes.has(data.note)) {
                     console.warn(`[Open303] Note ${data.note} already active, forcing note-off first`);
@@ -357,8 +381,16 @@ class Open303Processor extends AudioWorkletProcessor {
                 // Clear any other active notes (303 is monophonic)
                 this.clearAllNotes();
                 
-                exports.jc303_noteOn(data.note, data.velocity);
-                this.activeNotes.set(data.note, performance.now());
+                try {
+                    exports.jc303_noteOn(data.note, data.velocity);
+                    this.lastNoteOnTime = now;
+                    this.noteOnTimes.push(now);
+                    this.activeNotes.set(data.note, now);
+                } catch (e) {
+                    console.error(`[Open303] noteOn failed (possible stack overflow):`, e);
+                    // Clear active notes on error to prevent stuck state
+                    this.clearAllNotes();
+                }
             }
             if (type === 'noteOff' && exports.jc303_noteOff) {
                 exports.jc303_noteOff(data.note);
