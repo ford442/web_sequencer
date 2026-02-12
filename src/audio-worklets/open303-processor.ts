@@ -8,6 +8,14 @@ declare class AudioWorkletProcessor {
 
 declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
 
+// Safe performance.now() wrapper for contexts where performance is not defined
+function getTime(): number {
+    if (typeof performance !== 'undefined' && performance.now) {
+        return performance.now();
+    }
+    return Date.now();
+}
+
 class Open303Processor extends AudioWorkletProcessor {
     private wasmInstance: WebAssembly.Instance | null = null;
     private importedMemory: WebAssembly.Memory | null = null;
@@ -359,7 +367,7 @@ class Open303Processor extends AudioWorkletProcessor {
             const exports = this.wasmInstance.exports as any;
 
             if (type === 'noteOn' && exports.jc303_noteOn) {
-                const now = performance.now();
+                const now = getTime();
                 
                 // Stack protection: rate limit noteOn calls
                 // Remove old entries (> 1 second ago)
@@ -421,7 +429,7 @@ class Open303Processor extends AudioWorkletProcessor {
         
         try {
             exports.jc303_noteOn(note, velocity);
-            const now = performance.now();
+            const now = getTime();
             this.lastNoteOnTime = now;
             this.noteOnTimes.push(now);
             this.activeNotes.set(note, now);
@@ -434,7 +442,7 @@ class Open303Processor extends AudioWorkletProcessor {
     private checkStuckNotes(): void {
         if (!this.wasmInstance || this.activeNotes.size === 0) return;
         
-        const now = performance.now();
+        const now = getTime();
         const exports = this.wasmInstance.exports as any;
         if (!exports.jc303_noteOff) return;
         
