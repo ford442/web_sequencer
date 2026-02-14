@@ -44,7 +44,8 @@ CXXFLAGS="$COMMON_FLAGS -frtti -DUSE_KISSFFT -DHAVE_KISSFFT -DUSE_PTHREADS -DUSE
 
 # Linker Flags
 # -lomp is removed because we link against the static libomp.a directly
-LINK_FLAGS="$COMMON_FLAGS -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --post-js $SCRIPT_DIR/pyodide_bootstrap.js --bind"
+# -s WASM_OPT=0 is added to prevent em++ from invoking wasm-opt with incorrect flags (--enable-bulk-memory-opt) in CI environment
+LINK_FLAGS="$COMMON_FLAGS -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --post-js $SCRIPT_DIR/pyodide_bootstrap.js --bind -s WASM_OPT=0"
 
 EXPORTS="[ \
     '_main', \
@@ -223,6 +224,24 @@ em++ $OBJECTS "$USER_LIBOMP" -o "$OUTPUT_JS" \
   -s EXPORTED_FUNCTIONS="$EXPORTS"
 
 if [ $? -eq 0 ]; then
+    echo "Link successful!"
+
+    # Manually run wasm-opt if available to optimize (bypassing em++ bug)
+    WASM_FILE="${OUTPUT_JS%.js}.wasm"
+    if command -v wasm-opt &> /dev/null; then
+        echo "Optimizing $WASM_FILE with wasm-opt..."
+        # We use explicit flags compatible with the features we enabled
+        wasm-opt -O3 \
+            --enable-threads \
+            --enable-bulk-memory \
+            --enable-simd \
+            --enable-relaxed-simd \
+            --enable-reference-types \
+            "$WASM_FILE" -o "$WASM_FILE" || echo "wasm-opt failed, proceeding with unoptimized binary."
+    else
+        echo "wasm-opt not found in PATH, skipping optimization."
+    fi
+
     echo "Build successful!"
     echo "Generated: public/hyphon_native.js (and .wasm/.worker.js)"
     rm -rf "$TEMP_DIR"
