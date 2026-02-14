@@ -43,8 +43,9 @@ CFLAGS="$COMMON_FLAGS"
 CXXFLAGS="$COMMON_FLAGS -frtti -DUSE_KISSFFT -DHAVE_KISSFFT -DUSE_PTHREADS -DUSE_SPEEX -std=c++17"
 
 # Linker Flags
-# -lomp is removed because we link against the static libomp.a directly
-LINK_FLAGS="$COMMON_FLAGS -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --post-js $SCRIPT_DIR/pyodide_bootstrap.js --bind"
+# Use -O1 during link to prevent em++ from invoking wasm-opt with incorrect flags (--enable-bulk-memory-opt).
+# We manually optimize the WASM file later.
+LINK_FLAGS="-O1 -msimd128 -mrelaxed-simd -ffast-math -fopenmp -pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --post-js $SCRIPT_DIR/pyodide_bootstrap.js --bind"
 
 EXPORTS="[ \
     '_main', \
@@ -218,8 +219,8 @@ else
     exit 1
 fi
 
-# Use EMCC_SKIP_WASM_OPT=1 to prevent em++ from running wasm-opt automatically (which fails in CI due to flag mismatch)
-EMCC_SKIP_WASM_OPT=1 em++ $OBJECTS "$USER_LIBOMP" -o "$OUTPUT_JS" \
+# We use standard em++ invocation, relying on -O1 in LINK_FLAGS to skip the faulty automatic wasm-opt pass
+em++ $OBJECTS "$USER_LIBOMP" -o "$OUTPUT_JS" \
   $LINK_FLAGS \
   -s EXPORTED_FUNCTIONS="$EXPORTS"
 
