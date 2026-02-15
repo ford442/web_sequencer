@@ -1273,7 +1273,7 @@ export const App: React.FC = () => {
         else if (selectedTrack === 'sampler') { modulePanel = (<HardwareModule title={`SAMPLER // BANK ${activeSamplerBank + 1}`} colorHex={COLOR_SAMPLER} controls={samplerControls} onParamChange={handleSamplerChange} is3D={is3DMode}>{samplerChild}</HardwareModule>); }
 
         return (
-            <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
+            <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 relative flex flex-col">
                 <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
 
                 {is3DMode && (
@@ -1290,7 +1290,7 @@ export const App: React.FC = () => {
                     </div>
                 )}
 
-                <div className="flex-1 relative overflow-hidden">
+                <div className="flex-1 relative">
                     {modulePanel}
                 </div>
             </div>
