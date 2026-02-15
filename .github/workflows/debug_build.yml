@@ -44,7 +44,7 @@ jobs:
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
       with:
-        version: 3.1.74
+        version: 3.1.51
         no-cache: true
 
     # 5. INSTALL DEPENDENCIES (Fixes: "ERR_PNPM_OUTDATED_LOCKFILE")
