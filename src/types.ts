@@ -107,6 +107,8 @@ export interface Pattern {
   sampler: PartSequence[]; // Array of 8 sequences
 }
 
+export type TrackKey = keyof Pattern;
+
 export interface AmbianceTrack {
   name: string;
   url: string;
