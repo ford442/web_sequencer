@@ -39,7 +39,6 @@
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect.
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * **Idea:** "Formant Automation" - Draw curves for formant shift over time (not just per step) for continuous vowel morphing.
-* **Idea:** "Melodic Euclidean Rhythms" - Generate rhythms based on Euclidean algorithms but map them to a scale.
 
 ---
 
