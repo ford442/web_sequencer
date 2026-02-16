@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, memo, useMemo, forwardRef, useImperativeHandle, lazy, Suspense } from 'react'
+import React, { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -14,7 +14,6 @@ import { ShortcutsHelp } from './components/ShortcutsHelp';
 
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
-import { GridIndicators } from './components/GridIndicators';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
 import { CloudStatus } from './components/CloudStatus';
@@ -25,6 +24,8 @@ import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
 import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
 import { copySteps, pasteSteps } from './utils/clipboardUtils';
+import { MainSequencer } from './components/MainSequencer';
+import type { MainSequencerHandle } from './components/MainSequencer';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -40,7 +41,7 @@ import {
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note, TrackKey } from './types'
 
 // --- CONSTANTS ---
 const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
@@ -66,7 +67,6 @@ const UPDATED_INITIAL_PATTERN: Pattern = {
 };
 
 // --- TYPES FOR STORAGE ---
-type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -101,34 +101,6 @@ const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (Part
     return storage;
 };
 
-const PATTERN_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
-const getPatternColor = (slotIndex: number): string => {
-    return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
-};
-
-const TRACK_COLORS: Record<string, string> = {
-    partA: '#06b6d4',
-    partB: '#d946ef',
-    kick: '#f97316',
-    snare: '#22c55e',
-    closedHat: '#eab308',
-    openHat: '#eab308',
-    sampler: '#a855f7',
-};
-
-// --- PERFORMANCE STYLES ---
-const SEQUENCER_STYLES = `
-    .svg-step.is-current .step-glow { fill: rgba(255, 255, 255, 0.3) !important; }
-    .svg-step.is-current .step-cap { stroke: #ffffff !important; stroke-width: 2px !important; }
-    .svg-step.is-current .step-led { fill: #ff3333 !important; fill-opacity: 1 !important; }
-
-    /* Focus Styles for Accessibility */
-    .svg-step:focus, .track-slot:focus, .track-label:focus { outline: none; }
-    .svg-step:focus .step-cap { stroke: var(--focus-color, #22d3ee) !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px var(--focus-color, #22d3ee)); }
-    .track-slot:focus rect { stroke: #22d3ee !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px #22d3ee); }
-    .track-label:focus text { fill: #22d3ee !important; text-shadow: 0 0 8px rgba(34,211,238,0.8) !important; }
-`;
-
 const COLOR_LEAD = [0.0, 0.9, 1.0] as [number, number, number];
 const COLOR_BASS = [1.0, 0.2, 0.8] as [number, number, number];
 const COLOR_KICK = [1.0, 0.6, 0.0] as [number, number, number];
@@ -140,6 +112,16 @@ const COLOR_SAMPLER = [0.6, 0.4, 1.0] as [number, number, number];
 const EMPTY_STEPS = Array(32).fill(null);
 const EMPTY_SEQ = { steps: EMPTY_STEPS };
 const EMPTY_SAMPLER_SEQUENCE = Array.from({ length: 8 }, () => ({ steps: EMPTY_STEPS }));
+
+const ROWS = [
+    { key: 'partA', label: 'Lead' },
+    { key: 'partB', label: 'Bass' },
+    { key: 'kick', label: 'Kick' },
+    { key: 'snare', label: 'Snare' },
+    { key: 'closedHat', label: 'CH' },
+    { key: 'openHat', label: 'OH' },
+    { key: 'sampler', label: 'SMP' },
+] as const;
 
 // --- MODULE CONTROL HELPERS ---
 const getSynthControls = (params: SynthParams): KnobConfig[] => {
@@ -189,195 +171,6 @@ const getSamplerControls = (params: SamplerBankParams): KnobConfig[] => [
     { id: 'drive', label: 'DRIVE', x: 0.6, y: 0.65, size: 0.12, value: params.drive, valueDisplay: `${Math.round(params.drive * 100)}%` },
     { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend, valueDisplay: `${Math.round(params.delaySend * 100)}%` },
 ];
-
-// --- COMPONENTS ---
-
-const SvgStep = memo(({
-    stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
-    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing
-}: {
-    stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
-    rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
-    onRightMouseDown: (k: TrackKey, i: number, e: React.MouseEvent) => void,
-    onEditLength: (k: TrackKey, i: number, len: number) => void, length?: number, isSlide?: boolean,
-    onSelectionStart?: (k: TrackKey, i: number) => void,
-    onSelectionEnter?: (k: TrackKey, i: number) => void,
-    isRangeSelected?: boolean,
-    onDrawEnter?: (k: TrackKey, i: number) => void,
-    isDrawing?: boolean
-}) => {
-    const baseWidth = 18;
-    const gap = 4;
-    const height = 50;
-    const x = 220 + stepIndex * (baseWidth + gap);
-    const totalWidth = (baseWidth * length) + (gap * (length - 1));
-    const color = note ? getNoteColor(note) : '#06b6d4';
-    const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
-    const groupIndex = Math.floor(stepIndex / 4);
-    const isAltGroup = groupIndex % 2 === 1;
-    const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
-
-    const handlePointerDown = (e: React.PointerEvent) => {
-        if (e.button === 2) { onRightMouseDown(rowKey, stepIndex, e); return; }
-        if (e.shiftKey) {
-            e.preventDefault(); e.stopPropagation();
-            if (active) {
-                // Length Editing
-                const target = e.currentTarget as Element;
-                target.setPointerCapture(e.pointerId);
-                const startX = e.clientX;
-                const startLength = length;
-                const sensitivity = 20;
-                const handlePointerMove = (ev: PointerEvent) => {
-                    const delta = ev.clientX - startX;
-                    const stepsToAdd = Math.floor(delta / sensitivity);
-                    const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
-                    if (newLength !== length) { onEditLength(rowKey, stepIndex, newLength); }
-                };
-                const handlePointerUp = (ev: PointerEvent) => {
-                    target.removeEventListener('pointermove', handlePointerMove as any);
-                    target.removeEventListener('pointerup', handlePointerUp as any);
-                    target.releasePointerCapture(ev.pointerId);
-                };
-                target.addEventListener('pointermove', handlePointerMove as any);
-                target.addEventListener('pointerup', handlePointerUp as any);
-            } else if (onSelectionStart) {
-                // Range Selection
-                onSelectionStart(rowKey, stepIndex);
-            }
-        } else { onToggle(rowKey, stepIndex, e); }
-    };
-
-    const handlePointerEnter = () => {
-        if (isDrawing && onDrawEnter) onDrawEnter(rowKey, stepIndex);
-        if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
-    };
-
-    return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
-            {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
-            {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
-            <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
-            {active && isSlide && <rect x={4} y={height - 8} width={totalWidth - 8} height={3} rx={1} fill="#fbbf24" fillOpacity={1} style={{ mixBlendMode: 'plus-lighter' }} />}
-            <rect x={1} y={1} width={totalWidth - 2} height={height - 2} rx={2} fill={baseFill} strokeWidth={0} />
-            <path d={`M 2 2 L ${totalWidth - 2} 2 L ${totalWidth - 4} 4 L 4 4 L 4 ${height - 4} L 2 ${height - 2} Z`} fill="rgba(255,255,255,0.2)" />
-            <path d={`M ${totalWidth - 2} 2 L ${totalWidth - 2} ${height - 2} L 2 ${height - 2} L 4 ${height - 4} L ${totalWidth - 4} ${height - 4} L ${totalWidth - 4} 4 Z`} fill="rgba(0,0,0,0.5)" />
-            <rect className="step-cap" x={3} y={4} width={totalWidth - 6} height={height - 8} rx={1} fill={active ? color : '#1a2026'} fillOpacity={active ? 0.6 : 1} stroke={active ? color : 'none'} strokeWidth={active ? 1 : 0} />
-            {length > 1 && (<g pointerEvents="none"><g opacity={0.3} fill="#000"><rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} /></g><g transform={`translate(${totalWidth - 25}, 8)`}><rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} /><text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">{length}x</text></g></g>)}
-            <rect x={4} y={5} width={totalWidth - 8} height={(height - 10) / 2} rx={1} fill="url(#glassGrad)" fillOpacity={0.3} pointerEvents="none" />
-            <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} />
-        </g>
-    )
-})
-
-const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
-    const patternColor = getPatternColor(index);
-    const inactiveColor = hasData ? patternColor : '#0f1812';
-    return (
-        <g transform={`translate(${index * 22}, 0)`} className="track-slot" onClick={() => onSelect(trackKey, index)} cursor="pointer" role="button" tabIndex={0} aria-label={`Pattern Slot ${index + 1}`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(trackKey, index); } }} onContextMenu={(e) => e.preventDefault()}>
-            <rect width={18} height={18} rx={2} fill={isActive ? patternColor : inactiveColor} fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)} stroke={isActive ? '#fff' : patternColor} strokeOpacity={isActive ? 1 : 0.6} strokeWidth={1} />
-            <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : patternColor} fontFamily="monospace" fontWeight="bold">{index + 1}</text>
-        </g>
-    );
-});
-
-export interface SequencerRowHandle { setHighlight: (step: number) => void; }
-
-const SequencerRow = memo(forwardRef<SequencerRowHandle, {
-    rowKey: TrackKey, label: string, rowIndex: number, steps: (any | null)[], isSelected: boolean, activeSlot: number,
-    trackSlots: (PartSequence | PartSequence[] | null)[], onToggle: (k: any, i: number, e: any) => void,
-    onRightMouseDown: (k: TrackKey, i: number, e: any) => void, onEditLength: (k: TrackKey, i: number, len: number) => void,
-    onSelectRow: (k: any) => void, onSelectSlot: (k: TrackKey, slot: number) => void,
-    onSelectionStart?: (k: TrackKey, i: number) => void,
-    onSelectionEnter?: (k: TrackKey, i: number) => void,
-    selectionRange?: { start: number, end: number } | null,
-    onDrawEnter?: (k: TrackKey, i: number) => void,
-    isDrawing?: boolean
-}>((props, ref) => {
-    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing } = props;
-    const stepRefs = useRef<(SVGGElement | null)[]>([]);
-    const lastStepRef = useRef(-1);
-    const lastActiveIndexRef = useRef(-1);
-
-    const updateClasses = useCallback((step: number) => {
-        let newActiveIndex = -1;
-        for (let i = step; i >= 0; i--) {
-            if (stepRefs.current[i]) {
-                const length = steps[i]?.length || 1;
-                if (i + length > step) { newActiveIndex = i; }
-                break;
-            }
-        }
-        if (newActiveIndex !== lastActiveIndexRef.current) {
-            if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
-            if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
-            lastActiveIndexRef.current = newActiveIndex;
-        } else {
-            if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
-        }
-    }, [steps]);
-
-    useImperativeHandle(ref, () => ({
-        setHighlight: (step: number) => {
-            if (step === -1) {
-                if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); lastActiveIndexRef.current = -1; }
-                lastStepRef.current = -1;
-                return;
-            }
-            lastStepRef.current = step;
-            updateClasses(step);
-        }
-    }));
-
-    useLayoutEffect(() => {
-        const currentActive = lastActiveIndexRef.current;
-        lastActiveIndexRef.current = -1;
-        if (lastStepRef.current !== -1) { updateClasses(lastStepRef.current); } else { lastActiveIndexRef.current = currentActive; }
-    }, [updateClasses]);
-
-    const renderedSteps = [];
-    let skipCount = 0;
-    for (let i = 0; i < 32; i++) {
-        if (skipCount > 0) { skipCount--; continue; }
-        const stepData = steps[i];
-        const length = stepData?.length || 1;
-
-        let isRangeSelected = false;
-        if (selectionRange) {
-            const low = Math.min(selectionRange.start, selectionRange.end);
-            const high = Math.max(selectionRange.start, selectionRange.end);
-            // Check if step is within range
-            if (i >= low && i <= high) isRangeSelected = true;
-        }
-
-        renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} />);
-        if (stepData && length > 1) { skipCount = length - 1; }
-    }
-
-    return (
-        <g transform={`translate(0, ${rowIndex * 60})`}>
-            <g className="track-label" onClick={() => onSelectRow(rowKey)} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRow(rowKey); } }}>
-                {isSelected && <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />}
-                <text x={-20} y={30} textAnchor="end" fontFamily="Orbitron, monospace" fontSize={12} fill={isSelected ? '#3fa34d' : '#5a6b60'} fontWeight={isSelected ? 'bold' : 'normal'} style={{ textShadow: isSelected ? '0 0 8px rgba(63,163,77,0.5)' : 'none' }}>{label.toUpperCase()}</text>
-            </g>
-            <g transform="translate(30, 16)">
-                {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))}
-            </g>
-            <GridIndicators />
-            {renderedSteps}
-        </g>
-    )
-}));
-
-const ROWS = [
-    { key: 'partA', label: 'Lead' },
-    { key: 'partB', label: 'Bass' },
-    { key: 'kick', label: 'Kick' },
-    { key: 'snare', label: 'Snare' },
-    { key: 'closedHat', label: 'CH' },
-    { key: 'openHat', label: 'OH' },
-    { key: 'sampler', label: 'SMP' },
-] as const
 
 const StartOverlay = ({ onStart, isReady }: { onStart: () => void, isReady: boolean }) => {
     return (
@@ -570,7 +363,10 @@ export const App: React.FC = () => {
 
     const onStep = useCallback((step: number) => {
         currentStepRef.current = step;
-        rowRefs.current.forEach(r => r?.setHighlight(step));
+
+        // UPDATED: Use MainSequencer ref
+        mainSequencerRef.current?.setHighlight(step);
+
         if (!audioEngine) return
         const time = audioEngine.context.currentTime
         let activePattern = patternRef.current;
@@ -679,7 +475,9 @@ export const App: React.FC = () => {
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
-    const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
+
+    // UPDATED: Ref for MainSequencer
+    const mainSequencerRef = useRef<MainSequencerHandle>(null);
     const currentStepRef = useRef(-1);
 
     useEffect(() => {
@@ -687,7 +485,8 @@ export const App: React.FC = () => {
             songMeasureRef.current = 0;
             setCurrentSongMeasure(0);
             isFirstStepRef.current = true;
-            rowRefs.current.forEach(r => r?.setHighlight(-1));
+            // UPDATED: Use ref
+            mainSequencerRef.current?.setHighlight(-1);
             currentStepRef.current = -1;
         }
     }, [schedPlaying]);
@@ -1216,43 +1015,44 @@ export const App: React.FC = () => {
             );
         }
         return (
-            <div className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative">
-                <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
-                {/* Screws */}
-                <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-                <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-                <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-                <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-
-                <svg viewBox="0 0 1050 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" onContextMenu={(e) => e.preventDefault()}>
-                    <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
-                    <g transform="translate(100, 40)">
-                        {ROWS.map((row, rIdx) => (
-                            <SequencerRow
-                                key={row.key} ref={(el) => { rowRefs.current[rIdx] = el; }} rowKey={row.key} label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label} rowIndex={rIdx}
-                                steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
-                                isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
-                                onToggle={handleStepToggle} onRightMouseDown={handleRightMouseDown} onEditLength={handleEditLength} onSelectRow={handleSelectRow} onSelectSlot={handleTrackSlotClick}
-                                onSelectionStart={handleSelectionStart} onSelectionEnter={handleSelectionEnter}
-                                selectionRange={selection && selection.trackKey === row.key ? { start: selection.startStep, end: selection.endStep } : null}
-                                onDrawEnter={handleDrawEnter} isDrawing={isDrawing}
-                            />
-                        ))}
-                    </g>
-                </svg>
+            <MainSequencer
+                ref={mainSequencerRef}
+                pattern={pattern}
+                activeSamplerBank={activeSamplerBank}
+                selectedTrack={selectedTrack}
+                activeTrackSlots={activeTrackSlots}
+                trackStorage={trackStorage}
+                selection={selection}
+                isDrawing={isDrawing}
+                onToggle={handleStepToggle}
+                onRightMouseDown={handleRightMouseDown}
+                onEditLength={handleEditLength}
+                onSelectRow={handleSelectRow}
+                onSelectSlot={handleTrackSlotClick}
+                onSelectionStart={handleSelectionStart}
+                onSelectionEnter={handleSelectionEnter}
+                onDrawEnter={handleDrawEnter}
+            >
                 {contextMenu && (
                     <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
                         <NoteSelector
                             x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
                             currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
                             currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
-                            onSelect={handleNoteSelect} onLengthChange={handleNoteLengthChange} onClose={() => setContextMenu(null)} getNoteColor={getNoteColor}
+                            currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
+                            currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
+                            currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
+                            onSelect={handleNoteSelect}
+                            onLengthChange={handleNoteLengthChange}
+                            onPropertyChange={handleNotePropertyChange}
+                            onClose={() => setContextMenu(null)}
+                            getNoteColor={getNoteColor}
                         />
                     </div>
                 )}
-            </div>
+            </MainSequencer>
         );
-    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter]);
+    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, isDrawing, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter, handleDrawEnter]);
 
     const keyboardNode = useMemo(() => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
@@ -1314,7 +1114,7 @@ export const App: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center" style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}>
-            <style>{SEQUENCER_STYLES}</style>
+            {/* SEQUENCER_STYLES is now inside MainSequencer */}
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
@@ -1328,23 +1128,6 @@ export const App: React.FC = () => {
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
-                {contextMenu && (
-                    <NoteSelector
-                        x={contextMenu.x}
-                        y={contextMenu.y}
-                        trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
-                        currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
-                        currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
-                        currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
-                        currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
-                        currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
-                        onSelect={handleNoteSelect}
-                        onLengthChange={handleNoteLengthChange}
-                        onPropertyChange={handleNotePropertyChange}
-                        onClose={() => setContextMenu(null)}
-                        getNoteColor={getNoteColor}
-                    />
-                )}
                 <div className="w-full max-w-[1000px] mx-auto h-[480px]">
                     {sequencerNode}
                 </div>
