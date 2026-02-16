@@ -80,6 +80,8 @@ export interface AllDrumParams {
   openHat: HatParams;
 }
 
+export type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
 export interface Note {
   note: string; // e.g., 'C4' for synths, placeholder for drums
   velocity: number;

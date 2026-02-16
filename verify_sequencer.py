@@ -6,8 +6,8 @@ def run():
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         try:
-            print("Navigating to app...")
-            page.goto("http://localhost:5173")
+            print("Navigating to app on port 4173...")
+            page.goto("http://localhost:4173")
 
             # Wait for overlay button to be enabled/clickable
             print("Waiting for initialize button...")
@@ -20,6 +20,7 @@ def run():
 
             # Wait for main UI (sequencer steps)
             print("Waiting for main UI...")
+            # The step selector class is .svg-step
             page.wait_for_selector(".svg-step", timeout=10000)
 
             # Click a step (e.g. first step of Lead)
@@ -34,11 +35,6 @@ def run():
                 steps.first.click()
                 print("Clicked first step.")
                 time.sleep(0.5) # Wait for update
-
-                # Verify it is active (class 'active' or check color?)
-                # The component uses inline styles or classes?
-                # The code: baseFill = active ? '#0d1f15' : ...
-                # Also <rect className="step-led" fill={active ? ...} />
 
                 # Take screenshot
                 print("Taking screenshot...")
