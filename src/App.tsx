@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -24,8 +24,9 @@ import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
 import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
 import { copySteps, pasteSteps } from './utils/clipboardUtils';
-import { MainSequencer } from './components/MainSequencer';
-import type { MainSequencerHandle } from './components/MainSequencer';
+import { Sequencer } from './components/sequencer/Sequencer';
+import type { SequencerHandle } from './components/sequencer/Sequencer';
+import { SEQUENCER_STYLES, ROWS } from './components/sequencer/constants';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -41,7 +42,7 @@ import {
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note, TrackKey } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note } from './types'
 
 // --- CONSTANTS ---
 const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
@@ -67,6 +68,7 @@ const UPDATED_INITIAL_PATTERN: Pattern = {
 };
 
 // --- TYPES FOR STORAGE ---
+type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -112,16 +114,6 @@ const COLOR_SAMPLER = [0.6, 0.4, 1.0] as [number, number, number];
 const EMPTY_STEPS = Array(32).fill(null);
 const EMPTY_SEQ = { steps: EMPTY_STEPS };
 const EMPTY_SAMPLER_SEQUENCE = Array.from({ length: 8 }, () => ({ steps: EMPTY_STEPS }));
-
-const ROWS = [
-    { key: 'partA', label: 'Lead' },
-    { key: 'partB', label: 'Bass' },
-    { key: 'kick', label: 'Kick' },
-    { key: 'snare', label: 'Snare' },
-    { key: 'closedHat', label: 'CH' },
-    { key: 'openHat', label: 'OH' },
-    { key: 'sampler', label: 'SMP' },
-] as const;
 
 // --- MODULE CONTROL HELPERS ---
 const getSynthControls = (params: SynthParams): KnobConfig[] => {
@@ -171,6 +163,8 @@ const getSamplerControls = (params: SamplerBankParams): KnobConfig[] => [
     { id: 'drive', label: 'DRIVE', x: 0.6, y: 0.65, size: 0.12, value: params.drive, valueDisplay: `${Math.round(params.drive * 100)}%` },
     { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend, valueDisplay: `${Math.round(params.delaySend * 100)}%` },
 ];
+
+// --- COMPONENTS ---
 
 const StartOverlay = ({ onStart, isReady }: { onStart: () => void, isReady: boolean }) => {
     return (
@@ -363,10 +357,7 @@ export const App: React.FC = () => {
 
     const onStep = useCallback((step: number) => {
         currentStepRef.current = step;
-
-        // UPDATED: Use MainSequencer ref
-        mainSequencerRef.current?.setHighlight(step);
-
+        if (sequencerRef.current) sequencerRef.current.setHighlight(step);
         if (!audioEngine) return
         const time = audioEngine.context.currentTime
         let activePattern = patternRef.current;
@@ -475,9 +466,7 @@ export const App: React.FC = () => {
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
-
-    // UPDATED: Ref for MainSequencer
-    const mainSequencerRef = useRef<MainSequencerHandle>(null);
+    const sequencerRef = useRef<SequencerHandle>(null);
     const currentStepRef = useRef(-1);
 
     useEffect(() => {
@@ -485,8 +474,7 @@ export const App: React.FC = () => {
             songMeasureRef.current = 0;
             setCurrentSongMeasure(0);
             isFirstStepRef.current = true;
-            // UPDATED: Use ref
-            mainSequencerRef.current?.setHighlight(-1);
+            if (sequencerRef.current) sequencerRef.current.setHighlight(-1);
             currentStepRef.current = -1;
         }
     }, [schedPlaying]);
@@ -1015,8 +1003,8 @@ export const App: React.FC = () => {
             );
         }
         return (
-            <MainSequencer
-                ref={mainSequencerRef}
+            <Sequencer
+                ref={sequencerRef}
                 pattern={pattern}
                 activeSamplerBank={activeSamplerBank}
                 selectedTrack={selectedTrack}
@@ -1032,27 +1020,9 @@ export const App: React.FC = () => {
                 onSelectionStart={handleSelectionStart}
                 onSelectionEnter={handleSelectionEnter}
                 onDrawEnter={handleDrawEnter}
-            >
-                {contextMenu && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
-                        <NoteSelector
-                            x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
-                            currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
-                            currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
-                            currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
-                            currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
-                            currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
-                            onSelect={handleNoteSelect}
-                            onLengthChange={handleNoteLengthChange}
-                            onPropertyChange={handleNotePropertyChange}
-                            onClose={() => setContextMenu(null)}
-                            getNoteColor={getNoteColor}
-                        />
-                    </div>
-                )}
-            </MainSequencer>
+            />
         );
-    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, isDrawing, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter, handleDrawEnter]);
+    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter]);
 
     const keyboardNode = useMemo(() => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
@@ -1073,7 +1043,7 @@ export const App: React.FC = () => {
         else if (selectedTrack === 'sampler') { modulePanel = (<HardwareModule title={`SAMPLER // BANK ${activeSamplerBank + 1}`} colorHex={COLOR_SAMPLER} controls={samplerControls} onParamChange={handleSamplerChange} is3D={is3DMode}>{samplerChild}</HardwareModule>); }
 
         return (
-            <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 relative flex flex-col">
+            <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
                 <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
 
                 {is3DMode && (
@@ -1090,7 +1060,7 @@ export const App: React.FC = () => {
                     </div>
                 )}
 
-                <div className="flex-1 relative">
+                <div className="flex-1 relative overflow-hidden">
                     {modulePanel}
                 </div>
             </div>
@@ -1114,6 +1084,7 @@ export const App: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center" style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}>
+            <style>{SEQUENCER_STYLES}</style>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
@@ -1127,6 +1098,23 @@ export const App: React.FC = () => {
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
+                {contextMenu && (
+                    <NoteSelector
+                        x={contextMenu.x}
+                        y={contextMenu.y}
+                        trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
+                        currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
+                        currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
+                        currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
+                        currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
+                        currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
+                        onSelect={handleNoteSelect}
+                        onLengthChange={handleNoteLengthChange}
+                        onPropertyChange={handleNotePropertyChange}
+                        onClose={() => setContextMenu(null)}
+                        getNoteColor={getNoteColor}
+                    />
+                )}
                 <div className="w-full max-w-[1000px] mx-auto h-[480px]">
                     {sequencerNode}
                 </div>
