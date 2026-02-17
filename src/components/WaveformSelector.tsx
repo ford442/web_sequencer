@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { Waveform } from '../types';
 
 interface WaveformSelectorProps {
@@ -104,35 +105,12 @@ const GROUPS = [
   { label: 'GPU/WEB', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin', 'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
 ];
 
-const WAVEFORM_DESCRIPTIONS: Record<Waveform, string> = {
-  'sawtooth': 'Standard Sawtooth. Rich harmonics, great for leads.',
-  'square': 'Standard Square. Hollow sound, classic digital tone.',
-  'triangle': 'Standard Triangle. Mellow, flute-like sound.',
-  'sine': 'Standard Sine. Pure tone, no harmonics.',
-  'wav-saw': 'Sampled Sawtooth. Vintage analog character.',
-  'wav-sqr': 'Sampled Square. Vintage analog character.',
-  'pyodide-saw': 'Python Sawtooth via Pyodide engine.',
-  'pyodide-square': 'Python Square via Pyodide engine.',
-  'pyodide-sine': 'Python Sine via Pyodide engine.',
-  'wgsl-saw': 'GPU-accelerated Sawtooth. Massive unison capability.',
-  'wgsl-sqr': 'GPU-accelerated Square. Massive unison capability.',
-  'wgsl-tri': 'GPU-accelerated Triangle. Massive unison capability.',
-  'wgsl-sin': 'GPU-accelerated Sine. Massive unison capability.',
-  'wam-saw': 'WASM AssemblyScript Sawtooth. High-performance.',
-  'wam-sqr': 'WASM AssemblyScript Square. High-performance.',
-  'wam-tri': 'WASM AssemblyScript Triangle. High-performance.',
-  'wam-sin': 'WASM AssemblyScript Sine. High-performance.',
-  'rust-saw': 'Rust/WASM Sawtooth. Precision audio engine.',
-  'rust-sqr': 'Rust/WASM Square. Precision audio engine.',
-  '303-saw': 'TB-303 Clone Sawtooth. Iconic acid bass sound.',
-  '303-sqr': 'TB-303 Clone Square. Iconic acid bass sound.',
-};
-
 export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, onChange, accentColor }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredWaveform, setHoveredWaveform] = useState<Waveform | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useFocusTrap(isOpen, () => setIsOpen(false));
 
   const accentClasses = {
     cyan: 'bg-cyan-500 text-gray-900 border-cyan-400 ring-cyan-400',
@@ -159,15 +137,8 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
     };
   }, [isOpen]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setIsOpen(false);
-      triggerRef.current?.focus();
-    }
-  };
-
   return (
-    <div className="relative inline-block" ref={containerRef} onKeyDown={handleKeyDown}>
+    <div className="relative inline-block" ref={containerRef}>
       {/* Trigger Button */}
       <button
         ref={triggerRef}
@@ -184,7 +155,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
 
       {/* Popover */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+        <div ref={popoverRef} role="dialog" aria-modal="true" aria-label="Select Waveform" className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
           <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
             {GROUPS.map((group) => (
               <div key={group.label} className="flex flex-col gap-1">
@@ -200,7 +171,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
                       onMouseLeave={() => setHoveredWaveform(null)}
                       onFocus={() => setHoveredWaveform(wave)}
                       onBlur={() => setHoveredWaveform(null)}
-                      aria-pressed={selected === wave}
+                      aria-current={selected === wave ? 'true' : undefined}
                       aria-label={`Select ${wave}`}
                       title={WAVEFORM_DESCRIPTIONS[wave] || wave}
                       className={`w-10 h-10 p-2 rounded transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center ${
