@@ -30,7 +30,7 @@ describe('WaveformSelector', () => {
         const trigger = screen.getByRole('button', { name: /Current waveform: sawtooth/i });
         await userEvent.click(trigger);
 
-        const squareBtn = screen.getByTitle('square');
+        const squareBtn = screen.getByRole('button', { name: 'Select square' });
         fireEvent.mouseEnter(squareBtn);
 
         expect(screen.getByText(/Standard Square/i)).toBeInTheDocument();
