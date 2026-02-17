@@ -44,6 +44,6 @@ describe('WaveformSelector', () => {
     fireEvent.mouseLeave(wavSawBtn);
 
     // Should revert to selected waveform description (sawtooth)
-    expect(screen.getByText('Standard Sawtooth. Rich harmonics, great for leads.')).toBeInTheDocument();
+    expect(screen.getByText('Standard Sawtooth. Rich harmonics, great for leads and basses.')).toBeInTheDocument();
   });
 });
