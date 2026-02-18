@@ -1,12 +1,23 @@
 // src/__tests__/NoteSelector.test.tsx
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NoteSelector } from '../components/NoteSelector';
 
 // Mock getNoteColor since it's used in the component
 const getNoteColor = vi.fn((_note) => '#ff0000');
 
 describe('NoteSelector', () => {
+    beforeAll(() => {
+        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+            cb(0);
+            return 0;
+        });
+    });
+
+    afterAll(() => {
+        vi.restoreAllMocks();
+    });
+
     const defaultProps = {
         x: 100,
         y: 100,
@@ -65,9 +76,11 @@ describe('NoteSelector', () => {
         expect(onClose).toHaveBeenCalled();
     });
 
-    it('focuses the dialog on mount', () => {
+    it('focuses the close button on mount', async () => {
         render(<NoteSelector {...defaultProps} />);
-        const dialog = screen.getByRole('dialog');
-        expect(document.activeElement).toBe(dialog);
+        const closeButton = screen.getByRole('button', { name: 'Close' });
+        await waitFor(() => {
+            expect(document.activeElement).toBe(closeButton);
+        });
     });
 });
