@@ -14,7 +14,7 @@
 - [x] **TTS Slice Triggering:** Implement a logic where a MIDI Note NoteOn event can trigger a specific *slice* or *word* from the TTS buffer (e.g., Note C3 = "Hello", Note D3 = "World").
 - [x] **Hybrid Polyphony:** Finalize `VoiceManager` to handle 8-voice polyphony for `synth-1` while keeping `synth-2` strictly monophonic (legato priority).
 - [x] **Phoneme Elasticity:** Connect `rubberband.wasm` to the sequencer steps. If a note is dragged longer, the specific phoneme should time-stretch to match the duration without altering pitch.
-- [ ] **Lyric Input:** Add a global text input component to distribute syllables across selected MIDI notes in the active sampler bank (Auto-Phoneme Mapping).
+- [x] **Lyric Input:** Add a global text input component to distribute syllables across selected MIDI notes in the active sampler bank (Auto-Phoneme Mapping).
 - [ ] **Formant Automation:** Implement automation lanes or per-step drawing for formant shift to allow continuous vowel morphing.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
@@ -36,6 +36,7 @@
 ## 🧠 Innovation Lab (The "Dream" Log)
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
+* **Idea:** "One Note per Word" - Advanced mapping in Lyric Input to distribute whole words to steps instead of phonemes.
 * **Idea:** "Glitch Mode" - A probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis).
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect.
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
@@ -57,3 +58,4 @@
 * [2026-05-29] - Implemented Phoneme-Aware Time Stretching DSP in RubberBandProcessor, enabling dynamic vowel stretching during playback.
 * [2026-05-30] - Refactored `App.tsx` to use `MainSequencer` component, unifying sequencer logic and improving maintainability.
 * [2026-05-31] - Removed legacy `Sequencer` component and `src/components/sequencer/` directory. Refactored `NoteSelector` focus management tests for stability.
+* [2026-06-01] - Implemented Lyric Input (LyricMapper), allowing text entry to auto-generate TTS and map phonemes to selected sequencer steps.

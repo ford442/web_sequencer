@@ -11,6 +11,8 @@ import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
+import { LyricMapper } from './components/LyricMapper';
+import { SupertonicService } from './services/Supertonic';
 
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
@@ -194,8 +196,10 @@ export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
+    const [isLyricMapperOpen, setIsLyricMapperOpen] = useState(false);
     const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
     const [forceScriptProcessorFallback, setForceScriptProcessorFallback] = useState(() => {
         // Read persisted preference from localStorage
@@ -860,6 +864,78 @@ export const App: React.FC = () => {
         }
     }, [audioEngine, activeSamplerBank]);
 
+    const handleGenerateTTS = useCallback(async (text: string) => {
+        if (!audioEngine) return;
+        setIsGenerating(true);
+        try {
+            const rawData = await SupertonicService.getInstance().generate(text);
+            const buffer = audioEngine.context.createBuffer(1, rawData.length, 44100);
+            buffer.getChannelData(0).set(rawData);
+
+            // Reuse handleLoadSample to update state and engine
+            const bankName = `bank_${activeSamplerBankRef.current}`;
+            handleLoadSample(bankName, buffer);
+            showToast(`Generated: ${text.substring(0, 15)}...`, "success");
+        } catch (e) {
+            console.error(e);
+            showToast("TTS Generation Failed", "error");
+            throw e;
+        } finally {
+            setIsGenerating(false);
+        }
+    }, [audioEngine, handleLoadSample, showToast]);
+
+    const handleLyricApply = useCallback(async (text: string, mapToSelection: boolean) => {
+        try {
+            await handleGenerateTTS(text);
+
+            // Update phrases state
+            const newPhrases = [...ttsPhrases];
+            newPhrases[activeSamplerBankRef.current] = text;
+            setTtsPhrases(newPhrases);
+
+            if (mapToSelection && selection && selection.trackKey === 'sampler') {
+                const { startStep, endStep } = selection;
+                const low = Math.min(startStep, endStep);
+                const high = Math.max(startStep, endStep);
+
+                const prev = patternRef.current;
+                const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+                const bankIdx = activeSamplerBankRef.current;
+                const bank = copy.sampler[bankIdx];
+
+                let noteIndex = 0;
+                for (let i = low; i <= high; i++) {
+                    if (!bank.steps[i]) {
+                         bank.steps[i] = { note: 'C4', velocity: 1, length: 1 };
+                    }
+                    if (bank.steps[i]) {
+                         const midi = 60 + noteIndex;
+                         bank.steps[i]!.note = midiToNote(midi);
+                         noteIndex++;
+                    }
+                }
+
+                setPattern(copy);
+                updateStorageForTrack('sampler', copy.sampler);
+
+                // Update Sampler Params to enable slice mode
+                setSampler(prevParams => {
+                    const next = [...prevParams];
+                    if (next[bankIdx]) {
+                        next[bankIdx] = { ...next[bankIdx], sliceMode: 'phoneme' };
+                    }
+                    samplerRef.current = next;
+                    return next;
+                });
+
+                showToast("Lyrics Mapped!", "success");
+            }
+        } catch (e) {
+            // Error handled in handleGenerateTTS
+        }
+    }, [handleGenerateTTS, ttsPhrases, selection, setPattern, setSampler, updateStorageForTrack, showToast]);
+
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
 
@@ -873,7 +949,7 @@ export const App: React.FC = () => {
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
-    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, loadedBanks, sampleBuffers]);
+    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleGenerateTTS, loadedBanks, sampleBuffers]);
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
@@ -946,6 +1022,7 @@ export const App: React.FC = () => {
                 </div>
                 <button onClick={handlePanic} aria-label="Panic Stop All Notes" className="w-8 h-8 rounded-full bg-red-900/50 text-red-500 flex items-center justify-center font-bold text-xs mr-2">!</button>
                 <button onClick={() => setIsRecording(!isRecording)} aria-pressed={isRecording} aria-label="Toggle Recording" className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-700'}`}>REC</button>
+                <button onClick={() => setIsLyricMapperOpen(!isLyricMapperOpen)} aria-pressed={isLyricMapperOpen} aria-label="Open Lyric Mapper" className={`w-20 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isLyricMapperOpen ? 'bg-cyan-900/40 text-cyan-300' : 'bg-gray-800 text-gray-400'}`}>LYRICS</button>
                 <button onClick={() => setIsSongModeOpen(!isSongModeOpen)} aria-pressed={isSongModeOpen} aria-label="Toggle Song Mode" className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300' : 'bg-gray-800 text-gray-400'}`}>SONG</button>
                 <button onClick={handlePlayToggle} aria-pressed={isPlaying} aria-label={isPlaying ? "Stop Playback" : "Start Playback"} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide ${isPlaying ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>{isPlaying ? 'STOP' : 'PLAY'}</button>
 
@@ -1119,6 +1196,7 @@ export const App: React.FC = () => {
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
+            <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
             {isShortcutsOpen && <ShortcutsHelp onClose={() => setIsShortcutsOpen(false)} />}
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
