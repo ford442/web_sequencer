@@ -38,6 +38,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const dummyRef = useRef(null); // Fallback for sliceHighlightRef
     const [isRecording, setIsRecording] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [status, setStatus] = useState<string>('');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
@@ -262,9 +263,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     };
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const loadAudioFile = async (file: File) => {
         setStatus('Loading...');
         try {
             const arrayBuffer = await file.arrayBuffer();
@@ -275,6 +274,37 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             setStatus('Load Error');
         }
     };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        await loadAudioFile(file);
+    };
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    }, []);
+
+    const handleDrop = useCallback(async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('audio/')) {
+            await loadAudioFile(file);
+        } else {
+            setStatus("Invalid File");
+        }
+    }, [loadAudioFile]);
 
     const toggleRecording = async () => {
         if (isRecording) {
@@ -335,7 +365,23 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         : null;
 
     return (
-        <div className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none">
+        <div
+            className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {isDragging && (
+                <div className="absolute inset-0 z-50 bg-purple-900/80 backdrop-blur-sm flex items-center justify-center border-2 border-purple-400 m-2 rounded-xl pointer-events-none">
+                    <div className="text-center animate-pulse">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 text-purple-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <h3 className="text-2xl font-bold text-white font-orbitron tracking-widest">DROP AUDIO FILE</h3>
+                        <p className="text-purple-200 mt-2 font-mono text-sm">Load sample into Bank {activeBankIdx + 1}</p>
+                    </div>
+                </div>
+            )}
             {/* --- FIXED HEADER --- */}
             <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
                 {/* Bank Tabs */}
@@ -548,8 +594,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     {(currentParams.mode || 'loop') === 'stretch' && (
                         <div className="flex flex-col gap-1.5 mt-1 border-t border-white/5 pt-1">
                             <div className="flex gap-1 items-center">
-                                <label className="text-[9px] text-gray-500 w-10">Grain:</label>
+                                <label htmlFor="sampler-grain-size" className="text-[9px] text-gray-500 w-10">Grain:</label>
                                 <input
+                                    id="sampler-grain-size"
                                     type="range"
                                     min="441"
                                     max="22050"
@@ -565,8 +612,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                 <span className="text-[9px] text-gray-500 w-8 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
                             </div>
                             <div className="flex gap-1 items-center">
-                                <label className="text-[9px] text-gray-500 w-10">Slice:</label>
+                                <label id="sampler-slice-label" className="text-[9px] text-gray-500 w-10">Slice:</label>
                                 <button
+                                    aria-labelledby="sampler-slice-label"
                                     onClick={() => {
                                         const newVal = (currentParams.sliceMode === 'phoneme') ? 'off' : 'phoneme';
                                         if (onParamChange) onParamChange(activeBankIdx, 'sliceMode', newVal);
