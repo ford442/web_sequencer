@@ -15,6 +15,7 @@ interface SamplerPanelProps {
     onOpenEditor?: () => void;
     ttsPhrases: string[];            // Array of 8 TTS phrases
     onTtsPhraseChange: (phrases: string[]) => void; // Update TTS phrases
+    onGenerateTTS?: (text: string) => Promise<void>; // Delegate generation to parent
     onHarmonize?: (bankIndex: number, chordType: string) => Promise<void>; // New prop
     onParamChange?: (bankIndex: number, key: string, value: any) => void;
     loadedBanks?: boolean[];         // Visual indicator for loaded samples
@@ -31,7 +32,7 @@ const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100
 
 const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
-    ttsPhrases, onTtsPhraseChange,
+    ttsPhrases, onTtsPhraseChange, onGenerateTTS,
     onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -241,6 +242,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     };
 
     const handleTTS = async () => {
+        if (!onGenerateTTS) return;
         if (!audioContext || !SupertonicService.getInstance().isServiceReady()) {
             setStatus("Engine not ready");
             return;
@@ -249,11 +251,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         setIsGenerating(true);
         setStatus("Generating...");
         try {
-            const rawData = await SupertonicService.getInstance().generate(currentTtsText);
-            const buffer = audioContext.createBuffer(1, rawData.length, 44100);
-            buffer.getChannelData(0).set(rawData);
-
-            loadBufferToBank(buffer);
+            await onGenerateTTS(currentTtsText);
             setStatus(`Gen: Bank ${activeBankIdx + 1}`);
         } catch (e) {
             console.error(e);
@@ -689,6 +687,9 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
 
     // 7. Check sliceHighlightRef (should be stable, but just in case)
     if (prev.sliceHighlightRef !== next.sliceHighlightRef) return false;
+
+    // 8. Check onGenerateTTS
+    if (prev.onGenerateTTS !== next.onGenerateTTS) return false;
 
     return true;
 });
