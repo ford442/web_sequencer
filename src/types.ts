@@ -93,6 +93,7 @@ export interface Note {
 
 export interface PartSequence {
   steps: (Note | null)[];
+  automation?: { [param: string]: (number | null)[] };
 }
 
 export interface Pattern {

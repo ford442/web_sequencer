@@ -8,9 +8,10 @@ const SEQUENCER_STYLES = `
     .svg-step.is-current .step-glow { fill: rgba(255, 255, 255, 0.3) !important; }
     .svg-step.is-current .step-cap { stroke: #ffffff !important; stroke-width: 2px !important; }
     .svg-step.is-current .step-led { fill: #ff3333 !important; fill-opacity: 1 !important; }
+    .automation-step.is-current rect { fill-opacity: 1 !important; filter: drop-shadow(0 0 4px white); }
 
     /* Focus Styles for Accessibility */
-    .svg-step:focus, .track-slot:focus, .track-label:focus { outline: none; }
+    .svg-step:focus, .track-slot:focus, .track-label:focus, .automation-step:focus { outline: none; }
     .svg-step:focus .step-cap { stroke: var(--focus-color, #22d3ee) !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px var(--focus-color, #22d3ee)); }
     .track-slot:focus rect { stroke: #22d3ee !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px #22d3ee); }
     .track-label:focus text { fill: #22d3ee !important; text-shadow: 0 0 8px rgba(34,211,238,0.8) !important; }
@@ -42,6 +43,91 @@ const getPatternColor = (slotIndex: number): string => {
 };
 
 // --- COMPONENTS ---
+
+const AutomationStep = memo(({
+    stepIndex, value, rowKey, rowLabel, onChange, refsArray
+}: {
+    stepIndex: number, value: number, rowKey: TrackKey, rowLabel: string,
+    onChange: (k: TrackKey, i: number, val: number) => void,
+    refsArray: React.MutableRefObject<(SVGGElement | null)[]>
+}) => {
+    const baseWidth = 18;
+    const gap = 4;
+    const height = 50;
+    const x = 220 + stepIndex * (baseWidth + gap);
+    const color = TRACK_COLORS[rowKey] || '#22d3ee';
+
+    // Calculate bar height based on value (0-1)
+    const barHeight = Math.max(2, value * height);
+    const y = height - barHeight;
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = e.currentTarget as Element;
+        target.setPointerCapture(e.pointerId);
+
+        // We need bounding client rect to calculate relative Y
+        const rect = target.getBoundingClientRect();
+
+        const updateValue = (clientY: number) => {
+            const relativeY = clientY - rect.top;
+            // 0 is top, height is bottom
+            // We want 1 at top (y=0), 0 at bottom (y=height)
+            let val = 1 - (relativeY / rect.height);
+            val = Math.max(0, Math.min(1, val));
+            onChange(rowKey, stepIndex, val);
+        };
+
+        updateValue(e.clientY);
+
+        const handlePointerMove = (ev: PointerEvent) => {
+            updateValue(ev.clientY);
+        };
+
+        const handlePointerUp = (ev: PointerEvent) => {
+            target.removeEventListener('pointermove', handlePointerMove as any);
+            target.removeEventListener('pointerup', handlePointerUp as any);
+            target.releasePointerCapture(ev.pointerId);
+        };
+
+        target.addEventListener('pointermove', handlePointerMove as any);
+        target.addEventListener('pointerup', handlePointerUp as any);
+    };
+
+    return (
+        <g
+            transform={`translate(${x}, 0)`}
+            ref={(el) => { refsArray.current[stepIndex] = el; }}
+            className="automation-step"
+            role="slider"
+            aria-label={`${rowLabel} automation step ${stepIndex + 1}`}
+            aria-valuenow={Math.round(value * 100)}
+            tabIndex={0}
+            cursor="ns-resize"
+            onPointerDown={handlePointerDown}
+        >
+            {/* Background container for click area */}
+            <rect x={0} y={0} width={baseWidth} height={height} rx={2} fill="#111" fillOpacity={0.8} />
+
+            {/* The Value Bar */}
+            <rect
+                x={1}
+                y={y}
+                width={baseWidth - 2}
+                height={barHeight}
+                rx={1}
+                fill={color}
+                fillOpacity={0.6}
+                stroke={color}
+                strokeWidth={1}
+            />
+
+            {/* Grid line at 50% */}
+            <line x1={0} y1={height/2} x2={baseWidth} y2={height/2} stroke="#333" strokeDasharray="2,2" strokeWidth={1} pointerEvents="none" />
+        </g>
+    );
+});
 
 const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
@@ -143,22 +229,34 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     onSelectionEnter?: (k: TrackKey, i: number) => void,
     selectionRange?: { start: number, end: number } | null,
     onDrawEnter?: (k: TrackKey, i: number) => void,
-    isDrawing?: boolean
+    isDrawing?: boolean,
+    // Automation Props
+    automation?: { [param: string]: (number | null)[] },
+    viewMode?: 'notes' | 'automation',
+    automationParam?: string,
+    onAutomationChange?: (k: TrackKey, i: number, val: number) => void
 }>((props, ref) => {
-    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing } = props;
+    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing,
+        automation, viewMode, automationParam, onAutomationChange } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
 
     const updateClasses = useCallback((step: number) => {
         let newActiveIndex = -1;
-        for (let i = step; i >= 0; i--) {
-            if (stepRefs.current[i]) {
-                const length = steps[i]?.length || 1;
-                if (i + length > step) { newActiveIndex = i; }
-                break;
+        // Logic differs for automation (always step 1) vs notes (can be longer)
+        if (viewMode === 'automation') {
+             newActiveIndex = step;
+        } else {
+            for (let i = step; i >= 0; i--) {
+                if (stepRefs.current[i]) {
+                    const length = steps[i]?.length || 1;
+                    if (i + length > step) { newActiveIndex = i; }
+                    break;
+                }
             }
         }
+
         if (newActiveIndex !== lastActiveIndexRef.current) {
             if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
             if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
@@ -166,7 +264,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         } else {
             if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
         }
-    }, [steps]);
+    }, [steps, viewMode]);
 
     useImperativeHandle(ref, () => ({
         setHighlight: (step: number) => {
@@ -187,22 +285,59 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     }, [updateClasses]);
 
     const renderedSteps = [];
-    let skipCount = 0;
-    for (let i = 0; i < 32; i++) {
-        if (skipCount > 0) { skipCount--; continue; }
-        const stepData = steps[i];
-        const length = stepData?.length || 1;
 
-        let isRangeSelected = false;
-        if (selectionRange) {
-            const low = Math.min(selectionRange.start, selectionRange.end);
-            const high = Math.max(selectionRange.start, selectionRange.end);
-            // Check if step is within range
-            if (i >= low && i <= high) isRangeSelected = true;
+    // Check if we should render automation
+    if (viewMode === 'automation' && isSelected && onAutomationChange && automationParam) {
+         const values = automation?.[automationParam] || Array(32).fill(null);
+
+         for (let i = 0; i < 32; i++) {
+             const val = values[i] ?? 0.5; // Default to center (no shift)
+             renderedSteps.push(
+                <AutomationStep
+                    key={i}
+                    stepIndex={i}
+                    value={val}
+                    rowKey={rowKey}
+                    rowLabel={label}
+                    onChange={onAutomationChange}
+                    refsArray={stepRefs}
+                />
+             );
+         }
+
+    } else if (viewMode === 'automation' && !isSelected) {
+        // If automation mode but track not selected, render dimmed notes or nothing?
+        // Let's render normal notes but dimmed logic could be applied via CSS if needed.
+        // For now, render normal notes to keep context.
+        // Or render nothing to focus on the selected track automation?
+        // Let's fall back to rendering notes.
+        let skipCount = 0;
+        for (let i = 0; i < 32; i++) {
+            if (skipCount > 0) { skipCount--; continue; }
+            const stepData = steps[i];
+            const length = stepData?.length || 1;
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} onDrawEnter={onDrawEnter} isDrawing={isDrawing} />);
+            if (stepData && length > 1) { skipCount = length - 1; }
         }
+    } else {
+        // Render Notes
+        let skipCount = 0;
+        for (let i = 0; i < 32; i++) {
+            if (skipCount > 0) { skipCount--; continue; }
+            const stepData = steps[i];
+            const length = stepData?.length || 1;
 
-        renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} />);
-        if (stepData && length > 1) { skipCount = length - 1; }
+            let isRangeSelected = false;
+            if (selectionRange) {
+                const low = Math.min(selectionRange.start, selectionRange.end);
+                const high = Math.max(selectionRange.start, selectionRange.end);
+                // Check if step is within range
+                if (i >= low && i <= high) isRangeSelected = true;
+            }
+
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} />);
+            if (stepData && length > 1) { skipCount = length - 1; }
+        }
     }
 
     return (
@@ -241,12 +376,17 @@ export interface MainSequencerProps {
     onSelectionStart: (rowKey: TrackKey, index: number) => void;
     onSelectionEnter: (rowKey: TrackKey, index: number) => void;
     onDrawEnter: (rowKey: TrackKey, index: number) => void;
+    // Automation
+    viewMode?: 'notes' | 'automation';
+    automationParam?: string;
+    onAutomationChange?: (trackKey: TrackKey, step: number, value: number) => void;
     // Children are rendered after SVG (e.g. NoteSelector)
     children?: React.ReactNode;
 }
 
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
-    const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children } = props;
+    const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
+        viewMode = 'notes', automationParam, onAutomationChange } = props;
 
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
 
@@ -273,11 +413,17 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                         <SequencerRow
                             key={row.key} ref={(el) => { rowRefs.current[rIdx] = el; }} rowKey={row.key} label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label} rowIndex={rIdx}
                             steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
+                            // Pass Automation Data
+                            automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
+
                             isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
                             onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectRow={onSelectRow} onSelectSlot={onSelectSlot}
                             onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter}
                             selectionRange={selection && selection.trackKey === row.key ? { start: selection.startStep, end: selection.endStep } : null}
                             onDrawEnter={onDrawEnter} isDrawing={isDrawing}
+                            viewMode={viewMode}
+                            automationParam={automationParam}
+                            onAutomationChange={onAutomationChange}
                         />
                     ))}
                 </g>
