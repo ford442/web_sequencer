@@ -219,8 +219,12 @@ export const App: React.FC = () => {
     }, []);
 
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
-    const { audioEngine, isReady, initializeAudio } = useAudioEngine(pyodide, forceScriptProcessorFallback)
+    const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide, forceScriptProcessorFallback)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
+
+    // NEW: Automation View State
+    const [viewMode, setViewMode] = useState<'notes' | 'automation'>('notes');
+    const [automationParam, setAutomationParam] = useState('formantShift');
 
     const handleStart = async () => {
         console.log("Initialization sequence started...");
@@ -475,7 +479,33 @@ export const App: React.FC = () => {
                  sliceHighlightRef.current(activeSlice);
             }
         }
-    }, [audioEngine, tempo])
+
+        // Apply Automation
+        if (onParamChange) {
+            const bankIdx = activeSamplerBankRef.current;
+            const bankSeq = p.sampler[bankIdx];
+            if (bankSeq && bankSeq.automation) {
+                // Formant Shift
+                const formantVal = bankSeq.automation['formantShift']?.[step];
+                if (formantVal !== undefined && formantVal !== null) {
+                     // Map 0-1 to -12 to +12
+                     const mapped = (formantVal * 24) - 12;
+                     onParamChange(bankIdx, 'formantShift', mapped);
+                }
+
+                // Vibrato Depth
+                const vibVal = bankSeq.automation['vibratoDepth']?.[step];
+                if (vibVal !== undefined && vibVal !== null) {
+                     onParamChange(bankIdx, 'vibratoDepth', vibVal * 100);
+                }
+
+                // Pitch Scale (e.g. 0.5 to 2.0) - centered at 0.5 (1.0)
+                // Let's assume automation 0-1 maps to 0.5x to 2.0x?
+                // Or just keep simple for now. Formant is main goal.
+            }
+        }
+
+    }, [audioEngine, tempo, onParamChange])
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
@@ -545,6 +575,49 @@ export const App: React.FC = () => {
 
         showToast("Pasted from clipboard!", "success");
     }, [clipboard, selection, selectedTrack, showToast, updateStorageForTrack]);
+
+    const handleAutomationChange = useCallback((trackKey: TrackKey, step: number, value: number) => {
+        setPattern(prev => {
+            const nextPattern = { ...prev };
+
+            if (trackKey === 'sampler') {
+                const bankIdx = activeSamplerBankRef.current;
+                const nextSampler = [...nextPattern.sampler];
+                const nextBank = { ...nextSampler[bankIdx] };
+
+                const nextAutomation = nextBank.automation ? { ...nextBank.automation } : {};
+                const nextParamArray = nextAutomation[automationParam]
+                    ? [...nextAutomation[automationParam]]
+                    : Array(NUM_STEPS).fill(null);
+
+                nextParamArray[step] = value;
+                nextAutomation[automationParam] = nextParamArray;
+                nextBank.automation = nextAutomation;
+
+                nextSampler[bankIdx] = nextBank;
+                nextPattern.sampler = nextSampler;
+
+                // Update storage
+                updateStorageForTrack(trackKey, nextSampler);
+            } else {
+                 const nextTrack = { ...nextPattern[trackKey] } as any;
+
+                 const nextAutomation = nextTrack.automation ? { ...nextTrack.automation } : {};
+                 const nextParamArray = nextAutomation[automationParam]
+                    ? [...nextAutomation[automationParam]]
+                    : Array(NUM_STEPS).fill(null);
+
+                 nextParamArray[step] = value;
+                 nextAutomation[automationParam] = nextParamArray;
+                 nextTrack.automation = nextAutomation;
+
+                 nextPattern[trackKey] = nextTrack;
+
+                 updateStorageForTrack(trackKey, nextTrack);
+            }
+            return nextPattern;
+        });
+    }, [activeSamplerBank, automationParam, updateStorageForTrack]);
 
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
         // Use Ref to access current state without dependency to avoid re-renders of all rows
@@ -1026,6 +1099,32 @@ export const App: React.FC = () => {
                 <button onClick={() => setIsSongModeOpen(!isSongModeOpen)} aria-pressed={isSongModeOpen} aria-label="Toggle Song Mode" className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300' : 'bg-gray-800 text-gray-400'}`}>SONG</button>
                 <button onClick={handlePlayToggle} aria-pressed={isPlaying} aria-label={isPlaying ? "Stop Playback" : "Start Playback"} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide ${isPlaying ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>{isPlaying ? 'STOP' : 'PLAY'}</button>
 
+                {/* VIEW MODE TOGGLE */}
+                <div className="ml-2 flex items-center bg-gray-900 rounded border border-gray-700">
+                    <button
+                        onClick={() => setViewMode('notes')}
+                        className={`px-3 py-1 text-[10px] font-bold ${viewMode === 'notes' ? 'bg-cyan-900/50 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                        NOTES
+                    </button>
+                    <button
+                        onClick={() => setViewMode('automation')}
+                        className={`px-3 py-1 text-[10px] font-bold ${viewMode === 'automation' ? 'bg-pink-900/50 text-pink-400' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                        AUTO
+                    </button>
+                </div>
+                {viewMode === 'automation' && (
+                     <select
+                        value={automationParam}
+                        onChange={(e) => setAutomationParam(e.target.value)}
+                        className="ml-2 bg-gray-900 text-xs text-gray-300 border border-gray-700 rounded px-2 py-1 outline-none focus:border-cyan-500"
+                     >
+                         <option value="formantShift">Formant</option>
+                         <option value="vibratoDepth">Vibrato</option>
+                     </select>
+                )}
+
                 {/* 3D TOGGLE */}
                 <button
                     onClick={() => setIs3DMode(!is3DMode)}
@@ -1109,6 +1208,9 @@ export const App: React.FC = () => {
                 onSelectionStart={handleSelectionStart}
                 onSelectionEnter={handleSelectionEnter}
                 onDrawEnter={handleDrawEnter}
+                viewMode={viewMode}
+                automationParam={automationParam}
+                onAutomationChange={handleAutomationChange}
             >
                 {contextMenu && (
                     <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>

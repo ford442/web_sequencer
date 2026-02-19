@@ -15,7 +15,7 @@
 - [x] **Hybrid Polyphony:** Finalize `VoiceManager` to handle 8-voice polyphony for `synth-1` while keeping `synth-2` strictly monophonic (legato priority).
 - [x] **Phoneme Elasticity:** Connect `rubberband.wasm` to the sequencer steps. If a note is dragged longer, the specific phoneme should time-stretch to match the duration without altering pitch.
 - [x] **Lyric Input:** Add a global text input component to distribute syllables across selected MIDI notes in the active sampler bank (Auto-Phoneme Mapping).
-- [ ] **Formant Automation:** Implement automation lanes or per-step drawing for formant shift to allow continuous vowel morphing.
+- [x] **Formant Automation:** Implement automation lanes or per-step drawing for formant shift to allow continuous vowel morphing.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
 - [x] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
@@ -59,3 +59,4 @@
 * [2026-05-30] - Refactored `App.tsx` to use `MainSequencer` component, unifying sequencer logic and improving maintainability.
 * [2026-05-31] - Removed legacy `Sequencer` component and `src/components/sequencer/` directory. Refactored `NoteSelector` focus management tests for stability.
 * [2026-06-01] - Implemented Lyric Input (LyricMapper), allowing text entry to auto-generate TTS and map phonemes to selected sequencer steps.
+* [2026-06-02] - Implemented Formant Automation (Automation View), allowing per-step drawing of formant shift and other parameters for the active voice.
