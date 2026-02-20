@@ -16,6 +16,7 @@
 - [x] **Phoneme Elasticity:** Connect `rubberband.wasm` to the sequencer steps. If a note is dragged longer, the specific phoneme should time-stretch to match the duration without altering pitch.
 - [x] **Lyric Input:** Add a global text input component to distribute syllables across selected MIDI notes in the active sampler bank (Auto-Phoneme Mapping).
 - [x] **Formant Automation:** Implement automation lanes or per-step drawing for formant shift to allow continuous vowel morphing.
+- [x] **Choir Stack:** Implemented 3-voice polyphony for TTS samples (Center, Left+Detune, Right-Detune) to create a rich chorus effect using Rubber Band.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
 - [x] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
@@ -38,7 +39,6 @@
 
 * **Idea:** "One Note per Word" - Advanced mapping in Lyric Input to distribute whole words to steps instead of phonemes.
 * **Idea:** "Glitch Mode" - A probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis).
-* **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect.
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * **Idea:** "Melodic Euclidean Rhythms" - Generate rhythms based on Euclidean algorithms but map them to a scale.
 
@@ -60,3 +60,4 @@
 * [2026-05-31] - Removed legacy `Sequencer` component and `src/components/sequencer/` directory. Refactored `NoteSelector` focus management tests for stability.
 * [2026-06-01] - Implemented Lyric Input (LyricMapper), allowing text entry to auto-generate TTS and map phonemes to selected sequencer steps.
 * [2026-06-02] - Implemented Formant Automation (Automation View), allowing per-step drawing of formant shift and other parameters for the active voice.
+* [2026-06-03] - Implemented Choir Stack (3-voice Polyphony) for TTS, adding detuning and stereo width controls to the Sampler Engine.
