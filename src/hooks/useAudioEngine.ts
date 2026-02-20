@@ -435,7 +435,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 if (params.mode === 'stretch' && singingVoiceRef.current) {
                     // PHONEME ELASTICITY & SINGING VOICE MODE WITH CHOIR SUPPORT
 
-                    const triggerVoice = (voice: SingingVoice, pitchOffset: number, volumeScale: number) => {
+                    const triggerVoice = (voice: SingingVoice, pitchOffset: number) => {
                         const targetDuration = durationSteps * stepTime;
                         const originalDuration = buffer.duration;
 
@@ -505,7 +505,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                     };
 
                     // Main Voice (Center)
-                    triggerVoice(singingVoiceRef.current, 0, 1.0);
+                    triggerVoice(singingVoiceRef.current, 0);
 
                     // Choir Voices
                     if (params.choir && params.choir > 0 && singingVoiceLeftRef.current && singingVoiceRightRef.current) {
@@ -515,8 +515,8 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                         if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, actualTime, 0.02);
                         if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, actualTime, 0.02);
 
-                        triggerVoice(singingVoiceLeftRef.current, detune, params.choir);
-                        triggerVoice(singingVoiceRightRef.current, -detune, params.choir);
+                        triggerVoice(singingVoiceLeftRef.current, detune);
+                        triggerVoice(singingVoiceRightRef.current, -detune);
                     } else {
                         // Ensure silenced
                         if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, actualTime, 0.02);
