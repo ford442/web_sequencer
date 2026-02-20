@@ -70,6 +70,26 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     };
 
+    const modes: ('loop' | 'stretch' | 'wavetable')[] = ['loop', 'stretch', 'wavetable'];
+    const modeRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+    const handleModeKeyDown = (e: React.KeyboardEvent, index: number) => {
+        let nextIndex = -1;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            nextIndex = (index + 1) % modes.length;
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            nextIndex = (index - 1 + modes.length) % modes.length;
+        }
+
+        if (nextIndex !== -1) {
+            e.preventDefault();
+            const newMode = modes[nextIndex];
+            handleModeChange(newMode);
+            // Focus new button - wait for render/update
+            setTimeout(() => modeRefs.current[nextIndex]?.focus(), 0);
+        }
+    };
+
     // Get the TTS text for the current bank with bounds checking
     const currentTtsText = (ttsPhrases && activeBankIdx >= 0 && activeBankIdx < 8) 
         ? (ttsPhrases[activeBankIdx] || "Hello World")
@@ -547,45 +567,28 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     <div className="flex gap-1 items-center mb-1.5">
                         <label className="text-[10px] text-gray-400 font-bold w-10" id="sampler-mode-label">MODE:</label>
                         <div className="flex gap-1 flex-1" role="radiogroup" aria-labelledby="sampler-mode-label">
-                            <button
-                                onClick={() => handleModeChange('loop')}
-                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                    (currentParams.mode || 'loop') === 'loop'
-                                        ? 'bg-purple-600 border-purple-400 text-white'
-                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                                }`}
-                                aria-label="Loop Mode"
-                                role="radio"
-                                aria-checked={(currentParams.mode || 'loop') === 'loop'}
-                            >
-                                LOOP
-                            </button>
-                            <button
-                                onClick={() => handleModeChange('stretch')}
-                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                    (currentParams.mode || 'loop') === 'stretch'
-                                        ? 'bg-purple-600 border-purple-400 text-white'
-                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                                }`}
-                                aria-label="Stretch Mode"
-                                role="radio"
-                                aria-checked={(currentParams.mode || 'loop') === 'stretch'}
-                            >
-                                STRETCH
-                            </button>
-                            <button
-                                onClick={() => handleModeChange('wavetable')}
-                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                    (currentParams.mode || 'loop') === 'wavetable'
-                                        ? 'bg-purple-600 border-purple-400 text-white'
-                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                                }`}
-                                aria-label="Wavetable Mode"
-                                role="radio"
-                                aria-checked={(currentParams.mode || 'loop') === 'wavetable'}
-                            >
-                                WAVE
-                            </button>
+                            {modes.map((mode, i) => {
+                                const isSelected = (currentParams.mode || 'loop') === mode;
+                                return (
+                                    <button
+                                        key={mode}
+                                        ref={(el) => { modeRefs.current[i] = el; }}
+                                        onClick={() => handleModeChange(mode)}
+                                        onKeyDown={(e) => handleModeKeyDown(e, i)}
+                                        tabIndex={isSelected ? 0 : -1}
+                                        className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                            isSelected
+                                                ? 'bg-purple-600 border-purple-400 text-white'
+                                                : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                                        }`}
+                                        aria-label={`${mode.charAt(0).toUpperCase() + mode.slice(1)} Mode`}
+                                        role="radio"
+                                        aria-checked={isSelected}
+                                    >
+                                        {mode === 'wavetable' ? 'WAVE' : mode.toUpperCase()}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                     {/* Grain Size & Slice Mode (Stretch Mode Only) */}
