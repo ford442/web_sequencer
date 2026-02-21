@@ -68,6 +68,7 @@ export interface SamplerBankParams {
   vibratoDepth?: number;   // Vibrato amount (0-100%)
   breathIntensity?: number; // Breath noise (0-1.0)
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
+  choir?: number;          // Choir effect amount (0-1) - Detuned side voices
 }
 
 // SamplerParams is now an array of banks
