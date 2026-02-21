@@ -87,7 +87,6 @@ export class SingingVoice {
     private workletNode: AudioWorkletNode | null = null;
     private scriptProcessorNode: ScriptProcessorNode | null = null;
     private useWorklet: boolean = true;
-    private inputRingBuffer: RingBuffer | undefined;
     private _outputRingBuffer: RingBuffer | undefined;
     private config: SingingVoiceConfig;
     
@@ -180,7 +179,6 @@ export class SingingVoice {
                 const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
                 const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
 
-                this.inputRingBuffer = new RingBuffer(inputBuffer);
                 this._outputRingBuffer = new RingBuffer(outputBuffer);
 
                 this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
