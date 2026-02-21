@@ -17,6 +17,7 @@
 - [x] **Lyric Input:** Add a global text input component to distribute syllables across selected MIDI notes in the active sampler bank (Auto-Phoneme Mapping).
 - [x] **Formant Automation:** Implement automation lanes or per-step drawing for formant shift to allow continuous vowel morphing.
 - [x] **Choir Stack:** Implemented 3-voice polyphony for TTS samples (Center, Left+Detune, Right-Detune) to create a rich chorus effect using Rubber Band.
+- [x] **Glitch Mode:** Implemented a probability-based stutter effect ("Glitch") for the sampler, featuring rapid retriggering and randomized timing for both "Stretch" and "Loop" modes.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
 - [x] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
@@ -38,7 +39,7 @@
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
 * **Idea:** "One Note per Word" - Advanced mapping in Lyric Input to distribute whole words to steps instead of phonemes.
-* **Idea:** "Glitch Mode" - A probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis).
+* **Idea:** "Reverse Step" - Add a per-step probability to play the sample slice in reverse (requires buffer reversal logic).
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * **Idea:** "Melodic Euclidean Rhythms" - Generate rhythms based on Euclidean algorithms but map them to a scale.
 
