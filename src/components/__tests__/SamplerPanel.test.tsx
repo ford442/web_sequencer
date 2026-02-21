@@ -32,7 +32,8 @@ const defaultBankParams = {
     pitchScale: 1.0,
     formantShift: 0,
     vibratoDepth: 0,
-    breathIntensity: 0
+    breathIntensity: 0,
+    choir: 0
 };
 
 describe('SamplerPanel', () => {

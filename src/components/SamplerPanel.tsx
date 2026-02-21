@@ -121,7 +121,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         pitchScale: 1.0,
         formantShift: 0,
         vibratoDepth: 0,
-        breathIntensity: 0
+        breathIntensity: 0,
+        choir: 0
     };
 
     // Update single param for active bank
@@ -179,6 +180,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleBreathIntensityChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'breathIntensity', v);
         else updateParamRef.current('breathIntensity', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleChoirChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'choir', v);
+        else updateParamRef.current('choir', v);
     }, [activeBankIdx, onParamChange]);
 
     // Handle mode change
@@ -658,6 +664,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />
                             <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
+                            <Knob label="Choir" value={currentParams.choir ?? 0} onChange={handleChoirChange} min={0} max={1.0} step={0.01} color="indigo" />
                         </div>
                     </div>
                 </div>
