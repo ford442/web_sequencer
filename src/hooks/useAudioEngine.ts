@@ -425,7 +425,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 return vocalAlignmentsRef.current.get(bankName) || null;
             };
 
-            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number }) => {
+            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean }) => {
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 if (!buffer || !masterGainRef.current) return;
 
@@ -494,7 +494,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                         }
 
                         // 4. Play (Buffer assumed loaded)
-                        voice.play(undefined, undefined, 1.0);
+                        voice.play(undefined, undefined, 1.0, noteParams?.reverse);
                     };
 
                     // Load buffer ONCE for the voice(s)
