@@ -38,7 +38,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
   // Playback State (for Phoneme Elasticity)
   private isPlaying = false;
+  private isReverse = false;
   private currentSamplePtr = 0;
+  private startSamplePtr = 0;
   private endSamplePtr = 0;
 
   // Phoneme Data
@@ -159,9 +161,18 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         if (startSample >= endSample) return;
 
+        this.isReverse = !!data.reverse;
+
         // Initialize streaming state
-        this.currentSamplePtr = startSample;
+        this.startSamplePtr = startSample;
         this.endSamplePtr = endSample;
+
+        if (this.isReverse) {
+            this.currentSamplePtr = endSample - 1;
+        } else {
+            this.currentSamplePtr = startSample;
+        }
+
         this.isPlaying = true;
         break;
 
@@ -224,28 +235,52 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // STREAMING INPUT LOGIC
         // If playing a note, stream from fullSampleBuffer
         if (this.isPlaying && this.fullSampleBuffer) {
-            const samplesRemaining = this.endSamplePtr - this.currentSamplePtr;
-
-            // Only feed if more input is required to generate output
-            // This prevents internal buffer bloat and keeps playback synced
             const samplesRequired = this.rubberBand.getSamplesRequired();
 
-            if (samplesRemaining > 0 && samplesRequired > 0) {
-                // Feed only what is needed, or remaining samples
-                const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
+            if (this.isReverse) {
+                // REVERSE STREAMING
+                const samplesRemaining = this.currentSamplePtr - this.startSamplePtr + 1;
 
-                this.ensureHeapSize(samplesToFeed);
+                if (samplesRemaining > 0 && samplesRequired > 0) {
+                    const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
+                    this.ensureHeapSize(samplesToFeed);
 
-                // Copy directly to WASM heap
-                const slice = this.fullSampleBuffer.subarray(
-                    this.currentSamplePtr,
-                    this.currentSamplePtr + samplesToFeed
-                );
-                this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
+                    // Manually copy in reverse order
+                    const heap = this.rubberBand.module.HEAPF32;
+                    const ptr = this.inputHeapPtr >> 2;
+                    const buf = this.fullSampleBuffer;
+                    let readPtr = this.currentSamplePtr;
 
-                this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
+                    for (let i = 0; i < samplesToFeed; i++) {
+                        heap[ptr + i] = buf[readPtr--];
+                    }
 
-                this.currentSamplePtr += samplesToFeed;
+                    this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
+                    this.currentSamplePtr = readPtr;
+                }
+            } else {
+                // FORWARD STREAMING
+                const samplesRemaining = this.endSamplePtr - this.currentSamplePtr;
+
+                // Only feed if more input is required to generate output
+                // This prevents internal buffer bloat and keeps playback synced
+                if (samplesRemaining > 0 && samplesRequired > 0) {
+                    // Feed only what is needed, or remaining samples
+                    const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
+
+                    this.ensureHeapSize(samplesToFeed);
+
+                    // Copy directly to WASM heap
+                    const slice = this.fullSampleBuffer.subarray(
+                        this.currentSamplePtr,
+                        this.currentSamplePtr + samplesToFeed
+                    );
+                    this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
+
+                    this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
+
+                    this.currentSamplePtr += samplesToFeed;
+                }
             }
         }
         // Fallback: Streaming from RingBuffer (Real-time input mode)
@@ -282,9 +317,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
             outputChannel.set(outputView);
             this.expressiveProcessor.process(outputChannel, outputChannel);
-        } else if (this.isPlaying && this.currentSamplePtr >= this.endSamplePtr) {
-             // If we finished feeding input and there is no output left, we are done
-             this.isPlaying = false;
+        } else if (this.isPlaying) {
+             // Check for completion
+             if (this.isReverse) {
+                 if (this.currentSamplePtr < this.startSamplePtr) this.isPlaying = false;
+             } else {
+                 if (this.currentSamplePtr >= this.endSamplePtr) this.isPlaying = false;
+             }
         }
 
     } catch (e) {
