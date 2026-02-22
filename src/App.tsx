@@ -453,7 +453,7 @@ export const App: React.FC = () => {
             const stepData = seq.steps[step];
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse };
                 audioEngine.playSampler(samplerRef.current[bankIdx], stepData.note, time, stepData.length, stepTime, noteParams);
             }
         });
@@ -848,7 +848,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     };
 
-    const handleNotePropertyChange = (key: 'timbre' | 'probability' | 'microtiming', value: number) => {
+    const handleNotePropertyChange = (key: 'timbre' | 'probability' | 'microtiming' | 'reverse', value: number | boolean) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -865,7 +865,11 @@ export const App: React.FC = () => {
 
         const stepData = stepsArray[stepIndex];
         if (stepData) {
-            stepData[key] = value;
+            if (key === 'reverse') {
+                if (typeof value === 'boolean') stepData.reverse = value;
+            } else {
+                if (typeof value === 'number') stepData[key] = value;
+            }
         }
 
         let changedSequence;
@@ -1222,6 +1226,7 @@ export const App: React.FC = () => {
                             currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
                             currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
                             currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
+                            currentReverse={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverse ?? false : false}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
                             onPropertyChange={handleNotePropertyChange}

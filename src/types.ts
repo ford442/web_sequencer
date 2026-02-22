@@ -91,6 +91,7 @@ export interface Note {
   timbre?: number; // 0-1, tonal character (filter/formant)
   probability?: number; // 0-1, chance of triggering
   microtiming?: number; // -0.5 to 0.5 steps, rhythmic offset
+  reverse?: boolean; // Play sample in reverse (Sampler only)
 }
 
 export interface PartSequence {
@@ -122,7 +123,7 @@ export interface AudioEngine {
     open303Engine?: Open303Oscillator | null;
     playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
-    playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number }) => void;
+    playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
