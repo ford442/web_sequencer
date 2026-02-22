@@ -354,8 +354,9 @@ export class SingingVoice {
      * @param startSample Optional start sample index
      * @param endSample Optional end sample index
      * @param pitch Optional pitch override (default 1.0)
+     * @param reverse Optional reverse playback (default false)
      */
-    play(startSample?: number, endSample?: number, pitch: number = 1.0): void {
+    play(startSample?: number, endSample?: number, pitch: number = 1.0, reverse: boolean = false): void {
         if (!this.workletNode) {
             throw new Error('SingingVoice not initialized. Call initWorklet() first.');
         }
@@ -365,7 +366,8 @@ export class SingingVoice {
             data: {
                 pitch,
                 startSample,
-                endSample
+                endSample,
+                reverse
             }
         });
     }
