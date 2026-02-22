@@ -69,6 +69,7 @@ export interface SamplerBankParams {
   breathIntensity?: number; // Breath noise (0-1.0)
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
   choir?: number;          // Choir effect amount (0-1) - Detuned side voices
+  glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
 }
 
 // SamplerParams is now an array of banks

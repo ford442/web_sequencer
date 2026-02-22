@@ -87,7 +87,6 @@ export class SingingVoice {
     private workletNode: AudioWorkletNode | null = null;
     private scriptProcessorNode: ScriptProcessorNode | null = null;
     private useWorklet: boolean = true;
-    private inputRingBuffer: RingBuffer | undefined;
     private _outputRingBuffer: RingBuffer | undefined;
     private config: SingingVoiceConfig;
     
@@ -180,7 +179,6 @@ export class SingingVoice {
                 const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
                 const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
 
-                this.inputRingBuffer = new RingBuffer(inputBuffer);
                 this._outputRingBuffer = new RingBuffer(outputBuffer);
 
                 this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
@@ -336,6 +334,43 @@ export class SingingVoice {
     }
 
     /**
+     * Load audio buffer into the worklet without triggering playback.
+     * Useful for pre-loading or glitch effects where multiple triggers share the same buffer.
+     * @param audio Float32Array of mono audio samples
+     */
+    loadBuffer(audio: Float32Array): void {
+        if (!this.workletNode) {
+            throw new Error('SingingVoice not initialized. Call initWorklet() first.');
+        }
+
+        this.workletNode.port.postMessage({
+            type: 'loadBuffer',
+            data: { buffer: audio.buffer.slice(0) } // Copy buffer
+        });
+    }
+
+    /**
+     * Trigger playback of the currently loaded buffer.
+     * @param startSample Optional start sample index
+     * @param endSample Optional end sample index
+     * @param pitch Optional pitch override (default 1.0)
+     */
+    play(startSample?: number, endSample?: number, pitch: number = 1.0): void {
+        if (!this.workletNode) {
+            throw new Error('SingingVoice not initialized. Call initWorklet() first.');
+        }
+
+        this.workletNode.port.postMessage({
+            type: 'noteOn',
+            data: {
+                pitch,
+                startSample,
+                endSample
+            }
+        });
+    }
+
+    /**
      * Process audio through the Rubber Band worklet.
      * @param audio Float32Array of mono audio samples
      * @param startSample Optional start sample index for slicing
@@ -343,25 +378,8 @@ export class SingingVoice {
      * @returns Promise that resolves when processing is complete
      */
     async process(audio: Float32Array, startSample?: number, endSample?: number): Promise<void> {
-        if (!this.workletNode || !this.inputRingBuffer) {
-            throw new Error('SingingVoice not initialized. Call initWorklet() first.');
-        }
-
-        // Send audio to worklet
-        this.workletNode.port.postMessage({
-            type: 'loadBuffer',
-            data: { buffer: audio.buffer.slice(0) } // Copy buffer
-        });
-
-        // Trigger processing
-        this.workletNode.port.postMessage({
-            type: 'noteOn',
-            data: {
-                pitch: 1.0, // Pitch will be set via parameter
-                startSample,
-                endSample
-            }
-        });
+        this.loadBuffer(audio);
+        this.play(startSample, endSample);
     }
 
     /**
