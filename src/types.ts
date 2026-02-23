@@ -68,6 +68,8 @@ export interface SamplerBankParams {
   vibratoDepth?: number;   // Vibrato amount (0-100%)
   breathIntensity?: number; // Breath noise (0-1.0)
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
+  choir?: number;          // Choir effect amount (0-1) - Detuned side voices
+  glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
 }
 
 // SamplerParams is now an array of banks
@@ -89,10 +91,12 @@ export interface Note {
   timbre?: number; // 0-1, tonal character (filter/formant)
   probability?: number; // 0-1, chance of triggering
   microtiming?: number; // -0.5 to 0.5 steps, rhythmic offset
+  reverse?: boolean; // Play sample in reverse (Sampler only)
 }
 
 export interface PartSequence {
   steps: (Note | null)[];
+  automation?: { [param: string]: (number | null)[] };
 }
 
 export interface Pattern {
@@ -104,6 +108,8 @@ export interface Pattern {
   openHat: PartSequence;
   sampler: PartSequence[]; // Array of 8 sequences
 }
+
+export type TrackKey = keyof Pattern;
 
 export interface AmbianceTrack {
   name: string;
@@ -117,7 +123,7 @@ export interface AudioEngine {
     open303Engine?: Open303Oscillator | null;
     playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
-    playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number }) => void;
+    playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
