@@ -4,42 +4,39 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
 
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; 
-const OCTAVES = [5, 4, 3, 2]; // Top to bottom
+const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-// Configuration for "Chromatic Zig-Zag" style playing
+// Configuration for inverted piano layout
+// Top Visual Row (Naturals): Digits
+// Bottom Visual Row (Accidentals): F-keys
 const KEY_TO_NOTE: Record<string, string> = {
-    // --- Col 1 ---
-    'F1':     'C4',
-    'Digit1': 'C#4',
+    // --- Naturals (Digits) ---
+    'Digit1': 'C4',
+    'Digit2': 'D4',
+    'Digit3': 'E4',
+    'Digit4': 'F4',
+    'Digit5': 'G4',
+    'Digit6': 'A4',
+    'Digit7': 'B4',
+    'Digit8': 'C5',
+    'Digit9': 'D5',
+    'Digit0': 'E5',
+    'Minus':  'F5',
+    'Equal':  'G5',
 
-    // --- Col 2 ---
-    'F2':     'D4',
-    'Digit2': 'D#4',
-
-    // --- Col 3 ---
-    'F3':     'E4',
-    'Digit3': 'F4', // E->F is semitone
-
-    // --- Col 4 ---
+    // --- Accidentals (F-Keys) ---
+    'F1':     'C#4',
+    'F2':     'D#4',
+    // F3 is gap
     'F4':     'F#4',
-    'Digit4': 'G4',
-
-    // --- Col 5 ---
     'F5':     'G#4',
-    'Digit5': 'A4',
-
-    // --- Col 6 ---
     'F6':     'A#4',
-    'Digit6': 'B4',
-
-    // --- Col 7 (Next Octave) ---
-    'F7':     'C5',
-    'Digit7': 'C#5',
-
-    // --- Col 8 ---
-    'F8':     'D5',
-    'Digit8': 'D#5',
+    // F7 is gap
+    'F8':     'C#5',
+    'F9':     'D#5',
+    // F10 is gap
+    'F11':    'F#5',
+    'F12':    'G#5',
 };
 
 // 1. Generate Reverse Mapping for Visual Overlay
@@ -48,10 +45,15 @@ const NOTE_TO_KEY = Object.entries(KEY_TO_NOTE).reduce((acc, [keyCode, note]) =>
     return acc;
 }, {} as Record<string, string>);
 
+const NATURALS = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5', 'F5', 'G5'];
+const ACCIDENTALS = ['C#4', 'D#4', 'F#4', 'G#4', 'A#4', 'C#5', 'D#5', 'F#5', 'G#5', 'A#5'];
+
 // 2. Helper to format key codes for display (e.g. 'Digit9' -> '9')
 const formatKeyLabel = (code: string) => {
     if (code.startsWith('Digit')) return code.replace('Digit', '');
     if (code.startsWith('Key')) return code.replace('Key', '');
+    if (code === 'Minus') return '-';
+    if (code === 'Equal') return '=';
     return code;
 };
 
@@ -83,8 +85,8 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
                 </button>
 
                 <div className="text-center mb-8">
-                    <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">FLIPPED MODE</h3>
-                    <p className="text-gray-400 font-mono text-sm">Rotate your physical keyboard 180° to play chromatically.</p>
+                    <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">PIANO MODE</h3>
+                    <p className="text-gray-400 font-mono text-sm">Rotate your physical keyboard 180° for an intuitive piano feel.</p>
                 </div>
 
                 <div className="flex justify-center mb-8">
@@ -100,26 +102,26 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
                         {/* Connection Lines (Abstract) */}
                         <path d="M 60 80 L 340 80" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
 
-                        {/* Digit Row (Middle - Acts as Black Keys) */}
+                        {/* Digit Row (Top Visual - Acts as White Keys) */}
                         <g transform="translate(40, 100)">
                             <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">DIGITS</text>
-                            <text x="-25" y="32" fill="#06b6d4" fontSize="9" fontFamily="monospace" textAnchor="end">(Sharps)</text>
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map((num, i) => (
-                                <g key={num} transform={`translate(${i * 40}, 0)`}>
-                                    <rect width="32" height="32" rx="4" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
-                                    <text x="16" y="20" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="14" fontFamily="monospace">{num}</text>
-                                </g>
-                            ))}
-                        </g>
-
-                        {/* F-Key Row (Bottom - Acts as White Keys) */}
-                        <g transform="translate(40, 150)">
-                            <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">F-KEYS</text>
                             <text x="-25" y="32" fill="#fff" fontSize="9" fontFamily="monospace" textAnchor="end">(Naturals)</text>
                             {[1, 2, 3, 4, 5, 6, 7, 8].map((num, i) => (
                                 <g key={num} transform={`translate(${i * 40}, 0)`}>
                                     <rect width="32" height="32" rx="4" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1" />
-                                    <text x="16" y="20" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="12" fontFamily="monospace">F{num}</text>
+                                    <text x="16" y="20" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="14" fontFamily="monospace">{num}</text>
+                                </g>
+                            ))}
+                        </g>
+
+                        {/* F-Key Row (Bottom Visual - Acts as Black Keys) */}
+                        <g transform="translate(40, 150)">
+                            <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">F-KEYS</text>
+                            <text x="-25" y="32" fill="#06b6d4" fontSize="9" fontFamily="monospace" textAnchor="end">(Accidentals)</text>
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((num, i) => (
+                                <g key={num} transform={`translate(${i * 40}, 0)`}>
+                                    <rect width="32" height="32" rx="4" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
+                                    <text x="16" y="20" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="12" fontFamily="monospace">F{num}</text>
                                 </g>
                             ))}
                         </g>
@@ -145,9 +147,8 @@ interface LiveKeyProps {
     note: string;
     isActive: boolean;
     isHeldByMouse: boolean;
-    x: number;
-    width: number;
-    height: number;
+    className?: string;
+    style?: React.CSSProperties;
     label: string | null;
     noteColor: string;
     activeColor: string; // Used for stroke/highlights
@@ -159,13 +160,14 @@ interface LiveKeyProps {
 }
 
 const LiveKey = memo(({
-    note, isActive, isHeldByMouse, x, width, height, label,
+    note, isActive, isHeldByMouse, className, style, label,
     noteColor, activeColor, baseColor, inactiveTint,
     onMouseDown, onMouseEnter, onStopMouse
 }: LiveKeyProps) => {
     return (
-        <g
-            transform={`translate(${x}, 0)`}
+        <div
+            className={`relative select-none focus:outline-none ${className}`}
+            style={{ ...style, cursor: 'pointer' }}
             role="button"
             aria-label={`Play ${note}`}
             tabIndex={0}
@@ -190,113 +192,121 @@ const LiveKey = memo(({
             onMouseDown={(e) => {
                 if (e.button === 0) {
                     onMouseDown(note);
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    (e.currentTarget as any).focus();
+                    e.currentTarget.focus();
                 }
             }}
             onMouseEnter={(e) => {
                 if (e.buttons === 1) {
                     onMouseEnter(note);
                 } else {
-                    // Check if we need to clear global state (logic delegated to parent via check,
-                    // but here we just call onStopMouse if we aren't pressing anything)
-                    // The parent logic was: else if (heldByMouse) setHeldByMouse(null);
-                    // We can always call onStopMouse() if buttons !== 1 safely if the handler is stable.
                     onStopMouse();
                 }
             }}
             onTouchStart={(e) => { e.preventDefault(); onMouseDown(note); }}
             onTouchEnd={(e) => { e.preventDefault(); onStopMouse(); }}
-            cursor="pointer"
-            className="focus:outline-none"
         >
-            {/* Focus Ring Indicator (only visible when focused) */}
-            <rect
-                x={-2} y={-2} width={width + 4} height={height + 4} rx={6}
-                fill="none"
-                stroke="#a855f7"
-                strokeWidth={2}
-                opacity={0}
-                className="focus-ring"
-                style={{ transition: 'opacity 0.2s' }}
-            />
+            <svg viewBox="0 0 100 60" preserveAspectRatio="none" className="w-full h-full block drop-shadow-sm overflow-visible">
+                <defs>
+                    <linearGradient id={`keyGlass-${note.replace('#', 'S')}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="white" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="white" stopOpacity="0" />
+                    </linearGradient>
+                    <filter id={`keyGlow-${note.replace('#', 'S')}`} x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="2" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                    <style>{`
+                        .focus-ring { opacity: 0; transition: opacity 0.2s; }
+                        div:focus > svg .focus-ring { opacity: 1; }
+                    `}</style>
+                </defs>
 
-            {/* Base / Bevel Shadow */}
-            <rect width={width} height={height} rx={4} fill="#000" />
-
-            {/* Main Body */}
-            <rect
-                x={1} y={1} width={width - 2} height={height - 2} rx={3}
-                fill={isActive ? '#1f2e25' : baseColor}
-            />
-
-            {/* Top Highlight (Bevel) */}
-            <path d={`M 2 2 L ${width - 2} 2 L ${width - 4} 4 L 4 4 Z`} fill="rgba(255,255,255,0.2)" />
-
-            {/* Bottom Shadow (Bevel) */}
-            <path d={`M 2 ${height - 2} L ${width - 2} ${height - 2} L ${width - 4} ${height - 4} L 4 ${height - 4} Z`} fill="rgba(0,0,0,0.6)" />
-
-            {/* Inner Cap */}
-            <rect
-                x={3} y={3} width={width - 6} height={height - 6} rx={2}
-                fill={isActive ? activeColor : inactiveTint}
-                fillOpacity={isActive ? 0.6 : (note.includes('#') ? 1 : 0.12)}
-                stroke={isActive ? activeColor : 'none'}
-                strokeWidth={1}
-            />
-
-            {/* Glassy Shine */}
-            <rect
-                x={4} y={4} width={width - 8} height={(height - 8) / 2} rx={2}
-                fill="url(#keyGlass)"
-                pointerEvents="none"
-            />
-
-            {/* Note Name Label */}
-            <text
-                x={width / 2} y={height - 8}
-                textAnchor="middle"
-                fontSize={10}
-                fontFamily="monospace"
-                fontWeight="bold"
-                fill={isActive ? '#fff' : noteColor}
-                pointerEvents="none"
-            >
-                {note}
-            </text>
-
-            {/* Desktop Key Binding Overlay */}
-            {label && (
-                <g pointerEvents="none">
-                    <rect
-                        x={width / 2 - 9} y={5} width={18} height={14} rx={3}
-                        fill={isActive ? '#fff' : '#000'}
-                        fillOpacity={isActive ? 0.9 : 0.6}
-                        stroke={isActive ? activeColor : '#444'}
-                        strokeWidth={1}
-                    />
-                    <text
-                        x={width / 2} y={15}
-                        textAnchor="middle"
-                        fontSize={9}
-                        fontFamily="Arial, sans-serif"
-                        fontWeight="bold"
-                        fill={isActive ? '#000' : '#ccc'}
-                    >
-                        {label}
-                    </text>
-                </g>
-            )}
-
-            {/* Active LED Glow */}
-            {isActive && (
+                {/* Focus Ring Indicator */}
                 <rect
-                    x={6} y={height - 5} width={width - 12} height={2} rx={1}
-                    fill="#fff"
-                    filter="drop-shadow(0 0 4px #fff)"
+                    x={-2} y={-2} width={104} height={64} rx={6}
+                    fill="none"
+                    stroke="#a855f7"
+                    strokeWidth={2}
+                    className="focus-ring"
                 />
-            )}
-        </g>
+
+                {/* Base / Bevel Shadow */}
+                <rect width={100} height={60} rx={4} fill="#000" />
+
+                {/* Main Body */}
+                <rect
+                    x={1} y={1} width={98} height={58} rx={3}
+                    fill={isActive ? '#1f2e25' : baseColor}
+                />
+
+                {/* Top Highlight (Bevel) */}
+                <path d="M 2 2 L 98 2 L 96 4 L 4 4 Z" fill="rgba(255,255,255,0.2)" />
+
+                {/* Bottom Shadow (Bevel) */}
+                <path d="M 2 58 L 98 58 L 96 56 L 4 56 Z" fill="rgba(0,0,0,0.6)" />
+
+                {/* Inner Cap */}
+                <rect
+                    x={3} y={3} width={94} height={54} rx={2}
+                    fill={isActive ? activeColor : inactiveTint}
+                    fillOpacity={isActive ? 0.6 : (note.includes('#') ? 1 : 0.12)}
+                    stroke={isActive ? activeColor : 'none'}
+                    strokeWidth={1}
+                />
+
+                {/* Glassy Shine */}
+                <rect
+                    x={4} y={4} width={92} height={26} rx={2}
+                    fill={`url(#keyGlass-${note.replace('#', 'S')})`}
+                    pointerEvents="none"
+                />
+
+                {/* Note Name Label */}
+                <text
+                    x={50} y={52}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                    fill={isActive ? '#fff' : noteColor}
+                    pointerEvents="none"
+                >
+                    {note}
+                </text>
+
+                {/* Desktop Key Binding Overlay */}
+                {label && (
+                    <g pointerEvents="none">
+                        <rect
+                            x={41} y={5} width={18} height={14} rx={3}
+                            fill={isActive ? '#fff' : '#000'}
+                            fillOpacity={isActive ? 0.9 : 0.6}
+                            stroke={isActive ? activeColor : '#444'}
+                            strokeWidth={1}
+                        />
+                        <text
+                            x={50} y={15}
+                            textAnchor="middle"
+                            fontSize={9}
+                            fontFamily="Arial, sans-serif"
+                            fontWeight="bold"
+                            fill={isActive ? '#000' : '#ccc'}
+                        >
+                            {label}
+                        </text>
+                    </g>
+                )}
+
+                {/* Active LED Glow */}
+                {isActive && (
+                    <rect
+                        x={6} y={55} width={88} height={2} rx={1}
+                        fill="#fff"
+                        filter="drop-shadow(0 0 4px #fff)"
+                    />
+                )}
+            </svg>
+        </div>
     );
 });
 
@@ -434,12 +444,44 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
         }
     }, []);
 
-    // Width calculations
-    const totalWidth = 920;
-    const gap = 4;
-    const keyWidth = (totalWidth - (11 * gap)) / 12;
-    const keyHeight = 40;
-    const rowGap = 6;
+    const getNoteIndex = (note: string) => {
+        const name = note.slice(0, -1);
+        const octave = parseInt(note.slice(-1));
+        return NOTES.indexOf(name) + (octave - 4) * 12;
+    };
+
+    const renderKey = (fullNote: string, rowIndex: number) => {
+        const isBlack = fullNote.includes('#');
+        const isActive = targetActiveNotes.has(fullNote);
+        const bindKey = NOTE_TO_KEY[fullNote];
+        const label = bindKey ? formatKeyLabel(bindKey) : null;
+        const noteColor = getNoteColor(fullNote);
+        const baseColor = isBlack ? '#080a0c' : '#151a21';
+        const activeColor = isActive ? noteColor : activeTrackColor;
+        const inactiveTint = isBlack ? '#0b1220' : noteColor;
+
+        const colIndex = getNoteIndex(fullNote);
+        const gridColumn = `${colIndex + 1} / span 2`;
+
+        return (
+            <LiveKey
+                key={fullNote}
+                note={fullNote}
+                isActive={isActive}
+                isHeldByMouse={heldByMouse === fullNote}
+                className="h-14"
+                style={{ gridColumn, gridRow: rowIndex }}
+                label={label}
+                noteColor={noteColor}
+                activeColor={activeColor}
+                baseColor={baseColor}
+                inactiveTint={inactiveTint}
+                onMouseDown={handleMouseDownStable}
+                onMouseEnter={handleMouseEnterStable}
+                onStopMouse={handleStopMouseStable}
+            />
+        );
+    };
 
     return (
         <div className="w-full max-w-[920px] mx-auto mt-4 select-none relative">
@@ -457,63 +499,19 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
             {/* Guide Overlay */}
             {showGuide && <KeyboardGuide onClose={() => setShowGuide(false)} />}
 
-            <svg viewBox={`0 0 ${totalWidth} ${keyHeight * 4 + rowGap * 3}`} className="w-full drop-shadow-lg">
-                <defs>
-                    <linearGradient id="keyGlass" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="white" stopOpacity="0.3" />
-                        <stop offset="100%" stopColor="white" stopOpacity="0" />
-                    </linearGradient>
-                    <filter id="keyGlow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="2" result="blur" />
-                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                    </filter>
-                    <style>{`
-                        g:focus > .focus-ring { opacity: 1 !important; }
-                    `}</style>
-                </defs>
+            <div
+                className="grid gap-y-1.5"
+                style={{
+                    gridTemplateColumns: 'repeat(22, minmax(0, 1fr))',
+                    gridTemplateRows: 'repeat(2, 56px)'
+                }}
+            >
+                {/* Row 1: Naturals */}
+                {NATURALS.map(note => renderKey(note, 1))}
 
-                {OCTAVES.map((octave, rowIndex) => (
-                    <g key={octave} transform={`translate(0, ${rowIndex * (keyHeight + rowGap)})`}>
-                        {NOTES.map((noteName, colIndex) => {
-                            const fullNote = `${noteName}${octave}`;
-                            const isBlack = noteName.includes('#');
-                            const isActive = targetActiveNotes.has(fullNote);
-                            
-                            // Check for binding
-                            const bindKey = NOTE_TO_KEY[fullNote];
-                            const label = bindKey ? formatKeyLabel(bindKey) : null;
-
-                            // Visuals
-                            const baseColor = isBlack ? '#080a0c' : '#151a21'; 
-                            const noteColor = getNoteColor(fullNote);
-                            const activeColor = isActive ? noteColor : activeTrackColor;
-                            const inactiveTint = isBlack ? '#0b1220' : noteColor;
-
-                            const x = colIndex * (keyWidth + gap);
-
-                            return (
-                                <LiveKey
-                                    key={fullNote}
-                                    note={fullNote}
-                                    isActive={isActive}
-                                    isHeldByMouse={heldByMouse === fullNote}
-                                    x={x}
-                                    width={keyWidth}
-                                    height={keyHeight}
-                                    label={label}
-                                    noteColor={noteColor}
-                                    activeColor={activeColor}
-                                    baseColor={baseColor}
-                                    inactiveTint={inactiveTint}
-                                    onMouseDown={handleMouseDownStable}
-                                    onMouseEnter={handleMouseEnterStable}
-                                    onStopMouse={handleStopMouseStable}
-                                />
-                            );
-                        })}
-                    </g>
-                ))}
-            </svg>
+                {/* Row 2: Accidentals */}
+                {ACCIDENTALS.map(note => renderKey(note, 2))}
+            </div>
         </div>
     );
 });
