@@ -137,7 +137,7 @@ build_variant() {
     # Build with appropriate parallelism
     echo -e "${YELLOW}Building...${NC}"
     NPROC=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4)
-    emmake make -j${NPROC}
+    emmake make -j55
     
     # Copy built files with variant suffix
     echo -e "${YELLOW}Copying ${VARIANT_NAME} variant to distribution...${NC}"
