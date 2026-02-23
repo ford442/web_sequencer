@@ -448,7 +448,7 @@ export const App: React.FC = () => {
             const stepData = seq.steps[step];
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex };
                 audioEngine.playSampler(samplerRef.current[bankIdx], stepData.note, time, stepData.length, stepTime, noteParams);
             }
         });
@@ -467,7 +467,11 @@ export const App: React.FC = () => {
                      if (s && s.note) {
                          const len = s.length || 1;
                          if (i + len > step) {
-                             activeSlice = noteToMidi(s.note) - 60;
+                             if (s.sliceIndex !== undefined) {
+                                 activeSlice = s.sliceIndex;
+                             } else {
+                                 activeSlice = noteToMidi(s.note) - 60;
+                             }
                              break;
                          }
                      }
@@ -615,7 +619,7 @@ export const App: React.FC = () => {
         });
     }, [activeSamplerBank, automationParam, updateStorageForTrack]);
 
-    const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[] }) => {
+    const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[], sliceIndex?: number }) => {
         // Use Ref to access current state without dependency to avoid re-renders of all rows
         const prev = patternRef.current;
         const copy = { ...prev };
@@ -633,6 +637,7 @@ export const App: React.FC = () => {
                     if (updates.length !== undefined) newStep.length = updates.length;
                     if (updates.slide !== undefined) newStep.slide = updates.slide;
                     if (updates.chord !== undefined) newStep.chord = updates.chord;
+                    if (updates.sliceIndex !== undefined) newStep.sliceIndex = updates.sliceIndex;
                     steps[i] = newStep;
                     if (updates.length !== undefined) { for (let k = 1; k < updates.length; k++) { const nextStepIdx = i + k; if (nextStepIdx < steps.length) { steps[nextStepIdx] = null; } } }
                 }
@@ -983,8 +988,7 @@ export const App: React.FC = () => {
                          bank.steps[i] = { note: 'C4', velocity: 1, length: 1 };
                     }
                     if (bank.steps[i]) {
-                         const midi = 60 + noteIndex;
-                         bank.steps[i]!.note = midiToNote(midi);
+                         bank.steps[i]!.sliceIndex = noteIndex;
                          noteIndex++;
                     }
                 }

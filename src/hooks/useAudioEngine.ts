@@ -425,7 +425,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 return vocalAlignmentsRef.current.get(bankName) || null;
             };
 
-            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean }) => {
+            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number }) => {
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 if (!buffer || !masterGainRef.current) return;
 
@@ -462,13 +462,27 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                         if (params.sliceMode === 'phoneme') {
                             const alignment = vocalAlignmentsRef.current.get(params.sampleName);
                             if (alignment) {
-                                const targetMidi = noteToMidi(note);
-                                // Map MIDI C3 (60) to slice 0
-                                const sliceIndex = targetMidi - 60;
+                                let sliceIndex = -1;
+                                let pitchRatio = 1.0;
+
+                                if (noteParams?.sliceIndex !== undefined) {
+                                    // MELODIC MODE: Slice is explicit, Pitch is melodic
+                                    sliceIndex = noteParams.sliceIndex;
+                                    const targetMidi = noteToMidi(note);
+                                    const baseMidi = 60; // C4 assumption
+                                    // Calculate ratio based on note difference + offset
+                                    pitchRatio = Math.pow(2, (targetMidi - baseMidi + pitchOffset) / 12);
+                                } else {
+                                    // CLASSIC MODE: Pitch selects slice
+                                    const targetMidi = noteToMidi(note);
+                                    // Map MIDI C3 (60) to slice 0
+                                    sliceIndex = targetMidi - 60;
+                                    // Pitch is just detune
+                                    pitchRatio = Math.pow(2, pitchOffset / 12);
+                                }
 
                                 if (sliceIndex >= 0) {
-                                    const ratio = Math.pow(2, pitchOffset / 12);
-                                    voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment, ratio);
+                                    voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment, pitchRatio);
                                     return;
                                 }
                             }
