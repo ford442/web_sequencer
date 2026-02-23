@@ -13,7 +13,7 @@
 - [x] **Refactor SingingVoice State:** Expose alignment state setters in `SingingVoice` to avoid type casting hacks and improve multi-bank alignment handling.
 - [x] **TTS Slice Triggering:** Implement a logic where a MIDI Note NoteOn event can trigger a specific *slice* or *word* from the TTS buffer (e.g., Note C3 = "Hello", Note D3 = "World").
 - [x] **Hybrid Polyphony:** Finalize `VoiceManager` to handle 8-voice polyphony for `synth-1` while keeping `synth-2` strictly monophonic (legato priority).
-- [x] **Phoneme Elasticity:** Connect `rubberband.wasm` to the sequencer steps. If a note is dragged longer, the specific phoneme should time-stretch to match the duration without altering pitch. (DSP Logic Implemented)
+- [x] **Phoneme Elasticity:** Connect `rubberband.wasm` to the sequencer steps. If a note is dragged longer, the specific phoneme should time-stretch to match the duration without altering pitch.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
 - [x] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
@@ -21,17 +21,13 @@
 - [x] **Rubber-Band Selection:** Implement multi-note selection via mouse drag in `Sequencer.tsx` (and `App.tsx` main view).
 - [x] **Clipboard Operations:** Standardize `Ctrl+C` / `Ctrl+V` logic to handle both Note Data *and* associated TTS Metadata (which word is attached to the note).
 - [x] **Per-Step Parameters:** Create a UI to edit "Expression" or "Timbre" for individual sequencer steps (vital for humanizing TTS output).
-- [x] **Unify Sequencer Components:** Refactor `App.tsx` to use the standalone `Sequencer` component or move `App.tsx` logic into a reusable view to reduce duplication.
-- [x] **Cleanup Legacy Code:** Identify and remove unused components like `src/components/Sequencer.tsx` to streamline maintenance.
-- [x] **Refactor NoteSelector Focus Management:** Address fragility in `NoteSelector` focus trapping and test coverage to ensure robust accessibility with dynamic content.
+- [ ] **Unify Sequencer Components:** Refactor `App.tsx` to use the standalone `Sequencer` component or move `App.tsx` logic into a reusable view to reduce duplication.
+- [ ] **Cleanup Legacy Code:** Identify and remove unused components like `src/components/Sequencer.tsx` to streamline maintenance.
+- [ ] **Refactor NoteSelector Focus Management:** Address fragility in `NoteSelector` focus trapping and test coverage to ensure robust accessibility with dynamic content.
 
 ### Domain C: Accessibility & Mobile
 - [x] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
 - [ ] **A11y Colors:** Verify high-contrast separation between `synth-1` (Chords) and `synth-2` (Lead) notes.
-- [ ] **Mobile Zoom/Pan:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
-
-### Domain D: Generative Tools
-- [ ] **Melodic Euclidean Rhythms:** Generate rhythms based on Euclidean algorithms but map them to a scale.
 
 ---
 
@@ -43,7 +39,6 @@
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect.
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * **Idea:** "Formant Automation" - Draw curves for formant shift over time (not just per step) for continuous vowel morphing.
-* **Idea:** "Phoneme Visualization" - Render phoneme labels directly on the sequencer timeline notes.
 
 ---
 
@@ -58,4 +53,3 @@
 * [2026-05-26] - Implemented Visual Slice Feedback in SamplerPanel using canvas-based WaveformDisplay and imperative playback highlighting.
 * [2026-05-27] - Implemented Clipboard Operations (Ctrl+C/V) and Drag-to-Edit (Painting) in the main sequencer view (`App.tsx`).
 * [2026-05-28] - Implemented Per-Step Parameters (Timbre, Probability, Microtiming) in Audio Engine and NoteSelector UI.
-* [2026-05-29] - Implemented DSP logic for Phoneme Elasticity in `RubberBandProcessor.ts`, enabling real-time phoneme-aware time stretching.
