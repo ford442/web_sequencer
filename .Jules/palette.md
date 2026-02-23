@@ -53,3 +53,7 @@
 ## 2025-05-26 - Keyboard Value Control in Sequencer Grids
 **Learning:** Grid-based sequencer inputs often rely on mouse drag for value selection, leaving keyboard users with only binary (toggle) control via Enter/Space. This excludes them from precise musical expression (e.g., selecting specific patterns).
 **Action:** Implement `ArrowUp`/`ArrowDown` handlers on grid cells to increment/decrement values, and `Delete`/`Backspace` to clear them, ensuring functional parity with mouse interactions.
+
+## 2025-05-27 - SVG Slider Interaction
+**Learning:** Custom SVG elements with `role="slider"` and `tabIndex="0"` are focusable but do not automatically handle keyboard interactions like native inputs. Developers must manually implement `onKeyDown` handlers for Arrow keys, Home, and End to ensure accessibility.
+**Action:** Always implement a `handleKeyDown` function for custom SVG sliders that supports standard ARIA slider keys (ArrowUp/Down, PageUp/Down, Home, End).
