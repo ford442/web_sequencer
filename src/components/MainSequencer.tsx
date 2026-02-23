@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { GridIndicators } from './GridIndicators';
+import { MelodicSequencerRow, type MelodicSequencerRowHandle } from './MelodicSequencerRow';
 import type { Pattern, PartSequence, TrackKey } from '../types';
 
 // --- PERFORMANCE STYLES ---
@@ -411,6 +412,9 @@ export interface MainSequencerProps {
     onSelectionStart: (rowKey: TrackKey, index: number) => void;
     onSelectionEnter: (rowKey: TrackKey, index: number) => void;
     onDrawEnter: (rowKey: TrackKey, index: number) => void;
+    // Phase 2: Melodic Lyric Mode
+    melodicMode?: boolean; // Enable pitch-per-step visualization for sampler
+    onPitchChange?: (trackKey: TrackKey, step: number, pitch: number) => void;
     // Automation
     viewMode?: 'notes' | 'automation';
     automationParam?: string;
@@ -421,13 +425,15 @@ export interface MainSequencerProps {
 
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
     const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
-        viewMode = 'notes', automationParam, onAutomationChange } = props;
+        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange } = props;
 
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
+    const melodicRowRef = useRef<MelodicSequencerRowHandle | null>(null);
 
     useImperativeHandle(ref, () => ({
         setHighlight: (step: number) => {
             rowRefs.current.forEach(r => r?.setHighlight(step));
+            melodicRowRef.current?.setHighlight(step);
         }
     }));
 
@@ -441,26 +447,52 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
             <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
             <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
 
-            <svg viewBox="0 0 1050 420" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" onContextMenu={(e) => e.preventDefault()}>
+            <svg viewBox="0 0 1050 500" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" onContextMenu={(e) => e.preventDefault()}>
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
                 <g transform="translate(100, 40)">
-                    {ROWS.map((row, rIdx) => (
-                        <SequencerRow
-                            key={row.key} ref={(el) => { rowRefs.current[rIdx] = el; }} rowKey={row.key} label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label} rowIndex={rIdx}
-                            steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
-                            // Pass Automation Data
-                            automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
+                    {ROWS.map((row, rIdx) => {
+                        // Use MelodicSequencerRow for sampler when in melodic mode
+                        const isSamplerMelodic = row.key === 'sampler' && melodicMode;
+                        
+                        if (isSamplerMelodic) {
+                            return (
+                                <MelodicSequencerRow
+                                    key={row.key}
+                                    ref={melodicRowRef}
+                                    rowKey={row.key}
+                                    label={`SMP ${activeSamplerBank + 1}`}
+                                    rowIndex={rIdx}
+                                    steps={pattern.sampler[activeSamplerBank].steps}
+                                    isSelected={selectedTrack === row.key}
+                                    activeSlot={activeTrackSlots[row.key]}
+                                    trackSlots={trackStorage[row.key]}
+                                    onToggle={onToggle}
+                                    onPitchChange={onPitchChange || (() => {})}
+                                    onEditLength={onEditLength}
+                                    onSelectRow={onSelectRow}
+                                    onSelectSlot={onSelectSlot}
+                                />
+                            );
+                        }
+                        
+                        return (
+                            <SequencerRow
+                                key={row.key} ref={(el) => { rowRefs.current[rIdx] = el; }} rowKey={row.key} label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label} rowIndex={rIdx}
+                                steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
+                                // Pass Automation Data
+                                automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
 
-                            isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
-                            onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectRow={onSelectRow} onSelectSlot={onSelectSlot}
-                            onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter}
-                            selectionRange={selection && selection.trackKey === row.key ? { start: selection.startStep, end: selection.endStep } : null}
-                            onDrawEnter={onDrawEnter} isDrawing={isDrawing}
-                            viewMode={viewMode}
-                            automationParam={automationParam}
-                            onAutomationChange={onAutomationChange}
-                        />
-                    ))}
+                                isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
+                                onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectRow={onSelectRow} onSelectSlot={onSelectSlot}
+                                onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter}
+                                selectionRange={selection && selection.trackKey === row.key ? { start: selection.startStep, end: selection.endStep } : null}
+                                onDrawEnter={onDrawEnter} isDrawing={isDrawing}
+                                viewMode={viewMode}
+                                automationParam={automationParam}
+                                onAutomationChange={onAutomationChange}
+                            />
+                        );
+                    })}
                 </g>
             </svg>
             {children}

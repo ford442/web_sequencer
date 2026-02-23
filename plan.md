@@ -175,8 +175,8 @@ flowchart TB
 - [x] Real-time parameter modulation
 - [🚧] Vocal Workstation Features ([VOCAL_WORKSTATION_PLAN.md](./VOCAL_WORKSTATION_PLAN.md))
   - [x] Phase 1: Main Pitch Section + RubberBand Controls
-  - [ ] Phase 2: Per-Step Overrides + Visual Stretch
-  - [ ] Phase 3: Live Phoneme Painter
+  - [x] Phase 2: Per-Step Overrides + Visual Stretch
+  - [x] Phase 3: Live Phoneme Painter
   - [ ] Phase 4: Instant Harmonizer Layers
   - [ ] Phase 5: Phoneme Elasticity per Step
 

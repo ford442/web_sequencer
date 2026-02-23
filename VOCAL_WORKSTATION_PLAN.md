@@ -50,35 +50,64 @@ This plan builds on the existing [RUBBERBAND_ENHANCEMENT_PLAN.md](./RUBBERBAND_E
 
 ---
 
-### Phase 2: Per-Step Overrides + Visual Stretch (Melodic Lyric Mode) 📋 PLANNED
+### Phase 2: Per-Step Overrides + Visual Stretch (Melodic Lyric Mode) ✅ COMPLETE
 **Goal**: Visual step height based on pitch + drag-to-set pitch in sequencer
 
-**Components**:
-- Updates to `MainSequencer.tsx` - Visual pitch indicators
-- New `MelodicStepRenderer.tsx` - Step rendering for melodic mode
-- Drag handlers for pitch adjustment
+**Components Created**:
+| File | Purpose |
+|------|---------|
+| `src/components/MelodicStep.tsx` | Individual step with pitch-based height |
+| `src/components/MelodicSequencerRow.tsx` | Sequencer row using melodic steps |
 
-**Features**:
-- Step height = pitch (taller = higher note)
-- Color-coded by note (C=red → B=rose)
-- Drag up/down to change pitch
-- Per-step pitch stored in pattern data
+**Files Modified**:
+- `src/types.ts` - Added `pitch`, `pitchOffset`, `phonemeIndex` to Note interface
+- `src/components/MainSequencer.tsx` - Added `melodicMode` prop, renders MelodicSequencerRow for sampler
+- `src/components/SamplerPanel.tsx` - Added melodic mode toggle UI
+
+**Features Implemented**:
+- ✅ Step height = pitch (taller = higher note, 40-220px range)
+- ✅ Color-coded by note (C=red, D=orange, E=yellow, F=green, G=cyan, A=blue, B=purple)
+- ✅ Drag up/down to change pitch (8px per semitone)
+- ✅ Keyboard controls (↑/↓ = 1 semitone, PgUp/PgDn = 1 octave)
+- ✅ Per-step pitch stored in pattern data (`note.pitch`)
+- ✅ Phoneme index display on steps
+- ✅ Melodic mode toggle in SamplerPanel
+- ✅ Visual legend showing note colors
+
+**Usage**:
+1. Enable "Melodic Lyric Mode" in SamplerPanel
+2. Click a step to activate it
+3. Drag up/down to change pitch
+4. Step height visually represents the note pitch
 
 ---
 
-### Phase 3: Live Phoneme Painter 📋 PLANNED
+### Phase 3: Live Phoneme Painter ✅ COMPLETE
 **Goal**: Visual phoneme editing with draggable pills
 
-**Components**:
-- `PhonemePainter.tsx` - Popover for phoneme editing
-- Updates to `PhonemeAligner.ts` - Complete the stub implementation
-- Integration with existing `WaveformDisplay.tsx`
+**Components Created**:
+| File | Purpose |
+|------|---------|
+| `src/components/PhonemePainter.tsx` | Main phoneme editing interface |
+| `PhonemePill` (internal) | Draggable phoneme representation |
 
-**Features**:
-- Draggable phoneme pills
-- Per-phoneme pitch bend
-- Time adjustment handles
-- Visual alignment with waveform
+**Features Implemented**:
+- ✅ Waveform visualization with zoom (50%-500%)
+- ✅ Draggable phoneme pills with color coding by type
+- ✅ Per-phoneme pitch bend control (-100¢ to +100¢)
+- ✅ Phoneme elasticity/stretch control (50%-150%)
+- ✅ Timeline ruler with second markers
+- ✅ Click to select phoneme
+- ✅ Visual legend (Vowel=purple, Plosive=red, Fricative=green, etc.)
+- ✅ IPA-style phoneme display (e.g., "æ" for AE)
+- ✅ Phoneme category coloring
+
+**ARPABET Support**:
+All standard ARPABET phonemes mapped to readable symbols:
+- Vowels: AA, AE, AH, AO, AW, AY, EH, ER, EY, IH, IY, OW, OY, UH, UW
+- Consonants: P, B, T, D, K, G, CH, JH, F, V, TH, DH, S, Z, SH, ZH, HH
+- Nasals: M, N, NG
+- Liquids: L, R, W, Y
 
 ---
 
@@ -118,8 +147,8 @@ This plan builds on the existing [RUBBERBAND_ENHANCEMENT_PLAN.md](./RUBBERBAND_E
 | Phase | Status | Date |
 |-------|--------|------|
 | Phase 1 | ✅ COMPLETE | 2026-02-23 |
-| Phase 2 | 📋 PLANNED | - |
-| Phase 3 | 📋 PLANNED | - |
+| Phase 2 | ✅ COMPLETE | 2026-02-23 |
+| Phase 3 | ✅ COMPLETE | 2026-02-23 |
 | Phase 4 | 📋 PLANNED | - |
 | Phase 5 | 📋 PLANNED | - |
 
