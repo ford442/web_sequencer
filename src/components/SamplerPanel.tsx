@@ -3,6 +3,7 @@ import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
+import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
 
 interface SamplerPanelProps {
     params: SamplerParams; // Expecting Array[8]
@@ -122,7 +123,17 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         formantShift: 0,
         vibratoDepth: 0,
         breathIntensity: 0,
-        choir: 0
+        choir: 0,
+        // Phase 1: Vocal Workstation defaults
+        rootNote: 60,
+        coarse: 0,
+        fine: 0,
+        formant: 0,
+        pitchAttack: 0,
+        pitchDecay: 0,
+        rbQuality: 'Standard' as 'Fast' | 'Standard' | 'Elastic',
+        stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
+        autoFollow: false
     };
 
     // Update single param for active bank
@@ -186,6 +197,57 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         if (onParamChange) onParamChange(activeBankIdx, 'choir', v);
         else updateParamRef.current('choir', v);
     }, [activeBankIdx, onParamChange]);
+
+    // Phase 1: Vocal Workstation - Pitch Control Handlers
+    const handlePitchControlChange = useCallback((key: keyof PitchControlValues, value: number | string | boolean) => {
+        if (onParamChange) {
+            onParamChange(activeBankIdx, key, value);
+        } else {
+            const newParams = [...params];
+            newParams[activeBankIdx] = { ...currentParams, [key]: value };
+            onChange(newParams);
+        }
+        
+        // Apply to audio engine immediately for real-time feedback
+        if (audioEngine?.singingVoice) {
+            const voice = audioEngine.singingVoice;
+            switch (key) {
+                case 'coarse':
+                case 'fine': {
+                    // Calculate combined pitch scale
+                    const coarse = key === 'coarse' ? (value as number) : (currentParams.coarse ?? 0);
+                    const fine = key === 'fine' ? (value as number) : (currentParams.fine ?? 0);
+                    const scale = Math.pow(2, (coarse + fine / 1200) / 12);
+                    voice.setPitch(scale);
+                    break;
+                }
+                case 'formant':
+                    voice.setFormantShift(value as number);
+                    break;
+                case 'rbQuality': {
+                    // Map quality to RubberBand options
+                    const qualityMap = {
+                        'Fast': 1 | 16,      // RealTime | Faster
+                        'Standard': 1 | 32,   // RealTime | Finer
+                        'Elastic': 1 | 32 | 1048576 // RealTime | Finer | FormantPreserved
+                    };
+                    // Note: Actual quality change requires worklet reinit or message
+                    voice.getSourceNode()?.port?.postMessage?.({
+                        type: 'setQuality',
+                        options: qualityMap[value as keyof typeof qualityMap]
+                    });
+                    break;
+                }
+                case 'autoFollow':
+                    // Enable/disable auto pitch following
+                    voice.getSourceNode()?.port?.postMessage?.({
+                        type: 'setAutoFollow',
+                        enabled: value as boolean
+                    });
+                    break;
+            }
+        }
+    }, [activeBankIdx, onParamChange, currentParams, audioEngine, params, onChange]);
 
     // Handle mode change
     const handleModeChange = (mode: 'loop' | 'stretch' | 'wavetable') => {
@@ -664,7 +726,24 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     )}
                 </div>
 
-                {/* 4. Controls Wrapper - Use flex-wrap to prevent cut-off */}
+                {/* 4. Vocal Workstation - Pitch Controls (Phase 1) */}
+                <SamplerPitchControls
+                    bankId={activeBankIdx}
+                    values={{
+                        rootNote: currentParams.rootNote ?? 60,
+                        coarse: currentParams.coarse ?? 0,
+                        fine: currentParams.fine ?? 0,
+                        formant: currentParams.formant ?? 0,
+                        pitchAttack: currentParams.pitchAttack ?? 0,
+                        pitchDecay: currentParams.pitchDecay ?? 0,
+                        rbQuality: currentParams.rbQuality ?? 'Standard',
+                        stretchMode: currentParams.stretchMode ?? 'Pitch',
+                        autoFollow: currentParams.autoFollow ?? false,
+                    }}
+                    onChange={handlePitchControlChange}
+                />
+
+                {/* 5. Controls Wrapper - Use flex-wrap to prevent cut-off */}
                 <div className="flex flex-wrap gap-4 mt-1 pb-4">
                     {/* Basic Params Group */}
                     <div className="flex-1 min-w-[140px] bg-gray-800/30 p-2 rounded">

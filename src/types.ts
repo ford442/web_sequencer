@@ -70,6 +70,17 @@ export interface SamplerBankParams {
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
   choir?: number;          // Choir effect amount (0-1) - Detuned side voices
   glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
+  
+  // Phase 1: Vocal Workstation - Pitch Controls
+  rootNote?: number;           // Root MIDI note for pitch tracking (default: 60 = C4)
+  coarse?: number;             // Coarse pitch adjustment (-24 to +24 semitones)
+  fine?: number;               // Fine pitch adjustment (-50 to +50 cents)
+  formant?: number;            // Formant shift (-12 to +12 semitones)
+  pitchAttack?: number;        // Pitch envelope attack (0-2000ms)
+  pitchDecay?: number;         // Pitch envelope decay (0-2000ms)
+  rbQuality?: 'Fast' | 'Standard' | 'Elastic';  // RubberBand quality mode
+  stretchMode?: 'Time' | 'Pitch' | 'Formant';   // Stretch processing mode
+  autoFollow?: boolean;        // Lock pitch to sequencer notes
 }
 
 // SamplerParams is now an array of banks

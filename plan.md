@@ -171,8 +171,14 @@ flowchart TB
 ### Phase 3: Advanced DSP (Active Development)
 - [x] Rubber Band compilation to WASM ([RUBBERBAND_ANALYSIS.md](./RUBBERBAND_ANALYSIS.md))
 - [x] Pyodide integration for Python effects
-- [ ] Complete Rubber Band + Sampler pipeline
-- [ ] Real-time parameter modulation
+- [x] Complete Rubber Band + Sampler pipeline
+- [x] Real-time parameter modulation
+- [🚧] Vocal Workstation Features ([VOCAL_WORKSTATION_PLAN.md](./VOCAL_WORKSTATION_PLAN.md))
+  - [x] Phase 1: Main Pitch Section + RubberBand Controls
+  - [ ] Phase 2: Per-Step Overrides + Visual Stretch
+  - [ ] Phase 3: Live Phoneme Painter
+  - [ ] Phase 4: Instant Harmonizer Layers
+  - [ ] Phase 5: Phoneme Elasticity per Step
 
 ### Phase 4: UI Polish & Performance
 - [x] Holographic knobs implementation ([HOLOGRAPHIC_KNOBS.md](./HOLOGRAPHIC_KNOBS.md))

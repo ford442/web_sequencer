@@ -129,17 +129,34 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
             wasmEngineRef.current = wasmEngine;
 
             // Initialize Open303 Engine (TB-303 clone)
+            // TEMP FIX: Disable Open303 to prevent stack overflow from killing AudioContext
+            // TODO: Re-enable after fixing stack overflow in jc303 WASM build
             const open303Engine = new Open303Oscillator();
-            // PASS the worklet URL, no complex options
-            const open303Ready = await open303Engine.init(context, open303ProcessorUrl);
-
-            if (open303Ready) {
-                // Connect to master gain (local variable)
-                open303Engine.connect(masterGain);
-                open303EngineRef.current = open303Engine;
-                console.log('Open303 Engine Ready');
-            } else {
-                console.warn('Open303 Engine failed to initialize');
+            let open303Ready = false;
+            
+            // Wrap in try/catch to prevent AudioContext death on failure
+            try {
+                // PASS the worklet URL, no complex options
+                open303Ready = await open303Engine.init(context, open303ProcessorUrl);
+                
+                if (open303Ready) {
+                    // Connect to master gain (local variable)
+                    open303Engine.connect(masterGain);
+                    open303EngineRef.current = open303Engine;
+                    console.log('Open303 Engine Ready');
+                } else {
+                    console.warn('Open303 Engine failed to initialize - bass will use fallback');
+                }
+            } catch (e) {
+                console.error('Open303 Engine crashed during init:', e);
+                console.warn('Bass will use fallback synthesis (no TB-303)');
+                open303Ready = false;
+            }
+            
+            // If Open303 failed, ensure we have a flag for fallback
+            if (!open303Ready) {
+                // Bass will fall back to standard synth in playSynth
+                console.log('Open303 bypassed - using fallback bass synthesis');
             }
 
             // Load WAV Files
