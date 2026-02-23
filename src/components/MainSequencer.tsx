@@ -44,7 +44,7 @@ const getPatternColor = (slotIndex: number): string => {
 
 // --- COMPONENTS ---
 
-const AutomationStep = memo(({
+export const AutomationStep = memo(({
     stepIndex, value, rowKey, rowLabel, onChange, refsArray
 }: {
     stepIndex: number, value: number, rowKey: TrackKey, rowLabel: string,
@@ -60,6 +60,39 @@ const AutomationStep = memo(({
     // Calculate bar height based on value (0-1)
     const barHeight = Math.max(2, value * height);
     const y = height - barHeight;
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        let newValue = value;
+        let handled = false;
+        const smallStep = 0.05;
+        const largeStep = 0.2;
+
+        if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+            newValue = Math.min(1, value + smallStep);
+            handled = true;
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+            newValue = Math.max(0, value - smallStep);
+            handled = true;
+        } else if (e.key === 'PageUp') {
+            newValue = Math.min(1, value + largeStep);
+            handled = true;
+        } else if (e.key === 'PageDown') {
+            newValue = Math.max(0, value - largeStep);
+            handled = true;
+        } else if (e.key === 'Home') {
+            newValue = 0;
+            handled = true;
+        } else if (e.key === 'End') {
+            newValue = 1;
+            handled = true;
+        }
+
+        if (handled) {
+            e.preventDefault();
+            e.stopPropagation();
+            onChange(rowKey, stepIndex, newValue);
+        }
+    };
 
     const handlePointerDown = (e: React.PointerEvent) => {
         e.preventDefault();
@@ -103,9 +136,11 @@ const AutomationStep = memo(({
             role="slider"
             aria-label={`${rowLabel} automation step ${stepIndex + 1}`}
             aria-valuenow={Math.round(value * 100)}
+            aria-valuetext={`${Math.round(value * 100)}%`}
             tabIndex={0}
             cursor="ns-resize"
             onPointerDown={handlePointerDown}
+            onKeyDown={handleKeyDown}
         >
             {/* Background container for click area */}
             <rect x={0} y={0} width={baseWidth} height={height} rx={2} fill="#111" fillOpacity={0.8} />
