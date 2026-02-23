@@ -22,6 +22,24 @@ Changes made:
 - ✅ AudioContext survives even if Open303 crashes
 - ✅ Graceful fallback message logged
 
+### 3. AudioWorklet Recovery (`src/audio-worklets/open303-processor.ts`)
+
+Changes made:
+- ✅ Progressive buffer size reduction on init failure (128→64→32→16)
+- ✅ Stack overflow handlers return instead of crash
+- ✅ Non-throwing error reporting to main thread
+- ✅ Graceful degradation without killing AudioContext
+
+### 4. Fallback Synthesizer (`src/engines/FallbackBassSynth.ts`)
+
+New file created:
+- Web Audio API-based TB-303-style synth
+- Saw/square waveforms
+- Resonant lowpass filter with envelope
+- Slide/portamento support
+- Activated automatically when WASM fails
+- Seamless integration with existing UI
+
 ---
 
 ## Permanent Fix (Requires WASM Rebuild) ✅

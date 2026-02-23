@@ -104,6 +104,11 @@ export interface Note {
   microtiming?: number; // -0.5 to 0.5 steps, rhythmic offset
   reverse?: boolean; // Play sample in reverse (Sampler only)
   sliceIndex?: number; // Specific phoneme/slice index to trigger (Sampler only)
+  
+  // Phase 2: Melodic Lyric Mode - Per-step pitch control
+  pitch?: number; // MIDI note number for sampler melodic mode (default: 60 = C4)
+  pitchOffset?: number; // Fine pitch offset in cents (-100 to +100)
+  phonemeIndex?: number; // Which phoneme to trigger (for TTS lyrics)
 }
 
 export interface PartSequence {
