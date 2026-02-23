@@ -2,55 +2,60 @@
 
 ## Project Overview
 
-**Hyphon** (also referred to as `web_sequencer`) is a browser-based Digital Audio Workstation (DAW) inspired by the Korg Electribe EA-1/ER-1. It features a 32-step sequencer with dual synthesizers, drum machine, sampler with TTS voice synthesis, and a hardware-style interface.
+**Hyphon** is a browser-based Digital Audio Workstation (DAW) inspired by the Korg Electribe EA-1/ER-1. It features a 32-step sequencer with dual synthesizers, drum machine, sampler with TTS voice synthesis, and a hardware-style interface.
 
 ### Key Features
-- Dual synthesizers (Lead & Bass) with ADSR, filters, and multiple waveform engines
-- Drum machine (Kick, Snare, Open/Closed Hi-Hats)
-- Sampler with 8 independent banks and Supertonic TTS integration
-- Real-time voice designer with GPU-accelerated DSP
-- Song mode for pattern arrangement
-- 3D studio visualization (React Three Fiber)
-- Cloud storage for songs, patterns, and samples
-- XM module export
+- **Dual synthesizers** (Lead & Bass) with ADSR, filters, and multiple waveform engines
+- **Drum machine** (Kick, Snare, Open/Closed Hi-Hats)
+- **Sampler with 8 independent banks** and Supertonic TTS integration
+- **Real-time voice designer** with GPU-accelerated DSP
+- **Song mode** for pattern arrangement
+- **3D studio visualization** (React Three Fiber)
+- **Cloud storage** for songs, patterns, and samples
+- **XM module export**
+
+---
 
 ## Technology Stack
 
 ### Frontend
-- **Framework**: React 19.x with TypeScript 5.9+
-- **Build Tool**: Vite 5.x with ESNext modules
-- **Styling**: Tailwind CSS 3.4
-- **3D Graphics**: React Three Fiber (@react-three/fiber, @react-three/drei)
-- **Fonts**: Orbitron (headers), Roboto Mono (UI)
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| React | 19.x | UI Framework |
+| TypeScript | 5.9+ | Language |
+| Vite | 5.x | Build Tool |
+| Tailwind CSS | 3.4 | Styling |
+| React Three Fiber | 9.x | 3D Graphics |
+| Three.js | 0.182.x | 3D Engine |
+| ONNX Runtime Web | 1.23.x | TTS Inference |
 
 ### Audio Architecture (Multi-Engine)
-| Engine | Language | Compilation | Output | Purpose |
-|--------|----------|-------------|--------|---------|
-| AssemblyScript | TypeScript-like | `asc` | `src/wasm/*.wasm` | Oscillators, Track Freezer |
-| Rust Audio | Rust | `wasm-pack` | `public/rust-wasm/` | High-precision synthesis |
-| Emscripten | C++ | `emscripten/build.sh` | `public/hyphon_native.js` | Rubberband pitch shifting |
-| JC-303 | C++ | `tools/build_jc303_omp.sh` | `public/jc303.*` | TB-303 clone synthesizer |
-| WebGPU | WGSL/TypeScript | Runtime | N/A | Massive oscillator compute |
-| Web Audio | TypeScript | Native | N/A | Primary audio graph |
+| Engine | Language | Build Output | Purpose |
+|--------|----------|--------------|---------|
+| AssemblyScript | TypeScript-like | `src/wasm/*.wasm` | Oscillators, Track Freezer |
+| Rust/WASM | Rust | `public/rust-wasm/` | High-precision synthesis |
+| Emscripten | C++ | `public/hyphon_native.js` | Rubberband pitch shifting |
+| JC-303 | C++ | `public/jc303.*` | TB-303 clone synthesizer |
+| WebGPU | WGSL/TypeScript | Runtime | Massive oscillator compute |
+| Web Audio | TypeScript | Native | Primary audio graph |
 
 ### Backend & Services
-- **Cloud API**: Python FastAPI (app.py) with async SFTP storage
-- **TTS Engine**: Python/Pyodide with ONNX Runtime Web
-- **Voice Designer**: PyQt5 desktop tool (Supertonic-Voice-Mixer/)
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Cloud API | Python FastAPI | Async SFTP storage |
+| TTS Engine | Python/Pyodide | ONNX Runtime Web |
+| Voice Designer | PyQt5 | Desktop tool (`Supertonic-Voice-Mixer/`) |
 
-### Testing
-- **Framework**: Vitest 2.x with happy-dom environment
-- **Utilities**: React Testing Library, @testing-library/jest-dom
-- **Location**: `src/__tests__/` and `src/components/__tests__/`
+---
 
 ## Directory Structure
 
 ```
 /
 ├── src/                          # Main React application
-│   ├── components/               # UI components (Knobs, Sequencer, etc.)
-│   │   ├── HardwareModule.tsx    # Main synth interface
-│   │   ├── Sequencer.tsx         # 32-step sequencer grid
+│   ├── components/               # UI components
+│   │   ├── HardwareModule.tsx    # Main synth interface with knobs
+│   │   ├── MainSequencer.tsx     # 32-step sequencer grid
 │   │   ├── SamplerPanel.tsx      # Sampler with TTS controls
 │   │   ├── VoiceEditor.tsx       # Real-time voice parameter editor
 │   │   ├── Studio3D.tsx          # 3D visualization (lazy loaded)
@@ -65,8 +70,7 @@
 │   ├── hooks/                    # React hooks
 │   │   ├── useAudioEngine.ts     # Central audio initialization
 │   │   ├── usePyodideEngine.ts   # Python/TTS engine
-│   │   ├── useScheduler.ts       # Transport/sequencer logic
-│   │   └── ...
+│   │   └── useScheduler.ts       # Transport/sequencer logic
 │   ├── services/                 # External service integrations
 │   │   ├── CloudStorage.ts       # FastAPI cloud client
 │   │   ├── Supertonic.ts         # TTS model loader
@@ -74,12 +78,11 @@
 │   ├── utils/                    # Utility functions
 │   │   ├── audioExport.ts        # WAV export functionality
 │   │   ├── xmExport.ts           # XM module export
-│   │   ├── musicTheory.ts        # Note/MIDI conversions
 │   │   └── xm_save_lib/          # XM file format library
 │   ├── audio-worklets/           # AudioWorklet processors
-│   │   ├── sustain-processor.ts  # Sample sustain/loop modes with Rubber Band pitch shifting
+│   │   ├── sustain-processor.ts  # Sample sustain/loop modes
 │   │   ├── open303-processor.ts  # TB-303 audio worklet
-│   │   └── rubberband-processor.ts # Rubber Band pitch shifting processor
+│   │   └── rubberband-processor.ts
 │   ├── workers/                  # Web Workers
 │   │   └── renderer.worker.ts    # Offline audio rendering
 │   ├── types.ts                  # TypeScript type definitions
@@ -94,22 +97,21 @@
 │   ├── build.sh                  # Main build script
 │   ├── rubberband_wrapper.cpp    # Rubberband interface
 │   ├── main.cpp                  # Emscripten entry point
+│   ├── libomp.a                  # OpenMP runtime (required)
 │   ├── pre.js                    # Pre-load hooks
-│   ├── pyodide_bootstrap.js      # Python initialization
-│   └── libomp.a                  # OpenMP runtime (required)
+│   └── pyodide_bootstrap.js      # Python initialization
 ├── jc303_wasm/                   # TB-303 clone (git submodule)
 │   └── wasm/                     # CMake-based build
 ├── Supertonic-Voice-Mixer/       # Python TTS tools
 │   ├── voice-mixer.py            # PyQt5 voice designer GUI
 │   └── helper.py                 # TTS model utilities
-├── web/                          # Legacy web mixer (separate)
 ├── public/                       # Static assets + compiled WASM
 │   ├── audio-worklets/           # Copied worklet files
 │   ├── pyodide.*                 # Python runtime
 │   ├── rubberband.wasm           # Rubberband binary
 │   ├── hyphon_native.js          # Emscripten output
 │   ├── jc303.*                   # TB-303 WASM
-│   └── assets/                   # WAV samples, etc.
+│   └── assets/                   # WAV samples
 ├── tests/                        # Playwright E2E tests
 ├── tools/                        # Build scripts
 │   ├── build_jc303_omp.sh        # JC-303 builder
@@ -117,10 +119,15 @@
 └── app.py                        # FastAPI cloud storage server
 ```
 
+---
+
 ## Build Commands
 
 ### Development
 ```bash
+# Install dependencies
+npm install
+
 # Start dev server (builds WASM dependencies first)
 npm run dev
 
@@ -161,6 +168,9 @@ npm test
 
 # Run with Vitest UI (if configured)
 npx vitest --ui
+
+# Run Playwright E2E tests
+npx playwright test
 ```
 
 ### Deployment
@@ -173,38 +183,44 @@ npm run deploy
 ### Python Voice Mixer (Desktop Tool)
 ```bash
 cd Supertonic-Voice-Mixer
+pip install numpy sounddevice matplotlib PyQt5 onnxruntime
 python3 voice-mixer.py
 ```
 
-## Build Rules & Critical Directives
+---
 
-### The "Four Worlds" Rule
-This project has four distinct build environments. **Never mix their build steps**:
+## The "Four Worlds" Rule
 
-1. **AssemblyScript World** (`/assembly`)
-   - Source: `*.ts` files with `// @mode: assemblyscript` header
-   - Build: `npm run build:wasm:oscillators` or `npm run build:wasm:freezer`
-   - Output: `src/wasm/*.wasm`
-   - Bridge: Corresponding engine file in `src/engines/`
+This project has **four distinct build environments**. **Never mix their build steps**:
 
-2. **Rust World** (`/rust-audio`)
-   - Build: `cd rust-audio && wasm-pack build --target web --out-dir ../public/rust-wasm`
-   - Output: `public/rust-wasm/`
-   - Bridge: `src/engines/RustOscillator.ts`
+### 1. AssemblyScript World (`/assembly`)
+- **Source**: `*.ts` files with `// @mode: assemblyscript` header
+- **Build**: `npm run build:wasm:oscillators` or `npm run build:wasm:freezer`
+- **Output**: `src/wasm/*.wasm`
+- **Bridge**: Corresponding engine file in `src/engines/`
 
-3. **Emscripten World** (`/emscripten`)
-   - Build: `bash emscripten/build.sh`
-   - Output: `public/hyphon_native.js` (+ .wasm, .worker.js)
-   - Requires: `libomp.a` in `emscripten/` directory
-   - Requires: Emscripten SDK activated
+### 2. Rust World (`/rust-audio`)
+- **Build**: `cd rust-audio && wasm-pack build --target web --out-dir ../public/rust-wasm`
+- **Output**: `public/rust-wasm/`
+- **Bridge**: `src/engines/RustOscillator.ts`
 
-4. **JC-303 World** (`/jc303_wasm`)
-   - Build: `bash tools/build_jc303_omp.sh`
-   - Output: `public/jc303.*`
-   - Requires: Git submodule initialized
+### 3. Emscripten World (`/emscripten`)
+- **Build**: `bash emscripten/build.sh`
+- **Output**: `public/hyphon_native.js` (+ .wasm, .worker.js)
+- **Requires**: `libomp.a` in `emscripten/` directory
+- **Requires**: Emscripten SDK activated
 
-### SharedArrayBuffer Requirements
+### 4. JC-303 World (`/jc303_wasm`)
+- **Build**: `bash tools/build_jc303_omp.sh debug both`
+- **Output**: `public/jc303.*`
+- **Requires**: Git submodule initialized (`git submodule update --init`)
+
+---
+
+## SharedArrayBuffer Requirements
+
 This project uses `SharedArrayBuffer` for audio thread communication. The Vite dev server is configured with the required headers:
+
 ```javascript
 // vite.config.ts
 server: {
@@ -214,16 +230,22 @@ server: {
   }
 }
 ```
-If deploying to a new environment, these headers MUST be set or the app will fail to load.
 
-### WASM Change Detection
+**If deploying to a new environment, these headers MUST be set or the app will fail to load.**
+
+---
+
+## WASM Change Detection
+
 **Critical**: After modifying any C++, Rust, or AssemblyScript source, you MUST rebuild the corresponding WASM module. The `public/` directory contains compiled binaries that Vite serves directly - stale binaries will be loaded if not rebuilt.
+
+---
 
 ## Code Style Guidelines
 
 ### TypeScript
 - Strict mode enabled (`strict: true` in tsconfig)
-- Unused locals/parameters are errors (can prefix with `_` to ignore)
+- Unused locals/parameters are errors (prefix with `_` to ignore)
 - ES2022 target with modern DOM APIs
 - React JSX transform (`jsx: "react-jsx"`)
 - Import paths use `@/` alias for `src/`
@@ -232,7 +254,7 @@ If deploying to a new environment, these headers MUST be set or the app will fai
 - Functional components with hooks
 - Custom hooks for complex logic (see `src/hooks/`)
 - Memoization with `useMemo`, `useCallback`, `memo` for performance
-- Lazy loading for heavy components (Studio3D)
+- Lazy loading for heavy components (`Studio3D`)
 - Refs for audio engine instances (avoid re-renders)
 
 ### Audio Engine Patterns
@@ -247,25 +269,34 @@ If deploying to a new environment, these headers MUST be set or the app will fai
 - Unused vars pattern: `^_|^_` (ignore underscore-prefixed)
 - Ignores `dist/` directory
 
+---
+
 ## Testing Strategy
 
-### Unit Tests
-- Location: `src/__tests__/*.test.ts`
-- Components: `src/components/__tests__/*.test.tsx`
-- Audio engine mocking in `vitest.setup.ts`
-- Happy DOM environment for browser APIs
+### Unit Tests (Vitest)
+- **Location**: `src/__tests__/*.test.ts`
+- **Components**: `src/components/__tests__/*.test.tsx`
+- **Environment**: `happy-dom`
+- **Setup**: `vitest.setup.ts` with mocked AudioContext
 
 ### Test Categories
-1. **Engine Tests**: WasmOscillator, WebGPU, AudioExport
-2. **Component Tests**: Knob, Sequencer, SamplerPanel, etc.
-3. **Integration Tests**: SingingVoice, full audio pipeline
+1. **Engine Tests**: `WasmOscillator`, `WebGPU`, `AudioExport`, `SingingVoice`
+2. **Component Tests**: `Knob`, `Sequencer`, `SamplerPanel`, `VoiceEditor`
+3. **Integration Tests**: Full audio pipeline, TTS integration
 4. **Performance Tests**: Sampler panel rendering, audio export
+
+### E2E Tests (Playwright)
+- **Location**: `tests/*.spec.ts`
+- **Config**: `playwright.config.ts`
+- **Base URL**: `http://localhost:5173`
 
 ### Mocking
 - `AudioContext` fully mocked in `vitest.setup.ts`
 - `AudioWorkletNode` stubbed
 - `Worker` constructor mocked
 - WebGPU APIs mocked where needed
+
+---
 
 ## Development Conventions
 
@@ -288,6 +319,8 @@ If deploying to a new environment, these headers MUST be set or the app will fai
 - Shared UI state: Props drilling or context
 - Pattern/sequencer data: Managed in `App.tsx`, passed to children
 
+---
+
 ## Deployment
 
 ### Prerequisites
@@ -297,7 +330,12 @@ If deploying to a new environment, these headers MUST be set or the app will fai
 
 ### Cloud Storage Server
 - FastAPI application in `app.py`
-- Requires environment variables: `FTP_HOST`, `FTP_USER`, `FTP_PASS`
+- **Environment Variables**:
+  - `FTP_HOST` - SFTP server hostname
+  - `FTP_USER` - SFTP username
+  - `FTP_PASS` - SFTP password
+  - `FTP_PORT` - SFTP port (default: 22)
+  - `FTP_DIR` - Base directory (default: `storage.1ink.us`)
 - Runs on port 7860 by default
 - Supports songs, patterns, banks, and samples via SFTP
 
@@ -306,13 +344,21 @@ For voice synthesis feature, download models (~235 MB):
 ```bash
 bash download_models.sh
 ```
+
+Required files:
+- 4 ONNX models (duration_predictor, text_encoder, vector_estimator, vocoder)
+- Configuration files (tts.json, unicode_indexer.json)
+- Voice style files (M1.json, etc.)
+
 Without models, TTS features gracefully degrade.
+
+---
 
 ## Common Pitfalls
 
 1. **"WASM not found" errors**: Check that all build steps completed and files exist in `public/`
 
-2. **AudioContext suspended**: Browsers require user interaction before audio context can resume. The `useAudioEngine` hook handles this, but UI should have explicit "Start Audio" button.
+2. **AudioContext suspended**: Browsers require user interaction before audio context can resume. The `useAudioEngine` hook handles this, but UI has explicit "Start Audio" button.
 
 3. **SharedArrayBuffer errors**: Server headers must include COOP/COEP. Check browser console for specific errors.
 
@@ -321,6 +367,10 @@ Without models, TTS features gracefully degrade.
 5. **AudioWorklet not loading**: Worklets must be loaded from same origin or with proper CORS. Vite dev server handles this; production server must be configured.
 
 6. **Pyodide initialization**: The Emscripten module initializes Pyodide. Check `window.Module` is available before accessing Python.
+
+7. **JC-303 submodule not found**: Run `git submodule update --init jc303_wasm`
+
+---
 
 ## Environment Setup
 
@@ -339,3 +389,57 @@ Without models, TTS features gracefully degrade.
   - TypeScript Importer
   - Tailwind CSS IntelliSense
   - rust-analyzer (for Rust code)
+
+---
+
+## Security Considerations
+
+1. **SFTP Credentials**: Cloud storage uses environment variables for SFTP credentials. Never commit credentials to the repository.
+
+2. **CORS**: The FastAPI backend (`app.py`) has CORS configured with `allow_origins=["*"]`. Restrict this in production if needed.
+
+3. **File Uploads**: Sample uploads are validated by extension. Additional sanitization is recommended for production.
+
+4. **Pyodide Execution**: Python code runs in a WebAssembly sandbox via Pyodide. Do not expose sensitive APIs to the Python environment.
+
+---
+
+## Key Type Definitions
+
+### Track Structure
+```typescript
+type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
+interface Pattern {
+  partA: PartSequence;
+  partB: PartSequence;
+  kick: PartSequence;
+  snare: PartSequence;
+  closedHat: PartSequence;
+  openHat: PartSequence;
+  sampler: PartSequence[]; // Array of 8 sequences
+}
+
+interface Note {
+  note: string;        // e.g., 'C4'
+  velocity: number;    // 0-1
+  length?: number;     // Duration in steps
+  slide?: boolean;     // Portamento
+  chord?: string[];    // Additional notes
+  timbre?: number;     // 0-1 tonal character
+  probability?: number;// 0-1 chance of triggering
+  microtiming?: number;// -0.5 to 0.5 step offset
+  reverse?: boolean;   // Reverse playback (sampler)
+  sliceIndex?: number; // Phoneme/slice index (sampler)
+}
+```
+
+---
+
+## Resources
+
+- **Supertonic TTS**: https://github.com/supertone-inc/supertonic
+- **Rubberband Library**: https://breakfastquay.com/rubberband/
+- **JC-303**: TB-303 clone synthesizer (git submodule)
+- **Emscripten**: https://emscripten.org/
+- **AssemblyScript**: https://www.assemblyscript.org/

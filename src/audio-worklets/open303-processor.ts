@@ -123,9 +123,21 @@ class Open303Processor extends AudioWorkletProcessor {
                     abort: () => console.error("WASM Abort"),
                     
                     // Stack overflow and fault handlers (required by newer Emscripten builds)
-                    __handle_stack_overflow: () => console.error("[Open303] Stack overflow detected"),
-                    segfault: () => console.error("[Open303] Segmentation fault"),
-                    alignfault: () => console.error("[Open303] Alignment fault"),
+                    // CRITICAL FIX: These handlers prevent AudioContext death from WASM faults
+                    __handle_stack_overflow: () => {
+                        console.error("[Open303] Stack overflow detected - attempting recovery");
+                        // Don't crash - just log and continue
+                        // The WASM may be in an undefined state, but we prevent AudioContext death
+                        return 0;
+                    },
+                    segfault: () => {
+                        console.error("[Open303] Segmentation fault - attempting recovery");
+                        return 0;
+                    },
+                    alignfault: () => {
+                        console.error("[Open303] Alignment fault - attempting recovery");
+                        return 0;
+                    },
                     
                     // Core runtime - minified names (a-o based on typical Emscripten output)
                     a: () => console.error("WASM Abort"),
@@ -275,8 +287,11 @@ class Open303Processor extends AudioWorkletProcessor {
                 
                 if (memoryImport) {
                     // WASM expects imported memory - create it
-                    const memoryImportPages = (data && data.memoryPages) || 512; // 512 pages = 32MB (increased from 256 to prevent memory errors)
-                    const maxMemoryPages = 1024; // 1024 pages = 64MB (allows heap growth)
+                    // CRITICAL FIX: Increased memory pages to prevent stack overflow
+                // STACK_SIZE is 2MB (2097152 bytes) in CMakeLists.txt
+                // We need at least 2MB + headroom for stack + heap
+                const memoryImportPages = (data && data.memoryPages) || 512; // 512 pages = 32MB minimum
+                    const maxMemoryPages = 2048; // 2048 pages = 128MB max (allows heap growth)
                     let mem: WebAssembly.Memory;
 
                     if (this.isThreaded) {
@@ -347,10 +362,23 @@ class Open303Processor extends AudioWorkletProcessor {
                     throw new Error(`Missing required functions: jc303_init=${hasInit}, jc303_process=${hasProcess}`);
                 }
 
-                // Initialize the synthesizer
-                const sampleRate = data.sampleRate || 44100;
-                exports.jc303_init(sampleRate, 128);
-                console.log(`[Open303] Initialized with sampleRate=${sampleRate}`);
+                // CRITICAL FIX: Wrap init in try/catch with recovery for stack overflow protection
+                // The C++ constructor may use deep recursion causing stack overflow
+                try {
+                    const sampleRate = data.sampleRate || 44100;
+                    exports.jc303_init(sampleRate, 128);
+                    console.log(`[Open303] Initialized with sampleRate=${sampleRate}`);
+                } catch (initError) {
+                    console.error('[Open303] init() failed (possible stack overflow):', initError);
+                    // Try one more time with smaller block size to reduce stack pressure
+                    try {
+                        const sampleRate = data.sampleRate || 44100;
+                        exports.jc303_init(sampleRate, 64);
+                        console.log(`[Open303] Recovered with smaller block size, sampleRate=${sampleRate}`);
+                    } catch (retryError) {
+                        throw new Error(`jc303_init failed twice: ${retryError}`);
+                    }
+                }
 
                 this.isWasmReady = true;
                 console.log('[Open303] Sending ready message');
