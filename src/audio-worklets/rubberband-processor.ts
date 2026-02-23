@@ -36,17 +36,17 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private initialized = false;
   private fullSampleBuffer: Float32Array | null = null;
 
-  // Phoneme Awareness State
-  private phonemeData: Float32Array | null = null; // View of SharedArrayBuffer
+  // Phoneme Data
+  private phonemeData: Float32Array | null = null;
   private phonemeRatios: number[] | null = null;
 
-  // Playback State (Streaming)
-  private playbackState = {
-    isPlaying: false,
-    basePitch: 1.0,
-    currentSamplePtr: 0,
-    endSamplePtr: 0
-  };
+  // Playback State (Unified)
+  private isPlaying = false;
+  private isReverse = false;
+  private currentSamplePtr = 0;
+  private startSamplePtr = 0;
+  private endSamplePtr = 0;
+  private basePitch = 1.0;
 
   static get parameterDescriptors() {
     return [
@@ -134,7 +134,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (data && data.sharedBuffer) {
              this.phonemeData = new Float32Array(data.sharedBuffer);
              this.phonemeRatios = data.ratios || null;
-             // console.log("RubberBandProcessor: Phoneme data updated", this.phonemeData.length, this.phonemeRatios);
         }
         break;
 
@@ -143,10 +142,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.rubberBand.reset();
 
         // Store base pitch for combination with parameters
-        this.playbackState.basePitch = data.pitch || 1.0;
-
-        this.rubberBand.setPitchScale(this.playbackState.basePitch);
-        this.rubberBand.setTimeRatio(1.0); // Reset time ratio initially
+        this.basePitch = data.pitch || 1.0;
+        this.rubberBand.setPitchScale(this.basePitch);
+        this.rubberBand.setTimeRatio(1.0);
         this.expressiveProcessor.reset();
 
         const startSample = Math.max(0, Math.floor(data.startSample || 0));
@@ -156,16 +154,23 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         if (startSample >= endSample) return;
 
-        // Initialize Streaming State
-        this.playbackState.isPlaying = true;
-        this.playbackState.currentSamplePtr = startSample;
-        this.playbackState.endSamplePtr = endSample;
+        this.isReverse = !!data.reverse;
+
+        // Initialize streaming state
+        this.startSamplePtr = startSample;
+        this.endSamplePtr = endSample;
+
+        if (this.isReverse) {
+            this.currentSamplePtr = endSample - 1;
+        } else {
+            this.currentSamplePtr = startSample;
+        }
+
+        this.isPlaying = true;
         break;
 
       case 'noteOff':
-        // Optional: Could initiate a fade out or stop processing immediately
-        // For now, let it finish the buffer if configured, or stop
-        this.playbackState.isPlaying = false;
+        this.isPlaying = false;
         break;
     }
   }
@@ -178,8 +183,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
       const count = this.phonemeData[0];
       // Phoneme data stride is 4 floats: start, end, isVowel, stretch(unused in buffer, used from ratios array)
-
-      // Binary search could be better, but linear scan is fine for small N (< 50 phonemes)
       for (let i = 0; i < count; i++) {
           const baseIndex = 1 + i * 4;
           const start = this.phonemeData[baseIndex];
@@ -194,8 +197,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const outputChannel = outputs[0][0];
-
-    // Fill output with silence initially
     outputChannel.fill(0);
 
     if (!this.initialized || !this.rubberBand || !this.outputRingBuffer) {
@@ -203,7 +204,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     }
 
     const pitch = parameters.pitchScale[0];
-    const defaultTimeRatio = parameters.timeRatio[0]; // Used if no phoneme data
+    const defaultTimeRatio = parameters.timeRatio[0];
     const vibDepth = parameters.vibratoDepth[0];
     const vibRate = parameters.vibratoRate[0];
     const tremDepth = parameters.tremoloDepth[0];
@@ -217,62 +218,65 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     });
 
     // Combine note pitch with parameter modulation
-    // If not playing a note, default base pitch is 1.0
-    const currentBasePitch = this.playbackState.isPlaying ? this.playbackState.basePitch : 1.0;
+    const currentBasePitch = this.isPlaying ? this.basePitch : 1.0;
     this.rubberBand.setPitchScale(currentBasePitch * pitch);
 
     try {
-        // --- STREAMING INPUT LOGIC ---
-        // Push small chunks of audio to the stretcher if we are playing
-        // This allows us to update timeRatio dynamically per chunk
+        // STREAMING INPUT LOGIC
+        // If playing a note, stream from fullSampleBuffer with phoneme-aware time stretching
+        if (this.isPlaying && this.fullSampleBuffer) {
+            // Calculate dynamic time ratio based on phoneme data
+            let ratio = defaultTimeRatio;
+            if (this.phonemeData && this.phonemeRatios) {
+                ratio = this.getPhonemeStretchRatio(this.currentSamplePtr);
+            }
+            this.rubberBand.setTimeRatio(ratio);
 
-        // Frames to process per block - keeping it small allows tight control
-        // but not too small to avoid overhead. 128 (WebAudio block size) is good.
-        const chunkSize = 128;
+            const samplesRequired = this.rubberBand.getSamplesRequired();
 
-        if (this.playbackState.isPlaying && this.fullSampleBuffer) {
-            // Check if we have data left
-            if (this.playbackState.currentSamplePtr < this.playbackState.endSamplePtr) {
+            if (this.isReverse) {
+                // REVERSE STREAMING
+                const samplesRemaining = this.currentSamplePtr - this.startSamplePtr + 1;
 
-                // 1. Determine Time Ratio for this chunk
-                let ratio = defaultTimeRatio;
-                if (this.phonemeData && this.phonemeRatios) {
-                    ratio = this.getPhonemeStretchRatio(this.playbackState.currentSamplePtr);
+                if (samplesRemaining > 0 && samplesRequired > 0) {
+                    const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
+                    this.ensureHeapSize(samplesToFeed);
+
+                    // Manually copy in reverse order
+                    const heap = this.rubberBand.module.HEAPF32;
+                    const ptr = this.inputHeapPtr >> 2;
+                    const buf = this.fullSampleBuffer;
+                    let readPtr = this.currentSamplePtr;
+
+                    for (let i = 0; i < samplesToFeed; i++) {
+                        heap[ptr + i] = buf[readPtr--];
+                    }
+
+                    this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
+                    this.currentSamplePtr = readPtr;
                 }
-                this.rubberBand.setTimeRatio(ratio);
-
-                // 2. Prepare Chunk
-                const remaining = this.playbackState.endSamplePtr - this.playbackState.currentSamplePtr;
-                const frames = Math.min(chunkSize, remaining);
-
-                this.ensureHeapSize(frames);
-
-                // 3. Copy Chunk to WASM Heap
-                const slice = this.fullSampleBuffer.subarray(
-                    this.playbackState.currentSamplePtr,
-                    this.playbackState.currentSamplePtr + frames
-                );
-                this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
-
-                // 4. Process (Push Input)
-                this.rubberBand.process(this.inputHeapPtr, frames, false);
-
-                // 5. Advance Pointer
-                this.playbackState.currentSamplePtr += frames;
             } else {
-                // End of buffer reached, but we might still have output in the stretcher
-                // Mark as not playing input anymore, but keep processing until stretcher empty?
-                // For now, just stop feeding.
-                // If we want to flush, we can call process with final=true, but we might loop?
-                // The current implementation seems to loop via NoteOn logic externally?
-                // No, SamplerPanel handles looping? Actually, if mode='loop', NoteOn is re-triggered?
-                // Let's assume NoteOn is authoritative.
-                this.playbackState.isPlaying = false;
+                // FORWARD STREAMING
+                const samplesRemaining = this.endSamplePtr - this.currentSamplePtr;
+
+                if (samplesRemaining > 0 && samplesRequired > 0) {
+                    const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
+                    this.ensureHeapSize(samplesToFeed);
+
+                    // Copy directly to WASM heap
+                    const slice = this.fullSampleBuffer.subarray(
+                        this.currentSamplePtr,
+                        this.currentSamplePtr + samplesToFeed
+                    );
+                    this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
+
+                    this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
+                    this.currentSamplePtr += samplesToFeed;
+                }
             }
         }
         // Fallback: Check RingBuffer input (for real-time mic usage if supported later)
         else if (this.inputRingBuffer && this.inputRingBuffer.availableRead() > 0) {
-            // Existing RingBuffer logic (preserved for compatibility)
              const required = this.rubberBand.getSamplesRequired();
              const available = this.inputRingBuffer.availableRead();
              if (available >= required && required > 0) {
@@ -286,26 +290,26 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
 
         // --- OUTPUT RETRIEVAL LOGIC ---
-        // Always try to pull output if available
         const availOutput = this.rubberBand.available();
         if (availOutput > 0) {
-            // We want to fill the output buffer (usually 128 frames)
-            // But we can only retrieve what is available.
             const framesToRead = Math.min(availOutput, outputChannel.length);
             this.ensureHeapSize(framesToRead);
             
             const retrieved = this.rubberBand.retrieve(this.outputHeapPtr, framesToRead);
-
             const outputView = this.rubberBand.module.HEAPF32.subarray(
                 this.outputHeapPtr >> 2,
                 (this.outputHeapPtr >> 2) + retrieved
             );
 
-            // Copy to output channel
             outputChannel.set(outputView);
-
-            // Apply Post-Processing (Formants, Breath, etc.)
             this.expressiveProcessor.process(outputChannel, outputChannel);
+        } else if (this.isPlaying) {
+             // Check for completion when no output is available but we're still marked as playing
+             if (this.isReverse) {
+                 if (this.currentSamplePtr < this.startSamplePtr) this.isPlaying = false;
+             } else {
+                 if (this.currentSamplePtr >= this.endSamplePtr) this.isPlaying = false;
+             }
         }
 
     } catch (e) {

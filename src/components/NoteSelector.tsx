@@ -16,12 +16,13 @@ interface NoteSelectorProps {
     currentTimbre?: number;
     currentProbability?: number;
     currentMicrotiming?: number;
-    onPropertyChange?: (key: 'timbre' | 'probability' | 'microtiming', value: number) => void;
+    currentReverse?: boolean;
+    onPropertyChange?: (key: 'timbre' | 'probability' | 'microtiming' | 'reverse', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor,
-    currentTimbre = 0, currentProbability = 1, currentMicrotiming = 0, onPropertyChange
+    currentTimbre = 0, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -126,6 +127,21 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 onChange={(e) => onPropertyChange('microtiming', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
                             />
+                        </div>
+
+                        {/* Reverse Control */}
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase py-1">
+                            <label htmlFor="note-reverse">Reverse Sample</label>
+                            <button
+                                id="note-reverse"
+                                onClick={() => onPropertyChange('reverse', !currentReverse)}
+                                className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 ${currentReverse ? 'bg-cyan-600 justify-end' : 'bg-slate-700 justify-start'}`}
+                                aria-checked={currentReverse}
+                                role="switch"
+                                title="Play slice in reverse"
+                            >
+                                <div className="w-3 h-3 rounded-full bg-white shadow-sm" />
+                            </button>
                         </div>
                     </>
                 )}
