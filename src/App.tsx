@@ -10,6 +10,7 @@ import type { KnobConfig } from './components/HardwareModule';
 import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
+import { LyricMapper } from './components/LyricMapper';
 
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
@@ -18,6 +19,7 @@ import { CloudLibrary } from './components/CloudLibrary';
 import { CloudStatus } from './components/CloudStatus';
 import { Toast } from './components/Toast';
 import type { CloudItemType } from './services/CloudStorage';
+import { SupertonicService } from './services/Supertonic';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
@@ -194,6 +196,7 @@ export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
+    const [isLyricMapperOpen, setIsLyricMapperOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);

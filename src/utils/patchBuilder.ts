@@ -6,7 +6,6 @@ import type {
   Pattern, 
   PartSequence, 
   Note, 
-  SamplerParams,
   SamplerBankParams
 } from '../types';
 
