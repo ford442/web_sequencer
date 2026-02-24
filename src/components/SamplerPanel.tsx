@@ -236,18 +236,24 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         'Elastic': 1 | 32 | 1048576 // RealTime | Finer | FormantPreserved
                     };
                     // Note: Actual quality change requires worklet reinit or message
-                    voice.getSourceNode()?.port?.postMessage?.({
-                        type: 'setQuality',
-                        options: qualityMap[value as keyof typeof qualityMap]
-                    });
+                    const node = voice.getSourceNode();
+                    if (node && 'port' in node) {
+                        (node as AudioWorkletNode).port.postMessage({
+                            type: 'setQuality',
+                            options: qualityMap[value as keyof typeof qualityMap]
+                        });
+                    }
                     break;
                 }
                 case 'autoFollow':
                     // Enable/disable auto pitch following
-                    voice.getSourceNode()?.port?.postMessage?.({
-                        type: 'setAutoFollow',
-                        enabled: value as boolean
-                    });
+                    const node2 = voice.getSourceNode();
+                    if (node2 && 'port' in node2) {
+                        (node2 as AudioWorkletNode).port.postMessage({
+                            type: 'setAutoFollow',
+                            enabled: value as boolean
+                        });
+                    }
                     break;
             }
         }

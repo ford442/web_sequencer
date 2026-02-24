@@ -1,5 +1,6 @@
 import React, { memo, useRef, useCallback, useState } from 'react';
 import { getNoteColor } from '../utils/noteColors';
+import type { TrackKey } from '../types';
 
 /**
  * MelodicStep - Visual step component for Melodic Lyric Mode
@@ -40,16 +41,16 @@ interface MelodicStepProps {
   active: boolean;
   note?: string | null;
   pitch?: number;
-  pitchOffset?: number;
+  // pitchOffset - reserved for future microtonal control
   phonemeIndex?: number;
   length?: number;
   isSlide?: boolean;
   isCurrent?: boolean;
   rowLabel: string;
-  rowKey: string;
-  onToggle: (rowKey: string, stepIndex: number, e: React.PointerEvent) => void;
-  onPitchChange: (rowKey: string, stepIndex: number, newPitch: number) => void;
-  onEditLength?: (rowKey: string, stepIndex: number, length: number) => void;
+  rowKey: TrackKey;
+  onToggle: (rowKey: TrackKey, stepIndex: number, e: React.PointerEvent) => void;
+  onPitchChange: (rowKey: TrackKey, stepIndex: number, newPitch: number) => void;
+  onEditLength?: (rowKey: TrackKey, stepIndex: number, length: number) => void;
   baseWidth?: number;
   gap?: number;
   x?: number;
@@ -60,7 +61,7 @@ export const MelodicStep = memo(({
   active,
   note,
   pitch = 60,
-  pitchOffset = 0,
+  // pitchOffset - reserved for future microtonal control
   phonemeIndex,
   length = 1,
   isSlide,

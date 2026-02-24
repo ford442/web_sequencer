@@ -11,7 +11,7 @@ export class FallbackBassSynth {
     private filterNode: BiquadFilterNode;
     private currentOscillator: OscillatorNode | null = null;
     private currentNote: number = -1;
-    private filterEnvAmount: number = 0;
+    // private filterEnvAmount: number = 0; // Reserved for future filter envelope
     private isSlide: boolean = false;
     
     // Parameters (0-1 range, matching Open303 interface)

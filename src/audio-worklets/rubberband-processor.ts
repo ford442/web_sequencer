@@ -48,9 +48,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private endSamplePtr = 0;
   private basePitch = 1.0;
   
-  // Phase 1: Vocal Workstation Settings
-  private autoFollowEnabled = false;
-  private qualityOptions = 1 | 32 | 1048576; // Default: RealTime | Finer | FormantPreserved
+  // Phase 1: Vocal Workstation Settings (reserved for future use)
+  // private autoFollowEnabled = false;
+  // private qualityOptions = 1 | 32 | 1048576;
 
   static get parameterDescriptors() {
     return [
