@@ -499,8 +499,9 @@ class Open303Processor extends AudioWorkletProcessor {
             if (e && e.stack) console.error(e.stack);
             // dump some helpful runtime state
             console.error('[Open303] wasmInstance exports keys', Object.keys(exports));
+            const currentTime = getTime();
             for (const [note, startTime] of this.activeNotes.entries()) {
-                const duration = now - startTime;
+                const duration = currentTime - startTime;
                 if (duration > Open303Processor.MAX_NOTE_DURATION_MS) {
                     if (this.stuckNoteWarnings++ < 5) {
                         console.warn(`[Open303] Stuck note detected: ${note} held for ${duration.toFixed(0)}ms, auto-releasing`);
@@ -532,12 +533,6 @@ process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Recor
 
     const channelL = output[0];
     const channelR = output[1];
-
-    // Stuck note protection: periodically check for notes held too long
-    if (++this.processBlockCount >= Open303Processor.NOTE_CHECK_INTERVAL) {
-        this.processBlockCount = 0;
-        this.checkStuckNotes();
-    }
 
     // Portamento fix: trigger pending note after noteOff has been processed
     if (this.pendingNote && this.isWasmReady) {

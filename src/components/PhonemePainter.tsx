@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo, memo } from 'react';
+import React, { useState, useRef, useCallback, memo } from 'react';
 import type { AlignmentResult, PhonemeSegment } from '../engines/rubberband/PhonemeAligner';
 
 /**
@@ -174,7 +174,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
   selectedPhonemeIndex = -1
 }) => {
   const [zoom, setZoom] = useState(1);
-  const [scrollX, setScrollX] = useState(0);
+  // const [scrollX, setScrollX] = useState(0); // Reserved for future scroll functionality
   const [phonemePitchBends, setPhonemePitchBends] = useState<Record<number, number>>({});
   const [phonemeElasticity, setPhonemeElasticity] = useState<Record<number, number>>({});
   const [localAlignment, setLocalAlignment] = useState<AlignmentResult | null>(alignment);

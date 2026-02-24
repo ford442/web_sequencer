@@ -154,7 +154,6 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
                 min={0}
                 max={2000}
                 step={10}
-                size="sm"
                 color="cyan"
                 onChange={(v) => onChange('pitchAttack', v)}
               />
@@ -167,7 +166,6 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
                 min={0}
                 max={2000}
                 step={10}
-                size="sm"
                 color="cyan"
                 onChange={(v) => onChange('pitchDecay', v)}
               />

@@ -202,7 +202,8 @@ export class Open303Oscillator {
         }
     }
 
-    private cleanup() {
+    // eslint-disable-next-line @typescript-eslint/no-unused-private-class-members
+    private _cleanup() {
         this.cleanupWorklet();
         if (this.gainNode) {
             this.gainNode.disconnect();
