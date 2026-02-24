@@ -59,14 +59,14 @@ interface PhonemePillProps {
 const PhonemePill = memo(({
   phoneme,
   index,
-  totalDuration,
+  totalDuration: _totalDuration,
   pixelsPerSecond,
   isSelected,
   pitchBend,
   elasticity,
   onDrag,
-  onPitchBendChange,
-  onElasticityChange,
+  onPitchBendChange: _onPitchBendChange,
+  onElasticityChange: _onElasticityChange,
   onSelect
 }: PhonemePillProps) => {
   const [isDragging, setIsDragging] = useState(false);
