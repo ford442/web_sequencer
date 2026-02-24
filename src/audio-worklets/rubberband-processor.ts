@@ -49,8 +49,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private basePitch = 1.0;
   
   // Phase 1: Vocal Workstation Settings (reserved for future use)
-  private autoFollowEnabled = false;
-  private qualityOptions = 1 | 32 | 1048576;
+  // Removed unused variables to fix build error
+  // private autoFollowEnabled = false;
+  // private qualityOptions = 1 | 32 | 1048576;
 
   static get parameterDescriptors() {
     return [
@@ -180,7 +181,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       case 'setQuality':
         // Update RubberBand quality options (requires reset)
         if (data && typeof data.options === 'number') {
-            this.qualityOptions = data.options;
+            // this.qualityOptions = data.options;
             if (this.rubberBand) {
                 this.rubberBand.reset();
                 // Note: Full reinitialization would require recreating the stretcher
@@ -192,7 +193,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       case 'setAutoFollow':
         // Enable/disable auto pitch following from sequencer
         if (data && typeof data.enabled === 'boolean') {
-            this.autoFollowEnabled = data.enabled;
+            // this.autoFollowEnabled = data.enabled;
         }
         break;
     }
