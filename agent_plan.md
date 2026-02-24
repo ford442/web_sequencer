@@ -22,8 +22,9 @@
 - [x] **Clipboard Operations:** Standardize `Ctrl+C` / `Ctrl+V` logic to handle both Note Data *and* associated TTS Metadata (which word is attached to the note).
 - [x] **Per-Step Parameters:** Create a UI to edit "Expression" or "Timbre" for individual sequencer steps (vital for humanizing TTS output).
 - [x] **Melodic Lyric Mode:** Decouple "Slice Selection" from "Pitch" in the Sampler. Allow playing melodies (Pitch) while triggering specific phonemes (Slice Index) via `LyricMapper`.
+- [x] **Note Slice UI:** Visualize the selected phoneme/slice index directly on the sequencer note (e.g., small text label) to improve TTS workflow.
 - [ ] **Unify Sequencer Components:** Refactor `App.tsx` to use the standalone `Sequencer` component or move `App.tsx` logic into a reusable view to reduce duplication.
-- [ ] **Cleanup Legacy Code:** Identify and remove unused components like `src/components/Sequencer.tsx` to streamline maintenance.
+- [x] **Cleanup Legacy Code:** Identify and remove unused components like `src/components/Sequencer.tsx` to streamline maintenance.
 - [ ] **Refactor NoteSelector Focus Management:** Address fragility in `NoteSelector` focus trapping and test coverage to ensure robust accessibility with dynamic content.
 
 ### Domain C: Accessibility & Mobile
@@ -40,12 +41,12 @@
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect.
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * **Idea:** "Formant Automation" - Draw curves for formant shift over time (not just per step) for continuous vowel morphing.
-* **Idea:** "Note Slice UI" - Visualize the selected phoneme/slice index directly on the sequencer note (e.g., small text label).
 
 ---
 
 ## 📜 Changelog
 * [Date] - Roadmap re-initialized for long-term recursion.
+* [2026-05-30] - Implemented Note Slice UI: Visualized TTS phonemes directly on sequencer steps in `MainSequencer.tsx`. Verified absence of legacy `Sequencer.tsx`.
 * [2026-02-05] - Implemented Phoneme Elasticity in Sampler Engine.
 * [2026-05-21] - Refactored SingingVoice state management to eliminate type casting hacks and improve multi-bank alignment handling.
 * [2026-05-22] - Implemented TTS Slice Triggering (Phoneme Mode) in Audio Engine.
