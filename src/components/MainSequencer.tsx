@@ -1,8 +1,10 @@
 import React, { memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect } from 'react';
 import { getNoteColor } from '../utils/noteColors';
+import { noteToMidi } from '../utils/musicTheory';
 import { GridIndicators } from './GridIndicators';
 import { MelodicSequencerRow, type MelodicSequencerRowHandle } from './MelodicSequencerRow';
 import type { Pattern, PartSequence, TrackKey } from '../types';
+import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 
 // --- PERFORMANCE STYLES ---
 const SEQUENCER_STYLES = `
@@ -167,7 +169,7 @@ export const AutomationStep = memo(({
 
 const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
-    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing
+    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing, phonemeLabel
 }: {
     stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
@@ -177,7 +179,8 @@ const SvgStep = memo(({
     onSelectionEnter?: (k: TrackKey, i: number) => void,
     isRangeSelected?: boolean,
     onDrawEnter?: (k: TrackKey, i: number) => void,
-    isDrawing?: boolean
+    isDrawing?: boolean,
+    phonemeLabel?: string
 }) => {
     const baseWidth = 18;
     const gap = 4;
@@ -236,6 +239,9 @@ const SvgStep = memo(({
             <path d={`M 2 2 L ${totalWidth - 2} 2 L ${totalWidth - 4} 4 L 4 4 L 4 ${height - 4} L 2 ${height - 2} Z`} fill="rgba(255,255,255,0.2)" />
             <path d={`M ${totalWidth - 2} 2 L ${totalWidth - 2} ${height - 2} L 2 ${height - 2} L 4 ${height - 4} L ${totalWidth - 4} ${height - 4} L ${totalWidth - 4} 4 Z`} fill="rgba(0,0,0,0.5)" />
             <rect className="step-cap" x={3} y={4} width={totalWidth - 6} height={height - 8} rx={1} fill={active ? color : '#1a2026'} fillOpacity={active ? 0.6 : 1} stroke={active ? color : 'none'} strokeWidth={active ? 1 : 0} />
+            {phonemeLabel && (
+                <text x={totalWidth / 2} y={height / 2 + 4} textAnchor="middle" fontSize={10} fill="#fff" fontWeight="bold" fontFamily="monospace" pointerEvents="none" style={{ textShadow: '0 0 3px #000' }}>{phonemeLabel}</text>
+            )}
             {length > 1 && (<g pointerEvents="none"><g opacity={0.3} fill="#000"><rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} /></g><g transform={`translate(${totalWidth - 25}, 8)`}><rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} /><text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">{length}x</text></g></g>)}
             <rect x={4} y={5} width={totalWidth - 8} height={(height - 10) / 2} rx={1} fill="url(#glassGrad)" fillOpacity={0.3} pointerEvents="none" />
             <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} />
@@ -270,10 +276,11 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     automation?: { [param: string]: (number | null)[] },
     viewMode?: 'notes' | 'automation',
     automationParam?: string,
-    onAutomationChange?: (k: TrackKey, i: number, val: number) => void
+    onAutomationChange?: (k: TrackKey, i: number, val: number) => void,
+    alignment?: AlignmentResult | null
 }>((props, ref) => {
     const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing,
-        automation, viewMode, automationParam, onAutomationChange } = props;
+        automation, viewMode, automationParam, onAutomationChange, alignment } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
@@ -371,7 +378,21 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 if (i >= low && i <= high) isRangeSelected = true;
             }
 
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} />);
+            let phonemeLabel: string | undefined = undefined;
+            if (stepData && rowKey === 'sampler' && alignment) {
+                let sliceIdx = -1;
+                if (stepData.sliceIndex !== undefined) {
+                    sliceIdx = stepData.sliceIndex;
+                } else if (stepData.note) {
+                    sliceIdx = noteToMidi(stepData.note) - 60;
+                }
+
+                if (sliceIdx >= 0 && alignment.phonemes[sliceIdx]) {
+                    phonemeLabel = alignment.phonemes[sliceIdx].phoneme;
+                }
+            }
+
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} phonemeLabel={phonemeLabel} />);
             if (stepData && length > 1) { skipCount = length - 1; }
         }
     }
@@ -419,13 +440,14 @@ export interface MainSequencerProps {
     viewMode?: 'notes' | 'automation';
     automationParam?: string;
     onAutomationChange?: (trackKey: TrackKey, step: number, value: number) => void;
+    alignment?: AlignmentResult | null;
     // Children are rendered after SVG (e.g. NoteSelector)
     children?: React.ReactNode;
 }
 
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
     const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
-        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange } = props;
+        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment } = props;
 
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
     const melodicRowRef = useRef<MelodicSequencerRowHandle | null>(null);
@@ -490,6 +512,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 viewMode={viewMode}
                                 automationParam={automationParam}
                                 onAutomationChange={onAutomationChange}
+                                alignment={row.key === 'sampler' ? alignment : null}
                             />
                         );
                     })}
