@@ -41,7 +41,7 @@ interface MelodicStepProps {
   active: boolean;
   note?: string | null;
   pitch?: number;
-  // pitchOffset - reserved for future microtonal control
+  pitchOffset?: number; // Added to interface to fix TS error
   phonemeIndex?: number;
   length?: number;
   isSlide?: boolean;

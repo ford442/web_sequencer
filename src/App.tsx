@@ -27,6 +27,7 @@ import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
 import { copySteps, pasteSteps } from './utils/clipboardUtils';
 import { MainSequencer } from './components/MainSequencer';
 import type { MainSequencerHandle } from './components/MainSequencer';
+import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -225,6 +226,9 @@ export const App: React.FC = () => {
     const [viewMode, setViewMode] = useState<'notes' | 'automation'>('notes');
     const [automationParam, setAutomationParam] = useState('formantShift');
 
+    // NEW: Phoneme Alignment State for UI Feedback
+    const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
+
     const handleStart = async () => {
         console.log("Initialization sequence started...");
         try {
@@ -301,7 +305,14 @@ export const App: React.FC = () => {
 
     const [activeSamplerBank, setActiveSamplerBank] = useState(0);
     const activeSamplerBankRef = useRef(activeSamplerBank);
-    useEffect(() => { activeSamplerBankRef.current = activeSamplerBank; }, [activeSamplerBank]);
+
+    // Update active alignment when bank changes
+    useEffect(() => {
+        activeSamplerBankRef.current = activeSamplerBank;
+        if (audioEngine && audioEngine.getAlignment) {
+            setActiveAlignment(audioEngine.getAlignment(activeSamplerBank));
+        }
+    }, [activeSamplerBank, audioEngine]);
 
     const [sampleBuffers, setSampleBuffers] = useState<(AudioBuffer | null)[]>(new Array(8).fill(null));
     const loadedBanks = useMemo(() => sampleBuffers.map(b => !!b), [sampleBuffers]);
@@ -899,7 +910,11 @@ export const App: React.FC = () => {
 
         if (audioEngine.prepareVocal) {
             const text = ttsPhrases[activeSamplerBank] || "Hello World";
-            audioEngine.prepareVocal(activeSamplerBank, text);
+            audioEngine.prepareVocal(activeSamplerBank, text).then(() => {
+                if (audioEngine.getAlignment) {
+                    setActiveAlignment(audioEngine.getAlignment(activeSamplerBank));
+                }
+            });
         }
     }, [audioEngine, activeSamplerBank, ttsPhrases]);
 
@@ -941,7 +956,11 @@ export const App: React.FC = () => {
         setTtsPhrases(newPhrases);
         if (audioEngine?.prepareVocal) {
             const text = newPhrases[activeSamplerBank];
-            audioEngine.prepareVocal(activeSamplerBank, text);
+            audioEngine.prepareVocal(activeSamplerBank, text).then(() => {
+                if (audioEngine.getAlignment) {
+                    setActiveAlignment(audioEngine.getAlignment(activeSamplerBank));
+                }
+            });
         }
     }, [audioEngine, activeSamplerBank]);
 
@@ -1217,6 +1236,7 @@ export const App: React.FC = () => {
                 viewMode={viewMode}
                 automationParam={automationParam}
                 onAutomationChange={handleAutomationChange}
+                alignment={activeAlignment}
             >
                 {contextMenu && (
                     <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>

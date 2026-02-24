@@ -203,6 +203,7 @@ export class Open303Oscillator {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-private-class-members
+    // @ts-ignore - _cleanup is used for memory leak prevention when engine is destroyed
     private _cleanup() {
         this.cleanupWorklet();
         if (this.gainNode) {
