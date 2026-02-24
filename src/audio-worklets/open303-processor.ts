@@ -527,87 +527,87 @@ class Open303Processor extends AudioWorkletProcessor {
     private processErrorCount = 0;
     private allocationErrorCount = 0;
 
-process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
-    const output = outputs[0];
-    if (!output) return true;
+    process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
+        const output = outputs[0];
+        if (!output) return true;
 
-    const channelL = output[0];
-    const channelR = output[1];
+        const channelL = output[0];
+        const channelR = output[1];
 
-    // Portamento fix: trigger pending note after noteOff has been processed
-    if (this.pendingNote && this.isWasmReady) {
-        this.triggerNoteOn(this.pendingNote.note, this.pendingNote.velocity);
-        this.pendingNote = null;
-        this.noteOffJustSent = false;
-    }
+        // Portamento fix: trigger pending note after noteOff has been processed
+        if (this.pendingNote && this.isWasmReady) {
+            this.triggerNoteOn(this.pendingNote.note, this.pendingNote.velocity);
+            this.pendingNote = null;
+            this.noteOffJustSent = false;
+        }
 
-    if (!this.isWasmReady || !this.wasmInstance || !this.heapFloat32) {
-        // Output silence if not ready
-        if (channelL) channelL.fill(0);
-        if (channelR) channelR.fill(0);
-        return true;
-    }
+        if (!this.isWasmReady || !this.wasmInstance || !this.heapFloat32) {
+            // Output silence if not ready
+            if (channelL) channelL.fill(0);
+            if (channelR) channelR.fill(0);
+            return true;
+        }
 
-    try {
-        const exports = this.wasmInstance.exports as any;
-        const processFunc = exports.jc303_process;
+        try {
+            const exports = this.wasmInstance.exports as any;
+            const processFunc = exports.jc303_process;
 
-        if (processFunc) {
-            // Ask WASM to process 128 samples (standard audio block size)
-            // NOTE: jc303_process allocates a new buffer on every call using 'new float[numSamples]'.
-            // This can exhaust the WASM heap over time. The emscripten_resize_heap function
-            // above allows the heap to grow to accommodate this.
-            const ptr = processFunc(128);
+            if (processFunc) {
+                // Ask WASM to process 128 samples (standard audio block size)
+                // NOTE: jc303_process allocates a new buffer on every call using 'new float[numSamples]'.
+                // This can exhaust the WASM heap over time. The emscripten_resize_heap function
+                // above allows the heap to grow to accommodate this.
+                const ptr = processFunc(128);
 
-            if (ptr === 0 || ptr === undefined) {
-                // Invalid pointer - likely allocation failure
-                if (this.allocationErrorCount++ < 5) {
-                    console.error('[Open303] jc303_process returned invalid pointer (likely memory allocation failure). Count:', this.allocationErrorCount);
+                if (ptr === 0 || ptr === undefined) {
+                    // Invalid pointer - likely allocation failure
+                    if (this.allocationErrorCount++ < 5) {
+                        console.error('[Open303] jc303_process returned invalid pointer (likely memory allocation failure). Count:', this.allocationErrorCount);
+                    }
+                    if (channelL) channelL.fill(0);
+                    if (channelR) channelR.fill(0);
+                    return true;
                 }
-                if (channelL) channelL.fill(0);
-                if (channelR) channelR.fill(0);
-                return true;
-            }
 
-            // Pointer is in bytes, divide by 4 for Float32 index
-            const offset = ptr >> 2;
+                // Pointer is in bytes, divide by 4 for Float32 index
+                const offset = ptr >> 2;
 
-            // Safety check
-            if (offset >= 0 && offset + 128 <= this.heapFloat32.length) {
-                const gain = Open303Processor.OUTPUT_GAIN;
-                for (let i = 0; i < 128; i++) {
-                    const sample = this.heapFloat32[offset + i] * gain;
-                    if (channelL) channelL[i] = sample;
-                    if (channelR) channelR[i] = sample;
+                // Safety check
+                if (offset >= 0 && offset + 128 <= this.heapFloat32.length) {
+                    const gain = Open303Processor.OUTPUT_GAIN;
+                    for (let i = 0; i < 128; i++) {
+                        const sample = this.heapFloat32[offset + i] * gain;
+                        if (channelL) channelL[i] = sample;
+                        if (channelR) channelR[i] = sample;
+                    }
+                } else {
+                    if (this.processErrorCount++ < 5) {
+                        console.error(`[Open303] Heap overflow: offset=${offset}, length=${this.heapFloat32.length}`);
+                    }
+                    if (channelL) channelL.fill(0);
+                    if (channelR) channelR.fill(0);
+                }
+
+                // Free the allocated buffer to prevent memory leak
+                if (exports._free) {
+                    exports._free(ptr);
                 }
             } else {
-                if (this.processErrorCount++ < 5) {
-                    console.error(`[Open303] Heap overflow: offset=${offset}, length=${this.heapFloat32.length}`);
-                }
+                // No process function - output silence
                 if (channelL) channelL.fill(0);
                 if (channelR) channelR.fill(0);
             }
-
-            // Free the allocated buffer to prevent memory leak
-            if (exports._free) {
-                exports._free(ptr);
+        } catch (e: any) {
+            if (this.processErrorCount++ < 5) {
+                console.error('[Open303] Process error:', e);
+                if (e.stack) console.error(e.stack);
             }
-        } else {
-            // No process function - output silence
             if (channelL) channelL.fill(0);
             if (channelR) channelR.fill(0);
         }
-    } catch (e: any) {
-        if (this.processErrorCount++ < 5) {
-            console.error('[Open303] Process error:', e);
-            if (e.stack) console.error(e.stack);
-        }
-        if (channelL) channelL.fill(0);
-        if (channelR) channelR.fill(0);
-    }
 
-    return true;
-}
+        return true;
+    }
 }
 
 registerProcessor('open303-processor', Open303Processor);
