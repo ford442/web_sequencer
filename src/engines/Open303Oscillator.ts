@@ -1,5 +1,5 @@
-import type { Open303Params } from './Open303Params';
-import { DEFAULT_303_PARAMS } from './Open303Params';
+import type { Open303Params, Open303Config } from './Open303Params';
+import { DEFAULT_303_PARAMS, DEFAULT_303_CONFIG } from './Open303Params';
 import { FallbackBassSynth } from './FallbackBassSynth';
 
 export class Open303Oscillator {
@@ -13,8 +13,11 @@ export class Open303Oscillator {
     public isReady: boolean = false;
     public isFallback: boolean = false;
 
-    async init(audioContext: AudioContext, workletUrl?: string): Promise<boolean> {
+    async init(audioContext: AudioContext, workletUrl?: string, config?: Open303Config): Promise<boolean> {
         this.audioContext = audioContext;
+        
+        // Merge with defaults
+        const cfg = { ...DEFAULT_303_CONFIG, ...config };
         
         // Create nodes
         this.outputNode = audioContext.createGain();
@@ -25,37 +28,54 @@ export class Open303Oscillator {
         // Ensure AudioWorklet is supported and URL is provided
         if (audioContext.audioWorklet && workletUrl) {
             try {
-                // 1. Fetch the WASM binary manually
-                const wasmResponse = await fetch('./jc303.wasm');
+                // 1. Determine which WASM variant to use
+                // Single-threaded has best compatibility, threaded requires COOP/COEP headers
+                const variant = (!cfg.forceSingleThreaded && cfg.preferThreaded) ? 'threaded' : 'single';
+                const wasmUrl = `./jc303-${variant}.wasm`;
+                
+                console.log(`[Open303Oscillator] Fetching WASM variant: ${variant} (${wasmUrl})`);
+
+                // 2. Fetch the WASM binary manually
+                let wasmResponse = await fetch(wasmUrl);
+                
+                // If threaded fails and we were trying threaded, fall back to single
+                if (!wasmResponse.ok && variant === 'threaded') {
+                    console.warn(`Failed to fetch ${wasmUrl}: ${wasmResponse.status}, falling back to single-threaded`);
+                    wasmResponse = await fetch('./jc303-single.wasm');
+                }
+                
                 if (!wasmResponse.ok) {
-                    console.warn(`Failed to fetch jc303.wasm: ${wasmResponse.status}`);
+                    console.warn(`Failed to fetch jc303 WASM: ${wasmResponse.status}`);
                     this.activateFallback();
                     return true; // Return true so audio doesn't die
                 }
+                
                 const wasmBytes = await wasmResponse.arrayBuffer();
+                console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-                // 2. Add the Worklet Module
+                // 3. Add the Worklet Module
                 await audioContext.audioWorklet.addModule(workletUrl);
 
-                // 3. Create the Node
+                // 4. Create the Node
                 this.workletNode = new AudioWorkletNode(audioContext, 'open303-processor', {
                     outputChannelCount: [2] // Request Stereo
                 });
 
-                // 4. Send WASM to the Worklet
+                // 5. Send WASM to the Worklet
                 const module = await WebAssembly.compile(wasmBytes);
                 const imports = WebAssembly.Module.imports(module);
                 const memoryImport = imports.find(i => i.kind === 'memory');
                 const isThreaded = memoryImport !== undefined;
                 
-                console.log(`[Open303Oscillator] WASM imports memory: ${isThreaded}`);
+                console.log(`[Open303Oscillator] WASM imports memory: ${isThreaded} (requested: ${variant})`);
                 
                 this.workletNode.port.postMessage({
                     type: 'init-wasm',
                     data: {
                         wasmBytes,
                         sampleRate: audioContext.sampleRate,
-                        isThreaded
+                        isThreaded,
+                        variant
                     }
                 });
 
@@ -202,9 +222,8 @@ export class Open303Oscillator {
         }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-private-class-members
-    // @ts-ignore - _cleanup is used for memory leak prevention when engine is destroyed
-    private _cleanup() {
+    // Public cleanup method for external disposal
+    cleanup() {
         this.cleanupWorklet();
         if (this.gainNode) {
             this.gainNode.disconnect();

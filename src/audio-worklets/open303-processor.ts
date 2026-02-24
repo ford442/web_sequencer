@@ -31,8 +31,7 @@ class Open303Processor extends AudioWorkletProcessor {
     // Stuck note protection
     private activeNotes: Map<number, number> = new Map(); // note -> startTime (ms)
     private static readonly MAX_NOTE_DURATION_MS = 8000; // 8 seconds max note duration
-    // private static readonly _NOTE_CHECK_INTERVAL = 128 * 10; // Check every 10 process blocks (~1280 samples @ 44.1kHz)
-    // private _processBlockCount = 0;
+
     private stuckNoteWarnings = 0;
 
     // Stack protection - rate limit noteOn to prevent stack overflow

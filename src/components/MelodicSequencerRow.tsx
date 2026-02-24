@@ -194,7 +194,6 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           active={isActive}
           note={stepData?.note || null}
           pitch={pitch}
-          pitchOffset={pitchOffset}
           phonemeIndex={phonemeIndex}
           length={length}
           isSlide={!!stepData?.slide}

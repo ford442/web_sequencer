@@ -136,8 +136,13 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
             
             // Wrap in try/catch to prevent AudioContext death on failure
             try {
-                // PASS the worklet URL, no complex options
-                open303Ready = await open303Engine.init(context, open303ProcessorUrl);
+                // Use single-threaded WASM for best compatibility
+                // Threaded variant requires COOP/COEP headers which may not be available
+                open303Ready = await open303Engine.init(context, open303ProcessorUrl, {
+                    preferWorklet: true,
+                    preferThreaded: false,
+                    forceSingleThreaded: true
+                });
                 
                 if (open303Ready) {
                     // Connect to master gain (local variable)
