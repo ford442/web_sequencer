@@ -36,7 +36,7 @@
 | Rust/WASM | Rust | `public/rust-wasm/` | High-precision synthesis |
 | Emscripten | C++ | `public/hyphon_native.js` | Rubberband pitch shifting |
 | JC-303 | C++ | `public/jc303.*` | TB-303 clone synthesizer |
-| WebGPU | WGSL/TypeScript | Runtime | Massive oscillator compute |
+| WebGPU | WGSL/TypeScript | Runtime | GPU-accelerated DSP |
 | Web Audio | TypeScript | Native | Primary audio graph |
 
 ### Backend & Services
