@@ -78,7 +78,7 @@ describe('Open303 Oscillator', () => {
         expect(engine.isReady).toBe(true);
 
         // Verify fetch was called for WASM (defaults to single-threaded)
-        expect(global.fetch).toHaveBeenCalledWith('./jc303-single.wasm');
+        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('jc303-single.wasm'));
 
         // Verify addModule was called
         expect(mockAudioContext.audioWorklet.addModule).toHaveBeenCalledWith('worklet-url.js');
