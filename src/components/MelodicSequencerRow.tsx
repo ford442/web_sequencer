@@ -184,7 +184,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       
       // Default pitch for new notes is C4 (60)
       const pitch = stepData?.pitch ?? 60;
-      const pitchOffset = stepData?.pitchOffset ?? 0;
+      // const pitchOffset = stepData?.pitchOffset ?? 0; // Unused
       const phonemeIndex = stepData?.phonemeIndex;
       
       renderedSteps.push(
