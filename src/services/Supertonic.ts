@@ -129,17 +129,20 @@ export class SupertonicService {
             // OPTIMIZATION 2: WebGPU Execution Provider
             // We attempt 'webgpu' first. If the browser doesn't support it,
             // ORT falls back to 'wasm' automatically.
-            const sessionOptions: ort.InferenceSession.SessionOptions = {
+            const sessionOptions: any = {
                 executionProviders: [{ name: 'webgpu' }, { name: 'wasm' }],
                 graphOptimizationLevel: 'all'
             };
 
             // Parallel loading is faster than sequential await
-            // @ts-ignore - ORT types might be mismatched for create(), ignoring argument count error
             const [dp, textEnc, vecEst, vocoder] = await Promise.all([
+                // @ts-ignore - ORT types might be mismatched for create(), ignoring argument count error
                 ort.InferenceSession.create(getAssetUrl('assets/onnx/duration_predictor.onnx'), sessionOptions),
+                // @ts-ignore
                 ort.InferenceSession.create(getAssetUrl('assets/onnx/text_encoder.onnx'), sessionOptions),
+                // @ts-ignore
                 ort.InferenceSession.create(getAssetUrl('assets/onnx/vector_estimator.onnx'), sessionOptions),
+                // @ts-ignore
                 ort.InferenceSession.create(getAssetUrl('assets/onnx/vocoder.onnx'), sessionOptions)
 
             ]);
