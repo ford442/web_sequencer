@@ -432,7 +432,7 @@ export const App: React.FC = () => {
                 if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
 
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
 
                 audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams);
                 lastFreqRef.current[trackKey] = currentBaseFreq;
@@ -447,9 +447,8 @@ export const App: React.FC = () => {
             const stepData = p[trackKey].steps[step];
             if (stepData) {
                  if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                 // Drums don't support timbre/microtiming yet in this simplified call, but we could add it
-                 // For now just probability
-                 audioEngine.playDrum(sound, params, time);
+                 const noteParams = { retrigger: stepData.retrigger };
+                 audioEngine.playDrum(sound, params, time, noteParams, stepTime);
             }
         };
 
@@ -462,7 +461,7 @@ export const App: React.FC = () => {
             const stepData = seq.steps[step];
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger };
                 audioEngine.playSampler(samplerRef.current[bankIdx], stepData.note, time, stepData.length, stepTime, noteParams);
             }
         });
@@ -862,7 +861,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     };
 
-    const handleNotePropertyChange = (key: 'timbre' | 'probability' | 'microtiming' | 'reverse', value: number | boolean) => {
+    const handleNotePropertyChange = (key: 'timbre' | 'probability' | 'microtiming' | 'reverse' | 'retrigger', value: number | boolean) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -1247,6 +1246,7 @@ export const App: React.FC = () => {
                             currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
                             currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
                             currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
+                            currentRetrigger={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.retrigger ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.retrigger ?? 1}
                             currentReverse={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverse ?? false : false}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
