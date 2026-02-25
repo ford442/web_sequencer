@@ -32,7 +32,7 @@ export class Open303Oscillator {
                 // Single-threaded has best compatibility, threaded requires COOP/COEP headers
                 const variant = (!cfg.forceSingleThreaded && cfg.preferThreaded) ? 'threaded' : 'single';
                 const basePath = import.meta.env.BASE_URL || '/';
-                const wasmUrl = new URL(`${basePath}jc303-${variant}.wasm`, window.location.origin).toString();
+                const wasmUrl = new URL(`./jc303-${variant}.wasm`, window.location.origin).toString();
                 
                 console.log(`[Open303Oscillator] Fetching WASM variant: ${variant} (${wasmUrl})`);
 
@@ -42,7 +42,7 @@ export class Open303Oscillator {
                 // If threaded fails and we were trying threaded, fall back to single
                 if (!wasmResponse.ok && variant === 'threaded') {
                     console.warn(`Failed to fetch ${wasmUrl}: ${wasmResponse.status}, falling back to single-threaded`);
-                    const fallbackUrl = new URL(`${basePath}jc303-single.wasm`, window.location.origin).toString();
+                    const fallbackUrl = new URL(`./jc303-single.wasm`, window.location.origin).toString();
                     wasmResponse = await fetch(fallbackUrl);
                 }
                 
