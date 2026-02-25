@@ -65,8 +65,8 @@ const PhonemePill = memo(({
   pitchBend,
   elasticity,
   onDrag,
-  onPitchBendChange,
-  onElasticityChange,
+  onPitchBendChange: _onPitchBendChange,
+  onElasticityChange: _onElasticityChange,
   onSelect
 }: PhonemePillProps) => {
   const [isDragging, setIsDragging] = useState(false);
