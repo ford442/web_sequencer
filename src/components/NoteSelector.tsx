@@ -17,12 +17,13 @@ interface NoteSelectorProps {
     currentProbability?: number;
     currentMicrotiming?: number;
     currentReverse?: boolean;
-    onPropertyChange?: (key: 'timbre' | 'probability' | 'microtiming' | 'reverse', value: number | boolean) => void;
+    currentRetrigger?: number;
+    onPropertyChange?: (key: 'timbre' | 'probability' | 'microtiming' | 'reverse' | 'retrigger', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor,
-    currentTimbre = 0, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, onPropertyChange
+    currentTimbre = 0, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -127,6 +128,26 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 onChange={(e) => onPropertyChange('microtiming', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
                             />
+                        </div>
+
+                        {/* Retrigger (Ratchet) Control */}
+                        <div className="flex flex-col gap-1 pb-1">
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                <label>Retrigger</label>
+                                <span className="text-orange-400">{currentRetrigger > 1 ? `${currentRetrigger}x` : 'OFF'}</span>
+                            </div>
+                            <div className="flex gap-1">
+                                {[1, 2, 3, 4].map(val => (
+                                    <button
+                                        key={val}
+                                        onClick={() => onPropertyChange('retrigger', val)}
+                                        className={`flex-1 py-1 text-[10px] font-bold rounded ${currentRetrigger === val ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+                                        aria-pressed={currentRetrigger === val}
+                                    >
+                                        {val === 1 ? '1x' : `${val}x`}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Reverse Control */}

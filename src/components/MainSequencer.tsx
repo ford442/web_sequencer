@@ -169,7 +169,7 @@ export const AutomationStep = memo(({
 
 const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
-    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing, phonemeLabel
+    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing, phonemeLabel, retrigger
 }: {
     stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
@@ -180,13 +180,15 @@ const SvgStep = memo(({
     isRangeSelected?: boolean,
     onDrawEnter?: (k: TrackKey, i: number) => void,
     isDrawing?: boolean,
-    phonemeLabel?: string
+    phonemeLabel?: string,
+    retrigger?: number
 }) => {
     const baseWidth = 18;
     const gap = 4;
     const height = 50;
     const x = 220 + stepIndex * (baseWidth + gap);
     const totalWidth = (baseWidth * length) + (gap * (length - 1));
+    const retriggerCount = retrigger || 1;
     const color = note ? getNoteColor(note) : '#06b6d4';
     const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
     const groupIndex = Math.floor(stepIndex / 4);
@@ -236,6 +238,12 @@ const SvgStep = memo(({
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
             {active && isSlide && <rect x={4} y={height - 8} width={totalWidth - 8} height={3} rx={1} fill="#fbbf24" fillOpacity={1} style={{ mixBlendMode: 'plus-lighter' }} />}
             <rect x={1} y={1} width={totalWidth - 2} height={height - 2} rx={2} fill={baseFill} strokeWidth={0} />
+
+            {/* Retrigger Indicators */}
+            {active && retriggerCount > 1 && Array.from({ length: retriggerCount - 1 }).map((_, i) => (
+                <rect key={i} x={(totalWidth / retriggerCount) * (i + 1)} y={2} width={1} height={height - 4} fill="rgba(255,255,255,0.3)" />
+            ))}
+
             <path d={`M 2 2 L ${totalWidth - 2} 2 L ${totalWidth - 4} 4 L 4 4 L 4 ${height - 4} L 2 ${height - 2} Z`} fill="rgba(255,255,255,0.2)" />
             <path d={`M ${totalWidth - 2} 2 L ${totalWidth - 2} ${height - 2} L 2 ${height - 2} L 4 ${height - 4} L ${totalWidth - 4} ${height - 4} L ${totalWidth - 4} 4 Z`} fill="rgba(0,0,0,0.5)" />
             <rect className="step-cap" x={3} y={4} width={totalWidth - 6} height={height - 8} rx={1} fill={active ? color : '#1a2026'} fillOpacity={active ? 0.6 : 1} stroke={active ? color : 'none'} strokeWidth={active ? 1 : 0} />
@@ -392,7 +400,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 }
             }
 
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} phonemeLabel={phonemeLabel} />);
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} />);
             if (stepData && length > 1) { skipCount = length - 1; }
         }
     }

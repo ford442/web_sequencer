@@ -287,7 +287,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
             // Define Playback Functions
 
-            const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number }) => {
+            const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number }) => {
                  if (!masterGainRef.current) return;
 
                  // Apply Microtiming
@@ -303,118 +303,135 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                      effectiveParams.filterCutoff = Math.min(20000, params.filterCutoff * mod);
                  }
 
-                 // Open303 Routing (Specific check for 303 waveforms)
-                 if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
-                     if (open303EngineRef.current) {
-                         apply303Params(open303EngineRef.current, effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+                 // Retrigger Logic
+                 const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
+                 const subDurationSteps = durationSteps / retrigger;
+                 const subDuration = subDurationSteps * stepTime;
 
-                         // Note: 303 Engine is monophonic by nature in this implementation or handles its own logic.
-                         // But noteToMidi expects string. If chord (array), pick first note?
-                         const noteStr = Array.isArray(note) ? note[0] : note;
-                         if (!noteStr) return;
+                 // Execution Loop
+                 for (let i = 0; i < retrigger; i++) {
+                     const noteTime = actualTime + (i * subDuration);
 
-                         const midi = noteToMidi(noteStr);
+                     // Open303 Routing (Specific check for 303 waveforms)
+                     if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
+                         if (open303EngineRef.current) {
+                             apply303Params(open303EngineRef.current, effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-                         const now = context.currentTime;
-                         const startDelay = Math.max(0, actualTime - now);
-                         const duration = durationSteps * stepTime;
+                             // Note: 303 Engine is monophonic by nature in this implementation or handles its own logic.
+                             // But noteToMidi expects string. If chord (array), pick first note?
+                             const noteStr = Array.isArray(note) ? note[0] : note;
+                             if (!noteStr) continue;
 
-                         setTimeout(() => {
-                             open303EngineRef.current?.noteOn(midi, 100);
-                         }, startDelay * 1000);
+                             const midi = noteToMidi(noteStr);
 
-                         setTimeout(() => {
-                             if (slideFromFreq === undefined) { // Check if slide is active (heuristic)
-                                 open303EngineRef.current?.noteOff(midi);
-                             }
-                         }, (startDelay + duration) * 1000);
+                             const now = context.currentTime;
+                             const startDelay = Math.max(0, noteTime - now);
+                             const noteDuration = subDuration;
 
-                         return;
+                             setTimeout(() => {
+                                 open303EngineRef.current?.noteOn(midi, 100);
+                             }, startDelay * 1000);
+
+                             setTimeout(() => {
+                                 if (slideFromFreq === undefined) { // Check if slide is active (heuristic)
+                                     open303EngineRef.current?.noteOff(midi);
+                                 }
+                             }, (startDelay + noteDuration) * 1000);
+
+                             continue;
+                         }
                      }
-                 }
 
-                 // Standard Synth Logic via VoiceManager
-                 const duration = durationSteps * stepTime;
+                     // Standard Synth Logic via VoiceManager
+                     const noteDuration = subDuration;
+                     const effectiveSlide = (i === 0) ? slideFromFreq : undefined;
 
-                 if (track === 'partB' && voiceManagerBRef.current) {
-                     voiceManagerBRef.current.playNote(effectiveParams, note, actualTime, duration, slideFromFreq);
-                 } else if (voiceManagerARef.current) {
-                     // Default to Synth A (Poly)
-                     voiceManagerARef.current.playNote(effectiveParams, note, actualTime, duration, slideFromFreq);
+                     if (track === 'partB' && voiceManagerBRef.current) {
+                         voiceManagerBRef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                     } else if (voiceManagerARef.current) {
+                         // Default to Synth A (Poly)
+                         voiceManagerARef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                     }
                  }
             };
 
-            const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
+            const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number }, stepTime: number = 0.125) => {
                  if (!masterGainRef.current) return;
-                 const now = time;
 
-                 if (sound === 'kick') {
-                     const p = params as KickParams;
-                     const osc = context.createOscillator();
-                     const gain = context.createGain();
+                 const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
+                 const subStep = stepTime / retrigger;
 
-                     osc.frequency.setValueAtTime(150, now);
-                     osc.frequency.exponentialRampToValueAtTime(0.01, now + p.decay);
+                 for (let i = 0; i < retrigger; i++) {
+                     const now = time + (i * subStep);
 
-                     gain.gain.setValueAtTime(p.volume, now);
-                     gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+                     if (sound === 'kick') {
+                         const p = params as KickParams;
+                         const osc = context.createOscillator();
+                         const gain = context.createGain();
 
-                     osc.connect(gain);
-                     gain.connect(masterGainRef.current);
+                         osc.frequency.setValueAtTime(150, now);
+                         osc.frequency.exponentialRampToValueAtTime(0.01, now + p.decay);
 
-                     osc.start(now);
-                     osc.stop(now + p.decay);
-                 } else if (sound === 'snare') {
-                     const p = params as SnareParams;
-                     // Tone
-                     const osc = context.createOscillator();
-                     const oscGain = context.createGain();
-                     osc.type = 'triangle';
-                     osc.frequency.setValueAtTime(250, now);
-                     oscGain.gain.setValueAtTime(p.tone * p.volume, now);
-                     oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay); // Using decay for tone too
+                         gain.gain.setValueAtTime(p.volume, now);
+                         gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
 
-                     // Noise
-                     if (noiseBufferRef.current) {
-                         const noise = context.createBufferSource();
-                         noise.buffer = noiseBufferRef.current;
-                         const noiseFilter = context.createBiquadFilter();
-                         noiseFilter.type = 'highpass';
-                         noiseFilter.frequency.value = 1000;
-                         const noiseGain = context.createGain();
-                         noiseGain.gain.setValueAtTime(p.noise * p.volume, now);
-                         noiseGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+                         osc.connect(gain);
+                         gain.connect(masterGainRef.current);
 
-                         noise.connect(noiseFilter);
-                         noiseFilter.connect(noiseGain);
-                         noiseGain.connect(masterGainRef.current);
-                         noise.start(now);
-                         noise.stop(now + p.decay);
-                     }
+                         osc.start(now);
+                         osc.stop(now + p.decay);
+                     } else if (sound === 'snare') {
+                         const p = params as SnareParams;
+                         // Tone
+                         const osc = context.createOscillator();
+                         const oscGain = context.createGain();
+                         osc.type = 'triangle';
+                         osc.frequency.setValueAtTime(250, now);
+                         oscGain.gain.setValueAtTime(p.tone * p.volume, now);
+                         oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay); // Using decay for tone too
 
-                     osc.connect(oscGain);
-                     oscGain.connect(masterGainRef.current);
-                     osc.start(now);
-                     osc.stop(now + p.decay);
+                         // Noise
+                         if (noiseBufferRef.current) {
+                             const noise = context.createBufferSource();
+                             noise.buffer = noiseBufferRef.current;
+                             const noiseFilter = context.createBiquadFilter();
+                             noiseFilter.type = 'highpass';
+                             noiseFilter.frequency.value = 1000;
+                             const noiseGain = context.createGain();
+                             noiseGain.gain.setValueAtTime(p.noise * p.volume, now);
+                             noiseGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
 
-                 } else {
-                     // Hats
-                     const p = params as HatParams;
-                     if (noiseBufferRef.current) {
-                        const src = context.createBufferSource();
-                        src.buffer = noiseBufferRef.current;
-                        const filter = context.createBiquadFilter();
-                        filter.type = 'highpass';
-                        filter.frequency.value = 5000; // Metallic
-                        const gain = context.createGain();
-                        gain.gain.setValueAtTime(p.volume, now);
-                        gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+                             noise.connect(noiseFilter);
+                             noiseFilter.connect(noiseGain);
+                             noiseGain.connect(masterGainRef.current);
+                             noise.start(now);
+                             noise.stop(now + p.decay);
+                         }
 
-                        src.connect(filter);
-                        filter.connect(gain);
-                        gain.connect(masterGainRef.current);
-                        src.start(now);
-                        src.stop(now + p.decay);
+                         osc.connect(oscGain);
+                         oscGain.connect(masterGainRef.current);
+                         osc.start(now);
+                         osc.stop(now + p.decay);
+
+                     } else {
+                         // Hats
+                         const p = params as HatParams;
+                         if (noiseBufferRef.current) {
+                            const src = context.createBufferSource();
+                            src.buffer = noiseBufferRef.current;
+                            const filter = context.createBiquadFilter();
+                            filter.type = 'highpass';
+                            filter.frequency.value = 5000; // Metallic
+                            const gain = context.createGain();
+                            gain.gain.setValueAtTime(p.volume, now);
+                            gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+
+                            src.connect(filter);
+                            filter.connect(gain);
+                            gain.connect(masterGainRef.current);
+                            src.start(now);
+                            src.stop(now + p.decay);
+                         }
                      }
                  }
             };
@@ -447,15 +464,20 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 return vocalAlignmentsRef.current.get(bankName) || null;
             };
 
-            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number }) => {
+            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 if (!buffer || !masterGainRef.current) return;
 
                 // Apply Microtiming
                 const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
 
+                // Retrigger Logic
+                const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
+                const subDurationSteps = durationSteps / retrigger;
+
                 // --- GLITCH LOGIC START ---
-                const shouldGlitch = (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
+                // Only glitch if NOT retriggering (priority to explicit retrigger)
+                const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
                 // --- GLITCH LOGIC END ---
 
                 if (params.mode === 'stretch' && singingVoiceRef.current) {
@@ -577,8 +599,11 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                              runVoices(played, totalDur - played);
                         }
                     } else {
-                        // Normal Playback
-                        runVoices(0, durationSteps * stepTime);
+                        // Normal or Retrigger Playback
+                        for (let r = 0; r < retrigger; r++) {
+                            const offset = r * (subDurationSteps * stepTime);
+                            runVoices(offset, subDurationSteps * stepTime);
+                        }
                     }
                     return;
                 }
@@ -627,7 +652,15 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                      // Trigger full note after stutters
                      playBufferSource(actualTime + numStutters * stutterLen, 0);
                 } else {
-                     playBufferSource(actualTime, 0);
+                     // Normal or Retrigger Playback
+                     for (let r = 0; r < retrigger; r++) {
+                        const offset = r * (subDurationSteps * stepTime);
+                        // For buffer source, we might want to shorten playback if it overlaps?
+                        // playBufferSource takes (startTime, duration). 0 means play full.
+                        // If retriggering, we probably want to gate it?
+                        // Let's pass subDuration in seconds.
+                        playBufferSource(actualTime + offset, subDurationSteps * stepTime);
+                     }
                 }
             };
 
