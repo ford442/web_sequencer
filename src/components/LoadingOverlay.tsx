@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useLoadingProgress, LoadingStep, loadingProgressStore } from '../stores/loadingProgressStore';
+import { useLoadingProgress, type LoadingStep } from '../stores/loadingProgressStore';
 
 interface LoadingOverlayProps {
   isVisible: boolean;
