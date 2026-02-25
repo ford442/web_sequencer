@@ -129,6 +129,7 @@ export class SupertonicService {
             // OPTIMIZATION 2: WebGPU Execution Provider
             // We attempt 'webgpu' first. If the browser doesn't support it,
             // ORT falls back to 'wasm' automatically.
+            // annotations are removed because the type is not exported by ort
             const sessionOptions: any = {
                 executionProviders: [{ name: 'webgpu' }, { name: 'wasm' }],
                 graphOptimizationLevel: 'all'
@@ -136,7 +137,7 @@ export class SupertonicService {
 
             // Parallel loading is faster than sequential await
             const [dp, textEnc, vecEst, vocoder] = await Promise.all([
-                // @ts-ignore - ORT types might be mismatched for create(), ignoring argument count error
+                // @ts-ignore - signature mismatch in current type defs
                 ort.InferenceSession.create(getAssetUrl('assets/onnx/duration_predictor.onnx'), sessionOptions),
                 // @ts-ignore
                 ort.InferenceSession.create(getAssetUrl('assets/onnx/text_encoder.onnx'), sessionOptions),

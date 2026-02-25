@@ -31,17 +31,17 @@ interface TrackSlotButtonProps {
 const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: TrackSlotButtonProps) => {
   const patternColor = TRACK_COLORS[trackKey] || '#22d3ee';
   const inactiveColor = hasData ? patternColor : '#0f1812';
-  
+
   return (
-    <g 
-      transform={`translate(${index * 22}, 0)`} 
-      className="track-slot" 
+    <g
+      transform={`translate(${index * 22}, 0)`}
+      className="track-slot"
       onClick={() => onSelect(trackKey, index)}
       cursor="pointer"
       role="button"
       tabIndex={0}
       aria-label={`Pattern Slot ${index + 1}`}
-      onKeyDown={(e) => { 
+      onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onSelect(trackKey, index);
@@ -49,21 +49,21 @@ const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: 
       }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <rect 
-        width={18} 
-        height={18} 
-        rx={2} 
+      <rect
+        width={18}
+        height={18}
+        rx={2}
         fill={isActive ? patternColor : inactiveColor}
         fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)}
         stroke={isActive ? '#fff' : patternColor}
         strokeOpacity={isActive ? 1 : 0.6}
         strokeWidth={1}
       />
-      <text 
-        x={9} 
-        y={13} 
-        textAnchor="middle" 
-        fontSize={10} 
+      <text
+        x={9}
+        y={13}
+        textAnchor="middle"
+        fontSize={10}
         fill={isActive ? '#000' : patternColor}
         fontFamily="monospace"
         fontWeight="bold"
@@ -116,7 +116,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
 
     const updateClasses = useCallback((step: number) => {
       let newActiveIndex = -1;
-      
+
       // Find which step should be highlighted based on current sequencer step
       for (let i = step; i >= 0; i--) {
         if (stepRefs.current[i]) {
@@ -171,22 +171,22 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
     // Render steps
     const renderedSteps = [];
     let skipCount = 0;
-    
+
     for (let i = 0; i < 32; i++) {
       if (skipCount > 0) {
         skipCount--;
         continue;
       }
-      
+
       const stepData = steps[i];
       const length = stepData?.length || 1;
       const isActive = !!stepData;
-      
+
       // Default pitch for new notes is C4 (60)
       const pitch = stepData?.pitch ?? 60;
       // const pitchOffset = stepData?.pitchOffset ?? 0; // Unused
       const phonemeIndex = stepData?.phonemeIndex;
-      
+
       renderedSteps.push(
         <MelodicStep
           key={i}
@@ -205,7 +205,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           onEditLength={onEditLength}
         />
       );
-      
+
       if (stepData && length > 1) {
         skipCount = length - 1;
       }
@@ -214,8 +214,8 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
     return (
       <g transform={`translate(0, ${rowIndex * 80})`}>
         {/* Track label */}
-        <g 
-          className="track-label" 
+        <g
+          className="track-label"
           onClick={() => onSelectRow(rowKey)}
           cursor="pointer"
           role="button"

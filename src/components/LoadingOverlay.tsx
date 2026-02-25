@@ -162,15 +162,14 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onCom
 
                   {/* Label */}
                   <span
-                    className={`flex-1 font-mono text-xs ${
-                      step.status === 'active'
-                        ? 'text-cyan-400'
-                        : step.status === 'completed'
-                          ? 'text-green-400'
-                          : step.status === 'error'
-                            ? 'text-yellow-400'
-                            : 'text-gray-500'
-                    }`}
+                    className={`flex-1 font-mono text-xs ${step.status === 'active'
+                      ? 'text-cyan-400'
+                      : step.status === 'completed'
+                        ? 'text-green-400'
+                        : step.status === 'error'
+                          ? 'text-yellow-400'
+                          : 'text-gray-500'
+                      }`}
                   >
                     {step.label}
                   </span>
