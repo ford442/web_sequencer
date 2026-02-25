@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Knob } from './Knob';
 
 /**
@@ -45,17 +45,62 @@ const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = ({ selected, onSel
   // Show 12 notes centered around selected
   const startNote = Math.max(36, Math.min(selected - 6, 96));
   const notes = Array.from({ length: 12 }, (_, i) => startNote + i);
+  const buttonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    let nextNote = selected;
+    let handled = false;
+
+    if (e.key === 'ArrowUp') {
+      nextNote = selected - 1;
+      handled = true;
+    } else if (e.key === 'ArrowDown') {
+      nextNote = selected + 1;
+      handled = true;
+    } else if (e.key === 'PageUp') {
+      nextNote = selected - 12;
+      handled = true;
+    } else if (e.key === 'PageDown') {
+      nextNote = selected + 12;
+      handled = true;
+    }
+
+    if (handled) {
+      e.preventDefault();
+      const clamped = Math.max(36, Math.min(96, nextNote));
+      if (clamped !== selected) {
+        onSelect(clamped);
+        // Focus the new button after render
+        setTimeout(() => {
+          const btn = buttonRefs.current.get(clamped);
+          btn?.focus();
+        }, 0);
+      }
+    }
+  };
   
   return (
-    <div className="flex flex-col gap-0.5 h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-transparent">
+    <div
+      className="flex flex-col gap-0.5 h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-transparent focus:outline-none"
+      role="radiogroup"
+      aria-label="Root Note Selection"
+      onKeyDown={handleKeyDown}
+    >
       {notes.map((note) => {
         const isSelected = note === selected;
         const isC = note % 12 === 0;
         return (
           <button
             key={note}
+            ref={(el) => {
+              if (el) buttonRefs.current.set(note, el);
+              else buttonRefs.current.delete(note);
+            }}
+            role="radio"
+            aria-checked={isSelected}
+            tabIndex={isSelected ? 0 : -1}
             onClick={() => onSelect(note)}
-            className={`text-[10px] font-mono py-0.5 px-2 rounded transition-all ${
+            className={`text-[10px] font-mono py-0.5 px-2 rounded transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 ${
               isSelected
                 ? 'bg-purple-600 text-white shadow-[0_0_8px_rgba(147,51,234,0.6)]'
                 : isC
@@ -76,8 +121,16 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
   values,
   onChange,
 }) => {
+  // Generate unique IDs for form elements based on bankId
+  const qualityId = `rb-quality-${bankId}`;
+  const modeId = `rb-mode-${bankId}`;
+  const autoFollowId = `rb-autofollow-${bankId}`;
+
   return (
-    <div className="bg-gradient-to-br from-gray-900/80 to-indigo-950/50 border border-purple-500/30 rounded-lg p-4 space-y-4 shadow-lg">
+    <div
+      className="bg-gradient-to-br from-gray-900/80 to-indigo-950/50 border border-purple-500/30 rounded-lg p-4 space-y-4 shadow-lg"
+      aria-label={`Vocal Pitch Engine for Bank ${bankId + 1}`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 pb-2">
         <h3 className="text-xs font-bold text-purple-300 uppercase tracking-wider">
@@ -106,7 +159,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
         </div>
 
         {/* Pitch Knobs Row */}
-        <div className="col-span-7 grid grid-cols-4 gap-2">
+        <div className="col-span-7 grid grid-cols-4 gap-2" role="group" aria-label="Pitch Adjustment Controls">
           <div className="flex flex-col items-center">
             <Knob
               label="COARSE"
@@ -175,15 +228,16 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
         </div>
 
         {/* RubberBand Engine Section */}
-        <div className="col-span-3 flex flex-col gap-2">
+        <div className="col-span-3 flex flex-col gap-2" role="group" aria-label="RubberBand Engine Settings">
           <label className="text-[10px] text-white/70 uppercase tracking-wide">
             RubberBand Engine
           </label>
           
           {/* Quality Select */}
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] text-gray-500">Quality</label>
+            <label htmlFor={qualityId} className="text-[9px] text-gray-500">Quality</label>
             <select
+              id={qualityId}
               value={values.rbQuality}
               onChange={(e) => onChange('rbQuality', e.target.value as 'Fast' | 'Standard' | 'Elastic')}
               className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
@@ -196,8 +250,9 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
 
           {/* Stretch Mode Select */}
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] text-gray-500">Mode</label>
+            <label htmlFor={modeId} className="text-[9px] text-gray-500">Mode</label>
             <select
+              id={modeId}
               value={values.stretchMode}
               onChange={(e) => onChange('stretchMode', e.target.value as 'Time' | 'Pitch' | 'Formant')}
               className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
@@ -209,20 +264,23 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
           </div>
 
           {/* Auto Follow Checkbox */}
-          <label className="flex items-center gap-2 text-[10px] text-gray-300 mt-1 cursor-pointer hover:text-white transition-colors">
+          <div className="flex items-center gap-2 mt-1">
             <input
+              id={autoFollowId}
               type="checkbox"
               checked={values.autoFollow}
               onChange={(e) => onChange('autoFollow', e.target.checked)}
-              className="w-3 h-3 rounded border-gray-600 text-purple-600 focus:ring-purple-500 bg-gray-800"
+              className="w-3 h-3 rounded border-gray-600 text-purple-600 focus:ring-purple-500 bg-gray-800 cursor-pointer"
             />
-            <span className="leading-none">Lock to Seq</span>
-          </label>
+            <label htmlFor={autoFollowId} className="text-[10px] text-gray-300 cursor-pointer hover:text-white transition-colors leading-none select-none">
+              Lock to Seq
+            </label>
+          </div>
         </div>
       </div>
 
       {/* Pitch Display Bar */}
-      <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+      <div className="flex items-center gap-2 pt-2 border-t border-white/10" aria-hidden="true">
         <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-500 transition-all duration-150"
