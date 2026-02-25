@@ -31,7 +31,7 @@ export class Open303Oscillator {
                 // 1. Determine which WASM variant to use
                 // Single-threaded has best compatibility, threaded requires COOP/COEP headers
                 const variant = (!cfg.forceSingleThreaded && cfg.preferThreaded) ? 'threaded' : 'single';
-                const basePath = import.meta.env.BASE_URL || '/';
+                // const basePath = import.meta.env.BASE_URL || '/';
                 const wasmUrl = new URL(`./jc303-${variant}.wasm`, window.location.origin).toString();
                 
                 console.log(`[Open303Oscillator] Fetching WASM variant: ${variant} (${wasmUrl})`);
