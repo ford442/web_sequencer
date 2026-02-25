@@ -65,54 +65,53 @@ const PhonemePill = memo(({
   pitchBend,
   elasticity,
   onDrag,
-  onPitchBendChange: _onPitchBendChange,
-  onElasticityChange: _onElasticityChange,
+  onPitchBendChange,
+  onElasticityChange,
   onSelect
 }: PhonemePillProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartX = useRef(0);
   const dragStartTime = useRef(0);
-  
+
   const duration = phoneme.end - phoneme.start;
   const left = phoneme.start * pixelsPerSecond;
   const width = Math.max(30, duration * pixelsPerSecond);
   const color = getPhonemeColor(phoneme.phoneme, phoneme.isVowel);
   const displayName = PHONEME_NAMES[phoneme.phoneme.toUpperCase()] || phoneme.phoneme;
-  
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const target = e.currentTarget as Element;
     target.setPointerCapture(e.pointerId);
-    
+
     dragStartX.current = e.clientX;
     dragStartTime.current = phoneme.start;
     setIsDragging(true);
     onSelect(index);
-    
+
     const handlePointerMove = (ev: PointerEvent) => {
       const deltaX = ev.clientX - dragStartX.current;
       const deltaTime = deltaX / pixelsPerSecond;
       onDrag(index, deltaTime);
     };
-    
+
     const handlePointerUp = (ev: PointerEvent) => {
       target.removeEventListener('pointermove', handlePointerMove as any);
       target.removeEventListener('pointerup', handlePointerUp as any);
       target.releasePointerCapture(ev.pointerId);
       setIsDragging(false);
     };
-    
+
     target.addEventListener('pointermove', handlePointerMove as any);
     target.addEventListener('pointerup', handlePointerUp as any);
   }, [index, phoneme.start, pixelsPerSecond, onDrag, onSelect]);
-  
+
   return (
     <div
-      className={`absolute top-8 h-10 rounded-lg border-2 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none transition-shadow ${
-        isSelected ? 'ring-2 ring-white shadow-lg' : ''
-      } ${isDragging ? 'z-20 opacity-90' : 'z-10'}`}
+      className={`absolute top-8 h-10 rounded-lg border-2 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none transition-shadow ${isSelected ? 'ring-2 ring-white shadow-lg' : ''
+        } ${isDragging ? 'z-20 opacity-90' : 'z-10'}`}
       style={{
         left,
         width,
@@ -126,29 +125,29 @@ const PhonemePill = memo(({
       <span className="text-xs font-bold text-white drop-shadow-md">
         {displayName}
       </span>
-      
+
       {/* Pitch bend indicator */}
       {pitchBend !== 0 && (
         <span className="text-[9px] text-white/80">
           {pitchBend > 0 ? '+' : ''}{pitchBend}¢
         </span>
       )}
-      
+
       {/* Elasticity indicator */}
       {elasticity !== 1 && (
         <span className="text-[9px] text-white/60">
           {elasticity > 1 ? '→' : '←'}{Math.round(elasticity * 100)}%
         </span>
       )}
-      
+
       {/* Resize handles */}
       {isSelected && (
         <>
-          <div 
+          <div
             className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/30 hover:bg-white/50"
             title="Drag to adjust start time"
           />
-          <div 
+          <div
             className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/30 hover:bg-white/50"
             title="Drag to adjust end time"
           />
@@ -178,58 +177,58 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
   const [phonemePitchBends, setPhonemePitchBends] = useState<Record<number, number>>({});
   const [phonemeElasticity, setPhonemeElasticity] = useState<Record<number, number>>({});
   const [localAlignment, setLocalAlignment] = useState<AlignmentResult | null>(alignment);
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
-  
+
   // Sync local alignment with prop
   React.useEffect(() => {
     setLocalAlignment(alignment);
   }, [alignment]);
-  
+
   const duration = localAlignment?.duration || audioBuffer?.duration || 0;
   const pixelsPerSecond = 100 * zoom;
   const totalWidth = Math.max(800, duration * pixelsPerSecond);
-  
+
   // Draw waveform
   React.useEffect(() => {
     const canvas = waveformCanvasRef.current;
     if (!canvas || !audioBuffer) return;
-    
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    
+
     const width = canvas.width;
     const height = canvas.height;
     const data = audioBuffer.getChannelData(0);
     const step = Math.ceil(data.length / width);
     const amp = height / 2;
-    
+
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = '#1a1d24';
     ctx.fillRect(0, 0, width, height);
-    
+
     // Draw waveform
     ctx.beginPath();
     ctx.strokeStyle = '#4b5563';
     ctx.lineWidth = 1;
-    
+
     for (let i = 0; i < width; i++) {
       let min = 1.0;
       let max = -1.0;
-      
+
       for (let j = 0; j < step; j++) {
         const datum = data[i * step + j];
         if (datum < min) min = datum;
         if (datum > max) max = datum;
       }
-      
+
       ctx.moveTo(i, (1 + min) * amp);
       ctx.lineTo(i, (1 + max) * amp);
     }
-    
+
     ctx.stroke();
-    
+
     // Draw center line
     ctx.beginPath();
     ctx.strokeStyle = '#374151';
@@ -238,38 +237,38 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
     ctx.lineTo(width, amp);
     ctx.stroke();
   }, [audioBuffer, zoom]);
-  
+
   const handlePhonemeDrag = useCallback((index: number, deltaTime: number) => {
     if (!localAlignment) return;
-    
+
     const newPhonemes = [...localAlignment.phonemes];
     const phoneme = newPhonemes[index];
     const duration = phoneme.end - phoneme.start;
-    
+
     // Calculate new start time
     let newStart = phoneme.start + deltaTime;
     newStart = Math.max(0, Math.min(duration - 0.01, newStart));
-    
+
     // Update phoneme
     newPhonemes[index] = {
       ...phoneme,
       start: newStart,
       end: newStart + duration
     };
-    
+
     const newAlignment = { ...localAlignment, phonemes: newPhonemes };
     setLocalAlignment(newAlignment);
     onAlignmentChange?.(newAlignment);
   }, [localAlignment, onAlignmentChange]);
-  
+
   const handlePitchBendChange = useCallback((index: number, bend: number) => {
     setPhonemePitchBends(prev => ({ ...prev, [index]: bend }));
   }, []);
-  
+
   const handleElasticityChange = useCallback((index: number, elasticity: number) => {
     setPhonemeElasticity(prev => ({ ...prev, [index]: elasticity }));
   }, []);
-  
+
   if (!localAlignment && !audioBuffer) {
     return (
       <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-8 text-center">
@@ -278,7 +277,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
       </div>
     );
   }
-  
+
   return (
     <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-500/30 rounded-lg overflow-hidden">
       {/* Header */}
@@ -289,7 +288,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           </svg>
           <span className="text-xs font-bold text-purple-300 uppercase">Phoneme Painter</span>
         </div>
-        
+
         {/* Zoom controls */}
         <div className="flex items-center gap-2">
           <button
@@ -309,7 +308,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           </button>
         </div>
       </div>
-      
+
       {/* Timeline ruler */}
       <div className="h-6 bg-black/30 border-b border-white/5 relative overflow-hidden" style={{ width: totalWidth }}>
         {Array.from({ length: Math.ceil(duration) + 1 }, (_, i) => (
@@ -322,9 +321,9 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           </div>
         ))}
       </div>
-      
+
       {/* Waveform and phonemes */}
-      <div 
+      <div
         ref={containerRef}
         className="relative overflow-auto"
         style={{ maxHeight: 300 }}
@@ -337,7 +336,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             height={60}
             className="w-full h-[60px] block"
           />
-          
+
           {/* Phoneme track */}
           <div className="relative h-20 mt-2">
             {localAlignment?.phonemes.map((phoneme, index) => (
@@ -353,13 +352,13 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 onDrag={handlePhonemeDrag}
                 onPitchBendChange={handlePitchBendChange}
                 onElasticityChange={handleElasticityChange}
-                onSelect={onPhonemeSelect || (() => {})}
+                onSelect={onPhonemeSelect || (() => { })}
               />
             ))}
           </div>
         </div>
       </div>
-      
+
       {/* Selected phoneme controls */}
       {selectedPhonemeIndex >= 0 && localAlignment?.phonemes[selectedPhonemeIndex] && (
         <div className="border-t border-white/10 p-3 bg-black/20">
@@ -370,7 +369,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 {localAlignment.phonemes[selectedPhonemeIndex].phoneme}
               </span>
             </div>
-            
+
             {/* Pitch bend control */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">Pitch Bend:</span>
@@ -386,7 +385,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 {phonemePitchBends[selectedPhonemeIndex] || 0}¢
               </span>
             </div>
-            
+
             {/* Elasticity control */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">Stretch:</span>
@@ -405,7 +404,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           </div>
         </div>
       )}
-      
+
       {/* Legend */}
       <div className="flex items-center gap-3 px-4 py-2 border-t border-white/10 bg-black/10 text-[10px]">
         <span className="text-gray-500">Legend:</span>
