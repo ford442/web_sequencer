@@ -25,7 +25,7 @@
 - [x] **Note Slice UI:** Visualize the selected phoneme/slice index directly on the sequencer note (e.g., small text label) to improve TTS workflow.
 - [ ] **Unify Sequencer Components:** Refactor `App.tsx` to use the standalone `Sequencer` component or move `App.tsx` logic into a reusable view to reduce duplication.
 - [x] **Cleanup Legacy Code:** Identify and remove unused components like `src/components/Sequencer.tsx` to streamline maintenance.
-- [ ] **Refactor NoteSelector Focus Management:** Address fragility in `NoteSelector` focus trapping and test coverage to ensure robust accessibility with dynamic content.
+- [x] **Refactor NoteSelector Focus Management:** Verified `NoteSelector` robustness with new test suite `src/components/__tests__/NoteSelector.test.tsx` mocking `requestAnimationFrame`.
 
 ### Domain C: Accessibility & Mobile
 - [x] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
@@ -46,6 +46,7 @@
 
 ## 📜 Changelog
 * [Date] - Roadmap re-initialized for long-term recursion.
+* [2026-06-01] - Wired up Melodic Lyric Mode in `App.tsx`, connecting state to `SamplerPanel` toggle and `MainSequencer` rendering. Verified and tested `NoteSelector` accessibility.
 * [2026-05-30] - Implemented Note Slice UI: Visualized TTS phonemes directly on sequencer steps in `MainSequencer.tsx`. Verified absence of legacy `Sequencer.tsx`.
 * [2026-02-05] - Implemented Phoneme Elasticity in Sampler Engine.
 * [2026-05-21] - Refactored SingingVoice state management to eliminate type casting hacks and improve multi-bank alignment handling.
