@@ -226,6 +226,9 @@ export const App: React.FC = () => {
     const [viewMode, setViewMode] = useState<'notes' | 'automation'>('notes');
     const [automationParam, setAutomationParam] = useState('formantShift');
 
+    // NEW: Melodic Lyric Mode
+    const [melodicMode, setMelodicMode] = useState(false);
+
     // NEW: Phoneme Alignment State for UI Feedback
     const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
 
@@ -631,6 +634,31 @@ export const App: React.FC = () => {
             return nextPattern;
         });
     }, [activeSamplerBank, automationParam, updateStorageForTrack]);
+
+    const handlePitchChange = useCallback((trackKey: TrackKey, step: number, pitch: number) => {
+        if (trackKey !== 'sampler') return;
+
+        const note = midiToNote(pitch);
+        setPattern(prev => {
+            const copy = { ...prev };
+            const bankIdx = activeSamplerBankRef.current;
+            const newSampler = [...copy.sampler];
+            const newBank = { ...newSampler[bankIdx] };
+            newBank.steps = [...newBank.steps];
+
+            if (newBank.steps[step]) {
+                newBank.steps[step] = { ...newBank.steps[step]!, note };
+            } else {
+                newBank.steps[step] = { note, velocity: 1, length: 1 };
+            }
+
+            newSampler[bankIdx] = newBank;
+            copy.sampler = newSampler;
+
+            updateStorageForTrack('sampler', newSampler);
+            return copy;
+        });
+    }, [updateStorageForTrack]);
 
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[], sliceIndex?: number }) => {
         // Use Ref to access current state without dependency to avoid re-renders of all rows
@@ -1047,7 +1075,7 @@ export const App: React.FC = () => {
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
-    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleGenerateTTS, loadedBanks, sampleBuffers]);
+    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode]);
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
@@ -1236,6 +1264,8 @@ export const App: React.FC = () => {
                 automationParam={automationParam}
                 onAutomationChange={handleAutomationChange}
                 alignment={activeAlignment}
+                melodicMode={melodicMode}
+                onPitchChange={handlePitchChange}
             >
                 {contextMenu && (
                     <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>

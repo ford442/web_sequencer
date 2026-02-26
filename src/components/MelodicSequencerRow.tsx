@@ -1,6 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef, useCallback, useLayoutEffect, memo } from 'react';
 import { MelodicStep } from './MelodicStep';
 import { GridIndicators } from './GridIndicators';
+import { noteToMidi } from '../utils/musicTheory';
 import type { PartSequence, TrackKey } from '../types';
 
 /**
@@ -183,9 +184,15 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       const isActive = !!stepData;
 
       // Default pitch for new notes is C4 (60)
-      const pitch = stepData?.pitch ?? 60;
-      // const pitchOffset = stepData?.pitchOffset ?? 0; // Unused
-      const phonemeIndex = stepData?.phonemeIndex;
+      // If note string exists but pitch doesn't, convert
+      let pitch = 60;
+      if (stepData?.pitch !== undefined) {
+          pitch = stepData.pitch;
+      } else if (stepData?.note) {
+          pitch = noteToMidi(stepData.note);
+      }
+
+      const phonemeIndex = stepData?.sliceIndex; // Use sliceIndex as phoneme index
 
       renderedSteps.push(
         <MelodicStep
