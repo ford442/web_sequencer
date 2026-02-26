@@ -1,5 +1,4 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import React from 'react';
 import { NoteSelector } from '../NoteSelector';
 import '@testing-library/jest-dom';
 import { vi, describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
