@@ -91,6 +91,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 value={currentTimbre}
                                 onChange={(e) => onPropertyChange('timbre', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                                aria-valuetext={`${Math.round((currentTimbre + 0.0001) * 100)}%`}
                             />
                         </div>
 
@@ -109,6 +110,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 value={currentProbability}
                                 onChange={(e) => onPropertyChange('probability', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500"
+                                aria-valuetext={`${Math.round((currentProbability + 0.0001) * 100)}%`}
                             />
                         </div>
 
@@ -127,22 +129,28 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 value={currentMicrotiming}
                                 onChange={(e) => onPropertyChange('microtiming', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                aria-valuetext={`${currentMicrotiming > 0 ? '+' : ''}${currentMicrotiming.toFixed(2)} steps`}
                             />
                         </div>
 
                         {/* Retrigger (Ratchet) Control */}
                         <div className="flex flex-col gap-1 pb-1">
                             <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
-                                <label>Retrigger</label>
+                                <label id="retrigger-label">Retrigger</label>
                                 <span className="text-orange-400">{currentRetrigger > 1 ? `${currentRetrigger}x` : 'OFF'}</span>
                             </div>
-                            <div className="flex gap-1">
+                            <div
+                                role="group"
+                                aria-labelledby="retrigger-label"
+                                className="flex gap-1"
+                            >
                                 {[1, 2, 3, 4].map(val => (
                                     <button
                                         key={val}
                                         onClick={() => onPropertyChange('retrigger', val)}
                                         className={`flex-1 py-1 text-[10px] font-bold rounded ${currentRetrigger === val ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
                                         aria-pressed={currentRetrigger === val}
+                                        aria-label={val === 1 ? 'No retrigger' : `Retrigger ${val} times`}
                                     >
                                         {val === 1 ? '1x' : `${val}x`}
                                     </button>
