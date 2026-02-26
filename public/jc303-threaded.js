@@ -88,7 +88,7 @@ var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIR
 // 3) We could be an application pthread running in a worker. (ENVIRONMENT_IS_WORKER == true and ENVIRONMENT_IS_PTHREAD == true)
 // The way we signal to a worker that it is hosting a pthread is to construct
 // it with a specific name.
-var ENVIRONMENT_IS_PTHREAD = ENVIRONMENT_IS_WORKER && self.name?.startsWith("em-pthread");
+var ENVIRONMENT_IS_PTHREAD = ENVIRONMENT_IS_WORKER && globalThis.name?.startsWith("em-pthread");
 
 if (ENVIRONMENT_IS_PTHREAD) {
   assert(!globalThis.moduleLoaded, "module should only be loaded once on each pthread worker");
@@ -3413,6 +3413,6 @@ if (typeof exports === 'object' && typeof module === 'object') {
 // Normally this detection is done when the module is itself run but
 // when running in MODULARIZE mode we need use this to know if we should
 // run the module constructor on startup (true only for pthreads).
-var isPthread = globalThis.self?.name?.startsWith('em-pthread');
+var isPthread = globalThis.name?.startsWith('em-pthread');
 
 isPthread && JC303Module();

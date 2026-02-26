@@ -61,3 +61,7 @@
 ## 2025-05-27 - Logarithmic Dragging & Precision Modifiers
 **Learning:** When implementing logarithmic controls (like frequency knobs), standard linear dragging feels imprecise at low values and overly sensitive at high values. Applying logarithmic scaling to the drag interaction provides a much more natural and precise control scheme. Additionally, supporting modifier keys (Shift for coarse, Alt for fine) bridges the gap between mouse and keyboard precision.
 **Action:** Always implement logarithmic scaling for drag interactions on logarithmic parameters, and standard modifier keys (Shift/Alt) for precision control in custom knob/slider components.
+
+## 2025-05-27 - Semantic Grouping & Value Text
+**Learning:** Ranges often default to reading raw numeric values (e.g., "0.5") which are meaningless to screen reader users without context (e.g., "50%"). Also, related toggle buttons (like "Retrigger") without a grouping role are confusing to navigate as independent controls.
+**Action:** Always use `aria-valuetext` on sliders to provide human-readable values (e.g., "1/4", "50%"). Group related toggle buttons with `role="group"` and `aria-label` to provide context and boundary.
