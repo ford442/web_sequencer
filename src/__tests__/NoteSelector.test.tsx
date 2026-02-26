@@ -83,4 +83,44 @@ describe('NoteSelector', () => {
             expect(document.activeElement).toBe(closeButton);
         });
     });
+
+    it('renders advanced property controls with accessible labels', () => {
+        const onPropertyChange = vi.fn();
+        render(
+            <NoteSelector
+                {...defaultProps}
+                onPropertyChange={onPropertyChange}
+                currentTimbre={0.75}
+                currentProbability={0.5}
+                currentMicrotiming={-0.15}
+                currentRetrigger={2}
+            />
+        );
+
+        // Check Expression (Timbre) input
+        const timbreInput = screen.getByLabelText('Expression');
+        expect(timbreInput).toHaveAttribute('type', 'range');
+        expect(timbreInput).toHaveAttribute('aria-valuetext', '75%');
+
+        // Check Probability input
+        const probInput = screen.getByLabelText('Probability');
+        expect(probInput).toHaveAttribute('type', 'range');
+        expect(probInput).toHaveAttribute('aria-valuetext', '50%');
+
+        // Check Microtiming input
+        const microInput = screen.getByLabelText('Microtiming');
+        expect(microInput).toHaveAttribute('type', 'range');
+        expect(microInput).toHaveAttribute('aria-valuetext', '-0.15 steps');
+
+        // Check Retrigger group
+        const retriggerGroup = screen.getByRole('group', { name: 'Retrigger' });
+        expect(retriggerGroup).toBeInTheDocument();
+
+        // Check Retrigger buttons
+        const retrigger2x = screen.getByRole('button', { name: 'Retrigger 2 times' });
+        expect(retrigger2x).toHaveAttribute('aria-pressed', 'true');
+
+        const retrigger1x = screen.getByRole('button', { name: 'No retrigger' });
+        expect(retrigger1x).toHaveAttribute('aria-pressed', 'false');
+    });
 });
