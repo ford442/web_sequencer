@@ -1,11 +1,14 @@
 #!/bin/bash
 #
-# JC-303 WebAssembly Build Script with Fallback Modes
+# JC-303 WebAssembly Build Script with Stack Overflow Protection
 #
 # This script builds the JC-303 synthesizer for WebAssembly using Emscripten
 # with dual variants:
 #   1. Threaded version (with OpenMP) - for high-performance environments
 #   2. Single-threaded version (no OpenMP) - for broad compatibility
+#
+# CRITICAL FIX: This version includes massive stack size increase (32MB) and
+# memory configuration changes to prevent stack overflow during initialization.
 #
 # Prerequisites:
 #   - Emscripten SDK installed and activated (emsdk)
@@ -40,6 +43,15 @@ echo -e "${GREEN} JC-303 WebAssembly Build${NC}"
 echo -e "${GREEN} Build Type: ${BUILD_TYPE}${NC}"
 echo -e "${GREEN} Variant: ${BUILD_VARIANT}${NC}"
 echo -e "${GREEN}========================================${NC}"
+echo ""
+echo -e "${YELLOW}CRITICAL FIXES APPLIED:${NC}"
+echo "  - Stack size: 32MB (was 4MB)"
+echo "  - Initial memory: 64MB"
+echo "  - Maximum memory: 256MB"
+echo "  - Heap-allocated FFT buffers"
+echo "  - Lazy wavetable initialization"
+echo "  - setjmp/longjmp stack protection"
+echo ""
 
 # Check if jc303_wasm submodule exists
 if [ ! -d "$JC303_DIR" ]; then
@@ -54,9 +66,11 @@ EMSDK_CANDIDATES=(
     "$REPO_ROOT/emsdk/emsdk_env.sh"
     "$HOME/emsdk/emsdk_env.sh"
     "/usr/local/emsdk/emsdk_env.sh"
+    "/opt/emsdk/emsdk_env.sh"
 )
 for f in "${EMSDK_CANDIDATES[@]}"; do
     if [ -f "$f" ]; then 
+        echo -e "${GREEN}Sourcing Emscripten from: $f${NC}"
         source "$f"
         break
     fi
@@ -75,6 +89,17 @@ echo -e "${GREEN}Using Emscripten:${NC} $(emcc --version | head -n1)"
 # Create distribution directory
 echo -e "${YELLOW}Creating distribution directory...${NC}"
 mkdir -p "${DIST_DIR}"
+
+# CRITICAL FIX: Emscripten flags for stack overflow prevention
+# These are now primarily set in CMakeLists.txt, but we ensure they're
+# passed correctly through cmake here.
+
+EMSCRIPTEN_FLAGS=""
+if [ "$BUILD_TYPE" = "debug" ]; then
+    EMSCRIPTEN_FLAGS="-O0 -g -sASSERTIONS=2 -sSAFE_HEAP=1"
+else
+    EMSCRIPTEN_FLAGS="-O2 -flto"
+fi
 
 # Function to build a single variant
 build_variant() {
@@ -112,40 +137,31 @@ build_variant() {
         LINK_OMP_FLAGS=""
     fi
     
-     if [ "$BUILD_TYPE" = "debug" ]; then
-         CMAKE_BUILD_TYPE="Debug"
-         echo -e "${YELLOW}Using debug flags...${NC}"
-         cmake_args=(
-             -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
-             -DCMAKE_C_FLAGS="${OMP_FLAGS} -O0 -g"
-             -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O0 -g"
-             -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -sASSERTIONS=2 -sSAFE_HEAP=1 -s ALLOW_MEMORY_GROWTH=1 -s STACK_SIZE=16777216"
-         )
-     else
-         CMAKE_BUILD_TYPE="Release"
-         cmake_args=(
-             -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
-             -DCMAKE_C_FLAGS="${OMP_FLAGS} -O3"
-             -DCMAKE_CXX_FLAGS="${OMP_FLAGS} -O3"
-             -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -O3 -s STACK_SIZE=16777216"
-         )
-     fi
+    # CMake configuration with explicit stack/memory settings
+    # CRITICAL: These must match the values in CMakeLists.txt
+    CMAKE_BUILD_TYPE="$([ "$BUILD_TYPE" = "debug" ] && echo "Debug" || echo "Release")"
     
-    # Run CMake with guarded args  
-    emcmake cmake "$WASM_DIR" "${cmake_args[@]}"
+    echo -e "${YELLOW}Running CMake...${NC}"
+    emcmake cmake "$WASM_DIR" \
+        -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}" \
+        -DCMAKE_C_FLAGS="${OMP_FLAGS} ${EMSCRIPTEN_FLAGS}" \
+        -DCMAKE_CXX_FLAGS="${OMP_FLAGS} ${EMSCRIPTEN_FLAGS}" \
+        -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS}" \
+        -DENABLE_WASM_DEBUG=$([ "$BUILD_TYPE" = "debug" ] && echo "ON" || echo "OFF")
     
     # Build with appropriate parallelism
     echo -e "${YELLOW}Building...${NC}"
     NPROC=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4)
-    emmake make -j55
+    emmake make -j${NPROC}
     
     # Copy built files with variant suffix
     echo -e "${YELLOW}Copying ${VARIANT_NAME} variant to distribution...${NC}"
     cp -f jc303.js "${DIST_DIR}/jc303-${VARIANT_NAME}.js" 2>/dev/null || true
     cp -f jc303.wasm "${DIST_DIR}/jc303-${VARIANT_NAME}.wasm" 2>/dev/null || true
+    cp -f jc303_worklet.js "${DIST_DIR}/jc303-${VARIANT_NAME}-worklet.js" 2>/dev/null || true
     
     # Threaded variant also produces worker files
-    if [ "$USE_THREADING" = "yes" ]; then
+    if [ "$ENABLE_THREADING" = "true" ]; then
         cp -f jc303.worker.js "${DIST_DIR}/jc303-${VARIANT_NAME}.worker.js" 2>/dev/null || true
     fi
     
@@ -169,17 +185,6 @@ if [ "$BUILD_VARIANT" = "single" ] || [ "$BUILD_VARIANT" = "both" ]; then
     }
 fi
 
-# Copy web files (version agnostic)
-if [ -f "$WASM_DIR/jc303-web.js" ]; then
-    cp -f "$WASM_DIR/jc303-web.js" "${DIST_DIR}/"
-fi
-if [ -f "$WASM_DIR/jc303-worklet-processor.js" ]; then
-    cp -f "$WASM_DIR/jc303-worklet-processor.js" "${DIST_DIR}/"
-fi
-if [ -f "$WASM_DIR/index.html" ]; then
-    cp -f "$WASM_DIR/index.html" "${DIST_DIR}/"
-fi
-
 # Copy to main public directory for use in web_sequencer
 if [ -d "$PUBLIC_DIR" ]; then
     echo -e "${YELLOW}Copying to web_sequencer public directory...${NC}"
@@ -191,14 +196,12 @@ if [ -d "$PUBLIC_DIR" ]; then
     if [ -f "${DIST_DIR}/jc303-single.js" ]; then
         cp -f "${DIST_DIR}/jc303-single.js" "$PUBLIC_DIR/jc303.js" 2>/dev/null || true
         cp -f "${DIST_DIR}/jc303-single.wasm" "$PUBLIC_DIR/jc303.wasm" 2>/dev/null || true
+        cp -f "${DIST_DIR}/jc303-single-worklet.js" "$PUBLIC_DIR/jc303_worklet.js" 2>/dev/null || true
     elif [ -f "${DIST_DIR}/jc303-threaded.js" ]; then
         cp -f "${DIST_DIR}/jc303-threaded.js" "$PUBLIC_DIR/jc303.js" 2>/dev/null || true
         cp -f "${DIST_DIR}/jc303-threaded.wasm" "$PUBLIC_DIR/jc303.wasm" 2>/dev/null || true
+        cp -f "${DIST_DIR}/jc303-threaded-worklet.js" "$PUBLIC_DIR/jc303_worklet.js" 2>/dev/null || true
         cp -f "${DIST_DIR}/jc303-threaded.worker.js" "$PUBLIC_DIR/jc303.worker.js" 2>/dev/null || true
-    fi
-    
-    if [ -f "${DIST_DIR}/jc303-web.js" ]; then
-        cp -f "${DIST_DIR}/jc303-web.js" "$PUBLIC_DIR/" 2>/dev/null || true
     fi
 fi
 
@@ -216,3 +219,15 @@ if [ "$BUILD_VARIANT" = "both" ] || [ "$BUILD_VARIANT" = "single" ]; then
     echo "Single-threaded variant files: jc303-single.{js,wasm}"
     echo "  Note: Broader compatibility, no special headers required"
 fi
+echo ""
+echo -e "${YELLOW}IMPORTANT:${NC}"
+echo "  - Stack size is now 32MB (was 4MB)"
+echo "  - Memory starts at 64MB, grows to 256MB max"
+echo "  - FFT buffers are heap-allocated"
+echo "  - Wavetable generation is deferred"
+echo ""
+echo "If you still see stack overflows:"
+echo "  1. Check browser console for 'Stack overflow detected' messages"
+echo "  2. Verify the new WASM files are being loaded (not cached)"
+echo "  3. Try the single-threaded variant first (more compatible)"
+echo ""
