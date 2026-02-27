@@ -114,8 +114,10 @@ class Open303Processor extends AudioWorkletProcessor {
                 this.lastErrorMessage = errorMsg;
 
                 // Small delay before retry to let stack/heap settle
+                // Note: AudioWorklet doesn't have setTimeout, so we use a simple spin wait
                 if (this.initAttempts < Open303Processor.MAX_INIT_ATTEMPTS) {
-                    await new Promise(r => setTimeout(r, 100));
+                    const start = getTime();
+                    while (getTime() - start < 100) { /* spin wait */ }
                 }
             }
         }
@@ -291,6 +293,40 @@ class Open303Processor extends AudioWorkletProcessor {
             sin: Math.sin,
             cos: Math.cos,
             fmod: (x: number, y: number) => x % y,
+
+            // ASYNCIFY invoke functions (required when WASM is built with -s ASYNCIFY)
+            // These are used by Emscripten's asyncify mechanism
+            invoke_ii: (index: number, a1: number) => {
+                // Get the function from the table and call it
+                const exports = this.wasmInstance?.exports as any;
+                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const func = table.get(index) as Function;
+                return func(a1);
+            },
+            invoke_vi: (index: number, a1: number) => {
+                const exports = this.wasmInstance?.exports as any;
+                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const func = table.get(index) as Function;
+                func(a1);
+            },
+            invoke_vii: (index: number, a1: number, a2: number) => {
+                const exports = this.wasmInstance?.exports as any;
+                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const func = table.get(index) as Function;
+                func(a1, a2);
+            },
+            invoke_vid: (index: number, a1: number, a2: number) => {
+                const exports = this.wasmInstance?.exports as any;
+                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const func = table.get(index) as Function;
+                func(a1, a2);
+            },
+            invoke_dddddd: (index: number, a1: number, a2: number, a3: number, a4: number, a5: number) => {
+                const exports = this.wasmInstance?.exports as any;
+                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const func = table.get(index) as Function;
+                return func(a1, a2, a3, a4, a5);
+            },
 
             // Threading (stubs for single-threaded)
             _emscripten_thread_set_strongref: () => { },
