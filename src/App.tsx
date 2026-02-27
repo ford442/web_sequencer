@@ -467,7 +467,9 @@ export const App: React.FC = () => {
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger };
-                audioEngine.playSampler(samplerRef.current[bankIdx], stepData.note, time, stepData.length, stepTime, noteParams);
+                // Combine note and chord for polyphonic playback
+                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+                audioEngine.playSampler(samplerRef.current[bankIdx], notes, time, stepData.length, stepTime, noteParams);
             }
         });
 
