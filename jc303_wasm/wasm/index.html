@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JC-303 Web Synthesizer - TB-303 Clone</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --panel-color: #2a2a2a;
+            --accent-color: #ff6b35;
+            --text-color: #ffffff;
+            --knob-color: #444;
+            --led-off: #333;
+            --led-on: #ff0000;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: var(--accent-color);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+        
+        .subtitle {
+            color: #888;
+            margin-bottom: 30px;
+        }
+        
+        .synth-container {
+            background: linear-gradient(145deg, #333, #222);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        .controls-section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 12px;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        
+        .knob-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .knob-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 80px;
+        }
+        
+        .knob {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #555, #333);
+            border-radius: 50%;
+            position: relative;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.1);
+            margin-bottom: 8px;
+        }
+        
+        .knob::after {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 20px;
+            background: var(--accent-color);
+            top: 8px;
+            left: 50%;
+            transform-origin: bottom center;
+            transform: translateX(-50%);
+            border-radius: 2px;
+        }
+        
+        .knob-label {
+            font-size: 10px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+        
+        .knob-value {
+            font-size: 9px;
+            color: #666;
+            margin-top: 2px;
+        }
+        
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .switch {
+            width: 50px;
+            height: 26px;
+            background: #333;
+            border-radius: 13px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .switch.active {
+            background: var(--accent-color);
+        }
+        
+        .switch::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: #fff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: left 0.3s;
+        }
+        
+        .switch.active::after {
+            left: 26px;
+        }
+        
+        .switch-label {
+            font-size: 11px;
+            color: #aaa;
+            text-transform: uppercase;
+        }
+        
+        .keyboard {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            gap: 2px;
+        }
+        
+        .key {
+            width: 40px;
+            height: 120px;
+            background: linear-gradient(to bottom, #eee, #ccc);
+            border-radius: 0 0 4px 4px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.1s;
+        }
+        
+        .key:active, .key.active {
+            background: linear-gradient(to bottom, #ddd, #bbb);
+        }
+        
+        .key.black {
+            width: 28px;
+            height: 70px;
+            background: linear-gradient(to bottom, #333, #111);
+            margin-left: -14px;
+            margin-right: -14px;
+            z-index: 1;
+            border-radius: 0 0 3px 3px;
+        }
+        
+        .key.black:active, .key.black.active {
+            background: linear-gradient(to bottom, #444, #222);
+        }
+        
+        .key-label {
+            position: absolute;
+            bottom: 5px;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+        }
+        
+        .key.black .key-label {
+            color: #888;
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #222;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .led {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--led-off);
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        
+        .led.on {
+            background: var(--led-on);
+            box-shadow: 0 0 10px var(--led-on);
+        }
+        
+        .status-text {
+            font-size: 11px;
+            color: #888;
+        }
+        
+        .init-button {
+            background: var(--accent-color);
+            border: none;
+            color: white;
+            padding: 15px 40px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: background 0.3s, transform 0.1s;
+        }
+        
+        .init-button:hover {
+            background: #ff8555;
+        }
+        
+        .init-button:active {
+            transform: scale(0.98);
+        }
+        
+        .init-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .mod-section {
+            background: #1f1f1f;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+        
+        .mod-section.active {
+            opacity: 1;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: #1f1f1f;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+        }
+        
+        .instructions strong {
+            color: var(--accent-color);
+        }
+        
+        footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #555;
+            font-size: 11px;
+        }
+        
+        footer a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 600px) {
+            .knob-container {
+                width: 60px;
+            }
+            
+            .knob {
+                width: 50px;
+                height: 50px;
+            }
+            
+            .key {
+                width: 30px;
+                height: 100px;
+            }
+            
+            .key.black {
+                width: 20px;
+                height: 60px;
+                margin-left: -10px;
+                margin-right: -10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>JC-303</h1>
+    <p class="subtitle">TB-303 Bass Synthesizer Clone - WebAssembly Edition</p>
+    
+    <div class="synth-container">
+        <div id="init-container" style="text-align: center; padding: 40px 0;">
+            <button id="init-button" class="init-button">Click to Start</button>
+            <p style="margin-top: 15px; font-size: 12px; color: #666;">
+                Audio requires user interaction to initialize
+            </p>
+        </div>
+        
+        <div id="synth-ui" style="display: none;">
+            <!-- Main Controls -->
+            <div class="controls-section">
+                <div class="section-title">Main Controls</div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob" id="knob-waveform" data-param="waveform" data-value="1.0"></div>
+                        <div class="knob-label">Wave</div>
+                        <div class="knob-value" id="val-waveform">SQR</div>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob" id="knob-tuning" data-param="tuning" data-value="0.5"></div>
+                        <div class="knob-label">Tune</div>
+                        <div class="knob-value" id="val-tuning">440</div>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob" id="knob-cutoff" data-param="cutoff" data-value="0.0"></div>
+                        <div class="knob-label">Cutoff</div>
+                        <div class="knob-value" id="val-cutoff">0%</div>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob" id="knob-resonance" data-param="resonance" data-value="0.92"></div>
+                        <div class="knob-label">Reso</div>
+                        <div class="knob-value" id="val-resonance">92%</div>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob" id="knob-envmod" data-param="envmod" data-value="0.0"></div>
+                        <div class="knob-label">Env Mod</div>
+                        <div class="knob-value" id="val-envmod">0%</div>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob" id="knob-decay" data-param="decay" data-value="0.29"></div>
+                        <div class="knob-label">Decay</div>
+                        <div class="knob-value" id="val-decay">29%</div>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob" id="knob-accent" data-param="accent" data-value="0.78"></div>
+                        <div class="knob-label">Accent</div>
+                        <div class="knob-value" id="val-accent">78%</div>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob" id="knob-volume" data-param="volume" data-value="0.75"></div>
+                        <div class="knob-label">Volume</div>
+                        <div class="knob-value" id="val-volume">75%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mod Section -->
+            <div class="controls-section">
+                <div class="switch-container" style="justify-content: center;">
+                    <span class="switch-label">MOD</span>
+                    <div class="switch" id="mod-switch"></div>
+                </div>
+                
+                <div class="mod-section" id="mod-controls">
+                    <div class="section-title">Devil Fish MOD Controls</div>
+                    <div class="knob-row">
+                        <div class="knob-container">
+                            <div class="knob" id="knob-normalDecay" data-param="normalDecay" data-value="0.3"></div>
+                            <div class="knob-label">Norm Dec</div>
+                            <div class="knob-value" id="val-normalDecay">30%</div>
+                        </div>
+                        <div class="knob-container">
+                            <div class="knob" id="knob-accentDecay" data-param="accentDecay" data-value="0.03"></div>
+                            <div class="knob-label">Acc Dec</div>
+                            <div class="knob-value" id="val-accentDecay">3%</div>
+                        </div>
+                        <div class="knob-container">
+                            <div class="knob" id="knob-feedbackFilter" data-param="feedbackFilter" data-value="0.63"></div>
+                            <div class="knob-label">FB Filt</div>
+                            <div class="knob-value" id="val-feedbackFilter">63%</div>
+                        </div>
+                        <div class="knob-container">
+                            <div class="knob" id="knob-softAttack" data-param="softAttack" data-value="0.26"></div>
+                            <div class="knob-label">Soft Atk</div>
+                            <div class="knob-value" id="val-softAttack">26%</div>
+                        </div>
+                        <div class="knob-container">
+                            <div class="knob" id="knob-slideTime" data-param="slideTime" data-value="0.33"></div>
+                            <div class="knob-label">Slide</div>
+                            <div class="knob-value" id="val-slideTime">33%</div>
+                        </div>
+                        <div class="knob-container">
+                            <div class="knob" id="knob-squareDriver" data-param="squareDriver" data-value="0.25"></div>
+                            <div class="knob-label">Sqr Drv</div>
+                            <div class="knob-value" id="val-squareDriver">25%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Keyboard -->
+            <div class="controls-section">
+                <div class="section-title">Keyboard (Use computer keys A-L for white keys, W-P for black keys)</div>
+                <div class="keyboard" id="keyboard">
+                    <!-- C4 to B4 -->
+                    <div class="key" data-note="60"><span class="key-label">A</span></div>
+                    <div class="key black" data-note="61"><span class="key-label">W</span></div>
+                    <div class="key" data-note="62"><span class="key-label">S</span></div>
+                    <div class="key black" data-note="63"><span class="key-label">E</span></div>
+                    <div class="key" data-note="64"><span class="key-label">D</span></div>
+                    <div class="key" data-note="65"><span class="key-label">F</span></div>
+                    <div class="key black" data-note="66"><span class="key-label">T</span></div>
+                    <div class="key" data-note="67"><span class="key-label">G</span></div>
+                    <div class="key black" data-note="68"><span class="key-label">Y</span></div>
+                    <div class="key" data-note="69"><span class="key-label">H</span></div>
+                    <div class="key black" data-note="70"><span class="key-label">U</span></div>
+                    <div class="key" data-note="71"><span class="key-label">J</span></div>
+                    <!-- C5 -->
+                    <div class="key" data-note="72"><span class="key-label">K</span></div>
+                    <div class="key black" data-note="73"><span class="key-label">O</span></div>
+                    <div class="key" data-note="74"><span class="key-label">L</span></div>
+                    <div class="key black" data-note="75"><span class="key-label">P</span></div>
+                    <div class="key" data-note="76"><span class="key-label">;</span></div>
+                </div>
+            </div>
+            
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="led" id="audio-led"></div>
+                    <span class="status-text" id="status-text">Ready</span>
+                </div>
+                <div class="status-text" id="sample-rate"></div>
+            </div>
+            
+            <!-- Instructions -->
+            <div class="instructions">
+                <p><strong>Drag knobs</strong> up/down to adjust parameters | 
+                <strong>Click keys</strong> or use <strong>computer keyboard</strong> to play notes |
+                <strong>Shift + key</strong> for accented notes</p>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>JC-303 WebAssembly - A port of the <a href="https://github.com/midilab/jc303">JC-303</a> TB-303 clone</p>
+        <p>Based on <a href="https://github.com/RobinSchmidt/Open303">Open303</a> by Robin Schmidt</p>
+        <p>Licensed under GPL-3.0</p>
+    </footer>
+    
+    <!-- Load WASM module first -->
+    <script src="jc303.js"></script>
+    <script src="jc303-web.js"></script>
+    <script>
+        // JC-303 Web Demo Application
+        let synth = null;
+        let isInitialized = false;
+        
+        // Key mapping for computer keyboard
+        const keyMap = {
+            'a': 60, 'w': 61, 's': 62, 'e': 63, 'd': 64,
+            'f': 65, 't': 66, 'g': 67, 'y': 68, 'h': 69,
+            'u': 70, 'j': 71, 'k': 72, 'o': 73, 'l': 74,
+            'p': 75, ';': 76
+        };
+        
+        const activeKeys = new Set();
+        
+        // Initialize the synthesizer
+        async function initSynth() {
+            const initButton = document.getElementById('init-button');
+            initButton.disabled = true;
+            initButton.textContent = 'Loading...';
+            
+            try {
+                synth = new JC303();
+                const success = await synth.init();
+                
+                if (success) {
+                    isInitialized = true;
+                    document.getElementById('init-container').style.display = 'none';
+                    document.getElementById('synth-ui').style.display = 'block';
+                    document.getElementById('audio-led').classList.add('on');
+                    document.getElementById('status-text').textContent = 'Audio Active';
+                    document.getElementById('sample-rate').textContent = 
+                        `Sample Rate: ${synth.audioContext.sampleRate} Hz`;
+                    
+                    setupKnobs();
+                    setupKeyboard();
+                    setupModSwitch();
+                    updateAllKnobDisplays();
+                } else {
+                    throw new Error('Initialization failed');
+                }
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+                initButton.textContent = 'Error - Retry';
+                initButton.disabled = false;
+                document.getElementById('status-text').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        // Setup knob controls
+        function setupKnobs() {
+            const knobs = document.querySelectorAll('.knob');
+            
+            knobs.forEach(knob => {
+                let isDragging = false;
+                let startY = 0;
+                let startValue = 0;
+                
+                knob.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    startY = e.clientY;
+                    startValue = parseFloat(knob.dataset.value);
+                    document.body.style.cursor = 'ns-resize';
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    
+                    const deltaY = startY - e.clientY;
+                    const newValue = Math.max(0, Math.min(1, startValue + deltaY / 150));
+                    knob.dataset.value = newValue;
+                    
+                    updateKnobVisual(knob, newValue);
+                    applyKnobValue(knob.dataset.param, newValue);
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    isDragging = false;
+                    document.body.style.cursor = '';
+                });
+                
+                // Touch support
+                knob.addEventListener('touchstart', (e) => {
+                    isDragging = true;
+                    startY = e.touches[0].clientY;
+                    startValue = parseFloat(knob.dataset.value);
+                });
+                
+                document.addEventListener('touchmove', (e) => {
+                    if (!isDragging) return;
+                    
+                    const deltaY = startY - e.touches[0].clientY;
+                    const newValue = Math.max(0, Math.min(1, startValue + deltaY / 150));
+                    knob.dataset.value = newValue;
+                    
+                    updateKnobVisual(knob, newValue);
+                    applyKnobValue(knob.dataset.param, newValue);
+                });
+                
+                document.addEventListener('touchend', () => {
+                    isDragging = false;
+                });
+            });
+        }
+        
+        function updateKnobVisual(knob, value) {
+            const rotation = -135 + (value * 270);
+            knob.style.transform = `rotate(${rotation}deg)`;
+            
+            const param = knob.dataset.param;
+            const valueDisplay = document.getElementById(`val-${param}`);
+            
+            if (valueDisplay) {
+                if (param === 'waveform') {
+                    valueDisplay.textContent = value < 0.5 ? 'SAW' : 'SQR';
+                } else if (param === 'tuning') {
+                    const hz = Math.round(400 + value * 80);
+                    valueDisplay.textContent = `${hz}`;
+                } else {
+                    valueDisplay.textContent = `${Math.round(value * 100)}%`;
+                }
+            }
+        }
+        
+        function applyKnobValue(param, value) {
+            if (!synth) return;
+            
+            const setterMap = {
+                'waveform': 'setWaveform',
+                'tuning': 'setTuning',
+                'cutoff': 'setCutoff',
+                'resonance': 'setResonance',
+                'envmod': 'setEnvMod',
+                'decay': 'setDecay',
+                'accent': 'setAccent',
+                'volume': 'setVolume',
+                'normalDecay': 'setNormalDecay',
+                'accentDecay': 'setAccentDecay',
+                'feedbackFilter': 'setFeedbackFilter',
+                'softAttack': 'setSoftAttack',
+                'slideTime': 'setSlideTime',
+                'squareDriver': 'setSquareDriver'
+            };
+            
+            const setter = setterMap[param];
+            if (setter && typeof synth[setter] === 'function') {
+                synth[setter](value);
+            }
+        }
+        
+        function updateAllKnobDisplays() {
+            document.querySelectorAll('.knob').forEach(knob => {
+                const value = parseFloat(knob.dataset.value);
+                updateKnobVisual(knob, value);
+            });
+        }
+        
+        // Setup keyboard
+        function setupKeyboard() {
+            const keys = document.querySelectorAll('.key');
+            
+            keys.forEach(key => {
+                const note = parseInt(key.dataset.note);
+                
+                key.addEventListener('mousedown', (e) => {
+                    const velocity = e.shiftKey ? 127 : 80;
+                    playNote(note, velocity);
+                    key.classList.add('active');
+                });
+                
+                key.addEventListener('mouseup', () => {
+                    stopNote(note);
+                    key.classList.remove('active');
+                });
+                
+                key.addEventListener('mouseleave', () => {
+                    if (key.classList.contains('active')) {
+                        stopNote(note);
+                        key.classList.remove('active');
+                    }
+                });
+                
+                // Touch support
+                key.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    playNote(note, 80);
+                    key.classList.add('active');
+                });
+                
+                key.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    stopNote(note);
+                    key.classList.remove('active');
+                });
+            });
+            
+            // Computer keyboard support
+            document.addEventListener('keydown', (e) => {
+                if (!isInitialized || e.repeat) return;
+                
+                const key = e.key.toLowerCase();
+                if (keyMap[key] && !activeKeys.has(key)) {
+                    activeKeys.add(key);
+                    const velocity = e.shiftKey ? 127 : 80;
+                    playNote(keyMap[key], velocity);
+                    highlightKey(keyMap[key], true);
+                }
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                const key = e.key.toLowerCase();
+                if (keyMap[key]) {
+                    activeKeys.delete(key);
+                    stopNote(keyMap[key]);
+                    highlightKey(keyMap[key], false);
+                }
+            });
+        }
+        
+        function highlightKey(note, active) {
+            const key = document.querySelector(`.key[data-note="${note}"]`);
+            if (key) {
+                key.classList.toggle('active', active);
+            }
+        }
+        
+        function playNote(note, velocity) {
+            if (synth) {
+                synth.noteOn(note, velocity);
+            }
+        }
+        
+        function stopNote(note) {
+            if (synth) {
+                synth.noteOff(note);
+            }
+        }
+        
+        // Setup mod switch
+        function setupModSwitch() {
+            const modSwitch = document.getElementById('mod-switch');
+            const modControls = document.getElementById('mod-controls');
+            
+            modSwitch.addEventListener('click', () => {
+                const isActive = modSwitch.classList.toggle('active');
+                modControls.classList.toggle('active', isActive);
+                
+                if (synth) {
+                    synth.setModEnabled(isActive);
+                }
+            });
+        }
+        
+        // Initialize on button click
+        document.getElementById('init-button').addEventListener('click', initSynth);
+        
+        // Handle window blur - stop all notes
+        window.addEventListener('blur', () => {
+            if (synth) {
+                synth.allNotesOff();
+                activeKeys.clear();
+                document.querySelectorAll('.key.active').forEach(key => {
+                    key.classList.remove('active');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
