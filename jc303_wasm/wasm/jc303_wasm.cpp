@@ -125,14 +125,9 @@ int jc303_init(double sampleRate, int bufferSize) {
     // 1. MipMappedWaveTable constructor calling setBlockSize
     // 2. Open303 constructor calling setWaveForm which triggers fillWithSquare303
     // 3. fillWithSquare303 calling generateMipMap which does FFT operations
-    try {
-        g_synth = new Open303();
-    } catch (...) {
-        g_synth = nullptr;
-        g_initInProgress = false;
-        g_initialized = false;
-        return 0;
-    }
+    // 
+    // NOTE: We use setjmp/longjmp for crash protection, not exceptions (disabled with -fno-exceptions)
+    g_synth = new Open303();
     
     if (g_synth == nullptr) {
         g_initInProgress = false;
