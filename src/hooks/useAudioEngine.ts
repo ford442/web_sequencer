@@ -8,6 +8,7 @@ import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { SingingVoice } from '../engines/SingingVoice';
+import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
 import { noteToMidi } from '../utils/musicTheory';
 
@@ -48,11 +49,16 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
-    const singingVoiceRef = useRef<SingingVoice | null>(null);
-    const singingVoiceLeftRef = useRef<SingingVoice | null>(null);
-    const singingVoiceRightRef = useRef<SingingVoice | null>(null);
+
+    // Polyphonic TTS Manager
+    const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
+
+    // Left/Right Choir Panning
     const choirLeftGainRef = useRef<GainNode | null>(null);
     const choirRightGainRef = useRef<GainNode | null>(null);
+    const choirLeftPannerRef = useRef<StereoPannerNode | null>(null);
+    const choirRightPannerRef = useRef<StereoPannerNode | null>(null);
+
     const sustainNodeRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
@@ -220,7 +226,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 sustainNodeRef.current = sustainNode;
             }
 
-            // --- Singing Voice Init (Fail-safe with Choir Support) ---
+            // --- Singing Voice Manager Init (Polyphonic) ---
             try {
                 // Fetch WASM once
                 let wasmBinary: ArrayBuffer | undefined = undefined;
@@ -231,47 +237,49 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                     console.warn('Failed to pre-fetch rubberband.wasm', e);
                 }
 
-                // 1. Center Voice (Main)
-                singingVoiceRef.current = new SingingVoice(context, {
-                    useHighQuality: false, preserveFormants: true, channels: 1, bufferSize: 16384, enablePhonemeStretching: true
+                // Initialize Manager with 12 voices
+                const manager = new SingingVoiceManager(context, 12, {
+                    useHighQuality: false,
+                    preserveFormants: true,
+                    channels: 1,
+                    bufferSize: 16384,
+                    enablePhonemeStretching: true
                 });
-                await singingVoiceRef.current.initWorklet(forceScriptProcessor, wasmBinary);
-                singingVoiceRef.current.getSourceNode().connect(masterGainRef.current!);
 
-                // 2. Left Voice (Choir)
-                singingVoiceLeftRef.current = new SingingVoice(context, {
-                    useHighQuality: false, preserveFormants: true, channels: 1, bufferSize: 16384, enablePhonemeStretching: true
-                });
-                await singingVoiceLeftRef.current.initWorklet(forceScriptProcessor, wasmBinary);
+                await manager.init(forceScriptProcessor, wasmBinary);
+                singingVoiceManagerRef.current = manager;
+
+                // Create Choir Busses
                 const gainLeft = context.createGain();
-                gainLeft.gain.value = 0; // Start silent
+                gainLeft.gain.value = 0;
                 choirLeftGainRef.current = gainLeft;
                 const pannerLeft = context.createStereoPanner();
                 pannerLeft.pan.value = -0.6;
-                singingVoiceLeftRef.current.getSourceNode().connect(gainLeft);
+                choirLeftPannerRef.current = pannerLeft;
                 gainLeft.connect(pannerLeft);
                 pannerLeft.connect(masterGainRef.current!);
 
-                // 3. Right Voice (Choir)
-                singingVoiceRightRef.current = new SingingVoice(context, {
-                    useHighQuality: false, preserveFormants: true, channels: 1, bufferSize: 16384, enablePhonemeStretching: true
-                });
-                await singingVoiceRightRef.current.initWorklet(forceScriptProcessor, wasmBinary);
                 const gainRight = context.createGain();
-                gainRight.gain.value = 0; // Start silent
+                gainRight.gain.value = 0;
                 choirRightGainRef.current = gainRight;
                 const pannerRight = context.createStereoPanner();
                 pannerRight.pan.value = 0.6;
-                singingVoiceRightRef.current.getSourceNode().connect(gainRight);
+                choirRightPannerRef.current = pannerRight;
                 gainRight.connect(pannerRight);
                 pannerRight.connect(masterGainRef.current!);
+
+                // Connect all voices to main output by default
+                // When choir mode is used, we'll reconnect specific voices
+                manager.getAllVoices().forEach(voice => {
+                    voice.connectOutput(masterGainRef.current!);
+                });
 
                 // Pre-cache if Pyodide ready
                 if (pyodideRef.current) {
                     // ... (keep existing cache logic or simplify)
                 }
             } catch (e) {
-                console.warn('SingingVoice failed to init:', e);
+                console.warn('SingingVoiceManager failed to init:', e);
             }
 
             // Noise Buffer
@@ -440,14 +448,20 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
 
             const prepareVocal = async (bankIndex: number, text: string) => {
-                if (!singingVoiceRef.current) return;
+                if (!singingVoiceManagerRef.current) return;
                 const bankName = `bank_${bankIndex}`;
                 const buffer = loadedSampleBuffersRef.current.get(bankName);
                 if (!buffer) return;
 
+                // Get ANY voice to perform alignment (since it's stateless w.r.t voice instance if using same aligner)
+                // Actually, the SingingVoice instance holds the aligner.
+                // We should use the first voice for alignment services.
+                const alignmentVoice = singingVoiceManagerRef.current.getVoice(0);
+                if (!alignmentVoice) return;
+
                 const audio = buffer.getChannelData(0);
                 try {
-                    const alignment = await singingVoiceRef.current.alignPhonemes(audio, text);
+                    const alignment = await alignmentVoice.alignPhonemes(audio, text);
                     if (alignment) {
                         vocalAlignmentsRef.current.set(bankName, alignment);
                         console.log(`Aligned phonemes for ${bankName}: ${alignment.phonemes.length}`);
@@ -462,7 +476,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 return vocalAlignmentsRef.current.get(bankName) || null;
             };
 
-            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
+            const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 if (!buffer || !masterGainRef.current) return;
 
@@ -478,45 +492,61 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
                 // --- GLITCH LOGIC END ---
 
-                if (params.mode === 'stretch' && singingVoiceRef.current) {
-                    // PHONEME ELASTICITY & SINGING VOICE MODE WITH CHOIR SUPPORT
-                    const mainVoice = singingVoiceRef.current;
+                // Handle Polyphony (Chords)
+                const notes = Array.isArray(note) ? note : [note];
 
-                    const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number) => {
-                        const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
-                        const originalDuration = buffer.duration;
-                        const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
+                // If Singing/Stretch Mode
+                if (params.mode === 'stretch' && singingVoiceManagerRef.current) {
+                    const manager = singingVoiceManagerRef.current;
+                    const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
-                        // Apply Timbre Modulation (Formant Shift)
-                        if (noteParams?.timbre !== undefined) {
-                            const baseShift = params.formantShift || 0;
-                            const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
-                            voice.setFormantShift(baseShift + mod, triggerTime);
-                        } else if (params.formantShift !== undefined) {
-                            voice.setFormantShift(params.formantShift, triggerTime);
-                        }
+                    // For each note in the chord
+                    notes.forEach((noteStr, noteIndex) => {
 
-                        // Sync other params
-                        if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
-                        if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
+                        const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode) => {
+                            const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
+                            const originalDuration = buffer.duration;
+                            const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
 
-                        // CHECK FOR SLICE TRIGGER MODE
-                        if (params.sliceMode === 'phoneme') {
-                            const alignment = vocalAlignmentsRef.current.get(params.sampleName);
-                            if (alignment) {
+                            // Ensure voice connected to correct output
+                            voice.disconnectOutput();
+                            if (destination) {
+                                voice.connectOutput(destination);
+                            } else {
+                                voice.connectOutput(masterGainRef.current!);
+                            }
+
+                            // Apply Timbre Modulation (Formant Shift)
+                            if (noteParams?.timbre !== undefined) {
+                                const baseShift = params.formantShift || 0;
+                                const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
+                                voice.setFormantShift(baseShift + mod, triggerTime);
+                            } else if (params.formantShift !== undefined) {
+                                voice.setFormantShift(params.formantShift, triggerTime);
+                            }
+
+                            // Sync other params
+                            if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
+
+                            // Load buffer
+                            voice.loadBuffer(buffer.getChannelData(0));
+
+                            // CHECK FOR SLICE TRIGGER MODE
+                            if (params.sliceMode === 'phoneme' && alignment) {
                                 let sliceIndex = -1;
                                 let pitchRatio = 1.0;
 
                                 if (noteParams?.sliceIndex !== undefined) {
                                     // MELODIC MODE: Slice is explicit, Pitch is melodic
                                     sliceIndex = noteParams.sliceIndex;
-                                    const targetMidi = noteToMidi(note);
+                                    const targetMidi = noteToMidi(noteStr);
                                     const baseMidi = 60; // C4 assumption
                                     // Calculate ratio based on note difference + offset
                                     pitchRatio = Math.pow(2, (targetMidi - baseMidi + pitchOffset) / 12);
                                 } else {
                                     // CLASSIC MODE: Pitch selects slice
-                                    const targetMidi = noteToMidi(note);
+                                    const targetMidi = noteToMidi(noteStr);
                                     // Map MIDI C3 (60) to slice 0
                                     sliceIndex = targetMidi - 60;
                                     // Pitch is just detune
@@ -528,89 +558,100 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                                     return;
                                 }
                             }
-                        }
 
-                        // 1. Calculate Time Ratio
-                        const timeRatio = targetDuration / originalDuration;
-                        voice.setTimeRatio(timeRatio, triggerTime);
+                            // 1. Calculate Time Ratio
+                            const timeRatio = targetDuration / originalDuration;
+                            voice.setTimeRatio(timeRatio, triggerTime);
 
-                        // 2. Pitch Shift
-                        // Assuming base note C4 (60) for the sample
-                        const targetMidi = noteToMidi(note);
-                        // Apply pitch offset (detune)
-                        voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
+                            // 2. Pitch Shift
+                            const targetMidi = noteToMidi(noteStr);
+                            voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
 
-                        // 3. Phoneme Awareness
-                        const alignment = vocalAlignmentsRef.current.get(params.sampleName);
+                            // 3. Phoneme Awareness
+                            if (alignment) {
+                                voice.setAlignment(alignment);
+                                voice.sendPhonemeDataToWorklet(targetDuration);
+                            }
 
-                        if (alignment) {
-                            // Explicitly set the alignment for this voice operation
-                            voice.setAlignment(alignment);
-                            voice.sendPhonemeDataToWorklet(targetDuration);
-                        }
+                            // 4. Play
+                            voice.play(undefined, undefined, 1.0, noteParams?.reverse);
+                        };
 
-                        // 4. Play (Buffer assumed loaded)
-                        voice.play(undefined, undefined, 1.0, noteParams?.reverse);
-                    };
+                        // Execution Wrapper
+                        const runVoices = (timeOffset: number, duration: number) => {
+                             const t = actualTime + timeOffset;
 
-                    // Load buffer ONCE for the voice(s)
-                    const audioData = buffer.getChannelData(0);
-                    mainVoice.loadBuffer(audioData);
-                    if (params.choir && params.choir > 0) {
-                        singingVoiceLeftRef.current?.loadBuffer(audioData);
-                        singingVoiceRightRef.current?.loadBuffer(audioData);
-                    }
+                             // 1. Acquire Main Voice
+                             const mainVoiceData = manager.acquireVoice();
+                             manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
+                             triggerVoice(mainVoiceData.voice, 0, t, duration);
 
-                    // Execution Wrapper
-                    const runVoices = (timeOffset: number, duration: number) => {
-                         const t = actualTime + timeOffset;
-                         triggerVoice(mainVoice, 0, t, duration);
+                             // 2. Choir Voices (Left/Right)
+                             if (params.choir && params.choir > 0) {
+                                const detune = 0.15; // ~15 cents
+                                const gain = params.choir * 0.7;
 
-                         if (params.choir && params.choir > 0 && singingVoiceLeftRef.current && singingVoiceRightRef.current) {
-                            const detune = 0.15; // ~15 cents
-                            const gain = params.choir * 0.7;
+                                if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
+                                if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
 
-                            if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
-                            if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
+                                // Acquire voice for LEFT
+                                const leftVoiceData = manager.acquireVoice();
+                                // Skip if we ran out of voices (simple check, acquireVoice always returns something currently)
+                                if (leftVoiceData.index !== mainVoiceData.index) {
+                                    manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
+                                    triggerVoice(leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!);
+                                }
 
-                            triggerVoice(singingVoiceLeftRef.current, detune, t, duration);
-                            triggerVoice(singingVoiceRightRef.current, -detune, t, duration);
+                                // Acquire voice for RIGHT
+                                const rightVoiceData = manager.acquireVoice();
+                                if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
+                                    manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
+                                    triggerVoice(rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!);
+                                }
+                            } else {
+                                // Ensure silenced
+                                if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                                if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                            }
+                        };
+
+                        if (shouldGlitch) {
+                            // Glitch Implementation
+                            const numStutters = Math.floor(Math.random() * 3) + 2;
+                            const totalDur = durationSteps * stepTime;
+                            const stutterLen = Math.min(0.06, totalDur / numStutters);
+
+                            for (let i = 0; i < numStutters; i++) {
+                                runVoices(i * stutterLen, stutterLen);
+                            }
+                            const played = numStutters * stutterLen;
+                            if (totalDur > played) {
+                                 runVoices(played, totalDur - played);
+                            }
                         } else {
-                            // Ensure silenced
-                            if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
-                            if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                            // Normal or Retrigger
+                            for (let r = 0; r < retrigger; r++) {
+                                const offset = r * (subDurationSteps * stepTime);
+                                runVoices(offset, subDurationSteps * stepTime);
+                            }
                         }
-                    };
 
-                    if (shouldGlitch) {
-                        // Glitch Implementation: Rapid Retrigger
-                        const numStutters = Math.floor(Math.random() * 3) + 2; // 2 to 4
-                        const totalDur = durationSteps * stepTime;
-                        const stutterLen = Math.min(0.06, totalDur / numStutters); // Max 60ms
+                    }); // End notes.forEach
 
-                        for (let i = 0; i < numStutters; i++) {
-                            runVoices(i * stutterLen, stutterLen);
-                        }
-                        // Resume rest of note
-                        const played = numStutters * stutterLen;
-                        if (totalDur > played) {
-                             runVoices(played, totalDur - played);
-                        }
-                    } else {
-                        // Normal or Retrigger Playback
-                        for (let r = 0; r < retrigger; r++) {
-                            const offset = r * (subDurationSteps * stepTime);
-                            runVoices(offset, subDurationSteps * stepTime);
-                        }
-                    }
                     return;
                 }
 
-                // Standard Loop / One-shot
-                const playBufferSource = (startTime: number, duration: number) => {
+                // Standard Loop / One-shot (Sampler Mode)
+                const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
                     const source = context.createBufferSource();
                     source.buffer = buffer;
-                    source.playbackRate.value = params.playbackSpeed;
+
+                    // Pitch Calculation for Loop Mode
+                    // Assume C4 (60) base
+                    // pitch = speed * 2^((midi - 60)/12)
+                    const speed = params.playbackSpeed;
+                    const pitchRatio = Math.pow(2, (pitchSemitones - 60) / 12);
+                    source.playbackRate.value = speed * pitchRatio;
 
                     const gain = context.createGain();
                     gain.gain.value = params.volume;
@@ -640,26 +681,27 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                     }
                 };
 
-                if (shouldGlitch) {
-                     const numStutters = Math.floor(Math.random() * 3) + 2;
-                     const stutterLen = 0.06;
+                // Loop mode Polyphony
+                notes.forEach(noteStr => {
+                    const midi = noteToMidi(noteStr);
 
-                     for (let i = 0; i < numStutters; i++) {
-                         playBufferSource(actualTime + i * stutterLen, stutterLen);
-                     }
-                     // Trigger full note after stutters
-                     playBufferSource(actualTime + numStutters * stutterLen, 0);
-                } else {
-                     // Normal or Retrigger Playback
-                     for (let r = 0; r < retrigger; r++) {
-                        const offset = r * (subDurationSteps * stepTime);
-                        // For buffer source, we might want to shorten playback if it overlaps?
-                        // playBufferSource takes (startTime, duration). 0 means play full.
-                        // If retriggering, we probably want to gate it?
-                        // Let's pass subDuration in seconds.
-                        playBufferSource(actualTime + offset, subDurationSteps * stepTime);
-                     }
-                }
+                    if (shouldGlitch) {
+                         const numStutters = Math.floor(Math.random() * 3) + 2;
+                         const stutterLen = 0.06;
+
+                         for (let i = 0; i < numStutters; i++) {
+                             playBufferSource(actualTime + i * stutterLen, stutterLen, midi);
+                         }
+                         // Trigger full note after stutters
+                         playBufferSource(actualTime + numStutters * stutterLen, 0, midi);
+                    } else {
+                         // Normal or Retrigger Playback
+                         for (let r = 0; r < retrigger; r++) {
+                            const offset = r * (subDurationSteps * stepTime);
+                            playBufferSource(actualTime + offset, subDurationSteps * stepTime, midi);
+                         }
+                    }
+                });
             };
 
             const noteOnSampler = (params: SamplerBankParams, _note: string, time?: number): number | null => {
@@ -746,6 +788,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
                 voiceManagerARef.current?.stopAll();
                 voiceManagerBRef.current?.stopAll();
+                singingVoiceManagerRef.current?.stopAll();
             };
 
             // Helpers for Render/Ambiance
@@ -825,7 +868,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303EngineRef.current,
-                singingVoice: singingVoiceRef.current || undefined,
+                singingVoice: undefined, // Exposed via manager if needed, but playSampler handles it
                 playSynth,
                 playDrum,
                 playSampler,
@@ -865,29 +908,18 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
     // Function to update voice parameters in real-time
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number) => {
-        const updateVoice = (voice: SingingVoice) => {
-            switch (key) {
-                case 'timeRatio':
-                    voice.setTimeRatio(value);
-                    break;
-                case 'pitchScale':
-                    voice.setPitch(value);
-                    break;
-                case 'formantShift':
-                    voice.setFormantShift(value);
-                    break;
-                case 'vibratoDepth':
-                    voice.setVibratoDepth(value);
-                    break;
-                case 'breathIntensity':
-                    voice.setBreathIntensity(value);
-                    break;
-            }
-        };
-
-        if (singingVoiceRef.current) updateVoice(singingVoiceRef.current);
-        if (singingVoiceLeftRef.current) updateVoice(singingVoiceLeftRef.current);
-        if (singingVoiceRightRef.current) updateVoice(singingVoiceRightRef.current);
+        // Broadcast to all voices in manager
+        if (singingVoiceManagerRef.current) {
+            singingVoiceManagerRef.current.getAllVoices().forEach(voice => {
+                switch (key) {
+                    case 'timeRatio': voice.setTimeRatio(value); break;
+                    case 'pitchScale': voice.setPitch(value); break;
+                    case 'formantShift': voice.setFormantShift(value); break;
+                    case 'vibratoDepth': voice.setVibratoDepth(value); break;
+                    case 'breathIntensity': voice.setBreathIntensity(value); break;
+                }
+            });
+        }
 
         if (key === 'choir') {
              const gain = value * 0.7;
