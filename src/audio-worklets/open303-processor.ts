@@ -294,38 +294,47 @@ class Open303Processor extends AudioWorkletProcessor {
             cos: Math.cos,
             fmod: (x: number, y: number) => x % y,
 
-            // ASYNCIFY invoke functions (required when WASM is built with -s ASYNCIFY)
-            // These are used by Emscripten's asyncify mechanism
-            invoke_ii: (index: number, a1: number) => {
-                // Get the function from the table and call it
+            // ASYNCIFY invoke functions (required by embind for exception handling)
+            // These are called by Emscripten's generated code for indirect calls
+            // We store the table reference and use it to dispatch calls
+            invoke_ii: (index: number, a1: number): number => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.__indirect_function_table as WebAssembly.Table;
+                // @ts-ignore - wasmTable may be exported with different names
+                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
+                if (!table) {
+                    console.warn('[Open303] invoke_ii: no function table available');
+                    return 0;
+                }
                 const func = table.get(index) as Function;
-                return func(a1);
+                return func ? func(a1) : 0;
             },
-            invoke_vi: (index: number, a1: number) => {
+            invoke_vi: (index: number, a1: number): void => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
+                if (!table) return;
                 const func = table.get(index) as Function;
-                func(a1);
+                if (func) func(a1);
             },
-            invoke_vii: (index: number, a1: number, a2: number) => {
+            invoke_vii: (index: number, a1: number, a2: number): void => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
+                if (!table) return;
                 const func = table.get(index) as Function;
-                func(a1, a2);
+                if (func) func(a1, a2);
             },
-            invoke_vid: (index: number, a1: number, a2: number) => {
+            invoke_vid: (index: number, a1: number, a2: number): void => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
+                if (!table) return;
                 const func = table.get(index) as Function;
-                func(a1, a2);
+                if (func) func(a1, a2);
             },
-            invoke_dddddd: (index: number, a1: number, a2: number, a3: number, a4: number, a5: number) => {
+            invoke_dddddd: (index: number, a1: number, a2: number, a3: number, a4: number, a5: number): number => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.__indirect_function_table as WebAssembly.Table;
+                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
+                if (!table) return 0;
                 const func = table.get(index) as Function;
-                return func(a1, a2, a3, a4, a5);
+                return func ? func(a1, a2, a3, a4, a5) : 0;
             },
 
             // Threading (stubs for single-threaded)
