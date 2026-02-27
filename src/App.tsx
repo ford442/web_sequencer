@@ -11,6 +11,7 @@ import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
 import { LyricMapper } from './components/LyricMapper';
+import { ShortcutsHelp } from './components/ShortcutsHelp';
 
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
@@ -198,6 +199,7 @@ export const App: React.FC = () => {
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
     const [isLyricMapperOpen, setIsLyricMapperOpen] = useState(false);
+    const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
@@ -1145,6 +1147,7 @@ export const App: React.FC = () => {
                         >+</button>
                     </div>
                 </div>
+                <button onClick={() => setIsShortcutsHelpOpen(true)} aria-label="Keyboard Shortcuts" className="w-8 h-8 rounded-full bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center font-bold text-xs mr-2 border border-gray-700">?</button>
                 <button onClick={handlePanic} aria-label="Panic Stop All Notes" className="w-8 h-8 rounded-full bg-red-900/50 text-red-500 flex items-center justify-center font-bold text-xs mr-2">!</button>
                 <button onClick={() => setIsRecording(!isRecording)} aria-pressed={isRecording} aria-label="Toggle Recording" className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-700'}`}>REC</button>
                 <button onClick={() => setIsLyricMapperOpen(!isLyricMapperOpen)} aria-pressed={isLyricMapperOpen} aria-label="Open Lyric Mapper" className={`w-20 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isLyricMapperOpen ? 'bg-cyan-900/40 text-cyan-300' : 'bg-gray-800 text-gray-400'}`}>LYRICS</button>
@@ -1357,6 +1360,7 @@ export const App: React.FC = () => {
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
             <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
+            {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
 
             {/* Standard 2D Layout */}
