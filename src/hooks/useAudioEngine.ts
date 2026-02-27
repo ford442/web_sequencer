@@ -129,8 +129,6 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
             wasmEngineRef.current = wasmEngine;
 
             // Initialize Open303 Engine (TB-303 clone)
-            // TEMP FIX: Disable Open303 to prevent stack overflow from killing AudioContext
-            // TODO: Re-enable after fixing stack overflow in jc303 WASM build
             const open303Engine = new Open303Oscillator();
             let open303Ready = false;
             

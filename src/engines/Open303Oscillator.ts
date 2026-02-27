@@ -48,8 +48,7 @@ export class Open303Oscillator {
                 
                 if (!wasmResponse.ok) {
                     console.warn(`Failed to fetch jc303 WASM: ${wasmResponse.status}`);
-                    this.activateFallback();
-                    return true; // Return true so audio doesn't die
+                    return false;
                 }
                 
                 const wasmBytes = await wasmResponse.arrayBuffer();

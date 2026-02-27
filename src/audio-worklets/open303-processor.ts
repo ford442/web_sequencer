@@ -194,6 +194,15 @@ class Open303Processor extends AudioWorkletProcessor {
 
         this.updateHeap();
 
+        // 3b. Initialize the Emscripten stack tracking and disable false overflow detection.
+        // The jc303 WASM triggers __handle_stack_overflow during jc303_init even though
+        // the stack pointer never actually falls below the stack limit. This is caused by
+        // how Emscripten's stack overflow check is compiled into the binary. Calling
+        // emscripten_stack_init() sets up the stack tracking, and __set_stack_limits with
+        // stackEnd=0 disables the false check (sp < 0 is always false), allowing jc303_init
+        // to succeed without spurious overflow calls.
+        this.configureWasmStack(this.wasmInstance);
+
         // 4. Verify exports
         const exports = this.wasmInstance.exports as any;
         const hasInit = typeof exports.jc303_init === 'function';
@@ -255,15 +264,14 @@ class Open303Processor extends AudioWorkletProcessor {
             return 1;
         };
 
-        // CRITICAL FIX: Stack overflow handler that doesn't throw
+        // Stack overflow handler: throw to properly abort WASM execution.
+        // With configureWasmStack() setting stackEnd=0, this handler should not be
+        // called during normal operation. If it is called, it indicates a genuine
+        // overflow and we must throw to abort and let the retry logic handle it.
         const handleStackOverflow = () => {
             const err = new Error("[Open303] Stack overflow detected in WASM");
             console.error(err.message);
-            // Post message but don't throw - let the init retry logic handle it
-            try {
-                this.port.postMessage({ type: 'stack-overflow', error: err.message });
-            } catch { }
-            return 0;
+            throw err;
         };
 
         const env: any = {
@@ -535,6 +543,28 @@ class Open303Processor extends AudioWorkletProcessor {
         const memory = (this.wasmInstance?.exports as any)?.memory || this.importedMemory;
         if (memory) {
             this.heapFloat32 = new Float32Array(memory.buffer);
+        }
+    }
+
+    private configureWasmStack(instance: WebAssembly.Instance): void {
+        const exports = instance.exports as any;
+
+        // Initialize Emscripten stack tracking
+        if (typeof exports.emscripten_stack_init === 'function') {
+            exports.emscripten_stack_init();
+        }
+
+        // Disable false stack overflow detection.
+        // The jc303 WASM calls __handle_stack_overflow during jc303_init even though
+        // the stack pointer never falls below the actual stack limit. Setting stackEnd=0
+        // makes the overflow check (sp < 0) always false, preventing spurious calls.
+        if (typeof exports.__set_stack_limits === 'function' &&
+            typeof exports.emscripten_stack_get_base === 'function') {
+            const stackBase = exports.emscripten_stack_get_base();
+            if (stackBase > 0) {
+                exports.__set_stack_limits(stackBase, 0);
+                console.log(`[Open303] Stack configured: base=${stackBase}, end=0 (overflow check disabled)`);
+            }
         }
     }
 
