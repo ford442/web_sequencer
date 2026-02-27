@@ -59,7 +59,6 @@ set(JC303_EMSCRIPTEN_MAXIMUM_MEMORY 268435456)  # 256MB max
 
 # Common link flags for all builds
 set(JC303_COMMON_LINK_FLAGS
-    -s WASM=1
     -s MODULARIZE=1
     -s EXPORT_NAME=JC303Module
     -s "EXPORTED_FUNCTIONS=[\"_malloc\",\"_free\"]"
