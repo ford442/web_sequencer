@@ -13,7 +13,6 @@ export class SingingVoiceManager {
     private activeVoices: Map<number, ActiveVoice> = new Map();
     private config: SingingVoiceConfig;
     private maxVoices: number;
-    private wasmBinary: ArrayBuffer | undefined;
 
     constructor(audioContext: AudioContext, maxVoices: number = 12, config: SingingVoiceConfig = {}) {
         this.audioContext = audioContext;
@@ -29,8 +28,6 @@ export class SingingVoiceManager {
     }
 
     async init(forceScriptProcessor: boolean = false, wasmBinary?: ArrayBuffer): Promise<void> {
-        this.wasmBinary = wasmBinary;
-
         // Initialize pool of voices
         const initPromises = [];
         for (let i = 0; i < this.maxVoices; i++) {

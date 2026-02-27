@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SingingVoiceManager } from '../SingingVoiceManager';
-import { SingingVoice } from '../SingingVoice';
 
 // Mock SingingVoice
 vi.mock('../SingingVoice', () => {

@@ -501,7 +501,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
                     // For each note in the chord
-                    notes.forEach((noteStr, noteIndex) => {
+                    notes.forEach((noteStr, _noteIndex) => {
 
                         const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
