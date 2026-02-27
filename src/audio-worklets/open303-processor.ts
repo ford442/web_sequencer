@@ -294,47 +294,47 @@ class Open303Processor extends AudioWorkletProcessor {
             cos: Math.cos,
             fmod: (x: number, y: number) => x % y,
 
-            // ASYNCIFY invoke functions (required by embind for exception handling)
-            // These are called by Emscripten's generated code for indirect calls
-            // We store the table reference and use it to dispatch calls
+            // ASYNCIFY invoke functions (required by embind for indirect calls)
+            // These dispatch calls through the WASM function table
+            // The table is exported automatically by Emscripten with --export-table
             invoke_ii: (index: number, a1: number): number => {
                 const exports = this.wasmInstance?.exports as any;
-                // @ts-ignore - wasmTable may be exported with different names
-                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
-                if (!table) {
-                    console.warn('[Open303] invoke_ii: no function table available');
+                // The table is exported as 'wasmTable' in newer Emscripten, or 'table'
+                const tbl = exports.wasmTable || exports.table;
+                if (!tbl) {
+                    console.error('[Open303] invoke_ii: function table not available');
                     return 0;
                 }
-                const func = table.get(index) as Function;
-                return func ? func(a1) : 0;
+                const fn = tbl.get(index);
+                return fn ? fn(a1) : 0;
             },
             invoke_vi: (index: number, a1: number): void => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
-                if (!table) return;
-                const func = table.get(index) as Function;
-                if (func) func(a1);
+                const tbl = exports.wasmTable || exports.table;
+                if (!tbl) return;
+                const fn = tbl.get(index);
+                if (fn) fn(a1);
             },
             invoke_vii: (index: number, a1: number, a2: number): void => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
-                if (!table) return;
-                const func = table.get(index) as Function;
-                if (func) func(a1, a2);
+                const tbl = exports.wasmTable || exports.table;
+                if (!tbl) return;
+                const fn = tbl.get(index);
+                if (fn) fn(a1, a2);
             },
             invoke_vid: (index: number, a1: number, a2: number): void => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
-                if (!table) return;
-                const func = table.get(index) as Function;
-                if (func) func(a1, a2);
+                const tbl = exports.wasmTable || exports.table;
+                if (!tbl) return;
+                const fn = tbl.get(index);
+                if (fn) fn(a1, a2);
             },
             invoke_dddddd: (index: number, a1: number, a2: number, a3: number, a4: number, a5: number): number => {
                 const exports = this.wasmInstance?.exports as any;
-                const table = exports.wasmTable || exports.__indirect_function_table || exports.table;
-                if (!table) return 0;
-                const func = table.get(index) as Function;
-                return func ? func(a1, a2, a3, a4, a5) : 0;
+                const tbl = exports.wasmTable || exports.table;
+                if (!tbl) return 0;
+                const fn = tbl.get(index);
+                return fn ? fn(a1, a2, a3, a4, a5) : 0;
             },
 
             // Threading (stubs for single-threaded)
