@@ -17,20 +17,22 @@ function getTime(): number {
     return Date.now();
 }
 
-// Synth state
-enum SynthState {
-    UNINITIALIZED = 'uninitialized',
-    INITIALIZING = 'initializing',
-    READY = 'ready',
-    FAILED = 'failed',
-    FALLBACK = 'fallback'
-}
+// Synth state (using const object instead of enum for erasableSyntaxOnly compatibility)
+const SynthState = {
+    UNINITIALIZED: 'uninitialized',
+    INITIALIZING: 'initializing',
+    READY: 'ready',
+    FAILED: 'failed',
+    FALLBACK: 'fallback'
+} as const;
+
+type SynthStateType = typeof SynthState[keyof typeof SynthState];
 
 class Open303Processor extends AudioWorkletProcessor {
     private wasmInstance: WebAssembly.Instance | null = null;
     private importedMemory: WebAssembly.Memory | null = null;
     private heapFloat32: Float32Array | null = null;
-    private synthState: SynthState = SynthState.UNINITIALIZED;
+    private synthState: SynthStateType = SynthState.UNINITIALIZED;
     private isThreaded: boolean = false;
 
     // Gain compensation for 303 output level matching.
@@ -228,8 +230,6 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private createEnvironmentImports(): any {
-        const self = this;
-
         const resizeHeap = (size: number) => {
             const memory = this.wasmInstance?.exports?.memory as WebAssembly.Memory || this.importedMemory;
             if (!memory) {
