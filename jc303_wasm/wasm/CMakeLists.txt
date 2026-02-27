@@ -73,6 +73,8 @@ set(JC303_COMMON_LINK_FLAGS
     "-sSINGLE_FILE=0"
     "-sSTACK_OVERFLOW_CHECK=2"
     "-sDISABLE_EXCEPTION_CATCHING=1"
+    "-sALLOW_TABLE_GROWTH=1"
+    "-sEXPORTED_FUNCTIONS=[\"_malloc\",\"_free\",\"__indirect_function_table\"]"
     -fno-exceptions
     -fno-rtti
     --bind
