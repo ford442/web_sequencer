@@ -1195,6 +1195,7 @@ export const App: React.FC = () => {
                     onClick={() => setShowGamepadDebug(true)}
                     className="ml-2 p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors border border-transparent hover:border-slate-600"
                     title="Gamepad Debugger"
+                    aria-label="Open Gamepad Debugger"
                 >
                     <span role="img" aria-label="joystick" className="text-lg">🎮</span>
                 </button>
