@@ -286,8 +286,8 @@ export const SongMode = memo(({
                 <div className="h-14 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 flex items-center justify-between px-6 shrink-0 relative">
                      <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest">SONG ARRANGER</h2>
                      <div className="flex gap-3 items-center">
-                        <button onClick={onRemoveMeasure} className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg border border-gray-600">- BAR</button>
-                        <button onClick={onAddMeasure} className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50">+ BAR</button>
+                        <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg border border-gray-600">- BAR</button>
+                        <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50">+ BAR</button>
                         <button
                             onClick={() => onSetIsSongModeActive(!isSongModeActive)}
                             className={`px-3 py-1.5 text-xs rounded-lg border font-bold ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
