@@ -24,7 +24,7 @@ export const useFocusTrap = <T extends HTMLElement = HTMLDivElement>(
 
         // Initial Focus Logic
         // We use a small timeout to ensure the DOM is fully ready if the component just mounted
-        requestAnimationFrame(() => {
+        const doFocus = () => {
             const element = containerRef.current;
             if (element) {
                 if (initialFocusRef?.current) {
@@ -41,7 +41,14 @@ export const useFocusTrap = <T extends HTMLElement = HTMLDivElement>(
                     }
                 }
             }
-        });
+        };
+
+        // Some tests might not support requestAnimationFrame properly
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(doFocus);
+        } else {
+            setTimeout(doFocus, 0);
+        }
 
         return () => {
             // Restore focus
