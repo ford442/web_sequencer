@@ -295,6 +295,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             onClick={() => setZoom(z => Math.max(0.5, z * 0.8))}
             className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-xs"
             title="Zoom out"
+            aria-label="Zoom out"
           >
             −
           </button>
@@ -303,6 +304,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             onClick={() => setZoom(z => Math.min(5, z * 1.25))}
             className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-xs"
             title="Zoom in"
+            aria-label="Zoom in"
           >
             +
           </button>
