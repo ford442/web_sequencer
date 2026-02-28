@@ -24,7 +24,8 @@
 - [x] **Per-Step Parameters:** Create a UI to edit "Expression" or "Timbre" for individual sequencer steps (vital for humanizing TTS output).
 - [x] **Melodic Lyric Mode:** Decouple "Slice Selection" from "Pitch" in the Sampler. Allow playing melodies (Pitch) while triggering specific phonemes (Slice Index) via `LyricMapper`.
 - [x] **Note Slice UI:** Visualize the selected phoneme/slice index directly on the sequencer note (e.g., small text label) to improve TTS workflow.
-- [ ] **Unify Sequencer Components:** Refactor `App.tsx` to use the standalone `Sequencer` component or move `App.tsx` logic into a reusable view to reduce duplication.
+- [x] **Unify Sequencer Components:** Refactor `App.tsx` to use the standalone `Sequencer` component or move `App.tsx` logic into a reusable view to reduce duplication.
+- [x] **Glitch Mode:** Add a probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis) in the UI.
 - [x] **Cleanup Legacy Code:** Identify and remove unused components like `src/components/Sequencer.tsx` to streamline maintenance.
 - [x] **Refactor NoteSelector Focus Management:** Verified `NoteSelector` robustness with new test suite `src/components/__tests__/NoteSelector.test.tsx` mocking `requestAnimationFrame`.
 
@@ -38,8 +39,8 @@
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
 * **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
-* **Idea:** "Glitch Mode" - A probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis).
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
+* **Idea:** "Vocal Envelope" - Add attack/release envelope controls for the Sampler TTS engine to prevent clicks on rapid retriggering and allow softer vocal attacks.
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * **Idea:** "Formant Automation" - Draw curves for formant shift over time (not just per step) for continuous vowel morphing.
 
@@ -47,6 +48,7 @@
 
 ## 📜 Changelog
 * [Date] - Roadmap re-initialized for long-term recursion.
+* [Date] - Implemented Glitch Mode UI: Added probability knob for random TTS retriggers.
 * [2026-06-02] - Implemented Polyphonic Singing: Added `SingingVoiceManager` to handle a pool of TTS voices, enabling chord playback and multi-voice "Choir" effects in the Sampler.
 * [2026-06-01] - Wired up Melodic Lyric Mode in `App.tsx`, connecting state to `SamplerPanel` toggle and `MainSequencer` rendering. Verified and tested `NoteSelector` accessibility.
 * [2026-05-30] - Implemented Note Slice UI: Visualized TTS phonemes directly on sequencer steps in `MainSequencer.tsx`. Verified absence of legacy `Sequencer.tsx`.
