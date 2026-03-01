@@ -74,30 +74,6 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
   }
 };
 
-const WAVEFORM_DESCRIPTIONS: Record<Waveform, string> = {
-  'sawtooth': 'Standard Sawtooth. Rich harmonics, great for leads and basses.',
-  'square': 'Standard Square. Hollow sound, good for bass and woodwind-like tones.',
-  'triangle': 'Standard Triangle. Mellow, flute-like sound.',
-  'sine': 'Standard Sine. Pure tone, no harmonics.',
-  'pyodide-saw': 'Python-generated Sawtooth via Pyodide.',
-  'pyodide-square': 'Python-generated Square via Pyodide.',
-  'pyodide-sine': 'Python-generated Sine via Pyodide.',
-  'wgsl-saw': 'GPU-accelerated Sawtooth. Massive unison capability.',
-  'wgsl-sqr': 'GPU-accelerated Square. Massive unison capability.',
-  'wgsl-tri': 'GPU-accelerated Triangle. Massive unison capability.',
-  'wgsl-sin': 'GPU-accelerated Sine. Massive unison capability.',
-  'wam-saw': 'WebAssembly Music (WAM) Sawtooth.',
-  'wam-sqr': 'WebAssembly Music (WAM) Square.',
-  'wam-tri': 'WebAssembly Music (WAM) Triangle.',
-  'wam-sin': 'WebAssembly Music (WAM) Sine.',
-  'wav-saw': 'Sampled Sawtooth. Vintage analog character.',
-  'wav-sqr': 'Sampled Square. Vintage analog character.',
-  'rust-saw': 'Rust/WASM Sawtooth. High-performance synthesis.',
-  'rust-sqr': 'Rust/WASM Square. High-performance synthesis.',
-  '303-saw': 'TB-303 Clone Sawtooth. Acid bass iconic sound.',
-  '303-sqr': 'TB-303 Clone Square. Acid bass iconic sound.',
-};
-
 const GROUPS = [
   { label: 'BASIC', items: ['sawtooth', 'square', 'triangle', 'sine'] as Waveform[] },
   { label: 'VINTAGE', items: ['wav-saw', 'wav-sqr', '303-saw', '303-sqr'] as Waveform[] },
@@ -171,9 +147,10 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
                       onMouseLeave={() => setHoveredWaveform(null)}
                       onFocus={() => setHoveredWaveform(wave)}
                       onBlur={() => setHoveredWaveform(null)}
+                      aria-pressed={selected === wave}
                       aria-current={selected === wave ? 'true' : undefined}
                       aria-label={`Select ${wave}`}
-                      title={WAVEFORM_DESCRIPTIONS[wave] || wave}
+                      title={wave}
                       className={`w-10 h-10 p-2 rounded transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center ${
                         selected === wave
                           ? `${accentClasses[accentColor]} shadow-lg`
@@ -186,9 +163,6 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
                 </div>
               </div>
             ))}
-          </div>
-          <div className="mt-2 pt-2 border-t border-gray-800 text-[10px] text-gray-400 font-mono leading-tight min-h-[2.5em] animate-in fade-in duration-200">
-            {hoveredWaveform ? WAVEFORM_DESCRIPTIONS[hoveredWaveform] : WAVEFORM_DESCRIPTIONS[selected]}
           </div>
         </div>
       )}

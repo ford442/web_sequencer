@@ -93,6 +93,8 @@ export interface AllDrumParams {
   openHat: HatParams;
 }
 
+export type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
 export interface Note {
   note: string; // e.g., 'C4' for synths, placeholder for drums
   velocity: number;
@@ -126,8 +128,6 @@ export interface Pattern {
   openHat: PartSequence;
   sampler: PartSequence[]; // Array of 8 sequences
 }
-
-export type TrackKey = keyof Pattern;
 
 export interface AmbianceTrack {
   name: string;

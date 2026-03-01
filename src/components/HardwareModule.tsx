@@ -570,9 +570,9 @@ export const HardwareModule = React.memo(
         }, [is3D]); // Re-initialize when switching between 2D and 3D mode
 
         return (
-            <div ref={containerRef} className="relative rounded-lg shadow-xl bg-gray-900 border border-gray-700" style={{ width: '100%', height: '100%', minHeight: '220px' }}>
-                <canvas ref={canvasRef} width={800} height={400} className="w-full h-full block rounded-lg" />
-                <div className="absolute inset-0 pointer-events-none rounded-lg overflow-hidden">
+            <div ref={containerRef} className="relative rounded-lg shadow-xl overflow-hidden bg-gray-900 border border-gray-700" style={{ width: '100%', height: '100%', minHeight: '220px' }}>
+                <canvas ref={canvasRef} width={800} height={400} className="w-full h-full block" />
+                <div className="absolute inset-0 pointer-events-none">
                     <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">{title.toUpperCase()}</div>
 
                     {/* PERFORMANCE: Optimized Single Loop using Memoized Overlay Components */}
