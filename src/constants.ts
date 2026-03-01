@@ -52,7 +52,8 @@ export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
   filterResonance: 0,
   drive: 0,
   delaySend: 0,
-  mode: 'loop'
+  mode: 'loop',
+  glitchChance: 0
 };
 
 export const DEFAULT_SAMPLER_PARAMS: SamplerParams = Array.from({length: 8}, () => ({...DEFAULT_SAMPLER_BANK_PARAMS}));

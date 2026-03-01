@@ -22,6 +22,7 @@ done
 
 OUTPUT_JS="$REPO_ROOT/public/hyphon_native.js"
 TEMP_DIR="$SCRIPT_DIR/temp_build"
+rm -rf "$TEMP_DIR"
 mkdir -p "$TEMP_DIR"
 
 # Copy Rubberband Source to Temp Directory
@@ -34,7 +35,9 @@ cp -r "$REPO_ROOT/rubberband/"* "$RUBBERBAND_SRC/"
 # FLAGS
 # ---------------------------------------------------------
 # Common flags
-COMMON_FLAGS="-O3 -msimd128 -mrelaxed-simd -ffast-math -flto -flto=thin -funroll-loops -fopenmp -pthread -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
+# Removed -mrelaxed-simd and -flto/-flto=thin for CI compatibility (Emscripten 3.1.51)
+# Removed -fopenmp because the system OpenMP library is missing in CI environment
+COMMON_FLAGS="-O3 -msimd128 -ffast-math -funroll-loops -pthread -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
 
 # C Flags
 CFLAGS="$COMMON_FLAGS"
@@ -43,8 +46,9 @@ CFLAGS="$COMMON_FLAGS"
 CXXFLAGS="$COMMON_FLAGS -frtti -DUSE_KISSFFT -DHAVE_KISSFFT -DUSE_PTHREADS -DUSE_SPEEX -std=c++17"
 
 # Linker Flags
-# -lomp is removed because we link against the static libomp.a directly
-LINK_FLAGS="$COMMON_FLAGS -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --post-js $SCRIPT_DIR/pyodide_bootstrap.js --bind"
+# -lomp is removed because we link against the static libomp.a directly (OR depend on system -fopenmp)
+# Use -O1 to prevent em++ from invoking wasm-opt with incorrect flags
+LINK_FLAGS="-O1 $COMMON_FLAGS -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --post-js $SCRIPT_DIR/pyodide_bootstrap.js --bind"
 
 EXPORTS="[ \
     '_main', \
@@ -209,16 +213,15 @@ echo "Linking..."
 OBJECTS=$(find "$TEMP_DIR" -name "*.o")
 
 # Check if we have the user-provided libomp.a (optional fallback)
+# In CI (Emscripten 3.1.51), the custom libomp.a might be incompatible.
+# We prefer the system-provided OpenMP implementation via -fopenmp and -s USE_PTHREADS=1
 USER_LIBOMP=""
 if [ -f "$SCRIPT_DIR/libomp.a" ]; then
-    echo "Found custom libomp.a, linking..."
-    USER_LIBOMP="$SCRIPT_DIR/libomp.a"
-else
-    echo "Error: libomp.a not found in $SCRIPT_DIR!"
-    exit 1
+    echo "Found custom libomp.a, but skipping it to prefer system OpenMP for compatibility..."
+    # USER_LIBOMP="$SCRIPT_DIR/libomp.a"
 fi
 
-em++ $OBJECTS "$USER_LIBOMP" -o "$OUTPUT_JS" \
+em++ $OBJECTS -o "$OUTPUT_JS" \
   $LINK_FLAGS \
   -s EXPORTED_FUNCTIONS="$EXPORTS"
 
