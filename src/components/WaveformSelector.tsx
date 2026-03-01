@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { Waveform } from '../types';
 
 interface WaveformSelectorProps {
@@ -73,6 +74,30 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
   }
 };
 
+const WAVEFORM_DESCRIPTIONS: Record<Waveform, string> = {
+  'sawtooth': 'Standard Sawtooth. Rich harmonics, great for leads and basses.',
+  'square': 'Standard Square. Hollow sound, good for bass and woodwind-like tones.',
+  'triangle': 'Standard Triangle. Mellow, flute-like sound.',
+  'sine': 'Standard Sine. Pure tone, no harmonics.',
+  'pyodide-saw': 'Python-generated Sawtooth via Pyodide.',
+  'pyodide-square': 'Python-generated Square via Pyodide.',
+  'pyodide-sine': 'Python-generated Sine via Pyodide.',
+  'wgsl-saw': 'GPU-accelerated Sawtooth. Massive unison capability.',
+  'wgsl-sqr': 'GPU-accelerated Square. Massive unison capability.',
+  'wgsl-tri': 'GPU-accelerated Triangle. Massive unison capability.',
+  'wgsl-sin': 'GPU-accelerated Sine. Massive unison capability.',
+  'wam-saw': 'WebAssembly Music (WAM) Sawtooth.',
+  'wam-sqr': 'WebAssembly Music (WAM) Square.',
+  'wam-tri': 'WebAssembly Music (WAM) Triangle.',
+  'wam-sin': 'WebAssembly Music (WAM) Sine.',
+  'wav-saw': 'Sampled Sawtooth. Vintage analog character.',
+  'wav-sqr': 'Sampled Square. Vintage analog character.',
+  'rust-saw': 'Rust/WASM Sawtooth. High-performance synthesis.',
+  'rust-sqr': 'Rust/WASM Square. High-performance synthesis.',
+  '303-saw': 'TB-303 Clone Sawtooth. Acid bass iconic sound.',
+  '303-sqr': 'TB-303 Clone Square. Acid bass iconic sound.',
+};
+
 const GROUPS = [
   { label: 'BASIC', items: ['sawtooth', 'square', 'triangle', 'sine'] as Waveform[] },
   { label: 'VINTAGE', items: ['wav-saw', 'wav-sqr', '303-saw', '303-sqr'] as Waveform[] },
@@ -82,8 +107,10 @@ const GROUPS = [
 
 export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, onChange, accentColor }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [hoveredWaveform, setHoveredWaveform] = useState<Waveform | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useFocusTrap(isOpen, () => setIsOpen(false));
 
   const accentClasses = {
     cyan: 'bg-cyan-500 text-gray-900 border-cyan-400 ring-cyan-400',
@@ -110,15 +137,8 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
     };
   }, [isOpen]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setIsOpen(false);
-      triggerRef.current?.focus();
-    }
-  };
-
   return (
-    <div className="relative inline-block" ref={containerRef} onKeyDown={handleKeyDown}>
+    <div className="relative inline-block" ref={containerRef}>
       {/* Trigger Button */}
       <button
         ref={triggerRef}
@@ -135,7 +155,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
 
       {/* Popover */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+        <div ref={popoverRef} role="dialog" aria-modal="true" aria-label="Select Waveform" className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
           <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
             {GROUPS.map((group) => (
               <div key={group.label} className="flex flex-col gap-1">
@@ -147,9 +167,13 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
                     <button
                       key={wave}
                       onClick={() => { onChange(wave); setIsOpen(false); triggerRef.current?.focus(); }}
-                      aria-pressed={selected === wave}
+                      onMouseEnter={() => setHoveredWaveform(wave)}
+                      onMouseLeave={() => setHoveredWaveform(null)}
+                      onFocus={() => setHoveredWaveform(wave)}
+                      onBlur={() => setHoveredWaveform(null)}
+                      aria-current={selected === wave ? 'true' : undefined}
                       aria-label={`Select ${wave}`}
-                      title={wave}
+                      title={WAVEFORM_DESCRIPTIONS[wave] || wave}
                       className={`w-10 h-10 p-2 rounded transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center ${
                         selected === wave
                           ? `${accentClasses[accentColor]} shadow-lg`
@@ -162,6 +186,9 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
                 </div>
               </div>
             ))}
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-800 text-[10px] text-gray-400 font-mono leading-tight min-h-[2.5em] animate-in fade-in duration-200">
+            {hoveredWaveform ? WAVEFORM_DESCRIPTIONS[hoveredWaveform] : WAVEFORM_DESCRIPTIONS[selected]}
           </div>
         </div>
       )}

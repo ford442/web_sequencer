@@ -68,6 +68,19 @@ export interface SamplerBankParams {
   vibratoDepth?: number;   // Vibrato amount (0-100%)
   breathIntensity?: number; // Breath noise (0-1.0)
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
+  choir?: number;          // Choir effect amount (0-1) - Detuned side voices
+  glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
+  
+  // Phase 1: Vocal Workstation - Pitch Controls
+  rootNote?: number;           // Root MIDI note for pitch tracking (default: 60 = C4)
+  coarse?: number;             // Coarse pitch adjustment (-24 to +24 semitones)
+  fine?: number;               // Fine pitch adjustment (-50 to +50 cents)
+  formant?: number;            // Formant shift (-12 to +12 semitones)
+  pitchAttack?: number;        // Pitch envelope attack (0-2000ms)
+  pitchDecay?: number;         // Pitch envelope decay (0-2000ms)
+  rbQuality?: 'Fast' | 'Standard' | 'Elastic';  // RubberBand quality mode
+  stretchMode?: 'Time' | 'Pitch' | 'Formant';   // Stretch processing mode
+  autoFollow?: boolean;        // Lock pitch to sequencer notes
 }
 
 // SamplerParams is now an array of banks
@@ -89,10 +102,19 @@ export interface Note {
   timbre?: number; // 0-1, tonal character (filter/formant)
   probability?: number; // 0-1, chance of triggering
   microtiming?: number; // -0.5 to 0.5 steps, rhythmic offset
+  retrigger?: number; // 2=x2, 3=x3, 4=x4 (Ratchet/Roll)
+  reverse?: boolean; // Play sample in reverse (Sampler only)
+  sliceIndex?: number; // Specific phoneme/slice index to trigger (Sampler only)
+  
+  // Phase 2: Melodic Lyric Mode - Per-step pitch control
+  pitch?: number; // MIDI note number for sampler melodic mode (default: 60 = C4)
+  pitchOffset?: number; // Fine pitch offset in cents (-100 to +100)
+  phonemeIndex?: number; // Which phoneme to trigger (for TTS lyrics)
 }
 
 export interface PartSequence {
   steps: (Note | null)[];
+  automation?: { [param: string]: (number | null)[] };
 }
 
 export interface Pattern {
@@ -105,6 +127,8 @@ export interface Pattern {
   sampler: PartSequence[]; // Array of 8 sequences
 }
 
+export type TrackKey = keyof Pattern;
+
 export interface AmbianceTrack {
   name: string;
   url: string;
@@ -115,9 +139,9 @@ export interface AudioEngine {
     webGpuEngine?: WebGpuOscillator | null;
     wasmEngine?: WasmOscillator | null;
     open303Engine?: Open303Oscillator | null;
-    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number }) => void;
-    playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => void;
-    playSampler: (params: SamplerBankParams, note: string, time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number }) => void;
+    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number }) => void;
+    playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number }, stepTime?: number) => void;
+    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
