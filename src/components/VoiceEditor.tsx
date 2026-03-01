@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { VoiceDesigner } from '../services/VoiceDesigner';
 import { SupertonicService } from '../services/Supertonic';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface VoiceEditorProps {
     onClose: () => void;
@@ -11,6 +12,9 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
     const designerRef = useRef<VoiceDesigner | null>(null);
     const [status, setStatus] = useState("Ready");
     const [isApplying, setIsApplying] = useState(false);
+
+    // Initialize focus trap
+    const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -70,11 +74,18 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="voice-designer-title"
+            role="presentation"
+            onClick={onClose}
         >
-            <div className="bg-gray-900 border border-purple-500 rounded-xl p-6 w-[600px] shadow-2xl">
+            <div
+                ref={trapRef}
+                className="bg-gray-900 border border-purple-500 rounded-xl p-6 w-[600px] shadow-2xl outline-none"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="voice-designer-title"
+                tabIndex={-1}
+                onClick={e => e.stopPropagation()}
+            >
                 <div className="flex justify-between items-center mb-4">
                     <h2 id="voice-designer-title" className="text-xl font-orbitron text-purple-400">VOICE DESIGNER <span className="text-xs text-gray-500 ml-2">(WebGPU)</span></h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-400 rounded" aria-label="Close Voice Designer">✕</button>

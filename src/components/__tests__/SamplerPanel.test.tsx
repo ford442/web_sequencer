@@ -32,7 +32,8 @@ const defaultBankParams = {
     pitchScale: 1.0,
     formantShift: 0,
     vibratoDepth: 0,
-    breathIntensity: 0
+    breathIntensity: 0,
+    choir: 0
 };
 
 describe('SamplerPanel', () => {
@@ -63,5 +64,17 @@ describe('SamplerPanel', () => {
 
         const bank2 = screen.getByRole('tab', { name: 'Select Bank 2' });
         expect(bank2).toBeDefined();
+    });
+
+    it('provides accessible value text for Grain Size slider in stretch mode', () => {
+        const stretchParams = { ...defaultBankParams, mode: 'stretch' as const, grainSize: 4410 };
+        const params = Array(8).fill(defaultBankParams);
+        params[0] = stretchParams;
+
+        render(<SamplerPanel {...defaultProps} params={params} activeBankIdx={0} />);
+
+        const slider = screen.getByLabelText('Grain Size');
+        expect(slider).toBeInTheDocument();
+        expect(slider).toHaveAttribute('aria-valuetext', '100ms');
     });
 });

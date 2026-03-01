@@ -93,19 +93,37 @@ void mixBuffers(
 float findPeak(uintptr_t bufferPtr, int numFrames, int numChannels) {
     const float* buffer = reinterpret_cast<const float*>(bufferPtr);
     const int totalSamples = numFrames * numChannels;
-    float peak = 0.0f;
+    float global_peak = 0.0f;
     
     #ifdef _OPENMP
-    #pragma omp parallel for reduction(max:peak) schedule(static)
-    #endif
-    for (int i = 0; i < totalSamples; i++) {
-        const float absVal = std::abs(buffer[i]);
-        if (absVal > peak) {
-            peak = absVal;
+    #pragma omp parallel
+    {
+        float local_peak = 0.0f;
+        #pragma omp for schedule(static) nowait
+        for (int i = 0; i < totalSamples; i++) {
+            const float absVal = std::abs(buffer[i]);
+            if (absVal > local_peak) {
+                local_peak = absVal;
+            }
+        }
+
+        #pragma omp critical
+        {
+            if (local_peak > global_peak) {
+                global_peak = local_peak;
+            }
         }
     }
+    #else
+    for (int i = 0; i < totalSamples; i++) {
+        const float absVal = std::abs(buffer[i]);
+        if (absVal > global_peak) {
+            global_peak = absVal;
+        }
+    }
+    #endif
     
-    return peak;
+    return global_peak;
 }
 
 /**
