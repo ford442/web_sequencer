@@ -13,6 +13,7 @@ describe('PatternSelector', () => {
 
     it('renders with accessibility roles and labels', () => {
         render(<PatternSelector {...defaultProps} />);
+
         const dialog = screen.getByRole('dialog');
         expect(dialog).toBeInTheDocument();
         expect(dialog).toHaveAttribute('aria-modal', 'true');
@@ -28,7 +29,7 @@ describe('PatternSelector', () => {
         });
 
         render(<PatternSelector {...defaultProps} />);
-        const dialog = screen.getByRole('dialog');
+
 
         // Let's just mock the return value so it isn't completely failing tests
         // Actually, focus trap is hard to test in isolated JSDOM sometimes without right environment,
