@@ -427,7 +427,6 @@ export const App: React.FC = () => {
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
 
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
-
                 audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams);
                 lastFreqRef.current[trackKey] = currentBaseFreq;
             }
