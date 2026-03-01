@@ -1,0 +1,24 @@
+{
+  "name": "jc303_wasm",
+  "version": "1.0.0",
+  "description": "This is a Free Roland TB-303 clone plugin. A Cmake JUCE port of [Robin Schmidt`s Open303](https://github.com/RobinSchmidt/Open303) with added features.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ford442/jc303_wasm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ford442/jc303_wasm/issues"
+  },
+  "homepage": "https://github.com/ford442/jc303_wasm#readme",
+  "dependencies": {
+    "puppeteer": "^24.36.0"
+  }
+}

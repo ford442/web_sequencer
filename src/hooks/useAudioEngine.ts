@@ -8,6 +8,7 @@ import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { SingingVoice } from '../engines/SingingVoice';
+import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
 import { noteToMidi } from '../utils/musicTheory';
 
@@ -39,6 +40,7 @@ function apply303Params(engine: Open303Oscillator, params: SynthParams, waveType
     engine.setCutoff(Math.max(0, Math.min(1, params.filterCutoff / 8000)));
     // UI Res (0-20) -> Engine (0-1)
     engine.setResonance(Math.max(0, Math.min(1, params.filterResonance / 20)));
+    engine.setFilterMode(Math.max(0, Math.min(1, params.filterMode ?? 0)));
     engine.setDecay(params.decay);
     engine.setVolume(params.volume);
 }
@@ -47,7 +49,16 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
-    const singingVoiceRef = useRef<SingingVoice | null>(null);
+
+    // Polyphonic TTS Manager
+    const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
+
+    // Left/Right Choir Panning
+    const choirLeftGainRef = useRef<GainNode | null>(null);
+    const choirRightGainRef = useRef<GainNode | null>(null);
+    const choirLeftPannerRef = useRef<StereoPannerNode | null>(null);
+    const choirRightPannerRef = useRef<StereoPannerNode | null>(null);
+
     const sustainNodeRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
@@ -125,16 +136,36 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
             // Initialize Open303 Engine (TB-303 clone)
             const open303Engine = new Open303Oscillator();
-            // PASS the worklet URL, no complex options
-            const open303Ready = await open303Engine.init(context, open303ProcessorUrl);
-
-            if (open303Ready) {
-                // Connect to master gain (local variable)
-                open303Engine.connect(masterGain);
-                open303EngineRef.current = open303Engine;
-                console.log('Open303 Engine Ready');
-            } else {
-                console.warn('Open303 Engine failed to initialize');
+            let open303Ready = false;
+            
+            // Wrap in try/catch to prevent AudioContext death on failure
+            try {
+                // Use single-threaded WASM for best compatibility
+                // Threaded variant requires COOP/COEP headers which may not be available
+                open303Ready = await open303Engine.init(context, open303ProcessorUrl, {
+                    preferWorklet: true,
+                    preferThreaded: false,
+                    forceSingleThreaded: true
+                });
+                
+                if (open303Ready) {
+                    // Connect to master gain (local variable)
+                    open303Engine.connect(masterGain);
+                    open303EngineRef.current = open303Engine;
+                    console.log('Open303 Engine Ready');
+                } else {
+                    console.warn('Open303 Engine failed to initialize - bass will use fallback');
+                }
+            } catch (e) {
+                console.error('Open303 Engine crashed during init:', e);
+                console.warn('Bass will use fallback synthesis (no TB-303)');
+                open303Ready = false;
+            }
+            
+            // If Open303 failed, ensure we have a flag for fallback
+            if (!open303Ready) {
+                // Bass will fall back to standard synth in playSynth
+                console.log('Open303 bypassed - using fallback bass synthesis');
             }
 
             // Load WAV Files
@@ -195,24 +226,60 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 sustainNodeRef.current = sustainNode;
             }
 
-            // --- Singing Voice Init (Fail-safe) ---
+            // --- Singing Voice Manager Init (Polyphonic) ---
             try {
-                singingVoiceRef.current = new SingingVoice(context, {
+                // Fetch WASM once
+                let wasmBinary: ArrayBuffer | undefined = undefined;
+                try {
+                    const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');
+                    if (response.ok) wasmBinary = await response.arrayBuffer();
+                } catch (e) {
+                    console.warn('Failed to pre-fetch rubberband.wasm', e);
+                }
+
+                // Initialize Manager with 12 voices
+                const manager = new SingingVoiceManager(context, 12, {
                     useHighQuality: false,
                     preserveFormants: true,
                     channels: 1,
                     bufferSize: 16384,
                     enablePhonemeStretching: true
                 });
-                await singingVoiceRef.current.initWorklet(forceScriptProcessor);
-                singingVoiceRef.current.getSourceNode().connect(masterGainRef.current!);
-                
+
+                await manager.init(forceScriptProcessor, wasmBinary);
+                singingVoiceManagerRef.current = manager;
+
+                // Create Choir Busses
+                const gainLeft = context.createGain();
+                gainLeft.gain.value = 0;
+                choirLeftGainRef.current = gainLeft;
+                const pannerLeft = context.createStereoPanner();
+                pannerLeft.pan.value = -0.6;
+                choirLeftPannerRef.current = pannerLeft;
+                gainLeft.connect(pannerLeft);
+                pannerLeft.connect(masterGainRef.current!);
+
+                const gainRight = context.createGain();
+                gainRight.gain.value = 0;
+                choirRightGainRef.current = gainRight;
+                const pannerRight = context.createStereoPanner();
+                pannerRight.pan.value = 0.6;
+                choirRightPannerRef.current = pannerRight;
+                gainRight.connect(pannerRight);
+                pannerRight.connect(masterGainRef.current!);
+
+                // Connect all voices to main output by default
+                // When choir mode is used, we'll reconnect specific voices
+                manager.getAllVoices().forEach(voice => {
+                    voice.connectOutput(masterGainRef.current!);
+                });
+
                 // Pre-cache if Pyodide ready
                 if (pyodideRef.current) {
                     // ... (keep existing cache logic or simplify)
                 }
             } catch (e) {
-                console.warn('SingingVoice failed to init:', e);
+                console.warn('SingingVoiceManager failed to init:', e);
             }
 
             // Noise Buffer
@@ -226,7 +293,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
             // Define Playback Functions
 
-            const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number }) => {
+            const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number }) => {
                  if (!masterGainRef.current) return;
 
                  // Apply Microtiming
@@ -242,118 +309,135 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                      effectiveParams.filterCutoff = Math.min(20000, params.filterCutoff * mod);
                  }
 
-                 // Open303 Routing (Specific check for 303 waveforms)
-                 if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
-                     if (open303EngineRef.current) {
-                         apply303Params(open303EngineRef.current, effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+                 // Retrigger Logic
+                 const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
+                 const subDurationSteps = durationSteps / retrigger;
+                 const subDuration = subDurationSteps * stepTime;
 
-                         // Note: 303 Engine is monophonic by nature in this implementation or handles its own logic.
-                         // But noteToMidi expects string. If chord (array), pick first note?
-                         const noteStr = Array.isArray(note) ? note[0] : note;
-                         if (!noteStr) return;
+                 // Execution Loop
+                 for (let i = 0; i < retrigger; i++) {
+                     const noteTime = actualTime + (i * subDuration);
 
-                         const midi = noteToMidi(noteStr);
+                     // Open303 Routing (Specific check for 303 waveforms)
+                     if (params.waveform === '303-saw' || params.waveform === '303-sqr') {
+                         if (open303EngineRef.current) {
+                             apply303Params(open303EngineRef.current, effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-                         const now = context.currentTime;
-                         const startDelay = Math.max(0, actualTime - now);
-                         const duration = durationSteps * stepTime;
+                             // Note: 303 Engine is monophonic by nature in this implementation or handles its own logic.
+                             // But noteToMidi expects string. If chord (array), pick first note?
+                             const noteStr = Array.isArray(note) ? note[0] : note;
+                             if (!noteStr) continue;
 
-                         setTimeout(() => {
-                             open303EngineRef.current?.noteOn(midi, 100);
-                         }, startDelay * 1000);
+                             const midi = noteToMidi(noteStr);
 
-                         setTimeout(() => {
-                             if (slideFromFreq === undefined) { // Check if slide is active (heuristic)
-                                 open303EngineRef.current?.noteOff(midi);
-                             }
-                         }, (startDelay + duration) * 1000);
+                             const now = context.currentTime;
+                             const startDelay = Math.max(0, noteTime - now);
+                             const noteDuration = subDuration;
 
-                         return;
+                             setTimeout(() => {
+                                 open303EngineRef.current?.noteOn(midi, 100);
+                             }, startDelay * 1000);
+
+                             setTimeout(() => {
+                                 if (slideFromFreq === undefined) { // Check if slide is active (heuristic)
+                                     open303EngineRef.current?.noteOff(midi);
+                                 }
+                             }, (startDelay + noteDuration) * 1000);
+
+                             continue;
+                         }
                      }
-                 }
 
-                 // Standard Synth Logic via VoiceManager
-                 const duration = durationSteps * stepTime;
+                     // Standard Synth Logic via VoiceManager
+                     const noteDuration = subDuration;
+                     const effectiveSlide = (i === 0) ? slideFromFreq : undefined;
 
-                 if (track === 'partB' && voiceManagerBRef.current) {
-                     voiceManagerBRef.current.playNote(effectiveParams, note, actualTime, duration, slideFromFreq);
-                 } else if (voiceManagerARef.current) {
-                     // Default to Synth A (Poly)
-                     voiceManagerARef.current.playNote(effectiveParams, note, actualTime, duration, slideFromFreq);
+                     if (track === 'partB' && voiceManagerBRef.current) {
+                         voiceManagerBRef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                     } else if (voiceManagerARef.current) {
+                         // Default to Synth A (Poly)
+                         voiceManagerARef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                     }
                  }
             };
 
-            const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number) => {
+            const playDrum = (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number }, stepTime: number = 0.125) => {
                  if (!masterGainRef.current) return;
-                 const now = time;
 
-                 if (sound === 'kick') {
-                     const p = params as KickParams;
-                     const osc = context.createOscillator();
-                     const gain = context.createGain();
+                 const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
+                 const subStep = stepTime / retrigger;
 
-                     osc.frequency.setValueAtTime(150, now);
-                     osc.frequency.exponentialRampToValueAtTime(0.01, now + p.decay);
+                 for (let i = 0; i < retrigger; i++) {
+                     const now = time + (i * subStep);
 
-                     gain.gain.setValueAtTime(p.volume, now);
-                     gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+                     if (sound === 'kick') {
+                         const p = params as KickParams;
+                         const osc = context.createOscillator();
+                         const gain = context.createGain();
 
-                     osc.connect(gain);
-                     gain.connect(masterGainRef.current);
+                         osc.frequency.setValueAtTime(150, now);
+                         osc.frequency.exponentialRampToValueAtTime(0.01, now + p.decay);
 
-                     osc.start(now);
-                     osc.stop(now + p.decay);
-                 } else if (sound === 'snare') {
-                     const p = params as SnareParams;
-                     // Tone
-                     const osc = context.createOscillator();
-                     const oscGain = context.createGain();
-                     osc.type = 'triangle';
-                     osc.frequency.setValueAtTime(250, now);
-                     oscGain.gain.setValueAtTime(p.tone * p.volume, now);
-                     oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay); // Using decay for tone too
+                         gain.gain.setValueAtTime(p.volume, now);
+                         gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
 
-                     // Noise
-                     if (noiseBufferRef.current) {
-                         const noise = context.createBufferSource();
-                         noise.buffer = noiseBufferRef.current;
-                         const noiseFilter = context.createBiquadFilter();
-                         noiseFilter.type = 'highpass';
-                         noiseFilter.frequency.value = 1000;
-                         const noiseGain = context.createGain();
-                         noiseGain.gain.setValueAtTime(p.noise * p.volume, now);
-                         noiseGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+                         osc.connect(gain);
+                         gain.connect(masterGainRef.current);
 
-                         noise.connect(noiseFilter);
-                         noiseFilter.connect(noiseGain);
-                         noiseGain.connect(masterGainRef.current);
-                         noise.start(now);
-                         noise.stop(now + p.decay);
-                     }
+                         osc.start(now);
+                         osc.stop(now + p.decay);
+                     } else if (sound === 'snare') {
+                         const p = params as SnareParams;
+                         // Tone
+                         const osc = context.createOscillator();
+                         const oscGain = context.createGain();
+                         osc.type = 'triangle';
+                         osc.frequency.setValueAtTime(250, now);
+                         oscGain.gain.setValueAtTime(p.tone * p.volume, now);
+                         oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay); // Using decay for tone too
 
-                     osc.connect(oscGain);
-                     oscGain.connect(masterGainRef.current);
-                     osc.start(now);
-                     osc.stop(now + p.decay);
+                         // Noise
+                         if (noiseBufferRef.current) {
+                             const noise = context.createBufferSource();
+                             noise.buffer = noiseBufferRef.current;
+                             const noiseFilter = context.createBiquadFilter();
+                             noiseFilter.type = 'highpass';
+                             noiseFilter.frequency.value = 1000;
+                             const noiseGain = context.createGain();
+                             noiseGain.gain.setValueAtTime(p.noise * p.volume, now);
+                             noiseGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
 
-                 } else {
-                     // Hats
-                     const p = params as HatParams;
-                     if (noiseBufferRef.current) {
-                        const src = context.createBufferSource();
-                        src.buffer = noiseBufferRef.current;
-                        const filter = context.createBiquadFilter();
-                        filter.type = 'highpass';
-                        filter.frequency.value = 5000; // Metallic
-                        const gain = context.createGain();
-                        gain.gain.setValueAtTime(p.volume, now);
-                        gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+                             noise.connect(noiseFilter);
+                             noiseFilter.connect(noiseGain);
+                             noiseGain.connect(masterGainRef.current);
+                             noise.start(now);
+                             noise.stop(now + p.decay);
+                         }
 
-                        src.connect(filter);
-                        filter.connect(gain);
-                        gain.connect(masterGainRef.current);
-                        src.start(now);
-                        src.stop(now + p.decay);
+                         osc.connect(oscGain);
+                         oscGain.connect(masterGainRef.current);
+                         osc.start(now);
+                         osc.stop(now + p.decay);
+
+                     } else {
+                         // Hats
+                         const p = params as HatParams;
+                         if (noiseBufferRef.current) {
+                            const src = context.createBufferSource();
+                            src.buffer = noiseBufferRef.current;
+                            const filter = context.createBiquadFilter();
+                            filter.type = 'highpass';
+                            filter.frequency.value = 5000; // Metallic
+                            const gain = context.createGain();
+                            gain.gain.setValueAtTime(p.volume, now);
+                            gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+
+                            src.connect(filter);
+                            filter.connect(gain);
+                            gain.connect(masterGainRef.current);
+                            src.start(now);
+                            src.stop(now + p.decay);
+                         }
                      }
                  }
             };
@@ -364,14 +448,20 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
 
             const prepareVocal = async (bankIndex: number, text: string) => {
-                if (!singingVoiceRef.current) return;
+                if (!singingVoiceManagerRef.current) return;
                 const bankName = `bank_${bankIndex}`;
                 const buffer = loadedSampleBuffersRef.current.get(bankName);
                 if (!buffer) return;
 
+                // Get ANY voice to perform alignment (since it's stateless w.r.t voice instance if using same aligner)
+                // Actually, the SingingVoice instance holds the aligner.
+                // We should use the first voice for alignment services.
+                const alignmentVoice = singingVoiceManagerRef.current.getVoice(0);
+                if (!alignmentVoice) return;
+
                 const audio = buffer.getChannelData(0);
                 try {
-                    const alignment = await singingVoiceRef.current.alignPhonemes(audio, text);
+                    const alignment = await alignmentVoice.alignPhonemes(audio, text);
                     if (alignment) {
                         vocalAlignmentsRef.current.set(bankName, alignment);
                         console.log(`Aligned phonemes for ${bankName}: ${alignment.phonemes.length}`);
@@ -386,93 +476,232 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 return vocalAlignmentsRef.current.get(bankName) || null;
             };
 
-            const playSampler = (params: SamplerBankParams, note: string, time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number }) => {
+            const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
                 const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 if (!buffer || !masterGainRef.current) return;
 
                 // Apply Microtiming
                 const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
 
-                if (params.mode === 'stretch' && singingVoiceRef.current) {
-                    // PHONEME ELASTICITY & SINGING VOICE MODE
-                    const voice = singingVoiceRef.current;
-                    const targetDuration = durationSteps * stepTime;
-                    const originalDuration = buffer.duration;
+                // Retrigger Logic
+                const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
+                const subDurationSteps = durationSteps / retrigger;
 
-                    // Apply Timbre Modulation (Formant Shift)
-                    if (noteParams?.timbre !== undefined) {
-                        const baseShift = params.formantShift || 0;
-                        const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
-                        voice.setFormantShift(baseShift + mod, actualTime);
-                    } else if (params.formantShift !== undefined) {
-                         voice.setFormantShift(params.formantShift, actualTime);
-                    }
+                // --- GLITCH LOGIC START ---
+                // Only glitch if NOT retriggering (priority to explicit retrigger)
+                const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
+                // --- GLITCH LOGIC END ---
 
-                    // CHECK FOR SLICE TRIGGER MODE
-                    if (params.sliceMode === 'phoneme') {
-                         const alignment = vocalAlignmentsRef.current.get(params.sampleName);
-                         if (alignment) {
-                             const targetMidi = noteToMidi(note);
-                             // Map MIDI C3 (60) to slice 0
-                             const sliceIndex = targetMidi - 60;
+                // Handle Polyphony (Chords)
+                const notes = Array.isArray(note) ? note : [note];
 
-                             if (sliceIndex >= 0) {
-                                 voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment);
-                                 return;
-                             }
-                         }
-                    }
-
-                    // 1. Calculate Time Ratio
-                    const timeRatio = targetDuration / originalDuration;
-                    voice.setTimeRatio(timeRatio, actualTime);
-
-                    // 2. Pitch Shift
-                    // Assuming base note C4 (60) for the sample
-                    const targetMidi = noteToMidi(note);
-                    voice.setPitchFromMidi(targetMidi, 60, actualTime);
-
-                    // 3. Phoneme Awareness
+                // If Singing/Stretch Mode
+                if (params.mode === 'stretch' && singingVoiceManagerRef.current) {
+                    const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
-                    if (alignment) {
-                        // Explicitly set the alignment for this voice operation
-                        voice.setAlignment(alignment);
-                        voice.sendPhonemeDataToWorklet(targetDuration);
-                    }
+                    // For each note in the chord
+                    notes.forEach((noteStr, _noteIndex) => {
 
-                    // 4. Process
-                    voice.process(buffer.getChannelData(0));
+                        const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode) => {
+                            const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
+                            const originalDuration = buffer.duration;
+                            const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
+
+                            // Ensure voice connected to correct output
+                            voice.disconnectOutput();
+                            if (destination) {
+                                voice.connectOutput(destination);
+                            } else {
+                                voice.connectOutput(masterGainRef.current!);
+                            }
+
+                            // Apply Timbre Modulation (Formant Shift)
+                            if (noteParams?.timbre !== undefined) {
+                                const baseShift = params.formantShift || 0;
+                                const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
+                                voice.setFormantShift(baseShift + mod, triggerTime);
+                            } else if (params.formantShift !== undefined) {
+                                voice.setFormantShift(params.formantShift, triggerTime);
+                            }
+
+                            // Sync other params
+                            if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
+
+                            // Load buffer
+                            voice.loadBuffer(buffer.getChannelData(0));
+
+                            // CHECK FOR SLICE TRIGGER MODE
+                            if (params.sliceMode === 'phoneme' && alignment) {
+                                let sliceIndex = -1;
+                                let pitchRatio = 1.0;
+
+                                if (noteParams?.sliceIndex !== undefined) {
+                                    // MELODIC MODE: Slice is explicit, Pitch is melodic
+                                    sliceIndex = noteParams.sliceIndex;
+                                    const targetMidi = noteToMidi(noteStr);
+                                    const baseMidi = 60; // C4 assumption
+                                    // Calculate ratio based on note difference + offset
+                                    pitchRatio = Math.pow(2, (targetMidi - baseMidi + pitchOffset) / 12);
+                                } else {
+                                    // CLASSIC MODE: Pitch selects slice
+                                    const targetMidi = noteToMidi(noteStr);
+                                    // Map MIDI C3 (60) to slice 0
+                                    sliceIndex = targetMidi - 60;
+                                    // Pitch is just detune
+                                    pitchRatio = Math.pow(2, pitchOffset / 12);
+                                }
+
+                                if (sliceIndex >= 0) {
+                                    voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment, pitchRatio);
+                                    return;
+                                }
+                            }
+
+                            // 1. Calculate Time Ratio
+                            const timeRatio = targetDuration / originalDuration;
+                            voice.setTimeRatio(timeRatio, triggerTime);
+
+                            // 2. Pitch Shift
+                            const targetMidi = noteToMidi(noteStr);
+                            voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
+
+                            // 3. Phoneme Awareness
+                            if (alignment) {
+                                voice.setAlignment(alignment);
+                                voice.sendPhonemeDataToWorklet(targetDuration);
+                            }
+
+                            // 4. Play
+                            voice.play(undefined, undefined, 1.0, noteParams?.reverse);
+                        };
+
+                        // Execution Wrapper
+                        const runVoices = (timeOffset: number, duration: number) => {
+                             const t = actualTime + timeOffset;
+
+                             // 1. Acquire Main Voice
+                             const mainVoiceData = manager.acquireVoice();
+                             manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
+                             triggerVoice(mainVoiceData.voice, 0, t, duration);
+
+                             // 2. Choir Voices (Left/Right)
+                             if (params.choir && params.choir > 0) {
+                                const detune = 0.15; // ~15 cents
+                                const gain = params.choir * 0.7;
+
+                                if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
+                                if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
+
+                                // Acquire voice for LEFT
+                                const leftVoiceData = manager.acquireVoice();
+                                // Skip if we ran out of voices (simple check, acquireVoice always returns something currently)
+                                if (leftVoiceData.index !== mainVoiceData.index) {
+                                    manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
+                                    triggerVoice(leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!);
+                                }
+
+                                // Acquire voice for RIGHT
+                                const rightVoiceData = manager.acquireVoice();
+                                if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
+                                    manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
+                                    triggerVoice(rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!);
+                                }
+                            } else {
+                                // Ensure silenced
+                                if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                                if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                            }
+                        };
+
+                        if (shouldGlitch) {
+                            // Glitch Implementation
+                            const numStutters = Math.floor(Math.random() * 3) + 2;
+                            const totalDur = durationSteps * stepTime;
+                            const stutterLen = Math.min(0.06, totalDur / numStutters);
+
+                            for (let i = 0; i < numStutters; i++) {
+                                runVoices(i * stutterLen, stutterLen);
+                            }
+                            const played = numStutters * stutterLen;
+                            if (totalDur > played) {
+                                 runVoices(played, totalDur - played);
+                            }
+                        } else {
+                            // Normal or Retrigger
+                            for (let r = 0; r < retrigger; r++) {
+                                const offset = r * (subDurationSteps * stepTime);
+                                runVoices(offset, subDurationSteps * stepTime);
+                            }
+                        }
+
+                    }); // End notes.forEach
+
                     return;
                 }
 
-                // Standard Loop / One-shot
-                const source = context.createBufferSource();
-                source.buffer = buffer;
-                source.playbackRate.value = params.playbackSpeed;
+                // Standard Loop / One-shot (Sampler Mode)
+                const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
+                    const source = context.createBufferSource();
+                    source.buffer = buffer;
 
-                const gain = context.createGain();
-                gain.gain.value = params.volume;
+                    // Pitch Calculation for Loop Mode
+                    // Assume C4 (60) base
+                    // pitch = speed * 2^((midi - 60)/12)
+                    const speed = params.playbackSpeed;
+                    const pitchRatio = Math.pow(2, (pitchSemitones - 60) / 12);
+                    source.playbackRate.value = speed * pitchRatio;
 
-                const filter = context.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = params.filterCutoff;
-                filter.Q.value = params.filterResonance;
+                    const gain = context.createGain();
+                    gain.gain.value = params.volume;
 
-                // Distortion (Simple waveshaper)
-                const shaper = context.createWaveShaper();
-                if (params.drive > 0) {
-                    shaper.curve = makeDistortionCurve(params.drive * 100);
-                } else {
-                    shaper.curve = null; // Bypass
-                }
+                    const filter = context.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.value = params.filterCutoff;
+                    filter.Q.value = params.filterResonance;
 
-                source.connect(filter);
-                filter.connect(shaper);
-                shaper.connect(gain);
-                gain.connect(masterGainRef.current);
+                    // Distortion
+                    const shaper = context.createWaveShaper();
+                    if (params.drive > 0) {
+                        shaper.curve = makeDistortionCurve(params.drive * 100);
+                    } else {
+                        shaper.curve = null; // Bypass
+                    }
 
-                source.start(actualTime);
+                    source.connect(filter);
+                    filter.connect(shaper);
+                    shaper.connect(gain);
+                    gain.connect(masterGainRef.current!);
+
+                    source.start(startTime);
+                    // Gate if stuttering (duration provided)
+                    if (duration > 0) {
+                         source.stop(startTime + duration);
+                    }
+                };
+
+                // Loop mode Polyphony
+                notes.forEach(noteStr => {
+                    const midi = noteToMidi(noteStr);
+
+                    if (shouldGlitch) {
+                         const numStutters = Math.floor(Math.random() * 3) + 2;
+                         const stutterLen = 0.06;
+
+                         for (let i = 0; i < numStutters; i++) {
+                             playBufferSource(actualTime + i * stutterLen, stutterLen, midi);
+                         }
+                         // Trigger full note after stutters
+                         playBufferSource(actualTime + numStutters * stutterLen, 0, midi);
+                    } else {
+                         // Normal or Retrigger Playback
+                         for (let r = 0; r < retrigger; r++) {
+                            const offset = r * (subDurationSteps * stepTime);
+                            playBufferSource(actualTime + offset, subDurationSteps * stepTime, midi);
+                         }
+                    }
+                });
             };
 
             const noteOnSampler = (params: SamplerBankParams, _note: string, time?: number): number | null => {
@@ -559,6 +788,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
                 voiceManagerARef.current?.stopAll();
                 voiceManagerBRef.current?.stopAll();
+                singingVoiceManagerRef.current?.stopAll();
             };
 
             // Helpers for Render/Ambiance
@@ -638,7 +868,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303EngineRef.current,
-                singingVoice: singingVoiceRef.current || undefined,
+                singingVoice: undefined, // Exposed via manager if needed, but playSampler handles it
                 playSynth,
                 playDrum,
                 playSampler,
@@ -678,27 +908,27 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
     // Function to update voice parameters in real-time
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number) => {
-        const voice = singingVoiceRef.current;
-        if (voice) {
-            switch (key) {
-                case 'timeRatio':
-                    voice.setTimeRatio(value);
-                    break;
-                case 'pitchScale':
-                    voice.setPitch(value);
-                    break;
-                case 'formantShift':
-                    voice.setFormantShift(value);
-                    break;
-                case 'vibratoDepth':
-                    voice.setVibratoDepth(value);
-                    break;
-                case 'breathIntensity':
-                    voice.setBreathIntensity(value);
-                    break;
-            }
+        // Broadcast to all voices in manager
+        if (singingVoiceManagerRef.current) {
+            singingVoiceManagerRef.current.getAllVoices().forEach(voice => {
+                switch (key) {
+                    case 'timeRatio': voice.setTimeRatio(value); break;
+                    case 'pitchScale': voice.setPitch(value); break;
+                    case 'formantShift': voice.setFormantShift(value); break;
+                    case 'vibratoDepth': voice.setVibratoDepth(value); break;
+                    case 'breathIntensity': voice.setBreathIntensity(value); break;
+                }
+            });
         }
-    }, []);
+
+        if (key === 'choir') {
+             const gain = value * 0.7;
+             const context = audioEngine?.context;
+             const now = context ? context.currentTime : 0;
+             if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, now, 0.05);
+             if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, now, 0.05);
+        }
+    }, [audioEngine]);
 
     return useMemo(() => ({
         audioEngine,

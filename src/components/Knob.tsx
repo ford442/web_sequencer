@@ -36,14 +36,39 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     const dy = dragStartY - e.clientY;
-    const sensitivity = (max - min) / 200; // 200px drag for full range
-    let newValue = dragStartValue + dy * sensitivity;
+
+    // Modifiers: Shift=Coarse(10x), Alt/Ctrl=Fine(0.1x)
+    const isCoarse = e.shiftKey;
+    const isFine = e.altKey || e.ctrlKey || e.metaKey;
+    const modifier = isCoarse ? 10 : (isFine ? 0.1 : 1);
+
+    let newValue;
+
+    if (logarithmic) {
+      const effectiveMin = min <= 0 ? 0.001 : min;
+      const logMin = Math.log(effectiveMin);
+      const logMax = Math.log(max);
+      // Ensure dragStartValue is valid for log
+      const safeStart = dragStartValue <= 0 ? effectiveMin : dragStartValue;
+      const logStart = Math.log(safeStart);
+
+      // Full range in 200 pixels (log domain)
+      const range = logMax - logMin;
+      const sensitivity = range / 200;
+
+      const newLogValue = logStart + (dy * sensitivity * modifier);
+      newValue = Math.exp(newLogValue);
+    } else {
+      const range = max - min;
+      const sensitivity = range / 200; // 200px drag for full range
+      newValue = dragStartValue + (dy * sensitivity * modifier);
+    }
     
     newValue = Math.round(newValue / step) * step;
     newValue = Math.max(min, Math.min(max, newValue));
     
     onChange(newValue);
-  }, [isDragging, dragStartY, dragStartValue, min, max, step, onChange]);
+  }, [isDragging, dragStartY, dragStartValue, min, max, step, onChange, logarithmic]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -78,7 +103,11 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const direction = e.deltaY > 0 ? -1 : 1; // normalize: up increases
-    const modifier = e.shiftKey ? 10 : 1;
+
+    const isCoarse = e.shiftKey;
+    const isFine = e.altKey || e.ctrlKey || e.metaKey;
+    const modifier = isCoarse ? 10 : (isFine ? 0.1 : 1);
+
     let newValue = value + direction * step * modifier;
     newValue = Math.round(newValue / step) * step;
     newValue = Math.max(min, Math.min(max, newValue));

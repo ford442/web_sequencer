@@ -16,12 +16,14 @@ interface NoteSelectorProps {
     currentTimbre?: number;
     currentProbability?: number;
     currentMicrotiming?: number;
-    onPropertyChange?: (key: 'timbre' | 'probability' | 'microtiming', value: number) => void;
+    currentReverse?: boolean;
+    currentRetrigger?: number;
+    onPropertyChange?: (key: 'timbre' | 'probability' | 'microtiming' | 'reverse' | 'retrigger', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor,
-    currentTimbre = 0, currentProbability = 1, currentMicrotiming = 0, onPropertyChange
+    currentTimbre = 0, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -89,6 +91,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 value={currentTimbre}
                                 onChange={(e) => onPropertyChange('timbre', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                                aria-valuetext={`${Math.round((currentTimbre + 0.0001) * 100)}%`}
                             />
                         </div>
 
@@ -107,6 +110,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 value={currentProbability}
                                 onChange={(e) => onPropertyChange('probability', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500"
+                                aria-valuetext={`${Math.round((currentProbability + 0.0001) * 100)}%`}
                             />
                         </div>
 
@@ -125,7 +129,48 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 value={currentMicrotiming}
                                 onChange={(e) => onPropertyChange('microtiming', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                aria-valuetext={`${currentMicrotiming > 0 ? '+' : ''}${currentMicrotiming.toFixed(2)} steps`}
                             />
+                        </div>
+
+                        {/* Retrigger (Ratchet) Control */}
+                        <div className="flex flex-col gap-1 pb-1">
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                <label id="retrigger-label">Retrigger</label>
+                                <span className="text-orange-400">{currentRetrigger > 1 ? `${currentRetrigger}x` : 'OFF'}</span>
+                            </div>
+                            <div
+                                role="group"
+                                aria-labelledby="retrigger-label"
+                                className="flex gap-1"
+                            >
+                                {[1, 2, 3, 4].map(val => (
+                                    <button
+                                        key={val}
+                                        onClick={() => onPropertyChange('retrigger', val)}
+                                        className={`flex-1 py-1 text-[10px] font-bold rounded ${currentRetrigger === val ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+                                        aria-pressed={currentRetrigger === val}
+                                        aria-label={val === 1 ? 'No retrigger' : `Retrigger ${val} times`}
+                                    >
+                                        {val === 1 ? '1x' : `${val}x`}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Reverse Control */}
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase py-1">
+                            <label htmlFor="note-reverse">Reverse Sample</label>
+                            <button
+                                id="note-reverse"
+                                onClick={() => onPropertyChange('reverse', !currentReverse)}
+                                className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 ${currentReverse ? 'bg-cyan-600 justify-end' : 'bg-slate-700 justify-start'}`}
+                                aria-checked={currentReverse}
+                                role="switch"
+                                title="Play slice in reverse"
+                            >
+                                <div className="w-3 h-3 rounded-full bg-white shadow-sm" />
+                            </button>
                         </div>
                     </>
                 )}

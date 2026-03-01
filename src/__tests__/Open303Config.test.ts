@@ -13,7 +13,7 @@ vi.stubGlobal('WebAssembly', {
 
 // Mock fetch for WASM files
 global.fetch = vi.fn((url: string) => {
-    if (typeof url === 'string' && url.includes('jc303.wasm')) {
+    if (typeof url === 'string' && (url.includes('jc303-single.wasm') || url.includes('jc303-threaded.wasm'))) {
         return Promise.resolve({
             ok: true,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
@@ -77,8 +77,8 @@ describe('Open303 Oscillator', () => {
         expect(success).toBe(true);
         expect(engine.isReady).toBe(true);
 
-        // Verify fetch was called for WASM
-        expect(global.fetch).toHaveBeenCalledWith('./jc303.wasm');
+        // Verify fetch was called for WASM (defaults to single-threaded)
+        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('jc303-single.wasm'));
 
         // Verify addModule was called
         expect(mockAudioContext.audioWorklet.addModule).toHaveBeenCalledWith('worklet-url.js');
@@ -119,9 +119,14 @@ describe('Open303 Oscillator', () => {
         await engine.init(mockAudioContext, 'worklet-url.js');
 
         engine.setCutoff(0.5);
+        engine.setFilterMode(1);
         expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
             type: 'param',
             data: { func: 'jc303_setCutoff', value: 0.5 }
+        });
+        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
+            type: 'param',
+            data: { func: 'jc303_setFilterMode', value: 1 }
         });
     });
 
