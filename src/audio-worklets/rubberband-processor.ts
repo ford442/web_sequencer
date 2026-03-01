@@ -47,10 +47,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private startSamplePtr = 0;
   private endSamplePtr = 0;
   private basePitch = 1.0;
-
-  // Phase 1: Vocal Workstation Settings
-  // (legacy configuration flags removed; not currently used)
-
   static get parameterDescriptors() {
     return [
       { name: 'pitchScale', defaultValue: 1.0, minValue: 0.1, maxValue: 4.0 },
@@ -139,7 +135,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.phonemeRatios = data.ratios || null;
         }
         break;
-
       case 'noteOn':
         if (!this.initialized || !this.fullSampleBuffer || !data) return;
         this.rubberBand.reset();
@@ -173,7 +168,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         break;
 
       case 'noteOff':
-        this.isPlaying = false;
         break;
 
       case 'setQuality':
