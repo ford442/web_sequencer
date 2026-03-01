@@ -1109,54 +1109,11 @@ export const App: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-4">
-                {/* Volume & Pan */}
-                <div className="flex items-center gap-2 mr-4">
-                    <label htmlFor="master-volume" className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
-                    <div className="flex items-center gap-1">
-                        <input id="master-volume" type="range" min="0" max="1.2" step="0.01" value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Master Volume" />
-                        {Math.abs(masterVolume - 0.8) > 0.01 && (
-                            <button onClick={handleMasterVolumeReset} className="text-gray-500 hover:text-white px-1 text-[10px]" aria-label="Reset Volume" title="Reset to 80%">✕</button>
-                        )}
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 mr-4">
-                    <label htmlFor="global-pan" className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
-                    <div className="flex items-center gap-1">
-                        <input id="global-pan" type="range" min="-1" max="1" step="0.01" value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" aria-label="Global Pan" />
-                        {Math.abs(globalPan) > 0.01 && (
-                            <button onClick={handleGlobalPanReset} className="text-gray-500 hover:text-white px-1 text-[10px]" aria-label="Reset Pan" title="Reset to Center">✕</button>
-                        )}
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-gray-900 rounded border border-gray-700 scale-90">
-                        <button
-                            onMouseDown={() => handleTempoHoldStart(-1)}
-                            onMouseUp={handleTempoHoldEnd}
-                            onMouseLeave={handleTempoHoldEnd}
-                            onKeyDown={(e) => handleTempoKeyDown(e, -1)}
-                            className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                            aria-label="Decrease Tempo"
-                        >-</button>
-                        <span className="w-12 text-center font-mono text-cyan-300 text-sm" role="status" aria-live="polite" aria-label={`Tempo: ${tempo} BPM`}>{tempo}</span>
-                        <button
-                            onMouseDown={() => handleTempoHoldStart(1)}
-                            onMouseUp={handleTempoHoldEnd}
-                            onMouseLeave={handleTempoHoldEnd}
-                            onKeyDown={(e) => handleTempoKeyDown(e, 1)}
-                            className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                            aria-label="Increase Tempo"
-                        >+</button>
-                    </div>
-                </div>
                 <button onClick={() => setIsShortcutsHelpOpen(true)} aria-label="Keyboard Shortcuts" className="w-8 h-8 rounded-full bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center font-bold text-xs mr-2 border border-gray-700">?</button>
                 <button onClick={handlePanic} aria-label="Panic Stop All Notes" className="w-8 h-8 rounded-full bg-red-900/50 text-red-500 flex items-center justify-center font-bold text-xs mr-2">!</button>
                 <button onClick={() => setIsRecording(!isRecording)} aria-pressed={isRecording} aria-label="Toggle Recording" className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-700'}`}>REC</button>
                 <button onClick={() => setIsLyricMapperOpen(!isLyricMapperOpen)} aria-pressed={isLyricMapperOpen} aria-label="Open Lyric Mapper" className={`w-20 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isLyricMapperOpen ? 'bg-cyan-900/40 text-cyan-300' : 'bg-gray-800 text-gray-400'}`}>LYRICS</button>
                 <button onClick={() => setIsSongModeOpen(!isSongModeOpen)} aria-pressed={isSongModeOpen} aria-label="Toggle Song Mode" className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300' : 'bg-gray-800 text-gray-400'}`}>SONG</button>
-                <button onClick={handlePlayToggle} aria-pressed={isPlaying} aria-label={isPlaying ? "Stop Playback" : "Start Playback"} className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide ${isPlaying ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>{isPlaying ? 'STOP' : 'PLAY'}</button>
-
-                {/* VIEW MODE TOGGLE */}
                 <div className="ml-2 flex items-center bg-gray-900 rounded border border-gray-700">
                     <button
                         onClick={() => setViewMode('notes')}
@@ -1370,19 +1327,100 @@ export const App: React.FC = () => {
             {headerNode}
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
-            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-6 z-10">
-                <div className="w-full max-w-[1000px] mx-auto h-[480px]">
+            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-[60px] z-10 overflow-y-auto">
+                {/* Sequencer */}
+                <div className="w-full max-w-[1000px] mx-auto h-[480px] shrink-0">
                     {sequencerNode}
                 </div>
-                <div className="shrink-0 pb-4 mt-6 max-w-[1000px] mx-auto w-full">
+
+                {/* Knobs / Hardware Module — middle section */}
+                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-4">
+                    {rackNode}
+                </div>
+
+                {/* Live Keyboard — bottom of scrollable area */}
+                <div className="shrink-0 pb-4 mt-4 max-w-[1000px] mx-auto w-full">
                     {keyboardNode}
                 </div>
             </main>
 
-            <div className="h-[320px] bg-gradient-to-b from-[#0d0f12] to-[#0f1215] border-t-2 border-cyan-900/30 relative shadow-[0_-10px_60px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(6,182,212,0.1)] z-30 shrink-0 fixed bottom-0 w-full">
-                <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
-                <div className="w-full h-full max-w-6xl mx-auto p-4 flex items-center justify-center">
-                    {rackNode}
+            {/* Bottom Transport Toolbar */}
+            <div className="fixed bottom-0 left-0 right-0 h-[52px] bg-[#0a0c10]/95 backdrop-blur-sm border-t border-cyan-900/30 z-40 flex items-center px-4 gap-4 shadow-[0_-4px_20px_rgba(0,0,0,0.7)]">
+                {/* Play/Stop */}
+                <button
+                    onClick={handlePlayToggle}
+                    aria-pressed={isPlaying}
+                    aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
+                    className={`w-20 py-1 rounded font-orbitron text-sm font-bold tracking-wide shrink-0 ${isPlaying ? 'bg-red-900/30 text-red-400 border border-red-700' : 'bg-green-900/30 text-green-400 border border-green-700'}`}
+                >
+                    {isPlaying ? 'STOP' : 'PLAY'}
+                </button>
+
+                {/* Divider */}
+                <div className="w-px h-6 bg-gray-700 shrink-0" />
+
+                {/* Tempo */}
+                <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-gray-500 font-mono uppercase">BPM</span>
+                    <div className="flex items-center bg-gray-900 rounded border border-gray-700">
+                        <button
+                            onMouseDown={() => handleTempoHoldStart(-1)}
+                            onMouseUp={handleTempoHoldEnd}
+                            onMouseLeave={handleTempoHoldEnd}
+                            onKeyDown={(e) => handleTempoKeyDown(e, -1)}
+                            className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                            aria-label="Decrease Tempo"
+                        >-</button>
+                        <span className="w-12 text-center font-mono text-cyan-300 text-sm" role="status" aria-live="polite" aria-label={`Tempo: ${tempo} BPM`}>{tempo}</span>
+                        <button
+                            onMouseDown={() => handleTempoHoldStart(1)}
+                            onMouseUp={handleTempoHoldEnd}
+                            onMouseLeave={handleTempoHoldEnd}
+                            onKeyDown={(e) => handleTempoKeyDown(e, 1)}
+                            className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                            aria-label="Increase Tempo"
+                        >+</button>
+                    </div>
+                </div>
+
+                {/* Divider */}
+                <div className="w-px h-6 bg-gray-700 shrink-0" />
+
+                {/* Master Volume */}
+                <div className="flex items-center gap-2 shrink-0">
+                    <label htmlFor="master-volume-toolbar" className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
+                    <input
+                        id="master-volume-toolbar"
+                        type="range" min="0" max="1.2" step="0.01"
+                        value={masterVolume}
+                        onChange={handleMasterVolume}
+                        onKeyDown={handleMasterVolumeKeyDown}
+                        className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                        aria-label="Master Volume"
+                    />
+                    {Math.abs(masterVolume - 0.8) > 0.01 && (
+                        <button onClick={handleMasterVolumeReset} className="text-gray-500 hover:text-white px-1 text-[10px]" aria-label="Reset Volume">✕</button>
+                    )}
+                </div>
+
+                {/* Divider */}
+                <div className="w-px h-6 bg-gray-700 shrink-0" />
+
+                {/* Global Pan */}
+                <div className="flex items-center gap-2 shrink-0">
+                    <label htmlFor="global-pan-toolbar" className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
+                    <input
+                        id="global-pan-toolbar"
+                        type="range" min="-1" max="1" step="0.01"
+                        value={globalPan}
+                        onChange={handleGlobalPan}
+                        onKeyDown={handleGlobalPanKeyDown}
+                        className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                        aria-label="Global Pan"
+                    />
+                    {Math.abs(globalPan) > 0.01 && (
+                        <button onClick={handleGlobalPanReset} className="text-gray-500 hover:text-white px-1 text-[10px]" aria-label="Reset Pan">✕</button>
+                    )}
                 </div>
             </div>
         </div>
