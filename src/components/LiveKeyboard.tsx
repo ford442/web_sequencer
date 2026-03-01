@@ -6,37 +6,29 @@ interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-// Configuration for inverted piano layout
-// Top Visual Row (Naturals): Digits
-// Bottom Visual Row (Accidentals): F-keys
+// Configuration for standard piano layout
+// Top Visual Row (Naturals): F-Keys
+// Bottom Visual Row (Accidentals): Digit keys
 const KEY_TO_NOTE: Record<string, string> = {
-    // --- Naturals (Digits) ---
-    'Digit1': 'C4',
-    'Digit2': 'D4',
-    'Digit3': 'E4',
-    'Digit4': 'F4',
-    'Digit5': 'G4',
-    'Digit6': 'A4',
-    'Digit7': 'B4',
-    'Digit8': 'C5',
-    'Digit9': 'D5',
-    'Digit0': 'E5',
-    'Minus':  'F5',
-    'Equal':  'G5',
+    // --- Naturals (F-Keys = white keys) ---
+    'F8': 'C4',
+    'F7': 'D4',
+    'F6': 'E4',
+    'F5': 'F4',
+    'F4': 'G4',
+    'F3': 'A4',
+    'F2': 'B4',
+    'F1': 'C5',
 
-    // --- Accidentals (F-Keys) ---
-    'F1':     'C#4',
-    'F2':     'D#4',
-    // F3 is gap
-    'F4':     'F#4',
-    'F5':     'G#4',
-    'F6':     'A#4',
-    // F7 is gap
-    'F8':     'C#5',
-    'F9':     'D#5',
-    // F10 is gap
-    'F11':    'F#5',
-    'F12':    'G#5',
+    // --- Accidentals (Digit keys = black keys) ---
+    'Digit9': 'C#4',   // between F8(C4) and F7(D4)
+    'Digit8': 'D#4',   // between F7(D4) and F6(E4)
+    // Digit7 = gap (no E#)
+    'Digit6': 'F#4',   // between F5(F4) and F4(G4)
+    'Digit5': 'G#4',   // between F4(G4) and F3(A4)
+    'Digit4': 'A#4',   // between F3(A4) and F2(B4)
+    // Digit3 = gap (no B#)
+    'Digit2': 'C#5',   // between F1(C5) and next D5
 };
 
 // 1. Generate Reverse Mapping for Visual Overlay
@@ -45,8 +37,8 @@ const NOTE_TO_KEY = Object.entries(KEY_TO_NOTE).reduce((acc, [keyCode, note]) =>
     return acc;
 }, {} as Record<string, string>);
 
-const NATURALS = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5', 'F5', 'G5'];
-const ACCIDENTALS = ['C#4', 'D#4', 'F#4', 'G#4', 'A#4', 'C#5', 'D#5', 'F#5', 'G#5', 'A#5'];
+const NATURALS = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+const ACCIDENTALS = ['C#4', 'D#4', 'F#4', 'G#4', 'A#4', 'C#5'];
 
 // 2. Helper to format key codes for display (e.g. 'Digit9' -> '9')
 const formatKeyLabel = (code: string) => {
@@ -86,42 +78,47 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
 
                 <div className="text-center mb-8">
                     <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">PIANO MODE</h3>
-                    <p className="text-gray-400 font-mono text-sm">Rotate your physical keyboard 180° for an intuitive piano feel.</p>
+                    <p className="text-gray-400 font-mono text-sm">F-keys = white keys (naturals) · Digit keys = black keys (accidentals)</p>
                 </div>
 
                 <div className="flex justify-center mb-8">
                     {/* Schematic Drawing */}
                     <svg width="400" height="220" viewBox="0 0 400 220" className="drop-shadow-2xl">
-                        {/* Keyboard Outline (Flipped) */}
+                        {/* Keyboard Outline */}
                         <rect x="10" y="10" width="380" height="200" rx="10" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="5,5" />
-
-                        {/* Spacebar Area (Top because flipped) */}
-                        <rect x="80" y="25" width="240" height="30" rx="4" fill="#1e293b" stroke="#334155" strokeWidth="1" />
-                        <text x="200" y="44" textAnchor="middle" fill="#475569" fontSize="10" fontFamily="monospace">SPACEBAR (TOP)</text>
 
                         {/* Connection Lines (Abstract) */}
                         <path d="M 60 80 L 340 80" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
 
-                        {/* Digit Row (Top Visual - Acts as White Keys) */}
-                        <g transform="translate(40, 100)">
-                            <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">DIGITS</text>
+                        {/* F-Key Row (Top Visual - White Keys / Naturals) */}
+                        <g transform="translate(40, 90)">
+                            <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">F-KEYS</text>
                             <text x="-25" y="32" fill="#fff" fontSize="9" fontFamily="monospace" textAnchor="end">(Naturals)</text>
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map((num, i) => (
+                            {[8, 7, 6, 5, 4, 3, 2, 1].map((num, i) => (
                                 <g key={num} transform={`translate(${i * 40}, 0)`}>
                                     <rect width="32" height="32" rx="4" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1" />
-                                    <text x="16" y="20" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="14" fontFamily="monospace">{num}</text>
+                                    <text x="16" y="20" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="12" fontFamily="monospace">F{num}</text>
                                 </g>
                             ))}
                         </g>
 
-                        {/* F-Key Row (Bottom Visual - Acts as Black Keys) */}
+                        {/* Digit Row (Bottom Visual - Black Keys / Accidentals) */}
                         <g transform="translate(40, 150)">
-                            <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">F-KEYS</text>
+                            <text x="-25" y="20" fill="#94a3b8" fontSize="10" fontFamily="monospace" textAnchor="end">DIGITS</text>
                             <text x="-25" y="32" fill="#06b6d4" fontSize="9" fontFamily="monospace" textAnchor="end">(Accidentals)</text>
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map((num, i) => (
-                                <g key={num} transform={`translate(${i * 40}, 0)`}>
-                                    <rect width="32" height="32" rx="4" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
-                                    <text x="16" y="20" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="12" fontFamily="monospace">F{num}</text>
+                            {[
+                                { label: '9', offset: 0 },
+                                { label: '8', offset: 1 },
+                                { label: '—', offset: 2, gap: true },
+                                { label: '6', offset: 3 },
+                                { label: '5', offset: 4 },
+                                { label: '4', offset: 5 },
+                                { label: '—', offset: 6, gap: true },
+                                { label: '2', offset: 7 },
+                            ].map(({ label, offset, gap }) => (
+                                <g key={label + offset} transform={`translate(${offset * 40}, 0)`}>
+                                    <rect width="32" height="32" rx="4" fill={gap ? '#1e293b' : '#0f172a'} stroke={gap ? '#334155' : '#06b6d4'} strokeWidth={gap ? 1 : 2} />
+                                    <text x="16" y="20" textAnchor="middle" fill={gap ? '#334155' : '#fff'} fontWeight="bold" fontSize={gap ? 16 : 14} fontFamily="monospace">{label}</text>
                                 </g>
                             ))}
                         </g>
@@ -492,7 +489,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: 
                     className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all"
                     title="Show Keyboard Layout Guide"
                 >
-                    <span className="text-xs">⌨</span> FLIPPED LAYOUT INFO
+                    <span className="text-xs">⌨</span> KEYBOARD LAYOUT INFO
                 </button>
             </div>
 
