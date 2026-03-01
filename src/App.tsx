@@ -12,7 +12,6 @@ import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
 import { LyricMapper } from './components/LyricMapper';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
-
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
@@ -545,10 +544,24 @@ export const App: React.FC = () => {
         }
     }, [schedPlaying]);
 
-    const handlePlayToggle = async () => {
+    const handlePlayToggle = useCallback(async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
-        setSchedPlaying(!schedPlaying)
-    }
+        setSchedPlaying(prev => !prev)
+    }, [isInitialized, initializeAudio, setSchedPlaying]);
+
+    // Global Key Handler for Play/Pause (Spacebar)
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if (e.code === 'Space') {
+                const target = e.target as HTMLElement;
+                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+                e.preventDefault();
+                handlePlayToggle();
+            }
+        };
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [handlePlayToggle]);
 
     const handleMasterVolume = (e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v); };
     const handleMasterVolumeKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); } };
@@ -1178,6 +1191,15 @@ export const App: React.FC = () => {
                 >
                     {forceScriptProcessorFallback ? '⚠️ FALLBACK' : '🔊 AWN'}
                 </button>
+
+                <button
+                    onClick={() => setIsShortcutsHelpOpen(true)}
+                    className="ml-2 w-6 h-6 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 border border-gray-600 flex items-center justify-center font-bold text-xs transition-all"
+                    aria-label="Keyboard Shortcuts"
+                    title="Keyboard Shortcuts (?)"
+                >
+                    ?
+                </button>
             </div>
         </header>
     ), [is3DMode, forceScriptProcessorFallback, songStorage, activeSongSlot, masterVolume, globalPan, tempo, isRecording, isPlaying, isSongModeOpen, loadSong, handleSaveSong, exportSongToFile, importSongFromFile, handleClearPattern, handleMasterVolume, handleMasterVolumeKeyDown, handleGlobalPan, handleGlobalPanKeyDown, handleTempoHoldStart, handleTempoHoldEnd, handleTempoKeyDown, handlePanic, handlePlayToggle, setIsRecording, setIsSongModeOpen, setIs3DMode, setIsCloudLibraryOpen, showToast]);
@@ -1320,7 +1342,7 @@ export const App: React.FC = () => {
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
             <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
-            {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
+            {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
 
             {/* Standard 2D Layout */}
