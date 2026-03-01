@@ -129,17 +129,23 @@ export class SupertonicService {
             // OPTIMIZATION 2: WebGPU Execution Provider
             // We attempt 'webgpu' first. If the browser doesn't support it,
             // ORT falls back to 'wasm' automatically.
-            const opts: ort.InferenceSession.SessionOptions = {
-                executionProviders: ['webgpu', 'wasm'],
+            // annotations are removed because the type is not exported by ort
+            const sessionOptions: any = {
+                executionProviders: [{ name: 'webgpu' }, { name: 'wasm' }],
                 graphOptimizationLevel: 'all'
             };
 
             // Parallel loading is faster than sequential await
             const [dp, textEnc, vecEst, vocoder] = await Promise.all([
-                ort.InferenceSession.create(getAssetUrl('assets/onnx/duration_predictor.onnx'), opts),
-                ort.InferenceSession.create(getAssetUrl('assets/onnx/text_encoder.onnx'), opts),
-                ort.InferenceSession.create(getAssetUrl('assets/onnx/vector_estimator.onnx'), opts),
-                ort.InferenceSession.create(getAssetUrl('assets/onnx/vocoder.onnx'), opts)
+                // @ts-ignore - signature mismatch in current type defs
+                ort.InferenceSession.create(getAssetUrl('assets/onnx/duration_predictor.onnx'), sessionOptions),
+                // @ts-ignore
+                ort.InferenceSession.create(getAssetUrl('assets/onnx/text_encoder.onnx'), sessionOptions),
+                // @ts-ignore
+                ort.InferenceSession.create(getAssetUrl('assets/onnx/vector_estimator.onnx'), sessionOptions),
+                // @ts-ignore
+                ort.InferenceSession.create(getAssetUrl('assets/onnx/vocoder.onnx'), sessionOptions)
+
             ]);
 
             this.models.dp = dp;

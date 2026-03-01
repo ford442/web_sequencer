@@ -1,16 +1,23 @@
-import type { Open303Params } from './Open303Params';
-import { DEFAULT_303_PARAMS } from './Open303Params';
+import type { Open303Params, Open303Config } from './Open303Params';
+import { DEFAULT_303_PARAMS, DEFAULT_303_CONFIG } from './Open303Params';
+import { FallbackBassSynth } from './FallbackBassSynth';
 
 export class Open303Oscillator {
     private workletNode: AudioWorkletNode | null = null;
     private gainNode: GainNode | null = null;
     private outputNode: GainNode | null = null;
+    private fallbackSynth: FallbackBassSynth | null = null;
+    private audioContext: AudioContext | null = null;
 
     private params: Open303Params = { ...DEFAULT_303_PARAMS };
     public isReady: boolean = false;
+    public isFallback: boolean = false;
 
-    async init(audioContext: AudioContext, workletUrl?: string): Promise<boolean> {
-
+    async init(audioContext: AudioContext, workletUrl?: string, config?: Open303Config): Promise<boolean> {
+        this.audioContext = audioContext;
+        
+        // Merge with defaults
+        const cfg = { ...DEFAULT_303_CONFIG, ...config };
         
         // Create nodes
         this.outputNode = audioContext.createGain();
@@ -21,37 +28,55 @@ export class Open303Oscillator {
         // Ensure AudioWorklet is supported and URL is provided
         if (audioContext.audioWorklet && workletUrl) {
             try {
-                // 1. Fetch the WASM binary manually
-                const wasmResponse = await fetch('./jc303.wasm'); // Check this path!
+                // 1. Determine which WASM variant to use
+                // Single-threaded has best compatibility, threaded requires COOP/COEP headers
+                const variant = (!cfg.forceSingleThreaded && cfg.preferThreaded) ? 'threaded' : 'single';
+                // const basePath = import.meta.env.BASE_URL || '/';
+                const wasmUrl = new URL(`hyphon/jc303-${variant}.wasm`, window.location.origin).toString();
+                
+                console.log(`[Open303Oscillator] Fetching WASM variant: ${variant} (${wasmUrl})`);
+
+                // 2. Fetch the WASM binary manually
+                let wasmResponse = await fetch(wasmUrl);
+                
+                // If threaded fails and we were trying threaded, fall back to single
+                if (!wasmResponse.ok && variant === 'threaded') {
+                    console.warn(`Failed to fetch ${wasmUrl}: ${wasmResponse.status}, falling back to single-threaded`);
+                    const fallbackUrl = new URL(`./jc303-single.wasm`, window.location.origin).toString();
+                    wasmResponse = await fetch(fallbackUrl);
+                }
+                
                 if (!wasmResponse.ok) {
-                    console.warn(`Failed to fetch jc303.wasm: ${wasmResponse.status}`);
+                    console.warn(`Failed to fetch jc303 WASM: ${wasmResponse.status}`);
                     return false;
                 }
+                
                 const wasmBytes = await wasmResponse.arrayBuffer();
+                console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-                // 2. Add the Worklet Module
+                // 3. Add the Worklet Module
                 await audioContext.audioWorklet.addModule(workletUrl);
 
-                // 3. Create the Node
+                // 4. Create the Node
                 this.workletNode = new AudioWorkletNode(audioContext, 'open303-processor', {
                     outputChannelCount: [2] // Request Stereo
                 });
 
-                // 4. Send WASM to the Worklet
-                // Detect if WASM requires shared memory by inspecting imports
+                // 5. Send WASM to the Worklet
                 const module = await WebAssembly.compile(wasmBytes);
                 const imports = WebAssembly.Module.imports(module);
                 const memoryImport = imports.find(i => i.kind === 'memory');
                 const isThreaded = memoryImport !== undefined;
                 
-                console.log(`[Open303Oscillator] WASM imports memory: ${isThreaded}`);
+                console.log(`[Open303Oscillator] WASM imports memory: ${isThreaded} (requested: ${variant})`);
                 
                 this.workletNode.port.postMessage({
                     type: 'init-wasm',
                     data: {
                         wasmBytes,
                         sampleRate: audioContext.sampleRate,
-                        isThreaded  // Auto-detect based on WASM imports
+                        isThreaded,
+                        variant
                     }
                 });
 
@@ -73,51 +98,98 @@ export class Open303Oscillator {
                         }
                     };
                     
-                    // Timeout after 10 seconds (increased from 5s for slower systems)
+                    // Timeout after 10 seconds
                     setTimeout(() => {
                         if (!readyReceived) {
-                            console.error("[Open303] Initialization timeout (10s) - WASM may be stuck or memory allocation failed");
+                            console.error("[Open303] Initialization timeout (10s)");
                             resolve(false);
                         }
                     }, 10000);
                 });
 
                 if (!initSuccess) {
-                    this.cleanup();
-                    return false;
+                    console.warn('[Open303] WASM failed, activating fallback synth');
+                    this.cleanupWorklet();
+                    this.activateFallback();
+                    return true; // Return true so audio doesn't die
                 }
 
                 this.isReady = true;
+                this.isFallback = false;
                 this.applyAllParameters();
                 return true;
 
             } catch (e) {
                 console.error("Open303 Init Failure:", e);
-                return false;
+                console.warn('[Open303] Activating fallback synth');
+                this.activateFallback();
+                return true; // Return true so audio doesn't die
             }
         }
-        return false;
+        
+        // No worklet support - use fallback
+        this.activateFallback();
+        return true;
+    }
+
+    private activateFallback(): void {
+        if (!this.audioContext || !this.outputNode) return;
+        
+        console.log('[Open303] Activating FallbackBassSynth');
+        this.fallbackSynth = new FallbackBassSynth(this.audioContext);
+        this.fallbackSynth.connect(this.outputNode);
+        this.isReady = true;
+        this.isFallback = true;
+        
+        // Apply current params to fallback
+        this.fallbackSynth.setWaveform(this.params.waveform);
+        this.fallbackSynth.setCutoff(this.params.cutoff);
+        this.fallbackSynth.setResonance(this.params.resonance);
+        this.fallbackSynth.setDecay(this.params.decay);
+        this.fallbackSynth.setVolume(this.params.volume);
     }
 
     noteOn(midiNote: number, velocity: number = 100): void {
-        if (!this.isReady || !this.workletNode) return;
-        this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity } });
+        if (!this.isReady) return;
+        
+        if (this.isFallback && this.fallbackSynth) {
+            this.fallbackSynth.noteOn(midiNote, velocity);
+        } else if (this.workletNode) {
+            this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity } });
+        }
     }
 
     noteOff(midiNote: number): void {
-        if (!this.isReady || !this.workletNode) return;
-        this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote } });
+        if (!this.isReady) return;
+        
+        if (this.isFallback && this.fallbackSynth) {
+            this.fallbackSynth.noteOff(midiNote);
+        } else if (this.workletNode) {
+            this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote } });
+        }
     }
 
     setParam(func: string, value: number): void {
-        if (!this.isReady || !this.workletNode) return;
-        this.workletNode.port.postMessage({ type: 'param', data: { func: `jc303_${func}`, value } });
+        if (this.isFallback && this.fallbackSynth) {
+            // Map to fallback synth methods
+            switch(func) {
+                case 'setWaveform': this.fallbackSynth.setWaveform(value); break;
+                case 'setCutoff': this.fallbackSynth.setCutoff(value); break;
+                case 'setResonance': this.fallbackSynth.setResonance(value); break;
+                case 'setDecay': this.fallbackSynth.setDecay(value); break;
+                case 'setVolume': this.fallbackSynth.setVolume(value); break;
+                // envMod, accent, filterMode not implemented in fallback
+            }
+        } else if (this.workletNode) {
+            this.workletNode.port.postMessage({ type: 'param', data: { func: `jc303_${func}`, value } });
+        }
     }
 
     // Explicit setters used by the application
     setWaveform(v: number) { this.params.waveform = v; this.setParam('setWaveform', v); }
     setCutoff(v: number) { this.params.cutoff = v; this.setParam('setCutoff', v); }
     setResonance(v: number) { this.params.resonance = v; this.setParam('setResonance', v); }
+    setFilterMode(v: number) { this.params.filterMode = v; this.setParam('setFilterMode', v); }
     setDecay(v: number) { this.params.decay = v; this.setParam('setDecay', v); }
     setEnvMod(v: number) { this.params.envMod = v; this.setParam('setEnvMod', v); }
     setAccent(v: number) { this.params.accent = v; this.setParam('setAccent', v); }
@@ -128,6 +200,7 @@ export class Open303Oscillator {
         this.setWaveform(this.params.waveform);
         this.setCutoff(this.params.cutoff);
         this.setResonance(this.params.resonance);
+        this.setFilterMode(this.params.filterMode);
         this.setDecay(this.params.decay);
         this.setEnvMod(this.params.envMod);
         this.setAccent(this.params.accent);
@@ -142,12 +215,17 @@ export class Open303Oscillator {
         if (this.outputNode) this.outputNode.disconnect();
     }
 
-    private cleanup() {
+    private cleanupWorklet() {
         if (this.workletNode) {
             this.workletNode.disconnect();
             this.workletNode.port.close();
             this.workletNode = null;
         }
+    }
+
+    // Public cleanup method for external disposal
+    cleanup() {
+        this.cleanupWorklet();
         if (this.gainNode) {
             this.gainNode.disconnect();
             this.gainNode = null;
@@ -156,6 +234,11 @@ export class Open303Oscillator {
             this.outputNode.disconnect();
             this.outputNode = null;
         }
+        if (this.fallbackSynth) {
+            this.fallbackSynth.cleanup();
+            this.fallbackSynth = null;
+        }
         this.isReady = false;
+        this.isFallback = false;
     }
 }

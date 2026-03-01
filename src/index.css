@@ -66,3 +66,19 @@ button:hover {
 .custom-scrollbar::-webkit-scrollbar-corner {
   background: #0d1117;
 }
+
+/* Loading Overlay Animations */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Orbitron font for loading overlay */
+.font-orbitron {
+  font-family: 'Orbitron', 'Roboto Mono', monospace;
+}

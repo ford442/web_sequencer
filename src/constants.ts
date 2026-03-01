@@ -8,6 +8,7 @@ export const DEFAULT_SYNTH_PARAMS_A: SynthParams = {
   pitch: 0,
   filterCutoff: 2500,
   filterResonance: 5,
+  filterMode: 0,
   attack: 0.01,
   decay: 0.2,
   sustain: 0.5,
@@ -24,6 +25,7 @@ export const DEFAULT_SYNTH_PARAMS_B: SynthParams = {
   pitch: -12,
   filterCutoff: 1500,
   filterResonance: 8,
+  filterMode: 0,
   attack: 0.02,
   decay: 0.3,
   sustain: 0.4,
@@ -50,7 +52,8 @@ export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
   filterResonance: 0,
   drive: 0,
   delaySend: 0,
-  mode: 'loop'
+  mode: 'loop',
+  glitchChance: 0
 };
 
 export const DEFAULT_SAMPLER_PARAMS: SamplerParams = Array.from({length: 8}, () => ({...DEFAULT_SAMPLER_BANK_PARAMS}));

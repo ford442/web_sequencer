@@ -3,6 +3,7 @@ import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
+import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
 
 interface SamplerPanelProps {
     params: SamplerParams; // Expecting Array[8]
@@ -15,11 +16,15 @@ interface SamplerPanelProps {
     onOpenEditor?: () => void;
     ttsPhrases: string[];            // Array of 8 TTS phrases
     onTtsPhraseChange: (phrases: string[]) => void; // Update TTS phrases
+    onGenerateTTS?: (text: string) => Promise<void>; // Delegate generation to parent
     onHarmonize?: (bankIndex: number, chordType: string) => Promise<void>; // New prop
     onParamChange?: (bankIndex: number, key: string, value: any) => void;
     loadedBanks?: boolean[];         // Visual indicator for loaded samples
     sampleBuffer?: AudioBuffer | null;
     sliceHighlightRef?: React.MutableRefObject<((slice: number) => void) | null>;
+    // Phase 2: Melodic Lyric Mode
+    melodicMode?: boolean;
+    onMelodicModeChange?: (enabled: boolean) => void;
 }
 
 // 8 Banks
@@ -31,13 +36,15 @@ const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100
 
 const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
-    ttsPhrases, onTtsPhraseChange,
-    onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef
+    ttsPhrases, onTtsPhraseChange, onGenerateTTS,
+    onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef,
+    melodicMode = false, onMelodicModeChange
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dummyRef = useRef(null); // Fallback for sliceHighlightRef
     const [isRecording, setIsRecording] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [status, setStatus] = useState<string>('');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
@@ -65,6 +72,26 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             setStatus("Error");
         } finally {
             setIsProcessingHarmonize(false);
+        }
+    };
+
+    const modes: ('loop' | 'stretch' | 'wavetable')[] = ['loop', 'stretch', 'wavetable'];
+    const modeRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+    const handleModeKeyDown = (e: React.KeyboardEvent, index: number) => {
+        let nextIndex = -1;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            nextIndex = (index + 1) % modes.length;
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            nextIndex = (index - 1 + modes.length) % modes.length;
+        }
+
+        if (nextIndex !== -1) {
+            e.preventDefault();
+            const newMode = modes[nextIndex];
+            handleModeChange(newMode);
+            // Focus new button - wait for render/update
+            setTimeout(() => modeRefs.current[nextIndex]?.focus(), 0);
         }
     };
 
@@ -99,7 +126,18 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         pitchScale: 1.0,
         formantShift: 0,
         vibratoDepth: 0,
-        breathIntensity: 0
+        breathIntensity: 0,
+        choir: 0,
+        // Phase 1: Vocal Workstation defaults
+        rootNote: 60,
+        coarse: 0,
+        fine: 0,
+        formant: 0,
+        pitchAttack: 0,
+        pitchDecay: 0,
+        rbQuality: 'Standard' as 'Fast' | 'Standard' | 'Elastic',
+        stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
+        autoFollow: false
     };
 
     // Update single param for active bank
@@ -158,6 +196,73 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         if (onParamChange) onParamChange(activeBankIdx, 'breathIntensity', v);
         else updateParamRef.current('breathIntensity', v);
     }, [activeBankIdx, onParamChange]);
+
+    const handleChoirChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'choir', v);
+        else updateParamRef.current('choir', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleGlitchChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'glitchChance', v);
+        else updateParamRef.current('glitchChance', v);
+    }, [activeBankIdx, onParamChange]);
+
+    // Phase 1: Vocal Workstation - Pitch Control Handlers
+    const handlePitchControlChange = useCallback((key: keyof PitchControlValues, value: number | string | boolean) => {
+        if (onParamChange) {
+            onParamChange(activeBankIdx, key, value);
+        } else {
+            const newParams = [...params];
+            newParams[activeBankIdx] = { ...currentParams, [key]: value };
+            onChange(newParams);
+        }
+        
+        // Apply to audio engine immediately for real-time feedback
+        if (audioEngine?.singingVoice) {
+            const voice = audioEngine.singingVoice;
+            switch (key) {
+                case 'coarse':
+                case 'fine': {
+                    // Calculate combined pitch scale
+                    const coarse = key === 'coarse' ? (value as number) : (currentParams.coarse ?? 0);
+                    const fine = key === 'fine' ? (value as number) : (currentParams.fine ?? 0);
+                    const scale = Math.pow(2, (coarse + fine / 1200) / 12);
+                    voice.setPitch(scale);
+                    break;
+                }
+                case 'formant':
+                    voice.setFormantShift(value as number);
+                    break;
+                case 'rbQuality': {
+                    // Map quality to RubberBand options
+                    const qualityMap = {
+                        'Fast': 1 | 16,      // RealTime | Faster
+                        'Standard': 1 | 32,   // RealTime | Finer
+                        'Elastic': 1 | 32 | 1048576 // RealTime | Finer | FormantPreserved
+                    };
+                    // Note: Actual quality change requires worklet reinit or message
+                    const node = voice.getSourceNode();
+                    if (node && 'port' in node) {
+                        (node as AudioWorkletNode).port.postMessage({
+                            type: 'setQuality',
+                            options: qualityMap[value as keyof typeof qualityMap]
+                        });
+                    }
+                    break;
+                }
+                case 'autoFollow':
+                    // Enable/disable auto pitch following
+                    const node2 = voice.getSourceNode();
+                    if (node2 && 'port' in node2) {
+                        (node2 as AudioWorkletNode).port.postMessage({
+                            type: 'setAutoFollow',
+                            enabled: value as boolean
+                        });
+                    }
+                    break;
+            }
+        }
+    }, [activeBankIdx, onParamChange, currentParams, audioEngine, params, onChange]);
 
     // Handle mode change
     const handleModeChange = (mode: 'loop' | 'stretch' | 'wavetable') => {
@@ -240,6 +345,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     };
 
     const handleTTS = async () => {
+        if (!onGenerateTTS) return;
         if (!audioContext || !SupertonicService.getInstance().isServiceReady()) {
             setStatus("Engine not ready");
             return;
@@ -248,11 +354,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         setIsGenerating(true);
         setStatus("Generating...");
         try {
-            const rawData = await SupertonicService.getInstance().generate(currentTtsText);
-            const buffer = audioContext.createBuffer(1, rawData.length, 44100);
-            buffer.getChannelData(0).set(rawData);
-
-            loadBufferToBank(buffer);
+            await onGenerateTTS(currentTtsText);
             setStatus(`Gen: Bank ${activeBankIdx + 1}`);
         } catch (e) {
             console.error(e);
@@ -262,9 +364,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     };
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const loadAudioFile = async (file: File) => {
         setStatus('Loading...');
         try {
             const arrayBuffer = await file.arrayBuffer();
@@ -275,6 +375,37 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             setStatus('Load Error');
         }
     };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        await loadAudioFile(file);
+    };
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    }, []);
+
+    const handleDrop = useCallback(async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('audio/')) {
+            await loadAudioFile(file);
+        } else {
+            setStatus("Invalid File");
+        }
+    }, [loadAudioFile]);
 
     const toggleRecording = async () => {
         if (isRecording) {
@@ -335,7 +466,23 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         : null;
 
     return (
-        <div className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none">
+        <div
+            className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {isDragging && (
+                <div className="absolute inset-0 z-50 bg-purple-900/80 backdrop-blur-sm flex items-center justify-center border-2 border-purple-400 m-2 rounded-xl pointer-events-none">
+                    <div className="text-center animate-pulse">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 text-purple-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <h3 className="text-2xl font-bold text-white font-orbitron tracking-widest">DROP AUDIO FILE</h3>
+                        <p className="text-purple-200 mt-2 font-mono text-sm">Load sample into Bank {activeBankIdx + 1}</p>
+                    </div>
+                </div>
+            )}
             {/* --- FIXED HEADER --- */}
             <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
                 {/* Bank Tabs */}
@@ -454,10 +601,20 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         <button
                             onClick={handleTTS}
                             disabled={isGenerating || !ttsReady}
-                            className="px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                            className="flex items-center gap-1.5 px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all"
                             aria-label="Generate Speech"
                             aria-busy={isGenerating}
                         >
+                            {isGenerating ? (
+                                <svg className="animate-spin h-2.5 w-2.5 text-purple-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1M12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clipRule="evenodd" />
+                                </svg>
+                            )}
                             GEN
                         </button>
                         {onOpenEditor && (
@@ -489,11 +646,21 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         <button
                             onClick={handleHarmonizeClick}
                             disabled={isProcessingHarmonize || !onHarmonize}
-                            className={`px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
+                            className={`flex items-center gap-1.5 px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
                             aria-label="Apply Harmonization"
                             aria-busy={isProcessingHarmonize}
                         >
-                            {isProcessingHarmonize ? '...' : 'HARM'}
+                            {isProcessingHarmonize ? (
+                                <svg className="animate-spin h-2.5 w-2.5 text-cyan-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
+                                </svg>
+                            )}
+                            HARM
                         </button>
                     </div>
                 </div>
@@ -503,53 +670,37 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     <div className="flex gap-1 items-center mb-1.5">
                         <label className="text-[10px] text-gray-400 font-bold w-10" id="sampler-mode-label">MODE:</label>
                         <div className="flex gap-1 flex-1" role="radiogroup" aria-labelledby="sampler-mode-label">
-                            <button
-                                onClick={() => handleModeChange('loop')}
-                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                    (currentParams.mode || 'loop') === 'loop'
-                                        ? 'bg-purple-600 border-purple-400 text-white'
-                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                                }`}
-                                aria-label="Loop Mode"
-                                role="radio"
-                                aria-checked={(currentParams.mode || 'loop') === 'loop'}
-                            >
-                                LOOP
-                            </button>
-                            <button
-                                onClick={() => handleModeChange('stretch')}
-                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                    (currentParams.mode || 'loop') === 'stretch'
-                                        ? 'bg-purple-600 border-purple-400 text-white'
-                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                                }`}
-                                aria-label="Stretch Mode"
-                                role="radio"
-                                aria-checked={(currentParams.mode || 'loop') === 'stretch'}
-                            >
-                                STRETCH
-                            </button>
-                            <button
-                                onClick={() => handleModeChange('wavetable')}
-                                className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                                    (currentParams.mode || 'loop') === 'wavetable'
-                                        ? 'bg-purple-600 border-purple-400 text-white'
-                                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                                }`}
-                                aria-label="Wavetable Mode"
-                                role="radio"
-                                aria-checked={(currentParams.mode || 'loop') === 'wavetable'}
-                            >
-                                WAVE
-                            </button>
+                            {modes.map((mode, i) => {
+                                const isSelected = (currentParams.mode || 'loop') === mode;
+                                return (
+                                    <button
+                                        key={mode}
+                                        ref={(el) => { modeRefs.current[i] = el; }}
+                                        onClick={() => handleModeChange(mode)}
+                                        onKeyDown={(e) => handleModeKeyDown(e, i)}
+                                        tabIndex={isSelected ? 0 : -1}
+                                        className={`flex-1 px-1 h-6 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                            isSelected
+                                                ? 'bg-purple-600 border-purple-400 text-white'
+                                                : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+                                        }`}
+                                        aria-label={`${mode.charAt(0).toUpperCase() + mode.slice(1)} Mode`}
+                                        role="radio"
+                                        aria-checked={isSelected}
+                                    >
+                                        {mode === 'wavetable' ? 'WAVE' : mode.toUpperCase()}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                     {/* Grain Size & Slice Mode (Stretch Mode Only) */}
                     {(currentParams.mode || 'loop') === 'stretch' && (
                         <div className="flex flex-col gap-1.5 mt-1 border-t border-white/5 pt-1">
                             <div className="flex gap-1 items-center">
-                                <label className="text-[9px] text-gray-500 w-10">Grain:</label>
+                                <label htmlFor="sampler-grain-size" className="text-[9px] text-gray-500 w-10">Grain:</label>
                                 <input
+                                    id="sampler-grain-size"
                                     type="range"
                                     min="441"
                                     max="22050"
@@ -561,12 +712,15 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                         background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
                                     }}
                                     aria-label="Grain Size"
+                                    aria-valuetext={grainSizeToMs(currentParams.grainSize || 4410) + 'ms'}
+                                    title="Grain Size"
                                 />
                                 <span className="text-[9px] text-gray-500 w-8 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
                             </div>
                             <div className="flex gap-1 items-center">
-                                <label className="text-[9px] text-gray-500 w-10">Slice:</label>
+                                <label id="sampler-slice-label" className="text-[9px] text-gray-500 w-10">Slice:</label>
                                 <button
+                                    aria-labelledby="sampler-slice-label"
                                     onClick={() => {
                                         const newVal = (currentParams.sliceMode === 'phoneme') ? 'off' : 'phoneme';
                                         if (onParamChange) onParamChange(activeBankIdx, 'sliceMode', newVal);
@@ -587,15 +741,88 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     )}
                 </div>
 
-                {/* 4. Controls Wrapper - Use flex-wrap to prevent cut-off */}
+                {/* Phase 2: Melodic Lyric Mode Toggle */}
+                <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-500/30 p-2 rounded">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z" />
+                            </svg>
+                            <div>
+                                <label className="text-[10px] text-purple-300 font-bold block">MELODIC LYRIC MODE</label>
+                                <span className="text-[9px] text-gray-500">Drag steps to set pitch</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => onMelodicModeChange?.(!melodicMode)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                                melodicMode ? 'bg-purple-600' : 'bg-gray-700'
+                            }`}
+                            aria-label={melodicMode ? 'Disable Melodic Mode' : 'Enable Melodic Mode'}
+                            aria-pressed={melodicMode}
+                        >
+                            <span
+                                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                                    melodicMode ? 'translate-x-5' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                    {melodicMode && (
+                        <div className="mt-2 pt-2 border-t border-purple-500/20">
+                            <div className="flex items-center gap-2 text-[9px] text-gray-400">
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-red-500"></span> C
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-orange-500"></span> D
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-yellow-500"></span> E
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span> F
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-cyan-500"></span> G
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-blue-500"></span> A
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-purple-500"></span> B
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* 4. Vocal Workstation - Pitch Controls (Phase 1) */}
+                <SamplerPitchControls
+                    bankId={activeBankIdx}
+                    values={{
+                        rootNote: currentParams.rootNote ?? 60,
+                        coarse: currentParams.coarse ?? 0,
+                        fine: currentParams.fine ?? 0,
+                        formant: currentParams.formant ?? 0,
+                        pitchAttack: currentParams.pitchAttack ?? 0,
+                        pitchDecay: currentParams.pitchDecay ?? 0,
+                        rbQuality: currentParams.rbQuality ?? 'Standard',
+                        stretchMode: currentParams.stretchMode ?? 'Pitch',
+                        autoFollow: currentParams.autoFollow ?? false,
+                    }}
+                    onChange={handlePitchControlChange}
+                />
+
+                {/* 5. Controls Wrapper - Use flex-wrap to prevent cut-off */}
                 <div className="flex flex-wrap gap-4 mt-1 pb-4">
                     {/* Basic Params Group */}
                     <div className="flex-1 min-w-[140px] bg-gray-800/30 p-2 rounded">
                         <div className="text-[9px] text-gray-500 font-bold mb-1 border-b border-gray-700 pb-0.5">BASIC</div>
                         <div className="grid grid-cols-2 gap-2">
-                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" />
+                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" unit="x" />
                             <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
-                            <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic />
+                            <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic unit="Hz" />
                             <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />
                         </div>
                     </div>
@@ -603,12 +830,14 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     {/* Rubberband/Granular Params Group */}
                     <div className="flex-[2] min-w-[200px] bg-indigo-900/50 p-2 rounded">
                         <div className="text-[9px] text-indigo-300 font-bold mb-1 border-b border-indigo-800 pb-0.5">ENGINE</div>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                            <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" />
-                            <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" />
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                            <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
+                            <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
                             <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />
-                            <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" />
+                            <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
+                            <Knob label="Choir" value={currentParams.choir ?? 0} onChange={handleChoirChange} min={0} max={1.0} step={0.01} color="indigo" />
+                            <Knob label="Glitch" value={currentParams.glitchChance ?? 0} onChange={handleGlitchChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                         </div>
                     </div>
                 </div>
@@ -641,6 +870,9 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
 
     // 7. Check sliceHighlightRef (should be stable, but just in case)
     if (prev.sliceHighlightRef !== next.sliceHighlightRef) return false;
+
+    // 8. Check onGenerateTTS
+    if (prev.onGenerateTTS !== next.onGenerateTTS) return false;
 
     return true;
 });

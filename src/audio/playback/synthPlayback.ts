@@ -23,6 +23,7 @@ export function apply303Params(
     engine.setCutoff(Math.max(0, Math.min(1, params.filterCutoff / 8000)));
     // UI Res (0-20) -> Engine (0-1)
     engine.setResonance(Math.max(0, Math.min(1, params.filterResonance / 20)));
+    engine.setFilterMode(Math.max(0, Math.min(1, params.filterMode ?? 0)));
     engine.setDecay(params.decay);
     engine.setVolume(params.volume);
 }
