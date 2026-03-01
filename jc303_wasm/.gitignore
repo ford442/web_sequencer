@@ -1,0 +1,33 @@
+# build artifacts
+build*/
+Build*/
+Builds*/
+lib*/
+bin/
+*_Packaged
+*.exe
+*.dmg
+*.o
+vstsdk2.4/
+src/JuceLibraryCode/JuceHeader.h
+src/JuceLibraryCode/ReadMe.txt
+
+# WASM build artifacts
+wasm/build/
+wasm/dist/
+emsdk
+# CodeQL temporary files
+_codeql_detected_source_root
+
+# ide settings
+.vscode/
+.idea/
+node_modules
+# Mac extras
+.DS_Store
+
+# tex artifacts
+*.log
+*.aux
+*.out
+*.synctex*

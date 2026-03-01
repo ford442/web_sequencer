@@ -1,0 +1,40 @@
+--- a/src/dsp/open303/rosic_MipMappedWaveTable.h
++++ b/src/dsp/open303/rosic_MipMappedWaveTable.h
+@@ -44,7 +44,7 @@ namespace rosic
+     /** Constructor. */
+     MipMappedWaveTable();          
+ 
+-    /** Destructor. */
++    /** Destructor. */
+     ~MipMappedWaveTable();         
+ 
+     //---------------------------------------------------------------------------------------------
+@@ -116,9 +116,17 @@ namespace rosic
+     INLINE double getValueLinear(int integerPart, double fractionalPart, int tableIndex);
+ 
+     /** Returns the value at position 'phaseIndex' of table 'tableIndex' with linear 
+-    interpolation - this function computes the integer and fractional part of the phaseIndex
++    interpolation - this function computes the integer and fractional part of the phaseIndex
+     internally. */
+     INLINE double getValueLinear(double phaseIndex, int tableIndex);
++
++    //---------------------------------------------------------------------------------------------
++    // WASM-specific: Lazy initialization to avoid stack overflow during construction
++
++    /** Returns true if wavetables have been initialized. */
++    bool isInitialized() const { return initialized; }
++
++    /** Explicitly triggers wavetable generation. Call before first use if lazy init is enabled. */
++    void ensureInitialized();
+ 
+   protected:
+ 
+@@ -153,6 +161,9 @@ namespace rosic
+       // Length of the lookup-table. The actual length of the allocated memory is 4 samples longer, 
+       // to store additional samples for the interpolator (which are the same values as at the 
+       // beginning of the buffer) */
++
++    bool initialized;  // WASM: track if wavetables are ready
+ 
+ 
+     double symmetry; // symmetry between 1st and 2nd half-wave

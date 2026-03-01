@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { Waveform } from '../types';
 
 interface WaveformSelectorProps {
@@ -82,8 +83,10 @@ const GROUPS = [
 
 export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, onChange, accentColor }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [hoveredWaveform, setHoveredWaveform] = useState<Waveform | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useFocusTrap(isOpen, () => setIsOpen(false));
 
   const accentClasses = {
     cyan: 'bg-cyan-500 text-gray-900 border-cyan-400 ring-cyan-400',
@@ -110,15 +113,8 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
     };
   }, [isOpen]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setIsOpen(false);
-      triggerRef.current?.focus();
-    }
-  };
-
   return (
-    <div className="relative inline-block" ref={containerRef} onKeyDown={handleKeyDown}>
+    <div className="relative inline-block" ref={containerRef}>
       {/* Trigger Button */}
       <button
         ref={triggerRef}
@@ -135,7 +131,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
 
       {/* Popover */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+        <div ref={popoverRef} role="dialog" aria-modal="true" aria-label="Select Waveform" className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
           <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
             {GROUPS.map((group) => (
               <div key={group.label} className="flex flex-col gap-1">
@@ -147,7 +143,12 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
                     <button
                       key={wave}
                       onClick={() => { onChange(wave); setIsOpen(false); triggerRef.current?.focus(); }}
+                      onMouseEnter={() => setHoveredWaveform(wave)}
+                      onMouseLeave={() => setHoveredWaveform(null)}
+                      onFocus={() => setHoveredWaveform(wave)}
+                      onBlur={() => setHoveredWaveform(null)}
                       aria-pressed={selected === wave}
+                      aria-current={selected === wave ? 'true' : undefined}
                       aria-label={`Select ${wave}`}
                       title={wave}
                       className={`w-10 h-10 p-2 rounded transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center ${
