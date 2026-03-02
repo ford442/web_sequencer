@@ -40,7 +40,7 @@
 
 * **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
-* **Idea:** "Vocal Envelope" - Add attack/release envelope controls for the Sampler TTS engine to prevent clicks on rapid retriggering and allow softer vocal attacks.
+* **Idea:** "Vocal Envelope" - Add attack/release envelope controls for the Sampler TTS engine to prevent clicks on rapid retriggering and allow softer vocal attacks. (Implemented via ExpressiveVoiceProcessor update!)
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * **Idea:** "Formant Automation" - Draw curves for formant shift over time (not just per step) for continuous vowel morphing.
 
@@ -48,6 +48,7 @@
 
 ## 📜 Changelog
 * [Date] - Roadmap re-initialized for long-term recursion.
+* [Date] - Implemented Vocal Envelope: Added Attack/Release envelope controls to `ExpressiveVoiceProcessor` and exposed them to `SamplerPanel` to allow softer vocal attacks and prevent clicks on rapid retriggering.
 * [Date] - Implemented Glitch Mode UI: Added probability knob for random TTS retriggers.
 * [2026-06-02] - Implemented Polyphonic Singing: Added `SingingVoiceManager` to handle a pool of TTS voices, enabling chord playback and multi-voice "Choir" effects in the Sampler.
 * [2026-06-01] - Wired up Melodic Lyric Mode in `App.tsx`, connecting state to `SamplerPanel` toggle and `MainSequencer` rendering. Verified and tested `NoteSelector` accessibility.
