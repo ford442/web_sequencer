@@ -2,7 +2,7 @@ import { useState, useEffect, memo, useRef, useMemo, useCallback } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
-interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
+interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor?: string; }
 
 // Piano Layout Data
 const OCTAVES = [2, 3, 4, 5]; // Arranged left to right (low to high)

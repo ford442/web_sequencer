@@ -30,7 +30,7 @@ const TRACK_COLORS: Record<string, string> = {
     sampler: '#a855f7',
 };
 
-const ROWS = [
+export const ROWS = [
     { key: 'partA', label: 'Lead' },
     { key: 'partB', label: 'Bass' },
     { key: 'kick', label: 'Kick' },

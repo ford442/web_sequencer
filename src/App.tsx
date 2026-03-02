@@ -25,9 +25,10 @@ import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
 import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
 import { copySteps, pasteSteps } from './utils/clipboardUtils';
-import { MainSequencer } from './components/MainSequencer';
+import { MainSequencer, ROWS } from './components/MainSequencer';
 import type { MainSequencerHandle } from './components/MainSequencer';
 import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
+import { SEQUENCER_STYLES } from './components/sequencer/constants';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -517,7 +518,7 @@ export const App: React.FC = () => {
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
-    const sequencerRef = useRef<SequencerHandle>(null);
+    const sequencerRef = useRef<MainSequencerHandle>(null);
     const currentStepRef = useRef(-1);
 
     useEffect(() => {
@@ -1214,7 +1215,7 @@ export const App: React.FC = () => {
             );
         }
         return (
-            <Sequencer
+            <MainSequencer
                 ref={sequencerRef}
                 pattern={pattern}
                 activeSamplerBank={activeSamplerBank}
@@ -1257,7 +1258,7 @@ export const App: React.FC = () => {
                         />
                     </div>
                 )}
-            </Sequencer>
+            </MainSequencer>
         );
     }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter]);
 
@@ -1285,10 +1286,10 @@ export const App: React.FC = () => {
 
                 {is3DMode && (
                     <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
-                        {ROWS.map(row => (
+                        {ROWS.map((row: any) => (
                             <button
                                 key={row.key}
-                                onClick={() => setSelectedTrack(row.key)}
+                                onClick={() => setSelectedTrack(row.key as any)}
                                 className={`px-4 py-2 rounded text-xs font-bold font-orbitron border transition-all ${selectedTrack === row.key ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500 shadow-[0_0_10px_cyan]' : 'bg-gray-800 text-gray-500 border-gray-700 hover:bg-gray-700 hover:text-gray-300'}`}
                             >
                                 {row.label.toUpperCase()}
