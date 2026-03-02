@@ -3,6 +3,7 @@ import type { SingingVoice } from './engines/SingingVoice';
 import type { WebGpuOscillator } from './engines/WebGpuOscillator';
 import type { WasmOscillator } from './engines/WasmOscillator';
 import type { Open303Oscillator } from './engines/Open303Oscillator';
+import type { MultisampleBank } from './engines/MultisampleGenerator';
 
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
@@ -88,6 +89,9 @@ export interface SamplerBankParams {
 // SamplerParams is now an array of banks
 export type SamplerParams = SamplerBankParams[];
 
+// Re-export MultisampleBank for convenience
+export type { MultisampleBank };
+
 export interface AllDrumParams {
   kick: KickParams;
   snare: SnareParams;
@@ -166,6 +170,11 @@ export interface AudioEngine {
     setSustainGrainSize?: (size: number) => void;
     playSinging?: (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote?: string) => void;
     singingVoice?: SingingVoice;
+    
+    // Multisample Generator
+    loadSampleToEngine: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void>;
+    getMultisampleBank?: (bankIndex: number) => MultisampleBank | null;
+    isMultisampleReady?: (bankIndex: number) => boolean;
 }
 
 // Automation recording types

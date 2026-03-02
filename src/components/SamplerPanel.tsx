@@ -8,7 +8,7 @@ import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchCon
 interface SamplerPanelProps {
     params: SamplerParams; // Expecting Array[8]
     onChange: (updates: SamplerParams) => void; // Expecting full array update
-    onLoadSample: (name: string, buffer: AudioBuffer) => void;
+    onLoadSample: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void>;
     audioContext: AudioContext;
     audioEngine?: AudioEngine; // For sustain processor controls
     activeBankIdx: number;           // Controlled by Parent
@@ -25,6 +25,12 @@ interface SamplerPanelProps {
     // Phase 2: Melodic Lyric Mode
     melodicMode?: boolean;
     onMelodicModeChange?: (enabled: boolean) => void;
+    // Multisample Generator
+    multisampleProgress?: { bankIdx: number; progress: number; isProcessing: boolean } | null;
+    /** Which banks have multisamples ready (fully processed) */
+    multisampleReady?: boolean[];
+    /** Which banks are currently processing */
+    multisampleProcessing?: boolean[];
 }
 
 // 8 Banks
@@ -38,7 +44,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
     ttsPhrases, onTtsPhraseChange, onGenerateTTS,
     onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef,
-    melodicMode = false, onMelodicModeChange
+    melodicMode = false, onMelodicModeChange,
+    multisampleProgress,
+    multisampleReady,
+    multisampleProcessing
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dummyRef = useRef(null); // Fallback for sliceHighlightRef
@@ -59,6 +68,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
 
     const [isProcessingHarmonize, setIsProcessingHarmonize] = useState(false);
     const [chordType, setChordType] = useState('minor');
+    
+    // Local multisample progress state
+    const [localProgress, setLocalProgress] = useState<{ bankIdx: number; progress: number; isProcessing: boolean } | null>(null);
+    
+    // Combine external and local progress
+    const activeProgress = multisampleProgress || localProgress;
 
     const handleHarmonizeClick = async () => {
         if (!onHarmonize) return;
@@ -339,21 +354,42 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         initTTS();
     }, []);
 
-    const loadBufferToBank = (buffer: AudioBuffer) => {
+    const loadBufferToBank = async (buffer: AudioBuffer) => {
         const bankName = `bank_${activeBankIdx}`;
-        onLoadSample(bankName, buffer);
+        
+        // Start progress tracking
+        setLocalProgress({ bankIdx: activeBankIdx, progress: 0, isProcessing: true });
+        setStatus('Processing...');
+        
+        try {
+            await onLoadSample(bankName, buffer, (progress) => {
+                if (progress === -1) {
+                    setLocalProgress(prev => prev ? { ...prev, isProcessing: false } : null);
+                    setStatus('Processing Error');
+                } else if (progress >= 1.0) {
+                    setLocalProgress(null);
+                    setStatus(`Ready: ${bankName}`);
+                } else {
+                    setLocalProgress({ bankIdx: activeBankIdx, progress, isProcessing: true });
+                }
+            });
 
-        // Ensure name is synced
-        if (currentParams.sampleName !== bankName) {
-            const newParams = [...params];
-            newParams[activeBankIdx] = { ...currentParams, sampleName: bankName };
-            onChange(newParams);
+            // Ensure name is synced
+            if (currentParams.sampleName !== bankName) {
+                const newParams = [...params];
+                newParams[activeBankIdx] = { ...currentParams, sampleName: bankName };
+                onChange(newParams);
+            }
+
+            // Flash UI
+            if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+            setFlashBankIdx(activeBankIdx);
+            flashTimeoutRef.current = setTimeout(() => setFlashBankIdx(null), 1000);
+        } catch (err) {
+            console.error('Failed to load sample:', err);
+            setLocalProgress(null);
+            setStatus('Load Error');
         }
-
-        // Flash UI
-        if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
-        setFlashBankIdx(activeBankIdx);
-        flashTimeoutRef.current = setTimeout(() => setFlashBankIdx(null), 1000);
     };
 
     const handleTTS = async () => {
@@ -381,10 +417,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         try {
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            loadBufferToBank(audioBuffer);
-            setStatus(`Loaded: ${file.name.substring(0, 10)}...`);
+            await loadBufferToBank(audioBuffer);
         } catch {
             setStatus('Load Error');
+            setLocalProgress(null);
         }
     };
 
@@ -511,18 +547,30 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             tabIndex={activeBankIdx === i ? 0 : -1}
                             onClick={() => onBankChange(i)}
                             onKeyDown={(e) => handleKeyDown(e, i)}
-                            className={`relative min-w-[24px] py-1 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                            className={`relative min-w-[28px] py-1.5 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                                 flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
                                 activeBankIdx === i
                                     ? 'bg-purple-600 border-purple-400 text-white shadow-md'
                                     : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
                             }`}
-                            title={`Select Bank ${i+1}`}
+                            title={`Select Bank ${i+1}${multisampleReady?.[i] ? ' (Multisample Ready)' : loadedBanks?.[i] ? ' (Loaded)' : ''}`}
                         >
                             {label}
-                            {loadedBanks?.[i] && (
-                                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.8)] border border-black" />
-                            )}
+                            {/* Status indicators */}
+                            <div className="absolute -top-0.5 -right-0.5 flex">
+                                {multisampleProcessing?.[i] && (
+                                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse border border-black" 
+                                         title="Processing multisamples..." />
+                                )}
+                                {!multisampleProcessing?.[i] && multisampleReady?.[i] && (
+                                    <div className="w-2 h-2 bg-cyan-500 rounded-full shadow-[0_0_4px_rgba(6,182,212,0.8)] border border-black" 
+                                         title="Multisample ready" />
+                                )}
+                                {!multisampleReady?.[i] && loadedBanks?.[i] && (
+                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.8)] border border-black" 
+                                         title="Sample loaded" />
+                                )}
+                            </div>
                         </button>
                     ))}
                 </div>
@@ -547,6 +595,31 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     alignment={alignment}
                     sliceHighlightRef={sliceHighlightRef || dummyRef}
                 />
+
+                {/* Multisample Generator Progress */}
+                {activeProgress?.bankIdx === activeBankIdx && activeProgress.isProcessing && (
+                    <div className="bg-gray-800/50 rounded p-2 border border-purple-500/30">
+                        <div className="flex items-center justify-between text-[9px] text-purple-300 mb-1.5">
+                            <span className="flex items-center gap-1.5">
+                                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Generating Multisamples...
+                            </span>
+                            <span className="font-mono">{Math.round(activeProgress.progress * 100)}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-gradient-to-r from-purple-500 via-cyan-500 to-purple-500 transition-all duration-200 ease-out"
+                                style={{ width: `${activeProgress.progress * 100}%` }}
+                            />
+                        </div>
+                        <div className="text-[8px] text-gray-500 mt-1">
+                            Pre-rendering pitch variations for instant playback
+                        </div>
+                    </div>
+                )}
 
                 {/* 2. Actions (Toolbar: Load, Rec, TTS, Harmonize) */}
                 <div className="flex flex-col gap-2 bg-gray-800/20 p-2 rounded border border-gray-800">
