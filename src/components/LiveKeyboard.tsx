@@ -40,7 +40,7 @@ const formatKeyLabel = (code: string) => {
 
 // --- KEYBOARD GUIDE COMPONENT ---
 const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
-    const guideRef = useFocusTrap(true);
+    const guideRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
     return (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-xl animate-fadeIn" onClick={onClose}>
@@ -211,7 +211,7 @@ const LiveKey = memo(({
     );
 });
 
-export const LiveKeyboard = memo(({ onPlayNote, onStopNote }: LiveKeyboardProps) => {
+export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _activeTrackColor }: LiveKeyboardProps) => {
     const [heldByKeys, setHeldByKeys] = useState<Set<string>>(new Set());
     const [heldByMouse, setHeldByMouse] = useState<string | null>(null);
     const [showGuide, setShowGuide] = useState(false);
