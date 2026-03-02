@@ -70,6 +70,8 @@ export interface SamplerBankParams {
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
   choir?: number;          // Choir effect amount (0-1) - Detuned side voices
   glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
+  attack?: number;         // Amplitude envelope attack time (seconds)
+  release?: number;        // Amplitude envelope release time (seconds)
   
   // Phase 1: Vocal Workstation - Pitch Controls
   rootNote?: number;           // Root MIDI note for pitch tracking (default: 60 = C4)
