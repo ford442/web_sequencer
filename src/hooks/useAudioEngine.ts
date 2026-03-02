@@ -528,6 +528,8 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                             // Sync other params
                             if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
                             if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
+                            if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
+                            if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
 
                             // Load buffer
                             voice.loadBuffer(buffer.getChannelData(0));
@@ -575,6 +577,22 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
                             // 4. Play
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);
+
+                            // 5. Schedule Release
+                            const releaseTime = triggerTime + targetDuration;
+
+                            // Convert standard browser timer to context time if possible?
+                            // Since setTimeout is less precise, we just schedule it here.
+                            // Realtime audio apps often prefer AudioContext scheduling, but noteOff needs a JS call right now.
+                            // To be accurate, we'll use a timeout but compensate.
+                            const delayMs = (releaseTime - context.currentTime) * 1000;
+                            if (delayMs > 0) {
+                                setTimeout(() => {
+                                    voice.noteOff();
+                                }, delayMs);
+                            } else {
+                                voice.noteOff();
+                            }
                         };
 
                         // Execution Wrapper
@@ -917,6 +935,8 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                     case 'formantShift': voice.setFormantShift(value); break;
                     case 'vibratoDepth': voice.setVibratoDepth(value); break;
                     case 'breathIntensity': voice.setBreathIntensity(value); break;
+                    case 'attack': voice.setAttack(value); break;
+                    case 'release': voice.setRelease(value); break;
                 }
             });
         }
