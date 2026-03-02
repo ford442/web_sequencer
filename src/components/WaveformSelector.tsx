@@ -83,7 +83,7 @@ const GROUPS = [
 
 export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, onChange, accentColor }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [hoveredWaveform, setHoveredWaveform] = useState<Waveform | null>(null);
+  const [, setHoveredWaveform] = useState<Waveform | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useFocusTrap(isOpen, () => setIsOpen(false));
