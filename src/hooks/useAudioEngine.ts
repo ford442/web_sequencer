@@ -2,7 +2,7 @@ import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
     SamplerBankParams, SynthParams, AudioEngine, KickParams, SnareParams, HatParams,
-    DrumSound, PartSequence
+    DrumSound, PartSequence, MultisampleBank
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -11,6 +11,7 @@ import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
 import { noteToMidi } from '../utils/musicTheory';
+import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 
 
 // URLs for worklets
@@ -90,6 +91,10 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
     const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
+    
+    // Multisample Generator
+    const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
+    const multisampleBanksRef = useRef<Map<string, MultisampleBank>>(new Map());
 
 
     useEffect(() => {
@@ -291,6 +296,9 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
             }
             noiseBufferRef.current = buffer;
 
+            // Initialize Multisample Generator
+            multisampleGeneratorRef.current = new MultisampleGenerator(context);
+
             // Define Playback Functions
 
             const playSynth = (params: SynthParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number }) => {
@@ -442,8 +450,70 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                  }
             };
 
-            const loadSampleToEngine = (name: string, buffer: AudioBuffer) => {
+            const loadSampleToEngine = async (
+                name: string, 
+                buffer: AudioBuffer,
+                onProgress?: (progress: number) => void
+            ): Promise<void> => {
+                // 1. Immediately create a bank with base buffer for instant playback
+                const sampleBank: MultisampleBank = {
+                    baseBuffer: buffer,
+                    pitchBank: new Map([[60, buffer]]), // Default C4
+                    isProcessing: true,
+                    processingProgress: 0,
+                    rootNote: 60
+                };
+                
+                // Store in both refs for compatibility
                 loadedSampleBuffersRef.current.set(name, buffer);
+                multisampleBanksRef.current.set(name, sampleBank);
+                
+                // 2. Start background multisample generation if generator is ready
+                if (multisampleGeneratorRef.current && onProgress) {
+                    onProgress(0.05); // Show immediate progress
+                    
+                    try {
+                        const pitchBank = await multisampleGeneratorRef.current.generateMultisamples(
+                            buffer,
+                            {
+                                rootNote: 60,
+                                range: [-12, 12], // 2 octaves (C3 to C5)
+                                preserveFormants: true,
+                                quality: 'Standard'
+                            },
+                            (progress) => {
+                                sampleBank.processingProgress = progress;
+                                onProgress(0.05 + progress * 0.95); // Scale to 5%-100%
+                            }
+                        );
+                        
+                        // Update with complete pitch bank
+                        sampleBank.pitchBank = pitchBank;
+                        sampleBank.isProcessing = false;
+                        sampleBank.processingProgress = 1.0;
+                        
+                        onProgress(1.0);
+                        console.log(`Multisample generation complete for ${name}: ${pitchBank.size} pitches`);
+                    } catch (err) {
+                        console.error('Multisample generation failed:', err);
+                        sampleBank.isProcessing = false;
+                        sampleBank.error = err instanceof Error ? err.message : 'Unknown error';
+                        onProgress(-1); // Error state
+                    }
+                } else if (onProgress) {
+                    // Generator not ready, mark as complete with base only
+                    onProgress(1.0);
+                }
+            };
+            
+            const getMultisampleBank = (bankIndex: number): MultisampleBank | null => {
+                const bankName = `bank_${bankIndex}`;
+                return multisampleBanksRef.current.get(bankName) || null;
+            };
+            
+            const isMultisampleReady = (bankIndex: number): boolean => {
+                const bank = getMultisampleBank(bankIndex);
+                return bank ? !bank.isProcessing : false;
             };
 
 
@@ -477,7 +547,11 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
             };
 
             const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
-                const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
+                // Check for multisample bank first
+                const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
+                const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
+                const buffer = multisampleBank?.baseBuffer || legacyBuffer;
+                
                 if (!buffer || !masterGainRef.current) return;
 
                 // Apply Microtiming
@@ -659,17 +733,30 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                     return;
                 }
 
-                // Standard Loop / One-shot (Sampler Mode)
+                // Standard Loop / One-shot (Sampler Mode) with Multisample Support
                 const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
                     const source = context.createBufferSource();
-                    source.buffer = buffer;
-
-                    // Pitch Calculation for Loop Mode
-                    // Assume C4 (60) base
-                    // pitch = speed * 2^((midi - 60)/12)
-                    const speed = params.playbackSpeed;
-                    const pitchRatio = Math.pow(2, (pitchSemitones - 60) / 12);
-                    source.playbackRate.value = speed * pitchRatio;
+                    
+                    // Check if we have a pre-rendered multisample for this pitch
+                    const targetMidi = pitchSemitones;
+                    let playbackBuffer: AudioBuffer;
+                    let pitchRatio = 1.0;
+                    
+                    if (multisampleBank?.pitchBank.has(targetMidi)) {
+                        // Use pre-rendered high-quality multisample
+                        playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
+                        // playbackSpeed knob only affects speed now (can be used for effect)
+                        pitchRatio = params.playbackSpeed;
+                    } else {
+                        // Fallback: use base buffer with calculated pitch ratio
+                        playbackBuffer = multisampleBank?.baseBuffer || buffer;
+                        const rootMidi = multisampleBank?.rootNote ?? 60;
+                        const speed = params.playbackSpeed;
+                        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+                    }
+                    
+                    source.buffer = playbackBuffer;
+                    source.playbackRate.value = pitchRatio;
 
                     const gain = context.createGain();
                     gain.gain.value = params.volume;
@@ -722,15 +809,38 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 });
             };
 
-            const noteOnSampler = (params: SamplerBankParams, _note: string, time?: number): number | null => {
-                // Interactive trigger (e.g. keyboard)
+            const noteOnSampler = (params: SamplerBankParams, note: string, time?: number): number | null => {
+                // Interactive trigger (e.g. keyboard) with multisample support
                 const now = time || context.currentTime;
-                const buffer = loadedSampleBuffersRef.current.get(params.sampleName);
+                
+                // Check for multisample bank first
+                const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
+                const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
+                const buffer = multisampleBank?.baseBuffer || legacyBuffer;
+                
                 if (!buffer || !masterGainRef.current) return null;
 
+                const targetMidi = noteToMidi(note);
                 const source = context.createBufferSource();
-                source.buffer = buffer;
-                source.playbackRate.value = params.playbackSpeed;
+                
+                // Check if we have a pre-rendered multisample for this pitch
+                let playbackBuffer: AudioBuffer;
+                let pitchRatio: number;
+                
+                if (multisampleBank?.pitchBank.has(targetMidi)) {
+                    // Use pre-rendered high-quality multisample
+                    playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
+                    // playbackSpeed knob only affects speed (can be used for effect)
+                    pitchRatio = params.playbackSpeed;
+                } else {
+                    // Fallback: use base buffer with calculated pitch ratio
+                    playbackBuffer = multisampleBank?.baseBuffer || buffer;
+                    const rootMidi = multisampleBank?.rootNote ?? 60;
+                    pitchRatio = params.playbackSpeed * Math.pow(2, (targetMidi - rootMidi) / 12);
+                }
+                
+                source.buffer = playbackBuffer;
+                source.playbackRate.value = pitchRatio;
 
                 const gain = context.createGain();
                 gain.gain.value = params.volume;
@@ -909,7 +1019,9 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 prepareVocal,
                 getAlignment,
                 setSustainMode,
-                setSustainGrainSize
+                setSustainGrainSize,
+                getMultisampleBank,
+                isMultisampleReady
             });
 
             setIsReady(true);

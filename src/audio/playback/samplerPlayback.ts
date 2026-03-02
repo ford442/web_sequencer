@@ -6,12 +6,14 @@
  * - Time-stretching with SingingVoice
  * - Phoneme slicing
  * - Interactive note on/off
+ * - Multisample bank support (pre-rendered pitch variations)
  */
 
 import type { SamplerBankParams } from '../../types';
 import { noteToMidi } from '../../utils/musicTheory';
 import type { SingingVoice } from '../../engines/SingingVoice';
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
+import type { MultisampleBank } from '../../engines/MultisampleGenerator';
 
 // Helper for distortion
 const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
@@ -36,14 +38,30 @@ export interface SamplerPlaybackContext {
 }
 
 export interface SamplerState {
+    /** Legacy buffer storage for backwards compatibility */
     loadedSampleBuffers: Map<string, AudioBuffer>;
+    /** New multisample bank storage with pre-rendered pitch variations */
+    loadedSampleBanks: Map<string, MultisampleBank>;
     vocalAlignments: Map<string, AlignmentResult>;
     nextNoteId: number;
     activeNotes: Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>;
 }
 
 /**
- * Play a sampler sound
+ * Create initial sampler state
+ */
+export function createSamplerState(): SamplerState {
+    return {
+        loadedSampleBuffers: new Map(),
+        loadedSampleBanks: new Map(),
+        vocalAlignments: new Map(),
+        nextNoteId: 1,
+        activeNotes: new Map()
+    };
+}
+
+/**
+ * Play a sampler sound with multisample support
  */
 export function playSampler(
     ctx: SamplerPlaybackContext,
@@ -55,7 +73,12 @@ export function playSampler(
     stepTime: number = 0.2
 ): void {
     const { context, masterGain, singingVoice } = ctx;
-    const buffer = state.loadedSampleBuffers.get(params.sampleName);
+    
+    // Check for multisample bank first (new system)
+    const multisampleBank = state.loadedSampleBanks.get(params.sampleName);
+    // Fall back to legacy buffer
+    const legacyBuffer = state.loadedSampleBuffers.get(params.sampleName);
+    const buffer = multisampleBank?.baseBuffer || legacyBuffer;
     
     if (!buffer || !masterGain) return;
 
@@ -103,10 +126,29 @@ export function playSampler(
         return;
     }
 
-    // Standard Loop / One-shot
+    // Standard Loop / One-shot with Multisample Support
     const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.playbackRate.value = params.playbackSpeed;
+    
+    const targetMidi = noteToMidi(note);
+    let playbackBuffer: AudioBuffer;
+    let pitchRatio: number;
+    
+    // Check if we have a pre-rendered multisample for this pitch
+    if (multisampleBank?.pitchBank.has(targetMidi)) {
+        // Use pre-rendered high-quality multisample
+        playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
+        // playbackSpeed knob only affects speed (can be used for effect)
+        pitchRatio = params.playbackSpeed;
+    } else {
+        // Fallback: use base buffer with calculated pitch ratio
+        playbackBuffer = multisampleBank?.baseBuffer || buffer;
+        const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
+        const speed = params.playbackSpeed;
+        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+    }
+    
+    source.buffer = playbackBuffer;
+    source.playbackRate.value = pitchRatio;
 
     const gain = context.createGain();
     gain.gain.value = params.volume;
@@ -133,25 +175,48 @@ export function playSampler(
 }
 
 /**
- * Trigger a sampler note on (for interactive play)
+ * Trigger a sampler note on (for interactive play / live keyboard)
  * Returns note ID for noteOff
  */
 export function noteOnSampler(
     ctx: SamplerPlaybackContext,
     state: SamplerState,
     params: SamplerBankParams,
-    _note: string,
+    note: string,
     time?: number
 ): number | null {
     const { context, masterGain } = ctx;
     const now = time || context.currentTime;
-    const buffer = state.loadedSampleBuffers.get(params.sampleName);
+    
+    // Check for multisample bank first (new system)
+    const multisampleBank = state.loadedSampleBanks.get(params.sampleName);
+    // Fall back to legacy buffer
+    const legacyBuffer = state.loadedSampleBuffers.get(params.sampleName);
+    const buffer = multisampleBank?.baseBuffer || legacyBuffer;
     
     if (!buffer || !masterGain) return null;
 
+    const targetMidi = noteToMidi(note);
     const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.playbackRate.value = params.playbackSpeed;
+    
+    // Check if we have a pre-rendered multisample for this pitch
+    let playbackBuffer: AudioBuffer;
+    let pitchRatio: number;
+    
+    if (multisampleBank?.pitchBank.has(targetMidi)) {
+        // Use pre-rendered high-quality multisample
+        playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
+        // playbackSpeed knob only affects speed (can be used for effect)
+        pitchRatio = params.playbackSpeed;
+    } else {
+        // Fallback: use base buffer with calculated pitch ratio
+        playbackBuffer = multisampleBank?.baseBuffer || buffer;
+        const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
+        pitchRatio = params.playbackSpeed * Math.pow(2, (targetMidi - rootMidi) / 12);
+    }
+    
+    source.buffer = playbackBuffer;
+    source.playbackRate.value = pitchRatio;
 
     const gain = context.createGain();
     gain.gain.value = params.volume;
@@ -195,7 +260,8 @@ export function stopAllSamplerNotes(state: SamplerState): void {
 }
 
 /**
- * Load a sample into the sampler
+ * Load a sample into the sampler (legacy sync version)
+ * For async with progress, use the engine's loadSampleToEngine
  */
 export function loadSampleToEngine(
     state: SamplerState,
@@ -203,6 +269,48 @@ export function loadSampleToEngine(
     buffer: AudioBuffer
 ): void {
     state.loadedSampleBuffers.set(name, buffer);
+    
+    // Also create a basic multisample bank
+    const bank: MultisampleBank = {
+        baseBuffer: buffer,
+        pitchBank: new Map([[60, buffer]]),
+        isProcessing: false,
+        processingProgress: 1,
+        rootNote: 60
+    };
+    state.loadedSampleBanks.set(name, bank);
+}
+
+/**
+ * Update a multisample bank in the state
+ */
+export function updateMultisampleBank(
+    state: SamplerState,
+    name: string,
+    bank: MultisampleBank
+): void {
+    state.loadedSampleBanks.set(name, bank);
+}
+
+/**
+ * Get a multisample bank
+ */
+export function getMultisampleBank(
+    state: SamplerState,
+    name: string
+): MultisampleBank | null {
+    return state.loadedSampleBanks.get(name) || null;
+}
+
+/**
+ * Check if a multisample bank is ready (not processing)
+ */
+export function isMultisampleReady(
+    state: SamplerState,
+    name: string
+): boolean {
+    const bank = state.loadedSampleBanks.get(name);
+    return bank ? !bank.isProcessing : false;
 }
 
 /**
