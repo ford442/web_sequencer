@@ -127,6 +127,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         formantShift: 0,
         vibratoDepth: 0,
         breathIntensity: 0,
+        attack: 0.05,
+        release: 0.1,
         choir: 0,
         // Phase 1: Vocal Workstation defaults
         rootNote: 60,
@@ -195,6 +197,16 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleBreathIntensityChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'breathIntensity', v);
         else updateParamRef.current('breathIntensity', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleAttackChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'attack', v);
+        else updateParamRef.current('attack', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleReleaseChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'release', v);
+        else updateParamRef.current('release', v);
     }, [activeBankIdx, onParamChange]);
 
     const handleChoirChange = useCallback((v: number) => {
@@ -838,6 +850,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Choir" value={currentParams.choir ?? 0} onChange={handleChoirChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Glitch" value={currentParams.glitchChance ?? 0} onChange={handleGlitchChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Attack" value={currentParams.attack ?? 0.05} onChange={handleAttackChange} min={0.001} max={2.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Release" value={currentParams.release ?? 0.1} onChange={handleReleaseChange} min={0.001} max={5.0} step={0.01} color="indigo" unit="s" />
                         </div>
                     </div>
                 </div>
