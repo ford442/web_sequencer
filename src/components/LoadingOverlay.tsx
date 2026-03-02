@@ -133,8 +133,9 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onCom
         <div className="border-t border-gray-700 pt-4">
           <button
             onClick={() => setShowDetails(!showDetails)}
-            className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 transition-colors font-mono text-xs w-full"
+            className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded p-1 transition-colors font-mono text-xs w-full"
             aria-expanded={showDetails}
+            aria-controls="loading-steps-details"
           >
             <span className={`transform transition-transform ${showDetails ? 'rotate-90' : ''}`}>
               ▶
@@ -146,7 +147,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onCom
           </button>
 
           {showDetails && (
-            <div className="mt-3 space-y-2 animate-[fadeIn_0.2s_ease-out]">
+            <div id="loading-steps-details" className="mt-3 space-y-2 animate-[fadeIn_0.2s_ease-out]">
               {stepList.map((step) => (
                 <div key={step.id} className="flex items-center gap-3 p-2 rounded bg-gray-800/50">
                   {/* Status indicator */}
