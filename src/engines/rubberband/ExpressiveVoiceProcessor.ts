@@ -45,11 +45,20 @@ export interface BreathConfig {
     enabled: boolean;
 }
 
+/** Configuration for amplitude envelope */
+export interface EnvelopeConfig {
+    /** Attack time in seconds */
+    attack: number;
+    /** Release time in seconds */
+    release: number;
+}
+
 /** Full configuration for expressive voice processing */
 export interface ExpressiveConfig {
     vibrato: VibratoConfig;
     tremolo: TremoloConfig;
     breath: BreathConfig;
+    envelope: EnvelopeConfig;
     /** Sample rate for processing */
     sampleRate: number;
 }
@@ -72,6 +81,10 @@ export const DEFAULT_EXPRESSIVE_CONFIG: ExpressiveConfig = {
         amount: 0.05,
         filterCutoff: 2000,
         enabled: true
+    },
+    envelope: {
+        attack: 0.05,
+        release: 0.1
     },
     sampleRate: 44100
 };
@@ -137,7 +150,13 @@ export class ExpressiveVoiceProcessor {
 
     // Time tracking
     private sampleIndex: number = 0;
+    private currentTime: number = 0;
     
+    // Envelope states
+    private envelopePhase: 'idle' | 'attack' | 'sustain' | 'release' = 'idle';
+    private envelopeValue: number = 0;
+    private scheduledNoteOffTime: number = Infinity;
+
     constructor(config: Partial<ExpressiveConfig> = {}) {
         this.config = { ...DEFAULT_EXPRESSIVE_CONFIG, ...config };
         
@@ -157,6 +176,13 @@ export class ExpressiveVoiceProcessor {
     }
     
     /**
+     * Set the current global time of the audio context (used for scheduling)
+     */
+    setCurrentTime(time: number): void {
+        this.currentTime = time;
+    }
+
+    /**
      * Process a buffer of audio samples in-place or to a new buffer.
      * 
      * @param input Input buffer
@@ -170,6 +196,7 @@ export class ExpressiveVoiceProcessor {
         const vib = this.config.vibrato;
         const trem = this.config.tremolo;
         const breath = this.config.breath;
+        const env = this.config.envelope;
         
         // Constants for this block
         const dt = 1.0 / sampleRate;
@@ -182,7 +209,15 @@ export class ExpressiveVoiceProcessor {
 
         for (let i = 0; i < len; i++) {
             let sample = input[i];
-            const currentTime = this.sampleIndex * dt;
+            const sampleTimeLocal = this.sampleIndex * dt;
+            const sampleTimeGlobal = this.currentTime + (i * dt);
+
+            // Check scheduled NoteOff
+            if (this.envelopePhase !== 'release' && this.envelopePhase !== 'idle') {
+                if (sampleTimeGlobal >= this.scheduledNoteOffTime) {
+                    this.envelopePhase = 'release';
+                }
+            }
 
             // 1. Vibrato (Pitch Modulation via Delay)
             if (vib.enabled && vib.depth > 0) {
@@ -195,10 +230,10 @@ export class ExpressiveVoiceProcessor {
                 const delay = vib.delay || 0;
                 const ramp = vib.rampTime || 0.1;
 
-                if (currentTime < delay) {
+                if (sampleTimeLocal < delay) {
                     envelope = 0.0;
-                } else if (currentTime < delay + ramp) {
-                    envelope = (currentTime - delay) / ramp;
+                } else if (sampleTimeLocal < delay + ramp) {
+                    envelope = (sampleTimeLocal - delay) / ramp;
                 }
 
                 // LFO (-1 to 1)
@@ -243,8 +278,61 @@ export class ExpressiveVoiceProcessor {
                 sample += noiseSample * breath.amount * 0.1; // Scale down noise significantly
             }
 
+            // 4. Amplitude Envelope
+            if (this.envelopePhase === 'attack') {
+                if (env.attack > 0) {
+                    this.envelopeValue += dt / env.attack;
+                    if (this.envelopeValue >= 1.0) {
+                        this.envelopeValue = 1.0;
+                        this.envelopePhase = 'sustain';
+                    }
+                } else {
+                    this.envelopeValue = 1.0;
+                    this.envelopePhase = 'sustain';
+                }
+            } else if (this.envelopePhase === 'release') {
+                if (env.release > 0) {
+                    this.envelopeValue -= dt / env.release;
+                    if (this.envelopeValue <= 0.0) {
+                        this.envelopeValue = 0.0;
+                        this.envelopePhase = 'idle';
+                    }
+                } else {
+                    this.envelopeValue = 0.0;
+                    this.envelopePhase = 'idle';
+                }
+            } else if (this.envelopePhase === 'idle') {
+                this.envelopeValue = 0.0;
+            } else if (this.envelopePhase === 'sustain') {
+                this.envelopeValue = 1.0;
+            }
+
+            sample *= this.envelopeValue;
+
             output[i] = sample;
             this.sampleIndex++;
+        }
+    }
+
+    /**
+     * Trigger Note On envelope phase
+     */
+    noteOn(): void {
+        this.envelopePhase = 'attack';
+        this.scheduledNoteOffTime = Infinity;
+        // We do not reset this.envelopeValue to 0 if it's currently releasing
+        // to avoid clicking on rapid retriggers. We just start climbing from current.
+    }
+
+    /**
+     * Trigger Note Off envelope phase
+     * @param targetTime Optional global time to trigger release
+     */
+    noteOff(targetTime?: number): void {
+        if (targetTime !== undefined && targetTime > this.currentTime) {
+            this.scheduledNoteOffTime = targetTime;
+        } else {
+            this.envelopePhase = 'release';
         }
     }
     
@@ -261,6 +349,9 @@ export class ExpressiveVoiceProcessor {
         }
         if (newConfig.breath) {
             this.config.breath = { ...this.config.breath, ...newConfig.breath };
+        }
+        if (newConfig.envelope) {
+            this.config.envelope = { ...this.config.envelope, ...newConfig.envelope };
         }
         if (newConfig.sampleRate) {
             this.config.sampleRate = newConfig.sampleRate;
