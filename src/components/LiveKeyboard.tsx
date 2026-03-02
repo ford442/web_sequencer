@@ -2,7 +2,7 @@ import { useState, useEffect, memo, useRef, useMemo, useCallback } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
-interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor: string; }
+interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor?: string; }
 
 // Piano Layout Data
 const OCTAVES = [2, 3, 4, 5]; // Arranged left to right (low to high)
@@ -40,8 +40,7 @@ const formatKeyLabel = (code: string) => {
 
 // --- KEYBOARD GUIDE COMPONENT ---
 const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
-    const guideRef = useRef<HTMLDivElement>(null);
-    useFocusTrap(guideRef, true);
+    const guideRef = useFocusTrap(true);
 
     return (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-xl animate-fadeIn" onClick={onClose}>
@@ -212,7 +211,7 @@ const LiveKey = memo(({
     );
 });
 
-export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor }: LiveKeyboardProps) => {
+export const LiveKeyboard = memo(({ onPlayNote, onStopNote }: LiveKeyboardProps) => {
     const [heldByKeys, setHeldByKeys] = useState<Set<string>>(new Set());
     const [heldByMouse, setHeldByMouse] = useState<string | null>(null);
     const [showGuide, setShowGuide] = useState(false);
