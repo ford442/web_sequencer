@@ -31,11 +31,13 @@
 
 ### Domain C: Accessibility & Mobile
 - [x] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
-- [ ] **A11y Colors:** Verify high-contrast separation between `synth-1` (Chords) and `synth-2` (Lead) notes.
+- [x] **A11y Colors:** Verify high-contrast separation between `synth-1` (Chords) and `synth-2` (Lead) notes.
 
 ---
 
 ## 🧠 Innovation Lab (The "Dream" Log)
+* **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time.
+* **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A.
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
 * **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
@@ -47,6 +49,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-03-03] - Implemented A11y Colors: Updated `getNoteColor` logic to apply complementary hue shifts and lightness contrast for `synth-2` (Bass/partB) notes vs `synth-1` (Lead/partA), significantly improving visual separation in the sequencer.
 * [Date] - Roadmap re-initialized for long-term recursion.
 * [Date] - Implemented Vocal Envelope: Added Attack/Release envelope controls to `ExpressiveVoiceProcessor` and exposed them to `SamplerPanel` to allow softer vocal attacks and prevent clicks on rapid retriggering. Improved `SingingVoice.ts` precise noteOff timing handling via absolute target times.
 * [Date] - Implemented Glitch Mode UI: Added probability knob for random TTS retriggers.
