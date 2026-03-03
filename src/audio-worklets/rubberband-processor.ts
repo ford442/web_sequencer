@@ -55,7 +55,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'vibratoRate', defaultValue: 5.0, minValue: 0.1, maxValue: 20.0 },
       { name: 'tremoloDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'tremoloRate', defaultValue: 0.1, minValue: 0.1, maxValue: 20.0 },
-      { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'attack', defaultValue: 0.05, minValue: 0.001, maxValue: 2.0 },
+      { name: 'release', defaultValue: 0.1, minValue: 0.001, maxValue: 5.0 }
     ];
   }
 
@@ -144,6 +146,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.rubberBand.setPitchScale(this.basePitch);
         this.rubberBand.setTimeRatio(1.0);
         this.expressiveProcessor.reset();
+        this.expressiveProcessor.noteOn();
 
         const startSample = Math.max(0, Math.floor(data.startSample || 0));
         const endSample = data.endSample
@@ -168,6 +171,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         break;
 
       case 'noteOff':
+        const targetTime = data?.time;
+        this.expressiveProcessor.noteOff(targetTime);
         break;
 
       case 'setQuality':
@@ -219,6 +224,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       return true;
     }
 
+    // We need to pass the block's start time to ExpressiveVoiceProcessor for accurate timing.
+    // In AudioWorklets, the current time is `globalThis.currentTime`.
+    // @ts-ignore
+    const currentTime = typeof globalThis.currentTime === 'number' ? globalThis.currentTime : 0;
+    this.expressiveProcessor.setCurrentTime(currentTime);
+
     const pitch = parameters.pitchScale[0];
     const defaultTimeRatio = parameters.timeRatio[0];
     const vibDepth = parameters.vibratoDepth[0];
@@ -226,11 +237,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const tremDepth = parameters.tremoloDepth[0];
     const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
     const breath = parameters.breathIntensity[0];
+    const attack = parameters.attack ? parameters.attack[0] : 0.05;
+    const release = parameters.release ? parameters.release[0] : 0.1;
 
     this.expressiveProcessor.updateConfig({
       vibrato: { depth: vibDepth, rate: vibRate, enabled: vibDepth > 0 },
       tremolo: { depth: tremDepth, rate: tremRate, enabled: tremDepth > 0 },
-      breath: { amount: breath, enabled: breath > 0, filterCutoff: 2000 }
+      breath: { amount: breath, enabled: breath > 0, filterCutoff: 2000 },
+      envelope: { attack, release }
     });
 
     // Combine note pitch with parameter modulation

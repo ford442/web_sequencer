@@ -153,7 +153,7 @@ export interface AudioEngine {
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
     noteOffSynth?: (id: number) => void;
     stopAllNotes?: () => void;
-    loadSampleToEngine: (name: string, buffer: AudioBuffer) => void;
+    loadSampleToEngine: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void> | void;
     renderSynthPartToBuffer: (params: SynthParams, sequence: PartSequence, tempo: number) => Promise<AudioBuffer>;
     playBufferedPart: (buffer: AudioBuffer, time: number) => void;
     playAmbiance: (url: string) => Promise<void>;
@@ -172,7 +172,6 @@ export interface AudioEngine {
     singingVoice?: SingingVoice;
     
     // Multisample Generator
-    loadSampleToEngine: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void>;
     getMultisampleBank?: (bankIndex: number) => MultisampleBank | null;
     isMultisampleReady?: (bankIndex: number) => boolean;
 }

@@ -649,4 +649,41 @@ export class SingingVoice {
             this.workletNode.parameters.get('breathIntensity')?.setValueAtTime(intensity, time || this.audioContext.currentTime);
         }
     }
+
+    /**
+     * Set amplitude envelope attack time.
+     * @param attack Attack time in seconds
+     * @param time Optional time to apply the change (default: now)
+     */
+    setAttack(attack: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('attack')?.setValueAtTime(attack, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set amplitude envelope release time.
+     * @param release Release time in seconds
+     * @param time Optional time to apply the change (default: now)
+     */
+    setRelease(release: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('release')?.setValueAtTime(release, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Trigger release phase of the amplitude envelope.
+     * @param time Optional time to trigger the release
+     */
+    noteOff(time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.port.postMessage({
+                type: 'noteOff',
+                data: {
+                    time: time || this.audioContext.currentTime
+                }
+            });
+        }
+    }
 }
