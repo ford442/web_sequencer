@@ -71,6 +71,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                         onChange={(e) => onLengthChange(parseInt(e.target.value))}
                         className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                         aria-valuetext={`${currentLength} Steps`}
+                        aria-label="Duration"
                     />
                 </div>
 
@@ -92,6 +93,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 onChange={(e) => onPropertyChange('timbre', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
                                 aria-valuetext={`${Math.round((currentTimbre + 0.0001) * 100)}%`}
+                                aria-label="Expression"
                             />
                         </div>
 
@@ -111,6 +113,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 onChange={(e) => onPropertyChange('probability', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500"
                                 aria-valuetext={`${Math.round((currentProbability + 0.0001) * 100)}%`}
+                                aria-label="Probability"
                             />
                         </div>
 
@@ -130,6 +133,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 onChange={(e) => onPropertyChange('microtiming', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
                                 aria-valuetext={`${currentMicrotiming > 0 ? '+' : ''}${currentMicrotiming.toFixed(2)} steps`}
+                                aria-label="Microtiming"
                             />
                         </div>
 
