@@ -43,10 +43,10 @@ export type ProgressCallback = (progress: number) => void;
  * Resample audio using simple playback rate (fallback method)
  * Changes both pitch and duration
  */
-function resampleWithPlaybackRate(
+async function resampleWithPlaybackRate(
     sourceBuffer: AudioBuffer,
     semitones: number
-): AudioBuffer {
+): Promise<AudioBuffer> {
     const pitchRatio = Math.pow(2, semitones / 12);
     const newLength = Math.floor(sourceBuffer.length / pitchRatio);
     
@@ -62,16 +62,14 @@ function resampleWithPlaybackRate(
     source.connect(offlineCtx.destination);
     source.start();
     
-    return offlineCtx.startRendering();
+    return await offlineCtx.startRendering();
 }
 
 export class MultisampleGenerator {
-    private audioContext: AudioContext;
     private rubberbandWasm: ArrayBuffer | null = null;
     private isWasmLoaded: boolean = false;
 
-    constructor(audioContext: AudioContext) {
-        this.audioContext = audioContext;
+    constructor(_audioContext: BaseAudioContext) {
         this.loadWasm();
     }
 
@@ -194,7 +192,7 @@ export class MultisampleGenerator {
         };
 
         // Create temporary SingingVoice for offline processing
-        const voice = new SingingVoice(offlineCtx, qualityConfig);
+        const voice = new SingingVoice(offlineCtx as unknown as AudioContext, qualityConfig);
         
         // Initialize with pre-loaded WASM if available
         await voice.initWorklet(false, this.rubberbandWasm || undefined);
