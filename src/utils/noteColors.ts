@@ -19,7 +19,7 @@ const NOTE_HUES: Record<string, number> = {
     'B': 330   // Rose
 };
 
-export const getNoteColor = (note: string): string => {
+export const getNoteColor = (note: string, trackKey?: string): string => {
     // Parse note string "C#4" -> noteName "C#", octave 4
     const match = note.match(/^([A-G]#?)(\d)$/);
     if (!match) return '#8fa394'; // Default grey for unknown/invalid
@@ -36,5 +36,20 @@ export const getNoteColor = (note: string): string => {
     const lightness = 30 + (octave * 10);
 
     // Saturation is high for "music"
-    return `hsl(${hue}, 80%, ${Math.min(lightness, 80)}%)`;
+
+    let finalHue = hue;
+    let finalLightness = Math.min(lightness, 80);
+
+    // Apply high-contrast separation for synth-2 (partB) vs synth-1 (partA)
+    // partA (Lead) uses standard hues. partB (Bass) uses a distinct hue shift and slightly different lightness for high contrast.
+    if (trackKey === 'partB') {
+        // Shift hue by 180 degrees (complementary color)
+        finalHue = (hue + 180) % 360;
+        // Decrease lightness slightly to differentiate from partA's brightness, enhancing contrast
+        finalLightness = Math.max(20, finalLightness - 15);
+    }
+
+    // Saturation is high for "music"
+    return `hsl(${finalHue}, 80%, ${finalLightness}%)`;
+
 };

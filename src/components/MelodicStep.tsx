@@ -90,8 +90,8 @@ export const MelodicStep = memo(({
   
   // Get colors
   const noteName = note || midiToNoteName(pitch);
-  const color = getNoteColor(noteName);
-  const borderColor = pitch ? getNoteColor(midiToNoteName(pitch)) : color;
+  const color = getNoteColor(noteName, rowKey);
+  const borderColor = pitch ? getNoteColor(midiToNoteName(pitch), rowKey) : color;
   
   // Group index for alternating background
   const groupIndex = Math.floor(stepIndex / 4);
