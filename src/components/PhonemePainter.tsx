@@ -382,6 +382,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 value={phonemePitchBends[selectedPhonemeIndex] || 0}
                 onChange={(e) => handlePitchBendChange(selectedPhonemeIndex, parseInt(e.target.value))}
                 className="w-24 h-1 bg-gray-700 rounded-lg appearance-none"
+                aria-label="Pitch Bend"
               />
               <span className="text-xs text-gray-400 w-10">
                 {phonemePitchBends[selectedPhonemeIndex] || 0}¢
@@ -398,6 +399,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 value={(phonemeElasticity[selectedPhonemeIndex] || 1) * 100}
                 onChange={(e) => handleElasticityChange(selectedPhonemeIndex, parseInt(e.target.value) / 100)}
                 className="w-24 h-1 bg-gray-700 rounded-lg appearance-none"
+                aria-label="Stretch"
               />
               <span className="text-xs text-gray-400 w-10">
                 {Math.round((phonemeElasticity[selectedPhonemeIndex] || 1) * 100)}%
