@@ -22,11 +22,11 @@ describe('LiveKeyboard Accessibility', () => {
         const title = screen.getByText('PIANO MODE');
         expect(title).toHaveAttribute('id', 'keyboard-guide-title');
 
-        // 4. Verify Initial Focus on "GOT IT" button
-        const gotItButton = screen.getByText('GOT IT');
+        // 4. Verify Initial Focus
+        const closeButton = screen.getByLabelText('Close guide');
         // Wait for useEffect to fire
         await new Promise(r => setTimeout(r, 0));
-        expect(document.activeElement).toBe(gotItButton);
+        expect(document.activeElement).toBe(closeButton);
 
         // 5. Close with Escape
         fireEvent.keyDown(window, { key: 'Escape' });
