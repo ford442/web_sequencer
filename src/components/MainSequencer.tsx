@@ -189,7 +189,7 @@ const SvgStep = memo(({
     const x = 220 + stepIndex * (baseWidth + gap);
     const totalWidth = (baseWidth * length) + (gap * (length - 1));
     const retriggerCount = retrigger || 1;
-    const color = note ? getNoteColor(note) : '#06b6d4';
+    const color = note ? getNoteColor(note, rowKey) : '#06b6d4';
     const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
     const groupIndex = Math.floor(stepIndex / 4);
     const isAltGroup = groupIndex % 2 === 1;
