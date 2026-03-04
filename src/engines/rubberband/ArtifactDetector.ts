@@ -216,7 +216,7 @@ export class ArtifactDetector {
      * 
      * @param callback Function to call on artifact detection
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     onArtifact(_callback: (detection: ArtifactDetection) => void): void {
         // STUB: Would set up event handling
         console.warn('ArtifactDetector.onArtifact: STUB - not implemented');

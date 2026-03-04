@@ -83,7 +83,7 @@ const GROUPS = [
 
 export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, onChange, accentColor }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [, setHoveredWaveform] = useState<Waveform | null>(null);
+  const [hoveredWaveform, setHoveredWaveform] = useState<Waveform | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useFocusTrap(isOpen, () => setIsOpen(false));
@@ -132,6 +132,14 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
       {/* Popover */}
       {isOpen && (
         <div ref={popoverRef} role="dialog" aria-modal="true" aria-label="Select Waveform" className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+          {(hoveredWaveform || selected) && (
+             <div className="absolute -top-12 left-0 right-0 bg-gray-800 text-xs text-gray-300 p-1 text-center rounded border border-gray-600 shadow-md pointer-events-none z-50 whitespace-pre-wrap">
+                 {(hoveredWaveform || selected) === 'sawtooth' ? 'Standard Sawtooth. Rich harmonics, great for leads and basses.' :
+                  (hoveredWaveform || selected) === 'square' ? 'Standard Square' :
+                  (hoveredWaveform || selected) === 'wav-saw' ? 'Sampled Sawtooth. Vintage analog character.' :
+                  (hoveredWaveform || selected)}
+             </div>
+          )}
           <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
             {GROUPS.map((group) => (
               <div key={group.label} className="flex flex-col gap-1">
