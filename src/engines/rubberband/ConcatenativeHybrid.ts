@@ -114,7 +114,7 @@ export class VowelLibrary {
      * 
      * @param url Base URL for sample files
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     async loadFromUrl(_url: string): Promise<void> {
         // STUB: Would fetch and decode samples
         console.warn('VowelLibrary.loadFromUrl: STUB - not implemented');

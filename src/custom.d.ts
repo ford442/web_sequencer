@@ -4,9 +4,9 @@ declare module '*.wasm' {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
+
   var hyphonPyodide: any;
-  // eslint-disable-next-line no-var
+
   var hyphonPyodideReady: boolean;
 }
 
