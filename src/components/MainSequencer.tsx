@@ -169,7 +169,7 @@ export const AutomationStep = memo(({
 
 const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
-    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing, phonemeLabel, retrigger
+    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing, phonemeLabel, retrigger, reverse
 }: {
     stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
@@ -181,7 +181,8 @@ const SvgStep = memo(({
     onDrawEnter?: (k: TrackKey, i: number) => void,
     isDrawing?: boolean,
     phonemeLabel?: string,
-    retrigger?: number
+    retrigger?: number,
+    reverse?: boolean
 }) => {
     const baseWidth = 18;
     const gap = 4;
@@ -249,6 +250,9 @@ const SvgStep = memo(({
             <rect className="step-cap" x={3} y={4} width={totalWidth - 6} height={height - 8} rx={1} fill={active ? color : '#1a2026'} fillOpacity={active ? 0.6 : 1} stroke={active ? color : 'none'} strokeWidth={active ? 1 : 0} />
             {phonemeLabel && (
                 <text x={totalWidth / 2} y={height / 2 + 4} textAnchor="middle" fontSize={10} fill="#fff" fontWeight="bold" fontFamily="monospace" pointerEvents="none" style={{ textShadow: '0 0 3px #000' }}>{phonemeLabel}</text>
+            )}
+            {active && reverse && (
+                <path d="M 12 25 L 16 21 L 16 29 Z" fill="rgba(255,255,255,0.8)" pointerEvents="none" />
             )}
             {length > 1 && (<g pointerEvents="none"><g opacity={0.3} fill="#000"><rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} /></g><g transform={`translate(${totalWidth - 25}, 8)`}><rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} /><text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">{length}x</text></g></g>)}
             <rect x={4} y={5} width={totalWidth - 8} height={(height - 10) / 2} rx={1} fill="url(#glassGrad)" fillOpacity={0.3} pointerEvents="none" />
@@ -367,7 +371,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             if (skipCount > 0) { skipCount--; continue; }
             const stepData = steps[i];
             const length = stepData?.length || 1;
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} onDrawEnter={onDrawEnter} isDrawing={isDrawing} />);
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} onDrawEnter={onDrawEnter} isDrawing={isDrawing} reverse={stepData?.reverse} />);
             if (stepData && length > 1) { skipCount = length - 1; }
         }
     } else {
@@ -400,7 +404,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 }
             }
 
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} />);
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} />);
             if (stepData && length > 1) { skipCount = length - 1; }
         }
     }

@@ -54,6 +54,7 @@ interface MelodicStepProps {
   baseWidth?: number;
   gap?: number;
   x?: number;
+  reverse?: boolean;
 }
 
 export const MelodicStep = memo(({
@@ -74,6 +75,7 @@ export const MelodicStep = memo(({
   baseWidth = 18,
   gap = 4,
   x: propX,
+  reverse
 }: MelodicStepProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartY = useRef(0);
