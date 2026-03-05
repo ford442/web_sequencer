@@ -210,6 +210,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           onToggle={onToggle}
           onPitchChange={onPitchChange}
           onEditLength={onEditLength}
+          reverse={stepData?.reverse}
         />
       );
 
