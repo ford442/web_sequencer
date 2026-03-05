@@ -630,7 +630,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                                 }
 
                                 if (sliceIndex >= 0) {
-                                    voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment, pitchRatio);
+                                    voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment, pitchRatio, noteParams?.reverse);
                                     return;
                                 }
                             }

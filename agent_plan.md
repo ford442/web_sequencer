@@ -44,11 +44,14 @@
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * **Idea:** "Formant Automation" - Draw curves for formant shift over time (not just per step) for continuous vowel morphing.
-* **Idea:** "Per-Step Reverse" - Allow reversing the TTS sample on a per-step basis for creative rhythmic effects.
+* [x] **Idea:** "Per-Step Reverse" - Allow reversing the TTS sample on a per-step basis for creative rhythmic effects. (Implemented in Sampler phoneme slicing!)
+* **Idea:** "Dynamic Phoneme Pitch Bends" - Allow drawing pitch bend automation within a single phoneme slice (e.g. going up a fifth on a single vowel).
+* **Idea:** "Text-to-Drumkit" - Auto-generate a drum kit from a TTS phrase by mapping short transient consonants (t, k, p) to hats/snares and vowels to kicks/toms.
 
 ---
 
 ## 📜 Changelog
+* [2026-06-03] - Implemented Per-Step Reverse: Updated `SingingVoice.ts` and `useAudioEngine.ts` to allow reversing individual TTS phoneme slices on a per-step basis, matching the "Per-Step Reverse" Innovation Lab idea.
 * [2026-03-03] - Implemented A11y Colors: Updated `getNoteColor` logic to apply complementary hue shifts and lightness contrast for `synth-2` (Bass/partB) notes vs `synth-1` (Lead/partA), significantly improving visual separation in the sequencer.
 * [Date] - Roadmap re-initialized for long-term recursion.
 * [Date] - Implemented Vocal Envelope: Added Attack/Release envelope controls to `ExpressiveVoiceProcessor` and exposed them to `SamplerPanel` to allow softer vocal attacks and prevent clicks on rapid retriggering. Improved `SingingVoice.ts` precise noteOff timing handling via absolute target times.
