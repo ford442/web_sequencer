@@ -127,7 +127,7 @@ export class PerformanceOptimizer {
      * @param malloc WASM malloc function
      * @returns Allocation info
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     allocateBuffers(_malloc: (size: number) => number): WasmMemoryAllocation {
         // STUB: Would call WASM malloc
         console.warn('PerformanceOptimizer.allocateBuffers: STUB - not implemented');
@@ -195,7 +195,7 @@ export class PerformanceOptimizer {
      * 
      * @param workerScript URL to worker script
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     createWorkerPool(_workerScript: string): void {
         // STUB: Would create worker instances
         console.warn('PerformanceOptimizer.createWorkerPool: STUB - not implemented');
@@ -229,7 +229,7 @@ export class PerformanceOptimizer {
      * 
      * @param callback Function to call when CPU is overloaded
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     onOverload(_callback: (status: CpuLoadStatus) => void): void {
         // STUB: Would set up periodic monitoring
         console.warn('PerformanceOptimizer.onOverload: STUB - not implemented');

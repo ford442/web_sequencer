@@ -43,11 +43,11 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
     const guideRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
     return (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-xl animate-fadeIn" onClick={onClose}>
-            <div ref={guideRef} className="relative p-8 border-2 border-dashed border-cyan-500/50 rounded-2xl bg-[#0d1015] shadow-[0_0_50px_rgba(6,182,212,0.15)] max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn" onClick={onClose}>
+            <div role="dialog" aria-modal="true" aria-labelledby="keyboard-guide-title" ref={guideRef} className="relative p-8 border-2 border-dashed border-cyan-500/50 rounded-2xl bg-[#0d1015] shadow-[0_0_50px_rgba(6,182,212,0.15)] max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
                 <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors" aria-label="Close guide">✕</button>
                 <div className="text-center mb-8">
-                    <h3 className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">FLIPPED MODE</h3>
+                    <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">PIANO MODE</h3>
                     <p className="text-gray-400 font-mono text-sm">Rotate your physical keyboard 180° to play chromatically.</p>
                 </div>
                 
@@ -249,6 +249,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
     // --- KEYBOARD INTERACTION ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
             const note = KEY_TO_NOTE[e.code];
             if (note && !e.repeat) {
                 e.preventDefault();
@@ -256,6 +257,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             }
         };
         const handleKeyUp = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
             const note = KEY_TO_NOTE[e.code];
             if (note) {
                 e.preventDefault();
@@ -321,7 +323,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
     return (
         <div className="w-full max-w-[920px] mx-auto mt-4 select-none relative">
             <div className="absolute -top-7 right-0 flex items-center gap-2 z-40">
-                <button onClick={() => setShowGuide(true)} className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all">
+                <button onClick={() => setShowGuide(true)} title="Show Keyboard Layout Guide" className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all">
                     <span className="text-xs">⌨</span> FLIPPED LAYOUT INFO
                 </button>
             </div>

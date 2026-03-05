@@ -132,7 +132,7 @@ export class HybridNeuralPipeline {
      * @param semitones Pitch shift in semitones (positive = up, negative = down)
      * @returns Pitch-shifted mel spectrogram
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     pitchShiftMel(mel: MelSpectrogram, _semitones: number): MelSpectrogram {
         // STUB: Return unmodified spectrogram
         console.warn('HybridNeuralPipeline.pitchShiftMel: STUB - not implemented');
