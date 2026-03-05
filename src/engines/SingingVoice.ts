@@ -379,9 +379,9 @@ export class SingingVoice {
      * @param endSample Optional end sample index for slicing
      * @returns Promise that resolves when processing is complete
      */
-    async process(audio: Float32Array, startSample?: number, endSample?: number): Promise<void> {
+    async process(audio: Float32Array, startSample?: number, endSample?: number, reverse: boolean = false): Promise<void> {
         this.loadBuffer(audio);
-        this.play(startSample, endSample);
+        this.play(startSample, endSample, 1.0, reverse);
     }
 
     /**
@@ -392,7 +392,7 @@ export class SingingVoice {
      * @param alignment Alignment result containing phoneme timings
      * @param pitch Optional pitch override (default 1.0)
      */
-    async triggerSlice(audio: Float32Array, sliceIndex: number, alignment: AlignmentResult, pitch: number = 1.0): Promise<void> {
+    async triggerSlice(audio: Float32Array, sliceIndex: number, alignment: AlignmentResult, pitch: number = 1.0, reverse: boolean = false): Promise<void> {
         if (sliceIndex < 0 || sliceIndex >= alignment.phonemes.length) {
             console.warn(`Slice index ${sliceIndex} out of bounds (max ${alignment.phonemes.length - 1})`);
             return;
@@ -405,7 +405,7 @@ export class SingingVoice {
         this.setPitch(pitch);
         this.setTimeRatio(1.0); // Reset time stretch for slice playback usually
 
-        await this.process(audio, startSample, endSample);
+        await this.process(audio, startSample, endSample, reverse);
     }
 
     /**
