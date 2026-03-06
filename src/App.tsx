@@ -18,6 +18,7 @@ import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
 import { AISongModal } from './components/AISongModal';
+import { RbsImportModal } from './components/RbsImportModal';
 import { CloudStatus } from './components/CloudStatus';
 import { Toast } from './components/Toast';
 import type { CloudItemType } from './services/CloudStorage';
@@ -226,6 +227,7 @@ export const App: React.FC = () => {
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
     const [isAISongModalOpen, setIsAISongModalOpen] = useState(false);
+    const [isRbsImportModalOpen, setIsRbsImportModalOpen] = useState(false);
     const [isLyricMapperOpen, setIsLyricMapperOpen] = useState(false);
     const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
@@ -1309,6 +1311,66 @@ export const App: React.FC = () => {
         showToast(`Imported "${aiData.meta.title}" by ${aiData.meta.author}`, 'success');
     }, [loadCloudData, showToast]);
 
+    // Handle RBS import - converts HyphonSong to SavedSongData and loads it
+    const handleRbsImport = useCallback((song: import('./importers/rbs').HyphonSong) => {
+        // Convert HyphonSong to SavedSongData format
+        const savedSong: SavedSongData = {
+            version: 1,
+            pattern: song.pattern,
+            tempo: song.tempo,
+            ambianceUrl: '',
+            backgroundImage: '',
+            params: {
+                synthA: song.params.synthA,
+                synthB: song.params.synthB,
+                kick: song.params.kick,
+                snare: song.params.snare,
+                closedHat: song.params.closedHat,
+                openHat: song.params.openHat,
+                sampler: song.params.sampler || Array.from({ length: 8 }, () => ({
+                    sampleName: 'bank_0',
+                    playbackSpeed: 1.0,
+                    volume: 1.0,
+                    filterCutoff: 20000,
+                    filterResonance: 0,
+                    drive: 0,
+                    delaySend: 0,
+                    mode: 'loop',
+                    grainSize: 4410
+                }))
+            },
+            trackStorage: {
+                partA: [song.pattern.partA, ...Array(7).fill(null)],
+                partB: [song.pattern.partB, ...Array(7).fill(null)],
+                bass2: [song.pattern.bass2, ...Array(7).fill(null)],
+                kick: [song.pattern.kick, ...Array(7).fill(null)],
+                snare: [song.pattern.snare, ...Array(7).fill(null)],
+                closedHat: [song.pattern.closedHat, ...Array(7).fill(null)],
+                openHat: [song.pattern.openHat, ...Array(7).fill(null)],
+                sampler: [song.pattern.sampler, ...Array(7).fill(null)]
+            },
+            activeTrackSlots: {
+                partA: 0, partB: 0, bass2: 0, kick: 0,
+                snare: 0, closedHat: 0, openHat: 0, sampler: 0
+            },
+            songStructure: Array(16).fill(null).map(() => ({
+                partA: 0, partB: 0, bass2: 0, kick: 0,
+                snare: 0, closedHat: 0, openHat: 0, sampler: null
+            })),
+            ttsPhrases: Array(8).fill('Hello World')
+        };
+        
+        // Also set bass2 params if they exist
+        if (song.params.bass2) {
+            setBass2(song.params.bass2);
+            bass2Ref.current = song.params.bass2;
+        }
+        
+        loadCloudData(savedSong, 'song');
+        setIsRbsImportModalOpen(false);
+        showToast(`Imported "${song.metadata.name}" from RBS`, 'success');
+    }, [loadCloudData, showToast]);
+
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
     const onBass2ParamChange = useCallback((id: string, v: number) => handleBass2Change(id, v), [handleBass2Change]);
@@ -1671,6 +1733,7 @@ export const App: React.FC = () => {
             {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
             <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} />
+            <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
             <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
             {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
@@ -1760,9 +1823,9 @@ export const App: React.FC = () => {
                         📂 LOAD
                     </button>
                     <button 
-                        disabled
-                        className="h-6 px-2 text-[10px] font-bold text-amber-600/50 bg-zinc-900/50 border border-amber-900/30 rounded cursor-not-allowed opacity-60" 
-                        title="Coming soon — basic skeleton ready"
+                        onClick={() => setIsRbsImportModalOpen(true)}
+                        className="h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 rounded hover:bg-amber-950/30 transition-all" 
+                        title="Import ReBirth RB-338 file"
                     >
                         🎹 Import .rbs File...
                     </button>

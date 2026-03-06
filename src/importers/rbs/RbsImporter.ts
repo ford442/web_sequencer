@@ -8,15 +8,29 @@
  * - RbsParser → RawRbsData (format-specific)
  * - RbsImporter → HyphonSong (internal format)
  * - Hyphon App ← consumes HyphonSong
+ * 
+ * Enhancements:
+ * - 16→32 step expansion with slide/accent preservation
+ * - PCF (Pattern Controlled Filter) to automation conversion
+ * - Full automation lane extraction
+ * - Enhanced parameter mapping with exponential curves
+ * - Drum kit mapping (808 vs 909)
+ * - Detailed import reporting
  */
 
 import type { 
   RawRbsData, 
   HyphonSong, 
   RbsImportOptions, 
-  DEFAULT_RBS_IMPORT_OPTIONS,
-  Tb303Step 
+  Tb303Step,
+  PcfSettings,
+  AutomationLane,
+  HyphonAutomationLane,
+  StepConversionStats,
+  DetailedParameterMapping
 } from './types';
+
+import { DEFAULT_RBS_IMPORT_OPTIONS } from './types';
 
 import type { 
   Pattern, 
@@ -39,6 +53,7 @@ export interface RbsImportResult {
   report: ImportReport;
 }
 
+/** Enhanced import report with comprehensive conversion details */
 export interface ImportReport {
   /** Number of patterns converted */
   patternsConverted: number;
@@ -47,13 +62,17 @@ export interface ImportReport {
   /** Any warnings during import */
   warnings: string[];
   /** Parameters that were mapped */
-  mappings: ParameterMapping[];
-}
-
-export interface ParameterMapping {
-  source: string;
-  target: string;
-  value: string | number;
+  mappings: DetailedParameterMapping[];
+  /** Number of automation lanes converted */
+  automationLanesConverted: number;
+  /** Whether PCF was enabled in source */
+  pcfEnabled: boolean;
+  /** Number of slides preserved */
+  slideCount: number;
+  /** Number of accents preserved */
+  accentCount: number;
+  /** Step conversion statistics */
+  stepStats?: StepConversionStats;
 }
 
 /** Import error types */
@@ -76,26 +95,56 @@ export type RbsImportError =
  */
 export class RbsImporter {
   private options: RbsImportOptions;
+  private stepStats: StepConversionStats;
 
   constructor(options: Partial<RbsImportOptions> = {}) {
     this.options = { ...DEFAULT_RBS_IMPORT_OPTIONS, ...options };
+    this.stepStats = {
+      slideCount: 0,
+      accentCount: 0,
+      tieCount: 0,
+      totalSteps: 0
+    };
   }
 
   /**
    * Main entry point: convert RawRbsData to HyphonSong
    * 
-   * CURRENTLY: Basic conversion with many fields stubbed
-   * TODO: Full parameter mapping and automation conversion
+   * Performs full conversion including:
+   * - Pattern conversion with optional 16→32 step expansion
+   * - Synth parameter mapping with exponential curves
+   * - PCF to filter/automation conversion
+   * - Automation lane extraction
+   * - Drum kit-specific parameter mapping
    */
   convertToHyphonSong(raw: RawRbsData): RbsImportResult {
     const warnings: string[] = [];
-    const mappings: ParameterMapping[] = [];
+    const mappings: DetailedParameterMapping[] = [];
+
+    // Reset step statistics
+    this.stepStats = {
+      slideCount: 0,
+      accentCount: 0,
+      tieCount: 0,
+      totalSteps: 0
+    };
 
     // Convert pattern data
     const pattern = this.convertPattern(raw, warnings);
 
     // Convert synth parameters
     const params = this.convertSynthParams(raw, mappings);
+
+    // Convert PCF to automation if enabled
+    const automation: HyphonAutomationLane[] = [];
+    if (this.options.convertPcfToAutomation && raw.pcf.enabled) {
+      const pcfAutomation = this.convertPcfToAutomation(raw.pcf);
+      automation.push(...pcfAutomation);
+    }
+
+    // Convert automation lanes
+    const convertedAutomation = this.convertAutomationLanes(raw.automation);
+    automation.push(...convertedAutomation);
 
     // Build Hyphon song
     const song: HyphonSong = {
@@ -112,6 +161,7 @@ export class RbsImporter {
       swing: raw.project.swing,
       pattern,
       params,
+      automation: automation.length > 0 ? automation : undefined,
       rbsMetadata: {
         originalVersion: raw.version,
         pcfSettings: raw.pcf,
@@ -124,6 +174,7 @@ export class RbsImporter {
     // Calculate conversion stats
     const stepsConverted = this.countSteps(raw);
 
+    // Build enhanced report
     return {
       success: true,
       song,
@@ -131,30 +182,53 @@ export class RbsImporter {
         patternsConverted: 4, // 2x 303 + drums (kick/snare/hats counted as one)
         stepsConverted,
         warnings,
-        mappings
+        mappings,
+        automationLanesConverted: automation.length,
+        pcfEnabled: raw.pcf.enabled,
+        slideCount: this.stepStats.slideCount,
+        accentCount: this.stepStats.accentCount,
+        stepStats: this.stepStats
       }
     };
   }
 
   /**
    * Convert RBS patterns to Hyphon Pattern
+   * Handles 16→32 step expansion with proper slide/accent preservation
    */
   private convertPattern(raw: RawRbsData, warnings: string[]): Pattern {
     const numSteps = this.options.expandTo32Steps ? 32 : raw.project.patternLength;
+    const isExpansion = numSteps === 32 && raw.project.patternLength === 16;
 
     // Convert TB-303 Pattern A
-    const partA = this.convertTb303ToPartSequence(
-      raw.tb303PatternA, 
-      numSteps,
-      this.options.tb303ATarget === 'bass2' // Use bass note range if going to bass track
-    );
+    let partA: PartSequence;
+    if (isExpansion) {
+      partA = this.expandPattern16To32(
+        raw.tb303PatternA.steps,
+        this.options.tb303ATarget === 'bass2'
+      );
+    } else {
+      partA = this.convertTb303ToPartSequence(
+        raw.tb303PatternA, 
+        numSteps,
+        this.options.tb303ATarget === 'bass2'
+      );
+    }
 
     // Convert TB-303 Pattern B
-    const partB = this.convertTb303ToPartSequence(
-      raw.tb303PatternB,
-      numSteps,
-      this.options.tb303BTarget === 'bass2'
-    );
+    let partB: PartSequence;
+    if (isExpansion) {
+      partB = this.expandPattern16To32(
+        raw.tb303PatternB.steps,
+        this.options.tb303BTarget === 'bass2'
+      );
+    } else {
+      partB = this.convertTb303ToPartSequence(
+        raw.tb303PatternB,
+        numSteps,
+        this.options.tb303BTarget === 'bass2'
+      );
+    }
 
     // Convert drum patterns
     const kick = this.convertDrumPattern(raw.drums.kick, numSteps, 'kick');
@@ -210,6 +284,11 @@ export class RbsImporter {
         slide: step.slide,
         timbre: 0.5 // Default timbre
       };
+
+      // Track statistics
+      if (step.slide) this.stepStats.slideCount++;
+      if (step.accent) this.stepStats.accentCount++;
+      if (step.tie) this.stepStats.tieCount++;
     }
 
     // If expanding to 32 steps, duplicate the pattern
@@ -222,7 +301,137 @@ export class RbsImporter {
       }
     }
 
+    this.stepStats.totalSteps += steps.length;
     return { steps };
+  }
+
+  /**
+   * Expand 16-step RBS pattern to 32-step Hyphon pattern
+   * 
+   * Rules:
+   * - Step 0 → steps 0, 1 (step 0 has accent if original had accent)
+   * - Step 1 → steps 2, 3
+   * - Slides extend across both steps
+   * - Ties sustain the note
+   * - Accents preserved on first of each pair
+   */
+  private expandPattern16To32(steps16: Tb303Step[], isBassTrack: boolean): PartSequence {
+    const steps32: (Note | null)[] = Array(32).fill(null);
+
+    for (let i = 0; i < 16; i++) {
+      const sourceStep = steps16[i];
+      const targetIndex1 = i * 2;     // First of pair
+      const targetIndex2 = i * 2 + 1; // Second of pair
+
+      if (sourceStep.note === -1) {
+        // Rest - both steps are null
+        continue;
+      }
+
+      if (sourceStep.tie) {
+        // Tie - sustain from previous (handle below)
+        this.stepStats.tieCount++;
+        continue;
+      }
+
+      // Convert note
+      const midiNote = (sourceStep.octave + 1) * 12 + sourceStep.note;
+      const noteName = midiToNote(midiNote);
+
+      // Calculate velocities based on accent
+      // Accent on first step only in expanded pattern
+      const baseVelocity = 0.8;
+      const accentBoost = sourceStep.accent ? this.convertAccentToBoost(127) : 0;
+      const velocity1 = Math.min(1.0, baseVelocity + accentBoost);
+      const velocity2 = baseVelocity; // Second step always base velocity
+
+      // Track statistics
+      if (sourceStep.slide) this.stepStats.slideCount++;
+      if (sourceStep.accent) this.stepStats.accentCount++;
+
+      if (sourceStep.slide) {
+        // Slide: note extends across both steps with slide flag
+        steps32[targetIndex1] = {
+          note: noteName,
+          velocity: velocity1,
+          length: 2, // Spans both steps
+          slide: true,
+          timbre: 0.5
+        };
+        steps32[targetIndex2] = null; // Part of slide
+      } else {
+        // Normal note: place on first step, second step is rest
+        steps32[targetIndex1] = {
+          note: noteName,
+          velocity: velocity1,
+          length: 1,
+          slide: false,
+          timbre: 0.5
+        };
+        // Second step is null (rest) unless it's a sustained note
+        // Check if next step is a tie
+        const nextIndex = i + 1;
+        if (nextIndex < 16 && steps16[nextIndex].tie) {
+          // Next step is tied, sustain this note
+          steps32[targetIndex2] = {
+            note: noteName,
+            velocity: velocity2,
+            length: 1,
+            slide: false,
+            timbre: 0.5
+          };
+        }
+      }
+    }
+
+    // Handle ties (sustained notes) in the 32-step pattern
+    this.handleTiesInExpandedPattern(steps32, steps16);
+
+    this.stepStats.totalSteps += 32;
+    return { steps: steps32 };
+  }
+
+  /**
+   * Handle tied notes in expanded pattern
+   * A tie means the note sustains through the next step
+   */
+  private handleTiesInExpandedPattern(steps32: (Note | null)[], steps16: Tb303Step[]): void {
+    for (let i = 0; i < 16; i++) {
+      const sourceStep = steps16[i];
+      if (sourceStep.tie && i > 0) {
+        // Find the previous non-tie step
+        let prevIndex = i - 1;
+        while (prevIndex >= 0 && steps16[prevIndex].tie) {
+          prevIndex--;
+        }
+        
+        if (prevIndex >= 0) {
+          const prevSourceStep = steps16[prevIndex];
+          const prevMidiNote = (prevSourceStep.octave + 1) * 12 + prevSourceStep.note;
+          const prevNoteName = midiToNote(prevMidiNote);
+          
+          // Extend the note into this step
+          const targetIndex1 = i * 2;
+          const targetIndex2 = i * 2 + 1;
+          
+          // Both sub-steps sustain the tied note
+          steps32[targetIndex1] = {
+            note: prevNoteName,
+            velocity: 0.8,
+            length: 1,
+            slide: false,
+            timbre: 0.5
+          };
+          steps32[targetIndex2] = {
+            note: prevNoteName,
+            velocity: 0.8,
+            length: 1,
+            slide: false,
+            timbre: 0.5
+          };
+        }
+      }
+    }
   }
 
   /**
@@ -247,7 +456,7 @@ export class RbsImporter {
       }
     }
 
-    // Expand to 32 steps if needed
+    // Expand to 32 steps if needed (simple duplication for drums)
     if (numSteps === 32 && drumSteps.length === 16) {
       for (let i = 16; i < 32; i++) {
         const sourceStep = steps[i - 16];
@@ -275,31 +484,80 @@ export class RbsImporter {
 
   /**
    * Convert synth parameters from RBS to Hyphon
+   * Uses enhanced exponential curves for accurate TB-303 emulation
    */
   private convertSynthParams(
     raw: RawRbsData,
-    mappings: ParameterMapping[]
+    mappings: DetailedParameterMapping[]
   ): HyphonSong['params'] {
-    // Map TB-303 0-127 range to Hyphon parameters
-    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1 }): SynthParams => {
-      const waveform: Waveform = tb303.waveform === 0 ? '303-saw' : '303-sqr';
+    // Map TB-303 0-127 range to Hyphon parameters using exponential curves
+    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1 }, sourceName: string): SynthParams => {
+      const waveform: Waveform = tb303.waveform === 0 ? 'sawtooth' : 'square';
       
-      mappings.push({ source: 'TB-303.cutoff', target: 'SynthParams.filterCutoff', value: tb303.cutoff });
-      mappings.push({ source: 'TB-303.resonance', target: 'SynthParams.filterResonance', value: tb303.resonance });
-      mappings.push({ source: 'TB-303.waveform', target: 'SynthParams.waveform', value: waveform });
+      // Cutoff: RBS 0-127 → Hyphon 100-8000 Hz (exponential curve)
+      // Formula: 100 * 2^(rbsCutoff / 21.17) where 127 ≈ 8000Hz
+      const cutoffHz = this.convertCutoffToHz(tb303.cutoff);
+      
+      // Resonance: RBS 0-127 → Hyphon 0-20 (linear)
+      const resonance = this.convertResonance(tb303.resonance);
+      
+      // Decay: RBS 0-127 → Hyphon 0.05-2.0s (exponential)
+      const decaySeconds = this.convertDecayToSeconds(tb303.decay);
+      
+      // Accent: RBS 0-127 → Hyphon velocity boost 0-0.4
+      const accentBoost = this.convertAccentToBoost(tb303.accent);
+      
+      // Volume based on accent (0.6-1.0 range)
+      const volume = 0.6 + accentBoost;
+
+      // Record detailed mappings
+      mappings.push({
+        source: `${sourceName}.cutoff`,
+        target: 'SynthParams.filterCutoff',
+        originalValue: tb303.cutoff,
+        convertedValue: Math.round(cutoffHz),
+        formula: '100 * 2^(cutoff / 21.17) Hz'
+      });
+      mappings.push({
+        source: `${sourceName}.resonance`,
+        target: 'SynthParams.filterResonance',
+        originalValue: tb303.resonance,
+        convertedValue: parseFloat(resonance.toFixed(2)),
+        formula: 'resonance / 6.35'
+      });
+      mappings.push({
+        source: `${sourceName}.decay`,
+        target: 'SynthParams.decay',
+        originalValue: tb303.decay,
+        convertedValue: parseFloat(decaySeconds.toFixed(3)),
+        formula: '0.05 * 40^(decay / 127) seconds'
+      });
+      mappings.push({
+        source: `${sourceName}.accent`,
+        target: 'SynthParams.volume',
+        originalValue: tb303.accent,
+        convertedValue: parseFloat(volume.toFixed(2)),
+        formula: '0.6 + (accent / 317.5)'
+      });
+      mappings.push({
+        source: `${sourceName}.waveform`,
+        target: 'SynthParams.waveform',
+        originalValue: tb303.waveform,
+        convertedValue: waveform
+      });
 
       return {
         waveform,
         pitch: 0,
-        filterCutoff: this.mapRange(tb303.cutoff, 0, 127, 200, 8000),
-        filterResonance: this.mapRange(tb303.resonance, 0, 127, 0, 20),
+        filterCutoff: cutoffHz,
+        filterResonance: resonance,
         filterMode: tb303.envMod > 64 ? 1 : 0,
         attack: 0.01, // 303 has fast attack
-        decay: this.mapRange(tb303.decay, 0, 127, 0.1, 2.0),
+        decay: decaySeconds,
         sustain: 0.5,
-        release: this.mapRange(tb303.decay, 0, 127, 0.1, 1.0),
+        release: decaySeconds * 0.5, // Release is shorter than decay
         length: 0.25,
-        volume: this.mapRange(tb303.accent, 0, 127, 0.6, 1.0),
+        volume: volume,
         delayTime: 0.3,
         delayFeedback: 0.2,
         delayMix: 0.0
@@ -307,42 +565,17 @@ export class RbsImporter {
     };
 
     // Convert 303 patterns to appropriate Hyphon tracks
-    const synthA = map303ToSynthParams(raw.tb303PatternA);
-    const synthB = map303ToSynthParams(raw.tb303PatternB);
+    const synthA = map303ToSynthParams(raw.tb303PatternA, 'TB-303A');
+    const synthB = map303ToSynthParams(raw.tb303PatternB, 'TB-303B');
 
     // Create bass2 params if needed
     const bass2Params: Bass2Params | undefined = 
-      this.options.tb303ATarget === 'bass2' ? this.convertToBass2Params(raw.tb303PatternA) :
-      this.options.tb303BTarget === 'bass2' ? this.convertToBass2Params(raw.tb303PatternB) :
+      this.options.tb303ATarget === 'bass2' ? this.convertToBass2Params(raw.tb303PatternA, 'TB-303A', mappings) :
+      this.options.tb303BTarget === 'bass2' ? this.convertToBass2Params(raw.tb303PatternB, 'TB-303B', mappings) :
       undefined;
 
     // Convert drum parameters based on kit type
-    const drumKit = raw.drums;
-    const kick: KickParams = {
-      pitch: this.mapRange(drumKit.tuning?.kick ?? 0, -50, 50, 40, 80),
-      decay: this.mapRange(drumKit.decay?.kick ?? 64, 0, 127, 0.1, 1.0),
-      tone: drumKit.kitType === '808' ? 0.6 : 0.8,
-      volume: 1.0
-    };
-
-    const snare: SnareParams = {
-      decay: this.mapRange(drumKit.decay?.snare ?? 48, 0, 127, 0.1, 0.8),
-      tone: drumKit.kitType === '808' ? 200 : 300,
-      noise: drumKit.kitType === '808' ? 2000 : 4000,
-      volume: 0.9
-    };
-
-    const closedHat: HatParams = {
-      pitch: this.mapRange(drumKit.tuning?.closedHat ?? 0, -50, 50, 8000, 12000),
-      decay: this.mapRange(drumKit.decay?.closedHat ?? 32, 0, 127, 0.05, 0.3),
-      volume: 0.8
-    };
-
-    const openHat: HatParams = {
-      pitch: this.mapRange(drumKit.tuning?.openHat ?? 0, -50, 50, 6000, 10000),
-      decay: this.mapRange(drumKit.decay?.openHat ?? 64, 0, 127, 0.2, 0.8),
-      volume: 0.8
-    };
+    const { kick, snare, closedHat, openHat } = this.convertDrumParams(raw.drums, mappings);
 
     return {
       synthA,
@@ -358,25 +591,367 @@ export class RbsImporter {
   /**
    * Convert TB-303 params to Bass2Params (Open303 format)
    */
-  private convertToBass2Params(tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1 }): Bass2Params {
+  private convertToBass2Params(
+    tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1; envMod?: number },
+    sourceName: string,
+    mappings?: DetailedParameterMapping[]
+  ): Bass2Params {
+    const cutoff = this.convertCutoffToHz(tb303.cutoff);
+    const resonance = this.convertResonance(tb303.resonance);
+    const decay = this.convertDecayToSeconds(tb303.decay);
+    const accent = 0.5 + this.convertAccentToBoost(tb303.accent);
+
+    if (mappings) {
+      mappings.push({
+        source: `${sourceName}.cutoff`,
+        target: 'Bass2Params.cutoff',
+        originalValue: tb303.cutoff,
+        convertedValue: Math.round(cutoff),
+        formula: '100 * 2^(cutoff / 21.17) Hz'
+      });
+    }
+
     return {
-      waveform: tb303.waveform,
+      waveform: tb303.waveform === 0 ? '303-saw' : '303-sqr',
       pitch: 0,
-      cutoff: this.mapRange(tb303.cutoff, 0, 127, 200, 8000),
-      resonance: this.mapRange(tb303.resonance, 0, 127, 0, 20),
+      cutoff,
+      resonance,
       filterMode: 1,
-      decay: this.mapRange(tb303.decay, 0, 127, 0.1, 2.0),
-      accent: this.mapRange(tb303.accent, 0, 127, 0.5, 1.0),
-      envMod: 0.5,
+      decay,
+      accent,
+      envMod: (tb303.envMod ?? 64) / 127,
       volume: 0.9
     };
+  }
+
+  /**
+   * Convert drum parameters with kit-specific mapping (808 vs 909)
+   */
+  private convertDrumParams(
+    drums: RawRbsData['drums'],
+    mappings: DetailedParameterMapping[]
+  ): { kick: KickParams; snare: SnareParams; closedHat: HatParams; openHat: HatParams } {
+    // Determine kit type
+    let kitType: '808' | '909' = drums.kitType;
+    if (this.options.drumKitMapping !== 'auto') {
+      kitType = this.options.drumKitMapping;
+    }
+
+    // Kit-specific tone settings
+    const kickTone = kitType === '808' ? 0.6 : 0.8;
+    const snareTone = kitType === '808' ? 200 : 300;
+    const snareNoise = kitType === '808' ? 2000 : 4000;
+
+    // Kick parameters
+    const kick: KickParams = {
+      pitch: this.mapRange(drums.tuning?.kick ?? 0, -50, 50, 40, 80),
+      decay: this.mapRange(drums.decay?.kick ?? 64, 0, 127, 0.1, 1.0),
+      tone: kickTone,
+      volume: 1.0
+    };
+
+    mappings.push({
+      source: `Drums.${kitType}.kick.tone`,
+      target: 'KickParams.tone',
+      originalValue: kitType,
+      convertedValue: kickTone,
+      formula: kitType === '808' ? '808: more body (0.6)' : '909: tighter (0.8)'
+    });
+
+    // Snare parameters
+    const snare: SnareParams = {
+      decay: this.mapRange(drums.decay?.snare ?? 48, 0, 127, 0.1, 0.8),
+      tone: snareTone,
+      noise: snareNoise,
+      volume: 0.9
+    };
+
+    mappings.push({
+      source: `Drums.${kitType}.snare.tone`,
+      target: 'SnareParams.tone',
+      originalValue: kitType,
+      convertedValue: snareTone,
+      formula: kitType === '808' ? '808: lower pitch (200)' : '909: higher pitch (300)'
+    });
+    mappings.push({
+      source: `Drums.${kitType}.snare.noise`,
+      target: 'SnareParams.noise',
+      originalValue: kitType,
+      convertedValue: snareNoise,
+      formula: kitType === '808' ? '808: less snap (2000)' : '909: more snap (4000)'
+    });
+
+    // Hi-hat parameters
+    const closedHat: HatParams = {
+      pitch: this.mapRange(drums.tuning?.closedHat ?? 0, -50, 50, 8000, 12000),
+      decay: this.mapRange(drums.decay?.closedHat ?? 32, 0, 127, 0.05, 0.3),
+      volume: 0.8
+    };
+
+    const openHat: HatParams = {
+      pitch: this.mapRange(drums.tuning?.openHat ?? 0, -50, 50, 6000, 10000),
+      decay: this.mapRange(drums.decay?.openHat ?? 64, 0, 127, 0.2, 0.8),
+      volume: 0.8
+    };
+
+    return { kick, snare, closedHat, openHat };
+  }
+
+  /**
+   * Convert PCF settings to Hyphon automation lanes
+   * 
+   * Maps PCF to per-track filter automation based on targets
+   */
+  private convertPcfToAutomation(pcf: PcfSettings): HyphonAutomationLane[] {
+    const automation: HyphonAutomationLane[] = [];
+
+    if (!pcf.enabled) {
+      return automation;
+    }
+
+    // Map PCF cutoff values (0-127) to Hz
+    const baseCutoffHz = this.convertCutoffToHz(pcf.cutoff);
+    const pcfResonance = this.convertResonance(pcf.resonance);
+    const pcfDecay = this.convertDecayToSeconds(pcf.decay);
+
+    // Create automation lane for each PCF target
+    if (pcf.target.tb303A) {
+      automation.push({
+        target: 'synthA',
+        parameter: 'filterCutoff',
+        name: 'PCF → Synth A Filter',
+        points: this.convertPcfPatternToPoints(pcf.pattern, baseCutoffHz),
+        interpolation: this.options.interpolateAutomation ? 'smooth' : 'linear',
+        originalRange: [0, 127]
+      });
+    }
+
+    if (pcf.target.tb303B) {
+      automation.push({
+        target: 'synthB',
+        parameter: 'filterCutoff',
+        name: 'PCF → Synth B Filter',
+        points: this.convertPcfPatternToPoints(pcf.pattern, baseCutoffHz),
+        interpolation: this.options.interpolateAutomation ? 'smooth' : 'linear',
+        originalRange: [0, 127]
+      });
+    }
+
+    // If PCF targets drums, it typically affects overall drum tone
+    // We'll add it to the master track as a "drum filter" reference
+    if (pcf.target.drums) {
+      automation.push({
+        target: 'master',
+        parameter: 'drumPcfModulation',
+        name: 'PCF → Drum Filter',
+        points: this.convertPcfPatternToPoints(pcf.pattern, pcf.envAmount / 127),
+        interpolation: this.options.interpolateAutomation ? 'smooth' : 'linear',
+        originalRange: [0, 127]
+      });
+    }
+
+    return automation;
+  }
+
+  /**
+   * Convert PCF modulation pattern to automation points
+   */
+  private convertPcfPatternToPoints(pattern: number[], baseValue: number): [number, number][] {
+    const points: [number, number][] = [];
+    const numSteps = this.options.expandTo32Steps ? 32 : pattern.length;
+
+    for (let i = 0; i < numSteps; i++) {
+      const sourceIndex = i % pattern.length;
+      const value = pattern[sourceIndex];
+      
+      // Normalize value to 0-1 range, scaled by base value
+      const normalizedValue = Math.min(1.0, (value / 127) * (baseValue / 8000));
+      
+      if (this.options.quantizeTo16th) {
+        // Quantize to exact step
+        points.push([i, normalizedValue]);
+      } else {
+        // Allow fractional steps
+        points.push([i, normalizedValue]);
+      }
+    }
+
+    return points;
+  }
+
+  /**
+   * Convert RBS automation lanes to Hyphon format
+   * 
+   * Supports:
+   * - Tempo changes
+   * - TB-303 A/B cutoff modulation
+   * - PCF modulation
+   * - Master volume
+   */
+  private convertAutomationLanes(lanes: AutomationLane[]): HyphonAutomationLane[] {
+    const hyphonLanes: HyphonAutomationLane[] = [];
+
+    for (const lane of lanes) {
+      const converted = this.convertAutomationLane(lane);
+      if (converted) {
+        hyphonLanes.push(converted);
+      }
+    }
+
+    return hyphonLanes;
+  }
+
+  /**
+   * Convert a single automation lane
+   */
+  private convertAutomationLane(lane: AutomationLane): HyphonAutomationLane | null {
+    // Determine target and parameter based on lane type
+    let target: HyphonAutomationLane['target'];
+    let parameter: string;
+    let name: string;
+
+    switch (lane.parameter) {
+      case 'tempo':
+        target = 'master';
+        parameter = 'tempo';
+        name = lane.name || 'Tempo';
+        break;
+      case 'swing':
+        target = 'master';
+        parameter = 'swing';
+        name = lane.name || 'Swing';
+        break;
+      case 'tb303Acutoff':
+        target = 'synthA';
+        parameter = 'filterCutoff';
+        name = lane.name || 'TB-303 A Cutoff';
+        break;
+      case 'tb303Bcutoff':
+        target = 'synthB';
+        parameter = 'filterCutoff';
+        name = lane.name || 'TB-303 B Cutoff';
+        break;
+      case 'pcfCutoff':
+        target = 'master';
+        parameter = 'pcfModulation';
+        name = lane.name || 'PCF Modulation';
+        break;
+      case 'masterVolume':
+        target = 'master';
+        parameter = 'volume';
+        name = lane.name || 'Master Volume';
+        break;
+      default:
+        return null; // Unsupported parameter
+    }
+
+    // Convert points with optional interpolation
+    const points = this.convertAutomationPoints(
+      lane.points,
+      lane.range,
+      lane.interpolation
+    );
+
+    return {
+      target,
+      parameter,
+      name,
+      points,
+      interpolation: this.options.interpolateAutomation ? 'smooth' : lane.interpolation,
+      originalRange: lane.range
+    };
+  }
+
+  /**
+   * Convert automation points to normalized Hyphon format
+   */
+  private convertAutomationPoints(
+    points: [number, number][],
+    range: [number, number],
+    interpolation: 'step' | 'linear' | 'smooth'
+  ): [number, number][] {
+    const [minVal, maxVal] = range;
+    const rangeSpan = maxVal - minVal || 1;
+    const numSteps = this.options.expandTo32Steps ? 32 : 16;
+
+    const convertedPoints: [number, number][] = [];
+
+    for (const [stepIndex, value] of points) {
+      // Normalize value to 0-1 range
+      const normalizedValue = Math.max(0, Math.min(1, (value - minVal) / rangeSpan));
+      
+      // Quantize if requested
+      const finalStep = this.options.quantizeTo16th 
+        ? Math.round(stepIndex) 
+        : stepIndex;
+
+      // Only include points within valid step range
+      if (finalStep >= 0 && finalStep < numSteps) {
+        convertedPoints.push([finalStep, normalizedValue]);
+      }
+    }
+
+    // Sort by step index
+    convertedPoints.sort((a, b) => a[0] - b[0]);
+
+    // Remove duplicate step indices
+    const uniquePoints: [number, number][] = [];
+    let lastStep = -1;
+    for (const point of convertedPoints) {
+      if (point[0] !== lastStep) {
+        uniquePoints.push(point);
+        lastStep = point[0];
+      }
+    }
+
+    return uniquePoints;
+  }
+
+  // ============================================================================
+  // PARAMETER CONVERSION HELPERS (Exponential Curves)
+  // ============================================================================
+
+  /**
+   * Convert RBS cutoff (0-127) to Hz using exponential curve
+   * Formula: 100 * 2^(rbsCutoff / 21.17) → 127 ≈ 8000Hz
+   */
+  private convertCutoffToHz(rbsCutoff: number): number {
+    const clampedCutoff = Math.max(0, Math.min(127, rbsCutoff));
+    return 100 * Math.pow(2, clampedCutoff / 21.17);
+  }
+
+  /**
+   * Convert RBS resonance (0-127) to Hyphon resonance (0-20)
+   * Linear mapping: resonance / 6.35
+   */
+  private convertResonance(rbsResonance: number): number {
+    const clampedResonance = Math.max(0, Math.min(127, rbsResonance));
+    return clampedResonance / 6.35;
+  }
+
+  /**
+   * Convert RBS decay (0-127) to seconds using exponential curve
+   * Formula: 0.05 * 40^(rbsDecay / 127) → range 0.05-2.0s
+   */
+  private convertDecayToSeconds(rbsDecay: number): number {
+    const clampedDecay = Math.max(0, Math.min(127, rbsDecay));
+    return 0.05 * Math.pow(40, clampedDecay / 127);
+  }
+
+  /**
+   * Convert RBS accent (0-127) to velocity boost (0-0.4)
+   * Linear mapping: accent / 317.5
+   */
+  private convertAccentToBoost(rbsAccent: number): number {
+    const clampedAccent = Math.max(0, Math.min(127, rbsAccent));
+    return clampedAccent / 317.5;
   }
 
   /**
    * Extract params object from TB-303 pattern (for metadata preservation)
    */
   private extractTb303Params(tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1; distortion?: number; delaySend?: number }) {
-    const { steps, ...params } = tb303;
+    const { ...params } = tb303;
     return params;
   }
 
@@ -384,19 +959,17 @@ export class RbsImporter {
    * Count total steps across all patterns
    */
   private countSteps(raw: RawRbsData): number {
-    return raw.tb303PatternA.steps.length + 
-           raw.tb303PatternB.steps.length + 
-           raw.drums.kick.length + 
-           raw.drums.snare.length + 
-           raw.drums.closedHat.length + 
-           raw.drums.openHat.length;
+    const stepLength = this.options.expandTo32Steps ? 32 : raw.project.patternLength;
+    // 2x 303 patterns + 4 drum tracks
+    return stepLength * 6;
   }
 
   /**
-   * Map a value from one range to another
+   * Map a value from one range to another (linear)
    */
   private mapRange(value: number, inMin: number, inMax: number, outMin: number, outMax: number): number {
-    return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
+    const clampedValue = Math.max(inMin, Math.min(inMax, value));
+    return ((clampedValue - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
   }
 
   /**
@@ -411,6 +984,13 @@ export class RbsImporter {
    */
   getOptions(): RbsImportOptions {
     return { ...this.options };
+  }
+
+  /**
+   * Get step conversion statistics from last conversion
+   */
+  getStepStats(): StepConversionStats {
+    return { ...this.stepStats };
   }
 }
 

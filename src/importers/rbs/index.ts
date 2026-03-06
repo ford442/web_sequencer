@@ -28,14 +28,20 @@ export type {
   DrumPattern,
   PcfSettings,
   AutomationLane,
+  HyphonAutomationLane,
   Tb303Step,
   HyphonSong,
   RbsImportOptions,
-  ImportReport,
-  ParameterMapping
+  StepConversionStats,
+  DetailedParameterMapping,
+  // Binary parsing types
+  RbsBinaryHeader,
+  RbsRawStep,
+  RbsRawAutomationPoint,
+  RbsRawAutomationLane
 } from './types';
 
-export { DEFAULT_RBS_IMPORT_OPTIONS } from './types';
+export { DEFAULT_RBS_IMPORT_OPTIONS, AUTOMATION_PARAMETER_MAP } from './types';
 
 // Parser
 export { RbsParser, parseRbsFile } from './RbsParser';
@@ -43,4 +49,4 @@ export type { RbsParserResult, RbsParserError } from './RbsParser';
 
 // Importer
 export { RbsImporter, convertToHyphonSong } from './RbsImporter';
-export type { RbsImportResult, RbsImportError } from './RbsImporter';
+export type { RbsImportResult, ImportReport, RbsImportError } from './RbsImporter';
