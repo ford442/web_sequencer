@@ -11,6 +11,86 @@
 import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, Bass2Params } from '../../types';
 
 // ============================================================================
+// BINARY PARSING TYPES
+// ============================================================================
+
+/**
+ * Raw binary header structure as read from RBS file
+ */
+export interface RbsBinaryHeader {
+  /** Magic bytes - should be "RB338" */
+  magic: string;
+  /** Version major */
+  versionMajor: number;
+  /** Version minor */
+  versionMinor: number;
+  /** Full version string */
+  version: string;
+  /** Pattern length in steps (usually 16) */
+  patternLength: number;
+  /** Tempo in BPM (40-250) */
+  tempo: number;
+  /** Time signature numerator */
+  timeSignatureNum: number;
+  /** Time signature denominator */
+  timeSignatureDen: number;
+  /** Swing amount (0-100) */
+  swing: number;
+  /** Song name (null-terminated ASCII) */
+  songName: string;
+}
+
+/**
+ * Raw TB-303 step as stored in binary
+ */
+export interface RbsRawStep {
+  /** Note value: 0-11 (C-B), 255=rest, 254=tie */
+  note: number;
+  /** Octave: 1-5 */
+  octave: number;
+  /** Flags: bit0=accent, bit1=slide, bit2=tie */
+  flags: number;
+  /** Gate time 0-100% */
+  gate: number;
+}
+
+/**
+ * Automation point as stored in binary
+ */
+export interface RbsRawAutomationPoint {
+  /** Step index */
+  step: number;
+  /** Value (2 bytes) */
+  value: number;
+}
+
+/**
+ * Raw automation lane as stored in binary
+ */
+export interface RbsRawAutomationLane {
+  /** Parameter ID */
+  parameterId: number;
+  /** Automation points */
+  points: RbsRawAutomationPoint[];
+}
+
+/** Parameter ID to name mapping for automation */
+export const AUTOMATION_PARAMETER_MAP: Record<number, string> = {
+  0x00: 'tempo',
+  0x01: 'swing',
+  0x02: 'tb303Acutoff',
+  0x03: 'tb303Bcutoff',
+  0x04: 'pcfCutoff',
+  0x05: 'masterVolume',
+  0x06: 'tb303Aresonance',
+  0x07: 'tb303Bresonance',
+  0x08: 'tb303Adecay',
+  0x09: 'tb303Bdecay',
+  0x0A: 'pcfResonance',
+  0x0B: 'pcfEnvAmount',
+};
+
+// ============================================================================
 // RAW RBS DATA (as read from file - closely mirrors RBS format)
 // ============================================================================
 
@@ -42,6 +122,9 @@ export interface RawRbsData {
   
   /** Raw binary chunks for future expansion */
   rawChunks?: Uint8Array[];
+  
+  /** Original binary header for debugging */
+  rawHeader?: RbsBinaryHeader;
 }
 
 /**
@@ -335,6 +418,9 @@ export interface HyphonSong {
     openHat: HatParams;
   };
   
+  /** Converted automation lanes */
+  automation?: HyphonAutomationLane[];
+  
   /** Additional RBS-specific data preserved for round-trip */
   rbsMetadata?: {
     originalVersion: string;
@@ -343,6 +429,30 @@ export interface HyphonSong {
     tb303AParams: Omit<Tb303PatternA, 'steps'>;
     tb303BParams: Omit<Tb303PatternB, 'steps'>;
   };
+}
+
+/**
+ * Hyphon automation lane format
+ * Converted from RBS automation lanes
+ */
+export interface HyphonAutomationLane {
+  /** Target track/parameter */
+  target: 'synthA' | 'synthB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'master';
+  
+  /** Parameter name within the target */
+  parameter: string;
+  
+  /** Lane name for display */
+  name: string;
+  
+  /** Automation points: [stepIndex (0-31), normalizedValue (0-1)] */
+  points: [number, number][];
+  
+  /** Interpolation type for value transitions */
+  interpolation: 'step' | 'linear' | 'smooth';
+  
+  /** Original value range from RBS */
+  originalRange: [number, number];
 }
 
 // ============================================================================
@@ -370,6 +480,15 @@ export interface RbsImportOptions {
   
   /** Whether to preserve original 303 step count (16) or expand to Hyphon (32) */
   expandTo32Steps: boolean;
+  
+  /** Whether to interpolate automation curves (smooth transitions) */
+  interpolateAutomation: boolean;
+  
+  /** Whether to quantize timing to 16th notes */
+  quantizeTo16th: boolean;
+  
+  /** Whether to import PCF as per-track filters instead of automation */
+  importPcfAsFilter: boolean;
 }
 
 /** Default import options */
@@ -380,4 +499,36 @@ export const DEFAULT_RBS_IMPORT_OPTIONS: RbsImportOptions = {
   importSwing: true,
   drumKitMapping: 'auto',
   expandTo32Steps: true,
+  interpolateAutomation: true,
+  quantizeTo16th: true,
+  importPcfAsFilter: false,
 };
+
+// ============================================================================
+// CONVERSION UTILITY TYPES
+// ============================================================================
+
+/**
+ * Statistics for step conversion
+ */
+export interface StepConversionStats {
+  /** Number of slides preserved */
+  slideCount: number;
+  /** Number of accents preserved */
+  accentCount: number;
+  /** Number of ties handled */
+  tieCount: number;
+  /** Total steps after expansion */
+  totalSteps: number;
+}
+
+/**
+ * Enhanced parameter mapping with conversion details
+ */
+export interface DetailedParameterMapping {
+  source: string;
+  target: string;
+  originalValue: number | string;
+  convertedValue: number | string;
+  formula?: string;
+}
