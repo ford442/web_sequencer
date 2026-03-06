@@ -7,6 +7,7 @@ import { useStableKnobConfig } from './hooks/useStableKnobConfig';
 import { GamepadDebugger } from './components/GamepadDebugger';
 import { HardwareModule } from './components/HardwareModule';
 import type { KnobConfig } from './components/HardwareModule';
+import { SamplerVoicePanel } from './components/SamplerVoicePanel';
 import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
@@ -356,6 +357,22 @@ export const App: React.FC = () => {
     const [sampler, setSampler] = useState<SamplerParams>(INITIAL_SAMPLER_PARAMS);
     const samplerRef = useRef(INITIAL_SAMPLER_PARAMS);
     const updateSampler = useCallback((u: SamplerParams) => { setSampler(u); samplerRef.current = u; }, []);
+
+    // Sampler Voice Controls State
+    const [samplerVoiceParams, setSamplerVoiceParams] = useState({
+        rootNote: 60,      // C4
+        coarseTune: 0,     // ±24 st
+        fineTune: 0,       // ±50 ¢
+        formantShift: 0,   // ±12 st
+        pitchAttack: 0,    // 0-1
+        pitchDecay: 0.5,   // 0-1
+        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+        stretchMode: 'elastic' as 'precise' | 'elastic' | 'hybrid',
+        lockToSequencer: false
+    });
+    const handleSamplerVoiceChange = useCallback((param: string, value: number | string | boolean) => {
+        setSamplerVoiceParams(prev => ({ ...prev, [param]: value }));
+    }, []);
 
     const tempoHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const tempoRef = useRef(tempo);
@@ -1342,7 +1359,21 @@ export const App: React.FC = () => {
         else if (selectedTrack === 'snare') modulePanel = <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} is3D={is3DMode} />;
         else if (selectedTrack === 'closedHat') modulePanel = <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} is3D={is3DMode} />;
         else if (selectedTrack === 'openHat') modulePanel = <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} is3D={is3DMode} />;
-        else if (selectedTrack === 'sampler') { modulePanel = (<HardwareModule title={`SAMPLER // BANK ${activeSamplerBank + 1}`} colorHex={COLOR_SAMPLER} controls={samplerControls} onParamChange={handleSamplerChange} is3D={is3DMode}>{samplerChild}</HardwareModule>); }
+        else if (selectedTrack === 'sampler') { 
+            modulePanel = (
+                <SamplerVoicePanel 
+                    title={`SAMPLER // BANK ${activeSamplerBank + 1}`} 
+                    colorHex={COLOR_SAMPLER} 
+                    controls={samplerControls} 
+                    onParamChange={handleSamplerChange}
+                    is3D={is3DMode}
+                    {...samplerVoiceParams}
+                    onSamplerParamChange={handleSamplerVoiceChange}
+                >
+                    {samplerChild}
+                </SamplerVoicePanel>
+            ); 
+        }
 
         return (
             <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
@@ -1367,7 +1398,7 @@ export const App: React.FC = () => {
                 </div>
             </div>
         );
-    }, [is3DMode, selectedTrack, activeSamplerBank, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, samplerChild]);
+    }, [is3DMode, selectedTrack, activeSamplerBank, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, samplerChild, samplerVoiceParams, handleSamplerVoiceChange]);
 
     // --- MAIN RENDER ---
     if (is3DMode) {
