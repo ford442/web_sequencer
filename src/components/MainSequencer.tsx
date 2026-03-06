@@ -1,9 +1,10 @@
-import React, { memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect } from 'react';
+import React, { memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useState } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { noteToMidi } from '../utils/musicTheory';
 import { GridIndicators } from './GridIndicators';
 import { MelodicSequencerRow, type MelodicSequencerRowHandle } from './MelodicSequencerRow';
-import type { Pattern, PartSequence, TrackKey } from '../types';
+import { PhonemePainter } from './PhonemePainter';
+import type { Pattern, PartSequence, TrackKey, PhonemeData } from '../types';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 
 // --- PERFORMANCE STYLES ---
@@ -23,6 +24,7 @@ const SEQUENCER_STYLES = `
 const TRACK_COLORS: Record<string, string> = {
     partA: '#06b6d4',
     partB: '#d946ef',
+    bass2: '#ff0066',
     kick: '#f97316',
     snare: '#22c55e',
     closedHat: '#eab308',
@@ -33,6 +35,7 @@ const TRACK_COLORS: Record<string, string> = {
 export const ROWS = [
     { key: 'partA', label: 'Lead' },
     { key: 'partB', label: 'Bass' },
+    { key: 'bass2', label: 'Bass2' },
     { key: 'kick', label: 'Kick' },
     { key: 'snare', label: 'Snare' },
     { key: 'closedHat', label: 'CH' },
@@ -453,16 +456,26 @@ export interface MainSequencerProps {
     automationParam?: string;
     onAutomationChange?: (trackKey: TrackKey, step: number, value: number) => void;
     alignment?: AlignmentResult | null;
+    // Phase 3: Phoneme Painter
+    onPhonemeUpdate?: (trackKey: TrackKey, bankIndex: number, step: number, phonemes: PhonemeData[] | undefined) => void;
+    samplerAudioBuffer?: AudioBuffer | null;
     // Children are rendered after SVG (e.g. NoteSelector)
     children?: React.ReactNode;
 }
 
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
     const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
-        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment } = props;
+        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer } = props;
 
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
     const melodicRowRef = useRef<MelodicSequencerRowHandle | null>(null);
+
+    // Phase 3: Phoneme Painter state
+    const [phonemePainterState, setPhonemePainterState] = useState<{
+        isOpen: boolean;
+        stepIndex: number;
+        note: any | null;
+    }>({ isOpen: false, stepIndex: 0, note: null });
 
     useImperativeHandle(ref, () => ({
         setHighlight: (step: number) => {
@@ -470,6 +483,38 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
             melodicRowRef.current?.setHighlight(step);
         }
     }));
+
+    // Handle Alt+Click on sampler steps to open Phoneme Painter
+    const handleStepPointerDown = useCallback((rowKey: TrackKey, stepIndex: number, e: React.PointerEvent) => {
+        // Check for Alt+Click (or Option+Click on Mac)
+        if (rowKey === 'sampler' && e.altKey && onPhonemeUpdate) {
+            const stepData = pattern.sampler[activeSamplerBank].steps[stepIndex];
+            if (stepData) {
+                e.preventDefault();
+                e.stopPropagation();
+                setPhonemePainterState({
+                    isOpen: true,
+                    stepIndex,
+                    note: stepData
+                });
+                return;
+            }
+        }
+        // Otherwise pass to normal toggle handler
+        onToggle(rowKey, stepIndex, e);
+    }, [onToggle, onPhonemeUpdate, pattern.sampler, activeSamplerBank]);
+
+    // Handle save from Phoneme Painter
+    const handlePhonemeSave = useCallback((stepIndex: number, phonemes: PhonemeData[] | undefined) => {
+        if (onPhonemeUpdate) {
+            onPhonemeUpdate('sampler', activeSamplerBank, stepIndex, phonemes);
+        }
+    }, [onPhonemeUpdate, activeSamplerBank]);
+
+    // Close phoneme painter
+    const handleClosePhonemePainter = useCallback(() => {
+        setPhonemePainterState(prev => ({ ...prev, isOpen: false }));
+    }, []);
 
     return (
         <div className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative">
@@ -480,6 +525,13 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
             <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
             <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
             <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+
+            {/* Alt+Click hint for sampler */}
+            {onPhonemeUpdate && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] text-cyan-500/60 font-mono pointer-events-none">
+                    Alt+Click sampler step for Phoneme Painter
+                </div>
+            )}
 
             <svg viewBox="0 0 1050 500" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" onContextMenu={(e) => e.preventDefault()}>
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
@@ -500,7 +552,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     isSelected={selectedTrack === row.key}
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
-                                    onToggle={onToggle}
+                                    onToggle={handleStepPointerDown}
                                     onPitchChange={onPitchChange || (() => {})}
                                     onEditLength={onEditLength}
                                     onSelectRow={onSelectRow}
@@ -517,7 +569,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
 
                                 isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
-                                onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectRow={onSelectRow} onSelectSlot={onSelectSlot}
+                                onToggle={handleStepPointerDown} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectRow={onSelectRow} onSelectSlot={onSelectSlot}
                                 onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter}
                                 selectionRange={selection && selection.trackKey === row.key ? { start: selection.startStep, end: selection.endStep } : null}
                                 onDrawEnter={onDrawEnter} isDrawing={isDrawing}
@@ -531,6 +583,17 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 </g>
             </svg>
             {children}
+
+            {/* Phoneme Painter Popover */}
+            <PhonemePainter
+                isOpen={phonemePainterState.isOpen}
+                onClose={handleClosePhonemePainter}
+                stepIndex={phonemePainterState.stepIndex}
+                note={phonemePainterState.note}
+                audioBuffer={samplerAudioBuffer}
+                alignment={alignment}
+                onSave={handlePhonemeSave}
+            />
         </div>
     );
 }));

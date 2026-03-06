@@ -73,6 +73,9 @@ export interface SamplerBankParams {
   glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
   attack?: number;         // Amplitude envelope attack time (seconds)
   release?: number;        // Amplitude envelope release time (seconds)
+  pan?: number;            // Stereo pan (-1 to 1)
+  isHarmonyVoice?: boolean; // True if this is a harmonized voice
+  harmonyIndex?: number;   // Index of harmony voice (0 = base)
   
   // Phase 1: Vocal Workstation - Pitch Controls
   rootNote?: number;           // Root MIDI note for pitch tracking (default: 60 = C4)
@@ -84,6 +87,12 @@ export interface SamplerBankParams {
   rbQuality?: 'Fast' | 'Standard' | 'Elastic';  // RubberBand quality mode
   stretchMode?: 'Time' | 'Pitch' | 'Formant';   // Stretch processing mode
   autoFollow?: boolean;        // Lock pitch to sequencer notes
+  
+  // SamplerVoicePanel unified params (mapped from panel controls)
+  coarseTune?: number;         // ±24 semitones (alias for coarse)
+  fineTune?: number;           // ±50 cents (alias for fine)
+  quality?: 'preview' | 'good' | 'better' | 'best';  // RubberBand quality (mapped to rbQuality)
+  lockToSequencer?: boolean;   // Quantize to active sequencer steps
 }
 
 // SamplerParams is now an array of banks
@@ -92,6 +101,19 @@ export type SamplerParams = SamplerBankParams[];
 // Re-export MultisampleBank for convenience
 export type { MultisampleBank };
 
+// Open303 (TB-303) specific parameters for BASS 2
+export interface Bass2Params {
+  waveform: '303-saw' | '303-sqr';
+  cutoff: number;        // 0-8000 Hz (mapped to 0-1 for engine)
+  resonance: number;     // 0-20 (mapped to 0-1 for engine)
+  filterMode: number;    // 0-1 (18dB/24dB)
+  decay: number;         // 0-2 seconds
+  accent: number;        // 0-1
+  envMod: number;        // 0-1 (envelope modulation)
+  volume: number;        // 0-1
+  pitch: number;         // Semitones (-24 to +24)
+}
+
 export interface AllDrumParams {
   kick: KickParams;
   snare: SnareParams;
@@ -99,7 +121,16 @@ export interface AllDrumParams {
   openHat: HatParams;
 }
 
-export type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+export type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
+export interface PhonemeData {
+  id: string;
+  symbol: string; // ARPABET symbol like 'HH', 'EH', 'LL', 'OW'
+  start: number; // Start time within step (0-1, normalized)
+  end: number; // End time within step (0-1, normalized)
+  pitchBend: number; // Pitch bend in cents (-100 to +100)
+  volume?: number; // Individual phoneme volume (0-1)
+}
 
 export interface Note {
   note: string; // e.g., 'C4' for synths, placeholder for drums
@@ -118,6 +149,9 @@ export interface Note {
   pitch?: number; // MIDI note number for sampler melodic mode (default: 60 = C4)
   pitchOffset?: number; // Fine pitch offset in cents (-100 to +100)
   phonemeIndex?: number; // Which phoneme to trigger (for TTS lyrics)
+  
+  // Phase 3: Live Phoneme Painter - Per-step phoneme sequence
+  phonemes?: PhonemeData[]; // Array of phonemes for this step
 }
 
 export interface PartSequence {
@@ -128,6 +162,7 @@ export interface PartSequence {
 export interface Pattern {
   partA: PartSequence;
   partB: PartSequence;
+  bass2: PartSequence;
   kick: PartSequence;
   snare: PartSequence;
   closedHat: PartSequence;
@@ -174,6 +209,12 @@ export interface AudioEngine {
     // Multisample Generator
     getMultisampleBank?: (bankIndex: number) => MultisampleBank | null;
     isMultisampleReady?: (bankIndex: number) => boolean;
+    
+    // Sampler Voice Panel controls - real-time parameter updates
+    updateSamplerVoiceParams?: (bankIndex: number, param: string, value: number | string | boolean) => void;
+    
+    // Harmonizer configuration
+    setHarmonizerConfig?: (config: import('./engines/Harmonizer').HarmonizerConfig, isActive: boolean) => void;
 }
 
 // Automation recording types
