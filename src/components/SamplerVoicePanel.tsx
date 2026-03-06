@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { HardwareModule, KnobConfig } from './HardwareModule';
+import { Harmonizer, type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../engines/Harmonizer';
 
 interface SamplerVoicePanelProps {
     title: string;
@@ -20,6 +21,10 @@ interface SamplerVoicePanelProps {
     stretchMode?: 'precise' | 'elastic' | 'hybrid';
     lockToSequencer?: boolean;
     onSamplerParamChange?: (param: string, value: number | string | boolean) => void;
+    // Harmonizer props
+    harmonizerConfig?: HarmonizerConfig;
+    onHarmonizerConfigChange?: (config: HarmonizerConfig, isActive: boolean) => void;
+    isHarmonizeActive?: boolean;
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -176,6 +181,227 @@ const HSlider: React.FC<{
     );
 };
 
+// Harmonizer Popover Component
+const HarmonizerPopover: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    config: HarmonizerConfig;
+    isActive: boolean;
+    onApply: (config: HarmonizerConfig, isActive: boolean) => void;
+    colorHex: [number, number, number];
+}> = ({ isOpen, onClose, config, isActive, onApply, colorHex }) => {
+    const [localConfig, setLocalConfig] = useState<HarmonizerConfig>(config);
+    const [localActive, setLocalActive] = useState(isActive);
+
+    if (!isOpen) return null;
+
+    const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
+
+    const handleVoiceCountChange = (count: 2 | 3 | 4) => {
+        setLocalConfig(prev => ({ ...prev, voiceCount: count }));
+    };
+
+    const handleHarmonyTypeChange = (type: HarmonyType) => {
+        setLocalConfig(prev => ({ ...prev, harmonyType: type }));
+    };
+
+    const handleDetuneChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, detuneSpread: Math.round(value * 50) }));
+    };
+
+    const handleFormantChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, formantSpread: Math.round(value * 12) }));
+    };
+
+    const handleApply = () => {
+        onApply(localConfig, localActive);
+        onClose();
+    };
+
+    const harmonyTypes: { value: HarmonyType; label: string }[] = [
+        { value: 'octave', label: 'OCTAVE' },
+        { value: 'fifth', label: 'FIFTH' },
+        { value: 'third', label: 'THIRD' },
+        { value: 'cluster', label: 'CLUSTER' },
+        { value: 'custom', label: 'CUSTOM' }
+    ];
+
+    return (
+        <>
+            {/* Backdrop */}
+            <div 
+                className="fixed inset-0 z-40" 
+                onClick={onClose}
+            />
+            
+            {/* Popover */}
+            <div 
+                className="absolute bottom-full right-0 mb-2 w-64 z-50 rounded-xl overflow-hidden shadow-2xl border"
+                style={{
+                    background: 'linear-gradient(145deg, rgba(15,23,42,0.98), rgba(5,7,9,0.99))',
+                    borderColor: `${color}60`,
+                    boxShadow: `0 8px 32px rgba(0,0,0,0.8), 0 0 20px ${color}30`
+                }}
+            >
+                {/* Header */}
+                <div 
+                    className="px-4 py-2 border-b flex items-center justify-between"
+                    style={{ borderColor: `${color}40`, background: `linear-gradient(90deg, ${color}20, transparent)` }}
+                >
+                    <span className="text-xs font-bold font-orbitron tracking-wider" style={{ color }}>
+                        ✧ HARMONIZER
+                    </span>
+                    <button 
+                        onClick={() => setLocalActive(!localActive)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                            localActive 
+                                ? 'bg-green-500/30 text-green-400 border border-green-500/50' 
+                                : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                        }`}
+                    >
+                        {localActive ? 'ON' : 'OFF'}
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-3 space-y-3">
+                    {/* Voice Count */}
+                    <div className="space-y-1.5">
+                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Voices</span>
+                        <div className="flex gap-1">
+                            {[2, 3, 4].map(count => (
+                                <button
+                                    key={count}
+                                    onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
+                                    className={`flex-1 py-1.5 rounded text-[10px] font-bold transition-all ${
+                                        localConfig.voiceCount === count
+                                            ? 'text-black shadow-lg'
+                                            : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700'
+                                    }`}
+                                    style={localConfig.voiceCount === count ? { 
+                                        backgroundColor: color,
+                                        boxShadow: `0 0 10px ${color}80`
+                                    } : undefined}
+                                >
+                                    {count}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Harmony Type */}
+                    <div className="space-y-1.5">
+                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Type</span>
+                        <div className="grid grid-cols-2 gap-1">
+                            {harmonyTypes.map(({ value, label }) => (
+                                <button
+                                    key={value}
+                                    onClick={() => handleHarmonyTypeChange(value)}
+                                    className={`py-1 rounded text-[9px] font-bold transition-all ${
+                                        localConfig.harmonyType === value
+                                            ? 'text-white border'
+                                            : 'bg-zinc-800/80 text-zinc-400 border border-zinc-700 hover:bg-zinc-700'
+                                    }`}
+                                    style={localConfig.harmonyType === value ? { 
+                                        borderColor: color,
+                                        background: `linear-gradient(135deg, ${color}40, ${color}20)`,
+                                        boxShadow: `0 0 8px ${color}40`
+                                    } : undefined}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Detune Spread */}
+                    <div className="space-y-1">
+                        <div className="flex justify-between">
+                            <span className="text-[9px] font-mono text-gray-400">DETUNE</span>
+                            <span className="text-[9px] font-mono font-bold" style={{ color }}>
+                                {localConfig.detuneSpread}¢
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="50"
+                            value={localConfig.detuneSpread}
+                            onChange={(e) => handleDetuneChange(parseInt(e.target.value) / 50)}
+                            className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+                            style={{
+                                background: `linear-gradient(to right, ${color} 0%, ${color} ${localConfig.detuneSpread * 2}%, #27272a ${localConfig.detuneSpread * 2}%, #27272a 100%)`
+                            }}
+                        />
+                    </div>
+
+                    {/* Formant Spread */}
+                    <div className="space-y-1">
+                        <div className="flex justify-between">
+                            <span className="text-[9px] font-mono text-gray-400">FORMANT</span>
+                            <span className="text-[9px] font-mono font-bold" style={{ color }}>
+                                {localConfig.formantSpread}st
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="12"
+                            value={localConfig.formantSpread}
+                            onChange={(e) => handleFormantChange(parseInt(e.target.value) / 12)}
+                            className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+                            style={{
+                                background: `linear-gradient(to right, ${color} 0%, ${color} ${localConfig.formantSpread * 8.33}%, #27272a ${localConfig.formantSpread * 8.33}%, #27272a 100%)`
+                            }}
+                        />
+                    </div>
+
+                    {/* Presets */}
+                    <div className="pt-1 border-t border-zinc-800">
+                        <span className="text-[8px] font-mono text-gray-500 uppercase">Quick Presets</span>
+                        <div className="flex gap-1 mt-1.5">
+                            {[
+                                { key: 'subtle', label: 'DBL' },
+                                { key: 'classic', label: '3RD' },
+                                { key: 'choir', label: 'CHR' },
+                                { key: 'power', label: '5TH' }
+                            ].map(({ key, label }) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setLocalConfig(HARMONIZE_PRESETS[key as keyof typeof HARMONIZE_PRESETS]())}
+                                    className="flex-1 py-1 rounded text-[8px] font-bold bg-zinc-800/60 text-zinc-500 border border-zinc-700 hover:bg-zinc-700/60 hover:text-zinc-300 transition-all"
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Apply Button */}
+                    <button
+                        onClick={handleApply}
+                        className="w-full py-2 rounded-lg text-xs font-bold font-orbitron tracking-wider transition-all text-black"
+                        style={{
+                            background: `linear-gradient(135deg, ${color}, ${color}80)`,
+                            boxShadow: `0 4px 15px ${color}60`
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.boxShadow = `0 6px 20px ${color}80`;
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.boxShadow = `0 4px 15px ${color}60`;
+                            e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                    >
+                        APPLY ✦
+                    </button>
+                </div>
+            </div>
+        </>
+    );
+};
+
 export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
     title,
     colorHex,
@@ -193,7 +419,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
     quality = 'good',
     stretchMode = 'elastic',
     lockToSequencer = false,
-    onSamplerParamChange
+    onSamplerParamChange,
+    harmonizerConfig,
+    onHarmonizerConfigChange,
+    isHarmonizeActive = false
 }) => {
     const [localRootNote, setLocalRootNote] = useState(rootNote);
     const [localCoarse, setLocalCoarse] = useState(coarseTune);
@@ -204,6 +433,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
     const [localQuality, setLocalQuality] = useState(quality);
     const [localStretch, setLocalStretch] = useState(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
+    const [isHarmonizerOpen, setIsHarmonizerOpen] = useState(false);
 
     const handleRootNoteChange = (midi: number) => {
         setLocalRootNote(midi);
@@ -235,6 +465,16 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
         }
         return notes;
     }, [localRootNote]);
+
+    const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
+
+    // Default harmonizer config
+    const defaultConfig: HarmonizerConfig = {
+        voiceCount: 2,
+        harmonyType: 'third',
+        detuneSpread: 15,
+        formantSpread: 3
+    };
 
     return (
         <div className="relative w-full h-full flex flex-col">
@@ -294,7 +534,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                     />
                 </div>
 
-                {/* Right: Pitch Envelope & RubberBand */}
+                {/* Right: Pitch Envelope, RubberBand & Harmonizer */}
                 <div className="flex flex-col gap-2 flex-1">
                     {/* Pitch Envelope */}
                     <div className="flex items-center gap-3">
@@ -355,6 +595,63 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                             />
                             <span className="text-[10px] font-mono text-gray-400">LOCK TO SEQUENCER NOTES</span>
                         </label>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-purple-500/20 my-1" />
+
+                    {/* Harmonizer Section */}
+                    <div className="relative">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-mono font-bold tracking-wider" style={{ color }}>
+                                HARMONIZER
+                            </span>
+                            
+                            {/* HARMONIZE Button */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold font-orbitron tracking-wider transition-all border ${
+                                        isHarmonizeActive
+                                            ? 'text-black shadow-lg'
+                                            : 'bg-zinc-900 text-zinc-400 border-zinc-700 hover:bg-zinc-800 hover:text-zinc-300'
+                                    }`}
+                                    style={isHarmonizeActive ? {
+                                        background: `linear-gradient(135deg, ${color}, ${color}80)`,
+                                        borderColor: color,
+                                        boxShadow: `0 0 15px ${color}60`
+                                    } : undefined}
+                                >
+                                    {isHarmonizeActive ? '✦ HARMONIZE' : 'HARMONIZE'}
+                                </button>
+
+                                {/* Harmonizer Popover */}
+                                <HarmonizerPopover
+                                    isOpen={isHarmonizerOpen}
+                                    onClose={() => setIsHarmonizerOpen(false)}
+                                    config={harmonizerConfig || defaultConfig}
+                                    isActive={isHarmonizeActive}
+                                    onApply={onHarmonizerConfigChange || (() => {})}
+                                    colorHex={colorHex}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Active Harmonize Indicator */}
+                        {isHarmonizeActive && (
+                            <div className="flex items-center gap-2 mt-1.5">
+                                <div 
+                                    className="w-1.5 h-1.5 rounded-full animate-pulse"
+                                    style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}` }}
+                                />
+                                <span className="text-[9px] font-mono text-gray-400">
+                                    {(harmonizerConfig?.voiceCount || 2)}V 
+                                    {(harmonizerConfig?.harmonyType || 'third').toUpperCase()} 
+                                    • {(harmonizerConfig?.detuneSpread || 15)}¢ 
+                                    • {(harmonizerConfig?.formantSpread || 3)}st
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

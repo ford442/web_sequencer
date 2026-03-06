@@ -37,6 +37,18 @@ export const DEFAULT_SYNTH_PARAMS_B: SynthParams = {
   delayMix: 0.0,
 };
 
+export const DEFAULT_BASS2_PARAMS = {
+  waveform: '303-sqr' as const,
+  pitch: -12,
+  cutoff: 3000,
+  resonance: 12,
+  filterMode: 0,
+  decay: 0.4,
+  accent: 0.7,
+  envMod: 0.5,
+  volume: 0.45,
+};
+
 export const DEFAULT_KICK_PARAMS: KickParams = { pitch: 60, decay: 0.4, tone: 0.9, volume: 1 };
 export const DEFAULT_SNARE_PARAMS: SnareParams = { decay: 0.2, tone: 150, noise: 5000, volume: 0.8 };
 export const DEFAULT_CLOSED_HAT_PARAMS: HatParams = { pitch: 9000, decay: 0.05, volume: 0.4 };
@@ -85,6 +97,20 @@ export const INITIAL_PATTERN: Pattern = {
       null, null, { note: 'F3', velocity: 0.8 }, null,
       null, null, { note: 'G3', velocity: 0.8 }, null,
       null, null, { note: 'F3', velocity: 0.8 }, null,
+    ],
+  },
+  bass2: {
+    steps: [
+      // Bar 1 (Counter bass line)
+      null, null, { note: 'G2', velocity: 0.9 }, null,
+      null, null, { note: 'G2', velocity: 0.7 }, null,
+      null, null, { note: 'A2', velocity: 0.9 }, null,
+      null, null, { note: 'G2', velocity: 0.7 }, null,
+      // Bar 2 (Counter bass line variation)
+      null, null, { note: 'C3', velocity: 0.9 }, null,
+      null, null, { note: 'C3', velocity: 0.7 }, null,
+      null, null, { note: 'D3', velocity: 0.9 }, null,
+      null, null, { note: 'C3', velocity: 0.7 }, null,
     ],
   },
   kick: {

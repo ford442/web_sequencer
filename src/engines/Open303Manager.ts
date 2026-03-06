@@ -1,0 +1,320 @@
+import type { Bass2Params } from '../types';
+import { Open303Oscillator } from './Open303Oscillator';
+import type { Open303Config } from './Open303Params';
+
+/**
+ * Manages dual Open303 (TB-303) instances for independent bass tracks
+ * - bass1: Used by partB (SYNTH B // BASS) 
+ * - bass2: Independent second bass track
+ */
+export class Open303Manager {
+    private bass1: Open303Oscillator | null = null;
+    private bass2: Open303Oscillator | null = null;
+    private audioContext: AudioContext | null = null;
+    private workletUrl: string | undefined;
+    
+    // Mixer nodes for independent routing
+    private bass1Gain: GainNode | null = null;
+    private bass2Gain: GainNode | null = null;
+    private bass1Panner: StereoPannerNode | null = null;
+    private bass2Panner: StereoPannerNode | null = null;
+    
+    // State tracking
+    public isReady: boolean = false;
+    private bass1Ready: boolean = false;
+    private bass2Ready: boolean = false;
+
+    /**
+     * Initialize both Open303 instances
+     */
+    async init(
+        audioContext: AudioContext, 
+        workletUrl?: string, 
+        config?: Open303Config
+    ): Promise<boolean> {
+        this.audioContext = audioContext;
+        this.workletUrl = workletUrl;
+
+        try {
+            // Create mixer nodes for independent routing
+            this.bass1Gain = audioContext.createGain();
+            this.bass1Gain.gain.value = 1.0;
+            
+            this.bass2Gain = audioContext.createGain();
+            this.bass2Gain.gain.value = 1.0;
+
+            // Create panners for stereo positioning
+            if (audioContext.createStereoPanner) {
+                this.bass1Panner = audioContext.createStereoPanner();
+                this.bass1Panner.pan.value = -0.2; // Slightly left
+                this.bass1Gain.connect(this.bass1Panner);
+
+                this.bass2Panner = audioContext.createStereoPanner();
+                this.bass2Panner.pan.value = 0.2; // Slightly right
+                this.bass2Gain.connect(this.bass2Panner);
+            }
+
+            // Initialize bass1 (for partB)
+            this.bass1 = new Open303Oscillator();
+            this.bass1Ready = await this.bass1.init(audioContext, workletUrl, {
+                ...config,
+                preferWorklet: true,
+                preferThreaded: false,
+                forceSingleThreaded: true
+            });
+
+            if (this.bass1Ready && this.bass1) {
+                // Connect bass1 output to its gain node
+                this.bass1.connect(this.bass1Gain);
+            }
+
+            // Initialize bass2 (independent second bass)
+            this.bass2 = new Open303Oscillator();
+            this.bass2Ready = await this.bass2.init(audioContext, workletUrl, {
+                ...config,
+                preferWorklet: true,
+                preferThreaded: false,
+                forceSingleThreaded: true
+            });
+
+            if (this.bass2Ready && this.bass2) {
+                // Connect bass2 output to its gain node
+                this.bass2.connect(this.bass2Gain);
+            }
+
+            this.isReady = this.bass1Ready || this.bass2Ready;
+            
+            if (this.isReady) {
+                console.log('[Open303Manager] Dual 303 instances initialized:', {
+                    bass1: this.bass1Ready,
+                    bass2: this.bass2Ready
+                });
+            }
+
+            return this.isReady;
+
+        } catch (e) {
+            console.error('[Open303Manager] Initialization failed:', e);
+            this.isReady = false;
+            return false;
+        }
+    }
+
+    /**
+     * Connect both bass instances to a destination
+     */
+    connect(dest: AudioNode): void {
+        if (this.bass1Panner) {
+            this.bass1Panner.connect(dest);
+        } else if (this.bass1Gain) {
+            this.bass1Gain.connect(dest);
+        }
+
+        if (this.bass2Panner) {
+            this.bass2Panner.connect(dest);
+        } else if (this.bass2Gain) {
+            this.bass2Gain.connect(dest);
+        }
+    }
+
+    /**
+     * Disconnect from all destinations
+     */
+    disconnect(): void {
+        if (this.bass1Panner) {
+            this.bass1Panner.disconnect();
+        }
+        if (this.bass2Panner) {
+            this.bass2Panner.disconnect();
+        }
+    }
+
+    /**
+     * Apply parameters to bass1 (used by partB)
+     */
+    applyBass1Params(params: { filterCutoff: number; filterResonance: number; filterMode?: number; decay: number; volume: number }, waveform: 'saw' | 'sqr'): void {
+        if (!this.bass1Ready || !this.bass1) return;
+
+        this.bass1.setWaveform(waveform === 'sqr' ? 1.0 : 0.0);
+        this.bass1.setCutoff(Math.max(0, Math.min(1, params.filterCutoff / 8000)));
+        this.bass1.setResonance(Math.max(0, Math.min(1, params.filterResonance / 20)));
+        this.bass1.setFilterMode(Math.max(0, Math.min(1, params.filterMode ?? 0)));
+        this.bass1.setDecay(Math.max(0, Math.min(1, params.decay)));
+        this.bass1.setVolume(params.volume);
+    }
+
+    /**
+     * Apply parameters to bass2 (independent bass track)
+     */
+    applyBass2Params(params: Bass2Params): void {
+        if (!this.bass2Ready || !this.bass2) return;
+
+        this.bass2.setWaveform(params.waveform === '303-sqr' ? 1.0 : 0.0);
+        this.bass2.setCutoff(Math.max(0, Math.min(1, params.cutoff / 8000)));
+        this.bass2.setResonance(Math.max(0, Math.min(1, params.resonance / 20)));
+        this.bass2.setFilterMode(Math.max(0, Math.min(1, params.filterMode)));
+        this.bass2.setDecay(Math.max(0, Math.min(1, params.decay)));
+        this.bass2.setAccent(params.accent);
+        this.bass2.setEnvMod(params.envMod);
+        this.bass2.setVolume(params.volume);
+    }
+
+    /**
+     * Trigger note on bass1
+     */
+    noteOnBass1(midiNote: number, velocity: number = 100): void {
+        if (this.bass1Ready && this.bass1) {
+            this.bass1.noteOn(midiNote, velocity);
+        }
+    }
+
+    /**
+     * Release note on bass1
+     */
+    noteOffBass1(midiNote: number): void {
+        if (this.bass1Ready && this.bass1) {
+            this.bass1.noteOff(midiNote);
+        }
+    }
+
+    /**
+     * Trigger note on bass2
+     */
+    noteOnBass2(midiNote: number, velocity: number = 100): void {
+        if (this.bass2Ready && this.bass2) {
+            this.bass2.noteOn(midiNote, velocity);
+        }
+    }
+
+    /**
+     * Release note on bass2
+     */
+    noteOffBass2(midiNote: number): void {
+        if (this.bass2Ready && this.bass2) {
+            this.bass2.noteOff(midiNote);
+        }
+    }
+
+    /**
+     * Set bass1 volume (mixer)
+     */
+    setBass1Volume(volume: number): void {
+        if (this.bass1Gain) {
+            this.bass1Gain.gain.setValueAtTime(volume, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
+     * Set bass2 volume (mixer)
+     */
+    setBass2Volume(volume: number): void {
+        if (this.bass2Gain) {
+            this.bass2Gain.gain.setValueAtTime(volume, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
+     * Set bass1 pan (mixer)
+     */
+    setBass1Pan(pan: number): void {
+        if (this.bass1Panner) {
+            this.bass1Panner.pan.setValueAtTime(pan, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
+     * Set bass2 pan (mixer)
+     */
+    setBass2Pan(pan: number): void {
+        if (this.bass2Panner) {
+            this.bass2Panner.pan.setValueAtTime(pan, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
+     * Mute/unmute bass1
+     */
+    setBass1Mute(muted: boolean): void {
+        if (this.bass1Gain) {
+            this.bass1Gain.gain.setValueAtTime(muted ? 0 : 1, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
+     * Mute/unmute bass2
+     */
+    setBass2Mute(muted: boolean): void {
+        if (this.bass2Gain) {
+            this.bass2Gain.gain.setValueAtTime(muted ? 0 : 1, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
+     * Solo bass1 (mute bass2)
+     */
+    soloBass1(): void {
+        this.setBass1Mute(false);
+        this.setBass2Mute(true);
+    }
+
+    /**
+     * Solo bass2 (mute bass1)
+     */
+    soloBass2(): void {
+        this.setBass1Mute(true);
+        this.setBass2Mute(false);
+    }
+
+    /**
+     * Clear solo (unmute both)
+     */
+    clearSolo(): void {
+        this.setBass1Mute(false);
+        this.setBass2Mute(false);
+    }
+
+    /**
+     * Get bass1 ready state
+     */
+    isBass1Ready(): boolean {
+        return this.bass1Ready;
+    }
+
+    /**
+     * Get bass2 ready state
+     */
+    isBass2Ready(): boolean {
+        return this.bass2Ready;
+    }
+
+    /**
+     * Cleanup both instances
+     */
+    cleanup(): void {
+        this.bass1?.cleanup();
+        this.bass2?.cleanup();
+        
+        if (this.bass1Gain) {
+            this.bass1Gain.disconnect();
+            this.bass1Gain = null;
+        }
+        if (this.bass2Gain) {
+            this.bass2Gain.disconnect();
+            this.bass2Gain = null;
+        }
+        if (this.bass1Panner) {
+            this.bass1Panner.disconnect();
+            this.bass1Panner = null;
+        }
+        if (this.bass2Panner) {
+            this.bass2Panner.disconnect();
+            this.bass2Panner = null;
+        }
+        
+        this.bass1 = null;
+        this.bass2 = null;
+        this.isReady = false;
+        this.bass1Ready = false;
+        this.bass2Ready = false;
+    }
+}

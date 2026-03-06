@@ -30,6 +30,7 @@ import { MainSequencer, ROWS } from './components/MainSequencer';
 import type { MainSequencerHandle } from './components/MainSequencer';
 import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
 import { SEQUENCER_STYLES } from './components/sequencer/constants';
+import { Harmonizer, type HarmonizerConfig, HARMONIZE_PRESETS } from './engines/Harmonizer';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -40,12 +41,13 @@ import {
     DEFAULT_TEMPO,
     DEFAULT_SYNTH_PARAMS_A,
     DEFAULT_SYNTH_PARAMS_B,
+    DEFAULT_BASS2_PARAMS,
     DEFAULT_KICK_PARAMS,
     DEFAULT_SNARE_PARAMS,
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note, Bass2Params } from './types'
 
 // --- CONSTANTS ---
 const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
@@ -71,7 +73,7 @@ const UPDATED_INITIAL_PATTERN: Pattern = {
 };
 
 // --- TYPES FOR STORAGE ---
-type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
@@ -80,6 +82,7 @@ type SongSnapshot = {
     params: {
         synthA: SynthParams;
         synthB: SynthParams;
+        bass2: Bass2Params;
         kick: KickParams;
         snare: SnareParams;
         closedHat: any;
@@ -92,6 +95,7 @@ const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (Part
     const storage: any = {
         partA: Array(8).fill(null),
         partB: Array(8).fill(null),
+        bass2: Array(8).fill(null),
         kick: Array(8).fill(null),
         snare: Array(8).fill(null),
         closedHat: Array(8).fill(null),
@@ -108,6 +112,7 @@ const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (Part
 
 const COLOR_LEAD = [0.0, 0.9, 1.0] as [number, number, number];
 const COLOR_BASS = [1.0, 0.2, 0.8] as [number, number, number];
+const COLOR_BASS2 = [1.0, 0.0, 0.4] as [number, number, number];
 const COLOR_KICK = [1.0, 0.6, 0.0] as [number, number, number];
 const COLOR_SNARE = [0.2, 1.0, 0.2] as [number, number, number];
 const COLOR_CH = [0.8, 0.8, 0.0] as [number, number, number];
@@ -117,8 +122,34 @@ const COLOR_SAMPLER = [0.6, 0.4, 1.0] as [number, number, number];
 const EMPTY_STEPS = Array(32).fill(null);
 const EMPTY_SEQ = { steps: EMPTY_STEPS };
 const EMPTY_SAMPLER_SEQUENCE = Array.from({ length: 8 }, () => ({ steps: EMPTY_STEPS }));
+const EMPTY_PATTERN: Pattern = {
+    partA: EMPTY_SEQ,
+    partB: EMPTY_SEQ,
+    bass2: EMPTY_SEQ,
+    kick: EMPTY_SEQ,
+    snare: EMPTY_SEQ,
+    closedHat: EMPTY_SEQ,
+    openHat: EMPTY_SEQ,
+    sampler: EMPTY_SAMPLER_SEQUENCE,
+};
 
 // --- MODULE CONTROL HELPERS ---
+// --- BASS2 CONTROL HELPERS ---
+const getBass2Controls = (params: Bass2Params): KnobConfig[] => {
+    const filterModeValue = params.filterMode ?? 0;
+    return [
+        { id: 'waveform', label: 'WAVE', x: 0.10, y: 0.25, size: 0.08, value: params.waveform === '303-sqr' ? 1 : 0, valueDisplay: params.waveform === '303-sqr' ? 'SQR' : 'SAW' },
+        { id: 'cutoff', label: 'CUTOFF', x: 0.30, y: 0.25, size: 0.12, value: params.cutoff / 8000, valueDisplay: `${Math.round(params.cutoff)}Hz` },
+        { id: 'resonance', label: 'RES', x: 0.50, y: 0.25, size: 0.12, value: params.resonance / 20, valueDisplay: `${params.resonance.toFixed(1)}` },
+        { id: 'filterMode', label: 'MODE', x: 0.70, y: 0.25, size: 0.08, value: filterModeValue, valueDisplay: filterModeValue > 0 ? '24dB' : '18dB' },
+        { id: 'decay', label: 'DECAY', x: 0.25, y: 0.55, size: 0.11, value: params.decay / 2, valueDisplay: `${params.decay.toFixed(2)}s` },
+        { id: 'accent', label: 'ACCENT', x: 0.45, y: 0.55, size: 0.11, value: params.accent, valueDisplay: `${Math.round(params.accent * 100)}%` },
+        { id: 'envMod', label: 'ENV MOD', x: 0.65, y: 0.55, size: 0.11, value: params.envMod, valueDisplay: `${Math.round(params.envMod * 100)}%` },
+        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.80, size: 0.09, value: (params.pitch + 24) / 48, valueDisplay: `${params.pitch > 0 ? '+' : ''}${params.pitch.toFixed(0)}st` },
+        { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.80, size: 0.10, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
+    ];
+};
+
 const getSynthControls = (params: SynthParams): KnobConfig[] => {
     const filterModeValue = params.filterMode ?? 0;
     return [
@@ -258,7 +289,7 @@ export const App: React.FC = () => {
     const [isSongModeActive, setIsSongModeActive] = useState(false);
     const [songStructure, setSongStructure] = useState<({ [key in TrackKey]: number | null })[]>(
         Array(16).fill(null).map(() => ({
-            partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null
+            partA: null, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null
         }))
     );
     const [currentSongMeasure, setCurrentSongMeasure] = useState(0);
@@ -294,7 +325,7 @@ export const App: React.FC = () => {
         getInitialTrackStorage(UPDATED_INITIAL_PATTERN)
     );
     const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
-        partA: 0, partB: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
+        partA: 0, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
     });
     const activeTrackSlotsRef = useRef(activeTrackSlots);
     useEffect(() => { activeTrackSlotsRef.current = activeTrackSlots; }, [activeTrackSlots]);
@@ -338,6 +369,10 @@ export const App: React.FC = () => {
     const synthBRef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
     const updateSynthB = useCallback((updates: Partial<SynthParams>) => { setSynthB(prev => { const n = { ...prev, ...updates }; synthBRef.current = n; return n; }); }, []);
 
+    const [bass2, setBass2] = useState<Bass2Params>(DEFAULT_BASS2_PARAMS);
+    const bass2Ref = useRef<Bass2Params>(DEFAULT_BASS2_PARAMS);
+    const updateBass2 = useCallback((updates: Partial<Bass2Params>) => { setBass2(prev => { const n = { ...prev, ...updates }; bass2Ref.current = n; return n; }); }, []);
+
     const [kick, setKick] = useState<KickParams>(DEFAULT_KICK_PARAMS);
     const kickRef = useRef(DEFAULT_KICK_PARAMS);
     const updateKick = useCallback((u: Partial<KickParams>) => { setKick(prev => { const n = { ...prev, ...u }; kickRef.current = n; return n; }); }, []);
@@ -358,8 +393,8 @@ export const App: React.FC = () => {
     const samplerRef = useRef(INITIAL_SAMPLER_PARAMS);
     const updateSampler = useCallback((u: SamplerParams) => { setSampler(u); samplerRef.current = u; }, []);
 
-    // Sampler Voice Controls State
-    const [samplerVoiceParams, setSamplerVoiceParams] = useState({
+    // Sampler Voice Controls State - stored in refs for audio engine access
+    const samplerVoiceParamsRef = useRef({
         rootNote: 60,      // C4
         coarseTune: 0,     // ±24 st
         fineTune: 0,       // ±50 ¢
@@ -370,9 +405,18 @@ export const App: React.FC = () => {
         stretchMode: 'elastic' as 'precise' | 'elastic' | 'hybrid',
         lockToSequencer: false
     });
+    const [samplerVoiceParams, setSamplerVoiceParams] = useState(samplerVoiceParamsRef.current);
+    
     const handleSamplerVoiceChange = useCallback((param: string, value: number | string | boolean) => {
-        setSamplerVoiceParams(prev => ({ ...prev, [param]: value }));
-    }, []);
+        const newParams = { ...samplerVoiceParamsRef.current, [param]: value };
+        samplerVoiceParamsRef.current = newParams;
+        setSamplerVoiceParams(newParams);
+        
+        // Also update the audio engine's voice params in real-time
+        if (audioEngine?.updateSamplerVoiceParams) {
+            audioEngine.updateSamplerVoiceParams(activeSamplerBankRef.current, param, value);
+        }
+    }, [audioEngine]);
 
     const tempoHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const tempoRef = useRef(tempo);
@@ -439,7 +483,7 @@ export const App: React.FC = () => {
                     if (!stored) { return key === 'sampler' ? EMPTY_SAMPLER_SEQUENCE : EMPTY_SEQ; }
                     return stored;
                 };
-                activePattern = { partA: getSeq('partA'), partB: getSeq('partB'), kick: getSeq('kick'), snare: getSeq('snare'), closedHat: getSeq('closedHat'), openHat: getSeq('openHat'), sampler: getSeq('sampler') } as Pattern;
+                activePattern = { partA: getSeq('partA'), partB: getSeq('partB'), bass2: getSeq('bass2'), kick: getSeq('kick'), snare: getSeq('snare'), closedHat: getSeq('closedHat'), openHat: getSeq('openHat'), sampler: getSeq('sampler') } as Pattern;
             }
         }
 
@@ -463,8 +507,48 @@ export const App: React.FC = () => {
             }
         };
 
+        // Trigger BASS 2 (TB-303) - Uses independent bass2 params
+        const triggerBass2 = () => {
+            const stepData = p.bass2.steps[step];
+            if (stepData) {
+                if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
+                
+                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
+                
+                // Create SynthParams-like object for bass2
+                const bass2Params: SynthParams = {
+                    waveform: bass2Ref.current.waveform,
+                    pitch: bass2Ref.current.pitch,
+                    filterCutoff: bass2Ref.current.cutoff,
+                    filterResonance: bass2Ref.current.resonance,
+                    filterMode: bass2Ref.current.filterMode,
+                    attack: 0.01,
+                    decay: bass2Ref.current.decay,
+                    sustain: 0,
+                    release: 0.1,
+                    length: 0.25,
+                    volume: bass2Ref.current.volume,
+                    delayTime: 0,
+                    delayFeedback: 0,
+                    delayMix: 0,
+                };
+                
+                // Apply bass2 params to Open303Manager before playing
+                if (audioEngine.open303Engine) {
+                    const manager = audioEngine.open303Engine as any;
+                    if (manager.applyBass2Params) {
+                        manager.applyBass2Params(bass2Ref.current);
+                    }
+                }
+                
+                audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2', noteParams);
+            }
+        };
+
         triggerSynth('partA', synthARef.current);
         triggerSynth('partB', synthBRef.current);
+        triggerBass2();
 
         // Drums (Basic probability check)
         const playDrumIfActive = (trackKey: 'kick' | 'snare' | 'closedHat' | 'openHat', sound: any, params: any) => {
@@ -488,7 +572,40 @@ export const App: React.FC = () => {
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger };
                 // Combine note and chord for polyphonic playback
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
-                audioEngine.playSampler(samplerRef.current[bankIdx], notes, time, stepData.length, stepTime, noteParams);
+                
+                // Pass sampler voice params from the panel (using ref for latest values)
+                const voiceParams = samplerVoiceParamsRef.current;
+                const bankParams = {
+                    ...samplerRef.current[bankIdx],
+                    rootNote: voiceParams.rootNote,
+                    coarseTune: voiceParams.coarseTune,
+                    fineTune: voiceParams.fineTune,
+                    formantShift: voiceParams.formantShift,
+                    pitchAttack: voiceParams.pitchAttack,
+                    pitchDecay: voiceParams.pitchDecay,
+                    quality: voiceParams.quality,
+                    stretchMode: voiceParams.stretchMode,
+                    lockToSequencer: voiceParams.lockToSequencer
+                };
+                
+                // If lockToSequencer is enabled, quantize to active sequencer steps
+                let finalNotes = notes;
+                if (voiceParams.lockToSequencer && typeof notes === 'string') {
+                    const activeSteps = seq.steps.map((s, i) => s ? i : -1).filter(i => i !== -1);
+                    if (activeSteps.length > 0) {
+                        // Find nearest active step to quantize to
+                        const currentStepIndex = activeSteps.findIndex(s => s >= step) || 0;
+                        const targetStep = activeSteps[currentStepIndex] ?? activeSteps[0];
+                        const targetStepData = seq.steps[targetStep];
+                        if (targetStepData?.note) {
+                            finalNotes = targetStepData.chord 
+                                ? [targetStepData.note, ...targetStepData.chord] 
+                                : targetStepData.note;
+                        }
+                    }
+                }
+                
+                audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, noteParams);
             }
         });
 
@@ -763,16 +880,53 @@ export const App: React.FC = () => {
         const time = audioEngine.context.currentTime;
         if (selectedTrack === 'partA') { const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time, 'partA'); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
         else if (selectedTrack === 'partB') { const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time, 'partB'); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
+        else if (selectedTrack === 'bass2') { 
+            const bass2Params: SynthParams = {
+                waveform: bass2Ref.current.waveform,
+                pitch: bass2Ref.current.pitch,
+                filterCutoff: bass2Ref.current.cutoff,
+                filterResonance: bass2Ref.current.resonance,
+                filterMode: bass2Ref.current.filterMode,
+                attack: 0.01,
+                decay: bass2Ref.current.decay,
+                sustain: 0,
+                release: 0.1,
+                length: 0.25,
+                volume: bass2Ref.current.volume,
+                delayTime: 0,
+                delayFeedback: 0,
+                delayMix: 0,
+            };
+            const maybe = audioEngine.noteOnSynth?.(bass2Params, note, time, 'bass2'); 
+            Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); 
+        }
         else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
         else if (selectedTrack === 'snare') audioEngine.playDrum('snare', snareRef.current, time);
         else if (selectedTrack === 'closedHat') audioEngine.playDrum('closedHat', closedHatRef.current, time);
         else if (selectedTrack === 'openHat') audioEngine.playDrum('openHat', openHatRef.current, time);
-        else if (selectedTrack === 'sampler') { const bankParams = samplerRef.current[activeSamplerBank]; const id = audioEngine.noteOnSampler?.(bankParams, note, time) ?? null; if (id) activeKeyboardNotesRef.current.set(note, id); }
+        else if (selectedTrack === 'sampler') { 
+            // Merge sampler voice params with bank params for keyboard playback
+            const voiceParams = samplerVoiceParamsRef.current;
+            const bankParams = {
+                ...samplerRef.current[activeSamplerBank],
+                rootNote: voiceParams.rootNote,
+                coarseTune: voiceParams.coarseTune,
+                fineTune: voiceParams.fineTune,
+                formantShift: voiceParams.formantShift,
+                pitchAttack: voiceParams.pitchAttack,
+                pitchDecay: voiceParams.pitchDecay,
+                quality: voiceParams.quality,
+                stretchMode: voiceParams.stretchMode,
+                lockToSequencer: voiceParams.lockToSequencer
+            };
+            const id = audioEngine.noteOnSampler?.(bankParams, note, time) ?? null; 
+            if (id) activeKeyboardNotesRef.current.set(note, id); 
+        }
         const step = currentStepRef.current;
         if (isRecording && isPlaying && step >= 0) { setPattern(prev => { const copy = JSON.parse(JSON.stringify(prev)) as Pattern; if (selectedTrack === 'sampler') { copy.sampler[activeSamplerBank].steps[step] = { note, velocity: 1, length: 1 }; updateStorageForTrack('sampler', copy.sampler); } else { copy[selectedTrack].steps[step] = { note, velocity: 1, length: 1 }; updateStorageForTrack(selectedTrack, copy[selectedTrack]); } return copy; }); }
     }, [audioEngine, selectedTrack, isRecording, isPlaying, updateStorageForTrack, activeSamplerBank]);
 
-    const handleKeyboardStop = useCallback((note: string) => { if (!audioEngine) return; const id = activeKeyboardNotesRef.current.get(note); if (!id) return; if (selectedTrack === 'partA' || selectedTrack === 'partB') { audioEngine.noteOffSynth?.(id); } else if (selectedTrack === 'sampler') { audioEngine.noteOffSampler?.(id); } activeKeyboardNotesRef.current.delete(note); }, [audioEngine, selectedTrack]);
+    const handleKeyboardStop = useCallback((note: string) => { if (!audioEngine) return; const id = activeKeyboardNotesRef.current.get(note); if (!id) return; if (selectedTrack === 'partA' || selectedTrack === 'partB' || selectedTrack === 'bass2') { audioEngine.noteOffSynth?.(id); } else if (selectedTrack === 'sampler') { audioEngine.noteOffSampler?.(id); } activeKeyboardNotesRef.current.delete(note); }, [audioEngine, selectedTrack]);
     const handleRightMouseDown = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); let stepData = null; if (track === 'sampler') { stepData = patternRef.current.sampler[activeSamplerBankRef.current].steps[step]; } else { stepData = patternRef.current[track].steps[step]; } if (!stepData) return; setIsNoteDragging(true); const startMidi = noteToMidi(stepData.note); noteDragRef.current = { track, step, startY: e.clientY, startMidi, hasMoved: false, lastMidi: startMidi }; document.body.style.cursor = 'ns-resize'; }, []);
     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
         if (!isNoteDragging || !noteDragRef.current) return;
@@ -953,13 +1107,13 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     };
 
-    const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })), } as any as Pattern; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
+    const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern: Pattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, bass2: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })), }; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => { handlePatternChange(k, i, undefined, { length: len }); }, [handlePatternChange]);
     const handleSongModeToggle = useCallback(() => setIsSongModeOpen(prev => !prev), []);
     const handleSongStructureUpdate = useCallback((idx: number, key: TrackKey, val: number | null) => { setSongStructure(prev => { const copy = [...prev]; copy[idx] = { ...copy[idx], [key]: val }; return copy; }); }, []);
-    const handleAddMeasure = useCallback(() => setSongStructure(prev => [...prev, { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }]), []);
+    const handleAddMeasure = useCallback(() => setSongStructure(prev => [...prev, { partA: null, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }]), []);
     const handleExportXM = useCallback(() => { exportSongToXM(songStructureRef.current, trackStorageRef.current, { synthA: synthARef.current, synthB: synthBRef.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, tempoRef.current, patternRef.current, { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide: pyodide }, sampleBuffers); }, [audioEngine, pyodide, sampleBuffers]);
     const handleRemoveMeasure = useCallback(() => { const currentStructure = songStructure; if (currentStructure.length === 0) return; const last = currentStructure[currentStructure.length - 1]; const hasData = Object.values(last).some(v => v !== null); if (hasData) { if (!window.confirm("The last measure contains patterns. Are you sure you want to remove it?")) return; } setSongStructure(prev => prev.slice(0, -1)); }, [songStructure]);
     const handleLoadSample = useCallback(async (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => {
@@ -979,16 +1133,17 @@ export const App: React.FC = () => {
         }
     }, [audioEngine, activeSamplerBank, ttsPhrases]);
 
-    const handleSaveSong = async (slot: number) => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); const snapshot: SongSnapshot = { pattern, tempo, ambianceUrl, backgroundImage, params: { synthA, synthB, kick, snare, closedHat, openHat, sampler } }; setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; }); setActiveSongSlot(slot); };
-    const loadSong = useCallback((slot: number) => { const snapshot = songStorage[slot]; if (!snapshot) return; setPattern(snapshot.pattern); setTempo(snapshot.tempo); setAmbianceUrl(snapshot.ambianceUrl); setBackgroundImage(snapshot.backgroundImage); setSynthA(snapshot.params.synthA); setSynthB(snapshot.params.synthB); setKick(snapshot.params.kick); setSnare(snapshot.params.snare); setClosedHat(snapshot.params.closedHat); setOpenHat(snapshot.params.openHat); setSampler(snapshot.params.sampler); setActiveSongSlot(slot); synthARef.current = snapshot.params.synthA; synthBRef.current = snapshot.params.synthB; kickRef.current = snapshot.params.kick; snareRef.current = snapshot.params.snare; closedHatRef.current = snapshot.params.closedHat; openHatRef.current = snapshot.params.openHat; samplerRef.current = snapshot.params.sampler; }, [songStorage]);
-    const getSongData = useCallback(async () => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); return { version: 1, pattern: patternRef.current, tempo: tempoRef.current, ambianceUrl, backgroundImage, params: { synthA: synthARef.current, synthB: synthBRef.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, trackStorage: trackStorageRef.current, activeTrackSlots: activeTrackSlotsRef.current, songStructure: songStructureRef.current, embeddedSamples: encodedSamples, ttsPhrases } as SavedSongData; }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
+    const handleSaveSong = async (slot: number) => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); const snapshot: SongSnapshot = { pattern, tempo, ambianceUrl, backgroundImage, params: { synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler } }; setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; }); setActiveSongSlot(slot); };
+    const loadSong = useCallback((slot: number) => { const snapshot = songStorage[slot]; if (!snapshot) return; setPattern(snapshot.pattern); setTempo(snapshot.tempo); setAmbianceUrl(snapshot.ambianceUrl); setBackgroundImage(snapshot.backgroundImage); setSynthA(snapshot.params.synthA); setSynthB(snapshot.params.synthB); setBass2(snapshot.params.bass2 ?? DEFAULT_BASS2_PARAMS); setKick(snapshot.params.kick); setSnare(snapshot.params.snare); setClosedHat(snapshot.params.closedHat); setOpenHat(snapshot.params.openHat); setSampler(snapshot.params.sampler); setActiveSongSlot(slot); synthARef.current = snapshot.params.synthA; synthBRef.current = snapshot.params.synthB; bass2Ref.current = snapshot.params.bass2 ?? DEFAULT_BASS2_PARAMS; kickRef.current = snapshot.params.kick; snareRef.current = snapshot.params.snare; closedHatRef.current = snapshot.params.closedHat; openHatRef.current = snapshot.params.openHat; samplerRef.current = snapshot.params.sampler; }, [songStorage]);
+    const getSongData = useCallback(async () => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); return { version: 1, pattern: patternRef.current, tempo: tempoRef.current, ambianceUrl, backgroundImage, params: { synthA: synthARef.current, synthB: synthBRef.current, bass2: bass2Ref.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, trackStorage: trackStorageRef.current, activeTrackSlots: activeTrackSlotsRef.current, songStructure: songStructureRef.current, embeddedSamples: encodedSamples, ttsPhrases } as SavedSongData; }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
     const getBankData = useCallback(() => { return { type: 'bank', trackStorage }; }, [trackStorage]);
     const getPatternData = useCallback(() => { return { type: 'pattern', pattern }; }, [pattern]);
-    const loadCloudData = useCallback(async (data: any, type: CloudItemType) => { console.log("Loading Cloud Data:", type, data); if (type === 'song') { const songData = data as SavedSongData; if (songData.pattern) setPattern(songData.pattern); if (songData.tempo) setTempo(songData.tempo); if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl); if (songData.backgroundImage !== undefined) setBackgroundImage(songData.backgroundImage); if (songData.params) { if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; } if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; } if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; } if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; } if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; } if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; } if (songData.params.sampler) { const samplerWithMode = songData.params.sampler.map(bank => ({ ...bank, mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable' })); setSampler(samplerWithMode); samplerRef.current = samplerWithMode; } } if (songData.trackStorage) setTrackStorage(songData.trackStorage as unknown as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>); if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots as unknown as Record<TrackKey, number>); if (songData.songStructure) setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]); if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) { setTtsPhrases(songData.ttsPhrases); } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) { const normalized = Array(8).fill("Hello World"); songData.ttsPhrases.forEach((phrase, idx) => { if (idx < 8) normalized[idx] = phrase || "Hello World"; }); setTtsPhrases(normalized); } else { setTtsPhrases(Array(8).fill("Hello World")); } if (songData.embeddedSamples && audioEngine) { const loadedBuffers = new Array(8).fill(null); await Promise.all(Object.entries(songData.embeddedSamples).map(async ([idx, b64]) => { try { const fetchRes = await fetch(b64); const arrayBuf = await fetchRes.arrayBuffer(); const audioBuf = await audioEngine.context.decodeAudioData(arrayBuf); const bankIdx = parseInt(idx); const bankName = `bank_${bankIdx}`; audioEngine.loadSampleToEngine(bankName, audioBuf); loadedBuffers[bankIdx] = audioBuf; } catch (e) { console.error(`Failed to load sample bank ${idx}`, e); } })); setSampleBuffers(loadedBuffers); } showToast("Song loaded!", "success"); } else if (type === 'bank') { if (data.trackStorage) { setTrackStorage(data.trackStorage); showToast("Pattern Bank loaded!", "success"); } } else if (type === 'pattern') { if (data.pattern) { setPattern(data.pattern); showToast("Pattern loaded!", "success"); } } }, [audioEngine, sampleBuffers, showToast]);
+    const loadCloudData = useCallback(async (data: any, type: CloudItemType) => { console.log("Loading Cloud Data:", type, data); if (type === 'song') { const songData = data as SavedSongData; if (songData.pattern) setPattern(songData.pattern); if (songData.tempo) setTempo(songData.tempo); if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl); if (songData.backgroundImage !== undefined) setBackgroundImage(songData.backgroundImage); if (songData.params) { if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; } if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; } if (songData.params.bass2) { setBass2(songData.params.bass2); bass2Ref.current = songData.params.bass2; } if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; } if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; } if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; } if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; } if (songData.params.sampler) { const samplerWithMode = songData.params.sampler.map(bank => ({ ...bank, mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable' })); setSampler(samplerWithMode); samplerRef.current = samplerWithMode; } } if (songData.trackStorage) setTrackStorage(songData.trackStorage as unknown as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>); if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots as unknown as Record<TrackKey, number>); if (songData.songStructure) setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]); if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) { setTtsPhrases(songData.ttsPhrases); } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) { const normalized = Array(8).fill("Hello World"); songData.ttsPhrases.forEach((phrase, idx) => { if (idx < 8) normalized[idx] = phrase || "Hello World"; }); setTtsPhrases(normalized); } else { setTtsPhrases(Array(8).fill("Hello World")); } if (songData.embeddedSamples && audioEngine) { const loadedBuffers = new Array(8).fill(null); await Promise.all(Object.entries(songData.embeddedSamples).map(async ([idx, b64]) => { try { const fetchRes = await fetch(b64); const arrayBuf = await fetchRes.arrayBuffer(); const audioBuf = await audioEngine.context.decodeAudioData(arrayBuf); const bankIdx = parseInt(idx); const bankName = `bank_${bankIdx}`; audioEngine.loadSampleToEngine(bankName, audioBuf); loadedBuffers[bankIdx] = audioBuf; } catch (e) { console.error(`Failed to load sample bank ${idx}`, e); } })); setSampleBuffers(loadedBuffers); } showToast("Song loaded!", "success"); } else if (type === 'bank') { if (data.trackStorage) { setTrackStorage(data.trackStorage); showToast("Pattern Bank loaded!", "success"); } } else if (type === 'pattern') { if (data.pattern) { setPattern(data.pattern); showToast("Pattern loaded!", "success"); } } }, [audioEngine, sampleBuffers, showToast]);
     const exportSongToFile = useCallback(async () => { const songData = await getSongData(); const jsonStr = JSON.stringify(songData, null, 2); const blob = new Blob([jsonStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `hyphon-song-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }, [getSongData]);
     const importSongFromFile = useCallback(() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = async (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; try { const text = await file.text(); const songData = JSON.parse(text); await loadCloudData(songData, 'song'); } catch (err) { console.error('Failed to load song:', err); showToast("Failed to load song file.", "error"); } }; input.click(); }, [loadCloudData, showToast]);
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal }); }, [updateSynthA, updateSynthB]);
+    const handleBass2Change = useCallback((id: string, val: number) => { let realVal = val; if (id === 'waveform') realVal = val > 0.5 ? 1 : 0; else if (id === 'cutoff') realVal = val * 8000; else if (id === 'resonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'pitch') realVal = Math.floor(val * 48 - 24); updateBass2({ [id]: realVal }); }, [updateBass2]);
     const handleKickChange = useCallback((id: string, val: number) => { let realVal = val; if (id === 'pitch') realVal = val * 130 + 20; updateKick({ [id]: realVal }); }, [updateKick]);
     const handleSnareChange = useCallback((id: string, val: number) => { let realVal = val; if (id === 'tone') realVal = val * 300 + 100; else if (id === 'noise') realVal = val * 7000 + 1000; else if (id === 'decay') realVal = val * 0.5; updateSnare({ [id]: realVal }); }, [updateSnare]);
     const handleClosedHatChange = useCallback((id: string, val: number) => updateClosedHat({ [id]: val }), [updateClosedHat]);
@@ -1098,9 +1253,11 @@ export const App: React.FC = () => {
 
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
+    const onBass2ParamChange = useCallback((id: string, v: number) => handleBass2Change(id, v), [handleBass2Change]);
 
     const synthAControls = useStableKnobConfig(getSynthControls, synthA);
     const synthBControls = useStableKnobConfig(getSynthControls, synthB);
+    const bass2Controls = useStableKnobConfig(getBass2Controls, bass2);
     const kickControls = useStableKnobConfig(getKickControls, kick);
     const snareControls = useStableKnobConfig(getSnareControls, snare);
     const closedHatControls = useStableKnobConfig(getClosedHatControls, closedHat);
@@ -1109,6 +1266,7 @@ export const App: React.FC = () => {
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
+    const bass2Child = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><div className="flex flex-col gap-2"><button onClick={() => updateBass2({ waveform: '303-saw' })} className={`px-3 py-1 text-xs font-bold rounded ${bass2.waveform === '303-saw' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-300'}`}>SAW</button><button onClick={() => updateBass2({ waveform: '303-sqr' })} className={`px-3 py-1 text-xs font-bold rounded ${bass2.waveform === '303-sqr' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-300'}`}>SQR</button></div></div>), [bass2.waveform, updateBass2]);
     const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing]);
 
     // --- RENDER PARTS FOR 3D ---
@@ -1345,7 +1503,7 @@ export const App: React.FC = () => {
 
     const keyboardNode = useMemo(() => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
-            <LiveKeyboard onPlayNote={handleKeyboardPlay} onStopNote={handleKeyboardStop} activeTrackColor={selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') : selectedTrack === 'kick' ? '#f97316' : selectedTrack === 'snare' ? '#22c55e' : selectedTrack === 'sampler' ? '#a855f7' : '#eab308'} />
+            <LiveKeyboard onPlayNote={handleKeyboardPlay} onStopNote={handleKeyboardStop} activeTrackColor={selectedTrack.startsWith('part') ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef') : selectedTrack === 'bass2' ? '#ff0066' : selectedTrack === 'kick' ? '#f97316' : selectedTrack === 'snare' ? '#22c55e' : selectedTrack === 'sampler' ? '#a855f7' : '#eab308'} />
         </div>
     ), [selectedTrack, handleKeyboardPlay, handleKeyboardStop]);
 
@@ -1355,6 +1513,7 @@ export const App: React.FC = () => {
         let modulePanel = null;
         if (selectedTrack === 'partA') modulePanel = <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange} is3D={is3DMode}>{synthAChild}</HardwareModule>;
         else if (selectedTrack === 'partB') modulePanel = <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange} is3D={is3DMode}>{synthBChild}</HardwareModule>;
+        else if (selectedTrack === 'bass2') modulePanel = <HardwareModule title="BASS 2 // TB-303" colorHex={COLOR_BASS2} controls={bass2Controls} onParamChange={onBass2ParamChange} is3D={is3DMode}>{bass2Child}</HardwareModule>;
         else if (selectedTrack === 'kick') modulePanel = <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} is3D={is3DMode} />;
         else if (selectedTrack === 'snare') modulePanel = <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} is3D={is3DMode} />;
         else if (selectedTrack === 'closedHat') modulePanel = <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} is3D={is3DMode} />;
@@ -1369,6 +1528,9 @@ export const App: React.FC = () => {
                     is3D={is3DMode}
                     {...samplerVoiceParams}
                     onSamplerParamChange={handleSamplerVoiceChange}
+                    harmonizerConfig={harmonizerConfig}
+                    onHarmonizerConfigChange={handleHarmonizerConfigChange}
+                    isHarmonizeActive={isHarmonizeActive}
                 >
                     {samplerChild}
                 </SamplerVoicePanel>
@@ -1398,7 +1560,7 @@ export const App: React.FC = () => {
                 </div>
             </div>
         );
-    }, [is3DMode, selectedTrack, activeSamplerBank, synthAControls, synthBControls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, samplerChild, samplerVoiceParams, handleSamplerVoiceChange]);
+    }, [is3DMode, selectedTrack, activeSamplerBank, synthAControls, synthBControls, bass2Controls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, onBass2ParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, bass2Child, samplerChild, samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig, isHarmonizeActive, handleHarmonizerConfigChange]);
 
     // --- MAIN RENDER ---
     if (is3DMode) {

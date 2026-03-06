@@ -193,6 +193,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       }
 
       const phonemeIndex = stepData?.sliceIndex; // Use sliceIndex as phoneme index
+      const phonemes = stepData?.phonemes; // Pass phoneme data for display
 
       renderedSteps.push(
         <MelodicStep
@@ -202,6 +203,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           note={stepData?.note || null}
           pitch={pitch}
           phonemeIndex={phonemeIndex}
+          phonemes={phonemes}
           length={length}
           isSlide={!!stepData?.slide}
           isCurrent={i === lastActiveIndexRef.current}

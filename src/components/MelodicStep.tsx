@@ -43,6 +43,7 @@ interface MelodicStepProps {
   pitch?: number;
   pitchOffset?: number; // Added to interface to fix TS error
   phonemeIndex?: number;
+  phonemes?: { id: string; symbol: string; start: number; end: number; pitchBend: number }[]; // Phoneme data for display
   length?: number;
   isSlide?: boolean;
   isCurrent?: boolean;
@@ -64,6 +65,7 @@ export const MelodicStep = memo(({
   pitch = 60,
   // pitchOffset - reserved for future microtonal control
   phonemeIndex,
+  phonemes,
   length = 1,
   isSlide,
   isCurrent,
@@ -101,6 +103,12 @@ export const MelodicStep = memo(({
   const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Check for Alt+Click - pass through to onToggle for PhonemePainter
+    if (e.altKey && active) {
+      onToggle(rowKey, stepIndex, e);
+      return;
+    }
+    
     if (e.button === 2) {
       // Right click - handle length edit if shift is held
       if (e.shiftKey && onEditLength && active) {
@@ -349,6 +357,25 @@ export const MelodicStep = memo(({
             style={{ pointerEvents: 'none' }}
           >
             {phonemeIndex}
+          </text>
+        </g>
+      )}
+      
+      {/* Phoneme data indicator (shows 'P' badge when phonemes array exists) */}
+      {phonemes && phonemes.length > 0 && (
+        <g transform={`translate(${totalWidth - 20}, phonemeIndex !== undefined ? 24 : 8})`}>
+          <circle r={8} fill="#06b6d4" fillOpacity={0.8} />
+          <text
+            x={0}
+            y={3}
+            textAnchor="middle"
+            fontSize={7}
+            fill="#000"
+            fontWeight="bold"
+            fontFamily="monospace"
+            style={{ pointerEvents: 'none' }}
+          >
+            P
           </text>
         </g>
       )}

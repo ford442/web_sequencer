@@ -248,12 +248,20 @@ export class SingingVoice {
 
     /**
      * Set pitch from MIDI note number relative to base note.
-     * @param targetMidiNote Target MIDI note for pitch shifting
-     * @param baseMidiNote Base MIDI note (default: C4 = 60)
+     * Supports coarse/fine tuning offsets.
+     * 
+     * @param targetMidiNote Target MIDI note for pitch shifting (can include fractional cents)
+     * @param baseMidiNote Base MIDI note (default: C4 = 60) - the root note of the sample
      * @param time Optional time to apply the change (default: now)
+     * @param coarseTune Optional coarse tuning in semitones (-24 to +24)
+     * @param fineTune Optional fine tuning in cents (-50 to +50)
      */
-    setPitchFromMidi(targetMidiNote: number, baseMidiNote: number = 60, time?: number): void {
-        const targetFreq = midiToFreq(targetMidiNote);
+    setPitchFromMidi(targetMidiNote: number, baseMidiNote: number = 60, time?: number, coarseTune: number = 0, fineTune: number = 0): void {
+        // Apply coarse and fine tuning offsets
+        const totalSemitoneOffset = coarseTune + (fineTune / 100);
+        const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
+        
+        const targetFreq = midiToFreq(adjustedTargetMidi);
         const baseFreq = midiToFreq(baseMidiNote);
         
         // Calculate pitch ratio, clamped to optimal range for best quality
@@ -261,6 +269,22 @@ export class SingingVoice {
         pitchRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, pitchRatio));
         
         this.setPitch(pitchRatio, time);
+    }
+    
+    /**
+     * Get the current configuration.
+     * Useful for checking quality settings and other parameters.
+     */
+    getConfig(): SingingVoiceConfig {
+        return { ...this.config };
+    }
+    
+    /**
+     * Update configuration at runtime.
+     * Note: Some settings may require re-initialization to take effect.
+     */
+    setConfig(updates: Partial<SingingVoiceConfig>): void {
+        this.config = { ...this.config, ...updates };
     }
     
     /**
