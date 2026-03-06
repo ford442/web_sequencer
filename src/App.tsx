@@ -1749,6 +1749,13 @@ export const App: React.FC = () => {
                         📂 LOAD
                     </button>
                     <button 
+                        disabled
+                        className="h-6 px-2 text-[10px] font-bold text-amber-600/50 bg-zinc-900/50 border border-amber-900/30 rounded cursor-not-allowed opacity-60" 
+                        title="Coming soon — basic skeleton ready"
+                    >
+                        🎹 Import .rbs File...
+                    </button>
+                    <button 
                         onClick={() => setIsCloudLibraryOpen(true)} 
                         className="h-6 px-2 text-[10px] font-bold text-purple-400 bg-zinc-900 border border-purple-900/50 rounded hover:bg-purple-950/30 transition-all" 
                         title="Cloud Library"
