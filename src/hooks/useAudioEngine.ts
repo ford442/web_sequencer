@@ -286,6 +286,19 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 console.warn('SingingVoiceManager failed to init:', e);
             }
 
+            // Initialize Harmonizer for layered vocal harmonies
+            try {
+                harmonizerRef.current = new Harmonizer({
+                    voiceCount: 2,
+                    harmonyType: 'third',
+                    detuneSpread: 15,
+                    formantSpread: 3
+                });
+                console.log('[useAudioEngine] Harmonizer initialized');
+            } catch (e) {
+                console.warn('Harmonizer failed to init:', e);
+            }
+
             // Noise Buffer
             const bufferSize = context.sampleRate * 2;
             const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
@@ -1118,26 +1131,6 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
         // No harmonize - play normally
         playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0);
     };
-                    const midi = noteToMidi(noteStr);
-
-                    if (shouldGlitch) {
-                         const numStutters = Math.floor(Math.random() * 3) + 2;
-                         const stutterLen = 0.06;
-
-                         for (let i = 0; i < numStutters; i++) {
-                             playBufferSource(actualTime + i * stutterLen, stutterLen, midi);
-                         }
-                         // Trigger full note after stutters
-                         playBufferSource(actualTime + numStutters * stutterLen, 0, midi);
-                    } else {
-                         // Normal or Retrigger Playback
-                         for (let r = 0; r < retrigger; r++) {
-                            const offset = r * (subDurationSteps * stepTime);
-                            playBufferSource(actualTime + offset, subDurationSteps * stepTime, midi);
-                         }
-                    }
-                });
-            };
 
             const noteOnSampler = (params: SamplerBankParams, note: string, time?: number): number | null => {
                 // Interactive trigger (e.g. keyboard) with multisample support
@@ -1341,6 +1334,13 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
             const processSpoon = async (_sampleName: string, _note: string) => null;
             const setSustainMode = (_mode: 'loop' | 'stretch' | 'wavetable') => {};
             const setSustainGrainSize = (_size: number) => {};
+            const setHarmonizerConfig = (config: HarmonizerConfig, isActive: boolean) => {
+                if (harmonizerRef.current) {
+                    harmonizerRef.current.setConfig(config);
+                    harmonizerRef.current.setActive(isActive);
+                    console.log('[useAudioEngine] Harmonizer config updated:', config, 'active:', isActive);
+                }
+            };
 
 
             // Re-assign to state

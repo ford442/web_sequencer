@@ -24,12 +24,30 @@ const SEQUENCER_STYLES = `
 const TRACK_COLORS: Record<string, string> = {
     partA: '#06b6d4',
     partB: '#d946ef',
-    bass2: '#ff0066',
+    bass2: '#ff0066', // Hot pink for TB-303 style
     kick: '#f97316',
     snare: '#22c55e',
     closedHat: '#eab308',
     openHat: '#eab308',
     sampler: '#a855f7',
+};
+
+// TB-303 styling for bass2 track
+const getTrackStyles = (rowKey: string, isSelected: boolean) => {
+    if (rowKey === 'bass2') {
+        return {
+            labelColor: isSelected ? '#ff0066' : '#9ca3af',
+            glowEffect: isSelected ? '0 0 10px rgba(255,0,102,0.6)' : 'none',
+            bgGradient: isSelected 
+                ? 'linear-gradient(90deg, rgba(255,0,102,0.15) 0%, transparent 100%)'
+                : 'transparent'
+        };
+    }
+    return {
+        labelColor: isSelected ? TRACK_COLORS[rowKey] || '#3fa34d' : '#5a6b60',
+        glowEffect: isSelected ? `0 0 8px ${TRACK_COLORS[rowKey]}80` : 'none',
+        bgGradient: 'transparent'
+    };
 };
 
 export const ROWS = [
@@ -415,8 +433,42 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
             <g className="track-label" onClick={() => onSelectRow(rowKey)} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRow(rowKey); } }}>
-                {isSelected && <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />}
-                <text x={-20} y={30} textAnchor="end" fontFamily="Orbitron, monospace" fontSize={12} fill={isSelected ? '#3fa34d' : '#5a6b60'} fontWeight={isSelected ? 'bold' : 'normal'} style={{ textShadow: isSelected ? '0 0 8px rgba(63,163,77,0.5)' : 'none' }}>{label.toUpperCase()}</text>
+                {isSelected && (
+                    <rect 
+                        x={-10} 
+                        y={8} 
+                        width={4} 
+                        height={36} 
+                        fill={rowKey === 'bass2' ? '#ff0066' : '#3fa34d'} 
+                        rx={2}
+                        style={rowKey === 'bass2' ? { filter: 'drop-shadow(0 0 6px rgba(255,0,102,0.8))' } : undefined}
+                    />
+                )}
+                {/* TB-303 style accent for bass2 when selected */}
+                {rowKey === 'bass2' && isSelected && (
+                    <rect x={-15} y={6} width={2} height={40} fill="#ff0066" opacity={0.3} rx={1} />
+                )}
+                <text 
+                    x={-20} 
+                    y={30} 
+                    textAnchor="end" 
+                    fontFamily="Orbitron, monospace" 
+                    fontSize={12} 
+                    fill={rowKey === 'bass2' ? (isSelected ? '#ff0066' : '#9ca3af') : (isSelected ? '#3fa34d' : '#5a6b60')} 
+                    fontWeight={isSelected ? 'bold' : 'normal'} 
+                    style={{ 
+                        textShadow: isSelected 
+                            ? (rowKey === 'bass2' ? '0 0 10px rgba(255,0,102,0.7)' : '0 0 8px rgba(63,163,77,0.5)')
+                            : 'none',
+                        letterSpacing: rowKey === 'bass2' ? '0.05em' : 'normal'
+                    }}
+                >
+                    {label.toUpperCase()}
+                </text>
+                {/* TB-303 silver/chrome hint line */}
+                {rowKey === 'bass2' && (
+                    <line x1={-65} y1={36} x2={-20} y2={36} stroke={isSelected ? '#ff0066' : '#4b5563'} strokeWidth={1} opacity={isSelected ? 0.5 : 0.3} />
+                )}
             </g>
             <g transform="translate(30, 16)">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))}
