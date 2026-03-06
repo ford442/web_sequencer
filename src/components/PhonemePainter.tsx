@@ -118,29 +118,31 @@ const PhonemeBlock = memo(({
     };
     
     const handlePointerUp = (ev: PointerEvent) => {
-      target.removeEventListener('pointermove', handlePointerMove as any);
-      target.removeEventListener('pointerup', handlePointerUp as any);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
       target.releasePointerCapture(ev.pointerId);
       setIsDragging(false);
     };
     
-    target.addEventListener('pointermove', handlePointerMove as any);
-    target.addEventListener('pointerup', handlePointerUp as any);
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
   }, [phoneme.id, phoneme.start, onDrag, onSelect]);
 
   return (
     <div
       className={`absolute top-8 h-16 rounded-lg flex flex-col overflow-hidden select-none transition-all duration-100 ${
         isSelected 
-          ? 'ring-2 ring-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)] z-20' 
+          ? 'ring-2 ring-cyan-400 z-20' 
           : 'hover:ring-1 hover:ring-white/30 z-10'
       } ${isDragging ? 'cursor-grabbing opacity-90' : 'cursor-grab'}`}
       style={{
         left,
         width,
-        background: `linear-gradient(180deg, ${color}40 0%, ${color}20 50%, #18181b 100%)`,
+        background: `linear-gradient(180deg, ${color}50 0%, ${color}30 40%, ${color}10 100%)`,
         border: `1px solid ${color}`,
-        boxShadow: isDragging ? `0 8px 30px ${color}60, inset 0 1px 0 rgba(255,255,255,0.1)` : 'inset 0 1px 0 rgba(255,255,255,0.05)'
+        boxShadow: isSelected 
+          ? `0 0 20px ${color}60, inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.4)` 
+          : `0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)`
       }}
     >
       {/* Main block content */}
@@ -148,28 +150,31 @@ const PhonemeBlock = memo(({
         className="flex-1 flex flex-col items-center justify-center relative"
         onPointerDown={handlePointerDown}
       >
+        {/* Glossy highlight overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+        
         {/* Phoneme symbol */}
-        <span className="text-xs font-bold text-white font-mono drop-shadow-md tracking-wider">
+        <span className="text-xs font-bold text-white font-mono drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] tracking-wider relative z-10">
           {phoneme.symbol}
         </span>
         
         {/* Phoneme name */}
-        <span className="text-[9px] text-white/60 font-mono">
+        <span className="text-[9px] text-white/70 font-mono relative z-10">
           {displayName}
         </span>
         
-        {/* Pitch bend indicator */}
+        {/* Pitch bend indicator with LED style */}
         {phoneme.pitchBend !== 0 && (
-          <span className={`text-[8px] font-mono mt-0.5 ${phoneme.pitchBend > 0 ? 'text-cyan-400' : 'text-purple-400'}`}>
+          <span className={`text-[8px] font-mono mt-0.5 px-1 py-0.5 rounded bg-black/30 border ${phoneme.pitchBend > 0 ? 'text-cyan-400 border-cyan-500/30' : 'text-purple-400 border-purple-500/30'}`}>
             {phoneme.pitchBend > 0 ? '▲' : '▼'}{Math.abs(phoneme.pitchBend)}¢
           </span>
         )}
         
-        {/* Delete button - visible on hover/selected */}
+        {/* Delete button - hardware style */}
         {isSelected && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(phoneme.id); }}
-            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-500 text-white text-xs flex items-center justify-center shadow-lg border border-red-400/50 transition-colors"
+            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white text-xs flex items-center justify-center shadow-lg border border-red-400/50 transition-all"
             title="Delete phoneme"
           >
             ×
@@ -177,34 +182,36 @@ const PhonemeBlock = memo(({
         )}
       </div>
       
-      {/* Resize handles */}
+      {/* Resize handles - improved visibility */}
       {isSelected && (
         <>
           <div
-            className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize bg-gradient-to-r from-white/20 to-transparent hover:from-white/40 transition-colors flex items-center justify-center"
+            className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize bg-gradient-to-r from-white/25 to-transparent hover:from-white/40 transition-all flex items-center justify-center group"
             onPointerDown={(e) => { e.stopPropagation(); onResizeStart(phoneme.id, 'left'); }}
           >
-            <div className="w-0.5 h-4 bg-white/50 rounded-full" />
+            <div className="w-1 h-6 bg-white/60 rounded-full shadow-sm group-hover:bg-white/80 transition-colors" />
           </div>
           <div
-            className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize bg-gradient-to-l from-white/20 to-transparent hover:from-white/40 transition-colors flex items-center justify-center"
+            className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize bg-gradient-to-l from-white/25 to-transparent hover:from-white/40 transition-all flex items-center justify-center group"
             onPointerDown={(e) => { e.stopPropagation(); onResizeStart(phoneme.id, 'right'); }}
           >
-            <div className="w-0.5 h-4 bg-white/50 rounded-full" />
+            <div className="w-1 h-6 bg-white/60 rounded-full shadow-sm group-hover:bg-white/80 transition-colors" />
           </div>
         </>
       )}
       
-      {/* Pitch bend visualization - mini bar on the right */}
-      <div className="absolute right-1 top-1 bottom-1 w-1 bg-black/40 rounded-full overflow-hidden">
+      {/* Pitch bend visualization - mini bar with glow */}
+      <div className="absolute right-1 top-1 bottom-1 w-1.5 bg-black/50 rounded-full overflow-hidden border border-white/10">
         <div 
-          className="absolute left-0 right-0 bg-gradient-to-b from-cyan-400 to-purple-400 rounded-full transition-all"
+          className="absolute left-0 right-0 bg-gradient-to-b from-cyan-400 via-purple-400 to-pink-400 rounded-full transition-all shadow-[0_0_6px_rgba(168,85,247,0.6)]"
           style={{ 
             top: `${Math.min(100, Math.max(0, pitchPercent))}%`, 
             bottom: `${Math.min(100, Math.max(0, 100 - pitchPercent))}%`,
             height: phoneme.pitchBend === 0 ? '2px' : undefined
           }}
         />
+        {/* Center marker */}
+        <div className="absolute left-0 right-0 top-1/2 h-px bg-white/30" />
       </div>
     </div>
   );
@@ -386,21 +393,26 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
     const ph = phonemes.find(p => p.id === id);
     if (!ph) return;
     
+    const startX = (e: PointerEvent) => e.clientX;
+    let initialX = 0;
+    const startValue = side === 'left' ? ph.start : ph.end;
+    
     resizeState.current = {
       id,
       side,
-      startX: 0, // Will be set on first move
-      startValue: side === 'left' ? ph.start : ph.end
+      startX: 0,
+      startValue
     };
     
     const handlePointerMove = (e: PointerEvent) => {
       if (!resizeState.current) return;
       if (resizeState.current.startX === 0) {
         resizeState.current.startX = e.clientX;
+        initialX = e.clientX;
         return;
       }
       
-      const deltaX = e.clientX - resizeState.current.startX;
+      const deltaX = e.clientX - initialX;
       const deltaNormalized = deltaX / TIMELINE_WIDTH;
       
       setPhonemes(prev => {
@@ -411,10 +423,10 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
         const newPhonemes = [...prev];
         
         if (resizeState.current!.side === 'left') {
-          const newStart = Math.max(0, Math.min(p.end - 0.05, resizeState.current!.startValue + deltaNormalized));
+          const newStart = Math.max(0, Math.min(p.end - 0.05, startValue + deltaNormalized));
           newPhonemes[idx] = { ...p, start: newStart };
         } else {
-          const newEnd = Math.max(p.start + 0.05, Math.min(1, resizeState.current!.startValue + deltaNormalized));
+          const newEnd = Math.max(p.start + 0.05, Math.min(1, startValue + deltaNormalized));
           newPhonemes[idx] = { ...p, end: newEnd };
         }
         return newPhonemes;
@@ -522,33 +534,50 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={onClose}
       />
       
-      {/* Popover Container */}
-      <div className="relative w-full max-w-4xl bg-zinc-900 rounded-xl border border-cyan-500/30 shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden">
+      {/* Popover Container with hardware panel aesthetic */}
+      <div 
+        className="relative w-full max-w-4xl rounded-xl border overflow-hidden animate-in fade-in zoom-in duration-200"
+        style={{
+          background: 'linear-gradient(145deg, rgba(24,24,27,0.98), rgba(9,9,11,0.99))',
+          borderColor: 'rgba(6,182,212,0.25)',
+          boxShadow: '0 0 60px rgba(6,182,212,0.15), 0 20px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05)'
+        }}
+      >
+        {/* Holographic border glow */}
+        <div className="absolute inset-0 rounded-xl pointer-events-none" style={{
+          background: 'linear-gradient(135deg, rgba(6,182,212,0.1) 0%, transparent 50%, rgba(168,85,247,0.1) 100%)'
+        }} />
         
-        {/* Decorative screw holes */}
-        <div className="absolute top-3 left-3 w-3 h-3 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center">
-          <div className="w-2 h-[1px] bg-zinc-500 rotate-45" />
+        {/* Decorative screw holes - hardware panel style */}
+        <div className="absolute top-4 left-4 w-3.5 h-3.5 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+          <div className="w-2 h-[1.5px] bg-zinc-500 rotate-45 shadow-sm" />
         </div>
-        <div className="absolute top-3 right-3 w-3 h-3 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center">
-          <div className="w-2 h-[1px] bg-zinc-500 rotate-45" />
+        <div className="absolute top-4 right-4 w-3.5 h-3.5 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+          <div className="w-2 h-[1.5px] bg-zinc-500 rotate-45 shadow-sm" />
         </div>
-        <div className="absolute bottom-3 left-3 w-3 h-3 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center">
-          <div className="w-2 h-[1px] bg-zinc-500 rotate-45" />
+        <div className="absolute bottom-4 left-4 w-3.5 h-3.5 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+          <div className="w-2 h-[1.5px] bg-zinc-500 rotate-45 shadow-sm" />
         </div>
-        <div className="absolute bottom-3 right-3 w-3 h-3 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center">
-          <div className="w-2 h-[1px] bg-zinc-500 rotate-45" />
+        <div className="absolute bottom-4 right-4 w-3.5 h-3.5 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+          <div className="w-2 h-[1.5px] bg-zinc-500 rotate-45 shadow-sm" />
         </div>
         
-        {/* Header */}
-        <div className="relative bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 border-b border-cyan-500/20 px-6 py-4">
-          <div className="flex items-center justify-between">
+        {/* Header with holographic styling */}
+        <div className="relative border-b border-cyan-500/20 px-6 py-4">
+          {/* Holographic header background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-zinc-900 via-zinc-800/80 to-zinc-900" />
+          <div className="absolute inset-0 opacity-30" style={{
+            background: 'linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.1) 30%, rgba(168,85,247,0.1) 70%, transparent 100%)'
+          }} />
+          
+          <div className="flex items-center justify-between relative z-10">
             <div className="flex items-center gap-3">
-              {/* Icon */}
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-cyan-500/30 flex items-center justify-center">
+              {/* Icon with glow */}
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)]">
                 <svg className="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 19l7-7 3 3-7 7-3-3z" />
                   <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
@@ -557,14 +586,18 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 </svg>
               </div>
               <div>
-                <h2 className="text-sm font-bold text-cyan-300 font-mono tracking-wider">PHONEME PAINTER</h2>
-                <p className="text-xs text-zinc-500 font-mono">Step {stepIndex + 1} • {note?.note || 'C4'} • Melodic Sampler</p>
+                <h2 className="text-sm font-bold text-cyan-300 font-mono tracking-wider flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                  PHONEME PAINTER
+                </h2>
+                <p className="text-xs text-zinc-500 font-mono mt-0.5">Step {stepIndex + 1} • {note?.note || 'C4'} • Melodic Sampler</p>
               </div>
             </div>
             
+            {/* Close button - hardware style */}
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-all"
+              className="w-8 h-8 rounded-lg bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
             >
               ×
             </button>
@@ -574,9 +607,12 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
         {/* Main Content */}
         <div className="p-6 space-y-4">
           
-          {/* Waveform Display */}
-          <div className="relative rounded-lg border border-zinc-800 bg-black/50 overflow-hidden">
-            <div className="absolute top-2 left-2 text-[10px] text-zinc-600 font-mono uppercase tracking-wider">Waveform</div>
+          {/* Waveform Display - with improved styling */}
+          <div className="relative rounded-lg border border-zinc-800 bg-black/50 overflow-hidden shadow-[inset_0_2px_8px_rgba(0,0,0,0.5)]">
+            <div className="absolute top-2 left-3 text-[10px] text-zinc-500 font-mono uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-1 h-1 rounded-full bg-cyan-500/50" />
+              Waveform
+            </div>
             <WaveformDisplay 
               audioBuffer={audioBuffer}
               width={TIMELINE_WIDTH}
@@ -586,44 +622,59 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           </div>
           
           {/* Timeline with Draggable Phonemes */}
-          <div className="relative rounded-lg border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Phoneme Timeline</span>
+          <div className="relative rounded-lg border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-1 h-1 rounded-full bg-purple-500/50" />
+                Phoneme Timeline
+              </span>
               <div className="flex items-center gap-2">
                 {alignment && (
                   <button
                     onClick={handleAutoAlign}
                     disabled={isAutoAligning}
-                    className="px-3 py-1.5 text-[10px] font-mono bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white rounded border border-purple-500/50 shadow-[0_2px_8px_rgba(168,85,247,0.3)] disabled:opacity-50 transition-all"
+                    className="px-3 py-1.5 text-[10px] font-mono bg-gradient-to-b from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white rounded-md border border-purple-500/50 shadow-[0_2px_8px_rgba(168,85,247,0.3),inset_0_1px_0_rgba(255,255,255,0.1)] disabled:opacity-50 transition-all"
                   >
-                    {isAutoAligning ? 'Aligning...' : '✨ Auto-Align'}
+                    <span className="flex items-center gap-1">
+                      {isAutoAligning ? '⏳' : '✨'} {isAutoAligning ? 'Aligning...' : 'Auto-Align'}
+                    </span>
                   </button>
                 )}
                 <button
                   onClick={() => setShowAddMenu(!showAddMenu)}
-                  className="px-3 py-1.5 text-[10px] font-mono bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white rounded border border-cyan-500/50 shadow-[0_2px_8px_rgba(6,182,212,0.3)] transition-all"
+                  className="px-3 py-1.5 text-[10px] font-mono bg-gradient-to-b from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white rounded-md border border-cyan-500/50 shadow-[0_2px_8px_rgba(6,182,212,0.3),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all"
                 >
-                  + Add Phoneme
+                  <span className="flex items-center gap-1">+ Add Phoneme</span>
                 </button>
               </div>
             </div>
             
-            {/* Add phoneme menu */}
+            {/* Add phoneme menu - improved styling */}
             {showAddMenu && (
-              <div className="absolute right-4 top-10 z-30 w-64 bg-zinc-900 border border-cyan-500/30 rounded-lg shadow-[0_8px_30px_rgba(0,0,0,0.5)] overflow-hidden">
-                <div className="p-2 border-b border-zinc-800">
-                  <span className="text-xs text-zinc-400 font-mono">Select Phoneme</span>
+              <div 
+                className="absolute right-4 top-10 z-30 w-64 rounded-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(24,24,27,0.98), rgba(9,9,11,0.99))',
+                  border: '1px solid rgba(6,182,212,0.3)',
+                  boxShadow: '0 12px 40px rgba(0,0,0,0.6), 0 0 20px rgba(6,182,212,0.1)'
+                }}
+              >
+                <div className="p-2 border-b border-zinc-800 bg-gradient-to-r from-cyan-950/30 to-transparent">
+                  <span className="text-xs text-cyan-400 font-mono flex items-center gap-1.5">
+                    <span className="w-1 h-1 rounded-full bg-cyan-400" />
+                    Select Phoneme
+                  </span>
                 </div>
                 <div className="max-h-48 overflow-y-auto p-2 space-y-2">
                   {COMMON_PHONEMES.map(group => (
                     <div key={group.cat}>
-                      <div className="text-[9px] text-zinc-600 font-mono uppercase mb-1">{group.cat}</div>
+                      <div className="text-[9px] text-zinc-500 font-mono uppercase mb-1.5 px-1">{group.cat}</div>
                       <div className="flex flex-wrap gap-1">
                         {group.phones.map(ph => (
                           <button
                             key={ph}
                             onClick={() => handleAddPhoneme(ph)}
-                            className="px-2 py-1 text-[10px] font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 hover:border-cyan-500/50 transition-all"
+                            className="px-2 py-1 text-[10px] font-mono bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 text-zinc-300 rounded border border-zinc-700 hover:border-cyan-500/50 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                             style={{ color: getPhonemeColor(ph) }}
                           >
                             {ph}
@@ -639,7 +690,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             {/* Timeline track */}
             <div 
               ref={timelineRef}
-              className="relative h-28 bg-zinc-950/50 rounded border border-zinc-800/50"
+              className="relative h-28 bg-zinc-950/50 rounded-lg border border-zinc-800/50 shadow-[inset_0_2px_8px_rgba(0,0,0,0.5)]"
               style={{ width: TIMELINE_WIDTH }}
               onClick={() => setSelectedId(null)}
             >
@@ -653,6 +704,12 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                   <span className="absolute -top-4 text-[9px] text-zinc-600 font-mono">{i * 12.5}%</span>
                 </div>
               ))}
+              {/* Horizontal grid lines */}
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-1/4 left-0 right-0 h-px bg-zinc-800/30" />
+                <div className="absolute top-1/2 left-0 right-0 h-px bg-zinc-800/30" />
+                <div className="absolute top-3/4 left-0 right-0 h-px bg-zinc-800/30" />
+              </div>
               
               {/* Phoneme blocks */}
               {phonemes.map((ph, idx) => (
@@ -681,8 +738,19 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           
           {/* Selected Phoneme Controls */}
           {selectedPhoneme && (
-            <div className="rounded-lg border border-cyan-500/20 bg-gradient-to-r from-cyan-950/20 to-purple-950/20 p-4">
-              <div className="flex items-center gap-6 flex-wrap">
+            <div 
+              className="rounded-lg border p-4 relative overflow-hidden"
+              style={{
+                borderColor: `${getPhonemeColor(selectedPhoneme.symbol)}40`,
+                background: `linear-gradient(135deg, ${getPhonemeColor(selectedPhoneme.symbol)}15 0%, transparent 100%)`
+              }}
+            >
+              {/* Glow effect */}
+              <div 
+                className="absolute -right-20 -top-20 w-40 h-40 opacity-20 blur-3xl pointer-events-none"
+                style={{ backgroundColor: getPhonemeColor(selectedPhoneme.symbol) }}
+              />
+              <div className="flex items-center gap-6 flex-wrap relative z-10">
                 {/* Phoneme Info */}
                 <div className="flex items-center gap-3">
                   <div 
@@ -775,23 +843,23 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             </div>
           )}
           
-          {/* Legend */}
-          <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-mono">
-            <span className="text-zinc-600">Legend:</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-purple-500" />Vowel</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-500" />Plosive</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-green-500" />Fricative</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-orange-500" />Affricate</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-blue-500" />Nasal</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-cyan-500" />Liquid</span>
+          {/* Legend - improved styling */}
+          <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-mono flex-wrap">
+            <span className="text-zinc-500 uppercase tracking-wider">Legend:</span>
+            <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-950/50 border border-zinc-800"><span className="w-2 h-2 rounded-sm bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.6)]" />Vowel</span>
+            <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-950/50 border border-zinc-800"><span className="w-2 h-2 rounded-sm bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" />Plosive</span>
+            <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-950/50 border border-zinc-800"><span className="w-2 h-2 rounded-sm bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" />Fricative</span>
+            <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-950/50 border border-zinc-800"><span className="w-2 h-2 rounded-sm bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.6)]" />Affricate</span>
+            <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-950/50 border border-zinc-800"><span className="w-2 h-2 rounded-sm bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.6)]" />Nasal</span>
+            <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-950/50 border border-zinc-800"><span className="w-2 h-2 rounded-sm bg-cyan-500 shadow-[0_0_6px_rgba(6,182,212,0.6)]" />Liquid</span>
           </div>
         </div>
         
-        {/* Footer Actions */}
-        <div className="border-t border-zinc-800 bg-zinc-900/50 px-6 py-4 flex items-center justify-between">
+        {/* Footer Actions - hardware style */}
+        <div className="border-t border-zinc-800 bg-zinc-950/50 px-6 py-4 flex items-center justify-between relative">
           <button
             onClick={handleClear}
-            className="px-4 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded border border-transparent hover:border-red-500/30 transition-all"
+            className="px-4 py-2 text-xs font-mono text-red-400 hover:text-red-300 rounded-md border border-red-900/30 bg-gradient-to-b from-red-950/30 to-red-950/10 hover:from-red-950/50 hover:to-red-950/20 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
           >
             Clear All
           </button>
@@ -799,15 +867,16 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-all"
+              className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-white rounded-md bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="px-6 py-2 text-xs font-mono font-bold text-black bg-gradient-to-r from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 rounded border border-cyan-400 shadow-[0_2px_12px_rgba(6,182,212,0.4)] transition-all"
+              className="px-6 py-2 text-xs font-mono font-bold text-black rounded-md bg-gradient-to-b from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 border border-cyan-400 transition-all shadow-[0_4px_16px_rgba(6,182,212,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] relative overflow-hidden group"
             >
-              Save Changes
+              <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500" />
+              <span className="relative">Save Changes</span>
             </button>
           </div>
         </div>

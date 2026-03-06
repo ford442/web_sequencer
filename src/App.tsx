@@ -1266,7 +1266,33 @@ export const App: React.FC = () => {
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
     const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
-    const bass2Child = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><div className="flex flex-col gap-2"><button onClick={() => updateBass2({ waveform: '303-saw' })} className={`px-3 py-1 text-xs font-bold rounded ${bass2.waveform === '303-saw' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-300'}`}>SAW</button><button onClick={() => updateBass2({ waveform: '303-sqr' })} className={`px-3 py-1 text-xs font-bold rounded ${bass2.waveform === '303-sqr' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-300'}`}>SQR</button></div></div>), [bass2.waveform, updateBass2]);
+    const bass2Child = useMemo(() => (
+        <div className="absolute top-4 right-6 pointer-events-auto">
+            <div className="flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
+                <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center">Waveform</span>
+                <button 
+                    onClick={() => updateBass2({ waveform: '303-saw' })} 
+                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
+                        bass2.waveform === '303-saw' 
+                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]' 
+                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                    }`}
+                >
+                    SAW
+                </button>
+                <button 
+                    onClick={() => updateBass2({ waveform: '303-sqr' })} 
+                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
+                        bass2.waveform === '303-sqr' 
+                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]' 
+                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                    }`}
+                >
+                    SQR
+                </button>
+            </div>
+        </div>
+    ), [bass2.waveform, updateBass2]);
     const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing]);
 
     // --- RENDER PARTS FOR 3D ---
