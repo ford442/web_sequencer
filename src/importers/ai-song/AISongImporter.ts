@@ -7,7 +7,7 @@
  * Integration:
  * - Validates JSON against AISongData schema
  * - Converts to HyphonSong format
- * - Uploads to Hugging Face storage_manager API
+ * - Uploads to Hugging Face storage_manager API via AISongStorage
  * - Falls back to IndexedDB for local storage
  * 
  * Architecture: Clean separation between AI format and internal format
@@ -30,7 +30,12 @@ import type {
 } from '../../types';
 
 import { noteToMidi } from '../../utils/musicTheory';
-import { CloudStorage, type CloudSongPayload } from '../../services/CloudStorage';
+import { 
+  AISongStorage, 
+  type AISongUploadOptions,
+  type AISongMetadata 
+} from '../../services/AISongStorage';
+import type { StorageResult, UploadSuccess, StorageError } from '../../services/CloudStorage';
 
 // ============================================================================
 // AI SONG DATA TYPES (External AI format)
@@ -124,7 +129,7 @@ export type AIImportErrorDetails =
   | { type: 'UNSUPPORTED_VERSION'; version: string }
   | { type: 'CONVERSION_ERROR'; track: string; details: string }
   | { type: 'INVALID_NOTE'; note: string; track: string }
-  | { type: 'STORAGE_ERROR'; message: string };
+  | { type: 'STORAGE_ERROR'; message: string; storageError?: StorageError };
 
 export type AIImportResultType = AIImportResult | AIImportError;
 
@@ -135,6 +140,26 @@ export interface AIImportReport {
   warnings: string[];
   mappedParams: Array<{ source: string; target: string; value: unknown }>;
 }
+
+/** Upload result with storage metadata */
+export interface AIUploadResult {
+  success: true;
+  id: string;
+  url: string;
+  publicUrl: string;
+  timestamp: string;
+  version: number;
+  generator: string;
+  metadata: AISongMetadata;
+}
+
+/** Upload error */
+export interface AIUploadError {
+  success: false;
+  error: AIImportErrorDetails;
+}
+
+export type AIUploadResultType = AIUploadResult | AIUploadError;
 
 // ============================================================================
 // VALIDATION (Runtime type checking without external deps)
@@ -179,7 +204,7 @@ function validateAISongData(data: unknown): { valid: true } | { valid: false; er
 }
 
 /** Validate note format */
-function isValidNote(note: string): boolean {
+export function isValidNote(note: string): boolean {
   return /^[A-G][#b]?[0-8]$/.test(note);
 }
 
@@ -197,6 +222,12 @@ function isValidNote(note: string): boolean {
  * if (result.success) {
  *   loadSong(result.song);
  * }
+ * 
+ * // Upload to cloud
+ * const uploadResult = await importer.uploadToCloud(aiSongData, result.song);
+ * if (uploadResult.success) {
+ *   console.log('Uploaded:', uploadResult.publicUrl);
+ * }
  * ```
  */
 export class AISongImporter {
@@ -205,6 +236,9 @@ export class AISongImporter {
 
   /**
    * Main entry point: convert AISongData to SavedSongData
+   * 
+   * @param aiSong - The AI-generated song data
+   * @returns AIImportResultType with converted song or error details
    */
   convert(aiSong: AISongData): AIImportResultType {
     this.warnings = [];
@@ -491,37 +525,136 @@ export class AISongImporter {
   }
 
   /**
-   * Upload song to Hugging Face storage
+   * Upload AI song to Hugging Face storage using AISongStorage
+   * 
+   * @param aiSong - Original AI song data
+   * @param hyphonSong - Converted Hyphon song data
+   * @param options - Optional upload options (folder, tags)
+   * @returns AIUploadResultType with upload metadata or error
+   * 
+   * @example
+   * ```typescript
+   * const result = await importer.uploadToCloud(aiData, hyphonSong, {
+   *   folder: 'my-songs',
+   *   tags: ['funky', 'bass']
+   * });
+   * 
+   * if (result.success) {
+   *   console.log('Uploaded:', result.publicUrl);
+   * } else {
+   *   console.error('Upload failed:', result.error);
+   *   if (result.error.storageError?.retryable) {
+   *     // Can retry
+   *   }
+   * }
+   * ```
    */
   async uploadToCloud(
-    aiSong: AISongData, 
-    hyphonSong: SavedSongData
-  ): Promise<{ success: true; id: string } | { success: false; error: string }> {
-    const payload: CloudSongPayload = {
-      name: aiSong.meta.title,
-      author: aiSong.meta.author,
-      description: `[${aiSong.meta.generator}] ${aiSong.meta.prompt.substring(0, 200)}${aiSong.meta.prompt.length > 200 ? '...' : ''}`,
-      type: 'song',
-      data: hyphonSong
-    };
-
-    try {
-      const result = await CloudStorage.uploadItem(payload);
-      if (result.success && result.id) {
-        return { success: true, id: result.id };
-      }
-      return { success: false, error: result.error || 'Upload failed' };
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown upload error' 
+    aiSong: AISongData,
+    hyphonSong: SavedSongData,
+    options?: AISongUploadOptions
+  ): Promise<AIUploadResultType> {
+    console.log('[AISongImporter] Uploading to cloud storage...');
+    
+    const result = await AISongStorage.uploadAISong(aiSong, hyphonSong, options);
+    
+    if (!result.success || !result.data) {
+      console.error('[AISongImporter] Upload failed:', result.error);
+      return {
+        success: false,
+        error: {
+          type: 'STORAGE_ERROR',
+          message: result.error?.message || 'Upload failed',
+          storageError: result.error
+        }
       };
     }
+    
+    console.log('[AISongImporter] Upload successful:', result.data.id);
+    
+    // Fetch metadata for the uploaded song
+    const metadataResult = await AISongStorage.getAISong(result.data.id);
+    
+    return {
+      success: true,
+      id: result.data.id,
+      url: result.data.url,
+      publicUrl: result.data.publicUrl,
+      timestamp: result.data.timestamp,
+      version: result.data.version,
+      generator: result.data.generator,
+      metadata: metadataResult.success && metadataResult.data 
+        ? metadataResult.data.metadata 
+        : {
+            id: result.data.id,
+            name: aiSong.meta.title,
+            author: aiSong.meta.author,
+            date: result.data.timestamp,
+            type: 'ai-generated',
+            generator: result.data.generator,
+            prompt: aiSong.meta.prompt,
+            version: result.data.version,
+            aiTags: [result.data.generator, 'ai-generated', ...(aiSong.meta.tags || [])]
+          }
+    };
+  }
+
+  /**
+   * Check for duplicate songs before uploading
+   * 
+   * @param aiSong - AI song data to check
+   * @returns Whether a duplicate exists and its ID
+   * 
+   * @example
+   * ```typescript
+   * const duplicate = await importer.checkDuplicate(aiSong);
+   * if (duplicate.exists) {
+   *   // Prompt user to overwrite or create new version
+   * }
+   * ```
+   */
+  async checkDuplicate(aiSong: AISongData): Promise<{ exists: boolean; id?: string; song?: AISongMetadata }> {
+    const result = await AISongStorage.checkDuplicate(aiSong.meta.title, aiSong.meta.author);
+    
+    if (result.success && result.data) {
+      return {
+        exists: result.data.exists,
+        id: result.data.id,
+        song: result.data.song
+      };
+    }
+    
+    return { exists: false };
+  }
+
+  /**
+   * Get import warnings from the last conversion
+   */
+  getWarnings(): string[] {
+    return [...this.warnings];
+  }
+
+  /**
+   * Get mapped params from the last conversion
+   */
+  getMappedParams(): Array<{ source: string; target: string; value: unknown }> {
+    return [...this.mappedParams];
   }
 }
 
 /**
  * Convenience function for direct conversion
+ * 
+ * @param aiSong - AI-generated song data
+ * @returns Conversion result with Hyphon song or error
+ * 
+ * @example
+ * ```typescript
+ * const result = convertAISong(aiData);
+ * if (result.success) {
+ *   loadSong(result.song);
+ * }
+ * ```
  */
 export function convertAISong(aiSong: AISongData): AIImportResultType {
   const importer = new AISongImporter();
@@ -530,6 +663,17 @@ export function convertAISong(aiSong: AISongData): AIImportResultType {
 
 /**
  * Parse and validate JSON string
+ * 
+ * @param jsonString - JSON string to parse
+ * @returns Parse result with AISongData or error message
+ * 
+ * @example
+ * ```typescript
+ * const parsed = parseAISongJSON(jsonString);
+ * if (parsed.success) {
+ *   const result = convertAISong(parsed.data);
+ * }
+ * ```
  */
 export function parseAISongJSON(jsonString: string): { 
   success: true; 
@@ -547,6 +691,31 @@ export function parseAISongJSON(jsonString: string): {
       error: `Invalid JSON: ${error instanceof Error ? error.message : 'Parse error'}` 
     };
   }
+}
+
+/**
+ * Upload AI song directly without conversion
+ * 
+ * @param aiSong - Original AI song data
+ * @param hyphonSong - Converted Hyphon song data
+ * @param options - Upload options
+ * @returns Upload result with metadata
+ * 
+ * @example
+ * ```typescript
+ * const result = await uploadAISong(aiData, hyphonData);
+ * if (result.success) {
+ *   console.log('Public URL:', result.publicUrl);
+ * }
+ * ```
+ */
+export async function uploadAISong(
+  aiSong: AISongData,
+  hyphonSong: SavedSongData,
+  options?: AISongUploadOptions
+): Promise<AIUploadResultType> {
+  const importer = new AISongImporter();
+  return importer.uploadToCloud(aiSong, hyphonSong, options);
 }
 
 export default AISongImporter;

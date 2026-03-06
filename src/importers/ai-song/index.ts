@@ -9,6 +9,7 @@
  *   AISongImporter, 
  *   convertAISong, 
  *   parseAISongJSON,
+ *   uploadAISong,
  *   type AISongData 
  * } from './importers/ai-song';
  * 
@@ -21,13 +22,50 @@
  *     loadSong(result.song);
  *   }
  * }
+ * 
+ * // Upload to cloud with enhanced API
+ * const uploadResult = await uploadAISong(aiData, hyphonSong, {
+ *   folder: 'my-songs',
+ *   tags: ['funky', 'bass']
+ * });
+ * if (uploadResult.success) {
+ *   console.log('Uploaded to:', uploadResult.publicUrl);
+ * }
+ * ```
+ * 
+ * Storage Integration:
+ * -------------------
+ * The importer now uses AISongStorage for cloud operations, which provides:
+ * - Auto-tagging with generator names (claude, gemini, etc.)
+ * - Prompt storage in descriptions
+ * - Version history tracking
+ * - Folder organization for AI songs
+ * - Enhanced error handling with retry logic
+ * 
+ * ```typescript
+ * import { AISongStorage } from './services/AISongStorage';
+ * 
+ * // Get all AI songs
+ * const songs = await AISongStorage.getAISongs();
+ * 
+ * // Search by prompt content
+ * const results = await AISongStorage.searchAISongs('funky bass');
+ * 
+ * // Get version history
+ * const versions = await AISongStorage.getAISongVersions('song-id');
  * ```
  */
 
 // Main importer
-export { AISongImporter, convertAISong, parseAISongJSON } from './AISongImporter';
+export { 
+  AISongImporter, 
+  convertAISong, 
+  parseAISongJSON,
+  uploadAISong,
+  isValidNote 
+} from './AISongImporter';
 
-// Types
+// Types from AISongImporter
 export type { 
   AISongData, 
   AITrackData, 
@@ -36,8 +74,38 @@ export type {
   AIImportResult,
   AIImportError,
   AIImportErrorDetails,
-  AIImportReport
+  AIImportResultType,
+  AIImportReport,
+  AIUploadResult,
+  AIUploadError,
+  AIUploadResultType
 } from './AISongImporter';
+
+// AISongStorage for direct storage operations
+export { 
+  AISongStorage,
+  AI_SONGS_FOLDER,
+  AI_GENERATORS 
+} from '../../services/AISongStorage';
+
+// Types from AISongStorage
+export type {
+  AISongVersion,
+  AISongMetadata,
+  AISongSearchFilters,
+  AISongUploadOptions,
+  AIGenerator
+} from '../../services/AISongStorage';
+
+// Storage types
+export type {
+  StorageResult,
+  UploadSuccess,
+  StorageError,
+  CloudSongMeta,
+  CloudSongPayload,
+  CloudItemType
+} from '../../services/CloudStorage';
 
 // Re-export for convenience
 export type { SavedSongData } from '../../types';
