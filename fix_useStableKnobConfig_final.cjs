@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+const fs = require('fs');
+
+const content = `import { useState, useMemo, useEffect } from 'react';
 import type { KnobConfig } from '../components/HardwareModule';
 
 export function useStableKnobConfig<T>(
@@ -37,3 +39,6 @@ export function useStableKnobConfig<T>(
 
     return mergedConfigs;
 }
+`;
+
+fs.writeFileSync('src/hooks/useStableKnobConfig.ts', content);
