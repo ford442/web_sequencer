@@ -1,308 +1,493 @@
-# Web Sequencer - Architectural & Integration Plan
+# Hyphon AI Song Import System – Architecture Plan
 
-> **Purpose**: This document serves as the "glue" that connects disparate features, clarifies the overall vision, and provides a roadmap for keeping components cohesive. It complements [README.md](./README.md) by focusing on architecture and integration rather than setup instructions.
+## Overview
 
----
-
-## 1. Introduction
-
-### Vision
-Web Sequencer is a browser-based, 32-step music production environment that bridges the gap between hardware-style workflow and modern web capabilities. It combines real-time synthesis, voice-driven sampling, and classic drum machine patterns into a unified creative tool.
-
-### The Cohesion Challenge
-The project has evolved organically with many experimental features:
-- **TTS Integration**: Supertonic voice synthesis via ONNX models
-- **Holographic UI**: 3D knobs and hardware-style controls
-- **Rubber Band DSP**: Time-stretching and pitch-shifting
-- **Python in Browser**: Pyodide-powered audio processing
-
-This plan addresses the risk of feature fragmentation by defining clear integration points and a unified architecture.
+Enable external AI agents (Jules, Gemini, Claude, Copilot, etc.) to write custom songs that can be imported into Hyphon. The system provides a standardized JSON format that any AI can generate, which Hyphon then converts to its internal song format and stores via the existing Hugging Face storage_manager API.
 
 ---
 
-## 2. Core Architecture
+## 1. How External AIs Generate Songs
 
-### 2.1 Hub-and-Spoke Model
+### Standard JSON Format (AISongData)
 
-```mermaid
-flowchart TB
-    subgraph Core["🎯 Audio Engine Hub"]
-        WA[Web Audio API<br/>AudioContext + Worklets]
-        SEQ[Sequencer Core<br/>32-step Pattern Engine]
-    end
+```typescript
+interface AISongData {
+  // Metadata
+  meta: {
+    title: string;
+    author: string;           // AI name + user prompt hash
+    version: "1.0";
+    createdAt: string;        // ISO 8601
+    generator: "claude-3-opus" | "gemini-pro" | "jules" | "copilot" | string;
+    prompt: string;           // Original user prompt (truncated if needed)
+    tags?: string[];          // Genre, mood, style tags
+  };
+
+  // Global settings
+  globals: {
+    tempo: number;            // BPM (30-300)
+    timeSignature: [number, number];  // [4, 4], [3, 4], etc.
+    swing?: number;           // 0-100 (50 = no swing)
+  };
+
+  // Track patterns (simplified representation)
+  tracks: {
+    // TB-303 style bass/lead
+    synthA?: {
+      notes: NoteEvent[];
+      params: Partial<SynthParams>;
+    };
+    synthB?: {
+      notes: NoteEvent[];
+      params: Partial<SynthParams>;
+    };
+    bass2?: {                 // Second 303
+      notes: NoteEvent[];
+      params: Partial<Bass2Params>;
+    };
     
-    subgraph Synthesis["🎹 Synthesis Layer"]
-        LEAD[Lead Synth]
-        BASS[Bass Synth]
-        DRUMS[Drum Machines<br/>Kick/Snare/Hi-Hats]
-    end
+    // Drum machines (TR-808/909 style)
+    kick?: boolean[];         // 16 or 32 step pattern
+    snare?: boolean[];
+    closedHat?: boolean[];
+    openHat?: boolean[];
     
-    subgraph Sampling["🎤 Sampling & TTS"]
-        SAMPLER[Sampler Engine]
-        TTS[Supertonic TTS<br/>ONNX Runtime]
-        VD[Voice Designer<br/>Real-time DSP]
-    end
-    
-    subgraph Processing["⚙️ Processing"]
-        PY[Pyodide<br/>Python Modules]
-        RB[Rubber Band<br/>Time/Pitch Processing]
-    end
-    
-    subgraph IO["📤 I/O"]
-        UI[Holographic UI<br/>Knobs/LEDs/Controls]
-        EXP[XM Export<br/>Module Format]
-    end
-    
-    WA --> SEQ
-    SEQ --> LEAD & BASS & DRUMS & SAMPLER
-    SAMPLER --> TTS
-    TTS --> VD
-    VD --> RB
-    RB --> PY
-    WA <--> UI
-    SEQ --> EXP
+    // Sampler (8 banks)
+    sampler?: SamplerBankData[];
+  };
+}
+
+// Note event (simplified for AI generation)
+interface NoteEvent {
+  step: number;             // 0-31 (position in pattern)
+  note: string;             // "C4", "F#3", etc.
+  velocity?: number;        // 0-1 (default: 0.8)
+  length?: number;          // In steps (default: 1)
+  accent?: boolean;         // For 303-style accent
+  slide?: boolean;          // For 303-style slide
+}
+
+interface SamplerBankData {
+  bankIndex: 0-7;
+  steps: NoteEvent[];
+  params?: Partial<SamplerBankParams>;
+  ttsText?: string;         // For vocal synthesis
+  sampleUrl?: string;       // URL to external sample (optional)
+}
 ```
 
-### 2.2 Component Responsibilities
+### Example AI-Generated Song
 
-| Component | Technology | Responsibility |
-|-----------|------------|----------------|
-| **Audio Hub** | Web Audio API | Master clock, routing, mixing, output |
-| **Sequencer Core** | JavaScript/TypeScript | Pattern scheduling, song mode, 8-slot patterns |
-| **Synth Engine** | Web Audio Nodes | Lead/Bass synthesis, drum generation |
-| **Sampler** | AudioBuffer + TTS | Sample playback, Supertonic voice integration |
-| **DSP Chain** | Rubber Band + Pyodide | Pitch/time manipulation, Python-based effects |
-| **UI Layer** | WebGL/Canvas + DOM | Holographic knobs, step grid, visualization |
-
----
-
-## 3. Feature Breakdown & Integration
-
-### 3.1 Dual Synth Engine (Lead & Bass)
-**Status**: Core feature  
-**Integration Notes**:
-- Both synths share a common voice architecture through the Audio Hub
-- Pattern data stored in unified 8-slot pattern system (see [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md))
-- Parameters controlled via Holographic Knobs system ([HOLOGRAPHIC_KNOBS.md](./HOLOGRAPHIC_KNOBS.md))
-
-### 3.2 Drum Machines
-**Status**: Core feature  
-**Components**: Kick, Snare, Hi-Hats  
-**Integration Notes**:
-- Dedicated audio worklets for each drum voice
-- Sequencer triggers via shared timing engine
-- Exportable as separate tracks in XM format
-
-### 3.3 Sampler with Supertonic TTS
-**Status**: Advanced feature  
-**Integration Points**:
-- **Voice Generation**: Supertonic TTS runs in Web Worker with ONNX Runtime
-- **Voice Editing**: [Supertonic-Voice-Mixer/](./Supertonic-Voice-Mixer/) provides PyQt5 desktop tool for voice preset design
-- **Real-time DSP**: Voice Designer applies effects chain before sampler playback
-- **Documentation**: See [TTS_IMPLEMENTATION_SUMMARY.md](./TTS_IMPLEMENTATION_SUMMARY.md), [TTS_DEPLOYMENT.md](./TTS_DEPLOYMENT.md)
-
-### 3.4 Pattern Sequencer & Song Mode
-**Status**: Core feature  
-**Specifications**:
-- 32 steps per pattern
-- 8 pattern slots per track
-- Song mode for pattern chaining
-- Integration with all sound sources (synths, drums, sampler)
-
-### 3.5 XM Module Export
-**Status**: Export feature  
-**Purpose**: Enable users to export compositions for use in trackers and DAWs  
-**Integration**: Final mixdown from Audio Hub → XM encoder
-
----
-
-## 4. Technology Stack & Interconnections
-
-### 4.1 Stack Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      PRESENTATION LAYER                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ Holographic  │  │   Pattern    │  │  Voice Designer  │  │
-│  │    Knobs     │  │     Grid     │  │     (TTS)        │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-├─────────────────────────────────────────────────────────────┤
-│                       LOGIC LAYER                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │   Sequencer  │  │   Sampler    │  │    Pyodide       │  │
-│  │    Engine    │  │   Controller │  │  (Python WASM)   │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-├─────────────────────────────────────────────────────────────┤
-│                      AUDIO ENGINE                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  Web Audio   │  │  Supertonic  │  │   Rubber Band    │  │
-│  │     API      │  │  TTS (ONNX)  │  │ (Time-stretch)   │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+```json
+{
+  "meta": {
+    "title": "Cyberpunk Chase",
+    "author": "claude-3-opus:user-abc123",
+    "version": "1.0",
+    "createdAt": "2024-03-06T14:30:00Z",
+    "generator": "claude-3-opus",
+    "prompt": "Generate an intense cyberpunk chase scene with driving bass and urgent drums",
+    "tags": ["cyberpunk", "chase", "electronic", "intense"]
+  },
+  "globals": {
+    "tempo": 140,
+    "timeSignature": [4, 4],
+    "swing": 55
+  },
+  "tracks": {
+    "synthA": {
+      "notes": [
+        {"step": 0, "note": "C3", "accent": true},
+        {"step": 4, "note": "C3"},
+        {"step": 8, "note": "Eb3", "accent": true},
+        {"step": 12, "note": "F3"}
+      ],
+      "params": {
+        "waveform": "303-saw",
+        "filterCutoff": 3000,
+        "filterResonance": 12
+      }
+    },
+    "kick": [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
+    "snare": [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+    "closedHat": [false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true]
+  }
+}
 ```
 
-### 4.2 Key Dependencies
+---
 
-| Technology | Version | Purpose | Integration Doc |
-|------------|---------|---------|-----------------|
-| Web Audio API | Native | Core audio engine | [BUILD_NOTES.md](./BUILD_NOTES.md) |
-| Pyodide | Latest | Python in browser | [PERFORMANCE_MIGRATION_STRATEGY.md](./PERFORMANCE_MIGRATION_STRATEGY.md) |
-| ONNX Runtime Web | Latest | TTS model inference | [TTS_DEPLOYMENT.md](./TTS_DEPLOYMENT.md) |
-| Rubber Band | Compiled to WASM | Audio time-stretching | [RUBBERBAND_INTEGRATION_GUIDE.md](./RUBBERBAND_INTEGRATION_GUIDE.md) |
-| Emscripten | Latest | C++ → WASM compilation | [BUILD_NOTES.md](./BUILD_NOTES.md) |
+## 2. Example Prompts for AIs
+
+### For Claude (Anthropic)
+
+```
+You are a music sequencer AI. Generate a song in Hyphon format.
+
+HYPHON SONG JSON SCHEMA:
+- meta: {title, author, version, createdAt, generator, prompt, tags}
+- globals: {tempo (BPM), timeSignature [num, den], swing (0-100)}
+- tracks: {synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler}
+
+TRACK NOTES use this format:
+{"step": 0-31, "note": "C4", "velocity": 0.8, "length": 1, "accent": false, "slide": false}
+
+DRUM TRACKS are boolean arrays of 16 or 32 steps (true = hit, false = rest).
+
+SYNTH PARAMS (all optional):
+- waveform: "303-saw" | "303-sqr" | "sawtooth" | "square"
+- filterCutoff: 200-8000 (Hz)
+- filterResonance: 0-20
+- decay: 0.1-2.0 (seconds)
+
+Generate a {genre} song with {mood} feel at {tempo} BPM.
+Return ONLY valid JSON matching the AISongData schema.
+```
+
+### For Gemini (Google)
+
+```
+Generate a song for the Hyphon web sequencer.
+
+Output format: JSON with this structure:
+{
+  "meta": {"title": "...", "generator": "gemini-pro", ...},
+  "globals": {"tempo": 128, "timeSignature": [4,4]},
+  "tracks": {
+    "synthA": {"notes": [...], "params": {...}},
+    "kick": [true, false, ...],  // 16 steps
+    ...
+  }
+}
+
+The user wants: {description}
+
+Generate appropriate patterns for all 8 tracks. Make it groovy!
+```
+
+### For Jules (Google's coding agent)
+
+```
+Write a Hyphon song file for me.
+
+Use this TypeScript interface structure (return as JSON):
+
+interface AISongData {
+  meta: { title: string; generator: "jules"; prompt: string; };
+  globals: { tempo: number; timeSignature: [number, number]; };
+  tracks: {
+    synthA?: { notes: Array<{step: number, note: string, accent?: boolean}> };
+    kick?: boolean[];
+    snare?: boolean[];
+    closedHat?: boolean[];
+  };
+}
+
+Create a {style} pattern with {characteristics}. 
+Include at least synthA + drums.
+```
+
+### For GitHub Copilot
+
+```
+// Generate a Hyphon song object
+// Genre: {genre}
+// Tempo: {tempo} BPM
+// Mood: {mood}
+
+const song: AISongData = {
+  meta: { title: "...", generator: "copilot", ... },
+  globals: { tempo: ..., timeSignature: [4, 4] },
+  tracks: {
+    // Write your patterns here
+  }
+};
+```
 
 ---
 
-## 5. Integration Roadmap
+## 3. Integration with hf storage_manager API
 
-### Phase 1: Foundation (Complete)
-- [x] Web Audio API engine setup
-- [x] Basic sequencer implementation
-- [x] Lead/Bass synth voices
-- [x] Drum machine framework
+### Current API Base
+```typescript
+const API_BASE_URL = "https://ford442-storage-manager.hf.space";
+```
 
-### Phase 2: Sampling & TTS (In Progress)
-- [x] Supertonic TTS integration ([TTS_IMPLEMENTATION_SUMMARY.md](./TTS_IMPLEMENTATION_SUMMARY.md))
-- [x] Voice Designer DSP chain ([SUSTAIN_PROCESSOR_RUBBERBAND_GUIDE.md](./SUSTAIN_PROCESSOR_RUBBERBAND_GUIDE.md))
-- [ ] Unify TTS voice presets with main sequencer
-- [ ] Optimize ONNX model loading ([TTS_PER_BANK_VERIFICATION.md](./TTS_PER_BANK_VERIFICATION.md))
+### Upload Flow
 
-### Phase 3: Advanced DSP (Active Development)
-- [x] Rubber Band compilation to WASM ([RUBBERBAND_ANALYSIS.md](./RUBBERBAND_ANALYSIS.md))
-- [x] Pyodide integration for Python effects
-- [x] Complete Rubber Band + Sampler pipeline
-- [x] Real-time parameter modulation
-- [🚧] Vocal Workstation Features ([VOCAL_WORKSTATION_PLAN.md](./VOCAL_WORKSTATION_PLAN.md))
-  - [x] Phase 1: Main Pitch Section + RubberBand Controls
-  - [x] Phase 2: Per-Step Overrides + Visual Stretch
-  - [x] Phase 3: Live Phoneme Painter
-  - [ ] Phase 4: Instant Harmonizer Layers
-  - [ ] Phase 5: Phoneme Elasticity per Step
+```
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│ AI generates│────▶│ AISongImporter   │────▶│ HyphonSong      │
+│ JSON song   │     │ .convert()       │     │ (internal fmt)  │
+└─────────────┘     └──────────────────┘     └─────────────────┘
+                                                        │
+                                                        ▼
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│ User gets   │◀────│ CloudStorage.    │◀────│ JSON payload    │
+│ shareable   │     │ uploadItem()     │     │ {type: "song"}  │
+│ link        │     │                  │     │                 │
+└─────────────┘     └──────────────────┘     └─────────────────┘
+```
 
-### Phase 4: UI Polish & Performance
-- [x] Holographic knobs implementation ([HOLOGRAPHIC_KNOBS.md](./HOLOGRAPHIC_KNOBS.md))
-- [ ] Performance optimization ([PERFORMANCE_MIGRATION_STRATEGY.md](./PERFORMANCE_MIGRATION_STRATEGY.md))
-- [ ] Mobile/touch responsiveness
-- [ ] Final UI/UX cohesion pass
+### API Payload Structure
 
-### Phase 5: Export & Release
-- [ ] XM export finalization
-- [ ] Documentation completion
-- [ ] Deployment pipeline ([DEPLOYMENT_CONFIG.md](./DEPLOYMENT_CONFIG.md))
+```typescript
+const payload: CloudSongPayload = {
+  name: aiSong.meta.title,
+  author: aiSong.meta.author,
+  description: `${aiSong.meta.generator}: ${aiSong.meta.prompt}`,
+  type: 'song',
+  data: hyphonSong  // The converted SavedSongData
+};
 
----
-
-## 6. Development & Deployment
-
-### 6.1 Build System
-See [BUILD_NOTES.md](./BUILD_NOTES.md) for:
-- Emscripten setup for WASM compilation
-- Rubber Band library compilation steps
-- Pyodide package bundling
-
-### 6.2 Testing Strategy
-- Unit tests for audio engine (`tests/` directory)
-- TTS verification per voice bank ([TTS_PER_BANK_VERIFICATION.md](./TTS_PER_BANK_VERIFICATION.md))
-- Integration tests for full signal chain
-
-### 6.3 Deployment
-Reference [DEPLOYMENT_CONFIG.md](./DEPLOYMENT_CONFIG.md) and [TTS_DEPLOYMENT.md](./TTS_DEPLOYMENT.md) for:
-- Static hosting requirements
-- ONNX model hosting (CDN vs. bundled)
-- WASM asset optimization
+// Upload
+const result = await CloudStorage.uploadItem(payload);
+// Returns: { success: true, id: "uuid-for-sharing" }
+```
 
 ---
 
-## 7. Challenges & Solutions
+## 4. Alternative Import Methods
 
-### 7.1 Feature Cohesion
-**Challenge**: Experimental features feel disconnected  
-**Solution**: 
-- Define clear audio graph routing (see Architecture diagram)
-- Shared parameter system for all sound sources
-- Unified pattern storage format
+### Method A: Paste JSON (Modal)
 
-### 7.2 Performance
-**Challenge**: Multiple heavy technologies (Pyodide, ONNX, Rubber Band)  
-**Solution**:
-- Web Workers for TTS inference
-- Audio Worklets for real-time processing
-- Lazy loading for non-critical components ([PERFORMANCE_MIGRATION_STRATEGY.md](./PERFORMANCE_MIGRATION_STRATEGY.md))
+```
+┌─────────────────────────────────────────────┐
+│  🎹 Import AI Song                           │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Source: [Dropdown]                          │
+│  ├─ Paste JSON                              │
+│  ├─ HuggingFace API                         │
+│  ├─ Upload File                             │
+│  └─ AI Generator (external)                 │
+│                                             │
+│  [When "Paste JSON" selected]               │
+│  ┌─────────────────────────────────────────┐│
+│  │ Paste AI-generated JSON here...        ││
+│  │ {                                      ││
+│  │   "meta": { ... },                     ││
+│  │   ...                                  ││
+│  │ }                                      ││
+│  └─────────────────────────────────────────┘│
+│                                             │
+│  [Validate] [Import] [Cancel]               │
+│                                             │
+└─────────────────────────────────────────────┘
+```
 
-### 7.3 Documentation Fragmentation
-**Challenge**: 30+ markdown files with overlapping content  
-**Solution**:
-- This plan.md as the central navigation document
-- Cross-reference links between related docs
-- Deprecate outdated summaries after consolidation
+### Method B: Drag & Drop .json files
 
-### 7.4 Python/WASM Bridge
-**Challenge**: Pyodide integration complexity  
-**Solution**:
-- Clear C-interface definitions
-- Async loading patterns
-- Fallback to pure JS where possible
+```typescript
+// Support dragging .json files onto the sequencer
+// Auto-detects AISongData format vs Hyphon native format
+```
 
----
+### Method C: Direct API (for integrations)
 
-## 8. Future Vision
+```typescript
+// External apps can call:
+POST https://hyphon.example.com/api/import-ai-song
+Content-Type: application/json
 
-### 8.1 Short-term (3-6 months)
-- Complete Rubber Band + Sampler integration
-- XM export with full instrument support
-- Performance optimization for 2-core systems
+{ aiSongData: {...}, saveToLibrary: true }
+```
 
-### 8.2 Medium-term (6-12 months)
-- MIDI I/O support for hardware integration
-- Collaborative jamming (WebRTC)
-- Additional export formats (WAV, MIDI)
+### Method D: URL Import (shareable links)
 
-### 8.3 Long-term (12+ months)
-- Plugin architecture for user-created effects
-- AI-assisted pattern generation
-- Mobile app wrapper (Capacitor/Tauri)
-
----
-
-## 9. Contributing & Maintenance
-
-### 9.1 Development Context
-See [DEVELOPER_CONTEXT.md](./DEVELOPER_CONTEXT.md) for:
-- Code style guidelines
-- Architecture decisions
-- Testing requirements
-
-### 9.2 Adding New Features
-1. Check this plan.md for integration points
-2. Update relevant technical documentation
-3. Add to Integration Roadmap (Phase appropriate)
-4. Ensure cross-feature compatibility
-
-### 9.3 Documentation Maintenance
-- Keep [README.md](./README.md) for user-facing setup
-- Update this plan.md when architecture changes
-- Use [PR_SUMMARY.md](./PR_SUMMARY.md) template for changes
-- Archive obsolete documents to `docs/archive/`
+```
+https://hyphon.example.com/?import=hf://ford442-storage-manager/songs/abc123
+```
 
 ---
 
-## 10. Quick Reference
+## 5. .rbs Support Roadmap
 
-| Topic | Document |
-|-------|----------|
-| Project Setup | [README.md](./README.md) |
-| Build Instructions | [BUILD_NOTES.md](./BUILD_NOTES.md) |
-| TTS Implementation | [TTS_IMPLEMENTATION_SUMMARY.md](./TTS_IMPLEMENTATION_SUMMARY.md) |
-| Rubber Band Integration | [RUBBERBAND_INTEGRATION_GUIDE.md](./RUBBERBAND_INTEGRATION_GUIDE.md) |
-| Holographic UI | [HOLOGRAPHIC_KNOBS.md](./HOLOGRAPHIC_KNOBS.md) |
-| Performance | [PERFORMANCE_MIGRATION_STRATEGY.md](./PERFORMANCE_MIGRATION_STRATEGY.md) |
-| Deployment | [DEPLOYMENT_CONFIG.md](./DEPLOYMENT_CONFIG.md) |
-| Developer Guide | [DEVELOPER_CONTEXT.md](./DEVELOPER_CONTEXT.md) |
-| Recent Changes | [PR_SUMMARY.md](./PR_SUMMARY.md) |
+### Phase 1: Skeleton ✅ COMPLETE
+- [x] Type definitions (RawRbsData, HyphonSong)
+- [x] Parser skeleton with mock data
+- [x] Importer skeleton with conversion logic
+- [x] UI button (disabled)
+
+### Phase 2: Basic Patterns (Next Sprint)
+- [ ] Research actual ReBirth .rbs binary format
+- [ ] Implement binary reader (magic bytes, sections)
+- [ ] Parse TB-303 Pattern A/B (notes, accents, slides)
+- [ ] Parse TR-808/909 drum patterns
+- [ ] Parse PCF (Pattern Controlled Filter) settings
+- [ ] Basic parameter mapping (cutoff, resonance, decay)
+
+### Phase 3: Full Support
+- [ ] Automation lane conversion
+- [ ] Song mode / pattern chains
+- [ ] Delay/distortion effects mapping
+- [ ] Round-trip export (Hyphon → .rbs)
 
 ---
 
-*Last Updated: 2026-02-12*  
-*Maintainers: ford442*  
-*Status: Living Document - Update with each major release*
+## 6. Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         AI SONG IMPORT FLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  EXTERNAL AI                                                             │
+│  ┌──────────────┐                                                        │
+│  │ User Prompt  │                                                        │
+│  └──────┬───────┘                                                        │
+│         │                                                                │
+│         ▼                                                                │
+│  ┌──────────────┐     ┌──────────────┐                                   │
+│  │ AI generates │────▶│ AISongData   │                                   │
+│  │ JSON song    │     │ (standard fmt)│                                  │
+│  └──────────────┘     └──────┬───────┘                                   │
+│                              │                                           │
+│                              │ (JSON paste / API / file)                  │
+│                              ▼                                           │
+│  HYPHON CLIENT                                                         │
+│  ┌──────────────────────────────────────────────────────────────┐       │
+│  │  ┌──────────────┐                                           │       │
+│  │  │ Validate     │──Error──▶ Show validation errors          │       │
+│  │  │ JSON schema  │                                           │       │
+│  │  └──────┬───────┘                                           │       │
+│  │         │ Valid                                              │       │
+│  │         ▼                                                    │       │
+│  │  ┌──────────────┐     ┌──────────────┐                       │       │
+│  │  │ AISongImporter│────▶│ HyphonSong   │                       │       │
+│  │  │ .convert()    │     │ (internal)   │                       │       │
+│  │  └──────────────┘     └──────┬───────┘                       │       │
+│  │                               │                              │       │
+│  │                               ▼                              │       │
+│  │  ┌──────────────────────────────────────────────┐           │       │
+│  │  │ Option A: Load directly into sequencer       │           │       │
+│  │  │ Option B: Save to HF storage_manager API     │           │       │
+│  │  │ Option C: Export as .hyphon.json file        │           │       │
+│  │  └──────────────────────────────────────────────┘           │       │
+│  └──────────────────────────────────────────────────────────────┘       │
+│                                                                          │
+│  HUGGINGFACE STORAGE                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐       │
+│  │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐  │       │
+│  │  │ CloudStorage │────▶│ POST /api/   │────▶│ Stored with  │  │       │
+│  │  │ .uploadItem()│     │ songs        │     │ ID for share │  │       │
+│  │  └──────────────┘     └──────────────┘     └──────────────┘  │       │
+│  └──────────────────────────────────────────────────────────────┘       │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. Security & Validation Plan
+
+### JSON Schema Validation
+
+```typescript
+// Use Zod for runtime validation
+import { z } from 'zod';
+
+const NoteEventSchema = z.object({
+  step: z.number().int().min(0).max(31),
+  note: z.string().regex(/^[A-G][#b]?[0-8]$/),
+  velocity: z.number().min(0).max(1).optional(),
+  length: z.number().int().min(1).max(32).optional(),
+  accent: z.boolean().optional(),
+  slide: z.boolean().optional()
+});
+
+const AISongDataSchema = z.object({
+  meta: z.object({
+    title: z.string().min(1).max(100),
+    author: z.string(),
+    version: z.literal("1.0"),
+    createdAt: z.string().datetime(),
+    generator: z.string(),
+    prompt: z.string().max(1000),
+    tags: z.array(z.string()).optional()
+  }),
+  globals: z.object({
+    tempo: z.number().int().min(30).max(300),
+    timeSignature: z.tuple([z.number(), z.number()]),
+    swing: z.number().min(0).max(100).optional()
+  }),
+  tracks: z.object({
+    synthA: z.object({ notes: z.array(NoteEventSchema) }).optional(),
+    synthB: z.object({ notes: z.array(NoteEventSchema) }).optional(),
+    bass2: z.object({ notes: z.array(NoteEventSchema) }).optional(),
+    kick: z.array(z.boolean()).length(z.union([z.literal(16), z.literal(32)])).optional(),
+    snare: z.array(z.boolean()).length(z.union([z.literal(16), z.literal(32)])).optional(),
+    closedHat: z.array(z.boolean()).length(z.union([z.literal(16), z.literal(32)])).optional(),
+    openHat: z.array(z.boolean()).length(z.union([z.literal(16), z.literal(32)])).optional(),
+    sampler: z.array(z.any()).optional() // SamplerBankData
+  })
+});
+
+// Validate before conversion
+const result = AISongDataSchema.safeParse(jsonData);
+if (!result.success) {
+  showValidationErrors(result.error.errors);
+  return;
+}
+```
+
+### Sanitization Rules
+
+1. **String length limits**: All strings max 1000 chars
+2. **Array limits**: Max 32 steps per pattern
+3. **Numeric ranges**: Tempo 30-300, velocities 0-1
+4. **Note validation**: Only valid note names (C4, F#3, etc.)
+5. **No executable code**: JSON.parse only, no eval()
+
+### Error Handling
+
+```typescript
+type ImportError = 
+  | { type: 'VALIDATION_ERROR'; field: string; message: string }
+  | { type: 'UNSUPPORTED_VERSION'; version: string }
+  | { type: 'CONVERSION_ERROR'; track: string; details: string }
+  | { type: 'STORAGE_ERROR'; message: string };
+```
+
+---
+
+## 8. Implementation Checklist
+
+### Step 1: Foundation ✅
+- [x] Create plan.md (this document)
+
+### Step 2: Core Implementation
+- [ ] Create `src/importers/ai-song/` folder
+- [ ] Define `AISongData` type in types.ts
+- [ ] Create `AISongImporter.ts` with convert function
+- [ ] Add Zod validation schema
+- [ ] Create modal component for import UI
+- [ ] Add "Import AI Song" button to toolbar
+- [ ] Integrate with CloudStorage.uploadItem()
+
+### Step 3: Testing
+- [ ] Test with Claude-generated JSON
+- [ ] Test with Gemini-generated JSON
+- [ ] Test validation error handling
+- [ ] Test HF storage integration
+
+### Step 4: Documentation
+- [ ] Write AI prompt templates (for users)
+- [ ] Create example songs
+- [ ] Document API for external integrations
+
+---
+
+## 9. Future Enhancements
+
+- **AI Chat Integration**: Direct integration with Claude/Gemini APIs
+- **Template Library**: Pre-made prompts for common genres
+- **Collaborative Editing**: Multiple AIs contributing to same song
+- **Version Control**: Track AI iterations on same prompt
+- **Feedback Loop**: User ratings improve AI generation
+
+---
+
+*Document Version: 1.0*
+*Last Updated: 2024-03-06*
+*Author: Hyphon Architect*
