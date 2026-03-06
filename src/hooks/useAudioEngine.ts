@@ -1106,24 +1106,32 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
         
         if (!buffer || !masterGainRef.current) return;
 
-        // Harmonize support - if harmonizer is active, generate multiple voices
+        // Harmonize support - if harmonizer is active, generate multiple harmony voices
         const harmonizer = harmonizerRef.current;
-        if (harmonizer?.getIsActive() && params.mode === 'stretch') {
+        if (harmonizer?.getIsActive()) {
             const voices = harmonizer.generateVoices();
             
-            // Play each harmony voice
+            // Play base voice (index 0) - the original note
+            playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0);
+            
+            // Play each harmony voice (skip index 0 which is base)
             voices.forEach((voice) => {
-                // Create modified params for this voice
+                if (voice.index === 0) return; // Skip base voice, already played above
+                
+                // Create modified params for this harmony voice
                 const voiceParams: SamplerBankParams = {
                     ...params,
                     pan: voice.pan,
-                    volume: params.volume * voice.gain,
+                    volume: params.volume * voice.gain * 0.85, // Slightly reduce harmony volume for blend
                     formantShift: (params.formantShift || 0) + voice.formantShift,
                     fineTune: (params.fineTune || 0) + voice.detuneCents
                 };
                 
-                // Play this voice with pitch offset
-                playSamplerVoice(voiceParams, note, time, durationSteps, stepTime, noteParams, voice.pitchOffset);
+                // Play this voice with pitch offset and slight delay for natural ensemble effect
+                const delayMs = voice.index * 5; // 5ms stagger per voice
+                setTimeout(() => {
+                    playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, noteParams, voice.pitchOffset);
+                }, delayMs);
             });
             return;
         }
@@ -1428,21 +1436,26 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
             switch (param) {
                 case 'rootNote':
                     // Root note affects pitch calculation - stored for next note-on
+                    voice.setRootNote(value as number);
                     break;
                 case 'coarseTune':
                     // Applied as semitone offset in pitch calculation
+                    voice.setCoarseTune(value as number);
                     break;
                 case 'fineTune':
                     // Applied as cents offset in pitch calculation
+                    voice.setFineTune(value as number);
                     break;
                 case 'formantShift':
                     voice.setFormantShift(value as number, now);
                     break;
                 case 'pitchAttack':
-                    // Pitch envelope - would need worklet support
+                    // Pitch envelope attack time (0-1 mapped to 0-2 seconds)
+                    voice.setPitchAttack(value as number);
                     break;
                 case 'pitchDecay':
-                    // Pitch envelope - would need worklet support
+                    // Pitch envelope decay time (0-1 mapped to 0-2 seconds)
+                    voice.setPitchDecay(value as number);
                     break;
                 case 'quality':
                     // Maps to RubberBand quality - requires re-init or runtime param
@@ -1462,6 +1475,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
         audioEngine,
         isReady,
         initializeAudio,
-        onParamChange: updateVoiceParams
-    }), [audioEngine, isReady, initializeAudio, updateVoiceParams]);
+        onParamChange: updateVoiceParams,
+        updateSamplerVoiceParams
+    }), [audioEngine, isReady, initializeAudio, updateVoiceParams, updateSamplerVoiceParams]);
 };
