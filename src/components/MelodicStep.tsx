@@ -353,6 +353,18 @@ export const MelodicStep = memo(({
         </g>
       )}
       
+      {/* Reverse indicator */}
+      {reverse && (
+        <g transform={`translate(${totalWidth / 2 - 8}, ${Math.min(height - 25, 20)})`} style={{ pointerEvents: 'none' }}>
+          <path
+            d="M 12 4 L 4 10 L 12 16 Z"
+            fill="#a855f7"
+            fillOpacity={0.8}
+            filter="drop-shadow(0px 1px 2px rgba(0,0,0,0.5))"
+          />
+        </g>
+      )}
+
       {/* Slide indicator */}
       {isSlide && (
         <rect 
