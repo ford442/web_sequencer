@@ -100,6 +100,13 @@ export class SingingVoice {
         high: null
     };
     
+    /** Voice pitch parameters for sampler playback */
+    private rootNote: number = 60;      // Base MIDI note (C4 default)
+    private coarseTune: number = 0;     // Coarse tuning in semitones (-24 to +24)
+    private fineTune: number = 0;       // Fine tuning in cents (-50 to +50)
+    private pitchAttack: number = 0;    // Pitch envelope attack time (0-1)
+    private pitchDecay: number = 0;     // Pitch envelope decay time (0-1)
+    
     /** Phoneme aligner for Section 3 implementation */
     private phonemeAligner: PhonemeAligner | null = null;
     
@@ -248,21 +255,26 @@ export class SingingVoice {
 
     /**
      * Set pitch from MIDI note number relative to base note.
-     * Supports coarse/fine tuning offsets.
+     * Uses stored rootNote, coarseTune, and fineTune values.
      * 
      * @param targetMidiNote Target MIDI note for pitch shifting (can include fractional cents)
-     * @param baseMidiNote Base MIDI note (default: C4 = 60) - the root note of the sample
+     * @param baseMidiNote Base MIDI note (default: uses stored rootNote) - the root note of the sample
      * @param time Optional time to apply the change (default: now)
-     * @param coarseTune Optional coarse tuning in semitones (-24 to +24)
-     * @param fineTune Optional fine tuning in cents (-50 to +50)
+     * @param coarseTune Optional coarse tuning override (-24 to +24), uses stored if not provided
+     * @param fineTune Optional fine tuning override (-50 to +50), uses stored if not provided
      */
-    setPitchFromMidi(targetMidiNote: number, baseMidiNote: number = 60, time?: number, coarseTune: number = 0, fineTune: number = 0): void {
+    setPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number): void {
+        // Use stored values as defaults
+        const effectiveBaseNote = baseMidiNote ?? this.rootNote;
+        const effectiveCoarse = coarseTune ?? this.coarseTune;
+        const effectiveFine = fineTune ?? this.fineTune;
+        
         // Apply coarse and fine tuning offsets
-        const totalSemitoneOffset = coarseTune + (fineTune / 100);
+        const totalSemitoneOffset = effectiveCoarse + (effectiveFine / 100);
         const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
         
         const targetFreq = midiToFreq(adjustedTargetMidi);
-        const baseFreq = midiToFreq(baseMidiNote);
+        const baseFreq = midiToFreq(effectiveBaseNote);
         
         // Calculate pitch ratio, clamped to optimal range for best quality
         let pitchRatio = targetFreq / baseFreq;
@@ -709,5 +721,113 @@ export class SingingVoice {
                 }
             });
         }
+    }
+
+    // === SAMPLER VOICE PARAMETER METHODS ===
+
+    /**
+     * Set the root note for sample playback.
+     * This is the base MIDI note where the sample plays at its original pitch.
+     * @param midiNote Root MIDI note (24-108)
+     */
+    setRootNote(midiNote: number): void {
+        this.rootNote = Math.max(24, Math.min(108, midiNote));
+    }
+
+    /**
+     * Get the current root note.
+     * @returns Current root MIDI note
+     */
+    getRootNote(): number {
+        return this.rootNote;
+    }
+
+    /**
+     * Set coarse tuning in semitones.
+     * @param semitones Coarse tuning (-24 to +24 semitones)
+     */
+    setCoarseTune(semitones: number): void {
+        this.coarseTune = Math.max(-24, Math.min(24, semitones));
+    }
+
+    /**
+     * Get the current coarse tuning.
+     * @returns Coarse tuning in semitones
+     */
+    getCoarseTune(): number {
+        return this.coarseTune;
+    }
+
+    /**
+     * Set fine tuning in cents.
+     * @param cents Fine tuning (-50 to +50 cents)
+     */
+    setFineTune(cents: number): void {
+        this.fineTune = Math.max(-50, Math.min(50, cents));
+    }
+
+    /**
+     * Get the current fine tuning.
+     * @returns Fine tuning in cents
+     */
+    getFineTune(): number {
+        return this.fineTune;
+    }
+
+    /**
+     * Set pitch envelope attack time.
+     * @param attack Attack time (0-1, mapped to 0-2 seconds)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setPitchAttack(attack: number, time?: number): void {
+        this.pitchAttack = Math.max(0, Math.min(1, attack));
+        // Map 0-1 to 0-2 seconds for the worklet
+        const attackSeconds = this.pitchAttack * 2;
+        if (this.workletNode) {
+            this.workletNode.parameters.get('pitchAttack')?.setValueAtTime(attackSeconds, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Get the current pitch envelope attack time.
+     * @returns Attack time (0-1)
+     */
+    getPitchAttack(): number {
+        return this.pitchAttack;
+    }
+
+    /**
+     * Set pitch envelope decay time.
+     * @param decay Decay time (0-1, mapped to 0-2 seconds)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setPitchDecay(decay: number, time?: number): void {
+        this.pitchDecay = Math.max(0, Math.min(1, decay));
+        // Map 0-1 to 0-2 seconds for the worklet
+        const decaySeconds = this.pitchDecay * 2;
+        if (this.workletNode) {
+            this.workletNode.parameters.get('pitchDecay')?.setValueAtTime(decaySeconds, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Get the current pitch envelope decay time.
+     * @returns Decay time (0-1)
+     */
+    getPitchDecay(): number {
+        return this.pitchDecay;
+    }
+
+    /**
+     * Calculate total pitch offset including root note, coarse and fine tuning.
+     * This combines all pitch parameters into a single semitone offset.
+     * @param targetMidiNote The target MIDI note being played
+     * @returns Total semitone offset from the base pitch
+     */
+    calculatePitchOffset(targetMidiNote: number): number {
+        // Calculate: (target - root) + coarse + fine/100
+        const baseOffset = targetMidiNote - this.rootNote;
+        const tuningOffset = this.coarseTune + (this.fineTune / 100);
+        return baseOffset + tuningOffset;
     }
 }

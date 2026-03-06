@@ -53,11 +53,11 @@ export interface HarmonizedSamplerConfig {
 
 /** Default harmony intervals for each type (in semitones) */
 const HARMONY_INTERVALS: Record<HarmonyType, number[]> = {
-    octave: [0, 12],           // Root + Octave
-    fifth: [0, 7],             // Root + Perfect Fifth
-    third: [0, 4],             // Root + Major Third
-    cluster: [-2, 0, 2, 4],    // Tight cluster around root
-    custom: [0, 4, 7]          // Default custom (major triad)
+    octave: [12, -12],         // +Octave, -Octave (no 0 - base is always added separately)
+    fifth: [7, -7],            // +Fifth, -Fourth (no 0 - base is always added separately)
+    third: [4, 3, -3, -4],     // Major 3rd, Minor 3rd, -Minor 3rd, -Major 3rd
+    cluster: [2, -2, 1, -1],   // Dense cluster around root
+    custom: [4, 7, 12]         // Default custom (major triad extensions)
 };
 
 /** Voice panning distribution for stereo spread */
@@ -125,48 +125,61 @@ export class Harmonizer {
     generateVoices(): HarmonyVoiceParams[] {
         const { voiceCount, harmonyType, detuneSpread, formantSpread, customIntervals } = this.config;
         
-        // Get base intervals for the harmony type
+        // Get base intervals for the harmony type (excludes base voice at 0)
         let intervals = harmonyType === 'custom' 
             ? (customIntervals || HARMONY_INTERVALS.custom)
             : HARMONY_INTERVALS[harmonyType];
         
-        // Adjust intervals based on voice count
-        if (intervals.length > voiceCount) {
-            intervals = intervals.slice(0, voiceCount);
-        } else if (intervals.length < voiceCount) {
+        // Ensure we have enough intervals for the requested voices (minus base voice)
+        const neededHarmonyVoices = voiceCount - 1; // -1 because base voice is separate
+        
+        if (intervals.length > neededHarmonyVoices) {
+            intervals = intervals.slice(0, neededHarmonyVoices);
+        } else if (intervals.length < neededHarmonyVoices) {
             // Extend with calculated intervals for more voices
             const extended = [...intervals];
-            while (extended.length < voiceCount) {
-                // Add voice an octave above previous
+            while (extended.length < neededHarmonyVoices) {
+                // Add voice an octave above/below previous
                 const lastInterval = extended[extended.length - 1];
-                extended.push(lastInterval + 12);
+                const nextInterval = lastInterval > 0 ? lastInterval + 12 : lastInterval - 12;
+                extended.push(nextInterval);
             }
             intervals = extended;
         }
 
-        // Get panning and gain distributions
+        // Get panning and gain distributions for full voice count
         const pans = VOICE_PANNING[voiceCount];
         const gains = VOICE_GAINS[voiceCount];
 
         // Generate voice parameters
         const voices: HarmonyVoiceParams[] = [];
 
-        for (let i = 0; i < voiceCount; i++) {
+        // 1. Base voice (index 0) - always at pitch offset 0
+        voices.push({
+            index: 0,
+            pitchOffset: 0,
+            detuneCents: Math.round(((Math.random() - 0.5) * detuneSpread * 0.5) * 10) / 10, // Subtle detune for base
+            formantShift: 0, // Base voice has no formant shift
+            pan: pans[0], // Usually slightly left or center
+            gain: gains[0]
+        });
+
+        // 2. Harmony voices (indices 1+)
+        for (let i = 1; i < voiceCount; i++) {
+            const intervalIndex = i - 1; // Offset because base voice is separate
+            const interval = intervals[intervalIndex];
+            
             // Calculate detune with some randomness for natural variation
             const detuneBase = (Math.random() - 0.5) * detuneSpread;
-            const detuneCents = i === 0 
-                ? detuneBase // Base voice: random detune
-                : detuneBase + (i % 2 === 0 ? detuneSpread / 2 : -detuneSpread / 2);
+            const detuneCents = detuneBase + (i % 2 === 0 ? detuneSpread / 3 : -detuneSpread / 3);
 
-            // Calculate formant shift - spread across voices
-            const formantBase = (i / (voiceCount - 1 || 1)) * formantSpread;
-            const formantShift = i === 0 
-                ? -formantBase / 2  // Base voice: slightly lower
-                : formantBase - (formantSpread / 2);
+            // Calculate formant shift - spread across harmony voices
+            const formantBase = ((i - 1) / Math.max(1, voiceCount - 2)) * formantSpread;
+            const formantShift = formantBase - (formantSpread / 2);
 
             voices.push({
                 index: i,
-                pitchOffset: intervals[i],
+                pitchOffset: interval,
                 detuneCents: Math.round(detuneCents * 10) / 10,
                 formantShift: Math.round(formantShift * 10) / 10,
                 pan: pans[i],

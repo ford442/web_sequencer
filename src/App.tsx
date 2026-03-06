@@ -47,7 +47,7 @@ import {
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note, Bass2Params } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note, Bass2Params, PhonemeData } from './types'
 
 // --- CONSTANTS ---
 const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
@@ -406,6 +406,24 @@ export const App: React.FC = () => {
         lockToSequencer: false
     });
     const [samplerVoiceParams, setSamplerVoiceParams] = useState(samplerVoiceParamsRef.current);
+    
+    // Harmonizer State
+    const [harmonizerConfig, setHarmonizerConfig] = useState<HarmonizerConfig>({
+        voiceCount: 2,
+        harmonyType: 'third',
+        detuneSpread: 15,
+        formantSpread: 3
+    });
+    const [isHarmonizeActive, setIsHarmonizeActive] = useState(false);
+    
+    const handleHarmonizerConfigChange = useCallback((config: HarmonizerConfig, isActive: boolean) => {
+        setHarmonizerConfig(config);
+        setIsHarmonizeActive(isActive);
+        // Update audio engine
+        if (audioEngine?.setHarmonizerConfig) {
+            audioEngine.setHarmonizerConfig(config, isActive);
+        }
+    }, [audioEngine]);
     
     const handleSamplerVoiceChange = useCallback((param: string, value: number | string | boolean) => {
         const newParams = { ...samplerVoiceParamsRef.current, [param]: value };
@@ -808,6 +826,36 @@ export const App: React.FC = () => {
 
             updateStorageForTrack('sampler', newSampler);
             return copy;
+        });
+    }, [updateStorageForTrack]);
+
+    const handlePhonemeUpdate = useCallback((
+        trackKey: TrackKey,
+        bankIndex: number,
+        step: number,
+        phonemes: PhonemeData[] | undefined
+    ) => {
+        if (trackKey !== 'sampler') return;
+
+        setPattern(prev => {
+            const newPattern = { ...prev };
+            const newSampler = [...newPattern.sampler];
+            const newBank = { ...newSampler[bankIndex] };
+            newBank.steps = [...newBank.steps];
+
+            if (newBank.steps[step]) {
+                newBank.steps[step] = { ...newBank.steps[step]!, phonemes };
+            } else {
+                // If no step exists, create one with default values
+                newBank.steps[step] = { note: 'C4', velocity: 1, length: 1, phonemes };
+            }
+
+            newSampler[bankIndex] = newBank;
+            newPattern.sampler = newSampler;
+
+            // Also update storage for persistence
+            updateStorageForTrack('sampler', newSampler);
+            return newPattern;
         });
     }, [updateStorageForTrack]);
 
@@ -1503,6 +1551,8 @@ export const App: React.FC = () => {
                 alignment={activeAlignment}
                 melodicMode={melodicMode}
                 onPitchChange={handlePitchChange}
+                onPhonemeUpdate={handlePhonemeUpdate}
+                samplerAudioBuffer={sampleBuffers[activeSamplerBank]}
             >
                 {contextMenu && (
                     <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
