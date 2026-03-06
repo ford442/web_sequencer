@@ -1400,7 +1400,7 @@ export const App: React.FC = () => {
             {transportToolbarNode}
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
-            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto pb-[60px]">
+            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto pb-12">
                 {/* Sequencer — top section */}
                 <div className="w-full max-w-[1000px] mx-auto h-[440px] shrink-0 pt-6">
                     {sequencerNode}
@@ -1419,83 +1419,117 @@ export const App: React.FC = () => {
                 </div>
             </main>
 
-            {/* Bottom Transport Toolbar */}
-            <div className="fixed bottom-0 left-0 right-0 h-[52px] bg-[#0a0c10]/95 backdrop-blur-sm border-t border-cyan-900/30 z-40 flex items-center px-4 gap-4 shadow-[0_-4px_20px_rgba(0,0,0,0.7)]">
-                {/* Play/Stop */}
-                <button
-                    onClick={handlePlayToggle}
-                    aria-pressed={isPlaying}
-                    aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
-                    className={`w-20 py-1 rounded font-orbitron text-sm font-bold tracking-wide shrink-0 ${isPlaying ? 'bg-red-900/30 text-red-400 border border-red-700' : 'bg-green-900/30 text-green-400 border border-green-700'}`}
-                >
-                    {isPlaying ? 'STOP' : 'PLAY'}
-                </button>
-
-                {/* Divider */}
-                <div className="w-px h-6 bg-gray-700 shrink-0" />
-
-                {/* Tempo */}
-                <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-gray-500 font-mono uppercase">BPM</span>
-                    <div className="flex items-center bg-gray-900 rounded border border-gray-700">
+            {/* Slim Bottom Control Bar */}
+            <div className="fixed bottom-0 left-0 right-0 h-10 bg-gradient-to-r from-[#0a0c10] via-[#0d1014] to-[#0a0c10] backdrop-blur-md border-t border-cyan-900/30 z-40 flex items-center justify-between px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+                {/* Left: View Controls */}
+                <div className="flex items-center gap-2">
+                    {/* Notes/Automation Toggle */}
+                    <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 overflow-hidden">
                         <button
-                            onMouseDown={() => handleTempoHoldStart(-1)}
-                            onMouseUp={handleTempoHoldEnd}
-                            onMouseLeave={handleTempoHoldEnd}
-                            onKeyDown={(e) => handleTempoKeyDown(e, -1)}
-                            className="px-2 py-1 text-cyan-500 font-bold border-r border-gray-700 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                            aria-label="Decrease Tempo"
-                        >-</button>
-                        <span className="w-12 text-center font-mono text-cyan-300 text-sm" role="status" aria-live="polite" aria-label={`Tempo: ${tempo} BPM`}>{tempo}</span>
+                            onClick={() => setViewMode('notes')}
+                            className={`px-2.5 py-1 text-[10px] font-bold transition-all ${viewMode === 'notes' ? 'bg-cyan-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                        >
+                            NOTES
+                        </button>
                         <button
-                            onMouseDown={() => handleTempoHoldStart(1)}
-                            onMouseUp={handleTempoHoldEnd}
-                            onMouseLeave={handleTempoHoldEnd}
-                            onKeyDown={(e) => handleTempoKeyDown(e, 1)}
-                            className="px-2 py-1 text-cyan-500 font-bold border-l border-gray-700 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                            aria-label="Increase Tempo"
-                        >+</button>
+                            onClick={() => setViewMode('automation')}
+                            className={`px-2.5 py-1 text-[10px] font-bold transition-all ${viewMode === 'automation' ? 'bg-pink-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                        >
+                            AUTO
+                        </button>
                     </div>
+
+                    {viewMode === 'automation' && (
+                        <select
+                            value={automationParam}
+                            onChange={(e) => setAutomationParam(e.target.value)}
+                            className="bg-zinc-950 text-[10px] text-gray-300 border border-zinc-800 rounded px-1.5 py-1 outline-none focus:border-cyan-500"
+                        >
+                            <option value="formantShift">Formant</option>
+                            <option value="vibratoDepth">Vibrato</option>
+                        </select>
+                    )}
+
+                    <div className="w-px h-4 bg-gray-700 mx-1" />
+
+                    {/* LYRICS Button */}
+                    <button 
+                        onClick={() => setIsLyricMapperOpen(!isLyricMapperOpen)} 
+                        aria-pressed={isLyricMapperOpen} 
+                        aria-label="Open Lyric Mapper" 
+                        className={`h-6 px-2.5 rounded-md font-orbitron text-[10px] font-bold tracking-wide transition-all ${isLyricMapperOpen ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'bg-zinc-800 text-cyan-400 border border-zinc-700 hover:bg-zinc-700'}`}
+                    >
+                        LYRICS
+                    </button>
                 </div>
 
-                {/* Divider */}
-                <div className="w-px h-6 bg-gray-700 shrink-0" />
-
-                {/* Master Volume */}
-                <div className="flex items-center gap-2 shrink-0">
-                    <label htmlFor="master-volume-toolbar" className="text-[10px] text-gray-500 font-mono uppercase">Vol</label>
-                    <input
-                        id="master-volume-toolbar"
-                        type="range" min="0" max="1.2" step="0.01"
-                        value={masterVolume}
-                        onChange={handleMasterVolume}
-                        onKeyDown={handleMasterVolumeKeyDown}
-                        className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                        aria-label="Master Volume"
-                    />
-                    {Math.abs(masterVolume - 0.8) > 0.01 && (
-                        <button onClick={handleMasterVolumeReset} className="text-gray-500 hover:text-white px-1 text-[10px]" aria-label="Reset Volume">✕</button>
-                    )}
+                {/* Center: File Operations */}
+                <div className="flex items-center gap-1.5">
+                    <button 
+                        onClick={exportSongToFile} 
+                        className="h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 rounded hover:bg-green-950/30 transition-all" 
+                        title="Save to JSON"
+                    >
+                        💾 SAVE
+                    </button>
+                    <button 
+                        onClick={importSongFromFile} 
+                        className="h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 rounded hover:bg-blue-950/30 transition-all" 
+                        title="Load from JSON"
+                    >
+                        📂 LOAD
+                    </button>
+                    <button 
+                        onClick={() => setIsCloudLibraryOpen(true)} 
+                        className="h-6 px-2 text-[10px] font-bold text-purple-400 bg-zinc-900 border border-purple-900/50 rounded hover:bg-purple-950/30 transition-all" 
+                        title="Cloud Library"
+                    >
+                        ☁️ CLOUD
+                    </button>
                 </div>
 
-                {/* Divider */}
-                <div className="w-px h-6 bg-gray-700 shrink-0" />
+                {/* Right: Utility Toggles */}
+                <div className="flex items-center gap-2">
+                    {/* Gamepad Toggle */}
+                    <button
+                        onClick={() => setShowGamepadDebug(true)}
+                        className="h-6 w-6 rounded bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-slate-200 transition-all border border-zinc-700 flex items-center justify-center"
+                        title="Gamepad Debugger"
+                        aria-label="Open Gamepad Debugger"
+                    >
+                        <span className="text-xs">🎮</span>
+                    </button>
 
-                {/* Global Pan */}
-                <div className="flex items-center gap-2 shrink-0">
-                    <label htmlFor="global-pan-toolbar" className="text-[10px] text-gray-500 font-mono uppercase">Pan</label>
-                    <input
-                        id="global-pan-toolbar"
-                        type="range" min="-1" max="1" step="0.01"
-                        value={globalPan}
-                        onChange={handleGlobalPan}
-                        onKeyDown={handleGlobalPanKeyDown}
-                        className="w-24 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                        aria-label="Global Pan"
-                    />
-                    {Math.abs(globalPan) > 0.01 && (
-                        <button onClick={handleGlobalPanReset} className="text-gray-500 hover:text-white px-1 text-[10px]" aria-label="Reset Pan">✕</button>
-                    )}
+                    {/* AudioWorklet Fallback Toggle */}
+                    <button
+                        onClick={() => {
+                            const newValue = !forceScriptProcessorFallback;
+                            setForceScriptProcessorFallback(newValue);
+                            localStorage.setItem('forceScriptProcessorFallback', String(newValue));
+                            showToast(
+                                newValue
+                                    ? "ScriptProcessor fallback enabled. Refresh to apply." 
+                                    : "AudioWorklet mode enabled. Refresh to apply.",
+                                'success'
+                            );
+                        }}
+                        className={`h-6 px-2 rounded text-[10px] font-mono border transition-all ${forceScriptProcessorFallback ? 'bg-yellow-900/30 text-yellow-400 border-yellow-900/50' : 'bg-zinc-800 text-gray-500 border-zinc-700'}`}
+                        title={forceScriptProcessorFallback ? "Using ScriptProcessor fallback" : "Using AudioWorklet"}
+                    >
+                        {forceScriptProcessorFallback ? '⚠️ AW' : '🔊 AW'}
+                    </button>
+
+                    <div className="w-px h-4 bg-gray-700 mx-1" />
+
+                    {/* Help Button */}
+                    <button
+                        onClick={() => setIsShortcutsHelpOpen(true)}
+                        className="h-6 w-6 rounded-full bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 border border-zinc-600 flex items-center justify-center font-bold text-xs transition-all"
+                        aria-label="Keyboard Shortcuts"
+                        title="Keyboard Shortcuts (?)"
+                    >
+                        ?
+                    </button>
                 </div>
             </div>
         </div>
