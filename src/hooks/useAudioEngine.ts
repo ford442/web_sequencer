@@ -107,6 +107,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
 
         try {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+            (window as any).audioContext = context;   // ← Expose for WebGPU TTS engine
 
             // --- CRITICAL FIX: Ensure AudioContext is running ---
             if (context.state === 'suspended') {
