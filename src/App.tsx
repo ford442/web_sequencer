@@ -31,6 +31,7 @@ import type { MainSequencerHandle } from './components/MainSequencer';
 import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
 import { SEQUENCER_STYLES } from './components/sequencer/constants';
 import { Harmonizer, type HarmonizerConfig, HARMONIZE_PRESETS } from './engines/Harmonizer';
+import { AISongImporter, parseAISongJSON, type AISongData } from './importers/ai-song';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -223,6 +224,7 @@ export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
+    const [isAISongModalOpen, setIsAISongModalOpen] = useState(false);
     const [isLyricMapperOpen, setIsLyricMapperOpen] = useState(false);
     const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
@@ -1754,6 +1756,13 @@ export const App: React.FC = () => {
                         title="Coming soon — basic skeleton ready"
                     >
                         🎹 Import .rbs File...
+                    </button>
+                    <button 
+                        onClick={() => setIsAISongModalOpen(true)}
+                        className="h-6 px-2 text-[10px] font-bold text-emerald-400 bg-zinc-900 border border-emerald-900/50 rounded hover:bg-emerald-950/30 transition-all" 
+                        title="Import AI-generated song (Claude, Gemini, Jules, Copilot)"
+                    >
+                        🤖 Import AI Song
                     </button>
                     <button 
                         onClick={() => setIsCloudLibraryOpen(true)} 
