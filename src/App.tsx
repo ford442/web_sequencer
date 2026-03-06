@@ -1400,19 +1400,21 @@ export const App: React.FC = () => {
             {transportToolbarNode}
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
-            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-[60px] z-10 overflow-y-auto">
-                {/* Sequencer */}
-                <div className="w-full max-w-[1000px] mx-auto h-[480px] shrink-0">
+            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto pb-[60px]">
+                {/* Sequencer — top section */}
+                <div className="w-full max-w-[1000px] mx-auto h-[440px] shrink-0 pt-6">
                     {sequencerNode}
                 </div>
 
-                {/* Knobs / Hardware Module — middle section */}
-                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-4">
-                    {rackNode}
+                {/* Knobs / Hardware Module — PROMINENT middle section */}
+                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-4">
+                    <div className="h-[380px] rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-cyan-500/20">
+                        {rackNode}
+                    </div>
                 </div>
 
-                {/* Live Keyboard — bottom of scrollable area */}
-                <div className="shrink-0 pb-4 mt-4 max-w-[1000px] mx-auto w-full">
+                {/* Live Keyboard — bottom section */}
+                <div className="shrink-0 py-4 mt-2 max-w-[1000px] mx-auto w-full px-4">
                     {keyboardNode}
                 </div>
             </main>
