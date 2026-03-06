@@ -46,6 +46,26 @@ export interface PreviewData {
   patternGrid: boolean[][];
   /** Any warnings about the song */
   warnings: string[];
+  /** Automation lane summary */
+  automationSummary: {
+    laneCount: number;
+    totalPoints: number;
+    lanes: Array<{
+      target: string;
+      parameter: string;
+      pointCount: number;
+      interpolation: string;
+      minValue: number | null;
+      maxValue: number | null;
+    }>;
+  };
+  /** Automation visualization data for UI */
+  automationData: Array<{
+    target: string;
+    parameter: string;
+    values: (number | null)[];
+    interpolation: string;
+  }>;
 }
 
 /**
@@ -334,12 +354,50 @@ export function generatePreviewData(aiSong: AISongData): PreviewData {
     }
   }
 
+  // Generate automation summary
+  const automationSummary = {
+    laneCount: 0,
+    totalPoints: 0,
+    lanes: [] as PreviewData['automationSummary']['lanes']
+  };
+
+  const automationData: PreviewData['automationData'] = [];
+
+  if (aiSong.automation && aiSong.automation.length > 0) {
+    automationSummary.laneCount = aiSong.automation.length;
+    
+    for (const lane of aiSong.automation) {
+      const values = lane.steps.filter((s): s is number => s !== null);
+      const pointCount = values.length;
+      automationSummary.totalPoints += pointCount;
+
+      automationSummary.lanes.push({
+        target: lane.target,
+        parameter: lane.parameter,
+        pointCount,
+        interpolation: lane.interpolation || 'step',
+        minValue: values.length > 0 ? Math.min(...values) : null,
+        maxValue: values.length > 0 ? Math.max(...values) : null
+      });
+
+      // Add to visualization data
+      automationData.push({
+        target: lane.target,
+        parameter: lane.parameter,
+        values: lane.steps,
+        interpolation: lane.interpolation || 'step'
+      });
+    }
+  }
+
   return {
     trackSummary,
     estimatedDuration: Math.round(estimatedDuration * 10) / 10, // Round to 1 decimal
     complexityScore,
     patternGrid,
-    warnings
+    warnings,
+    automationSummary,
+    automationData
   };
 }
 

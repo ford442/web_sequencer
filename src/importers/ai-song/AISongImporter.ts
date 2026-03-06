@@ -26,7 +26,8 @@ import type {
   HatParams,
   SamplerParams,
   SamplerBankParams,
-  TrackKey
+  TrackKey,
+  AutomationPoint
 } from '../../types';
 
 import { noteToMidi } from '../../utils/musicTheory';
@@ -40,6 +41,51 @@ import type { StorageResult, UploadSuccess, StorageError } from '../../services/
 // ============================================================================
 // AI SONG DATA TYPES (External AI format)
 // ============================================================================
+
+/** Valid automation targets */
+export type AIAutomationTarget = 
+  | 'synthA' 
+  | 'synthB' 
+  | 'bass2' 
+  | 'kick' 
+  | 'snare' 
+  | 'closedHat' 
+  | 'openHat' 
+  | 'sampler' 
+  | 'master';
+
+/** Valid automation parameters for each target */
+export type AITargetedParameter =
+  // Synth parameters (per-voice)
+  | 'filterCutoff' | 'filterResonance' | 'filterMode'
+  | 'decay' | 'accent' | 'envMod' | 'waveform'
+  | 'pitch' | 'volume' | 'drive'
+  // Delay parameters
+  | 'delayTime' | 'delayFeedback' | 'delayMix'
+  // Drum parameters
+  | 'tone' | 'noise'
+  // Sampler parameters
+  | 'playbackSpeed'
+  // Master
+  | 'tempo' | 'swing' | 'masterVolume';
+
+/** Interpolation mode for automation values */
+export type AIInterpolationMode = 'step' | 'linear' | 'smooth';
+
+/**
+ * Single automation lane for parameter changes over time.
+ * Each lane controls one parameter on one target.
+ */
+export interface AIAutomationLane {
+  /** Target track or master to control */
+  target: AIAutomationTarget;
+  /** Parameter to automate */
+  parameter: AITargetedParameter;
+  /** One value per step (0-127 or null for no change). Length should match pattern length (16 or 32) */
+  steps: (number | null)[];
+  /** How to interpolate between values */
+  interpolation?: AIInterpolationMode;
+}
 
 /**
  * Standard format for AI-generated songs.
@@ -80,12 +126,16 @@ export interface AISongData {
     /** Sampler banks (8 max) */
     sampler?: AISamplerBankData[];
   };
+
+  /** Optional automation lanes for parameter changes */
+  automation?: AIAutomationLane[];
 }
 
 /** Single track data from AI */
 export interface AITrackData {
   notes: AINoteEvent[];
   params?: Partial<SynthParams>;
+  harmonizer?: AIHarmonizerConfig;
 }
 
 /** Note event in AI format */
@@ -105,6 +155,125 @@ export interface AISamplerBankData {
   params?: Partial<SamplerBankParams>;
   ttsText?: string;
   sampleUrl?: string;
+  phonemePainter?: AIPhonemePainterConfig;
+}
+
+// ============================================================================
+// EFFECTS TYPES
+// ============================================================================
+
+/** Complete effects chain configuration */
+export interface AIEffectsChain {
+  /** Master effects applied to the mix */
+  master?: AIMasterEffects;
+  /** Per-track effects */
+  tracks?: Partial<Record<TrackKey, AITrackEffects>>;
+}
+
+/** Master bus effects */
+export interface AIMasterEffects {
+  compressor?: AICompressorSettings;
+  limiter?: boolean;
+  reverb?: AIReverbSettings;
+}
+
+/** Per-track effects */
+export interface AITrackEffects {
+  distortion?: AIDistortionSettings;
+  delay?: AIDelaySettings;
+  filter?: AIFilterSettings;
+  chorus?: AIChorusSettings;
+  phaser?: AIPhaserSettings;
+}
+
+/** Compressor settings */
+export interface AICompressorSettings {
+  threshold: number;  // -60 to 0 dB
+  ratio: number;      // 1 to 20
+  attack: number;     // 0.1 to 100 ms
+  release: number;    // 10 to 1000 ms
+  makeupGain?: number;
+}
+
+/** Distortion settings */
+export interface AIDistortionSettings {
+  type: 'soft' | 'hard' | 'tube' | 'bitcrush';
+  amount: number;     // 0 to 100
+  tone?: number;      // -50 to 50 (filter)
+}
+
+/** Delay settings */
+export interface AIDelaySettings {
+  time: number;       // 1/32 to 2 bars in ms or note values
+  feedback: number;   // 0 to 100%
+  mix: number;        // 0 to 100%
+  pingPong?: boolean;
+}
+
+/** Reverb settings */
+export interface AIReverbSettings {
+  size: number;       // 0 to 100 (room size)
+  decay: number;      // 0.1 to 10 seconds
+  mix: number;        // 0 to 100%
+  preDelay?: number;  // 0 to 100 ms
+}
+
+/** Filter settings */
+export interface AIFilterSettings {
+  type: 'lowpass' | 'highpass' | 'bandpass' | 'notch';
+  cutoff: number;     // 20 to 20000 Hz
+  resonance: number;  // 0 to 100
+  envelope?: number;  // -100 to 100 (env amount)
+}
+
+/** Chorus settings */
+export interface AIChorusSettings {
+  rate: number;       // 0.1 to 10 Hz
+  depth: number;      // 0 to 100%
+  mix: number;        // 0 to 100%
+}
+
+/** Phaser settings */
+export interface AIPhaserSettings {
+  rate: number;       // 0.1 to 10 Hz
+  depth: number;      // 0 to 100%
+  feedback: number;   // 0 to 100%
+  stages?: number;    // 2, 4, 6, 8, 12
+}
+
+// ============================================================================
+// HARMONIZER TYPES
+// ============================================================================
+
+/** Harmonizer configuration for vocal/synth tracks */
+export interface AIHarmonizerConfig {
+  enabled: boolean;
+  voices: 2 | 3 | 4;
+  harmonyType: 'octave' | 'fifth' | 'third' | 'seventh' | 'cluster' | 'custom';
+  intervals?: number[];  // Semitones for custom
+  formantShift: number;  // -12 to 12 semitones
+  detune: number;        // -50 to 50 cents per voice
+  spread: number;        // Stereo spread 0 to 100
+}
+
+// ============================================================================
+// PHONEME PAINTER TYPES
+// ============================================================================
+
+/** Phoneme painter configuration for sampler TTS */
+export interface AIPhonemePainterConfig {
+  enabled: boolean;
+  text: string;           // Lyric text
+  phonemes?: string[];    // Explicit phoneme list
+  mapping: AIPhonemeMapping[];
+}
+
+/** Phoneme to step mapping */
+export interface AIPhonemeMapping {
+  step: number;
+  phoneme: string;
+  pitch?: string;         // Note like "C4"
+  duration?: number;      // Steps
 }
 
 // ============================================================================
@@ -162,8 +331,104 @@ export interface AIUploadError {
 export type AIUploadResultType = AIUploadResult | AIUploadError;
 
 // ============================================================================
+// EXTENDED SONG TYPE (for effects storage)
+// ============================================================================
+
+/** Extended SavedSongData with effects for DSP chain integration */
+export interface HyphonSong extends SavedSongData {
+  /** Effects data for DSP chain */
+  effects?: HyphonEffectsData;
+  /** Harmonizer configurations per track */
+  harmonizers?: Partial<Record<TrackKey, AIHarmonizerConfig>>;
+  /** Phoneme painter configurations per sampler bank */
+  phonemePainters?: Record<number, AIPhonemePainterConfig>;
+}
+
+// ============================================================================
+// HYPHON EFFECTS DATA TYPES (Internal DSP representation)
+// ============================================================================
+
+/** Internal representation of converted effects for Hyphon DSP */
+export interface HyphonEffectsData {
+  master: HyphonMasterEffects;
+  tracks: Partial<Record<TrackKey, HyphonTrackEffects>>;
+}
+
+/** Converted master effects */
+export interface HyphonMasterEffects {
+  compressor?: {
+    threshold: number;
+    ratio: number;
+    attack: number;
+    release: number;
+    makeupGain: number;
+  };
+  limiter?: { enabled: boolean };
+  reverb?: {
+    size: number;
+    decay: number;
+    mix: number;
+    preDelay: number;
+  };
+}
+
+/** Converted track effects */
+export interface HyphonTrackEffects {
+  distortion?: {
+    type: 'soft' | 'hard' | 'tube' | 'bitcrush';
+    amount: number;
+    tone: number;
+  };
+  delay?: {
+    time: number;
+    feedback: number;
+    mix: number;
+    pingPong: boolean;
+  };
+  filter?: {
+    type: 'lowpass' | 'highpass' | 'bandpass' | 'notch';
+    cutoff: number;
+    resonance: number;
+    envelope: number;
+  };
+  chorus?: {
+    rate: number;
+    depth: number;
+    mix: number;
+  };
+  phaser?: {
+    rate: number;
+    depth: number;
+    feedback: number;
+    stages: 2 | 4 | 6 | 8 | 12;
+  };
+}
+
+// ============================================================================
 // VALIDATION (Runtime type checking without external deps)
 // ============================================================================
+
+/** Valid automation targets */
+const VALID_AUTOMATION_TARGETS: AIAutomationTarget[] = [
+  'synthA', 'synthB', 'bass2', 'kick', 'snare', 
+  'closedHat', 'openHat', 'sampler', 'master'
+];
+
+/** Valid parameters for each target */
+const VALID_PARAMETERS_BY_TARGET: Record<AIAutomationTarget, AITargetedParameter[]> = {
+  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
+  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
+  bass2: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive'],
+  kick: ['pitch', 'decay', 'tone', 'volume'],
+  snare: ['decay', 'tone', 'noise', 'volume'],
+  closedHat: ['pitch', 'decay', 'volume'],
+  openHat: ['pitch', 'decay', 'volume'],
+  sampler: ['filterCutoff', 'filterResonance', 'drive', 'volume', 'playbackSpeed'],
+  master: ['tempo', 'swing', 'masterVolume']
+};
+
+/** Valid interpolation modes */
+const VALID_INTERPOLATION_MODES: AIInterpolationMode[] = ['step', 'linear', 'smooth'];
 
 /** Validate AISongData structure */
 function validateAISongData(data: unknown): { valid: true } | { valid: false; error: AIImportErrorDetails } {
@@ -200,7 +465,131 @@ function validateAISongData(data: unknown): { valid: true } | { valid: false; er
     return { valid: false, error: { type: 'VALIDATION_ERROR', field: 'tracks', message: 'tracks object required' } };
   }
 
+  // Validate automation if present
+  if (song.automation !== undefined) {
+    const autoValidation = validateAutomation(song.automation, song.tracks);
+    if (!autoValidation.valid) {
+      return autoValidation;
+    }
+  }
+
   return { valid: true };
+}
+
+/**
+ * Validate automation lanes
+ * @param automation - Array of automation lanes
+ * @param tracks - Tracks object to determine pattern length
+ * @returns Validation result
+ */
+function validateAutomation(
+  automation: unknown[], 
+  tracks: AISongData['tracks']
+): { valid: true } | { valid: false; error: AIImportErrorDetails } {
+  if (!Array.isArray(automation)) {
+    return { 
+      valid: false, 
+      error: { type: 'VALIDATION_ERROR', field: 'automation', message: 'automation must be an array' } 
+    };
+  }
+
+  // Determine expected step count from tracks (default to 32)
+  const expectedSteps = determinePatternLength(tracks);
+
+  for (let i = 0; i < automation.length; i++) {
+    const lane = automation[i] as Partial<AIAutomationLane>;
+    const lanePrefix = `automation[${i}]`;
+
+    // Check required fields
+    if (!lane.target || !VALID_AUTOMATION_TARGETS.includes(lane.target as AIAutomationTarget)) {
+      return {
+        valid: false,
+        error: { 
+          type: 'VALIDATION_ERROR', 
+          field: `${lanePrefix}.target`, 
+          message: `Invalid target "${lane.target}". Must be one of: ${VALID_AUTOMATION_TARGETS.join(', ')}` 
+        }
+      };
+    }
+
+    const target = lane.target as AIAutomationTarget;
+
+    if (!lane.parameter || !VALID_PARAMETERS_BY_TARGET[target].includes(lane.parameter as AITargetedParameter)) {
+      return {
+        valid: false,
+        error: { 
+          type: 'VALIDATION_ERROR', 
+          field: `${lanePrefix}.parameter`, 
+          message: `Invalid parameter "${lane.parameter}" for target "${target}". Valid: ${VALID_PARAMETERS_BY_TARGET[target].join(', ')}` 
+        }
+      };
+    }
+
+    // Validate steps array
+    if (!Array.isArray(lane.steps)) {
+      return {
+        valid: false,
+        error: { type: 'VALIDATION_ERROR', field: `${lanePrefix}.steps`, message: 'steps must be an array' }
+      };
+    }
+
+    if (lane.steps.length !== expectedSteps) {
+      return {
+        valid: false,
+        error: { 
+          type: 'VALIDATION_ERROR', 
+          field: `${lanePrefix}.steps`, 
+          message: `steps length (${lane.steps.length}) must match pattern length (${expectedSteps})` 
+        }
+      };
+    }
+
+    // Validate step values (0-127 or null)
+    for (let s = 0; s < lane.steps.length; s++) {
+      const value = lane.steps[s];
+      if (value !== null && (typeof value !== 'number' || value < 0 || value > 127)) {
+        return {
+          valid: false,
+          error: { 
+            type: 'VALIDATION_ERROR', 
+            field: `${lanePrefix}.steps[${s}]`, 
+            message: `Step values must be 0-127 or null, got ${value}` 
+          }
+        };
+      }
+    }
+
+    // Validate interpolation if provided
+    if (lane.interpolation !== undefined && !VALID_INTERPOLATION_MODES.includes(lane.interpolation)) {
+      return {
+        valid: false,
+        error: { 
+          type: 'VALIDATION_ERROR', 
+          field: `${lanePrefix}.interpolation`, 
+          message: `Invalid interpolation "${lane.interpolation}". Must be: step, linear, or smooth` 
+        }
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Determine pattern length from track data
+ * @param tracks - Tracks object
+ * @returns Pattern length (16 or 32)
+ */
+function determinePatternLength(tracks: AISongData['tracks']): number {
+  // Check drum tracks for length
+  const drumTracks: (boolean[] | undefined)[] = [tracks.kick, tracks.snare, tracks.closedHat, tracks.openHat];
+  for (const track of drumTracks) {
+    if (track && track.length > 0) {
+      return track.length <= 16 ? 16 : 32;
+    }
+  }
+  // Default to 32 steps for Hyphon compatibility
+  return 32;
 }
 
 /** Validate note format */
@@ -257,6 +646,15 @@ export class AISongImporter {
       // Convert params
       const params = this.convertParams(aiSong);
 
+      // Convert effects (if present)
+      const effects = this.convertEffects(aiSong);
+
+      // Convert harmonizer configs
+      const harmonizers = this.convertAllHarmonizers(aiSong);
+
+      // Convert phoneme painter configs
+      const phonemePainters = this.convertAllPhonemePainters(aiSong);
+
       // Build SavedSongData
       const song: SavedSongData = {
         version: 1,
@@ -269,6 +667,11 @@ export class AISongImporter {
         ambianceUrl: '',
         backgroundImage: ''
       };
+
+      // Store effects data for DSP retrieval
+      (song as HyphonSong).effects = effects;
+      (song as HyphonSong).harmonizers = harmonizers;
+      (song as HyphonSong).phonemePainters = phonemePainters;
 
       // Count converted elements
       const notesConverted = this.countNotes(aiSong);
@@ -321,8 +724,8 @@ export class AISongImporter {
     const closedHat = this.convertDrumPattern(aiSong.tracks.closedHat, numSteps, 'F#2');
     const openHat = this.convertDrumPattern(aiSong.tracks.openHat, numSteps, 'A#2');
 
-    // Convert sampler
-    const sampler = this.convertSamplerTracks(aiSong.tracks.sampler, numSteps);
+    // Convert sampler to PartSequence[] for Pattern
+    const sampler = this.convertSamplerToSequences(aiSong.tracks.sampler, numSteps);
 
     return { partA, partB, bass2, kick, snare, closedHat, openHat, sampler };
   }
@@ -386,7 +789,44 @@ export class AISongImporter {
   }
 
   /**
-   * Convert sampler bank data
+   * Convert sampler bank data to PartSequence[] for Pattern
+   */
+  private convertSamplerToSequences(banks: AISamplerBankData[] | undefined, numSteps: number): PartSequence[] {
+    // Create 8 sampler sequences (one per bank)
+    const sequences: PartSequence[] = Array(8).fill(null).map(() => ({
+      steps: Array(numSteps).fill(null) as (Note | null)[]
+    }));
+
+    if (!banks) {
+      return sequences;
+    }
+
+    for (const bank of banks) {
+      if (bank.bankIndex < 0 || bank.bankIndex > 7) {
+        this.warnings.push(`Sampler bank index ${bank.bankIndex} out of range`);
+        continue;
+      }
+
+      // Convert steps
+      const steps: (Note | null)[] = Array(numSteps).fill(null);
+      for (const event of bank.steps) {
+        if (event.step >= 0 && event.step < numSteps) {
+          steps[event.step] = {
+            note: event.note,
+            velocity: event.velocity ?? 0.8,
+            length: event.length ?? 1
+          };
+        }
+      }
+
+      sequences[bank.bankIndex] = { steps };
+    }
+
+    return sequences;
+  }
+
+  /**
+   * Convert sampler bank data to SamplerParams for SavedSongData['params']
    */
   private convertSamplerTracks(banks: AISamplerBankData[] | undefined, numSteps: number): SamplerParams {
     const sampler: SamplerParams = Array(8).fill(null).map(() => ({ 
@@ -522,6 +962,372 @@ export class AISongImporter {
       }
     }
     return count;
+  }
+
+  /**
+   * Convert AI automation lanes to Hyphon automation format.
+   * 
+   * Maps per-step automation values to the Hyphon automation system.
+   * Each non-null step value creates an automation point.
+   * 
+   * @param aiSong - The AI song data containing automation lanes
+   * @returns Array of KnobAutomation-compatible objects for Hyphon
+   * 
+   * @example
+   * ```typescript
+   * const automation = this.convertAutomation(aiSong);
+   * // Returns: [{ paramId: 'filterCutoff', trackKey: 'partA', points: [...], isRecording: false }]
+   * ```
+   */
+  convertAutomation(aiSong: AISongData): Array<{
+    paramId: string;
+    trackKey: string;
+    points: AutomationPoint[];
+    isRecording: boolean;
+    interpolation: AIInterpolationMode;
+  }> {
+    if (!aiSong.automation || aiSong.automation.length === 0) {
+      return [];
+    }
+
+    const results: ReturnType<typeof this.convertAutomation> = [];
+
+    for (const lane of aiSong.automation) {
+      // Map AI target to Hyphon track key
+      const trackKey = this.mapAutomationTargetToTrackKey(lane.target);
+      
+      // Convert steps to automation points
+      const points: AutomationPoint[] = [];
+      
+      for (let step = 0; step < lane.steps.length; step++) {
+        const value = lane.steps[step];
+        if (value !== null) {
+          // Convert 0-127 to 0-1 range for Hyphon
+          points.push({
+            step,
+            value: value / 127
+          });
+        }
+      }
+
+      // Only add if we have automation points
+      if (points.length > 0) {
+        results.push({
+          paramId: lane.parameter,
+          trackKey,
+          points,
+          isRecording: false,
+          interpolation: lane.interpolation || 'step'
+        });
+
+        this.mappedParams.push({
+          source: `automation.${lane.target}.${lane.parameter}`,
+          target: `${trackKey}.${lane.parameter}`,
+          value: `${points.length} points`
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Map AI automation target to Hyphon track key
+   * @param target - AI automation target
+   * @returns Hyphon track key
+   */
+  private mapAutomationTargetToTrackKey(target: AIAutomationTarget): string {
+    const mapping: Record<AIAutomationTarget, string> = {
+      synthA: 'partA',
+      synthB: 'partB',
+      bass2: 'bass2',
+      kick: 'kick',
+      snare: 'snare',
+      closedHat: 'closedHat',
+      openHat: 'openHat',
+      sampler: 'sampler',
+      master: 'master'
+    };
+    return mapping[target];
+  }
+
+  /**
+   * Get automation summary for display purposes.
+   * Returns a human-readable summary of automation lanes.
+   * 
+   * @param aiSong - The AI song data
+   * @returns Summary object with lane count and details
+   */
+  getAutomationSummary(aiSong: AISongData): {
+    laneCount: number;
+    lanes: Array<{
+      target: string;
+      parameter: string;
+      pointCount: number;
+      interpolation: AIInterpolationMode;
+    }>;
+  } {
+    if (!aiSong.automation) {
+      return { laneCount: 0, lanes: [] };
+    }
+
+    return {
+      laneCount: aiSong.automation.length,
+      lanes: aiSong.automation.map(lane => ({
+        target: lane.target,
+        parameter: lane.parameter,
+        pointCount: lane.steps.filter(s => s !== null).length,
+        interpolation: lane.interpolation || 'step'
+      }))
+    };
+  }
+
+  // ============================================================================
+  // EFFECTS CONVERSION METHODS
+  // ============================================================================
+
+  /**
+   * Convert AI effects chain to Hyphon DSP parameters
+   * Maps AI-generated effects to existing Hyphon effect parameters
+   */
+  convertEffects(aiSong: AISongData): HyphonEffectsData {
+    const effects: HyphonEffectsData = {
+      master: {},
+      tracks: {}
+    };
+
+    if (!aiSong.effects) {
+      return effects;
+    }
+
+    // Convert master effects
+    if (aiSong.effects.master) {
+      effects.master = this.convertMasterEffects(aiSong.effects.master);
+    }
+
+    // Convert track effects
+    if (aiSong.effects.tracks) {
+      for (const [trackKey, trackEffects] of Object.entries(aiSong.effects.tracks)) {
+        if (trackEffects) {
+          effects.tracks[trackKey as TrackKey] = this.convertTrackEffects(trackEffects);
+        }
+      }
+    }
+
+    this.mappedParams.push({
+      source: 'AI.effects',
+      target: 'HyphonEffectsData',
+      value: effects
+    });
+
+    return effects;
+  }
+
+  /**
+   * Convert master bus effects
+   */
+  private convertMasterEffects(master: AIMasterEffects): HyphonMasterEffects {
+    const result: HyphonMasterEffects = {};
+
+    if (master.compressor) {
+      result.compressor = {
+        threshold: this.clamp(master.compressor.threshold, -60, 0),
+        ratio: this.clamp(master.compressor.ratio, 1, 20),
+        attack: this.clamp(master.compressor.attack, 0.1, 100),
+        release: this.clamp(master.compressor.release, 10, 1000),
+        makeupGain: master.compressor.makeupGain ?? 0
+      };
+    }
+
+    if (master.limiter) {
+      result.limiter = { enabled: true };
+    }
+
+    if (master.reverb) {
+      result.reverb = {
+        size: this.clamp(master.reverb.size, 0, 100),
+        decay: this.clamp(master.reverb.decay, 0.1, 10),
+        mix: this.clamp(master.reverb.mix, 0, 100),
+        preDelay: this.clamp(master.reverb.preDelay ?? 0, 0, 100)
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Convert track-specific effects
+   */
+  private convertTrackEffects(trackEffects: AITrackEffects): HyphonTrackEffects {
+    const result: HyphonTrackEffects = {};
+
+    if (trackEffects.distortion) {
+      result.distortion = {
+        type: trackEffects.distortion.type,
+        amount: this.clamp(trackEffects.distortion.amount, 0, 100),
+        tone: this.clamp(trackEffects.distortion.tone ?? 0, -50, 50)
+      };
+    }
+
+    if (trackEffects.delay) {
+      result.delay = {
+        time: trackEffects.delay.time,
+        feedback: this.clamp(trackEffects.delay.feedback, 0, 100),
+        mix: this.clamp(trackEffects.delay.mix, 0, 100),
+        pingPong: trackEffects.delay.pingPong ?? false
+      };
+    }
+
+    if (trackEffects.filter) {
+      result.filter = {
+        type: trackEffects.filter.type,
+        cutoff: this.clamp(trackEffects.filter.cutoff, 20, 20000),
+        resonance: this.clamp(trackEffects.filter.resonance, 0, 100),
+        envelope: this.clamp(trackEffects.filter.envelope ?? 0, -100, 100)
+      };
+    }
+
+    if (trackEffects.chorus) {
+      result.chorus = {
+        rate: this.clamp(trackEffects.chorus.rate, 0.1, 10),
+        depth: this.clamp(trackEffects.chorus.depth, 0, 100),
+        mix: this.clamp(trackEffects.chorus.mix, 0, 100)
+      };
+    }
+
+    if (trackEffects.phaser) {
+      result.phaser = {
+        rate: this.clamp(trackEffects.phaser.rate, 0.1, 10),
+        depth: this.clamp(trackEffects.phaser.depth, 0, 100),
+        feedback: this.clamp(trackEffects.phaser.feedback, 0, 100),
+        stages: this.validatePhaserStages(trackEffects.phaser.stages)
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Convert harmonizer configuration
+   */
+  convertHarmonizer(trackData: AITrackData): AIHarmonizerConfig | null {
+    if (!trackData.harmonizer?.enabled) {
+      return null;
+    }
+
+    const config = trackData.harmonizer;
+
+    // Validate and clamp values
+    return {
+      enabled: true,
+      voices: this.validateHarmonizerVoices(config.voices),
+      harmonyType: config.harmonyType,
+      intervals: config.intervals,
+      formantShift: this.clamp(config.formantShift, -12, 12),
+      detune: this.clamp(config.detune, -50, 50),
+      spread: this.clamp(config.spread, 0, 100)
+    };
+  }
+
+  /**
+   * Convert phoneme painter configuration
+   */
+  convertPhonemePainter(bankData: AISamplerBankData): AIPhonemePainterConfig | null {
+    if (!bankData.phonemePainter?.enabled) {
+      return null;
+    }
+
+    const config = bankData.phonemePainter;
+
+    // Validate mappings
+    const validMappings = config.mapping.filter(m => 
+      typeof m.step === 'number' && 
+      m.step >= 0 && 
+      m.step < 32 &&
+      typeof m.phoneme === 'string' &&
+      m.phoneme.length > 0
+    );
+
+    if (validMappings.length === 0) {
+      this.warnings.push(`Phoneme painter enabled but no valid mappings for bank ${bankData.bankIndex}`);
+      return null;
+    }
+
+    return {
+      enabled: true,
+      text: config.text,
+      phonemes: config.phonemes,
+      mapping: validMappings
+    };
+  }
+
+  // ============================================================================
+  // HARMONIZER & PHONEME PAINTER CONVERSION HELPERS
+  // ============================================================================
+
+  /**
+   * Convert harmonizer configs for all tracks
+   */
+  private convertAllHarmonizers(aiSong: AISongData): Partial<Record<TrackKey, AIHarmonizerConfig>> {
+    const harmonizers: Partial<Record<TrackKey, AIHarmonizerConfig>> = {};
+
+    if (aiSong.tracks.synthA?.harmonizer) {
+      const config = this.convertHarmonizer(aiSong.tracks.synthA);
+      if (config) harmonizers.synthA = config;
+    }
+
+    if (aiSong.tracks.synthB?.harmonizer) {
+      const config = this.convertHarmonizer(aiSong.tracks.synthB);
+      if (config) harmonizers.synthB = config;
+    }
+
+    if (aiSong.tracks.bass2?.harmonizer) {
+      const config = this.convertHarmonizer(aiSong.tracks.bass2);
+      if (config) harmonizers.bass2 = config;
+    }
+
+    return harmonizers;
+  }
+
+  /**
+   * Convert phoneme painter configs for all sampler banks
+   */
+  private convertAllPhonemePainters(aiSong: AISongData): Record<number, AIPhonemePainterConfig> {
+    const painters: Record<number, AIPhonemePainterConfig> = {};
+
+    if (aiSong.tracks.sampler) {
+      for (const bank of aiSong.tracks.sampler) {
+        const config = this.convertPhonemePainter(bank);
+        if (config) {
+          painters[bank.bankIndex] = config;
+        }
+      }
+    }
+
+    return painters;
+  }
+
+  // ============================================================================
+  // VALIDATION HELPERS
+  // ============================================================================
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private validateHarmonizerVoices(voices: number): 2 | 3 | 4 {
+    if (voices === 2 || voices === 3 || voices === 4) {
+      return voices;
+    }
+    return 3; // Default to 3 voices
+  }
+
+  private validatePhaserStages(stages?: number): 2 | 4 | 6 | 8 | 12 {
+    const validStages: (2 | 4 | 6 | 8 | 12)[] = [2, 4, 6, 8, 12];
+    if (stages && validStages.includes(stages as 2 | 4 | 6 | 8 | 12)) {
+      return stages as 2 | 4 | 6 | 8 | 12;
+    }
+    return 4; // Default
   }
 
   /**
