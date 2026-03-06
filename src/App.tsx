@@ -17,6 +17,7 @@ import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
 import { SongMode } from './components/SongMode';
 import { CloudLibrary } from './components/CloudLibrary';
+import { AISongModal } from './components/AISongModal';
 import { CloudStatus } from './components/CloudStatus';
 import { Toast } from './components/Toast';
 import type { CloudItemType } from './services/CloudStorage';
@@ -1301,6 +1302,13 @@ export const App: React.FC = () => {
         }
     }, [handleGenerateTTS, ttsPhrases, selection, setPattern, setSampler, updateStorageForTrack, showToast]);
 
+    // Handle AI song import - converts AI format to Hyphon and loads it
+    const handleAISongImport = useCallback((song: SavedSongData, aiData: AISongData) => {
+        // Load the song data using existing loadCloudData logic
+        loadCloudData(song, 'song');
+        showToast(`Imported "${aiData.meta.title}" by ${aiData.meta.author}`, 'success');
+    }, [loadCloudData, showToast]);
+
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
     const onBass2ParamChange = useCallback((id: string, v: number) => handleBass2Change(id, v), [handleBass2Change]);
@@ -1662,6 +1670,7 @@ export const App: React.FC = () => {
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
+            <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} />
             <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
             {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
