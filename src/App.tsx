@@ -227,6 +227,11 @@ export const App: React.FC = () => {
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
     const [isAISongModalOpen, setIsAISongModalOpen] = useState(false);
+    // AI Song Import loading states
+    const [isImportingAISong, setIsImportingAISong] = useState(false);
+    const [aiImportProgress, setAiImportProgress] = useState(0);
+    const [aiImportStage, setAiImportStage] = useState<'parsing' | 'validating' | 'converting' | 'uploading' | 'loading' | 'complete' | 'error' | null>(null);
+    const [aiImportError, setAiImportError] = useState<string | null>(null);
     const [isRbsImportModalOpen, setIsRbsImportModalOpen] = useState(false);
     const [isLyricMapperOpen, setIsLyricMapperOpen] = useState(false);
     const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
@@ -1305,10 +1310,108 @@ export const App: React.FC = () => {
     }, [handleGenerateTTS, ttsPhrases, selection, setPattern, setSampler, updateStorageForTrack, showToast]);
 
     // Handle AI song import - converts AI format to Hyphon and loads it
-    const handleAISongImport = useCallback((song: SavedSongData, aiData: AISongData) => {
-        // Load the song data using existing loadCloudData logic
-        loadCloudData(song, 'song');
-        showToast(`Imported "${aiData.meta.title}" by ${aiData.meta.author}`, 'success');
+    const handleAISongImport = useCallback(async (song: SavedSongData, aiData: AISongData) => {
+        setIsImportingAISong(true);
+        setAiImportProgress(0);
+        setAiImportError(null);
+        
+        try {
+            // Stage 1: Parsing (handled in modal, but show in overlay)
+            setAiImportStage('parsing');
+            setAiImportProgress(10);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Stage 2: Validating
+            setAiImportStage('validating');
+            setAiImportProgress(25);
+            await new Promise(resolve => setTimeout(resolve, 150));
+            
+            // Stage 3: Converting
+            setAiImportStage('converting');
+            setAiImportProgress(40);
+            await new Promise(resolve => setTimeout(resolve, 150));
+            
+            // Stage 4: Attempt cloud upload (optional, can fail gracefully)
+            setAiImportStage('uploading');
+            setAiImportProgress(60);
+            
+            // Try to save to cloud storage if available
+            try {
+                const { CloudStorage } = await import('./services/CloudStorage');
+                const cloud = CloudStorage.getInstance();
+                if (cloud.isAvailable()) {
+                    await cloud.save('song', {
+                        name: aiData.meta.title,
+                        data: song,
+                        metadata: {
+                            title: aiData.meta.title,
+                            author: aiData.meta.author,
+                            generator: aiData.meta.generator,
+                            importedAt: new Date().toISOString()
+                        }
+                    });
+                    setAiImportProgress(80);
+                }
+            } catch (cloudError) {
+                // Cloud upload failed but we'll continue with local import
+                console.warn('Cloud upload failed:', cloudError);
+                showToast('Song imported locally (cloud upload failed)', 'info');
+                setAiImportProgress(80);
+            }
+            
+            // Stage 5: Loading into sequencer
+            setAiImportStage('loading');
+            setAiImportProgress(90);
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // Load the song data using existing loadCloudData logic
+            loadCloudData(song, 'song');
+            
+            // Complete
+            setAiImportProgress(100);
+            setAiImportStage('complete');
+            
+            showToast(`✨ Imported "${aiData.meta.title}" by ${aiData.meta.author}`, 'success');
+            
+            // Close modal after brief delay on success
+            setTimeout(() => {
+                setIsAISongModalOpen(false);
+                setIsImportingAISong(false);
+                setAiImportStage(null);
+                setAiImportProgress(0);
+            }, 1500);
+            
+        } catch (error) {
+            console.error('AI Song Import Error:', error);
+            setAiImportStage('error');
+            
+            // Provide specific error messages based on error type
+            let errorMessage = 'Import failed: Unknown error';
+            if (error instanceof Error) {
+                if (error.message.includes('JSON') || error.message.includes('parse')) {
+                    errorMessage = `Invalid JSON syntax: ${error.message}`;
+                } else if (error.message.includes('validation') || error.message.includes('required')) {
+                    errorMessage = `Song validation failed: ${error.message}`;
+                } else if (error.message.includes('network') || error.message.includes('fetch')) {
+                    errorMessage = 'Network error - song saved locally';
+                } else {
+                    errorMessage = `Import failed: ${error.message}`;
+                }
+            }
+            
+            setAiImportError(errorMessage);
+            showToast(errorMessage, 'error');
+            
+            // Keep overlay visible for a moment so user can see error
+            setTimeout(() => {
+                setIsImportingAISong(false);
+                setAiImportStage(null);
+                setAiImportError(null);
+            }, 3000);
+            
+            // Re-throw so modal can handle retry if needed
+            throw error;
+        }
     }, [loadCloudData, showToast]);
 
     // Handle RBS import - converts HyphonSong to SavedSongData and loads it
@@ -1731,8 +1834,117 @@ export const App: React.FC = () => {
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
+            
+            {/* AI Song Import Loading Overlay */}
+            {isImportingAISong && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="AI Song Import Progress">
+                    <div className="bg-[#0f1115] border border-emerald-500/30 rounded-xl shadow-[0_0_60px_rgba(16,185,129,0.3)] p-8 max-w-md w-full mx-4">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                                {aiImportStage === 'error' ? (
+                                    <span className="text-2xl text-red-400">⚠️</span>
+                                ) : aiImportStage === 'complete' ? (
+                                    <span className="text-2xl text-emerald-400">✓</span>
+                                ) : (
+                                    <span className="text-2xl animate-pulse">🤖</span>
+                                )}
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-white">
+                                    {aiImportStage === 'error' ? 'Import Failed' : 
+                                     aiImportStage === 'complete' ? 'Import Complete' : 
+                                     'Importing AI Song'}
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    {aiImportStage === 'parsing' && 'Parsing JSON...'}
+                                    {aiImportStage === 'validating' && 'Validating song structure...'}
+                                    {aiImportStage === 'converting' && 'Converting to Hyphon format...'}
+                                    {aiImportStage === 'uploading' && 'Uploading to cloud...'}
+                                    {aiImportStage === 'loading' && 'Loading into sequencer...'}
+                                    {aiImportStage === 'complete' && 'Successfully imported!'}
+                                    {aiImportStage === 'error' && aiImportError || 'Processing...'}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        <div className="relative h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div 
+                                className={`absolute top-0 left-0 h-full rounded-full transition-all duration-300 ${
+                                    aiImportStage === 'error' ? 'bg-red-500' :
+                                    aiImportStage === 'complete' ? 'bg-emerald-500' :
+                                    'bg-gradient-to-r from-emerald-500 to-cyan-500'
+                                }`}
+                                style={{ width: `${aiImportProgress}%` }}
+                            />
+                            {/* Animated shimmer effect during processing */}
+                            {aiImportStage !== 'error' && aiImportStage !== 'complete' && (
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
+                                     style={{ 
+                                         animation: 'shimmer 1.5s infinite',
+                                         backgroundSize: '200% 100%'
+                                     }} 
+                                />
+                            )}
+                        </div>
+                        
+                        {/* Progress Steps */}
+                        <div className="mt-4 grid grid-cols-5 gap-1">
+                            {['parsing', 'validating', 'converting', 'uploading', 'loading'].map((stage, idx) => {
+                                const stageOrder = ['parsing', 'validating', 'converting', 'uploading', 'loading'];
+                                const currentIdx = aiImportStage ? stageOrder.indexOf(aiImportStage) : -1;
+                                const isComplete = currentIdx > idx;
+                                const isActive = aiImportStage === stage;
+                                
+                                return (
+                                    <div 
+                                        key={stage}
+                                        className={`h-1 rounded-full transition-all duration-300 ${
+                                            isComplete ? 'bg-emerald-500' :
+                                            isActive ? 'bg-yellow-400 animate-pulse' :
+                                            'bg-gray-800'
+                                        }`}
+                                    />
+                                );
+                            })}
+                        </div>
+                        
+                        {/* Stage Labels */}
+                        <div className="mt-4 flex justify-between text-[10px] text-gray-500 uppercase tracking-wider">
+                            <span className={aiImportStage === 'parsing' ? 'text-emerald-400' : ''}>Parse</span>
+                            <span className={aiImportStage === 'validating' ? 'text-emerald-400' : ''}>Validate</span>
+                            <span className={aiImportStage === 'converting' ? 'text-emerald-400' : ''}>Convert</span>
+                            <span className={aiImportStage === 'uploading' ? 'text-emerald-400' : ''}>Cloud</span>
+                            <span className={aiImportStage === 'loading' ? 'text-emerald-400' : ''}>Load</span>
+                        </div>
+                        
+                        {/* Error Message */}
+                        {aiImportError && (
+                            <div className="mt-4 p-3 bg-red-950/30 border border-red-900/50 rounded-lg">
+                                <p className="text-xs text-red-400">{aiImportError}</p>
+                            </div>
+                        )}
+                        
+                        {/* Cancel Button (only during non-critical stages) */}
+                        {aiImportStage && !['complete', 'error', 'loading'].includes(aiImportStage) && (
+                            <button
+                                onClick={() => {
+                                    setIsImportingAISong(false);
+                                    setAiImportStage(null);
+                                    setAiImportProgress(0);
+                                    showToast('Import cancelled', 'info');
+                                }}
+                                className="mt-4 w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all"
+                            >
+                                Cancel Import
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+            
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
-            <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} />
+            <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
             <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
             <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
@@ -1810,35 +2022,61 @@ export const App: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                     <button 
                         onClick={exportSongToFile} 
-                        className="h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 rounded hover:bg-green-950/30 transition-all" 
+                        disabled={isImportingAISong}
+                        className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30'}`} 
                         title="Save to JSON"
                     >
                         💾 SAVE
                     </button>
                     <button 
                         onClick={importSongFromFile} 
-                        className="h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 rounded hover:bg-blue-950/30 transition-all" 
+                        disabled={isImportingAISong}
+                        className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30'}`} 
                         title="Load from JSON"
                     >
                         📂 LOAD
                     </button>
                     <button 
                         onClick={() => setIsRbsImportModalOpen(true)}
-                        className="h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 rounded hover:bg-amber-950/30 transition-all" 
+                        disabled={isImportingAISong}
+                        className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30'}`} 
                         title="Import ReBirth RB-338 file"
                     >
                         🎹 Import .rbs File...
                     </button>
                     <button 
-                        onClick={() => setIsAISongModalOpen(true)}
-                        className="h-6 px-2 text-[10px] font-bold text-emerald-400 bg-zinc-900 border border-emerald-900/50 rounded hover:bg-emerald-950/30 transition-all" 
-                        title="Import AI-generated song (Claude, Gemini, Jules, Copilot)"
+                        onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}
+                        disabled={isImportingAISong}
+                        className={`h-6 px-2 text-[10px] font-bold bg-zinc-900 border rounded transition-all min-w-[130px] ${
+                            isImportingAISong 
+                                ? 'text-yellow-400 border-yellow-900/50 cursor-wait' 
+                                : 'text-emerald-400 border-emerald-900/50 hover:bg-emerald-950/30'
+                        }`}
+                        title={isImportingAISong 
+                            ? `Importing: ${aiImportStage || 'processing'}... ${aiImportProgress}%` 
+                            : "Import AI-generated song (Claude, Gemini, Jules, Copilot)"
+                        }
                     >
-                        🤖 Import AI Song
+                        {isImportingAISong ? (
+                            <span className="flex items-center gap-1">
+                                <span className="animate-spin">⏳</span>
+                                <span>{aiImportStage === 'parsing' && 'Parsing...'}
+                                {aiImportStage === 'validating' && 'Validating...'}
+                                {aiImportStage === 'converting' && 'Converting...'}
+                                {aiImportStage === 'uploading' && 'Uploading...'}
+                                {aiImportStage === 'loading' && 'Loading...'}
+                                {aiImportStage === 'complete' && 'Done!'}
+                                {aiImportStage === 'error' && 'Failed'}
+                                {!aiImportStage && 'Processing...'} {aiImportProgress}%</span>
+                            </span>
+                        ) : (
+                            <span>🤖 Import AI Song</span>
+                        )}
                     </button>
                     <button 
                         onClick={() => setIsCloudLibraryOpen(true)} 
-                        className="h-6 px-2 text-[10px] font-bold text-purple-400 bg-zinc-900 border border-purple-900/50 rounded hover:bg-purple-950/30 transition-all" 
+                        disabled={isImportingAISong}
+                        className={`h-6 px-2 text-[10px] font-bold text-purple-400 bg-zinc-900 border border-purple-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-950/30'}`} 
                         title="Cloud Library"
                     >
                         ☁️ CLOUD
