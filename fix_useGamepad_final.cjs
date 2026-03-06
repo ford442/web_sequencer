@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+const fs = require('fs');
+
+const content = `import { useEffect, useRef } from 'react';
 
 // Configuration for Key Mappings
 const MAPPINGS = {
@@ -142,3 +144,6 @@ export function useGamepad() {
     };
   }, []);
 }
+`;
+
+fs.writeFileSync('src/hooks/useGamepad.ts', content);
