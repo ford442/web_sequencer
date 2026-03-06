@@ -1,9 +1,9 @@
 # Hyphon AI Song Generation & Import System – Multi-Agent Collaboration Guide
 
-**Document Version**: 2.0  
-**Last Updated**: 2024-03-06  
+**Document Version**: 3.0  
+**Last Updated**: 2026-03-06  
 **Author**: Hyphon Architect  
-**Status**: Phase 2 Complete ✅
+**Status**: Phase 3 Complete ✅
 
 ---
 
@@ -253,6 +253,154 @@ interface PreviewData {
 }
 ```
 
+### Extended Schema: Automation & Effects (Phase 3)
+
+```typescript
+// ============================================================================
+// AUTOMATION LANES (Phase 3)
+// ============================================================================
+
+interface AutomationLane {
+  trackId: string;         // "synthA", "kick", etc.
+  paramId: string;         // "filterCutoff", "delayTime", "distortion"
+  steps: AutomationStep[]; // Per-step parameter values
+}
+
+interface AutomationStep {
+  step: number;            // 0-31
+  value: number;           // Normalized 0.0-1.0 (mapped to param range)
+  interpolation?: "step" | "linear" | "smooth"; // Default: "step"
+}
+
+// Automation targets per track type
+interface SynthAutomationTargets {
+  filterCutoff?: AutomationLane;    // 100-20000 Hz
+  filterResonance?: AutomationLane; // 0-30
+  envMod?: AutomationLane;          // 0-1
+  decay?: AutomationLane;           // 0.1-2.0s
+  accent?: AutomationLane;          // 0-1
+  volume?: AutomationLane;          // 0-1
+}
+
+interface DrumAutomationTargets {
+  volume?: AutomationLane;          // Per-drum level
+  pitch?: AutomationLane;           // -12 to +12 semitones
+  decay?: AutomationLane;           // Envelope decay
+}
+
+// ============================================================================
+// EFFECTS CHAIN (Phase 3)
+// ============================================================================
+
+interface EffectsChain {
+  preFilter?: FilterEffect;         // Before main filter
+  distortion?: DistortionEffect;    // Wave shaping
+  delay?: DelayEffect;              // Delay line
+  reverb?: ReverbEffect;            // Convolution/algorithmic
+  compressor?: CompressorEffect;    // Dynamics
+}
+
+interface FilterEffect {
+  type: "lowpass" | "highpass" | "bandpass" | "notch";
+  frequency: number;       // Hz
+  resonance: number;       // 0-30
+  automation?: AutomationLane;
+}
+
+interface DistortionEffect {
+  amount: number;          // 0-1 (drive)
+  type: "soft" | "hard" | "tube" | "bitcrush";
+  mix: number;             // 0-1 (wet/dry)
+}
+
+interface DelayEffect {
+  time: number;            // 1/32 to 2 bars (in ms or note values)
+  feedback: number;        // 0-0.95
+  mix: number;             // 0-1
+  sync: boolean;           // Sync to tempo
+  automation?: AutomationLane; // For dub-style delay sweeps
+}
+
+interface ReverbEffect {
+  size: number;            // 0-1 (room size)
+  decay: number;           // 0.1-10s
+  damping: number;         // 0-1 (high freq damping)
+  mix: number;             // 0-1
+  type: "plate" | "hall" | "room" | "shimmer";
+}
+
+interface CompressorEffect {
+  threshold: number;       // dB (-60 to 0)
+  ratio: number;           // 1:1 to 20:1
+  attack: number;          // ms
+  release: number;         // ms
+  makeupGain: number;      // dB
+}
+
+// ============================================================================
+// HARMONIZER (Phase 3)
+// ============================================================================
+
+interface HarmonizerConfig {
+  enabled: boolean;
+  voices: 2 | 3 | 4;       // Number of harmony voices
+  intervals: number[];     // Semitone offsets from root (e.g., [0, 3, 7, 10])
+  formantShift: number;    // -12 to +12 semitones
+  spread: number;          // Stereo width 0-1
+  mix: number;             // 0-1
+}
+
+// ============================================================================
+// PHONEME PAINTER (Phase 3)
+// ============================================================================
+
+interface PhonemeMapping {
+  text: string;            // Original lyrics
+  phonemes: string[];      // ARPAbet or IPA phonemes
+  steps: number[];         // Step index for each phoneme
+  pitches?: number[];      // MIDI note for each phoneme (pitch bend)
+  durations?: number[];    // Duration in steps per phoneme
+}
+
+// ============================================================================
+// UPDATED AISongData (Phase 3)
+// ============================================================================
+
+interface AISongData_Phase3 extends AISongData {
+  automation?: {
+    synthA?: SynthAutomationTargets;
+    synthB?: SynthAutomationTargets;
+    bass2?: SynthAutomationTargets;
+    global?: {
+      tempo?: AutomationLane;       // Tempo ramps
+      masterVolume?: AutomationLane;
+    };
+  };
+  
+  effects?: {
+    synthA?: EffectsChain;
+    synthB?: EffectsChain;
+    bass2?: EffectsChain;
+    drums?: EffectsChain;           // Applied to drum bus
+    master?: EffectsChain;          // Master bus
+  };
+  
+  harmonizer?: HarmonizerConfig;
+  
+  phonemes?: PhonemeMapping;        // For sampler TTS
+  
+  // Extended version history for Swarm Mode
+  swarmContributions?: {
+    conductor?: string;             // Version ID from Conductor AI
+    melodist?: string;
+    rhythmist?: string;
+    harmonic?: string;
+    fxEngineer?: string;
+    vocalist?: string;
+  };
+}
+```
+
 ### Validation Rules
 
 | Field | Type | Constraints |
@@ -363,7 +511,123 @@ User picks favorite → Add drums → Import
 
 ---
 
-## 6. Best Practices for AI Interaction
+## 6. Advanced Multi-Agent Collaboration Patterns
+
+### Pattern E: AI Swarm Mode
+Orchestrate multiple specialized AIs simultaneously:
+
+**Swarm Roles**:
+| Role | AI | Responsibility | Output |
+|------|-----|----------------|--------|
+| Conductor | Claude | Overall structure, arrangement | Song skeleton |
+| Melodist | Gemini | Lead melodies, counterpoint | synthA, synthB patterns |
+| Rhythmist | Copilot | Drum patterns, groove | kick, snare, hat patterns |
+| Harmonic | Jules | Chords, bass harmony | bass2, harmonizer config |
+| FX Engineer | Grok | Effects, automation, weirdness | effects chain, automation lanes |
+| Vocalist | Gemini | Lyrics, phoneme painting | sampler TTS, phoneme mapping |
+
+**Swarm Workflow**:
+1. Conductor creates song skeleton (tempo, key, structure)
+2. Parallel generation:
+   - Melodist + Rhythmist work simultaneously
+   - Harmonic adds bass layer
+3. FX Engineer adds effects and automation
+4. Vocalist generates lyrics and phonemes
+5. Conductor reviews and requests revisions
+6. Final assembly into AISongData
+
+**Prompt Template for Swarm Mode**:
+```
+You are the {ROLE} in an AI music swarm for Hyphon.
+Your task: {SPECIFIC_TASK}
+
+Context from other agents:
+- Tempo: {TEMPO} BPM
+- Key: {KEY}
+- Structure: {STRUCTURE}
+- Existing tracks: {EXISTING_TRACKS}
+
+Generate ONLY your assigned section in AISongData format.
+Do not generate tracks assigned to other agents.
+```
+
+### Pattern F: Iterative Refinement Chain
+Pass song through specialized AIs in sequence:
+
+```
+User Idea → Claude (Draft) → Gemini (Groove) → Jules (Polish) → Grok (FX) → Final
+```
+
+Each AI:
+1. Receives previous version
+2. Improves specific aspects
+3. Documents changes in version history
+4. Passes to next AI
+
+**Change Documentation Format**:
+```json
+{
+  "version": 2,
+  "author": "gemini-pro",
+  "role": "groove-specialist",
+  "changes": [
+    "Added swing to drum pattern",
+    "Tightened bassline syncopation",
+    "Added ghost notes to snare"
+  ],
+  "previousVersionId": "v1-claude"
+}
+```
+
+### Pattern G: Competitive Evolution
+Multiple AIs generate variations, user selects best:
+
+1. **Generation Round**: 3 AIs generate different versions
+2. **Evaluation**: User listens and scores (1-5 stars)
+3. **Selection**: Best version advances
+4. **Mutation**: Surviving AI generates 3 variations
+5. **Repeat** until satisfied
+
+**Fitness Function** (automated scoring):
+- Complexity score: Note density variation
+- Groove score: Rhythmic consistency
+- Harmonic score: Chord progression quality
+- User rating: Human preference
+
+**Evolution Tree**:
+```
+Gen 1: [Claude-A] [Gemini-A] [Grok-A]
+          ★★★★☆    ★★★☆☆      ★★★★★ ← Winner
+Gen 2: [Grok-A1] [Grok-A2] [Grok-A3]
+          ★★★★★    ★★★★☆      ★★★☆☆ ← Winner
+Gen 3: [Grok-A1a] [Grok-A1b] [Grok-A1c]
+```
+
+### Pattern H: Human-in-the-Loop Collaboration
+Human guides AI swarm in real-time:
+
+**Workflow**:
+1. Human: "Generate a techno bassline"
+2. AI (Claude): Creates bassline
+3. Human: "Make it darker, add distortion"
+4. AI (Claude + Grok): Modifies + adds FX
+5. Human: "Good, now add drums"
+6. AI (Gemini): Adds drum pattern
+7. Human: "Swap kick pattern with pattern from my library"
+8. AI: Merges external pattern
+
+**Command Interface**:
+```
+@claude generate melody in C minor
+@gemini add drum pattern, 4-on-floor
+@grok add reverb and filter automation
+@jules verify all notes in scale
+@all preview current state
+```
+
+---
+
+## 7. Best Practices for AI Interaction
 
 ### For Users
 
@@ -414,7 +678,7 @@ User picks favorite → Add drums → Import
 
 ---
 
-## 7. Folder Structure in HF Storage Manager
+## 8. Folder Structure in HF Storage Manager
 
 ```
 songs/
@@ -447,7 +711,50 @@ songs/
 
 ---
 
-## 8. Example Full Song JSON
+## 9. AI Swarm Mode (New Feature)
+
+### UI Component: Swarm Orchestrator
+
+**Location**: Next to "Import AI Song" button
+
+**Button**: "🐝 AI Swarm Mode"
+
+**Modal Interface**:
+```
+┌─────────────────────────────────────────────┐
+│  🤖 AI Swarm Orchestra                       │
+├─────────────────────────────────────────────┤
+│                                              │
+│  [Describe your song idea...]               │
+│  "Dark techno with acid bass and spacey FX" │
+│                                              │
+│  Select Swarm Agents:                       │
+│  ☑️ Conductor (Claude) - Structure          │
+│  ☑️ Melodist (Gemini) - Lead synth          │
+│  ☑️ Rhythmist (Copilot) - Drums             │
+│  ☑️ Harmonic (Jules) - Bass layer           │
+│  ☑️ FX Engineer (Grok) - Effects            │
+│  ☐ Vocalist (Gemini) - Voice synthesis      │
+│                                              │
+│  [🎵 Generate with Swarm]                   │
+│                                              │
+│  Progress:                                  │
+│  Conductor ████████░░░░ 80%                 │
+│  Melodist  ██████░░░░░░ 60%                 │
+│  Rhythmist ██████░░░░░░ 60%                 │
+│  ...                                        │
+└─────────────────────────────────────────────┘
+```
+
+**Technical Implementation**:
+- WebSocket or Server-Sent Events for real-time progress
+- Each AI agent is a separate API call
+- Results merged by Conductor AI
+- Version history tracks all contributions
+
+---
+
+## 10. Example Full Song JSON
 
 ### Techno Acid Track
 
@@ -526,7 +833,7 @@ songs/
 
 ---
 
-## 9. Security & Error Handling
+## 11. Security & Error Handling
 
 ### Security Measures
 
@@ -580,7 +887,7 @@ songs/
 
 ---
 
-## 10. Phase Roadmap
+## 12. Phase Roadmap
 
 ### Phase 1: Basic Importer ✅ COMPLETE
 - [x] AISongImporter.ts with validation
@@ -596,17 +903,20 @@ songs/
 - [x] **Enhanced Modal**: Progress bar, "Try with Example", validation feedback
 - [x] **Specialized Storage**: AISongStorage.ts with search, versioning, metadata
 
-### Phase 3: Advanced Features (Next)
-- [ ] **.rbs Import**: Parse ReBirth RB-338 files
-  - TB-303 pattern conversion
-  - TR-808/909 drum patterns
-  - PCF (Pattern Controlled Filter) import
-- [ ] **Automation Lanes**: Import parameter automation curves
-- [ ] **Real-time Collaboration**: Multiple AIs editing simultaneously
-- [ ] **Song Mode**: Pattern chains and arrangement import
-- [ ] **FX Mapping**: Delay, distortion, reverb settings
+### Phase 3: Advanced Features ✅ COMPLETE
+- [x] Automation lanes (cutoff, resonance, delay time per-step)
+- [x] Effects mapping (distortion, delay, reverb, compressor)
+- [x] Harmonizer integration (2-4 voice, formant shift)
+- [x] Phoneme Painter support (lyric-to-phoneme mapping)
+- [x] AI Swarm Mode (multi-agent orchestration)
 
-### Phase 4: AI Ecosystem (Future)
+### Phase 4: Real-time Collaboration (Next)
+- [ ] WebSocket-based AI swarm
+- [ ] Real-time parameter modulation
+- [ ] Collaborative editing (multiple humans + AIs)
+- [ ] Live performance mode
+
+### Phase 5: AI Ecosystem (Future)
 - [ ] **Plugin API**: Allow custom AI agents
 - [ ] **Marketplace**: Share AI-generated songs
 - [ ] **Training Data**: Fine-tune models on Hyphon songs

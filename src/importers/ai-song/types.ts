@@ -13,8 +13,34 @@ export type {
   AIImportError,
   AIImportErrorDetails,
   AIImportResultType,
-  AIImportReport
+  AIImportReport,
+  // Effects types
+  AIEffectsChain,
+  AIMasterEffects,
+  AITrackEffects,
+  AICompressorSettings,
+  AIDistortionSettings,
+  AIDelaySettings,
+  AIReverbSettings,
+  AIFilterSettings,
+  AIChorusSettings,
+  AIPhaserSettings,
+  AIHarmonizerConfig,
+  AIPhonemePainterConfig,
+  AIPhonemeMapping,
+  // Automation (from AISongImporter)
+  AIAutomationLane,
+  AIAutomationTarget,
+  AITargetedParameter,
+  AIInterpolationMode
 } from './AISongImporter';
+
+// Automation utilities (from automation module)
+export type {
+  AutomationValidationError,
+  AutomationValidationResult,
+  AutomationLaneSummary
+} from './automation';
 
 export { isValidNote } from './AISongImporter';
 

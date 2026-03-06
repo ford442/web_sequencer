@@ -96,7 +96,15 @@ HYPHON SONG FORMAT:
     "snare": [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
     "closedHat": [false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true],
     "openHat": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false]
-  }
+  },
+  "automation": [
+    {
+      "target": "synthA",
+      "parameter": "filterCutoff",
+      "steps": [100, null, 110, null, 120, 127, 120, 100, null, null, 100, 110, 120, 127, 120, 100],
+      "interpolation": "linear"
+    }
+  ]
 }
 
 RULES:
@@ -105,6 +113,13 @@ RULES:
 - Drum tracks are boolean arrays (true = hit on that step)
 - Tempo range: 30-300 BPM
 - Swing: 0-100 (50 = no swing, higher = more shuffle)
+
+AUTOMATION (Optional):
+- Add an "automation" array for parameter changes over time
+- target: synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler, or master
+- parameter: filterCutoff, filterResonance, decay, volume, delayMix, tempo, etc.
+- steps: Array of 16 or 32 values (0-127) or null for no change
+- interpolation: "step", "linear", or "smooth" (default: "step")
 
 Generate a {GENRE} song at {TEMPO} BPM with {MOOD} mood.
 Return ONLY the JSON, no markdown, no explanation.`;
@@ -249,10 +264,96 @@ const EXAMPLE_DNB: AISongData = {
   }
 };
 
+const EXAMPLE_AUTOMATION: AISongData = {
+  meta: { 
+    title: "Acid with Filter Sweep", 
+    author: "AI Demo", 
+    version: "1.0", 
+    createdAt: "2024-03-06T12:00:00Z", 
+    generator: "claude-3-opus", 
+    prompt: "Acid techno with automated filter",
+    tags: ["techno", "acid", "automation"]
+  },
+  globals: { 
+    tempo: 132, 
+    timeSignature: [4, 4], 
+    swing: 54 
+  },
+  tracks: {
+    synthA: { 
+      notes: [
+        {step: 0, note: "C2", velocity: 0.9, accent: true},
+        {step: 2, note: "C2"},
+        {step: 4, note: "Eb2", accent: true, slide: true},
+        {step: 6, note: "F2"},
+        {step: 8, note: "C2", accent: true},
+        {step: 10, note: "C2"},
+        {step: 12, note: "G2", accent: true, slide: true},
+        {step: 14, note: "Bb2"}
+      ], 
+      params: { 
+        waveform: "303-saw", 
+        filterCutoff: 800, 
+        filterResonance: 20, 
+        decay: 0.4 
+      } 
+    },
+    synthB: {
+      notes: [
+        {step: 4, note: "C3", velocity: 0.7},
+        {step: 12, note: "G3", velocity: 0.7}
+      ],
+      params: {
+        waveform: "303-sqr",
+        filterCutoff: 2000,
+        filterResonance: 15,
+        delayMix: 0.3
+      }
+    },
+    kick: [
+      true, false, false, false, true, false, false, false,
+      true, false, false, false, true, false, false, false
+    ],
+    snare: [
+      false, false, false, false, true, false, false, false,
+      false, false, false, false, true, false, false, false
+    ],
+    closedHat: [
+      false, true, false, true, false, true, false, true,
+      false, true, false, true, false, true, false, true
+    ],
+    openHat: [
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, true, false
+    ]
+  },
+  automation: [
+    {
+      target: 'synthA',
+      parameter: 'filterCutoff',
+      steps: [
+        80, 90, 100, 110, 120, 127, 120, 110,
+        100, 90, 100, 110, 120, 127, 120, 100
+      ],
+      interpolation: 'linear'
+    },
+    {
+      target: 'synthB',
+      parameter: 'delayMix',
+      steps: [
+        0, 10, 20, 30, 40, 50, 60, 70,
+        80, 90, 100, 100, 100, 90, 80, 70
+      ],
+      interpolation: 'smooth'
+    }
+  ]
+};
+
 const EXAMPLES = {
   techno: { name: "🎛️ Techno Acid (130 BPM)", data: EXAMPLE_TECHNO, emoji: "🎛️", desc: "Dark warehouse acid" },
   house: { name: "🎹 House Groove (124 BPM)", data: EXAMPLE_HOUSE, emoji: "🎹", desc: "Funky house with swing" },
-  dnb: { name: "🥁 DnB Roller (174 BPM)", data: EXAMPLE_DNB, emoji: "🥁", desc: "Dark neurofunk DnB" }
+  dnb: { name: "🥁 DnB Roller (174 BPM)", data: EXAMPLE_DNB, emoji: "🥁", desc: "Dark neurofunk DnB" },
+  automation: { name: "🎚️ Filter Sweep (132 BPM)", data: EXAMPLE_AUTOMATION, emoji: "🎚️", desc: "With automation lanes" }
 };
 
 // ============================================================================
@@ -993,7 +1094,11 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       avgVelocity: 0,
       velocitySum: 0,
       noteCount: 0,
-      duration: 0
+      duration: 0,
+      // Automation stats
+      automationLaneCount: 0,
+      automationPointCount: 0,
+      automatedParams: [] as string[]
     };
 
     // Count notes in melodic tracks
@@ -1043,6 +1148,16 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
     const stepsPerPattern = 32;
     const secondsPerStep = 60 / parsedData.globals.tempo / 4;
     stats.duration = stepsPerPattern * secondsPerStep;
+
+    // Count automation
+    if (parsedData.automation && parsedData.automation.length > 0) {
+      stats.automationLaneCount = parsedData.automation.length;
+      parsedData.automation.forEach(lane => {
+        const pointCount = lane.steps.filter(s => s !== null).length;
+        stats.automationPointCount += pointCount;
+        stats.automatedParams.push(`${lane.target}.${lane.parameter}`);
+      });
+    }
 
     return stats;
   }, [parsedData]);
@@ -1456,6 +1571,20 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                         </span>
                       ))}
                     </p>
+                    {parsedData.automation && parsedData.automation.length > 0 && (
+                      <p className="sm:col-span-2 flex flex-wrap gap-1 items-center">
+                        <span className="text-gray-500">Automation:</span> 
+                        <span className="px-1.5 py-0.5 bg-cyan-500/10 rounded text-cyan-400/70 text-[10px]">
+                          {parsedData.automation.length} lane{parsedData.automation.length !== 1 ? 's' : ''}
+                        </span>
+                        {parsedData.automation.map((lane, idx) => (
+                          <span key={idx} className="text-[10px] text-cyan-400/50">
+                            {lane.target}.{lane.parameter}
+                            {idx < parsedData.automation!.length - 1 ? ',' : ''}
+                          </span>
+                        ))}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -1584,6 +1713,85 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                       ))}
                     </div>
                   </div>
+
+                  {/* Automation Visualization */}
+                  {trackStats.automationLaneCount > 0 && parsedData?.automation && (
+                    <div className="p-4 bg-gray-900/50 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-300 mb-3">
+                        Automation ({trackStats.automationLaneCount} lanes, {trackStats.automationPointCount} points)
+                      </h3>
+                      <div className="space-y-3">
+                        {parsedData.automation.map((lane, idx) => {
+                          const nonNullSteps = lane.steps.map((v, i) => ({ value: v, step: i })).filter(s => s.value !== null);
+                          const minVal = Math.min(...nonNullSteps.map(s => s.value!));
+                          const maxVal = Math.max(...nonNullSteps.map(s => s.value!));
+                          
+                          return (
+                            <div key={idx} className="bg-gray-800/50 rounded p-2">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-cyan-400">{lane.target}</span>
+                                  <span className="text-xs text-gray-500">→</span>
+                                  <span className="text-xs text-cyan-400/80">{lane.parameter}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                  <span className="px-1.5 py-0.5 bg-gray-700 rounded">{lane.interpolation || 'step'}</span>
+                                  <span>{nonNullSteps.length} pts</span>
+                                  <span className="text-gray-600">|</span>
+                                  <span>range: {minVal}-{maxVal}</span>
+                                </div>
+                              </div>
+                              {/* Mini visualization bar */}
+                              <div className="flex items-end gap-px h-8">
+                                {lane.steps.map((value, stepIdx) => {
+                                  const height = value !== null ? (value / 127) * 100 : 0;
+                                  const isActive = value !== null;
+                                  return (
+                                    <div
+                                      key={stepIdx}
+                                      className={`flex-1 min-w-[2px] transition-all ${
+                                        isActive 
+                                          ? 'bg-cyan-500/60 hover:bg-cyan-400' 
+                                          : 'bg-gray-700/30'
+                                      }`}
+                                      style={{ 
+                                        height: isActive ? `${height}%` : '2px',
+                                        opacity: stepIdx % 4 === 0 ? 1 : 0.7
+                                      }}
+                                      title={isActive ? `Step ${stepIdx}: ${value}` : `Step ${stepIdx}: (no change)`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                              {/* Step markers */}
+                              <div className="flex mt-1">
+                                {[0, 4, 8, 12, 16, 20, 24, 28].map(mark => (
+                                  <div key={mark} className="flex-1 text-[8px] text-gray-600 text-center">
+                                    {mark}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Automated Parameters Summary */}
+                      <div className="mt-3 pt-3 border-t border-gray-800">
+                        <p className="text-[10px] text-gray-500 mb-2">Automated Parameters:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {trackStats.automatedParams.map((param, idx) => (
+                            <span 
+                              key={idx} 
+                              className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded text-[10px] text-cyan-400"
+                            >
+                              {param}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Audio Preview */}
                   {audioEngine && (
