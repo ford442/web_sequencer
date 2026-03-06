@@ -1099,110 +1099,161 @@ export const App: React.FC = () => {
 
     // PERFORMANCE: Memoize main UI sections to prevent unnecessary VDOM regeneration
     // when unrelated state updates (e.g. playing a sequence vs editing a pattern).
-    const headerNode = useMemo(() => (
-        <header className="h-16 flex items-center justify-between px-6 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 shadow-2xl shrink-0 relative backdrop-blur-sm w-full">
-            <div className="flex items-center gap-6">
-                <h1 className="text-xl font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">HYPHON</h1>
-                <div className="flex items-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 p-2 rounded-lg border border-cyan-900/30 shadow-lg">
-                    <span className="text-[10px] text-gray-500 font-mono uppercase px-1">Song</span>
+    
+    // === NEW SLIM TOP TRANSPORT TOOLBAR ===
+    const transportToolbarNode = useMemo(() => (
+        <header className="h-12 flex items-center justify-between px-4 bg-gradient-to-r from-[#0b0d10] via-[#0d1014] to-[#0b0d10] border-b border-cyan-900/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)] shrink-0 relative backdrop-blur-md w-full z-30">
+            {/* Left: Logo + Song Tabs */}
+            <div className="flex items-center gap-4">
+                <h1 className="text-lg font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]">HYPHON</h1>
+                
+                {/* Song Slots */}
+                <div className="flex items-center gap-1 bg-zinc-950/80 p-1.5 rounded-lg border border-cyan-500/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+                    <span className="text-[9px] text-gray-600 font-mono uppercase px-1 mr-1">SONG</span>
                     {[0, 1, 2, 3].map(slot => {
                         const isSaved = !!songStorage[slot];
                         const isActive = activeSongSlot === slot;
-                        return (<button key={slot} onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }} onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }} className={`w-6 h-6 text-xs font-mono rounded transition-all ${isActive ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : (isSaved ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-900' : 'bg-gray-800 text-gray-600 border border-gray-700')}`} aria-label={`Song Slot ${slot + 1}`} aria-pressed={isActive}>{slot + 1}</button>);
+                        return (
+                            <button 
+                                key={slot} 
+                                onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }} 
+                                onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }} 
+                                className={`w-7 h-6 text-xs font-mono rounded transition-all ${isActive 
+                                    ? 'bg-cyan-500 text-black font-bold shadow-[0_0_10px_rgba(6,182,212,0.6)]' 
+                                    : (isSaved 
+                                        ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 hover:bg-cyan-800/50' 
+                                        : 'bg-zinc-900 text-zinc-600 border border-zinc-800 hover:border-zinc-700')}`} 
+                                aria-label={`Song Slot ${slot + 1}`} 
+                                aria-pressed={isActive}
+                            >
+                                {slot + 1}
+                            </button>
+                        );
                     })}
                 </div>
-                {/* File Ops */}
-                <div className="flex items-center gap-1">
-                    <button onClick={exportSongToFile} className="text-[10px] font-bold text-green-400 bg-gradient-to-r from-green-900/10 to-green-900/20 px-2 py-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400" aria-label="Save Song to File" title="Save to JSON">💾</button>
-                    <button onClick={importSongFromFile} className="text-[10px] font-bold text-blue-400 bg-gradient-to-r from-blue-900/10 to-blue-900/20 px-2 py-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="Load Song from File" title="Load from JSON">📂</button>
-                    <button onClick={() => setIsCloudLibraryOpen(true)} className="text-[10px] font-bold text-purple-400 bg-gradient-to-r from-purple-900/10 to-purple-900/20 px-2 py-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400" aria-label="Open Cloud Library" title="Cloud Library">☁️</button>
+
+                {/* Cloud Status */}
+                <div className="flex items-center gap-2">
                     <CloudStatus />
                 </div>
-                <button onClick={handleClearPattern} className="text-xs font-bold text-red-400 border border-red-900/50 bg-gradient-to-r from-red-900/10 to-red-900/20 px-4 py-2 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400" aria-label="Clear Current Pattern" title="Clear Current Pattern">CLEAR</button>
             </div>
 
-            <div className="flex items-center gap-4">
-                <button onClick={() => setIsShortcutsHelpOpen(true)} aria-label="Keyboard Shortcuts" className="w-8 h-8 rounded-full bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center font-bold text-xs mr-2 border border-gray-700">?</button>
-                <button onClick={handlePanic} aria-label="Panic Stop All Notes" className="w-8 h-8 rounded-full bg-red-900/50 text-red-500 flex items-center justify-center font-bold text-xs mr-2">!</button>
-                <button onClick={() => setIsRecording(!isRecording)} aria-pressed={isRecording} aria-label="Toggle Recording" className={`w-12 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-700'}`}>REC</button>
-                <button onClick={() => setIsLyricMapperOpen(!isLyricMapperOpen)} aria-pressed={isLyricMapperOpen} aria-label="Open Lyric Mapper" className={`w-20 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isLyricMapperOpen ? 'bg-cyan-900/40 text-cyan-300' : 'bg-gray-800 text-gray-400'}`}>LYRICS</button>
-                <button onClick={() => setIsSongModeOpen(!isSongModeOpen)} aria-pressed={isSongModeOpen} aria-label="Toggle Song Mode" className={`w-24 py-1 rounded font-orbitron text-sm font-bold tracking-wide mr-2 ${isSongModeOpen ? 'bg-purple-900/40 text-purple-300' : 'bg-gray-800 text-gray-400'}`}>SONG</button>
-                <div className="ml-2 flex items-center bg-gray-900 rounded border border-gray-700">
-                    <button
-                        onClick={() => setViewMode('notes')}
-                        className={`px-3 py-1 text-[10px] font-bold ${viewMode === 'notes' ? 'bg-cyan-900/50 text-cyan-400' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                        NOTES
-                    </button>
-                    <button
-                        onClick={() => setViewMode('automation')}
-                        className={`px-3 py-1 text-[10px] font-bold ${viewMode === 'automation' ? 'bg-pink-900/50 text-pink-400' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                        AUTO
-                    </button>
-                </div>
-                {viewMode === 'automation' && (
-                     <select
-                        value={automationParam}
-                        onChange={(e) => setAutomationParam(e.target.value)}
-                        className="ml-2 bg-gray-900 text-xs text-gray-300 border border-gray-700 rounded px-2 py-1 outline-none focus:border-cyan-500"
-                     >
-                         <option value="formantShift">Formant</option>
-                         <option value="vibratoDepth">Vibrato</option>
-                     </select>
-                )}
+            {/* Center: Transport Controls */}
+            <div className="flex items-center gap-3">
+                {/* Play/Stop Button */}
+                <button
+                    onClick={handlePlayToggle}
+                    aria-pressed={isPlaying}
+                    aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
+                    className={`h-8 px-5 rounded-md font-orbitron text-sm font-bold tracking-wider transition-all shadow-lg ${isPlaying 
+                        ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-400' 
+                        : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border border-green-400'}`}
+                >
+                    {isPlaying ? '■ STOP' : '▶ PLAY'}
+                </button>
 
-                {/* 3D TOGGLE */}
+                {/* Record Button */}
+                <button 
+                    onClick={() => setIsRecording(!isRecording)} 
+                    aria-pressed={isRecording} 
+                    aria-label="Toggle Recording" 
+                    className={`h-8 w-10 rounded-md font-orbitron text-xs font-bold tracking-wide transition-all ${isRecording 
+                        ? 'bg-red-600 text-white animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.6)] border border-red-400' 
+                        : 'bg-zinc-800 hover:bg-zinc-700 text-red-500 border border-zinc-700 hover:border-red-900/50'}`}
+                >
+                    REC
+                </button>
+
+                {/* Divider */}
+                <div className="w-px h-5 bg-gray-700 mx-1" />
+
+                {/* BPM Control */}
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] text-gray-500 font-mono uppercase tracking-wider">BPM</span>
+                    <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+                        <button
+                            onMouseDown={() => handleTempoHoldStart(-1)}
+                            onMouseUp={handleTempoHoldEnd}
+                            onMouseLeave={handleTempoHoldEnd}
+                            onKeyDown={(e) => handleTempoKeyDown(e, -1)}
+                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-r border-zinc-800 focus:outline-none hover:bg-zinc-900/50 transition-colors"
+                            aria-label="Decrease Tempo"
+                        >
+                            −
+                        </button>
+                        <span 
+                            className="w-12 text-center font-mono text-cyan-300 text-sm font-semibold" 
+                            role="status" 
+                            aria-live="polite" 
+                            aria-label={`Tempo: ${tempo} BPM`}
+                        >
+                            {tempo}
+                        </span>
+                        <button
+                            onMouseDown={() => handleTempoHoldStart(1)}
+                            onMouseUp={handleTempoHoldEnd}
+                            onMouseLeave={handleTempoHoldEnd}
+                            onKeyDown={(e) => handleTempoKeyDown(e, 1)}
+                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-l border-zinc-800 focus:outline-none hover:bg-zinc-900/50 transition-colors"
+                            aria-label="Increase Tempo"
+                        >
+                            +
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right: Utility Buttons */}
+            <div className="flex items-center gap-2">
+                {/* Clear Button */}
+                <button 
+                    onClick={handleClearPattern} 
+                    className="h-7 px-3 text-xs font-bold text-red-400 border border-red-900/50 bg-gradient-to-r from-red-950/30 to-red-900/20 rounded-md hover:bg-red-900/30 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-red-500" 
+                    aria-label="Clear Current Pattern" 
+                    title="Clear Current Pattern"
+                >
+                    CLEAR
+                </button>
+
+                {/* Divider */}
+                <div className="w-px h-5 bg-gray-700 mx-1" />
+
+                {/* Song Mode Toggle */}
+                <button 
+                    onClick={() => setIsSongModeOpen(!isSongModeOpen)} 
+                    aria-pressed={isSongModeOpen} 
+                    aria-label="Toggle Song Mode" 
+                    className={`h-7 px-3 rounded-md font-orbitron text-xs font-bold tracking-wide transition-all ${isSongModeOpen 
+                        ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.5)] border border-purple-400' 
+                        : 'bg-zinc-800 text-gray-400 border border-zinc-700 hover:bg-zinc-700 hover:text-gray-300'}`}
+                >
+                    SONG
+                </button>
+
+                {/* 3D Toggle */}
                 <button
                     onClick={() => setIs3DMode(!is3DMode)}
                     aria-pressed={is3DMode}
                     aria-label="Toggle 3D Studio View"
-                    className={`ml-2 px-3 py-1 rounded font-orbitron text-xs font-bold border transition-all ${is3DMode ? 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_10px_cyan]' : 'bg-gray-800 text-cyan-500 border-cyan-900'}`}
+                    className={`h-7 w-8 rounded-md font-orbitron text-xs font-bold transition-all ${is3DMode 
+                        ? 'bg-cyan-600 text-white border border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' 
+                        : 'bg-zinc-800 text-cyan-500 border border-zinc-700 hover:bg-zinc-700'}`}
                 >
                     3D
                 </button>
 
-                {/* Gamepad Debug Toggle */}
-                <button
-                    onClick={() => setShowGamepadDebug(true)}
-                    className="ml-2 p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors border border-transparent hover:border-slate-600"
-                    title="Gamepad Debugger"
-                    aria-label="Open Gamepad Debugger"
+                {/* Panic Button */}
+                <button 
+                    onClick={handlePanic} 
+                    aria-label="Panic Stop All Notes" 
+                    className="h-7 w-7 rounded-md bg-red-950/50 hover:bg-red-900/70 text-red-500 border border-red-900/50 flex items-center justify-center font-bold text-xs transition-all"
+                    title="Panic (!)"
                 >
-                    <span role="img" aria-label="joystick" className="text-lg">🎮</span>
-                </button>
-                
-                {/* AudioWorklet Fallback Toggle */}
-                <button
-                    onClick={() => {
-                        const newValue = !forceScriptProcessorFallback;
-                        setForceScriptProcessorFallback(newValue);
-                        // Persist preference to localStorage
-                        localStorage.setItem('forceScriptProcessorFallback', String(newValue));
-                        showToast(
-                            newValue
-                                ? "ScriptProcessor fallback enabled. Refresh page to apply." 
-                                : "AudioWorklet mode enabled. Refresh page to apply.",
-                            'success'
-                        );
-                    }}
-                    className={`ml-2 px-2 py-1 rounded text-xs font-mono border transition-all ${forceScriptProcessorFallback ? 'bg-yellow-900/20 text-yellow-400 border-yellow-900/50' : 'bg-gray-800 text-gray-500 border-gray-700'}`}
-                    title={forceScriptProcessorFallback ? "Using ScriptProcessor fallback (click to disable)" : "Using AudioWorklet (click to force fallback)"}
-                >
-                    {forceScriptProcessorFallback ? '⚠️ FALLBACK' : '🔊 AWN'}
-                </button>
-
-                <button
-                    onClick={() => setIsShortcutsHelpOpen(true)}
-                    className="ml-2 w-6 h-6 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 border border-gray-600 flex items-center justify-center font-bold text-xs transition-all"
-                    aria-label="Keyboard Shortcuts"
-                    title="Keyboard Shortcuts (?)"
-                >
-                    ?
+                    !
                 </button>
             </div>
         </header>
-    ), [is3DMode, forceScriptProcessorFallback, songStorage, activeSongSlot, masterVolume, globalPan, tempo, isRecording, isPlaying, isSongModeOpen, loadSong, handleSaveSong, exportSongToFile, importSongFromFile, handleClearPattern, handleMasterVolume, handleMasterVolumeKeyDown, handleGlobalPan, handleGlobalPanKeyDown, handleTempoHoldStart, handleTempoHoldEnd, handleTempoKeyDown, handlePanic, handlePlayToggle, setIsRecording, setIsSongModeOpen, setIs3DMode, setIsCloudLibraryOpen, showToast]);
+    ), [songStorage, activeSongSlot, tempo, isRecording, isPlaying, isSongModeOpen, is3DMode, loadSong, handleSaveSong, handleClearPattern, handleTempoHoldStart, handleTempoHoldEnd, handleTempoKeyDown, handlePanic, handlePlayToggle, setIsRecording, setIsSongModeOpen, setIs3DMode]);
 
     const sequencerNode = useMemo(() => {
         if (isSongModeOpen && is3DMode) {
@@ -1323,7 +1374,7 @@ export const App: React.FC = () => {
         return (
             <Suspense fallback={<div className="flex items-center justify-center h-screen w-screen bg-black text-cyan-400 font-orbitron text-xl tracking-widest animate-pulse">LOADING 3D STUDIO...</div>}>
                 <Studio3D
-                    header={headerNode}
+                    header={transportToolbarNode}
                     sequencer={sequencerNode}
                     keyboard={keyboardNode}
                     rack={rackNode}
@@ -1346,7 +1397,7 @@ export const App: React.FC = () => {
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
 
             {/* Standard 2D Layout */}
-            {headerNode}
+            {transportToolbarNode}
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start pt-10 pb-[60px] z-10 overflow-y-auto">
