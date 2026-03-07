@@ -1349,6 +1349,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                     console.log('[useAudioEngine] Harmonizer config updated:', config, 'active:', isActive);
                 }
             };
+            const updateSamplerVoiceParams = (_bankIdx: number, _key: any, _value: number) => {};
 
 
             // Re-assign to state
