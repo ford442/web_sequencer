@@ -176,6 +176,7 @@ const PhonemeBlock = memo(({
             onClick={(e) => { e.stopPropagation(); onDelete(phoneme.id); }}
             className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white text-xs flex items-center justify-center shadow-lg border border-red-400/50 transition-all"
             title="Delete phoneme"
+            aria-label="Delete phoneme"
           >
             ×
           </button>
@@ -598,6 +599,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-lg bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+              aria-label="Close Phoneme Painter"
             >
               ×
             </button>
@@ -792,6 +794,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                       value={selectedPhoneme.pitchBend}
                       onChange={(e) => handlePitchBendChange(selectedPhoneme.id, parseInt(e.target.value))}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
+                      aria-label="Pitch Bend"
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <span className={`text-[10px] font-mono ${selectedPhoneme.pitchBend !== 0 ? 'text-white' : 'text-zinc-600'}`}>
@@ -804,12 +807,14 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                     <button
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend - 10)}
                       className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700"
+                      aria-label="Decrease pitch bend"
                     >
                       −
                     </button>
                     <button
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend + 10)}
                       className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700"
+                      aria-label="Increase pitch bend"
                     >
                       +
                     </button>
@@ -831,6 +836,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                       ));
                     }}
                     className="w-24 h-1 bg-zinc-700 rounded-lg appearance-none"
+                    aria-label="Volume"
                   />
                 </div>
                 
