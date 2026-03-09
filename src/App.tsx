@@ -2085,6 +2085,25 @@ export const App: React.FC = () => {
 
                 {/* Right: Utility Toggles */}
                 <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
+                        <input
+                            type="range" min="0" max="1.5" step="0.01"
+                            value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} onDoubleClick={handleMasterVolumeReset}
+                            className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                            aria-label="Master Volume"
+                        />
+                    </div>
+                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
+                        <input
+                            type="range" min="-1" max="1" step="0.01"
+                            value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} onDoubleClick={handleGlobalPanReset}
+                            className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                            aria-label="Global Pan"
+                        />
+                    </div>
+
+                    <div className="w-px h-4 bg-gray-700 mx-1" />
+
                     {/* Gamepad Toggle */}
                     <button
                         onClick={() => setShowGamepadDebug(true)}
