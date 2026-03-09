@@ -2,6 +2,7 @@ import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
 import type { SingingVoice } from './engines/SingingVoice';
 import type { WebGpuOscillator } from './engines/WebGpuOscillator';
 import type { WasmOscillator } from './engines/WasmOscillator';
+import type { Open303Manager } from './engines/Open303Manager';
 import type { Open303Oscillator } from './engines/Open303Oscillator';
 import type { MultisampleBank } from './engines/MultisampleGenerator';
 
@@ -179,7 +180,7 @@ export interface AudioEngine {
     context: AudioContext;
     webGpuEngine?: WebGpuOscillator | null;
     wasmEngine?: WasmOscillator | null;
-    open303Engine?: Open303Oscillator | null;
+    open303Engine?: Open303Oscillator | Open303Manager | null;
     playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number }, stepTime?: number) => void;
     playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => void;
@@ -196,7 +197,7 @@ export interface AudioEngine {
     setAmbianceVolume: (volume: number) => void;
     setMasterVolume: (volume: number) => void;
     setGlobalPan: (pan: number) => void;
-    detectSamplePitch?: (buffer: AudioBuffer) => Promise<any>;
+    detectSamplePitch?: (buffer: AudioBuffer) => Promise<unknown>;
     processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
     processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
     prepareVocal?: (bankIndex: number, text: string) => Promise<void>;
