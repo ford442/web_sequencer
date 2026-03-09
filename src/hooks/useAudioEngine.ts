@@ -5,7 +5,6 @@ import type {
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
-import type { Open303Oscillator } from '../engines/Open303Oscillator';
 import { Open303Manager } from '../engines/Open303Manager';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
@@ -675,7 +674,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 context,
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
-                open303Engine: open303ManagerRef.current as unknown as Open303Oscillator | null,
+                open303Engine: open303ManagerRef.current,
                 singingVoice: undefined, // Exposed via manager if needed, but playSampler handles it
                 playSynth,
                 playDrum,
@@ -731,8 +730,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
     }, [audioEngine]);
     
     // NEW: Update sampler voice params from SamplerVoicePanel
-    const updateSamplerVoiceParams = useCallback((bankIdx: number, param: string, value: number | string | boolean) => {
-        void bankIdx;
+    const updateSamplerVoiceParams = useCallback((_bankIdx: number, param: string, value: number | string | boolean) => {
         applySamplerVoiceParamUpdate({
             manager: singingVoiceManagerRef.current,
             currentTime: audioEngine?.context?.currentTime || 0,

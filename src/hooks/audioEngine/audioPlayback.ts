@@ -1,7 +1,6 @@
 import type { MutableRefObject } from 'react';
 import type {
     AudioEngine,
-    Bass2Params,
     DrumSound,
     HatParams,
     KickParams,
@@ -68,10 +67,6 @@ export interface PlaybackRefs {
     loadedAmbianceBuffersRef: MutableRefObject<Map<string, AudioBuffer>>;
     singingVoiceManagerRef: MutableRefObject<SingingVoiceManager | null>;
     harmonizerRef: MutableRefObject<Harmonizer | null>;
-}
-
-export function applyBass2Params(manager: Open303Manager, params: Bass2Params): void {
-    manager.applyBass2Params(params);
 }
 
 export function createPlaySynth(
@@ -315,7 +310,7 @@ export function createStopAllNotes(
             try {
                 note.source.stop();
             } catch {
-                // ignore nodes that already stopped
+                // Ignore stop() errors from sources that have already stopped or are otherwise invalid.
             }
         });
         refs.activeSamplerNotes.current.clear();
@@ -334,7 +329,11 @@ export function createAmbianceControls(
 ): Pick<AudioEngine, 'playAmbiance' | 'stopAmbiance' | 'setAmbianceVolume'> {
     const playAmbiance: AudioEngine['playAmbiance'] = async (url) => {
         if (refs.ambianceSourceNodeRef.current) {
-            refs.ambianceSourceNodeRef.current.stop();
+            try {
+                refs.ambianceSourceNodeRef.current.stop();
+            } catch {
+                // Ignore stop() errors from ambiance sources that have already stopped or are otherwise invalid.
+            }
         }
 
         let buffer = refs.loadedAmbianceBuffersRef.current.get(url);
@@ -359,10 +358,15 @@ export function createAmbianceControls(
     };
 
     const stopAmbiance = () => {
-        if (!refs.ambianceSourceNodeRef.current) {
+        const source = refs.ambianceSourceNodeRef.current;
+        if (!source) {
             return;
         }
-        refs.ambianceSourceNodeRef.current.stop();
+        try {
+            source.stop();
+        } catch {
+            // Ignore stop() errors from ambiance sources that have already stopped or are otherwise invalid.
+        }
         refs.ambianceSourceNodeRef.current = null;
     };
 
