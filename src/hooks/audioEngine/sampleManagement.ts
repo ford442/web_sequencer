@@ -57,7 +57,7 @@ export function createSampleLibraryControls(refs: SampleManagementRefs) {
                 console.error('Multisample generation failed:', error);
                 sampleBank.isProcessing = false;
                 sampleBank.error = error instanceof Error ? error.message : 'Unknown error';
-                onProgress(-1);
+                onProgress(-1); // Preserve existing UI convention: -1 marks sample-generation failure.
             }
         } else if (onProgress) {
             onProgress(1.0);
