@@ -192,6 +192,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                         key={fullNote}
                                         onClick={() => onSelect(fullNote)}
                                         aria-label={`Select ${fullNote}`}
+                                        aria-pressed={isSelected}
                                         className="w-8 h-6 text-[10px] font-mono rounded flex items-center justify-center transition-all hover:scale-110"
                                         style={{
                                             backgroundColor: isSelected ? '#fff' : color,
