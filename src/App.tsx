@@ -269,6 +269,9 @@ export const App: React.FC = () => {
     // NEW: Phoneme Alignment State for UI Feedback
     const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
 
+    // Store last sampler MIDI for slide calculations
+    const lastSamplerMidiRef = useRef<Record<number, number>>({});
+
     const handleStart = async () => {
         console.log("Initialization sequence started...");
         try {
@@ -597,9 +600,15 @@ export const App: React.FC = () => {
             const stepData = seq.steps[step];
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger };
+
+                let slideFromMidi: number | undefined = undefined;
+                if (stepData.slide && lastSamplerMidiRef.current[bankIdx] !== undefined) {
+                    slideFromMidi = lastSamplerMidiRef.current[bankIdx];
+                }
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, slideFromMidi };
                 // Combine note and chord for polyphonic playback
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+                lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
                 
                 // Pass sampler voice params from the panel (using ref for latest values)
                 const voiceParams = samplerVoiceParamsRef.current;
