@@ -282,7 +282,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
         time: number, 
         durationSteps: number = 1, 
         stepTime: number = 0.2, 
-        noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number },
+        noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, slideFromMidi?: number },
         pitchOffsetSemitones: number = 0
     ) => {
         const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
@@ -372,7 +372,15 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                     // 2. Pitch Shift (with offset for harmonizer)
                     const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
-                    voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
+                    if (noteParams?.slideFromMidi !== undefined) {
+                        const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
+                        voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime);
+                        // Glide over half the target duration or a minimum of 0.15s, bounded by actual duration
+                        const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
+                        voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration);
+                    } else {
+                        voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
+                    }
 
                     // 3. Phoneme Awareness
                     if (alignment) {
@@ -535,7 +543,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
     };
 
     // Original playSampler function (for backwards compatibility, now delegates to playSamplerVoice)
-    const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
+    const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, slideFromMidi?: number }) => {
         // Check for multisample bank first
         const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
         const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
