@@ -5,6 +5,7 @@ interface LyricMapperProps {
     isOpen: boolean;
     onClose: () => void;
     onApply: (text: string, mapToSelection: boolean) => void;
+    onTextToDrum?: (text: string) => void;
     initialText: string;
     isGenerating: boolean;
     hasSelection: boolean;
@@ -14,6 +15,7 @@ export const LyricMapper: React.FC<LyricMapperProps> = ({
     isOpen,
     onClose,
     onApply,
+    onTextToDrum,
     initialText,
     isGenerating,
     hasSelection
@@ -61,22 +63,36 @@ export const LyricMapper: React.FC<LyricMapperProps> = ({
                     aria-label="Lyrics Input"
                 />
 
-                <div className="flex justify-end gap-2 pt-2">
-                    <button
-                        onClick={() => onApply(text, false)}
-                        disabled={isGenerating}
-                        className="px-4 py-2 bg-gray-800 text-cyan-400 border border-gray-700 rounded hover:bg-gray-700 disabled:opacity-50 text-xs font-bold font-orbitron"
-                    >
-                        {isGenerating ? 'GENERATING...' : 'GENERATE ONLY'}
-                    </button>
-                    <button
-                        onClick={() => onApply(text, true)}
-                        disabled={isGenerating || !hasSelection}
-                        className="px-4 py-2 bg-cyan-900 text-cyan-100 border border-cyan-700 rounded hover:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold font-orbitron"
-                        title={!hasSelection ? "Select notes in the sequencer first" : "Generate audio and map phonemes to selection"}
-                    >
-                        GENERATE & MAP
-                    </button>
+                <div className="flex justify-between items-center pt-2">
+                    {onTextToDrum ? (
+                        <button
+                            onClick={() => onTextToDrum(text)}
+                            disabled={isGenerating}
+                            className="px-4 py-2 bg-orange-900 text-orange-100 border border-orange-700 rounded hover:bg-orange-800 disabled:opacity-50 text-xs font-bold font-orbitron"
+                            title="Generate drum pattern from text phonemes"
+                        >
+                            {isGenerating ? 'GENERATING...' : 'TEXT TO DRUMS'}
+                        </button>
+                    ) : (
+                        <div />
+                    )}
+                    <div className="flex justify-end gap-2">
+                        <button
+                            onClick={() => onApply(text, false)}
+                            disabled={isGenerating}
+                            className="px-4 py-2 bg-gray-800 text-cyan-400 border border-gray-700 rounded hover:bg-gray-700 disabled:opacity-50 text-xs font-bold font-orbitron"
+                        >
+                            {isGenerating ? 'GENERATING...' : 'GENERATE ONLY'}
+                        </button>
+                        <button
+                            onClick={() => onApply(text, true)}
+                            disabled={isGenerating || !hasSelection}
+                            className="px-4 py-2 bg-cyan-900 text-cyan-100 border border-cyan-700 rounded hover:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold font-orbitron"
+                            title={!hasSelection ? "Select notes in the sequencer first" : "Generate audio and map phonemes to selection"}
+                        >
+                            GENERATE & MAP
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
