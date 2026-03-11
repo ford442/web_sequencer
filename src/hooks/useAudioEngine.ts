@@ -254,14 +254,14 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 singingVoiceManagerRef,
             });
 
-            // Internal function to play a single sampler voice
+            // Internal function to play a single sampler voice (supports pitch offset for harmonizer)
             const playSamplerVoice = (
-                params: SamplerBankParams,
-                note: string | string[],
-                time: number,
-                durationSteps: number = 1,
-                stepTime: number = 0.2,
-                noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number },
+                params: SamplerBankParams, 
+                note: string | string[], 
+                time: number, 
+                durationSteps: number = 1, 
+                stepTime: number = 0.2, 
+                noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, slideFromMidi?: number },
                 pitchOffsetSemitones: number = 0
             ) => {
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
@@ -270,22 +270,34 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 
                 if (!buffer || !masterGainRef.current) return;
 
+                // Apply Microtiming
                 const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
+
+                // Retrigger Logic
                 const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
                 const subDurationSteps = durationSteps / retrigger;
+
+                // --- GLITCH LOGIC START ---
                 const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
+                // --- GLITCH LOGIC END ---
+
+                // Handle Polyphony (Chords)
                 const notes = Array.isArray(note) ? note : [note];
 
+                // If Singing/Stretch Mode
                 if (params.mode === 'stretch' && singingVoiceManagerRef.current) {
                     const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
-                    notes.forEach((noteStr) => {
+                    // For each note in the chord
+                    notes.forEach((noteStr, _noteIndex) => {
+
                         const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
                             const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
 
+                            // Ensure voice connected to correct output
                             voice.disconnectOutput();
                             if (destination) {
                                 voice.connectOutput(destination);
@@ -293,21 +305,25 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                                 voice.connectOutput(masterGainRef.current!);
                             }
 
+                            // Apply Timbre Modulation (Formant Shift)
                             if (noteParams?.timbre !== undefined) {
                                 const baseShift = params.formantShift || 0;
-                                const mod = (noteParams.timbre * 12) - 6;
+                                const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
                                 voice.setFormantShift(baseShift + mod, triggerTime);
                             } else if (params.formantShift !== undefined) {
                                 voice.setFormantShift(params.formantShift, triggerTime);
                             }
 
+                            // Sync other params
                             if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
                             if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
                             if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
 
+                            // Load buffer
                             voice.loadBuffer(buffer.getChannelData(0));
 
+                            // CHECK FOR SLICE TRIGGER MODE
                             if (params.sliceMode === 'phoneme' && alignment) {
                                 let sliceIndex = -1;
                                 let pitchRatio = 1.0;
@@ -315,7 +331,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                                 if (noteParams?.sliceIndex !== undefined) {
                                     sliceIndex = noteParams.sliceIndex;
                                     const targetMidi = noteToMidi(noteStr);
-                                    pitchRatio = Math.pow(2, (targetMidi - 60 + pitchOffset + pitchOffsetSemitones) / 12);
+                                    const baseMidi = 60;
+                                    pitchRatio = Math.pow(2, (targetMidi - baseMidi + pitchOffset + pitchOffsetSemitones) / 12);
                                 } else {
                                     const targetMidi = noteToMidi(noteStr);
                                     sliceIndex = targetMidi - 60;
@@ -331,8 +348,17 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             const timeRatio = targetDuration / originalDuration;
                             voice.setTimeRatio(timeRatio, triggerTime);
 
+                            // 2. Pitch Shift (with offset for harmonizer)
                             const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
-                            voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
+                            if (noteParams?.slideFromMidi !== undefined) {
+                                const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
+                                voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime);
+                                // Glide over half the target duration or a minimum of 0.15s, bounded by actual duration
+                                const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
+                                voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration);
+                            } else {
+                                voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
+                            }
 
                             if (alignment) {
                                 voice.setAlignment(alignment);
@@ -480,30 +506,37 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 });
             };
 
-            const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
+            const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, slideFromMidi?: number }) => {
+                // Check for multisample bank first
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
                 const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-
+                
                 if (!buffer || !masterGainRef.current) return;
 
+                // Harmonize support - if harmonizer is active, generate multiple harmony voices
                 const harmonizer = harmonizerRef.current;
                 if (harmonizer?.getIsActive()) {
                     const voices = harmonizer.generateVoices();
+                    
+                    // Play base voice (index 0) - the original note
                     playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0);
-
+                    
+                    // Play each harmony voice (skip index 0 which is base)
                     voices.forEach((voice) => {
-                        if (voice.index === 0) return; 
-
+                        if (voice.index === 0) return; // Skip base voice, already played above
+                        
+                        // Create modified params for this harmony voice
                         const voiceParams: SamplerBankParams = {
                             ...params,
                             pan: voice.pan,
-                            volume: params.volume * voice.gain * 0.85, 
+                            volume: params.volume * voice.gain * 0.85, // Slightly reduce harmony volume for blend
                             formantShift: (params.formantShift || 0) + voice.formantShift,
                             fineTune: (params.fineTune || 0) + voice.detuneCents
                         };
-
-                        const delayMs = voice.index * 5; 
+                        
+                        // Play this voice with pitch offset and slight delay for natural ensemble effect
+                        const delayMs = voice.index * 5; // 5ms stagger per voice
                         setTimeout(() => {
                             playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, noteParams, voice.pitchOffset);
                         }, delayMs);
