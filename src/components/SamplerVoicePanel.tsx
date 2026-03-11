@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { HardwareModule, KnobConfig } from './HardwareModule';
+import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { Harmonizer, type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../engines/Harmonizer';
 
 interface SamplerVoicePanelProps {
