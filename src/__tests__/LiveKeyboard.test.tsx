@@ -7,10 +7,10 @@ describe('LiveKeyboard', () => {
     const onStop = vi.fn();
     render(<LiveKeyboard onPlayNote={onPlay} onStopNote={onStop} activeTrackColor="#ffffff" />);
 
-    // Simulate keydown / keyup using a mapped key (F1 is used in mapping for C4)
-    fireEvent.keyDown(window, { code: 'F1' });
+    // Simulate keydown / keyup using a mapped key (F7 is used in mapping for C5)
+    fireEvent.keyDown(window, { code: 'F7' });
     expect(onPlay).toHaveBeenCalled();
-    fireEvent.keyUp(window, { code: 'F1' });
+    fireEvent.keyUp(window, { code: 'F7' });
     expect(onStop).toHaveBeenCalled();
   });
 
@@ -19,8 +19,8 @@ describe('LiveKeyboard', () => {
     const onStop = vi.fn();
     const { getByText } = render(<LiveKeyboard onPlayNote={onPlay} onStopNote={onStop} activeTrackColor="#fff" />);
 
-    // Click a key: pick a note label that exists, e.g., 'C4'
-    const key = getByText('C4');
+    // Click a key: pick a note label that exists, e.g., 'C5'
+    const key = getByText('C5');
     fireEvent.mouseDown(key);
     expect(onPlay).toHaveBeenCalled();
     fireEvent.mouseUp(key);
@@ -41,10 +41,10 @@ describe('LiveKeyboard', () => {
     input.focus();
 
     // Simulate keydown on the input (bubbling up to window)
-    fireEvent.keyDown(input, { code: 'F1', bubbles: true });
+    fireEvent.keyDown(input, { code: 'F7', bubbles: true });
     expect(onPlay).not.toHaveBeenCalled();
 
-    fireEvent.keyUp(input, { code: 'F1', bubbles: true });
+    fireEvent.keyUp(input, { code: 'F7', bubbles: true });
     expect(onStop).not.toHaveBeenCalled();
   });
 });
