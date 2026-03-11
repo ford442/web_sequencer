@@ -1708,18 +1708,21 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      {(Object.entries(trackStats.noteCounts) as [string, number][]).map(([track, count]) => (
-                        <div key={track} className="flex items-center gap-2 text-xs">
-                          <span className="w-16 sm:w-20 text-gray-500 shrink-0">{track}:</span>
-                          <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-emerald-500/50 rounded-full transition-all duration-500"
-                              style={{ width: `${Math.min(100, (count / 16) * 100)}%` }}
-                            />
+                      {(Object.entries(trackStats.noteCounts) as [string, number][]).map(([track, count]) => {
+                        const countStr = String(count);
+                        return (
+                          <div key={track} className="flex items-center gap-2 text-xs">
+                            <span className="w-16 sm:w-20 text-gray-500 shrink-0">{track}:</span>
+                            <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-emerald-500/50 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.min(100, (count / 16) * 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{countStr}</span>
                           </div>
-                          <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(count)}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
