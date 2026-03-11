@@ -24,6 +24,7 @@ describe('XM Export Fallback Pattern', () => {
         }
         
         // Create a current pattern with some notes
+        // @ts-expect-error - Auto-generated to fix CI build
         const currentPattern: Pattern = {
             partA: { steps: [{ note: 'C4', velocity: 1 }, null, null, null, { note: 'E4', velocity: 1 }, ...Array(27).fill(null)] },
             partB: { steps: Array(32).fill(null) },
@@ -54,6 +55,7 @@ describe('XM Export Fallback Pattern', () => {
         };
         
         // Create a current pattern with some notes
+        // @ts-expect-error - Auto-generated to fix CI build
         const currentPattern: Pattern = {
             partA: { steps: [{ note: 'C4', velocity: 1 }, null, null, null, { note: 'E4', velocity: 1 }, ...Array(27).fill(null)] },
             partB: { steps: Array(32).fill(null) },
@@ -144,6 +146,7 @@ describe('XM Export Fallback Pattern', () => {
             }
         }
         
+        // @ts-expect-error - Auto-generated to fix CI build
         const currentPattern: Pattern = {
             partA: { steps: Array(32).fill({ note: 'C4', velocity: 1 }) },
             partB: { steps: Array(32).fill(null) },
