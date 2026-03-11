@@ -1695,7 +1695,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                       </div>
                       <div className="text-xs">
                         <span className="text-gray-500">Avg Velocity:</span>
-                        <span className="text-white ml-2">{(trackStats.avgVelocity * 100).toFixed(0)}%</span>
+                        <span className="text-white ml-2">{Number.isNaN(trackStats.avgVelocity) ? '0' : (trackStats.avgVelocity * 100).toFixed(0)}%</span>
                       </div>
                     </div>
                     <div className="space-y-1.5">
