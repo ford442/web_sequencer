@@ -1273,6 +1273,64 @@ export const App: React.FC = () => {
         }
     }, [audioEngine, handleLoadSample, showToast]);
 
+    const handleTextToDrums = useCallback(async (text: string) => {
+        try {
+            await handleGenerateTTS(text);
+            const alignment = audioEngine?.getAlignment?.(activeSamplerBankRef.current);
+            if (!alignment) return;
+
+            const newPattern = { ...patternRef.current };
+            const newKick = { ...newPattern.kick, steps: [...newPattern.kick.steps] };
+            const newSnare = { ...newPattern.snare, steps: [...newPattern.snare.steps] };
+            const newCH = { ...newPattern.closedHat, steps: [...newPattern.closedHat.steps] };
+            const newOH = { ...newPattern.openHat, steps: [...newPattern.openHat.steps] };
+
+            // clear existing
+            newKick.steps = Array(32).fill(null);
+            newSnare.steps = Array(32).fill(null);
+            newCH.steps = Array(32).fill(null);
+            newOH.steps = Array(32).fill(null);
+
+            // Calculate step duration
+            const stepTime = 60 / tempoRef.current / 4;
+
+            alignment.phonemes.forEach((p, idx) => {
+                const stepIdx = Math.round(p.start / stepTime);
+                if (stepIdx >= 0 && stepIdx < 32) {
+                    const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
+
+                    const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
+                    const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
+                    const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
+                    const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15; // Longer noisy phonemes
+
+                    if (isVowel) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    else if (isSnare) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    else if (isOpenHat) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    else if (isHat) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    else newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 };
+                }
+            });
+
+            newPattern.kick = newKick;
+            newPattern.snare = newSnare;
+            newPattern.closedHat = newCH;
+            newPattern.openHat = newOH;
+
+            setPattern(newPattern);
+            updateStorageForTrack('kick', newKick);
+            updateStorageForTrack('snare', newSnare);
+            updateStorageForTrack('closedHat', newCH);
+            updateStorageForTrack('openHat', newOH);
+
+            showToast("Drumkit generated from text!", "success");
+            setIsLyricMapperOpen(false);
+        } catch(e) {
+            console.error(e);
+            showToast("Failed to generate drums.", "error");
+        }
+    }, [handleGenerateTTS, audioEngine, updateStorageForTrack, showToast]);
+
     const handleLyricApply = useCallback(async (text: string, mapToSelection: boolean) => {
         try {
             await handleGenerateTTS(text);
@@ -1967,7 +2025,7 @@ export const App: React.FC = () => {
             <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
             {/* @ts-expect-error - Auto-generated to fix CI build */}
             <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
-            <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
+            <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} onTextToDrum={handleTextToDrums} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
             {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
