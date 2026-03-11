@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
-// @ts-expect-error - Auto-generated to fix CI build
-import { HardwareModule, KnobConfig } from './HardwareModule';
+import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { Harmonizer, type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../engines/Harmonizer';
 
 interface SamplerVoicePanelProps {
