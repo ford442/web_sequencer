@@ -1,23 +1,26 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useRef, useMemo } from 'react';
 import type { KnobConfig } from '../components/HardwareModule';
 
 export function useStableKnobConfig<T>(
     generator: (params: T) => KnobConfig[],
     params: T
 ): KnobConfig[] {
-    const [prevConfigs, setPrevConfigs] = useState<KnobConfig[] | null>(null);
+    const prevConfigsRef = useRef<KnobConfig[] | null>(null);
 
     const mergedConfigs = useMemo(() => {
         const newConfigs = generator(params);
+        const prevConfigs = prevConfigsRef.current;
 
         if (!prevConfigs || newConfigs.length !== prevConfigs.length) {
+            prevConfigsRef.current = newConfigs;
             return newConfigs;
         }
 
-        return newConfigs.map((newCfg, i) => {
+        const nextConfigs = newConfigs.map((newCfg, i) => {
             const oldCfg = prevConfigs[i];
 
-            if (oldCfg.id === newCfg.id &&
+            if (oldCfg &&
+                oldCfg.id === newCfg.id &&
                 oldCfg.value === newCfg.value &&
                 oldCfg.x === newCfg.x &&
                 oldCfg.y === newCfg.y &&
@@ -29,11 +32,10 @@ export function useStableKnobConfig<T>(
             }
             return newCfg;
         });
-    }, [params, generator, prevConfigs]);
 
-    useEffect(() => {
-        setPrevConfigs(mergedConfigs);
-    }, [mergedConfigs]);
+        prevConfigsRef.current = nextConfigs;
+        return nextConfigs;
+    }, [params, generator]);
 
     return mergedConfigs;
 }
