@@ -1,41 +1,48 @@
-import { useRef, useMemo } from 'react';
+import { useState } from 'react';
 import type { KnobConfig } from '../components/HardwareModule';
 
 export function useStableKnobConfig<T>(
     generator: (params: T) => KnobConfig[],
     params: T
 ): KnobConfig[] {
-    const prevConfigsRef = useRef<KnobConfig[] | null>(null);
+    const [stableConfigs, setStableConfigs] = useState<KnobConfig[]>(() => generator(params));
 
-    const mergedConfigs = useMemo(() => {
-        const newConfigs = generator(params);
-        const prevConfigs = prevConfigsRef.current;
+    const newConfigs = generator(params);
 
-        if (!prevConfigs || newConfigs.length !== prevConfigs.length) {
-            prevConfigsRef.current = newConfigs;
-            return newConfigs;
+    if (!stableConfigs || newConfigs.length !== stableConfigs.length) {
+        setStableConfigs(newConfigs);
+        return newConfigs;
+    }
+
+    const mergedConfigs = newConfigs.map((newCfg, i) => {
+        const oldCfg = stableConfigs[i];
+
+        if (oldCfg &&
+            oldCfg.id === newCfg.id &&
+            oldCfg.value === newCfg.value &&
+            oldCfg.x === newCfg.x &&
+            oldCfg.y === newCfg.y &&
+            oldCfg.size === newCfg.size &&
+            oldCfg.label === newCfg.label &&
+            oldCfg.isRecording === newCfg.isRecording &&
+            oldCfg.valueDisplay === newCfg.valueDisplay) {
+            return oldCfg;
         }
+        return newCfg;
+    });
 
-        const nextConfigs = newConfigs.map((newCfg, i) => {
-            const oldCfg = prevConfigs[i];
+    let hasChanged = false;
+    for (let i = 0; i < mergedConfigs.length; i++) {
+        if (mergedConfigs[i] !== stableConfigs[i]) {
+            hasChanged = true;
+            break;
+        }
+    }
 
-            if (oldCfg &&
-                oldCfg.id === newCfg.id &&
-                oldCfg.value === newCfg.value &&
-                oldCfg.x === newCfg.x &&
-                oldCfg.y === newCfg.y &&
-                oldCfg.size === newCfg.size &&
-                oldCfg.label === newCfg.label &&
-                oldCfg.isRecording === newCfg.isRecording &&
-                oldCfg.valueDisplay === newCfg.valueDisplay) {
-                return oldCfg;
-            }
-            return newCfg;
-        });
+    if (hasChanged) {
+        setStableConfigs(mergedConfigs);
+        return mergedConfigs;
+    }
 
-        prevConfigsRef.current = nextConfigs;
-        return nextConfigs;
-    }, [params, generator]);
-
-    return mergedConfigs;
+    return stableConfigs;
 }
