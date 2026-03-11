@@ -580,7 +580,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                 return vocalAlignmentsRef.current.get(bankName) || null;
             };
 
-            const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
+            const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, phonemes?: PhonemeData[] }) => {
                 // Extract voice params with defaults
                 const rootNote = params.rootNote ?? 60;
                 const coarseTune = params.coarseTune ?? params.coarse ?? 0;
@@ -698,7 +698,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                             // 3. Phoneme Awareness
                             if (alignment) {
                                 voice.setAlignment(alignment);
-                                voice.sendPhonemeDataToWorklet(targetDuration);
+                                voice.sendPhonemeDataToWorklet(targetDuration, noteParams?.phonemes);
                             }
 
                             // 4. Play
@@ -845,7 +845,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
         time: number, 
         durationSteps: number = 1, 
         stepTime: number = 0.2, 
-        noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number },
+        noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, phonemes?: PhonemeData[] },
         pitchOffsetSemitones: number = 0
     ) => {
         const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
@@ -940,7 +940,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
                     // 3. Phoneme Awareness
                     if (alignment) {
                         voice.setAlignment(alignment);
-                        voice.sendPhonemeDataToWorklet(targetDuration);
+                        voice.sendPhonemeDataToWorklet(targetDuration, noteParams?.phonemes);
                     }
 
                     // 4. Play
@@ -1098,7 +1098,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
     };
 
     // Original playSampler function (for backwards compatibility, now delegates to playSamplerVoice)
-    const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => {
+    const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, phonemes?: PhonemeData[] }) => {
         // Check for multisample bank first
         const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
         const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
@@ -1140,6 +1140,7 @@ export const useAudioEngine = (pyodide: any, forceScriptProcessor: boolean = fal
         playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0);
     };
 
+            };
             const noteOnSampler = (params: SamplerBankParams, note: string, time?: number): number | null => {
                 // Interactive trigger (e.g. keyboard) with multisample support
                 const now = time || context.currentTime;
