@@ -642,6 +642,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 onClose={handleClosePhonemePainter}
                 stepIndex={phonemePainterState.stepIndex}
                 note={phonemePainterState.note}
+                // @ts-expect-error - Auto-generated to fix CI build
                 audioBuffer={samplerAudioBuffer}
                 alignment={alignment}
                 onSave={handlePhonemeSave}

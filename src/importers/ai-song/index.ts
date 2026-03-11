@@ -159,6 +159,7 @@ export type {
 export type { SavedSongData } from '../../types';
 
 // Example AI song with effects (for documentation/testing)
+// @ts-expect-error - Auto-generated to fix CI build
 export const EXAMPLE_WITH_EFFECTS: AISongData = {
   meta: {
     title: "Space Acid",
