@@ -1721,7 +1721,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                             </div>
                             <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{countStr}</span>
                           </div>
-                        );
+                        ) as unknown as React.ReactElement;
                       })}
                     </div>
                   </div>
