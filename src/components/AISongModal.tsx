@@ -36,6 +36,18 @@ interface ImportStage {
   status: 'pending' | 'active' | 'complete' | 'error';
 }
 
+interface TrackStats {
+  totalNotes: number;
+  noteCounts: Record<string, number>;
+  avgVelocity: number;
+  velocitySum: number;
+  noteCount: number;
+  duration: number;
+  automationLaneCount: number;
+  automationPointCount: number;
+  automatedParams: string[];
+}
+
 interface FieldError {
   field: string;
   message: string;
@@ -1085,12 +1097,12 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
   }, [validationState, jsonInput, onShowToast]);
 
   // Calculate track statistics
-  const trackStats = useMemo(() => {
+  const trackStats = useMemo<TrackStats | null>(() => {
     if (!parsedData) return null;
     
-    const stats = {
+    const stats: TrackStats = {
       totalNotes: 0,
-      noteCounts: {} as Record<string, number>,
+      noteCounts: {},
       avgVelocity: 0,
       velocitySum: 0,
       noteCount: 0,
@@ -1098,7 +1110,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       // Automation stats
       automationLaneCount: 0,
       automationPointCount: 0,
-      automatedParams: [] as string[]
+      automatedParams: []
     };
 
     // Count notes in melodic tracks
@@ -1217,6 +1229,23 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
   const isValid = validationState.stage === 'complete' && parsedData !== null;
   // @ts-expect-error - Auto-generated to fix CI build
   const textareaBorderColor = getTextareaBorderColor(validationState, jsonInput.trim().length > 0);
+
+  const noteCountEntries = useMemo(() => {
+    return trackStats ? Object.entries(trackStats.noteCounts) : [];
+  }, [trackStats]);
+
+  const trackStatisticsRows = noteCountEntries.map(([track, count]) => (
+    <div key={track} className="flex items-center gap-2 text-xs">
+      <span className="w-16 sm:w-20 text-gray-500 shrink-0">{track}:</span>
+      <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-emerald-500/50 rounded-full transition-all duration-500"
+          style={{ width: `${Math.min(100, (Number(count) / 16) * 100)}%` }}
+        />
+      </div>
+      <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(count)}</span>
+    </div>
+  ));
 
   return (
     <div 
@@ -1687,14 +1716,6 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                   </div>
 
                   {/* Track Statistics */}
-                  {/* Note regarding TypeScript error TS2322: Type 'unknown' is not assignable to type 'ReactNode'
-                      This component structure occasionally triggers a strict React 18 children type check
-                      due to how `trackStats.noteCounts` is mapped and evaluated as a `ReactNode`.
-                      Despite explicit `String()` casting and `@ts-expect-error` directives above the
-                      problematic elements, the compiler persists with this specific error.
-                      It has been thoroughly investigated and determined to be functionally safe to ignore
-                      for this PR, as it purely affects static type-checking and not runtime logic.
-                  */}
                   <div className="p-4 bg-gray-900/50 rounded-lg">
                     <h3 className="text-sm font-medium text-gray-300 mb-3">Track Statistics</h3>
                     <div className="grid grid-cols-2 gap-3 mb-3">
@@ -1708,21 +1729,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      {(Object.entries(trackStats.noteCounts) as [string, number][]).map(([track, count]) => {
-                        const countStr = String(count);
-                        return (
-                          <div key={track} className="flex items-center gap-2 text-xs">
-                            <span className="w-16 sm:w-20 text-gray-500 shrink-0">{track}:</span>
-                            <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-emerald-500/50 rounded-full transition-all duration-500"
-                                style={{ width: `${Math.min(100, (count / 16) * 100)}%` }}
-                              />
-                            </div>
-                            <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{countStr}</span>
-                          </div>
-                        ) as unknown as React.ReactElement;
-                      })}
+                      {trackStatisticsRows.length > 0 ? trackStatisticsRows : null}
                     </div>
                   </div>
 
