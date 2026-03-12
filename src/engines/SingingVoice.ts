@@ -721,6 +721,17 @@ export class SingingVoice {
     }
 
     /**
+     * Set spectral freeze/smear amount.
+     * @param amount Freeze amount (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFreeze(amount: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('freeze')?.setValueAtTime(amount, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set amplitude envelope attack time.
      * @param attack Attack time in seconds
      * @param time Optional time to apply the change (default: now)

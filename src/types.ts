@@ -72,6 +72,7 @@ export interface SamplerBankParams {
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
   choir?: number;          // Choir effect amount (0-1) - Detuned side voices
   glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
+  freeze?: number;         // Freeze/smear amount (0-1)
   attack?: number;         // Amplitude envelope attack time (seconds)
   release?: number;        // Amplitude envelope release time (seconds)
   pan?: number;            // Stereo pan (-1 to 1)

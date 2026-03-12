@@ -62,7 +62,8 @@ const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     drive: 0,
     delaySend: 0,
     mode: 'loop',
-    grainSize: 4410
+    grainSize: 4410,
+    freeze: 0
 };
 
 const INITIAL_SAMPLER_PARAMS: SamplerParams = Array.from({ length: 8 }, (_, i) => ({
