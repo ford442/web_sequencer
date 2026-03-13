@@ -248,9 +248,43 @@ export class SingingVoice {
      */
     setPitch(ratio: number, time?: number): void {
         if (this.useWorklet && this.workletNode) {
-            this.workletNode.parameters.get('pitchScale')!.setValueAtTime(ratio, time || this.audioContext.currentTime);
+            const t = time || this.audioContext.currentTime;
+            const param = this.workletNode.parameters.get('pitchScale')!;
+            param.cancelScheduledValues(t);
+            param.setValueAtTime(ratio, t);
         }
         // ScriptProcessorNode fallback doesn't support pitch shifting
+    }
+
+    /**
+     * Linearly ramp the pitch scale ratio to the given target.
+     * @param ratio Target pitch multiplier
+     * @param time Time to reach the target ratio
+     */
+    linearRampToPitch(ratio: number, time: number): void {
+        if (this.useWorklet && this.workletNode) {
+            this.workletNode.parameters.get('pitchScale')!.linearRampToValueAtTime(ratio, time);
+        }
+    }
+
+    /**
+     * Linearly ramp the pitch from current value to the target MIDI note.
+     */
+    linearRampPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number): void {
+        const effectiveBaseNote = baseMidiNote ?? this.rootNote;
+        const effectiveCoarse = coarseTune ?? this.coarseTune;
+        const effectiveFine = fineTune ?? this.fineTune;
+
+        const totalSemitoneOffset = effectiveCoarse + (effectiveFine / 100);
+        const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
+
+        const targetFreq = midiToFreq(adjustedTargetMidi);
+        const baseFreq = midiToFreq(effectiveBaseNote);
+
+        let pitchRatio = targetFreq / baseFreq;
+        pitchRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, pitchRatio));
+
+        this.linearRampToPitch(pitchRatio, time || this.audioContext.currentTime);
     }
 
     /**
@@ -683,6 +717,17 @@ export class SingingVoice {
     setBreathIntensity(intensity: number, time?: number): void {
         if (this.workletNode) {
             this.workletNode.parameters.get('breathIntensity')?.setValueAtTime(intensity, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set spectral freeze/smear amount.
+     * @param amount Freeze amount (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFreeze(amount: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('freeze')?.setValueAtTime(amount, time || this.audioContext.currentTime);
         }
     }
 
