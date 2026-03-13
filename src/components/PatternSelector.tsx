@@ -60,6 +60,7 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
                                 onClick={() => onSelect(slot)}
                                 aria-label={`Select Pattern ${slot + 1}`}
                                 title={`Pattern ${slot + 1}`}
+                                aria-pressed={isSelected}
                                 className="w-10 h-8 rounded text-xs font-bold flex items-center justify-center transition-all hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-gray-900"
                                 style={{
                                     backgroundColor: isSelected ? '#fff' : color,
