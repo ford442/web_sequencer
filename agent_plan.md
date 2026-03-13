@@ -38,8 +38,9 @@
 ---
 
 ## 🧠 Innovation Lab (The "Dream" Log)
-* **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time.
+* [x] **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time. (Implemented in Sampler and RubberBandProcessor via a 100ms looping Hann window!)
 * **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A.
+* **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
 * **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
@@ -54,6 +55,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-06-06] - Implemented Spectral Granulator: Added `freeze` parameter to `RubberBandProcessor` to continuously loop a ~100ms Hann-windowed grain when activated. Wired to `SamplerPanel` and `NoteSelector` for global and per-step granular smearing.
 * [2026-06-05] - Implemented Text-to-Drumkit Feature: Added a 'TEXT TO DRUMS' action in the Lyric Mapper that automatically populates the Kick, Snare, and Hi-Hat tracks by rhythmically mapping TTS phonemes based on their phonetic properties (vowels to kicks, fricatives/plosives to hats and snares).
 * [2026-06-04] - Implemented Dynamic Phoneme Pitch Glide: Enhanced `SingingVoice` and sequencer to slide between TTS phonemes smoothly when slide is active.
 * [2026-06-03] - Implemented Per-Step Reverse: Updated `SingingVoice.ts` and `useAudioEngine.ts` to allow reversing individual TTS phoneme slices on a per-step basis, matching the "Per-Step Reverse" Innovation Lab idea.
