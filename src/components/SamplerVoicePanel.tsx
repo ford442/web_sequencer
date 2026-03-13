@@ -384,6 +384,7 @@ const HarmonizerPopover: React.FC<{
                                 value={localConfig.detuneSpread}
                                 onChange={(e) => handleDetuneChange(parseInt(e.target.value) / 50)}
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                aria-label="Detune spread"
                             />
                         </div>
                     </div>
@@ -412,6 +413,7 @@ const HarmonizerPopover: React.FC<{
                                 value={localConfig.formantSpread}
                                 onChange={(e) => handleFormantChange(parseInt(e.target.value) / 12)}
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                aria-label="Formant spread"
                             />
                         </div>
                     </div>
