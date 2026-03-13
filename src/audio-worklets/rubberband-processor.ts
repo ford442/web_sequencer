@@ -264,44 +264,88 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         const samplesRequired = this.rubberBand.getSamplesRequired();
 
-        if (this.isReverse) {
-          // REVERSE STREAMING
-          const samplesRemaining = this.currentSamplePtr - this.startSamplePtr + 1;
+        const freezeAmt = parameters.freeze ? parameters.freeze[0] : 0.0;
+        const isFrozen = freezeAmt > 0.5;
 
-          if (samplesRemaining > 0 && samplesRequired > 0) {
-            const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
+        if (isFrozen) {
+          // FREEZE STREAMING (Spectral Granulator)
+          // Don't advance the pointer, just loop a small grain
+          if (samplesRequired > 0) {
+            const samplesToFeed = samplesRequired;
             this.ensureHeapSize(samplesToFeed);
 
-            // Manually copy in reverse order
             const heap = this.rubberBand.module.HEAPF32;
             const ptr = this.inputHeapPtr >> 2;
             const buf = this.fullSampleBuffer;
-            let readPtr = this.currentSamplePtr;
 
-            for (let i = 0; i < samplesToFeed; i++) {
-              heap[ptr + i] = buf[readPtr--];
+            // Define grain size: ~100ms
+            // Using globalThis.sampleRate safely, fallback to 44100
+            // @ts-ignore
+            const sRate = typeof globalThis.sampleRate === 'number' ? globalThis.sampleRate : 44100;
+            const grainSizeSamples = Math.floor(sRate * 0.1);
+            const grainStart = Math.max(0, this.currentSamplePtr - Math.floor(grainSizeSamples / 2));
+            const grainEnd = Math.min(buf.length, grainStart + grainSizeSamples);
+            const actualGrainSize = grainEnd - grainStart;
+
+            if (actualGrainSize > 0) {
+              for (let i = 0; i < samplesToFeed; i++) {
+                // Apply a simple Hann window to the grain to avoid buzzing/clicks at the loop boundaries
+                const windowVal = 0.5 * (1 - Math.cos((2 * Math.PI * this.freezePhase) / (actualGrainSize - 1)));
+                heap[ptr + i] = buf[grainStart + this.freezePhase] * windowVal;
+
+                this.freezePhase++;
+                if (this.freezePhase >= actualGrainSize) {
+                  this.freezePhase = 0; // Loop the grain
+                }
+              }
+              this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
+            } else {
+              // Fallback if grain is empty
+               this.rubberBand.process(this.inputHeapPtr, 0, false);
             }
-
-            this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
-            this.currentSamplePtr = readPtr;
           }
         } else {
-          // FORWARD STREAMING
-          const samplesRemaining = this.endSamplePtr - this.currentSamplePtr;
+          this.freezePhase = 0; // Reset phase when unfreezing
 
-          if (samplesRemaining > 0 && samplesRequired > 0) {
-            const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
-            this.ensureHeapSize(samplesToFeed);
+          if (this.isReverse) {
+            // REVERSE STREAMING
+            const samplesRemaining = this.currentSamplePtr - this.startSamplePtr + 1;
 
-            // Copy directly to WASM heap
-            const slice = this.fullSampleBuffer.subarray(
-              this.currentSamplePtr,
-              this.currentSamplePtr + samplesToFeed
-            );
-            this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
+            if (samplesRemaining > 0 && samplesRequired > 0) {
+              const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
+              this.ensureHeapSize(samplesToFeed);
 
-            this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
-            this.currentSamplePtr += samplesToFeed;
+              // Manually copy in reverse order
+              const heap = this.rubberBand.module.HEAPF32;
+              const ptr = this.inputHeapPtr >> 2;
+              const buf = this.fullSampleBuffer;
+              let readPtr = this.currentSamplePtr;
+
+              for (let i = 0; i < samplesToFeed; i++) {
+                heap[ptr + i] = buf[readPtr--];
+              }
+
+              this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
+              this.currentSamplePtr = readPtr;
+            }
+          } else {
+            // FORWARD STREAMING
+            const samplesRemaining = this.endSamplePtr - this.currentSamplePtr;
+
+            if (samplesRemaining > 0 && samplesRequired > 0) {
+              const samplesToFeed = Math.min(samplesRemaining, samplesRequired);
+              this.ensureHeapSize(samplesToFeed);
+
+              // Copy directly to WASM heap
+              const slice = this.fullSampleBuffer.subarray(
+                this.currentSamplePtr,
+                this.currentSamplePtr + samplesToFeed
+              );
+              this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
+
+              this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
+              this.currentSamplePtr += samplesToFeed;
+            }
           }
         }
       }

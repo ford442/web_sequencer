@@ -142,6 +142,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         formantShift: 0,
         vibratoDepth: 0,
         breathIntensity: 0,
+        freeze: 0,
         attack: 0.05,
         release: 0.1,
         choir: 0,
@@ -212,6 +213,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleBreathIntensityChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'breathIntensity', v);
         else updateParamRef.current('breathIntensity', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleFreezeChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'freeze', v);
+        else updateParamRef.current('freeze', v);
     }, [activeBankIdx, onParamChange]);
 
     const handleAttackChange = useCallback((v: number) => {
@@ -915,12 +921,13 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     {/* Rubberband/Granular Params Group */}
                     <div className="flex-[2] min-w-[200px] bg-indigo-900/50 p-2 rounded">
                         <div className="text-[9px] text-indigo-300 font-bold mb-1 border-b border-indigo-800 pb-0.5">ENGINE</div>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2">
                             <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
                             <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
                             <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />
                             <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
+                            <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Choir" value={currentParams.choir ?? 0} onChange={handleChoirChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Glitch" value={currentParams.glitchChance ?? 0} onChange={handleGlitchChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Attack" value={currentParams.attack ?? 0.05} onChange={handleAttackChange} min={0.001} max={2.0} step={0.01} color="indigo" unit="s" />
