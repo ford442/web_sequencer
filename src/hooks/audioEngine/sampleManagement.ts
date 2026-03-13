@@ -151,6 +151,9 @@ export function applyVoiceParamUpdate({
                 case 'breathIntensity':
                     voice.setBreathIntensity(value);
                     break;
+                case 'freeze':
+                    voice.setFreeze(value);
+                    break;
                 case 'attack':
                     voice.setAttack(value);
                     break;
