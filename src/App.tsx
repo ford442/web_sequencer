@@ -62,7 +62,8 @@ const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     drive: 0,
     delaySend: 0,
     mode: 'loop',
-    grainSize: 4410
+    grainSize: 4410,
+    freeze: 0
 };
 
 const INITIAL_SAMPLER_PARAMS: SamplerParams = Array.from({ length: 8 }, (_, i) => ({
@@ -606,7 +607,7 @@ export const App: React.FC = () => {
                 if (stepData.slide && lastSamplerMidiRef.current[bankIdx] !== undefined) {
                     slideFromMidi = lastSamplerMidiRef.current[bankIdx];
                 }
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, slideFromMidi };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes };
                 // Combine note and chord for polyphonic playback
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
                 lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
