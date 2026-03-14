@@ -693,8 +693,14 @@ export class SingingVoice {
      * @param time Optional time to apply the change (default: now)
      */
     setFormantShift(semitones: number, time?: number): void {
-        if (this.workletNode) {
-            this.workletNode.parameters.get('formantScale')?.setValueAtTime(semitones / 12, time || this.audioContext.currentTime);
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            const shift = {
+                f1Shift: semitones,
+                f2Shift: semitones,
+                f3Shift: semitones,
+                f4Shift: semitones
+            };
+            this.formantShifter.updateFilterChain(shift);
         }
     }
 
