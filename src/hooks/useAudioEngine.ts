@@ -372,7 +372,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             // 3. Phoneme Awareness (from Jules branch)
                             if (alignment) {
                                 voice.setAlignment(alignment);
-                                voice.sendPhonemeDataToWorklet(targetDuration, noteParams?.phonemes);
+                                voice.sendPhonemeDataToWorklet(targetDuration);
                             }
 
                             // 4. Play
