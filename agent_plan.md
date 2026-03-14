@@ -17,6 +17,7 @@
 - [x] **Polyphonic Singing:** Implement `SingingVoiceManager` to allow polyphonic playback (chords) for the TTS engine, supporting multiple simultaneous phoneme streams.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
+- [x] **Step-Sequenced Formant Shifts:** Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
 - [x] **Text-to-Drumkit:** Implement logic to generate drum kit sequences by mapping short transient consonants to hats/snares and vowels to kicks based on TTS phrases.
 - [x] **Dynamic Phoneme Pitch Glide:** Implemented pitch slide logic in `SingingVoice.ts`, `useAudioEngine.ts` and `App.tsx` to glide TTS pitch naturally when a step has slide enabled.
 - [x] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
@@ -56,6 +57,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-03-14] - Implemented Step-Sequenced Formant Shifts: Updated `SingingVoice.ts` to utilize `FormantShifter.ts` and enabled formant shifting in `useAudioEngine.ts` to process per-step timbre offsets correctly via Biquad filters.
 * [2026-06-06] - Implemented Spectral Granulator: Added `freeze` parameter to `RubberBandProcessor` to continuously loop a ~100ms Hann-windowed grain when activated. Wired to `SamplerPanel` and `NoteSelector` for global and per-step granular smearing.
 * [2026-06-06] - Implemented Spectral Granulator (Freeze): Integrated granular freeze into `rubberband-processor.ts` by halting the sample read pointer and looping a ~100ms grain, smearing TTS phonemes. Added Freeze knob to SamplerPanel.
 * [2026-06-05] - Implemented Text-to-Drumkit Feature: Added a 'TEXT TO DRUMS' action in the Lyric Mapper that automatically populates the Kick, Snare, and Hi-Hat tracks by rhythmically mapping TTS phonemes based on their phonetic properties (vowels to kicks, fricatives/plosives to hats and snares).
