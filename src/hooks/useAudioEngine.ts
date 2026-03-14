@@ -207,7 +207,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     preserveFormants: true,
                     channels: 1,
                     bufferSize: 16384,
-                    enablePhonemeStretching: true
+                    enablePhonemeStretching: true,
+                    enableFormantShifting: true
                 });
 
                 await manager.init(forceScriptProcessor, wasmBinary);
