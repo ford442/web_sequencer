@@ -43,6 +43,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Playback State (Unified)
   private isPlaying = false;
   private isReverse = false;
+  private freezePhase: number = 0;
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
