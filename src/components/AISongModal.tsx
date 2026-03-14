@@ -1696,7 +1696,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                             </span>
                             <div className="flex gap-0.5">
                               {row.map((active, stepIdx) => (
-                                <Tooltip key={stepIdx} text={`Step ${stepIdx}`} position="top">
+                                <Tooltip key={stepIdx} text={String(`Step ${stepIdx}`)} position="top">
                                   <div
                                     className={`w-1.5 h-3 sm:w-2 sm:h-4 rounded-sm transition-colors ${
                                       active 
