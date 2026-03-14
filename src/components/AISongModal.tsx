@@ -1235,8 +1235,8 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
   }, [trackStats]);
 
   const trackStatisticsRows = noteCountEntries.map(([track, count]) => (
-    <div key={track} className="flex items-center gap-2 text-xs">
-      <span className="w-16 sm:w-20 text-gray-500 shrink-0">{track}:</span>
+    <div key={String(track)} className="flex items-center gap-2 text-xs">
+      <span className="w-16 sm:w-20 text-gray-500 shrink-0">{String(track)}:</span>
       <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
         <div
           className="h-full bg-emerald-500/50 rounded-full transition-all duration-500"
@@ -1729,7 +1729,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      {trackStatisticsRows.length > 0 && trackStatisticsRows}
+                      {trackStatisticsRows.length > 0 && (trackStatisticsRows as React.ReactNode)}
                     </div>
                   </div>
 
