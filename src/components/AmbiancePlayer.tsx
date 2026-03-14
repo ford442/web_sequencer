@@ -37,6 +37,7 @@ export const AmbiancePlayer: React.FC<AmbiancePlayerProps> = ({ tracks, selected
           onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
           className="w-24 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
           aria-label="Ambiance volume"
+          aria-valuetext={`${Math.round(volume * 100)}%`}
         />
       </div>
     </div>
