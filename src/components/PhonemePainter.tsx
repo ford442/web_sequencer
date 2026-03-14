@@ -783,7 +783,6 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                       className="absolute top-0 bottom-0 bg-gradient-to-r from-purple-500/50 via-transparent to-cyan-500/50"
                       style={{ 
                         right: selectedPhoneme.pitchBend >= 0 ? `${50 - (selectedPhoneme.pitchBend / 200) * 50}%` : '50%',
-                        // @ts-expect-error - Auto-generated to fix CI build
                         left: selectedPhoneme.pitchBend <= 0 ? `${50 + (selectedPhoneme.pitchBend / 200) * 50}%` : '50%'
                       }}
                     />
@@ -795,6 +794,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                       onChange={(e) => handlePitchBendChange(selectedPhoneme.id, parseInt(e.target.value))}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
                       aria-label="Pitch Bend"
+                      aria-valuetext={`${selectedPhoneme.pitchBend > 0 ? '+' : ''}${selectedPhoneme.pitchBend} cents`}
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <span className={`text-[10px] font-mono ${selectedPhoneme.pitchBend !== 0 ? 'text-white' : 'text-zinc-600'}`}>
@@ -837,6 +837,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                     }}
                     className="w-24 h-1 bg-zinc-700 rounded-lg appearance-none"
                     aria-label="Volume"
+                    aria-valuetext={`${Math.round((selectedPhoneme.volume || 1) * 100)}%`}
                   />
                 </div>
                 
