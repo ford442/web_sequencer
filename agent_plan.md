@@ -35,6 +35,7 @@
 ### Domain C: Accessibility & Mobile
 - [x] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
 - [x] **A11y Colors:** Verify high-contrast separation between `synth-1` (Chords) and `synth-2` (Lead) notes.
+- [x] **Formant Automation:** Implemented continuous vowel morphing by drawing curves for formant shift over time, interpolating parameters globally.
 
 ---
 
@@ -47,7 +48,6 @@
 * **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
-* **Idea:** "Formant Automation" - Draw curves for formant shift over time (not just per step) for continuous vowel morphing.
 * [x] **Idea:** "Per-Step Reverse" - Allow reversing the TTS sample on a per-step basis for creative rhythmic effects. (Implemented in Sampler phoneme slicing!)
 * [x] **Idea:** "Dynamic Phoneme Pitch Bends" - Allow drawing pitch bend automation within a single phoneme slice (e.g. going up a fifth on a single vowel). (Implemented as Slide/Glide property!)
 * **Idea:** "Text-to-Drumkit" - Auto-generate a drum kit from a TTS phrase by mapping short transient consonants (t, k, p) to hats/snares and vowels to kicks/toms.
@@ -59,6 +59,7 @@
 ## 📜 Changelog
 * [2026-03-14] - Implemented Step-Sequenced Formant Shifts: Updated `SingingVoice.ts` to utilize `FormantShifter.ts` and enabled formant shifting in `useAudioEngine.ts` to process per-step timbre offsets correctly via Biquad filters.
 * [2026-06-06] - Implemented Spectral Granulator: Added `freeze` parameter to `RubberBandProcessor` to continuously loop a ~100ms Hann-windowed grain when activated. Wired to `SamplerPanel` and `NoteSelector` for global and per-step granular smearing.
+* [2026-06-06] - Implemented Formant Automation: Updated `FormantShifter.ts`, `SingingVoice.ts`, and `useAudioEngine.ts` to support continuous interpolation (`linearRampToValueAtTime`) of formant shifting over step durations during automation playback.
 * [2026-06-06] - Implemented Spectral Granulator (Freeze): Integrated granular freeze into `rubberband-processor.ts` by halting the sample read pointer and looping a ~100ms grain, smearing TTS phonemes. Added Freeze knob to SamplerPanel.
 * [2026-06-05] - Implemented Text-to-Drumkit Feature: Added a 'TEXT TO DRUMS' action in the Lyric Mapper that automatically populates the Kick, Snare, and Hi-Hat tracks by rhythmically mapping TTS phonemes based on their phonetic properties (vowels to kicks, fricatives/plosives to hats and snares).
 * [2026-06-04] - Implemented Dynamic Phoneme Pitch Glide: Enhanced `SingingVoice` and sequencer to slide between TTS phonemes smoothly when slide is active.

@@ -681,12 +681,14 @@ export const App: React.FC = () => {
             const bankIdx = activeSamplerBankRef.current;
             const bankSeq = p.sampler[bankIdx];
             if (bankSeq && bankSeq.automation) {
+                const stepDuration = 60 / tempo / 4; // Length of a 16th note in seconds
+
                 // Formant Shift
                 const formantVal = bankSeq.automation['formantShift']?.[step];
                 if (formantVal !== undefined && formantVal !== null) {
                      // Map 0-1 to -12 to +12
                      const mapped = (formantVal * 24) - 12;
-                     onParamChange(bankIdx, 'formantShift', mapped);
+                     onParamChange(bankIdx, 'formantShift', mapped, stepDuration);
                 }
 
                 // Vibrato Depth

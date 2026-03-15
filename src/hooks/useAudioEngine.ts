@@ -694,7 +694,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
         }
     }, [audioEngine, forceScriptProcessor, playbackRefs]);
 
-    const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number) => {
+    const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
         applyVoiceParamUpdate({
             manager: singingVoiceManagerRef.current,
             choirLeftGain: choirLeftGainRef.current,
@@ -702,6 +702,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             currentTime: audioEngine?.context.currentTime || 0,
             key,
             value,
+            rampTime
         });
     }, [audioEngine]);
     

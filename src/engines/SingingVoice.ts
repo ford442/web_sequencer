@@ -691,8 +691,9 @@ export class SingingVoice {
      * Set formant shift in semitones.
      * @param semitones Formant shift in semitones (e.g., -12 to 12)
      * @param time Optional time to apply the change (default: now)
+     * @param rampTime Optional duration to ramp to the new formant value smoothly
      */
-    setFormantShift(semitones: number, time?: number): void {
+    setFormantShift(semitones: number, time?: number, rampTime: number = 0.05): void {
         if (this.formantShifter && this.config.enableFormantShifting) {
             const shift = {
                 f1Shift: semitones,
@@ -700,7 +701,7 @@ export class SingingVoice {
                 f3Shift: semitones,
                 f4Shift: semitones
             };
-            this.formantShifter.updateFilterChain(shift);
+            this.formantShifter.updateFilterChain(shift, rampTime);
         }
     }
 
