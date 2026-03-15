@@ -632,10 +632,10 @@ interface AISongModalProps {
   onClose: () => void;
   onImport: (song: SavedSongData, aiData: AISongData) => void;
   onShowToast: (message: string, type: 'success' | 'error' | 'info') => void;
-  audioEngine?: unknown;
+  audioEngine?: any;
 }
 
-export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps) {
+export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps): React.ReactElement | null {
   const [jsonInput, setJsonInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
@@ -1245,7 +1245,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       </div>
       <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(count)}</span>
     </div>
-  )) as React.ReactNode[];
+  )) as React.ReactElement[];
 
   return (
     <div 
@@ -1729,7 +1729,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      {trackStatisticsRows.length > 0 && (trackStatisticsRows as unknown as React.ReactElement[])}
+                      {trackStatisticsRows.length > 0 ? trackStatisticsRows : null}
                     </div>
                   </div>
 
