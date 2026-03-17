@@ -1550,19 +1550,19 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <p className="flex justify-between sm:block">
                       <span className="text-gray-500">Title:</span> 
-                      <span className="text-emerald-400/70 sm:ml-1">{parsedData.meta.title}</span>
+                        <span className="text-emerald-400/70 sm:ml-1">{String(parsedData.meta.title)}</span>
                     </p>
                     <p className="flex justify-between sm:block">
                       <span className="text-gray-500">Author:</span> 
-                      <span className="text-emerald-400/70 sm:ml-1">{parsedData.meta.author}</span>
+                        <span className="text-emerald-400/70 sm:ml-1">{String(parsedData.meta.author)}</span>
                     </p>
                     <p className="flex justify-between sm:block">
                       <span className="text-gray-500">Tempo:</span> 
-                      <span className="text-emerald-400/70 sm:ml-1">{parsedData.globals.tempo} BPM</span>
+                        <span className="text-emerald-400/70 sm:ml-1">{String(parsedData.globals.tempo)} BPM</span>
                     </p>
                     <p className="flex justify-between sm:block">
                       <span className="text-gray-500">Generator:</span> 
-                      <span className="text-emerald-400/70 sm:ml-1">{parsedData.meta.generator}</span>
+                        <span className="text-emerald-400/70 sm:ml-1">{String(parsedData.meta.generator)}</span>
                     </p>
                     <p className="sm:col-span-2 flex flex-wrap gap-1">
                       <span className="text-gray-500">Tracks:</span> 
@@ -1576,11 +1576,11 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                       <p className="sm:col-span-2 flex flex-wrap gap-1 items-center">
                         <span className="text-gray-500">Automation:</span> 
                         <span className="px-1.5 py-0.5 bg-cyan-500/10 rounded text-cyan-400/70 text-[10px]">
-                          {parsedData.automation.length} lane{parsedData.automation.length !== 1 ? 's' : ''}
+                            {String(parsedData.automation.length)} lane{parsedData.automation.length !== 1 ? 's' : ''}
                         </span>
                         {parsedData.automation.map((lane, idx) => (
                           <span key={idx} className="text-[10px] text-cyan-400/50">
-                            {lane.target}.{lane.parameter}
+                              {String(lane.target)}.{String(lane.parameter)}
                             {idx < parsedData.automation!.length - 1 ? ',' : ''}
                           </span>
                         ))}
@@ -1630,27 +1630,27 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                 <div className="animate-in fade-in duration-300">
                   {/* Song Info */}
                   <div className="p-4 bg-gray-900/50 rounded-lg">
-                    <h3 className="text-sm font-medium text-emerald-400 mb-3">{parsedData.meta.title}</h3>
+                    <h3 className="text-sm font-medium text-emerald-400 mb-3">{String(parsedData.meta.title)}</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
                       <div>
                         <span className="text-gray-500 block">Tempo</span>
-                        <span className="text-white">{parsedData.globals.tempo} BPM</span>
+                        <span className="text-white">{String(parsedData.globals.tempo)} BPM</span>
                       </div>
                       <div>
                         <span className="text-gray-500 block">Time Signature</span>
-                        <span className="text-white">{parsedData.globals.timeSignature.join('/')}</span>
+                        <span className="text-white">{String((parsedData.globals.timeSignature as any[]).join('/'))}</span>
                       </div>
                       <div>
                         <span className="text-gray-500 block">Swing</span>
-                        <span className="text-white">{parsedData.globals.swing}%</span>
+                        <span className="text-white">{String(parsedData.globals?.swing ?? 0)}%</span>
                       </div>
                       <div>
                         <span className="text-gray-500 block">Est. Duration</span>
-                        <span className="text-white">{trackStats.duration.toFixed(1)}s</span>
+                        <span className="text-white">{String(trackStats.duration.toFixed(1))}s</span>
                       </div>
                       <div className="col-span-2 sm:col-span-1">
                         <span className="text-gray-500 block">Total Notes</span>
-                        <span className="text-white">{String(trackStats.totalNotes)}</span>
+                        <span className="text-white">{String(trackStats.totalNotes ?? 0)}</span>
                       </div>
                     </div>
                   </div>
@@ -1661,7 +1661,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                     <div className="overflow-x-auto">
                       <div className="inline-block min-w-full">
                         {patternGrid.grid.map((row, trackIdx) => (
-                          <div key={trackIdx} className="flex items-center gap-1 mb-1">
+                          <div key={String(trackIdx)} className="flex items-center gap-1 mb-1">
                             <span className="w-16 sm:w-20 text-[10px] sm:text-xs text-gray-500 text-right mr-2 shrink-0">
                               {String(patternGrid.tracks[trackIdx])}
                             </span>
@@ -1687,41 +1687,38 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                   </div>
 
                   {/* Track Statistics */}
-                  {/* Note regarding TypeScript error TS2322: Type 'unknown' is not assignable to type 'ReactNode'
-                      This component structure occasionally triggers a strict React 18 children type check
-                      due to how `trackStats.noteCounts` is mapped and evaluated as a `ReactNode`.
-                      Despite explicit `String()` casting and `@ts-expect-error` directives above the
-                      problematic elements, the compiler persists with this specific error.
-                      It has been thoroughly investigated and determined to be functionally safe to ignore
-                      for this PR, as it purely affects static type-checking and not runtime logic.
-                  */}
-                  <div className="p-4 bg-gray-900/50 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-300 mb-3">Track Statistics</h3>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div className="text-xs">
-                        <span className="text-gray-500">Total Events:</span>
-                        <span className="text-white ml-2">{String(trackStats.totalNotes)}</span>
-                      </div>
-                      <div className="text-xs">
-                        <span className="text-gray-500">Avg Velocity:</span>
-                        <span className="text-white ml-2">{Number.isNaN(trackStats.avgVelocity) ? '0' : (trackStats.avgVelocity * 100).toFixed(0)}%</span>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      {(Object.entries(trackStats.noteCounts) as [string, number][]).map(([track, count]) => (
-                        <div key={track} className="flex items-center gap-2 text-xs">
-                          <span className="w-16 sm:w-20 text-gray-500 shrink-0">{track}:</span>
-                          <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-emerald-500/50 rounded-full transition-all duration-500"
-                              style={{ width: `${Math.min(100, (count / 16) * 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(count)}</span>
+                  {trackStats ? (
+                    <div className="p-4 bg-gray-900/50 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-300 mb-3">{String("Track Statistics")}</h3>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="text-xs">
+                          <span className="text-gray-500">{String("Total Events:")}</span>
+                          <span className="text-white ml-2">{String(trackStats.totalNotes)}</span>
                         </div>
-                      ))}
+                        <div className="text-xs">
+                          <span className="text-gray-500">{String("Avg Velocity:")}</span>
+                          <span className="text-white ml-2">{String(Number.isNaN(Number(trackStats.avgVelocity)) ? '0' : (Number(trackStats.avgVelocity) * 100).toFixed(0))}%</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {trackStats?.noteCounts ? (
+                          (Object.entries(trackStats.noteCounts as Record<string, unknown>)).map(([track, count]) => {
+                            const displayCount = typeof count === 'number' ? count : 0;
+                            const progress = Math.min(100, (displayCount / 16) * 100);
+                            return (
+                              <div key={String(track)} className="flex items-center gap-2 text-xs">
+                                <span className="w-16 sm:w-20 text-gray-500 shrink-0">{String(track)}:</span>
+                                <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500/50 rounded-full transition-all duration-500" style={{ width: `${String(progress)}%` }} />
+                                </div>
+                                <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(displayCount)}</span>
+                              </div>
+                            );
+                          })
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
                   {/* Automation Visualization */}
                   {trackStats.automationLaneCount > 0 && parsedData?.automation && (

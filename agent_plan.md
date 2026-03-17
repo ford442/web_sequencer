@@ -17,6 +17,7 @@
 - [x] **Polyphonic Singing:** Implement `SingingVoiceManager` to allow polyphonic playback (chords) for the TTS engine, supporting multiple simultaneous phoneme streams.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
+- [x] **Text-to-Drumkit:** Implement logic to generate drum kit sequences by mapping short transient consonants to hats/snares and vowels to kicks based on TTS phrases.
 - [x] **Dynamic Phoneme Pitch Glide:** Implemented pitch slide logic in `SingingVoice.ts`, `useAudioEngine.ts` and `App.tsx` to glide TTS pitch naturally when a step has slide enabled.
 - [x] **Slice Mode UI:** Add a toggle in `SamplerPanel` to enable "Phoneme Slice Mode", allowing users to play slices via MIDI keyboard.
 - [x] **Visual Slice Feedback:** Highlight the active phoneme slice in the UI during playback, visualizing real-time TTS articulation.
@@ -53,6 +54,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-06-05] - Implemented Text-to-Drumkit Feature: Added a 'TEXT TO DRUMS' action in the Lyric Mapper that automatically populates the Kick, Snare, and Hi-Hat tracks by rhythmically mapping TTS phonemes based on their phonetic properties (vowels to kicks, fricatives/plosives to hats and snares).
 * [2026-06-04] - Implemented Dynamic Phoneme Pitch Glide: Enhanced `SingingVoice` and sequencer to slide between TTS phonemes smoothly when slide is active.
 * [2026-06-03] - Implemented Per-Step Reverse: Updated `SingingVoice.ts` and `useAudioEngine.ts` to allow reversing individual TTS phoneme slices on a per-step basis, matching the "Per-Step Reverse" Innovation Lab idea.
 * [2026-03-03] - Implemented A11y Colors: Updated `getNoteColor` logic to apply complementary hue shifts and lightness contrast for `synth-2` (Bass/partB) notes vs `synth-1` (Lead/partA), significantly improving visual separation in the sequencer.
