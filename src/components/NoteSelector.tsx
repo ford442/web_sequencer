@@ -19,12 +19,13 @@ interface NoteSelectorProps {
     currentMicrotiming?: number;
     currentReverse?: boolean;
     currentRetrigger?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger', value: number | boolean) => void;
+    currentFreeze?: number;
+    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, onPropertyChange
+    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -157,6 +158,28 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 aria-label="Microtiming"
                             />
                         </div>
+
+                        {/* Freeze (Spectral Smear) Control */}
+                        {trackType === 'synth' && ( // Only show for sampler/synth, but we can assume 'synth' type includes sampler here
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                    <label htmlFor="note-freeze">Freeze</label>
+                                    <span className="text-cyan-400">{Math.round((currentFreeze + 0.0001) * 100)}%</span>
+                                </div>
+                                <input
+                                    id="note-freeze"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={currentFreeze}
+                                    onChange={(e) => onPropertyChange('freeze', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                    aria-valuetext={`${Math.round((currentFreeze + 0.0001) * 100)}%`}
+                                    aria-label="Freeze"
+                                />
+                            </div>
+                        )}
 
                         {/* Retrigger (Ratchet) Control */}
                         <div className="flex flex-col gap-1 pb-1">
