@@ -220,6 +220,16 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         else updateParamRef.current('freeze', v);
     }, [activeBankIdx, onParamChange]);
 
+    const handleFreezeLfoRateChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'freezeLfoRate', v);
+        else updateParamRef.current('freezeLfoRate', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleFreezeLfoDepthChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'freezeLfoDepth', v);
+        else updateParamRef.current('freezeLfoDepth', v);
+    }, [activeBankIdx, onParamChange]);
+
     const handleAttackChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'attack', v);
         else updateParamRef.current('attack', v);
@@ -928,6 +938,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Frz LFO Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
+                            <Knob label="Frz LFO Depth" value={currentParams.freezeLfoDepth ?? 0} onChange={handleFreezeLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Choir" value={currentParams.choir ?? 0} onChange={handleChoirChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Glitch" value={currentParams.glitchChance ?? 0} onChange={handleGlitchChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Attack" value={currentParams.attack ?? 0.05} onChange={handleAttackChange} min={0.001} max={2.0} step={0.01} color="indigo" unit="s" />
