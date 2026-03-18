@@ -269,7 +269,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    phonemes?: PhonemeData[]
+                    phonemes?: PhonemeData[],
+                    freeze?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -328,6 +329,13 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
                             if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
+
+                            // Apply per-step or global freeze
+                            if (noteParams?.freeze !== undefined) {
+                                voice.setFreeze(noteParams.freeze, triggerTime);
+                            } else if (params.freeze !== undefined) {
+                                voice.setFreeze(params.freeze, triggerTime);
+                            }
 
                             // Load buffer
                             voice.loadBuffer(buffer.getChannelData(0));
@@ -532,7 +540,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    phonemes?: PhonemeData[]
+                    phonemes?: PhonemeData[],
+                    freeze?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices

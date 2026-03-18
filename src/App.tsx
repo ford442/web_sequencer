@@ -607,7 +607,7 @@ export const App: React.FC = () => {
                 if (stepData.slide && lastSamplerMidiRef.current[bankIdx] !== undefined) {
                     slideFromMidi = lastSamplerMidiRef.current[bankIdx];
                 }
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes, freeze: stepData.freeze };
                 // Combine note and chord for polyphonic playback
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
                 lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
@@ -1151,7 +1151,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     };
 
-    const handleNotePropertyChange = (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger', value: number | boolean) => {
+    const handleNotePropertyChange = (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze', value: number | boolean) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -1819,6 +1819,7 @@ export const App: React.FC = () => {
                             currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
                             currentRetrigger={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.retrigger ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.retrigger ?? 1}
                             currentReverse={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverse ?? false : false}
+                            currentFreeze={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.freeze ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.freeze ?? 0}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
                             onPropertyChange={handleNotePropertyChange}
