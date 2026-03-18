@@ -527,6 +527,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
             onClick={onClose}
             className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
             title="Close (Esc)"
+            aria-label="Close modal"
           >
             ✕
           </button>
