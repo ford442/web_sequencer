@@ -381,7 +381,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
       const duration = ph.end - ph.start;
       const deltaNormalized = deltaX / TIMELINE_WIDTH;
       
-      let newStart = Math.max(0, Math.min(1 - duration, ph.start + deltaNormalized));
+      const newStart = Math.max(0, Math.min(1 - duration, ph.start + deltaNormalized));
       
       const newPhonemes = [...prev];
       newPhonemes[idx] = { ...ph, start: newStart, end: newStart + duration };
