@@ -739,6 +739,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set spectral freeze LFO rate.
+     * @param rate LFO rate in Hz
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFreezeLfoRate(rate: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('freezeLfoRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set spectral freeze LFO depth.
+     * @param depth LFO depth (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFreezeLfoDepth(depth: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('freezeLfoDepth')?.setValueAtTime(depth, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set amplitude envelope attack time.
      * @param attack Attack time in seconds
      * @param time Optional time to apply the change (default: now)

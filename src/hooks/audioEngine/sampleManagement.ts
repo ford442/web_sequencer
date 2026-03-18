@@ -156,6 +156,12 @@ export function applyVoiceParamUpdate({
                 case 'freeze':
                     voice.setFreeze(value);
                     break;
+                case 'freezeLfoRate':
+                    voice.setFreezeLfoRate(value);
+                    break;
+                case 'freezeLfoDepth':
+                    voice.setFreezeLfoDepth(value);
+                    break;
                 case 'attack':
                     voice.setAttack(value);
                     break;
