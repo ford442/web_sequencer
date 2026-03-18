@@ -1275,6 +1275,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
             <button 
               onClick={handleClose}
               className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
+              aria-label="Close modal"
             >
               ✕
             </button>
@@ -1428,6 +1429,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                           <button
                             onClick={() => removeDroppedFile(droppedFile.id)}
                             className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0"
+                            aria-label={`Remove ${droppedFile.file.name}`}
                           >
                             ✕
                           </button>
