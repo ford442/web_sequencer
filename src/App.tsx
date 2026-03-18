@@ -609,7 +609,7 @@ export const App: React.FC = () => {
                 if (stepData.slide && lastSamplerMidiRef.current[bankIdx] !== undefined) {
                     slideFromMidi = lastSamplerMidiRef.current[bankIdx];
                 }
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes, freeze: stepData.freeze };
                 // Combine note and chord for polyphonic playback
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
                 lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
@@ -1153,7 +1153,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     };
 
-    const handleNotePropertyChange = (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger', value: number | boolean) => {
+    const handleNotePropertyChange = (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze', value: number | boolean) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -1649,6 +1649,7 @@ export const App: React.FC = () => {
                     onClick={handlePlayToggle}
                     aria-pressed={isPlaying}
                     aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
+                    title={isPlaying ? "Stop Playback (Space)" : "Start Playback (Space)"}
                     className={`h-8 px-5 rounded-md font-orbitron text-sm font-bold tracking-wider transition-all shadow-lg ${isPlaying 
                         ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-400' 
                         : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border border-green-400'}`}
@@ -1821,6 +1822,7 @@ export const App: React.FC = () => {
                             currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
                             currentRetrigger={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.retrigger ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.retrigger ?? 1}
                             currentReverse={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverse ?? false : false}
+                            currentFreeze={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.freeze ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.freeze ?? 0}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
                             onPropertyChange={handleNotePropertyChange}

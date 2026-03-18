@@ -17,6 +17,7 @@
 - [x] **Polyphonic Singing:** Implement `SingingVoiceManager` to allow polyphonic playback (chords) for the TTS engine, supporting multiple simultaneous phoneme streams.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
+- [x] **Per-Step Freeze Amount:** Implemented `freeze` parameter in `NoteSelector` and mapped it through `useAudioEngine` to `SingingVoice` to allow for rhythmic, per-step granular stutters and smears.
 - [x] **Step-Sequenced Formant Shifts:** Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
 - [x] **Text-to-Drumkit:** Implement logic to generate drum kit sequences by mapping short transient consonants to hats/snares and vowels to kicks based on TTS phrases.
 - [x] **Dynamic Phoneme Pitch Glide:** Implemented pitch slide logic in `SingingVoice.ts`, `useAudioEngine.ts` and `App.tsx` to glide TTS pitch naturally when a step has slide enabled.
@@ -53,11 +54,14 @@
 * **Idea:** "Text-to-Drumkit" - Auto-generate a drum kit from a TTS phrase by mapping short transient consonants (t, k, p) to hats/snares and vowels to kicks/toms.
 * **Idea:** "Vocal Envelope Shaper" - Add granular attack/decay ADSR shaping explicitly for TTS syllables to create sharp plucks or smooth pads from any word.
 * [x] **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds. (Implemented in RubberBandProcessor and exposed to SamplerPanel!)
+* **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds.
+* **Idea:** "Per-Step Filter & Resonance" - Allow sequence steps to override cutoff and resonance for rhythmic acid-style filtering of TTS samples.
 
 ---
 
 ## 📜 Changelog
 * [2026-06-07] - Implemented LFO to Freeze Amount: Added `freezeLfoRate` and `freezeLfoDepth` to `RubberBandProcessor` parameter descriptors and processing logic to allow rhythmic granular cloud pulsing. Integrated UI controls in `SamplerPanel`.
+* [2026-06-07] - Implemented Per-Step Freeze Amount: Added `freeze` parameter to `NoteSelector` UI and mapped to `noteParams` in `useAudioEngine` and `SingingVoice.ts` for per-step granular synthesis control.
 * [2026-03-14] - Implemented Step-Sequenced Formant Shifts: Updated `SingingVoice.ts` to utilize `FormantShifter.ts` and enabled formant shifting in `useAudioEngine.ts` to process per-step timbre offsets correctly via Biquad filters.
 * [2026-06-06] - Implemented Spectral Granulator: Added `freeze` parameter to `RubberBandProcessor` to continuously loop a ~100ms Hann-windowed grain when activated. Wired to `SamplerPanel` and `NoteSelector` for global and per-step granular smearing.
 * [2026-06-06] - Implemented Formant Automation: Updated `FormantShifter.ts`, `SingingVoice.ts`, and `useAudioEngine.ts` to support continuous interpolation (`linearRampToValueAtTime`) of formant shifting over step durations during automation playback.
