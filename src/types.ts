@@ -149,6 +149,8 @@ export interface Note {
   reverse?: boolean; // Play sample in reverse (Sampler only)
   sliceIndex?: number; // Specific phoneme/slice index to trigger (Sampler only)
   freeze?: number; // Spectral freeze/smear amount (0-1) (Sampler only)
+  filterCutoff?: number; // 0-1, exponentially mapped to Hz
+  filterResonance?: number; // 0-1, linearly mapped to Q factor
   
   // Phase 2: Melodic Lyric Mode - Per-step pitch control
   pitch?: number; // MIDI note number for sampler melodic mode (default: 60 = C4)
