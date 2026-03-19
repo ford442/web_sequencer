@@ -14,6 +14,7 @@ export const Transport: React.FC<TransportProps> = ({ isPlaying, onPlayClick, te
       <button
         onClick={onPlayClick}
         aria-label={isPlaying ? 'Stop sequencer' : 'Play sequencer'}
+        aria-pressed={isPlaying}
         title={isPlaying ? 'Stop sequencer (Space)' : 'Play sequencer (Space)'}
         className={`w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 ${
           isPlaying
