@@ -20,12 +20,14 @@ interface NoteSelectorProps {
     currentReverse?: boolean;
     currentRetrigger?: number;
     currentFreeze?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze', value: number | boolean) => void;
+    currentFilterCutoff?: number;
+    currentFilterResonance?: number;
+    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'filterCutoff' | 'filterResonance', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, onPropertyChange
+    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFilterCutoff, currentFilterResonance, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -180,6 +182,46 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 />
                             </div>
                         )}
+
+                        {/* Filter Cutoff Control */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                <label htmlFor="note-cutoff">Filter Cutoff</label>
+                                <span className="text-emerald-400">{currentFilterCutoff !== undefined ? Math.round(currentFilterCutoff * 100) : 100}%</span>
+                            </div>
+                            <input
+                                id="note-cutoff"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={currentFilterCutoff !== undefined ? currentFilterCutoff : 1.0}
+                                onChange={(e) => onPropertyChange('filterCutoff', parseFloat(e.target.value))}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                                aria-valuetext={`${currentFilterCutoff !== undefined ? Math.round(currentFilterCutoff * 100) : 100}%`}
+                                aria-label="Filter Cutoff"
+                            />
+                        </div>
+
+                        {/* Filter Resonance Control */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                <label htmlFor="note-resonance">Filter Res</label>
+                                <span className="text-emerald-400">{currentFilterResonance !== undefined ? Math.round(currentFilterResonance * 100) : 0}%</span>
+                            </div>
+                            <input
+                                id="note-resonance"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={currentFilterResonance || 0}
+                                onChange={(e) => onPropertyChange('filterResonance', parseFloat(e.target.value))}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                                aria-valuetext={`${currentFilterResonance !== undefined ? Math.round(currentFilterResonance * 100) : 0}%`}
+                                aria-label="Filter Resonance"
+                            />
+                        </div>
 
                         {/* Retrigger (Ratchet) Control */}
                         <div className="flex flex-col gap-1 pb-1">
