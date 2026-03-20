@@ -9,3 +9,7 @@
 ## 2025-03-10 - Custom Slider Accessibility
 **Learning:** Custom UI elements acting as sliders (`role="slider"`) often lack context for screen readers if they only provide `aria-valuenow` with a raw number. When dealing with abstract values (e.g., frequencies, percentages, tempos), screen reader users hear just numbers without knowing what they represent.
 **Action:** Always include an `aria-valuetext` attribute on custom sliders that properly formats the numeric value and includes its label (e.g., "1k Tempo" instead of just "1000") to ensure assistive technologies announce contextually meaningful data.
+
+## 2025-03-10 - Custom Slider Focus and Keyboard Support
+**Learning:** Custom sliders built from `<div>` tags mapped to mouse drags often lack native keyboard navigation (`ArrowUp`, `ArrowDown`, `PageUp`, `Home`, `End`) and focus states, severely degrading keyboard accessibility. Also, dealing with normalized values (-1 to 1) requires care when mapping ARIA attributes to ensure the announced value matches the visual display.
+**Action:** Always add `tabIndex={0}`, `role="slider"`, `onKeyDown` handlers to support common slider keys, and focus-visible styling (`focus:outline-none focus:ring-2`) to custom interactive elements. When internal values are normalized, use `aria-valuetext` to announce the exact formatted string shown to the user rather than the raw 0-1 scale.
