@@ -270,7 +270,9 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     retrigger?: number, 
                     slideFromMidi?: number,
                     phonemes?: PhonemeData[],
-                    freeze?: number
+                    freeze?: number,
+                    filterCutoff?: number,
+                    filterResonance?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -309,11 +311,28 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
-                            if (destination) {
-                                voice.connectOutput(destination);
-                            } else {
-                                voice.connectOutput(masterGainRef.current!);
+                            let finalDest = destination || masterGainRef.current!;
+
+                            // Apply Per-Step Filter if present, or fallback to global filter settings
+                            if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
+                                const filter = context.createBiquadFilter();
+                                filter.type = 'lowpass';
+
+                                const cutoff = noteParams?.filterCutoff !== undefined
+                                    ? Math.max(20, noteParams.filterCutoff * 20000)
+                                    : (params.filterCutoff ?? 20000);
+                                filter.frequency.value = cutoff;
+
+                                const resonance = noteParams?.filterResonance !== undefined
+                                    ? noteParams.filterResonance * 20
+                                    : (params.filterResonance ?? 0);
+                                filter.Q.value = resonance;
+
+                                filter.connect(finalDest);
+                                finalDest = filter;
                             }
+
+                            voice.connectOutput(finalDest);
 
                             // Apply Timbre Modulation (Formant Shift)
                             if (noteParams?.timbre !== undefined) {
@@ -477,8 +496,15 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                     const filter = context.createBiquadFilter();
                     filter.type = 'lowpass';
-                    filter.frequency.value = params.filterCutoff;
-                    filter.Q.value = params.filterResonance;
+                    const cutoff = noteParams?.filterCutoff !== undefined
+                        ? Math.max(20, noteParams.filterCutoff * 20000)
+                        : params.filterCutoff;
+                    filter.frequency.value = cutoff;
+
+                    const resonance = noteParams?.filterResonance !== undefined
+                        ? noteParams.filterResonance * 20
+                        : params.filterResonance;
+                    filter.Q.value = resonance;
 
                     const shaper = context.createWaveShaper();
                     if (params.drive > 0) {
@@ -541,7 +567,9 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     retrigger?: number, 
                     slideFromMidi?: number,
                     phonemes?: PhonemeData[],
-                    freeze?: number
+                    freeze?: number,
+                    filterCutoff?: number,
+                    filterResonance?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
