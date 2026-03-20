@@ -86,6 +86,37 @@ const VerticalKnob: React.FC<{
         document.addEventListener('mouseup', handleMouseUp);
     }, [value, onChange]);
 
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        let newVal = value;
+        let handled = false;
+        const step = 0.05;
+
+        if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+            newVal += step;
+            handled = true;
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+            newVal -= step;
+            handled = true;
+        } else if (e.key === 'PageUp') {
+            newVal += step * 5;
+            handled = true;
+        } else if (e.key === 'PageDown') {
+            newVal -= step * 5;
+            handled = true;
+        } else if (e.key === 'Home') {
+            newVal = 0;
+            handled = true;
+        } else if (e.key === 'End') {
+            newVal = 1;
+            handled = true;
+        }
+
+        if (handled) {
+            e.preventDefault();
+            onChange(Math.max(0, Math.min(1, newVal)));
+        }
+    }, [value, onChange]);
+
     const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
     const height = 40;
     const fillHeight = value * height;
@@ -94,9 +125,18 @@ const VerticalKnob: React.FC<{
         <div className="flex flex-col items-center gap-1">
             <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">{label}</span>
             <div
-                className="w-6 rounded-full bg-zinc-900 border-2 border-zinc-600 cursor-ns-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.05)]"
+                className="w-6 rounded-full bg-zinc-900 border-2 border-zinc-600 cursor-ns-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-2 focus:ring-purple-400"
                 style={{ height: `${height}px` }}
                 onMouseDown={handleMouseDown}
+                onKeyDown={handleKeyDown}
+                role="slider"
+                tabIndex={0}
+                aria-label={label}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(value * 100)}
+                aria-valuetext={`${Math.round(value * 100)}%`}
+                aria-orientation="vertical"
             >
                 {/* Bevel highlight */}
                 <div className="absolute inset-0 rounded-full border border-white/5 pointer-events-none" />
@@ -160,6 +200,37 @@ const HSlider: React.FC<{
         onChange(normalized);
     }, [onChange]);
 
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        let newVal = value;
+        let handled = false;
+        const step = 0.05;
+
+        if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+            newVal += step;
+            handled = true;
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+            newVal -= step;
+            handled = true;
+        } else if (e.key === 'PageUp') {
+            newVal += step * 5;
+            handled = true;
+        } else if (e.key === 'PageDown') {
+            newVal -= step * 5;
+            handled = true;
+        } else if (e.key === 'Home') {
+            newVal = -1;
+            handled = true;
+        } else if (e.key === 'End') {
+            newVal = 1;
+            handled = true;
+        }
+
+        if (handled) {
+            e.preventDefault();
+            onChange(Math.max(-1, Math.min(1, newVal)));
+        }
+    }, [value, onChange]);
+
     const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
     const percent = ((value + 1) / 2) * 100;
 
@@ -170,8 +241,16 @@ const HSlider: React.FC<{
                 <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950/50 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}60` }}>{displayValue}</span>
             </div>
             <div
-                className="h-5 bg-zinc-900 rounded-md border border-zinc-700 cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)]"
+                className="h-5 bg-zinc-900 rounded-md border border-zinc-700 cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)] focus:outline-none focus:ring-2 focus:ring-purple-400"
                 onMouseDown={handleMouseDown}
+                onKeyDown={handleKeyDown}
+                role="slider"
+                tabIndex={0}
+                aria-label={label}
+                aria-valuemin={-1}
+                aria-valuemax={1}
+                aria-valuenow={value}
+                aria-valuetext={displayValue}
             >
                 {/* Track background with gradient */}
                 <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/30 to-transparent" />
@@ -716,6 +795,9 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                             <div className="relative">
                                 <button
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
+                                    aria-haspopup="dialog"
+                                    aria-expanded={isHarmonizerOpen}
+                                    aria-label="Harmonizer Settings"
                                     className={`px-4 py-1.5 rounded-lg text-[10px] font-bold font-orbitron tracking-wider transition-all border relative overflow-hidden ${
                                         isHarmonizeActive
                                             ? 'text-black'
