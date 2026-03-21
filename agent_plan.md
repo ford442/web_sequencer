@@ -56,11 +56,12 @@
 * [x] **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds. (Implemented in RubberBandProcessor and exposed to SamplerPanel!)
 * **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds.
 * [x] **Idea:** "Per-Step Filter & Resonance" - Allow sequence steps to override cutoff and resonance for rhythmic acid-style filtering of TTS samples. (Implemented!)
-* **Idea:** "Filter Envelope Mod" - Allow the sequence steps to have an envelope mod amount that specifically shapes the filter envelope per step.
+* [x] **Idea:** "Filter Envelope Mod" - Allow the sequence steps to have an envelope mod amount that specifically shapes the filter envelope per step. (Implemented!)
 
 ---
 
 ## 📜 Changelog
+* [2026-06-09] - Implemented Filter Envelope Mod: Added `envMod` control to `NoteSelector` and wired it through `App.tsx` and `audioPlayback.ts` to allow step-sequenced filter envelope modulation amounts.
 * [2026-06-08] - Implemented Per-Step Filter & Resonance: Mapped `noteParams.filterCutoff` and `noteParams.filterResonance` in `useAudioEngine.ts` to process per-step filter configurations correctly on both stretch (TTS SingingVoice) and standard buffer sampler playback nodes.
 * [2026-06-07] - Implemented LFO to Freeze Amount: Added `freezeLfoRate` and `freezeLfoDepth` to `RubberBandProcessor` parameter descriptors and processing logic to allow rhythmic granular cloud pulsing. Integrated UI controls in `SamplerPanel`.
 * [2026-06-07] - Implemented Per-Step Freeze Amount: Added `freeze` parameter to `NoteSelector` UI and mapped to `noteParams` in `useAudioEngine` and `SingingVoice.ts` for per-step granular synthesis control.

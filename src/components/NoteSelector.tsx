@@ -22,12 +22,13 @@ interface NoteSelectorProps {
     currentFreeze?: number;
     currentFilterCutoff?: number;
     currentFilterResonance?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'filterCutoff' | 'filterResonance', value: number | boolean) => void;
+    currentEnvMod?: number;
+    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'filterCutoff' | 'filterResonance' | 'envMod', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFilterCutoff, currentFilterResonance, onPropertyChange
+    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFilterCutoff, currentFilterResonance, currentEnvMod, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -220,6 +221,26 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                                 aria-valuetext={`${currentFilterResonance !== undefined ? Math.round(currentFilterResonance * 100) : 0}%`}
                                 aria-label="Filter Resonance"
+                            />
+                        </div>
+
+                        {/* Envelope Mod Control */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                                <label htmlFor="note-envmod">Env Mod</label>
+                                <span className="text-emerald-400">{currentEnvMod !== undefined ? Math.round(currentEnvMod * 100) : 50}%</span>
+                            </div>
+                            <input
+                                id="note-envmod"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={currentEnvMod !== undefined ? currentEnvMod : 0.5}
+                                onChange={(e) => onPropertyChange('envMod', parseFloat(e.target.value))}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                                aria-valuetext={`${currentEnvMod !== undefined ? Math.round(currentEnvMod * 100) : 50}%`}
+                                aria-label="Envelope Modulation"
                             />
                         </div>
 
