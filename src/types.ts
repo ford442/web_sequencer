@@ -151,6 +151,7 @@ export interface Note {
   freeze?: number; // Spectral freeze/smear amount (0-1) (Sampler only)
   filterCutoff?: number; // 0-1, exponentially mapped to Hz
   filterResonance?: number; // 0-1, linearly mapped to Q factor
+  envMod?: number; // 0-1, envelope modulation override for filters
   
   // Phase 2: Melodic Lyric Mode - Per-step pitch control
   pitch?: number; // MIDI note number for sampler melodic mode (default: 60 = C4)
@@ -187,7 +188,7 @@ export interface AudioEngine {
     webGpuEngine?: WebGpuOscillator | null;
     wasmEngine?: WasmOscillator | null;
     open303Engine?: Open303Oscillator | Open303Manager | null;
-    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number }) => void;
+    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number, filterCutoff?: number, filterResonance?: number, envMod?: number }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number }, stepTime?: number) => void;
     playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
