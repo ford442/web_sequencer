@@ -144,6 +144,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         breathIntensity: 0,
         freeze: 0,
         attack: 0.05,
+        decay: 0.1,
+        sustain: 1.0,
         release: 0.1,
         choir: 0,
         // Phase 1: Vocal Workstation defaults
@@ -233,6 +235,16 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleAttackChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'attack', v);
         else updateParamRef.current('attack', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleDecayChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'decay', v);
+        else updateParamRef.current('decay', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleSustainChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'sustain', v);
+        else updateParamRef.current('sustain', v);
     }, [activeBankIdx, onParamChange]);
 
     const handleReleaseChange = useCallback((v: number) => {
@@ -943,6 +955,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Choir" value={currentParams.choir ?? 0} onChange={handleChoirChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Glitch" value={currentParams.glitchChance ?? 0} onChange={handleGlitchChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Attack" value={currentParams.attack ?? 0.05} onChange={handleAttackChange} min={0.001} max={2.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Decay" value={currentParams.decay ?? 0.1} onChange={handleDecayChange} min={0.001} max={2.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Sustain" value={currentParams.sustain ?? 1.0} onChange={handleSustainChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Release" value={currentParams.release ?? 0.1} onChange={handleReleaseChange} min={0.001} max={5.0} step={0.01} color="indigo" unit="s" />
                         </div>
                     </div>
