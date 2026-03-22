@@ -347,6 +347,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
                             if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
+                            if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
+                            if (params.sustain !== undefined) voice.setSustain(params.sustain, triggerTime);
                             if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
 
                             // Apply per-step or global freeze

@@ -772,6 +772,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set amplitude envelope decay time.
+     * @param decay Decay time in seconds
+     * @param time Optional time to apply the change (default: now)
+     */
+    setDecay(decay: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('decay')?.setValueAtTime(decay, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set amplitude envelope sustain level.
+     * @param sustain Sustain level (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setSustain(sustain: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('sustain')?.setValueAtTime(sustain, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set amplitude envelope release time.
      * @param release Release time in seconds
      * @param time Optional time to apply the change (default: now)
