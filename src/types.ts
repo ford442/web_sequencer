@@ -76,6 +76,8 @@ export interface SamplerBankParams {
   freezeLfoRate?: number;  // Freeze LFO rate (Hz)
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   attack?: number;         // Amplitude envelope attack time (seconds)
+  decay?: number;          // Amplitude envelope decay time (seconds)
+  sustain?: number;        // Amplitude envelope sustain level (0-1)
   release?: number;        // Amplitude envelope release time (seconds)
   pan?: number;            // Stereo pan (-1 to 1)
   isHarmonyVoice?: boolean; // True if this is a harmonized voice

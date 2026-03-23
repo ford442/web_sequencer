@@ -17,6 +17,8 @@
 - [x] **Polyphonic Singing:** Implement `SingingVoiceManager` to allow polyphonic playback (chords) for the TTS engine, supporting multiple simultaneous phoneme streams.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
+- [x] **Vocal Envelope Shaper:** Upgraded the `ExpressiveVoiceProcessor` to use a full ADSR (Attack, Decay, Sustain, Release) envelope, exposing Decay and Sustain knobs to the `SamplerPanel` to allow granular shaping of TTS syllables into sharp plucks or smooth pads.
+- [ ] **Dynamic Tremolo (AM) Effect:** Expose the Tremolo effect from `ExpressiveVoiceProcessor` to the UI (Rate and Depth knobs) and map it to `SingingVoice` and `SamplerPanel` to make TTS playback more rhythmic.
 - [x] **Per-Step Freeze Amount:** Implemented `freeze` parameter in `NoteSelector` and mapped it through `useAudioEngine` to `SingingVoice` to allow for rhythmic, per-step granular stutters and smears.
 - [x] **Step-Sequenced Formant Shifts:** Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
 - [x] **Text-to-Drumkit:** Implement logic to generate drum kit sequences by mapping short transient consonants to hats/snares and vowels to kicks based on TTS phrases.
@@ -52,7 +54,8 @@
 * [x] **Idea:** "Per-Step Reverse" - Allow reversing the TTS sample on a per-step basis for creative rhythmic effects. (Implemented in Sampler phoneme slicing!)
 * [x] **Idea:** "Dynamic Phoneme Pitch Bends" - Allow drawing pitch bend automation within a single phoneme slice (e.g. going up a fifth on a single vowel). (Implemented as Slide/Glide property!)
 * **Idea:** "Text-to-Drumkit" - Auto-generate a drum kit from a TTS phrase by mapping short transient consonants (t, k, p) to hats/snares and vowels to kicks/toms.
-* **Idea:** "Vocal Envelope Shaper" - Add granular attack/decay ADSR shaping explicitly for TTS syllables to create sharp plucks or smooth pads from any word.
+* [x] **Idea:** "Vocal Envelope Shaper" - Add granular attack/decay ADSR shaping explicitly for TTS syllables to create sharp plucks or smooth pads from any word. (Implemented in ExpressiveVoiceProcessor and exposed to SamplerPanel!)
+* **Idea:** "Dynamic Tremolo" - Expose Tremolo Rate and Depth to UI to pulse vocals.
 * [x] **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds. (Implemented in RubberBandProcessor and exposed to SamplerPanel!)
 * **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds.
 * [x] **Idea:** "Per-Step Filter & Resonance" - Allow sequence steps to override cutoff and resonance for rhythmic acid-style filtering of TTS samples. (Implemented!)
@@ -61,6 +64,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-06-10] - Implemented Vocal Envelope Shaper: Upgraded `ExpressiveVoiceProcessor` to support a full ADSR (Attack, Decay, Sustain, Release) envelope for TTS samples. Added Decay and Sustain knobs to the `SamplerPanel` UI and mapped parameters via `SingingVoice` and `useAudioEngine`. Added a new Innovation Lab task for Tremolo Effect.
 * [2026-06-09] - Implemented Filter Envelope Mod: Added `envMod` control to `NoteSelector` and wired it through `App.tsx` and `audioPlayback.ts` to allow step-sequenced filter envelope modulation amounts.
 * [2026-06-08] - Implemented Per-Step Filter & Resonance: Mapped `noteParams.filterCutoff` and `noteParams.filterResonance` in `useAudioEngine.ts` to process per-step filter configurations correctly on both stretch (TTS SingingVoice) and standard buffer sampler playback nodes.
 * [2026-06-07] - Implemented LFO to Freeze Amount: Added `freezeLfoRate` and `freezeLfoDepth` to `RubberBandProcessor` parameter descriptors and processing logic to allow rhythmic granular cloud pulsing. Integrated UI controls in `SamplerPanel`.
