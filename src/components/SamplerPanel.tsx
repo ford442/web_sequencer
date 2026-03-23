@@ -688,8 +688,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                 <button
                                     onClick={() => setCurrentTtsText('')}
                                     className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                                    aria-label="Clear Phrase"
-                                    title="Clear"
+                            aria-label="Clear Text-to-Speech phrase input"
+                            title="Clear Text-to-Speech phrase input"
                                 >
                                     ✕
                                 </button>
@@ -703,7 +703,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             onClick={handleTTS}
                             disabled={isGenerating || !ttsReady}
                             className="flex items-center gap-1.5 px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all"
-                            aria-label="Generate Speech"
+                            aria-label={isGenerating ? "Generating Speech..." : "Generate Speech"}
                             aria-busy={isGenerating}
                         >
                             {isGenerating ? (
@@ -722,7 +722,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <button
                                 onClick={onOpenEditor}
                                 className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                                aria-label="Open Voice Editor"
+                                aria-label="Open Voice Editor for Text-to-Speech"
                             >
                                 EDIT
                             </button>
@@ -748,7 +748,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             onClick={handleHarmonizeClick}
                             disabled={isProcessingHarmonize || !onHarmonize}
                             className={`flex items-center gap-1.5 px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
-                            aria-label="Apply Harmonization"
+                            aria-label={isProcessingHarmonize ? "Applying Harmonization..." : "Apply Harmonization"}
                             aria-busy={isProcessingHarmonize}
                         >
                             {isProcessingHarmonize ? (
@@ -821,7 +821,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <div className="flex gap-1 items-center">
                                 <label id="sampler-slice-label" className="text-[9px] text-gray-500 w-10">Slice:</label>
                                 <button
-                                    aria-labelledby="sampler-slice-label"
+                                    aria-pressed={currentParams.sliceMode === 'phoneme'}
+                                    aria-label="Toggle Phoneme Slice Mode"
                                     onClick={() => {
                                         const newVal = (currentParams.sliceMode === 'phoneme') ? 'off' : 'phoneme';
                                         if (onParamChange) onParamChange(activeBankIdx, 'sliceMode', newVal);
