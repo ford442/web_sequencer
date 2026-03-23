@@ -5,9 +5,9 @@ import { FormantShifter, VOICE_FORMANTS } from '../engines/rubberband/FormantShi
 // Mock AudioContext for tests
 class MockBiquadFilterNode {
     type: BiquadFilterType = 'peaking';
-    frequency = { value: 0, setValueAtTime: vi.fn() };
-    Q = { value: 0, setValueAtTime: vi.fn() };
-    gain = { value: 0, setValueAtTime: vi.fn() };
+    frequency = { value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() };
+    Q = { value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() };
+    gain = { value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() };
     
     connect = vi.fn().mockReturnThis();
     disconnect = vi.fn();

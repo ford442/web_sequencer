@@ -36,7 +36,7 @@ describe('sampleManagement helpers', () => {
             value: 3,
         });
 
-        expect(voice.setFormantShift).toHaveBeenCalledWith(3);
+        expect(voice.setFormantShift).toHaveBeenCalledWith(3, undefined, undefined);
 
         applyVoiceParamUpdate({
             manager,
