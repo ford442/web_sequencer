@@ -290,6 +290,8 @@ export const SongMode = memo(({
                         <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50">+ BAR</button>
                         <button
                             onClick={() => onSetIsSongModeActive(!isSongModeActive)}
+                            aria-pressed={isSongModeActive}
+                            aria-label={isSongModeActive ? 'Loop Song Mode Active' : 'Loop Pattern Mode Active'}
                             className={`px-3 py-1.5 text-xs rounded-lg border font-bold ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
                         >
                             {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
@@ -392,6 +394,7 @@ export const SongMode = memo(({
                     <button
                         onClick={() => onSetIsSongModeActive(!isSongModeActive)}
                         aria-pressed={isSongModeActive}
+                        aria-label={isSongModeActive ? 'Loop Song Mode Active' : 'Loop Pattern Mode Active'}
                         className={`px-3 py-1.5 text-xs rounded-lg border font-bold transition-all ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
                     >
                         {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
@@ -407,6 +410,7 @@ export const SongMode = memo(({
                             }
                         }}
                         disabled={isExporting}
+                        aria-label="Export as XM file"
                         className={`ml-2 px-4 py-1.5 flex items-center justify-center min-w-[100px] bg-gradient-to-r text-cyan-400 text-xs font-bold border border-cyan-700/50 rounded-lg shadow-lg transition-all ${
                             isExporting
                             ? 'from-cyan-900/20 to-cyan-800/20 opacity-70 cursor-wait'

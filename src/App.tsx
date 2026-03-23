@@ -23,6 +23,7 @@ import { CloudStatus } from './components/CloudStatus';
 import { Toast } from './components/Toast';
 import type { CloudItemType } from './services/CloudStorage';
 import { SupertonicService } from './services/Supertonic';
+import { loadingProgressStore } from './stores/loadingProgressStore';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
@@ -62,7 +63,10 @@ const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     drive: 0,
     delaySend: 0,
     mode: 'loop',
-    grainSize: 4410
+    grainSize: 4410,
+    freeze: 0,
+    freezeLfoRate: 0,
+    freezeLfoDepth: 0
 };
 
 const INITIAL_SAMPLER_PARAMS: SamplerParams = Array.from({ length: 8 }, (_, i) => ({
@@ -269,6 +273,9 @@ export const App: React.FC = () => {
     // NEW: Phoneme Alignment State for UI Feedback
     const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
 
+    // Store last sampler MIDI for slide calculations
+    const lastSamplerMidiRef = useRef<Record<number, number>>({});
+
     const handleStart = async () => {
         console.log("Initialization sequence started...");
         try {
@@ -279,6 +286,19 @@ export const App: React.FC = () => {
             await initializeAudio();
             setIsInitialized(true);
             console.log("Audio Engine Initialized");
+
+            // Kick off TTS model loading in the background immediately after audio init.
+            // Models are ~235 MB; starting early means they're ready when the user opens the sampler.
+            loadingProgressStore.startStep('ttsEngine');
+            SupertonicService.getInstance().init().then(() => {
+                loadingProgressStore.completeStep('ttsEngine');
+            }).catch((e: unknown) => {
+                loadingProgressStore.failStep(
+                    'ttsEngine',
+                    e instanceof Error ? e : new Error(String(e)),
+                    true // recoverable — app works without TTS
+                );
+            });
         } catch (e) {
             console.error("Failed to start system:", e);
         }
@@ -598,9 +618,15 @@ export const App: React.FC = () => {
             const stepData = seq.steps[step];
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger };
+
+                let slideFromMidi: number | undefined = undefined;
+                if (stepData.slide && lastSamplerMidiRef.current[bankIdx] !== undefined) {
+                    slideFromMidi = lastSamplerMidiRef.current[bankIdx];
+                }
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes, freeze: stepData.freeze };
                 // Combine note and chord for polyphonic playback
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+                lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
                 
                 // Pass sampler voice params from the panel (using ref for latest values)
                 const voiceParams = samplerVoiceParamsRef.current;
@@ -671,12 +697,14 @@ export const App: React.FC = () => {
             const bankIdx = activeSamplerBankRef.current;
             const bankSeq = p.sampler[bankIdx];
             if (bankSeq && bankSeq.automation) {
+                const stepDuration = 60 / tempo / 4; // Length of a 16th note in seconds
+
                 // Formant Shift
                 const formantVal = bankSeq.automation['formantShift']?.[step];
                 if (formantVal !== undefined && formantVal !== null) {
                      // Map 0-1 to -12 to +12
                      const mapped = (formantVal * 24) - 12;
-                     onParamChange(bankIdx, 'formantShift', mapped);
+                     onParamChange(bankIdx, 'formantShift', mapped, stepDuration);
                 }
 
                 // Vibrato Depth
@@ -1139,7 +1167,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     };
 
-    const handleNotePropertyChange = (key: 'timbre' | 'probability' | 'microtiming' | 'reverse' | 'retrigger', value: number | boolean) => {
+    const handleNotePropertyChange = (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'filterCutoff' | 'filterResonance' | 'envMod', value: number | boolean) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -1263,6 +1291,64 @@ export const App: React.FC = () => {
             setIsGenerating(false);
         }
     }, [audioEngine, handleLoadSample, showToast]);
+
+    const handleTextToDrums = useCallback(async (text: string) => {
+        try {
+            await handleGenerateTTS(text);
+            const alignment = audioEngine?.getAlignment?.(activeSamplerBankRef.current);
+            if (!alignment) return;
+
+            const newPattern = { ...patternRef.current };
+            const newKick = { ...newPattern.kick, steps: [...newPattern.kick.steps] };
+            const newSnare = { ...newPattern.snare, steps: [...newPattern.snare.steps] };
+            const newCH = { ...newPattern.closedHat, steps: [...newPattern.closedHat.steps] };
+            const newOH = { ...newPattern.openHat, steps: [...newPattern.openHat.steps] };
+
+            // clear existing
+            newKick.steps = Array(32).fill(null);
+            newSnare.steps = Array(32).fill(null);
+            newCH.steps = Array(32).fill(null);
+            newOH.steps = Array(32).fill(null);
+
+            // Calculate step duration
+            const stepTime = 60 / tempoRef.current / 4;
+
+            alignment.phonemes.forEach((p, idx) => {
+                const stepIdx = Math.round(p.start / stepTime);
+                if (stepIdx >= 0 && stepIdx < 32) {
+                    const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
+
+                    const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
+                    const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
+                    const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
+                    const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15; // Longer noisy phonemes
+
+                    if (isVowel) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    else if (isSnare) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    else if (isOpenHat) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    else if (isHat) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    else newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 };
+                }
+            });
+
+            newPattern.kick = newKick;
+            newPattern.snare = newSnare;
+            newPattern.closedHat = newCH;
+            newPattern.openHat = newOH;
+
+            setPattern(newPattern);
+            updateStorageForTrack('kick', newKick);
+            updateStorageForTrack('snare', newSnare);
+            updateStorageForTrack('closedHat', newCH);
+            updateStorageForTrack('openHat', newOH);
+
+            showToast("Drumkit generated from text!", "success");
+            setIsLyricMapperOpen(false);
+        } catch(e) {
+            console.error(e);
+            showToast("Failed to generate drums.", "error");
+        }
+    }, [handleGenerateTTS, audioEngine, updateStorageForTrack, showToast]);
 
     const handleLyricApply = useCallback(async (text: string, mapToSelection: boolean) => {
         try {
@@ -1577,6 +1663,7 @@ export const App: React.FC = () => {
                     onClick={handlePlayToggle}
                     aria-pressed={isPlaying}
                     aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
+                    title={isPlaying ? "Stop Playback (Space)" : "Start Playback (Space)"}
                     className={`h-8 px-5 rounded-md font-orbitron text-sm font-bold tracking-wider transition-all shadow-lg ${isPlaying 
                         ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-400' 
                         : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border border-green-400'}`}
@@ -1744,10 +1831,15 @@ export const App: React.FC = () => {
                             currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
                             currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
                             currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
+                            currentVelocity={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.velocity ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.velocity ?? 1}
                             currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
                             currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
                             currentRetrigger={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.retrigger ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.retrigger ?? 1}
                             currentReverse={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverse ?? false : false}
+                            currentFreeze={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.freeze ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.freeze ?? 0}
+                            currentFilterCutoff={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.filterCutoff : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.filterCutoff}
+                            currentFilterResonance={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.filterResonance : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.filterResonance}
+                            currentEnvMod={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.envMod : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.envMod}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
                             onPropertyChange={handleNotePropertyChange}
@@ -1957,7 +2049,7 @@ export const App: React.FC = () => {
             <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
             {/* @ts-expect-error - Auto-generated to fix CI build */}
             <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
-            <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
+            <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} onTextToDrum={handleTextToDrums} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
             {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
@@ -2096,6 +2188,25 @@ export const App: React.FC = () => {
 
                 {/* Right: Utility Toggles */}
                 <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
+                        <input
+                            type="range" min="0" max="1.5" step="0.01"
+                            value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} onDoubleClick={handleMasterVolumeReset}
+                            className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                            aria-label="Master Volume"
+                        />
+                    </div>
+                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
+                        <input
+                            type="range" min="-1" max="1" step="0.01"
+                            value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} onDoubleClick={handleGlobalPanReset}
+                            className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                            aria-label="Global Pan"
+                        />
+                    </div>
+
+                    <div className="w-px h-4 bg-gray-700 mx-1" />
+
                     {/* Gamepad Toggle */}
                     <button
                         onClick={() => setShowGamepadDebug(true)}

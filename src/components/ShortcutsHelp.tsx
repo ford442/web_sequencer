@@ -50,6 +50,11 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = ({ onClose }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div
+                className="absolute inset-0 z-0"
+                onClick={onClose}
+                aria-hidden="true"
+            />
+            <div
                 ref={modalRef}
                 className="w-full max-w-2xl bg-[#0f1215] border border-cyan-900/50 rounded-xl shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col max-h-[80vh]"
                 role="dialog"
