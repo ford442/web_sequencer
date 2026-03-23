@@ -382,16 +382,20 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     }, [activeBankIdx]);
 
     useEffect(() => {
-        const initTTS = async () => {
-            try {
-                await SupertonicService.getInstance().init();
-                setTtsReady(SupertonicService.getInstance().isServiceReady());
-            } catch (e) {
-                console.error("TTS Init Error:", e);
-                setStatus("TTS Unavailable");
+        // TTS is initialized at app startup (App.tsx handleStart).
+        // Poll isServiceReady() until the models finish loading.
+        const ready = SupertonicService.getInstance().isServiceReady();
+        if (ready) {
+            setTtsReady(true);
+            return;
+        }
+        const interval = setInterval(() => {
+            if (SupertonicService.getInstance().isServiceReady()) {
+                setTtsReady(true);
+                clearInterval(interval);
             }
-        };
-        initTTS();
+        }, 500);
+        return () => clearInterval(interval);
     }, []);
 
     const loadBufferToBank = async (buffer: AudioBuffer) => {
