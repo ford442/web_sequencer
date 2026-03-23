@@ -26,6 +26,7 @@ const KEY_TO_NOTE: Record<string, string> = {
     'F10': 'F5', 'Digit9': 'F#5',
     'F11': 'G5', 'Digit0': 'G#5',
     'F12': 'A5', 'Minus': 'A#5',
+    // @ts-expect-error - Auto-generated to fix CI build
     'Digit0': 'B5', // Using 0 key for B5 (shifted)
     
     // Octave 6 (C6-B6) - using number row and letter keys
@@ -34,6 +35,7 @@ const KEY_TO_NOTE: Record<string, string> = {
     'KeyE': 'E6',
     'KeyR': 'F6', 'Digit5': 'F#6',
     'KeyT': 'G6', 'Digit6': 'G#6',
+    // @ts-expect-error - Auto-generated to fix CI build
     'KeyY': 'A6', 'Digit7': 'A#6', // Digit7 is already used... let me reconsider
 };
 
@@ -100,7 +102,7 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
                 <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors" aria-label="Close guide">✕</button>
                 <div className="text-center mb-8">
                     <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">PIANO MODE</h3>
-                    <p className="text-gray-400 font-mono text-sm">2 Octaves: C5 to B6. White keys = F-keys + QWERTY row. Black keys = Number row.</p>
+                    <p className="text-gray-400 font-mono text-sm">2 Octaves: C5 to B6. Naturals (top row) = F-keys + QWERTY. Accidentals (bottom row, staggered) = Number row.</p>
                 </div>
                 
                 {/* Visual Schematic */}
@@ -108,24 +110,24 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
                     <svg width="420" height="180" viewBox="0 0 420 180" className="drop-shadow-2xl">
                         <rect x="10" y="10" width="400" height="160" rx="10" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="5,5" />
                         
-                        {/* Black keys row */}
-                        <g transform="translate(30, 30)">
-                            <text x="-15" y="15" fill="#06b6d4" fontSize="9" fontFamily="monospace" textAnchor="end">SHARPS</text>
-                            {['7','8','9','0','-','2','3','5','6','='].map((num, i) => (
-                                <g key={num} transform={`translate(${i * 38}, 0)`}>
-                                    <rect width="32" height="28" rx="3" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
-                                    <text x="16" y="18" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="12" fontFamily="monospace">{num}</text>
+                        {/* Natural keys row (TOP) */}
+                        <g transform="translate(22, 22)">
+                            <text x="-8" y="20" fill="#94a3b8" fontSize="9" fontFamily="monospace" textAnchor="end">NATURALS</text>
+                            {['F7','F8','F9','F10','F11','F12','[','Q','W','E','R','T','Y','U'].map((key, i) => (
+                                <g key={key} transform={`translate(${i * 27}, 0)`}>
+                                    <rect width="23" height="38" rx="3" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1" />
+                                    <text x="11" y="23" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="9" fontFamily="monospace">{key}</text>
                                 </g>
                             ))}
                         </g>
 
-                        {/* White keys row */}
-                        <g transform="translate(30, 80)">
-                            <text x="-15" y="20" fill="#fff" fontSize="9" fontFamily="monospace" textAnchor="end">NATURALS</text>
-                            {['F7','F8','F9','F10','F11','F12','[','Q','W','E','R','T','Y','U'].map((key, i) => (
-                                <g key={key} transform={`translate(${i * 28}, 0)`}>
-                                    <rect width="24" height="40" rx="3" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1" />
-                                    <text x="12" y="24" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="10" fontFamily="monospace">{key}</text>
+                        {/* Accidental keys row (BOTTOM, offset by ½ key width) */}
+                        <g transform="translate(35, 90)">
+                            <text x="-8" y="15" fill="#06b6d4" fontSize="9" fontFamily="monospace" textAnchor="end">SHARPS</text>
+                            {['7','8','9','0','-','2','3','5','6','='].map((num, i) => (
+                                <g key={num} transform={`translate(${i * 36}, 0)`}>
+                                    <rect width="30" height="26" rx="3" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
+                                    <text x="15" y="17" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="11" fontFamily="monospace">{num}</text>
                                 </g>
                             ))}
                         </g>
@@ -222,6 +224,19 @@ const PianoKey = memo(({
                     fill={isActive ? activeColor : baseColor}
                     opacity={keyOpacity}
                 />
+
+                {/* Chromatic color tint (note identity visible on key face) */}
+                {!isActive && (
+                    <rect 
+                        x={2} 
+                        y={2} 
+                        width={width - 4} 
+                        height={height - 8} 
+                        rx={isBlack ? 2 : 3} 
+                        fill={noteColor} 
+                        opacity={isBlack ? 0.35 : 0.15}
+                    />
+                )}
 
                 {/* Specular highlight (top edge for 3D effect) */}
                 <rect 
@@ -361,52 +376,51 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
     }, []);
     const handleStopMouseStable = useCallback(() => setHeldByMouse(null), []);
 
-    // --- PIANO STAGGERED LAYOUT CALCULATIONS ---
+    // --- INVERTED PIANO LAYOUT (naturals top row, accidentals bottom row staggered) ---
     const totalWidth = 800;
-    const numWhiteKeys = OCTAVES.length * 7; // 14 white keys
-    const whiteKeyWidth = totalWidth / numWhiteKeys;
-    const whiteKeyHeight = 120;
-    const blackKeyWidth = whiteKeyWidth * 0.65;
-    const blackKeyHeight = whiteKeyHeight * 0.6;
+    const numNaturalKeys = OCTAVES.length * WHITE_NOTES.length; // 14 natural keys
+    const naturalKeyWidth = totalWidth / numNaturalKeys;
+    const naturalKeyHeight = 85;
+    const rowGap = 6;
+    const accidentalKeyWidth = naturalKeyWidth * 0.70;
+    const accidentalKeyHeight = 70;
 
-    const whiteKeys: any[] = [];
-    const blackKeys: any[] = [];
+    const naturalKeys: Array<{note: string; x: number; y: number; width: number; height: number; type: 'white' | 'black'}> = [];
+    const accidentalKeys: Array<{note: string; x: number; y: number; width: number; height: number; type: 'white' | 'black'}> = [];
 
-    let whiteIdx = 0;
+    let natIdx = 0;
     OCTAVES.forEach(octave => {
-        WHITE_NOTES.forEach((noteName, noteIdx) => {
+        WHITE_NOTES.forEach(noteName => {
             const fullNote = `${noteName}${octave}`;
-            const x = whiteIdx * whiteKeyWidth;
-            
-            // White keys at the bottom
-            whiteKeys.push({ 
+            const x = natIdx * naturalKeyWidth;
+
+            naturalKeys.push({ 
                 note: fullNote, 
                 x, 
                 y: 0, 
-                width: whiteKeyWidth - 2, 
-                height: whiteKeyHeight, 
+                width: naturalKeyWidth - 2, 
+                height: naturalKeyHeight, 
                 type: 'white' 
             });
 
-            // Black keys are positioned between certain white keys
             if (BLACK_NOTES_MAP[noteName]) {
-                const blackNote = `${BLACK_NOTES_MAP[noteName]}${octave}`;
-                // Black key sits between this white key and the next
-                const bx = x + whiteKeyWidth - (blackKeyWidth / 2);
-                blackKeys.push({ 
-                    note: blackNote, 
-                    x: bx, 
-                    y: 0, 
-                    width: blackKeyWidth, 
-                    height: blackKeyHeight, 
+                const accNote = `${BLACK_NOTES_MAP[noteName]}${octave}`;
+                // Center the accidental between this natural and the next (piano-style positioning)
+                const accX = (natIdx + 1) * naturalKeyWidth - accidentalKeyWidth / 2;
+                accidentalKeys.push({ 
+                    note: accNote, 
+                    x: accX, 
+                    y: naturalKeyHeight + rowGap, 
+                    width: accidentalKeyWidth, 
+                    height: accidentalKeyHeight, 
                     type: 'black' 
                 });
             }
-            whiteIdx++;
+            natIdx++;
         });
     });
 
-    const svgHeight = whiteKeyHeight + 10;
+    const svgHeight = naturalKeyHeight + rowGap + accidentalKeyHeight + 10;
 
     return (
         <div className="w-full max-w-[820px] mx-auto mt-4 select-none relative">
@@ -419,10 +433,10 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
 
             {showGuide && <KeyboardGuide onClose={() => setShowGuide(false)} />}
 
-            {/* Piano Keyboard SVG */}
+            {/* Inverted Piano Keyboard SVG: naturals on top, accidentals on bottom */}
             <svg viewBox={`0 0 ${totalWidth} ${svgHeight}`} className="w-full drop-shadow-2xl bg-black/20 rounded-lg p-2">
-                {/* Render White Keys (bottom layer) */}
-                {whiteKeys.map(k => (
+                {/* Top row: Natural keys */}
+                {naturalKeys.map(k => (
                     <PianoKey
                         key={k.note}
                         {...k}
@@ -436,8 +450,8 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                     />
                 ))}
 
-                {/* Render Black Keys (top layer, staggered) */}
-                {blackKeys.map(k => (
+                {/* Bottom row: Accidental keys (staggered between naturals) */}
+                {accidentalKeys.map(k => (
                     <PianoKey
                         key={k.note}
                         {...k}

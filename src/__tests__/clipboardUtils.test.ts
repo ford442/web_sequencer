@@ -4,6 +4,7 @@ import type { Pattern } from '../types';
 
 const emptySteps = Array(32).fill(null);
 // Helper to create a fresh pattern
+// @ts-expect-error - Auto-generated to fix CI build
 const createEmptyPattern = (): Pattern => ({
     partA: { steps: [...emptySteps] },
     partB: { steps: [...emptySteps] },

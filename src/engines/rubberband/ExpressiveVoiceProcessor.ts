@@ -49,6 +49,10 @@ export interface BreathConfig {
 export interface EnvelopeConfig {
     /** Attack time in seconds */
     attack: number;
+    /** Decay time in seconds */
+    decay: number;
+    /** Sustain level (0.0 - 1.0) */
+    sustain: number;
     /** Release time in seconds */
     release: number;
 }
@@ -84,6 +88,8 @@ export const DEFAULT_EXPRESSIVE_CONFIG: ExpressiveConfig = {
     },
     envelope: {
         attack: 0.05,
+        decay: 0.1,
+        sustain: 1.0,
         release: 0.1
     },
     sampleRate: 44100
@@ -153,7 +159,7 @@ export class ExpressiveVoiceProcessor {
     private currentTime: number = 0;
     
     // Envelope states
-    private envelopePhase: 'idle' | 'attack' | 'sustain' | 'release' = 'idle';
+    private envelopePhase: 'idle' | 'attack' | 'decay' | 'sustain' | 'release' = 'idle';
     private envelopeValue: number = 0;
     private scheduledNoteOffTime: number = Infinity;
 
@@ -284,10 +290,22 @@ export class ExpressiveVoiceProcessor {
                     this.envelopeValue += dt / env.attack;
                     if (this.envelopeValue >= 1.0) {
                         this.envelopeValue = 1.0;
-                        this.envelopePhase = 'sustain';
+                        this.envelopePhase = 'decay';
                     }
                 } else {
                     this.envelopeValue = 1.0;
+                    this.envelopePhase = 'decay';
+                }
+            } else if (this.envelopePhase === 'decay') {
+                if (env.decay > 0) {
+                    // Decay from 1.0 down to sustain level
+                    this.envelopeValue -= (1.0 - env.sustain) * (dt / env.decay);
+                    if (this.envelopeValue <= env.sustain) {
+                        this.envelopeValue = env.sustain;
+                        this.envelopePhase = 'sustain';
+                    }
+                } else {
+                    this.envelopeValue = env.sustain;
                     this.envelopePhase = 'sustain';
                 }
             } else if (this.envelopePhase === 'release') {
@@ -304,7 +322,7 @@ export class ExpressiveVoiceProcessor {
             } else if (this.envelopePhase === 'idle') {
                 this.envelopeValue = 0.0;
             } else if (this.envelopePhase === 'sustain') {
-                this.envelopeValue = 1.0;
+                this.envelopeValue = env.sustain;
             }
 
             sample *= this.envelopeValue;

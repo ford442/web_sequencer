@@ -14,7 +14,7 @@ describe('App', () => {
 
   it('renders volume control', () => {
     render(<App />);
-    expect(screen.getByText(/Vol/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Master Volume/i)).toBeInTheDocument();
   });
 
   it('renders song controls', () => {
@@ -28,6 +28,6 @@ describe('App', () => {
     expect(songModeButtons.length).toBeGreaterThan(0);
 
     // Check visible text
-    expect(screen.getByText('SONG')).toBeInTheDocument();
+    expect(screen.getAllByText('SONG')[0]).toBeInTheDocument();
   });
 });

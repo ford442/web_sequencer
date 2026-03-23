@@ -141,8 +141,13 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         pitchScale: 1.0,
         formantShift: 0,
         vibratoDepth: 0,
+        tremoloDepth: 0,
+        tremoloRate: 0.1,
         breathIntensity: 0,
+        freeze: 0,
         attack: 0.05,
+        decay: 0.1,
+        sustain: 1.0,
         release: 0.1,
         choir: 0,
         // Phase 1: Vocal Workstation defaults
@@ -209,14 +214,49 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         else updateParamRef.current('vibratoDepth', v);
     }, [activeBankIdx, onParamChange]);
 
+    const handleTremoloRateChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'tremoloRate', v);
+        else updateParamRef.current('tremoloRate', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleTremoloDepthChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'tremoloDepth', v);
+        else updateParamRef.current('tremoloDepth', v);
+    }, [activeBankIdx, onParamChange]);
+
     const handleBreathIntensityChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'breathIntensity', v);
         else updateParamRef.current('breathIntensity', v);
     }, [activeBankIdx, onParamChange]);
 
+    const handleFreezeChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'freeze', v);
+        else updateParamRef.current('freeze', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleFreezeLfoRateChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'freezeLfoRate', v);
+        else updateParamRef.current('freezeLfoRate', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleFreezeLfoDepthChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'freezeLfoDepth', v);
+        else updateParamRef.current('freezeLfoDepth', v);
+    }, [activeBankIdx, onParamChange]);
+
     const handleAttackChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'attack', v);
         else updateParamRef.current('attack', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleDecayChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'decay', v);
+        else updateParamRef.current('decay', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleSustainChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'sustain', v);
+        else updateParamRef.current('sustain', v);
     }, [activeBankIdx, onParamChange]);
 
     const handleReleaseChange = useCallback((v: number) => {
@@ -342,16 +382,20 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     }, [activeBankIdx]);
 
     useEffect(() => {
-        const initTTS = async () => {
-            try {
-                await SupertonicService.getInstance().init();
-                setTtsReady(SupertonicService.getInstance().isServiceReady());
-            } catch (e) {
-                console.error("TTS Init Error:", e);
-                setStatus("TTS Unavailable");
+        // TTS is initialized at app startup (App.tsx handleStart).
+        // Poll isServiceReady() until the models finish loading.
+        const ready = SupertonicService.getInstance().isServiceReady();
+        if (ready) {
+            setTtsReady(true);
+            return;
+        }
+        const interval = setInterval(() => {
+            if (SupertonicService.getInstance().isServiceReady()) {
+                setTtsReady(true);
+                clearInterval(interval);
             }
-        };
-        initTTS();
+        }, 500);
+        return () => clearInterval(interval);
     }, []);
 
     const loadBufferToBank = async (buffer: AudioBuffer) => {
@@ -672,8 +716,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                 <button
                                     onClick={() => setCurrentTtsText('')}
                                     className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                                    aria-label="Clear Phrase"
-                                    title="Clear"
+                            aria-label="Clear Text-to-Speech phrase input"
+                            title="Clear Text-to-Speech phrase input"
                                 >
                                     ✕
                                 </button>
@@ -687,7 +731,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             onClick={handleTTS}
                             disabled={isGenerating || !ttsReady}
                             className="flex items-center gap-1.5 px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all"
-                            aria-label="Generate Speech"
+                            aria-label={isGenerating ? "Generating Speech..." : "Generate Speech"}
                             aria-busy={isGenerating}
                         >
                             {isGenerating ? (
@@ -706,7 +750,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <button
                                 onClick={onOpenEditor}
                                 className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                                aria-label="Open Voice Editor"
+                                aria-label="Open Voice Editor for Text-to-Speech"
                             >
                                 EDIT
                             </button>
@@ -732,7 +776,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             onClick={handleHarmonizeClick}
                             disabled={isProcessingHarmonize || !onHarmonize}
                             className={`flex items-center gap-1.5 px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
-                            aria-label="Apply Harmonization"
+                            aria-label={isProcessingHarmonize ? "Applying Harmonization..." : "Apply Harmonization"}
                             aria-busy={isProcessingHarmonize}
                         >
                             {isProcessingHarmonize ? (
@@ -805,7 +849,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <div className="flex gap-1 items-center">
                                 <label id="sampler-slice-label" className="text-[9px] text-gray-500 w-10">Slice:</label>
                                 <button
-                                    aria-labelledby="sampler-slice-label"
+                                    aria-label="Toggle Phoneme Slice Mode"
+                                    aria-pressed={currentParams.sliceMode === 'phoneme'}
                                     onClick={() => {
                                         const newVal = (currentParams.sliceMode === 'phoneme') ? 'off' : 'phoneme';
                                         if (onParamChange) onParamChange(activeBankIdx, 'sliceMode', newVal);
@@ -816,8 +861,6 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                             ? 'bg-purple-600 border-purple-400 text-white'
                                             : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
                                     }`}
-                                    aria-label="Toggle Slice Mode"
-                                    aria-pressed={currentParams.sliceMode === 'phoneme'}
                                 >
                                     {currentParams.sliceMode === 'phoneme' ? 'ON (PHONEMES)' : 'OFF'}
                                 </button>
@@ -915,15 +958,22 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     {/* Rubberband/Granular Params Group */}
                     <div className="flex-[2] min-w-[200px] bg-indigo-900/50 p-2 rounded">
                         <div className="text-[9px] text-indigo-300 font-bold mb-1 border-b border-indigo-800 pb-0.5">ENGINE</div>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2">
                             <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
                             <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
                             <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />
                             <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" unit="%" />
+                            <Knob label="Trem Depth" value={currentParams.tremoloDepth ?? 0} onChange={handleTremoloDepthChange} min={0} max={100} color="indigo" unit="%" />
+                            <Knob label="Trem Rate" value={currentParams.tremoloRate ?? 0.1} onChange={handleTremoloRateChange} min={0.1} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
+                            <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Frz LFO Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
+                            <Knob label="Frz LFO Depth" value={currentParams.freezeLfoDepth ?? 0} onChange={handleFreezeLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Choir" value={currentParams.choir ?? 0} onChange={handleChoirChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Glitch" value={currentParams.glitchChance ?? 0} onChange={handleGlitchChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Attack" value={currentParams.attack ?? 0.05} onChange={handleAttackChange} min={0.001} max={2.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Decay" value={currentParams.decay ?? 0.1} onChange={handleDecayChange} min={0.001} max={2.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Sustain" value={currentParams.sustain ?? 1.0} onChange={handleSustainChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Release" value={currentParams.release ?? 0.1} onChange={handleReleaseChange} min={0.001} max={5.0} step={0.01} color="indigo" unit="s" />
                         </div>
                     </div>

@@ -248,9 +248,43 @@ export class SingingVoice {
      */
     setPitch(ratio: number, time?: number): void {
         if (this.useWorklet && this.workletNode) {
-            this.workletNode.parameters.get('pitchScale')!.setValueAtTime(ratio, time || this.audioContext.currentTime);
+            const t = time || this.audioContext.currentTime;
+            const param = this.workletNode.parameters.get('pitchScale')!;
+            param.cancelScheduledValues(t);
+            param.setValueAtTime(ratio, t);
         }
         // ScriptProcessorNode fallback doesn't support pitch shifting
+    }
+
+    /**
+     * Linearly ramp the pitch scale ratio to the given target.
+     * @param ratio Target pitch multiplier
+     * @param time Time to reach the target ratio
+     */
+    linearRampToPitch(ratio: number, time: number): void {
+        if (this.useWorklet && this.workletNode) {
+            this.workletNode.parameters.get('pitchScale')!.linearRampToValueAtTime(ratio, time);
+        }
+    }
+
+    /**
+     * Linearly ramp the pitch from current value to the target MIDI note.
+     */
+    linearRampPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number): void {
+        const effectiveBaseNote = baseMidiNote ?? this.rootNote;
+        const effectiveCoarse = coarseTune ?? this.coarseTune;
+        const effectiveFine = fineTune ?? this.fineTune;
+
+        const totalSemitoneOffset = effectiveCoarse + (effectiveFine / 100);
+        const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
+
+        const targetFreq = midiToFreq(adjustedTargetMidi);
+        const baseFreq = midiToFreq(effectiveBaseNote);
+
+        let pitchRatio = targetFreq / baseFreq;
+        pitchRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, pitchRatio));
+
+        this.linearRampToPitch(pitchRatio, time || this.audioContext.currentTime);
     }
 
     /**
@@ -657,10 +691,17 @@ export class SingingVoice {
      * Set formant shift in semitones.
      * @param semitones Formant shift in semitones (e.g., -12 to 12)
      * @param time Optional time to apply the change (default: now)
+     * @param rampTime Optional duration to ramp to the new formant value smoothly
      */
-    setFormantShift(semitones: number, time?: number): void {
-        if (this.workletNode) {
-            this.workletNode.parameters.get('formantScale')?.setValueAtTime(semitones / 12, time || this.audioContext.currentTime);
+    setFormantShift(semitones: number, time?: number, rampTime: number = 0.05): void {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            const shift = {
+                f1Shift: semitones,
+                f2Shift: semitones,
+                f3Shift: semitones,
+                f4Shift: semitones
+            };
+            this.formantShifter.updateFilterChain(shift, rampTime);
         }
     }
 
@@ -676,6 +717,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set tremolo rate in Hz.
+     * @param rate Tremolo rate in Hz
+     * @param time Optional time to apply the change (default: now)
+     */
+    setTremoloRate(rate: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('tremoloRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set tremolo depth percentage.
+     * @param percent Tremolo depth (0-100)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setTremoloDepth(percent: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('tremoloDepth')?.setValueAtTime(percent / 100, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set breath intensity.
      * @param intensity Breath intensity (0-1)
      * @param time Optional time to apply the change (default: now)
@@ -687,6 +750,39 @@ export class SingingVoice {
     }
 
     /**
+     * Set spectral freeze/smear amount.
+     * @param amount Freeze amount (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFreeze(amount: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('freeze')?.setValueAtTime(amount, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set spectral freeze LFO rate.
+     * @param rate LFO rate in Hz
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFreezeLfoRate(rate: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('freezeLfoRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set spectral freeze LFO depth.
+     * @param depth LFO depth (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFreezeLfoDepth(depth: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('freezeLfoDepth')?.setValueAtTime(depth, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set amplitude envelope attack time.
      * @param attack Attack time in seconds
      * @param time Optional time to apply the change (default: now)
@@ -694,6 +790,28 @@ export class SingingVoice {
     setAttack(attack: number, time?: number): void {
         if (this.workletNode) {
             this.workletNode.parameters.get('attack')?.setValueAtTime(attack, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set amplitude envelope decay time.
+     * @param decay Decay time in seconds
+     * @param time Optional time to apply the change (default: now)
+     */
+    setDecay(decay: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('decay')?.setValueAtTime(decay, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set amplitude envelope sustain level.
+     * @param sustain Sustain level (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setSustain(sustain: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('sustain')?.setValueAtTime(sustain, time || this.audioContext.currentTime);
         }
     }
 
