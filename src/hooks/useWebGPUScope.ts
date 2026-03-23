@@ -10,8 +10,8 @@ const COMPUTE_SHADER_CODE = `
 struct Params {
   waveform: u32,       // 0: saw, 1: square, 2: tri, 3: sine
   frequency: f32,      // normalized frequency for viz
-  filterCutoff: f32,   // normalized 0-1
-  filterRes: f32,      // raw value
+  filterCutoff: f32,   // Hz value (typically 20–20000)
+  sustain: f32,        // sustain level 0-1 (was filterRes)
   attack: f32,
   decay: f32,
   volume: f32,
@@ -27,10 +27,10 @@ struct Point {
 
 const PI: f32 = 3.14159265359;
 
-// Helper: Basic Oscillators
-fn saw(t: f32) -> f32 { return 2.0 * (t - floor(t + 0.5)); }
+// Helper: Basic Oscillators (matching WebGpuOscillator.ts for visual accuracy)
+fn saw(t: f32) -> f32 { return 2.0 * fract(t) - 1.0; }
 fn square(t: f32) -> f32 { return select(-1.0, 1.0, fract(t) < 0.5); }
-fn tri(t: f32) -> f32 { return 2.0 * abs(2.0 * (t - floor(t + 0.5))) - 1.0; }
+fn tri(t: f32) -> f32 { return 2.0 * abs(2.0 * fract(t) - 1.0) - 1.0; }
 fn sine(t: f32) -> f32 { return sin(2.0 * PI * t); }
 
 @compute @workgroup_size(64)
@@ -58,22 +58,29 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   // Simple Filter Simulation (Visual approximation)
-  // If cutoff is low, we smooth out the signal (simple mix towards sine/0)
-  let cutoffFactor = params.filterCutoff / 15000.0; // Normalize
+  // Low cutoff blends signal towards sine; uses Hz value normalized by Nyquist (20 kHz)
+  let cutoffFactor = clamp(params.filterCutoff / 20000.0, 0.0, 1.0);
   amplitude = mix(sine(t) * 0.5, amplitude, clamp(cutoffFactor * 2.0, 0.0, 1.0));
 
-  // Envelope Simulation (Visual)
-  // We visualize the attack/decay curve over the X axis
-  var env: f32 = 1.0;
-  let attackEnd = params.attack * 0.5;
-  let decayEnd = attackEnd + params.decay * 0.5;
-  
-  if (x < attackEnd) {
+  // Envelope Simulation (Visual ADSR)
+  // X axis represents time; each phase occupies a proportional segment
+  var env: f32 = 0.0;
+  let attackEnd = params.attack * 0.3;
+  let decayEnd = attackEnd + params.decay * 0.25;
+  let sustainEnd = decayEnd + 0.25; // fixed sustain window for display
+  let sustainLevel = clamp(params.sustain, 0.0, 1.0);
+
+  if (attackEnd > 0.0 && x < attackEnd) {
     env = x / attackEnd;
   } else if (x < decayEnd) {
-    env = 1.0 - ((x - attackEnd) / (params.decay * 0.5)) * (1.0 - 0.5); // Decay to sustain level 0.5
+    let decaySpan = decayEnd - attackEnd;
+    env = select(1.0, 1.0 - ((x - attackEnd) / decaySpan) * (1.0 - sustainLevel), decaySpan > 0.0);
+  } else if (x < sustainEnd) {
+    env = sustainLevel;
   } else {
-    env = 0.5; // Sustain
+    // Release: fade from sustain to 0 over remaining x range
+    let releaseSpan = 1.0 - sustainEnd;
+    env = select(0.0, sustainLevel * (1.0 - (x - sustainEnd) / releaseSpan), releaseSpan > 0.0);
   }
 
   // Apply Volume and Envelope
@@ -249,11 +256,13 @@ export const useWebGPUScope = (
 
         // WRITE PARAMS TO GPU
         // Structure must match WGSL struct Params exactly
+        // slot 3: sustain level derived from volume (0-1 range) — filterResonance repurposed
+        const sustainLevel = Math.max(0, Math.min(1, currentParams.volume));
         const paramData = new Float32Array([
           0, // placeholder for u32 waveform (we'll cast view)
           freq,
           currentParams.filterCutoff,
-          currentParams.filterResonance,
+          sustainLevel,       // sustain (was filterResonance)
           currentParams.attack,
           currentParams.decay,
           currentParams.volume,

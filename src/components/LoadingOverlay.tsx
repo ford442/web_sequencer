@@ -15,6 +15,7 @@ const STEP_ICONS: Record<LoadingStep, string> = {
   open303Engine: '🎸',
   wavFiles: '🎵',
   ambianceBuffers: '🌊',
+  ttsEngine: '🗣️',
   complete: '✨',
 };
 
