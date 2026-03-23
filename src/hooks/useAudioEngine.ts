@@ -253,9 +253,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 multisampleGeneratorRef,
                 vocalAlignmentsRef,
                 singingVoiceManagerRef,
-            });
-
-            // Internal function to play a single sampler voice (supports pitch offset for harmonizer)
+            });            // Internal function to play a single sampler voice (supports pitch offset for harmonizer)
             const playSamplerVoice = (
                 params: SamplerBankParams, 
                 note: string | string[], 
