@@ -218,7 +218,7 @@ const SvgStep = memo(({
     const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
     const handlePointerDown = (e: React.PointerEvent) => {
-        if (e.button === 2) { onRightMouseDown(rowKey, stepIndex, e); return; }
+        if (e.button === 2) { e.preventDefault(); onRightMouseDown(rowKey, stepIndex, e); return; }
         if (e.shiftKey) {
             e.preventDefault(); e.stopPropagation();
             if (active) {
