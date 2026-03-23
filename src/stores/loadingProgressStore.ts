@@ -14,6 +14,7 @@ export type LoadingStep =
   | 'open303Engine'
   | 'wavFiles'
   | 'ambianceBuffers'
+  | 'ttsEngine'
   | 'complete';
 
 export interface LoadingStepInfo {
@@ -47,11 +48,12 @@ class LoadingProgressStore {
   private static readonly STEP_WEIGHTS: Record<LoadingStep, number> = {
     audioContext: 5, // Fast, native API
     masterChain: 5, // Fast, node creation
-    webGpuEngine: 20, // May fail, GPU detection
-    wasmEngine: 15, // WASM instantiation
-    open303Engine: 25, // Complex worklet + WASM
-    wavFiles: 15, // Network fetch + decode
-    ambianceBuffers: 10, // Optional, lazy loaded
+    webGpuEngine: 15, // May fail, GPU detection
+    wasmEngine: 10, // WASM instantiation
+    open303Engine: 20, // Complex worklet + WASM
+    wavFiles: 10, // Network fetch + decode
+    ambianceBuffers: 5, // Optional, lazy loaded
+    ttsEngine: 25, // ONNX models ~235 MB, GPU inference setup
     complete: 5, // Final state
   };
 
@@ -63,6 +65,7 @@ class LoadingProgressStore {
     open303Engine: 'Loading TB-303 Bass Engine',
     wavFiles: 'Loading Waveform Samples',
     ambianceBuffers: 'Preparing Ambiance Tracks',
+    ttsEngine: 'Loading TTS Voice Engine',
     complete: 'Finalizing Setup',
   };
 
