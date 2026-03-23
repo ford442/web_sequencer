@@ -821,8 +821,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <div className="flex gap-1 items-center">
                                 <label id="sampler-slice-label" className="text-[9px] text-gray-500 w-10">Slice:</label>
                                 <button
-                                    aria-pressed={currentParams.sliceMode === 'phoneme'}
                                     aria-label="Toggle Phoneme Slice Mode"
+                                    aria-pressed={currentParams.sliceMode === 'phoneme'}
                                     onClick={() => {
                                         const newVal = (currentParams.sliceMode === 'phoneme') ? 'off' : 'phoneme';
                                         if (onParamChange) onParamChange(activeBankIdx, 'sliceMode', newVal);
@@ -833,8 +833,6 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                             ? 'bg-purple-600 border-purple-400 text-white'
                                             : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
                                     }`}
-                                    aria-label="Toggle Slice Mode"
-                                    aria-pressed={currentParams.sliceMode === 'phoneme'}
                                 >
                                     {currentParams.sliceMode === 'phoneme' ? 'ON (PHONEMES)' : 'OFF'}
                                 </button>
