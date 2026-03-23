@@ -182,7 +182,7 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
           aria-valuemin={min}
           aria-valuemax={max}
           aria-valuenow={value}
-          aria-valuetext={label ? `${display(value)} ${label}` : String(display(value))}
+          aria-valuetext={label ? `${display(value)} ${label}` : display(value)}
           aria-label={label}
         >
           {display(value)}
