@@ -345,6 +345,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                             // Sync other params
                             if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
+                            if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
                             if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
                             if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
