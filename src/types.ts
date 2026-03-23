@@ -68,6 +68,8 @@ export interface SamplerBankParams {
   pitchScale?: number;     // Rubberband pitch shift (0.5-2.0)
   formantShift?: number;   // Formant adjustment (-12 to +12 semitones)
   vibratoDepth?: number;   // Vibrato amount (0-100%)
+  tremoloDepth?: number;   // Tremolo depth amount (0-100%)
+  tremoloRate?: number;    // Tremolo rate in Hz
   breathIntensity?: number; // Breath noise (0-1.0)
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
   choir?: number;          // Choir effect amount (0-1) - Detuned side voices

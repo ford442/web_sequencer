@@ -717,6 +717,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set tremolo rate in Hz.
+     * @param rate Tremolo rate in Hz
+     * @param time Optional time to apply the change (default: now)
+     */
+    setTremoloRate(rate: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('tremoloRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set tremolo depth percentage.
+     * @param percent Tremolo depth (0-100)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setTremoloDepth(percent: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('tremoloDepth')?.setValueAtTime(percent / 100, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set breath intensity.
      * @param intensity Breath intensity (0-1)
      * @param time Optional time to apply the change (default: now)

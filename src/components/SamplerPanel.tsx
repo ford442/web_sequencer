@@ -141,6 +141,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         pitchScale: 1.0,
         formantShift: 0,
         vibratoDepth: 0,
+        tremoloDepth: 0,
+        tremoloRate: 0.1,
         breathIntensity: 0,
         freeze: 0,
         attack: 0.05,
@@ -210,6 +212,16 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleVibratoDepthChange = useCallback((v: number) => {
         if (onParamChange) onParamChange(activeBankIdx, 'vibratoDepth', v);
         else updateParamRef.current('vibratoDepth', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleTremoloRateChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'tremoloRate', v);
+        else updateParamRef.current('tremoloRate', v);
+    }, [activeBankIdx, onParamChange]);
+
+    const handleTremoloDepthChange = useCallback((v: number) => {
+        if (onParamChange) onParamChange(activeBankIdx, 'tremoloDepth', v);
+        else updateParamRef.current('tremoloDepth', v);
     }, [activeBankIdx, onParamChange]);
 
     const handleBreathIntensityChange = useCallback((v: number) => {
@@ -947,6 +959,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
                             <Knob label="Formant" value={currentParams.formantShift ?? 0} onChange={handleFormantShiftChange} min={-12} max={12} step={0.1} color="indigo" />
                             <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" unit="%" />
+                            <Knob label="Trem Depth" value={currentParams.tremoloDepth ?? 0} onChange={handleTremoloDepthChange} min={0} max={100} color="indigo" unit="%" />
+                            <Knob label="Trem Rate" value={currentParams.tremoloRate ?? 0.1} onChange={handleTremoloRateChange} min={0.1} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Frz LFO Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
