@@ -278,6 +278,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                 className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 ${currentReverse ? 'bg-cyan-500 justify-end shadow-[0_0_8px_rgba(6,182,212,0.4)]' : 'bg-gray-700 justify-start border border-gray-600'}`}
                                 aria-checked={currentReverse}
                                 role="switch"
+                                aria-label="Play slice in reverse"
                                 title="Play slice in reverse"
                             >
                                 <div className="w-3 h-3 rounded-full bg-white shadow-sm" />
