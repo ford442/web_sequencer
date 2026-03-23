@@ -23,6 +23,7 @@ import { CloudStatus } from './components/CloudStatus';
 import { Toast } from './components/Toast';
 import type { CloudItemType } from './services/CloudStorage';
 import { SupertonicService } from './services/Supertonic';
+import { loadingProgressStore } from './stores/loadingProgressStore';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
@@ -285,6 +286,19 @@ export const App: React.FC = () => {
             await initializeAudio();
             setIsInitialized(true);
             console.log("Audio Engine Initialized");
+
+            // Kick off TTS model loading in the background immediately after audio init.
+            // Models are ~235 MB; starting early means they're ready when the user opens the sampler.
+            loadingProgressStore.startStep('ttsEngine');
+            SupertonicService.getInstance().init().then(() => {
+                loadingProgressStore.completeStep('ttsEngine');
+            }).catch((e: unknown) => {
+                loadingProgressStore.failStep(
+                    'ttsEngine',
+                    e instanceof Error ? e : new Error(String(e)),
+                    true // recoverable — app works without TTS
+                );
+            });
         } catch (e) {
             console.error("Failed to start system:", e);
         }
