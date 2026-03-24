@@ -92,6 +92,7 @@ interface MelodicSequencerRowProps {
   onEditLength: (k: TrackKey, i: number, len: number) => void;
   onSelectRow: (k: TrackKey) => void;
   onSelectSlot: (k: TrackKey, slot: number) => void;
+  zoom?: number;
 }
 
 export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, MelodicSequencerRowProps>(
@@ -109,6 +110,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       onEditLength,
       onSelectRow,
       onSelectSlot,
+      zoom = 1
     } = props;
 
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
@@ -269,11 +271,11 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           ))}
         </g>
 
-        {/* Grid indicators */}
-        <GridIndicators />
-
-        {/* Steps */}
-        {renderedSteps}
+        {/* Grid indicators and Steps wrapped in zoom scale */}
+        <g transform={`translate(220, 0) scale(${zoom}, 1) translate(-220, 0)`}>
+            <GridIndicators />
+            {renderedSteps}
+        </g>
       </g>
     );
   }

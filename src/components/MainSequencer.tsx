@@ -152,6 +152,7 @@ export const AutomationStep = memo(({
         target.addEventListener('pointerup', handlePointerUp as any);
     };
 
+
     return (
         <g
             transform={`translate(${x}, 0)`}
@@ -253,6 +254,7 @@ const SvgStep = memo(({
         if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
     };
 
+
     return (
         <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
@@ -285,6 +287,7 @@ const SvgStep = memo(({
 const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
     const patternColor = getPatternColor(index);
     const inactiveColor = hasData ? patternColor : '#0f1812';
+
     return (
         <g transform={`translate(${index * 22}, 0)`} className="track-slot" onClick={() => onSelect(trackKey, index)} cursor="pointer" role="button" tabIndex={0} aria-label={`Pattern Slot ${index + 1}`} aria-pressed={isActive} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(trackKey, index); } }} onContextMenu={(e) => e.preventDefault()}>
             <rect width={18} height={18} rx={2} fill={isActive ? patternColor : inactiveColor} fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)} stroke={isActive ? '#fff' : patternColor} strokeOpacity={isActive ? 1 : 0.6} strokeWidth={1} />
@@ -310,10 +313,11 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     viewMode?: 'notes' | 'automation',
     automationParam?: string,
     onAutomationChange?: (k: TrackKey, i: number, val: number) => void,
-    alignment?: AlignmentResult | null
+    alignment?: AlignmentResult | null,
+    zoom?: number
 }>((props, ref) => {
     const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing,
-        automation, viewMode, automationParam, onAutomationChange, alignment } = props;
+        automation, viewMode, automationParam, onAutomationChange, alignment, zoom = 1 } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
@@ -430,6 +434,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         }
     }
 
+
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
             <g className="track-label" onClick={() => onSelectRow(rowKey)} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} aria-pressed={isSelected} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRow(rowKey); } }}>
@@ -473,8 +478,10 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             <g transform="translate(30, 16)">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))}
             </g>
-            <GridIndicators />
-            {renderedSteps}
+            <g transform={`translate(220, 0) scale(${zoom}, 1) translate(-220, 0)`}>
+                <GridIndicators />
+                {renderedSteps}
+            </g>
         </g>
     )
 }));
@@ -522,6 +529,56 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
     const melodicRowRef = useRef<MelodicSequencerRowHandle | null>(null);
 
+    // Gesture Controls (Pinch to zoom)
+    const [zoom, setZoom] = useState(1);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const initialPinchDist = useRef<number | null>(null);
+
+    const handleWheel = useCallback((e: WheelEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            // zoom in/out based on scroll direction
+            setZoom(z => Math.max(0.5, Math.min(3.0, z - e.deltaY * 0.01)));
+        }
+    }, []);
+
+    useLayoutEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        el.addEventListener('wheel', handleWheel, { passive: false });
+        return () => el.removeEventListener('wheel', handleWheel);
+    }, [handleWheel]);
+
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        if (e.touches.length === 2) {
+            const dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            initialPinchDist.current = dist;
+        }
+    }, []);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        if (e.touches.length === 2 && initialPinchDist.current !== null) {
+            // Prevent default behavior only if we are actually zooming
+            if (e.cancelable) e.preventDefault();
+            const dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const delta = dist / initialPinchDist.current;
+            setZoom(z => Math.max(0.5, Math.min(3.0, z * delta)));
+            initialPinchDist.current = dist;
+        }
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+        initialPinchDist.current = null;
+    }, []);
+
+
+
     // Phase 3: Phoneme Painter state
     const [phonemePainterState, setPhonemePainterState] = useState<{
         isOpen: boolean;
@@ -568,24 +625,36 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
         setPhonemePainterState(prev => ({ ...prev, isOpen: false }));
     }, []);
 
+
+    const baseWidth = 1050;
+    const timelineWidth = 830;
+    const requiredWidth = 220 + timelineWidth * zoom;
+    const svgWidthPercent = Math.max(100, (requiredWidth / baseWidth) * 100);
+
     return (
-        <div className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative">
+        <div
+            className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-x-auto overflow-y-hidden scrollbar-thin"
+            ref={containerRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+        >
             <style>{SEQUENCER_STYLES}</style>
             <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
             {/* Screws */}
-            <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600"><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+            <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: '0.75rem' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+            <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: 'calc(100% - 1.75rem)' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+            <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: '0.75rem' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+            <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: 'calc(100% - 1.75rem)' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
 
             {/* Alt+Click hint for sampler */}
             {onPhonemeUpdate && (
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] text-cyan-500/60 font-mono pointer-events-none">
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] text-cyan-500/60 font-mono pointer-events-none" style={{ position: 'sticky', left: '50%' }}>
                     Alt+Click sampler step for Phoneme Painter
                 </div>
             )}
 
-            <svg viewBox="0 0 1050 500" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" onContextMenu={(e) => e.preventDefault()}>
+            <svg viewBox={`0 0 ${requiredWidth} 500`} style={{ minWidth: `${svgWidthPercent}%` }} height="100%" preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
                 <g transform="translate(100, 40)">
                     {ROWS.map((row, rIdx) => {
@@ -609,10 +678,12 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     onEditLength={onEditLength}
                                     onSelectRow={onSelectRow}
                                     onSelectSlot={onSelectSlot}
+                                    zoom={zoom}
                                 />
                             );
                         }
                         
+
                         return (
                             <SequencerRow
                                 key={row.key} ref={(el) => { rowRefs.current[rIdx] = el; }} rowKey={row.key} label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label} rowIndex={rIdx}
@@ -629,6 +700,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 automationParam={automationParam}
                                 onAutomationChange={onAutomationChange}
                                 alignment={row.key === 'sampler' ? alignment : null}
+                                zoom={zoom}
                             />
                         );
                     })}
