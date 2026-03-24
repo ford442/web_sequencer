@@ -78,7 +78,7 @@ describe('SamplerPanel Slice Mode', () => {
       // @ts-ignore
     render(<SamplerPanel {...stretchProps} />);
 
-    const sliceButton = screen.getByLabelText('Toggle Slice Mode');
+    const sliceButton = screen.getByLabelText('Toggle Phoneme Slice Mode');
     expect(sliceButton).toBeInTheDocument();
     expect(sliceButton).toHaveTextContent('OFF');
   });
@@ -93,7 +93,7 @@ describe('SamplerPanel Slice Mode', () => {
       // @ts-ignore
     render(<SamplerPanel {...stretchProps} />);
 
-    const sliceButton = screen.getByLabelText('Toggle Slice Mode');
+    const sliceButton = screen.getByLabelText('Toggle Phoneme Slice Mode');
     fireEvent.click(sliceButton);
 
     expect(onParamChange).toHaveBeenCalledWith(0, 'sliceMode', 'phoneme');
@@ -109,7 +109,7 @@ describe('SamplerPanel Slice Mode', () => {
       // @ts-ignore
     render(<SamplerPanel {...stretchProps} />);
 
-    const sliceButton = screen.getByLabelText('Toggle Slice Mode');
+    const sliceButton = screen.getByLabelText('Toggle Phoneme Slice Mode');
     expect(sliceButton).toHaveTextContent('ON (PHONEMES)');
 
     fireEvent.click(sliceButton);

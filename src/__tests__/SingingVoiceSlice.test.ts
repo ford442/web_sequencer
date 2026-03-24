@@ -12,13 +12,13 @@ class MockAudioWorkletNode {
     };
 
     parameters = new Map([
-        ['pitchScale', { setValueAtTime: vi.fn() }],
-        ['timeRatio', { setValueAtTime: vi.fn() }],
-        ['vibratoDepth', { setValueAtTime: vi.fn() }],
-        ['vibratoRate', { setValueAtTime: vi.fn() }],
-        ['tremoloDepth', { setValueAtTime: vi.fn() }],
-        ['tremoloRate', { setValueAtTime: vi.fn() }],
-        ['breathIntensity', { setValueAtTime: vi.fn() }]
+        ['pitchScale', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
+        ['timeRatio', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
+        ['vibratoDepth', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
+        ['vibratoRate', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
+        ['tremoloDepth', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
+        ['tremoloRate', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
+        ['breathIntensity', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }]
     ]);
 
     connect = vi.fn().mockReturnThis();

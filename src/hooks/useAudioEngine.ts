@@ -1,7 +1,7 @@
 import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
-    SamplerBankParams, SynthParams, AudioEngine, PartSequence, MultisampleBank
+    SamplerBankParams, SynthParams, AudioEngine, PartSequence, MultisampleBank, PhonemeData
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -207,7 +207,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     preserveFormants: true,
                     channels: 1,
                     bufferSize: 16384,
-                    enablePhonemeStretching: true
+                    enablePhonemeStretching: true,
+                    enableFormantShifting: true
                 });
 
                 await manager.init(forceScriptProcessor, wasmBinary);
@@ -252,16 +253,25 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 multisampleGeneratorRef,
                 vocalAlignmentsRef,
                 singingVoiceManagerRef,
-            });
-
-            // Internal function to play a single sampler voice (supports pitch offset for harmonizer)
+            });            // Internal function to play a single sampler voice (supports pitch offset for harmonizer)
             const playSamplerVoice = (
                 params: SamplerBankParams, 
                 note: string | string[], 
                 time: number, 
                 durationSteps: number = 1, 
                 stepTime: number = 0.2, 
-                noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, slideFromMidi?: number },
+                noteParams?: { 
+                    timbre?: number, 
+                    microtiming?: number, 
+                    reverse?: boolean, 
+                    sliceIndex?: number, 
+                    retrigger?: number, 
+                    slideFromMidi?: number,
+                    phonemes?: PhonemeData[],
+                    freeze?: number,
+                    filterCutoff?: number,
+                    filterResonance?: number
+                },
                 pitchOffsetSemitones: number = 0
             ) => {
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
@@ -299,11 +309,28 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
-                            if (destination) {
-                                voice.connectOutput(destination);
-                            } else {
-                                voice.connectOutput(masterGainRef.current!);
+                            let finalDest = destination || masterGainRef.current!;
+
+                            // Apply Per-Step Filter if present, or fallback to global filter settings
+                            if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
+                                const filter = context.createBiquadFilter();
+                                filter.type = 'lowpass';
+
+                                const cutoff = noteParams?.filterCutoff !== undefined
+                                    ? Math.max(20, noteParams.filterCutoff * 20000)
+                                    : (params.filterCutoff ?? 20000);
+                                filter.frequency.value = cutoff;
+
+                                const resonance = noteParams?.filterResonance !== undefined
+                                    ? noteParams.filterResonance * 20
+                                    : (params.filterResonance ?? 0);
+                                filter.Q.value = resonance;
+
+                                filter.connect(finalDest);
+                                finalDest = filter;
                             }
+
+                            voice.connectOutput(finalDest);
 
                             // Apply Timbre Modulation (Formant Shift)
                             if (noteParams?.timbre !== undefined) {
@@ -316,9 +343,20 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                             // Sync other params
                             if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
+                            if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
                             if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
+                            if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
+                            if (params.sustain !== undefined) voice.setSustain(params.sustain, triggerTime);
                             if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
+
+                            // Apply per-step or global freeze
+                            if (noteParams?.freeze !== undefined) {
+                                voice.setFreeze(noteParams.freeze, triggerTime);
+                            } else if (params.freeze !== undefined) {
+                                voice.setFreeze(params.freeze, triggerTime);
+                            }
 
                             // Load buffer
                             voice.loadBuffer(buffer.getChannelData(0));
@@ -345,10 +383,11 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                                 }
                             }
 
+                            // 1. Calculate Time Ratio
                             const timeRatio = targetDuration / originalDuration;
                             voice.setTimeRatio(timeRatio, triggerTime);
 
-                            // 2. Pitch Shift (with offset for harmonizer)
+                            // 2. Pitch Shift (with offset for harmonizer and slide support)
                             const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
                             if (noteParams?.slideFromMidi !== undefined) {
                                 const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
@@ -360,11 +399,13 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                                 voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
                             }
 
+                            // 3. Phoneme Awareness (from Jules branch)
                             if (alignment) {
                                 voice.setAlignment(alignment);
                                 voice.sendPhonemeDataToWorklet(targetDuration);
                             }
 
+                            // 4. Play
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);
 
                             const releaseTime = triggerTime + targetDuration;
@@ -431,7 +472,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     return;
                 }
 
-                // Buffer playback mode
+                // Buffer playback mode (non-stretch)
                 const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
                     const source = context.createBufferSource();
                     
@@ -457,8 +498,15 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                     const filter = context.createBiquadFilter();
                     filter.type = 'lowpass';
-                    filter.frequency.value = params.filterCutoff;
-                    filter.Q.value = params.filterResonance;
+                    const cutoff = noteParams?.filterCutoff !== undefined
+                        ? Math.max(20, noteParams.filterCutoff * 20000)
+                        : params.filterCutoff;
+                    filter.frequency.value = cutoff;
+
+                    const resonance = noteParams?.filterResonance !== undefined
+                        ? noteParams.filterResonance * 20
+                        : params.filterResonance;
+                    filter.Q.value = resonance;
 
                     const shaper = context.createWaveShaper();
                     if (params.drive > 0) {
@@ -506,14 +554,26 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 });
             };
 
-            const playSampler = (params: SamplerBankParams, note: string | string[], time: number, durationSteps: number = 1, stepTime: number = 0.2, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, slideFromMidi?: number }) => {
-                // Check for multisample bank first
-                const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
-                const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
-                const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-                
-                if (!buffer || !masterGainRef.current) return;
-
+            // Main playSampler function with harmonizer support
+            const playSampler = (
+                params: SamplerBankParams, 
+                note: string | string[], 
+                time: number, 
+                durationSteps: number = 1, 
+                stepTime: number = 0.2, 
+                noteParams?: { 
+                    timbre?: number, 
+                    microtiming?: number, 
+                    reverse?: boolean, 
+                    sliceIndex?: number, 
+                    retrigger?: number, 
+                    slideFromMidi?: number,
+                    phonemes?: PhonemeData[],
+                    freeze?: number,
+                    filterCutoff?: number,
+                    filterResonance?: number
+                }
+            ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
                 const harmonizer = harmonizerRef.current;
                 if (harmonizer?.getIsActive()) {
@@ -673,7 +733,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
         }
     }, [audioEngine, forceScriptProcessor, playbackRefs]);
 
-    const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number) => {
+    const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
         applyVoiceParamUpdate({
             manager: singingVoiceManagerRef.current,
             choirLeftGain: choirLeftGainRef.current,
@@ -681,6 +741,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             currentTime: audioEngine?.context.currentTime || 0,
             key,
             value,
+            rampTime
         });
     }, [audioEngine]);
     

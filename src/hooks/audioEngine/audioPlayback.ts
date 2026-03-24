@@ -19,6 +19,9 @@ export interface SynthNoteParams {
     timbre?: number;
     microtiming?: number;
     retrigger?: number;
+    filterCutoff?: number;
+    filterResonance?: number;
+    envMod?: number;
 }
 
 export interface DrumNoteParams {
@@ -80,10 +83,23 @@ export function createPlaySynth(
 
         const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
         let effectiveParams = params;
-        if (noteParams?.timbre !== undefined) {
+        if (noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined) {
             effectiveParams = { ...params };
-            const mod = 0.5 + noteParams.timbre;
-            effectiveParams.filterCutoff = Math.min(20000, params.filterCutoff * mod);
+
+            if (noteParams?.timbre !== undefined) {
+                const mod = 0.5 + noteParams.timbre;
+                effectiveParams.filterCutoff = Math.min(20000, params.filterCutoff * mod);
+            }
+            if (noteParams?.filterCutoff !== undefined) {
+                effectiveParams.filterCutoff = Math.max(20, noteParams.filterCutoff * 20000);
+            }
+            if (noteParams?.filterResonance !== undefined) {
+                effectiveParams.filterResonance = noteParams.filterResonance * 20;
+            }
+            if (noteParams?.envMod !== undefined) {
+                // @ts-expect-error envMod may not exist on SynthParams directly, but gets mapped correctly to Bass2/Open303 overrides
+                effectiveParams.envMod = noteParams.envMod;
+            }
         }
 
         const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
