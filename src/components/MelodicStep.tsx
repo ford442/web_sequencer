@@ -110,6 +110,7 @@ export const MelodicStep = memo(({
     }
     
     if (e.button === 2) {
+      e.preventDefault();
       // Right click - handle length edit if shift is held
       if (e.shiftKey && onEditLength && active) {
         e.preventDefault();

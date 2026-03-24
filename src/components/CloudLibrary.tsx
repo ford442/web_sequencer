@@ -233,7 +233,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                         </button>
                                     ))}
                                 </div>
-                                <button onClick={loadLibrary} className="text-xs text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">↻ Refresh</button>
+                                <button onClick={loadLibrary} aria-label="Refresh cloud library" className="text-xs text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">↻ Refresh</button>
                             </div>
 
                             {isLoading ? (
@@ -390,7 +390,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
                 {/* Footer */}
                 <div className="border-t border-gray-800 p-4 bg-gray-900/50 flex justify-end">
-                    <button onClick={onClose} className="text-gray-400 text-xs font-mono hover:text-white px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded">CLOSE</button>
+                    <button onClick={onClose} aria-label="Close cloud library" className="text-gray-400 text-xs font-mono hover:text-white px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded">CLOSE</button>
                 </div>
             </div>
         </div>

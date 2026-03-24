@@ -169,52 +169,51 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
                   }
 
                   // 2. Value Arc (The "Level" Indicator)
-                  // Map value 0..1 to angle -2.5 .. +2.5 (approx)
-                  let max_angle = 2.4; 
+                  // Map value 0..1 to angle range [-max_angle, +max_angle]
+                  // Knob starts at bottom-left, sweeps clockwise to bottom-right.
+                  let max_angle = 2.4;
                   let val_mapped = mix(-max_angle, max_angle, u.value);
-                  
-                  // Offset angle to start from bottom-left
-                  let active_angle = -angle - 1.5708; // Rotate -90deg to start top
-                  // Normalize angle logic for gauge
-                  
-                  // Simple gauge: show if angle is "less" than value
-                  // We compare dot products or raw angles. 
-                  // Let's use a "needle" approach + arc
-                  
-                  let needle_w = 0.01;
-                  let needle_vec = vec2f(cos(val_mapped - 1.5708), sin(val_mapped - 1.5708));
-                  
-                  // Draw filled arc (faked with dot product and masking)
-                  // This is a simple visual hack for the arc
-                  // It glows brighter near the value
-                  
+
+                  // Needle direction: rotate standard "up" (+Y) by val_mapped
+                  let needle_vec = vec2f(sin(val_mapped), cos(val_mapped));
+
+                  // Value arc: light the inner ring where the pixel angle <= val_mapped
+                  // atan2 gives [-π, π]; we shift so 0 = straight up (matches needle_vec above)
+                  let pixel_angle = atan2(uv.x, uv.y); // note: swapped args for "up = 0" convention
+                  let arc_radius = 0.42;
+                  let arc_dist = abs(length(uv) - arc_radius);
+                  // Only draw arc within the ±max_angle sweep and up to the current value
+                  if (arc_dist < 0.03 && pixel_angle >= -max_angle && pixel_angle <= val_mapped) {
+                      let arc_brightness = smoothstep(0.03, 0.0, arc_dist);
+                      // Color shifts from teal at min to bright cyan at current value
+                      let arc_t = (pixel_angle + max_angle) / (val_mapped + max_angle + 0.001);
+                      color = mix(vec3f(0.0, 0.6, 0.5), vec3f(0.2, 1.0, 0.8), arc_t);
+                      alpha += arc_brightness * 0.85;
+                  }
+
                   // 3. Holographic Scanlines
                   let scanline = sin(uv.y * 150.0 + u.time * 10.0) * 0.5 + 0.5;
-                  
+
                   // 4. Central Glow / "Projector" beam
                   let beam = smoothstep(0.6, 0.0, len);
-                  
+
                   // Compose the "Ghost" Knob
                   var final_c = vec3f(0.0);
-                  
+
                   // Main Circle Body
                   let circle_edge = 1.0 - smoothstep(0.48, 0.5, len);
                   let inner_glow = smoothstep(0.0, 0.5, len);
                   alpha += circle_edge * 0.2 * scanline; // Background body
-                  
+
                   // The Needle
                   let proj = dot(uv, needle_vec);
                   let perp = length(uv - needle_vec * proj);
-                  if (proj > 0.0 && proj < 0.5 && perp < 0.02) {
-                      alpha += 1.0 / (perp * 100.0); // Bloom needle
+                  // Guard against perp ≈ 0 to avoid Inf bloom
+                  if (proj > 0.0 && proj < 0.5 && perp < 0.02 && perp > 0.0005) {
+                      alpha += min(1.0 / (perp * 100.0), 8.0); // Bloom needle, clamped
                       color = vec3f(1.0, 1.0, 1.0); // White hot center
                   }
-                  
-                  // The Value Arc (Parametric)
-                  // We can render dots based on angle
-                  let dot_angle = atan2(uv.y, uv.x) + 1.5708; // 0 is down
-                  // This is tricky without proper atan handling, simplified:
-                  
+
                   // 5. Fresnel / Glitch Effect
                   let glitch = step(0.98, sin(u.time * 20.0 + uv.y * 10.0));
                   if (glitch > 0.5) {
@@ -241,10 +240,18 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
                 size: 32,
                 usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
             });
+
+            // Create bind group once — reused every frame (only uniformBuffer is written each frame)
+            bindGroup = device.createBindGroup({
+                layout: pipeline.getBindGroupLayout(0),
+                entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+            });
         };
 
+        let bindGroup: GPUBindGroup | null = null;
+
         const render = () => {
-            if (!context || !device || !pipeline || !uniformBuffer) return;
+            if (!context || !device || !pipeline || !uniformBuffer || !bindGroup) return;
 
             const now = performance.now() / 1000;
             const normalizedValue = (valueRef.current - min) / (max - min);
@@ -262,10 +269,6 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
             });
 
             pass.setPipeline(pipeline);
-            const bindGroup = device.createBindGroup({
-                layout: pipeline.getBindGroupLayout(0),
-                entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
-            });
             pass.setBindGroup(0, bindGroup);
             pass.draw(3);
             pass.end();

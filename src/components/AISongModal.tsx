@@ -36,6 +36,18 @@ interface ImportStage {
   status: 'pending' | 'active' | 'complete' | 'error';
 }
 
+interface TrackStats {
+  totalNotes: number;
+  noteCounts: Record<string, number>;
+  avgVelocity: number;
+  velocitySum: number;
+  noteCount: number;
+  duration: number;
+  automationLaneCount: number;
+  automationPointCount: number;
+  automatedParams: string[];
+}
+
 interface FieldError {
   field: string;
   message: string;
@@ -620,10 +632,10 @@ interface AISongModalProps {
   onClose: () => void;
   onImport: (song: SavedSongData, aiData: AISongData) => void;
   onShowToast: (message: string, type: 'success' | 'error' | 'info') => void;
-  audioEngine?: unknown;
+  audioEngine?: any;
 }
 
-export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps) {
+export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps): React.ReactElement | null {
   const [jsonInput, setJsonInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
@@ -1085,12 +1097,12 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
   }, [validationState, jsonInput, onShowToast]);
 
   // Calculate track statistics
-  const trackStats = useMemo(() => {
+  const trackStats = useMemo<TrackStats | null>(() => {
     if (!parsedData) return null;
     
-    const stats = {
+    const stats: TrackStats = {
       totalNotes: 0,
-      noteCounts: {} as Record<string, number>,
+      noteCounts: {},
       avgVelocity: 0,
       velocitySum: 0,
       noteCount: 0,
@@ -1098,7 +1110,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       // Automation stats
       automationLaneCount: 0,
       automationPointCount: 0,
-      automatedParams: [] as string[]
+      automatedParams: []
     };
 
     // Count notes in melodic tracks
@@ -1218,6 +1230,23 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
   // @ts-expect-error - Auto-generated to fix CI build
   const textareaBorderColor = getTextareaBorderColor(validationState, jsonInput.trim().length > 0);
 
+  const noteCountEntries = useMemo(() => {
+    return trackStats ? Object.entries(trackStats.noteCounts) : [];
+  }, [trackStats]);
+
+  const trackStatisticsRows = noteCountEntries.map(([track, count]) => (
+    <div key={String(track)} className="flex items-center gap-2 text-xs">
+      <span className="w-16 sm:w-20 text-gray-500 shrink-0">{String(track)}:</span>
+      <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-emerald-500/50 rounded-full transition-all duration-500"
+          style={{ width: `${Math.min(100, (Number(count) / 16) * 100)}%` }}
+        />
+      </div>
+      <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(count)}</span>
+    </div>
+  )) as React.ReactElement[];
+
   return (
     <div 
       ref={modalRef}
@@ -1246,6 +1275,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
             <button 
               onClick={handleClose}
               className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
+              aria-label="Close modal"
             >
               ✕
             </button>
@@ -1399,6 +1429,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                           <button
                             onClick={() => removeDroppedFile(droppedFile.id)}
                             className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0"
+                            aria-label={`Remove ${droppedFile.file.name}`}
                           >
                             ✕
                           </button>
@@ -1667,7 +1698,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                             </span>
                             <div className="flex gap-0.5">
                               {row.map((active, stepIdx) => (
-                                <Tooltip key={stepIdx} text={`Step ${stepIdx}`} position="top">
+                                <Tooltip key={stepIdx} text={String(`Step ${stepIdx}`)} position="top">
                                   <div
                                     className={`w-1.5 h-3 sm:w-2 sm:h-4 rounded-sm transition-colors ${
                                       active 
