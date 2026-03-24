@@ -22,20 +22,17 @@ import { AISongModal } from './components/AISongModal';
 import { RbsImportModal } from './components/RbsImportModal';
 import { CloudStatus } from './components/CloudStatus';
 import { Toast } from './components/Toast';
-import type { CloudItemType } from './services/CloudStorage';
 import { SupertonicService } from './services/Supertonic';
 import { loadingProgressStore } from './stores/loadingProgressStore';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
-import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
 import { copySteps, pasteSteps } from './utils/clipboardUtils';
 import { MainSequencer, ROWS } from './components/MainSequencer';
 import type { MainSequencerHandle } from './components/MainSequencer';
 import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
 import { SEQUENCER_STYLES } from './components/sequencer/constants';
 import { Harmonizer, type HarmonizerConfig, HARMONIZE_PRESETS } from './engines/Harmonizer';
-import { AISongImporter, parseAISongJSON, type AISongData } from './importers/ai-song';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -52,7 +49,7 @@ import {
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note, Bass2Params, PhonemeData } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData } from './types'
 import {
     DEFAULT_SAMPLER_BANK_PARAMS, INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
