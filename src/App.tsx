@@ -864,15 +864,26 @@ export const App: React.FC = () => {
         }
     }, [audioEngine, activeSamplerBank, ttsPhrases]);
 
-    const handleSaveSong = async (slot: number) => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); const snapshot: SongSnapshot = { pattern, tempo, ambianceUrl, backgroundImage, params: { synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler } }; setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; }); setActiveSongSlot(slot); };
-    const loadSong = useCallback((slot: number) => { const snapshot = songStorage[slot]; if (!snapshot) return; setPattern(snapshot.pattern); setTempo(snapshot.tempo); setAmbianceUrl(snapshot.ambianceUrl); setBackgroundImage(snapshot.backgroundImage); setSynthA(snapshot.params.synthA); setSynthB(snapshot.params.synthB); setBass2(snapshot.params.bass2 ?? DEFAULT_BASS2_PARAMS); setKick(snapshot.params.kick); setSnare(snapshot.params.snare); setClosedHat(snapshot.params.closedHat); setOpenHat(snapshot.params.openHat); setSampler(snapshot.params.sampler); setActiveSongSlot(slot); synthARef.current = snapshot.params.synthA; synthBRef.current = snapshot.params.synthB; bass2Ref.current = snapshot.params.bass2 ?? DEFAULT_BASS2_PARAMS; kickRef.current = snapshot.params.kick; snareRef.current = snapshot.params.snare; closedHatRef.current = snapshot.params.closedHat; openHatRef.current = snapshot.params.openHat; samplerRef.current = snapshot.params.sampler; }, [songStorage]);
-    const getSongData = useCallback(async () => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); return { version: 1, pattern: patternRef.current, tempo: tempoRef.current, ambianceUrl, backgroundImage, params: { synthA: synthARef.current, synthB: synthBRef.current, bass2: bass2Ref.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, trackStorage: trackStorageRef.current, activeTrackSlots: activeTrackSlotsRef.current, songStructure: songStructureRef.current, embeddedSamples: encodedSamples, ttsPhrases } as SavedSongData; }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
-    const getBankData = useCallback(() => { return { type: 'bank', trackStorage }; }, [trackStorage]);
-    const getPatternData = useCallback(() => { return { type: 'pattern', pattern }; }, [pattern]);
-    // @ts-expect-error - Auto-generated to fix CI build
-    const loadCloudData = useCallback(async (data: any, type: CloudItemType) => { console.log("Loading Cloud Data:", type, data); if (type === 'song') { const songData = data as SavedSongData; if (songData.pattern) setPattern(songData.pattern); if (songData.tempo) setTempo(songData.tempo); if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl); if (songData.backgroundImage !== undefined) setBackgroundImage(songData.backgroundImage); if (songData.params) { if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; } if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; } if (songData.params.bass2) { setBass2(songData.params.bass2); bass2Ref.current = songData.params.bass2; } if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; } if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; } if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; } if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; } if (songData.params.sampler) { const samplerWithMode = songData.params.sampler.map(bank => ({ ...bank, mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable' })); setSampler(samplerWithMode); samplerRef.current = samplerWithMode; } } if (songData.trackStorage) setTrackStorage(songData.trackStorage as unknown as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>); if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots as unknown as Record<TrackKey, number>); if (songData.songStructure) setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]); if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) { setTtsPhrases(songData.ttsPhrases); } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) { const normalized = Array(8).fill("Hello World"); songData.ttsPhrases.forEach((phrase, idx) => { if (idx < 8) normalized[idx] = phrase || "Hello World"; }); setTtsPhrases(normalized); } else { setTtsPhrases(Array(8).fill("Hello World")); } if (songData.embeddedSamples && audioEngine) { const loadedBuffers = new Array(8).fill(null); await Promise.all(Object.entries(songData.embeddedSamples).map(async ([idx, b64]) => { try { const fetchRes = await fetch(b64); const arrayBuf = await fetchRes.arrayBuffer(); const audioBuf = await audioEngine.context.decodeAudioData(arrayBuf); const bankIdx = parseInt(idx); const bankName = `bank_${bankIdx}`; audioEngine.loadSampleToEngine(bankName, audioBuf); loadedBuffers[bankIdx] = audioBuf; } catch (e) { console.error(`Failed to load sample bank ${idx}`, e); } })); setSampleBuffers(loadedBuffers); } showToast("Song loaded!", "success"); } else if (type === 'bank') { if (data.trackStorage) { setTrackStorage(data.trackStorage); showToast("Pattern Bank loaded!", "success"); } } else if (type === 'pattern') { if (data.pattern) { setPattern(data.pattern); showToast("Pattern loaded!", "success"); } } }, [audioEngine, sampleBuffers, showToast]);
-    const exportSongToFile = useCallback(async () => { const songData = await getSongData(); const jsonStr = JSON.stringify(songData, null, 2); const blob = new Blob([jsonStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `hyphon-song-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }, [getSongData]);
-    const importSongFromFile = useCallback(() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = async (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; try { const text = await file.text(); const songData = JSON.parse(text); await loadCloudData(songData, 'song'); } catch (err) { console.error('Failed to load song:', err); showToast("Failed to load song file.", "error"); } }; input.click(); }, [loadCloudData, showToast]);
+    // Song persistence / file I/O (extracted to useSongStorage hook)
+    const {
+        getSongData, getBankData, getPatternData,
+        exportSongToFile, importSongFromFile,
+        handleSaveSong, loadSong, loadCloudData,
+        handleAISongImport, handleRbsImport,
+        isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
+    } = useSongStorage({
+        patternRef, tempoRef,
+        synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
+        trackStorageRef, activeTrackSlotsRef, songStructureRef,
+        ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases,
+        songStorage, pattern, tempo, trackStorage,
+        setPattern, setTempo, setAmbianceUrl, setBackgroundImage,
+        setSynthA, setSynthB, setBass2, setKick, setSnare, setClosedHat, setOpenHat, setSampler,
+        setTrackStorage, setActiveTrackSlots, setSongStructure, setSampleBuffers, setTtsPhrases,
+        setSongStorage, setActiveSongSlot,
+        audioEngine, showToast,
+        setIsAISongModalOpen, setIsRbsImportModalOpen,
+    });
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal }); }, [updateSynthA, updateSynthB]);
     const handleBass2Change = useCallback((id: string, val: number) => { let realVal = val; if (id === 'waveform') realVal = val > 0.5 ? 1 : 0; else if (id === 'cutoff') realVal = val * 8000; else if (id === 'resonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'pitch') realVal = Math.floor(val * 48 - 24); updateBass2({ [id]: realVal }); }, [updateBass2]);
@@ -1041,173 +1052,6 @@ export const App: React.FC = () => {
         }
     }, [handleGenerateTTS, ttsPhrases, selection, setPattern, setSampler, updateStorageForTrack, showToast]);
 
-    // Handle AI song import - converts AI format to Hyphon and loads it
-    const handleAISongImport = useCallback(async (song: SavedSongData, aiData: AISongData) => {
-        setIsImportingAISong(true);
-        setAiImportProgress(0);
-        setAiImportError(null);
-        
-        try {
-            // Stage 1: Parsing (handled in modal, but show in overlay)
-            setAiImportStage('parsing');
-            setAiImportProgress(10);
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // Stage 2: Validating
-            setAiImportStage('validating');
-            setAiImportProgress(25);
-            await new Promise(resolve => setTimeout(resolve, 150));
-            
-            // Stage 3: Converting
-            setAiImportStage('converting');
-            setAiImportProgress(40);
-            await new Promise(resolve => setTimeout(resolve, 150));
-            
-            // Stage 4: Attempt cloud upload (optional, can fail gracefully)
-            setAiImportStage('uploading');
-            setAiImportProgress(60);
-            
-            // Try to save to cloud storage if available
-            try {
-                const { CloudStorage } = await import('./services/CloudStorage');
-                // @ts-expect-error - Auto-generated to fix CI build
-                const cloud = CloudStorage.getInstance();
-                if (cloud.isAvailable()) {
-                    await cloud.save('song', {
-                        name: aiData.meta.title,
-                        data: song,
-                        metadata: {
-                            title: aiData.meta.title,
-                            author: aiData.meta.author,
-                            generator: aiData.meta.generator,
-                            importedAt: new Date().toISOString()
-                        }
-                    });
-                    setAiImportProgress(80);
-                }
-            } catch (cloudError) {
-                // Cloud upload failed but we'll continue with local import
-                console.warn('Cloud upload failed:', cloudError);
-                // @ts-expect-error - Auto-generated to fix CI build
-                showToast('Song imported locally (cloud upload failed)', 'info');
-                setAiImportProgress(80);
-            }
-            
-            // Stage 5: Loading into sequencer
-            setAiImportStage('loading');
-            setAiImportProgress(90);
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-            // Load the song data using existing loadCloudData logic
-            loadCloudData(song, 'song');
-            
-            // Complete
-            setAiImportProgress(100);
-            setAiImportStage('complete');
-            
-            showToast(`✨ Imported "${aiData.meta.title}" by ${aiData.meta.author}`, 'success');
-            
-            // Close modal after brief delay on success
-            setTimeout(() => {
-                setIsAISongModalOpen(false);
-                setIsImportingAISong(false);
-                setAiImportStage(null);
-                setAiImportProgress(0);
-            }, 1500);
-            
-        } catch (error) {
-            console.error('AI Song Import Error:', error);
-            setAiImportStage('error');
-            
-            // Provide specific error messages based on error type
-            let errorMessage = 'Import failed: Unknown error';
-            if (error instanceof Error) {
-                if (error.message.includes('JSON') || error.message.includes('parse')) {
-                    errorMessage = `Invalid JSON syntax: ${error.message}`;
-                } else if (error.message.includes('validation') || error.message.includes('required')) {
-                    errorMessage = `Song validation failed: ${error.message}`;
-                } else if (error.message.includes('network') || error.message.includes('fetch')) {
-                    errorMessage = 'Network error - song saved locally';
-                } else {
-                    errorMessage = `Import failed: ${error.message}`;
-                }
-            }
-            
-            setAiImportError(errorMessage);
-            showToast(errorMessage, 'error');
-            
-            // Keep overlay visible for a moment so user can see error
-            setTimeout(() => {
-                setIsImportingAISong(false);
-                setAiImportStage(null);
-                setAiImportError(null);
-            }, 3000);
-            
-            // Re-throw so modal can handle retry if needed
-            throw error;
-        }
-    }, [loadCloudData, showToast]);
-
-    // Handle RBS import - converts HyphonSong to SavedSongData and loads it
-    const handleRbsImport = useCallback((song: import('./importers/rbs').HyphonSong) => {
-        // Convert HyphonSong to SavedSongData format
-        const savedSong: SavedSongData = {
-            version: 1,
-            pattern: song.pattern,
-            tempo: song.tempo,
-            ambianceUrl: '',
-            backgroundImage: '',
-            params: {
-                synthA: song.params.synthA,
-                synthB: song.params.synthB,
-                kick: song.params.kick,
-                snare: song.params.snare,
-                closedHat: song.params.closedHat,
-                openHat: song.params.openHat,
-                // @ts-expect-error - Auto-generated to fix CI build
-                sampler: song.params.sampler || Array.from({ length: 8 }, () => ({
-                    sampleName: 'bank_0',
-                    playbackSpeed: 1.0,
-                    volume: 1.0,
-                    filterCutoff: 20000,
-                    filterResonance: 0,
-                    drive: 0,
-                    delaySend: 0,
-                    mode: 'loop',
-                    grainSize: 4410
-                }))
-            },
-            trackStorage: {
-                partA: [song.pattern.partA, ...Array(7).fill(null)],
-                partB: [song.pattern.partB, ...Array(7).fill(null)],
-                bass2: [song.pattern.bass2, ...Array(7).fill(null)],
-                kick: [song.pattern.kick, ...Array(7).fill(null)],
-                snare: [song.pattern.snare, ...Array(7).fill(null)],
-                closedHat: [song.pattern.closedHat, ...Array(7).fill(null)],
-                openHat: [song.pattern.openHat, ...Array(7).fill(null)],
-                sampler: [song.pattern.sampler, ...Array(7).fill(null)]
-            },
-            activeTrackSlots: {
-                partA: 0, partB: 0, bass2: 0, kick: 0,
-                snare: 0, closedHat: 0, openHat: 0, sampler: 0
-            },
-            songStructure: Array(16).fill(null).map(() => ({
-                partA: 0, partB: 0, bass2: 0, kick: 0,
-                snare: 0, closedHat: 0, openHat: 0, sampler: null
-            })),
-            ttsPhrases: Array(8).fill('Hello World')
-        };
-        
-        // Also set bass2 params if they exist
-        if (song.params.bass2) {
-            setBass2(song.params.bass2);
-            bass2Ref.current = song.params.bass2;
-        }
-        
-        loadCloudData(savedSong, 'song');
-        setIsRbsImportModalOpen(false);
-        showToast(`Imported "${song.metadata.name}" from RBS`, 'success');
-    }, [loadCloudData, showToast]);
 
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
