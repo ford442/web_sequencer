@@ -137,7 +137,7 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
         </button>
         <div
           ref={sliderRef}
-          className="bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none min-w-[60px] text-center focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          className="group relative bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none min-w-[60px] text-center focus:outline-none focus:ring-2 focus:ring-yellow-400"
           onMouseDown={handleMouseDown}
           onWheel={handleWheel}
           tabIndex={0}
@@ -184,7 +184,10 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
           aria-valuenow={value}
           aria-valuetext={label ? `${display(value)} ${label}` : display(value)}
           aria-label={label}
+          title={label ? `Drag up/down to adjust ${label}` : 'Drag up/down to adjust'}
         >
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[2px] opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-yellow-500/50 pointer-events-none">▲</div>
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[2px] opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-yellow-500/50 pointer-events-none">▼</div>
           {display(value)}
         </div>
         {/* Plus button */}
