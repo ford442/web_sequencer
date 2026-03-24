@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense } fro
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
+import { useStepHandler } from './hooks/useStepHandler'
 import { useGamepad } from './hooks/useGamepad';
 import { useStableKnobConfig } from './hooks/useStableKnobConfig';
+import { useSongStorage } from './hooks/useSongStorage';
 import { GamepadDebugger } from './components/GamepadDebugger';
 import { HardwareModule } from './components/HardwareModule';
-import type { KnobConfig } from './components/HardwareModule';
 import { SamplerVoicePanel } from './components/SamplerVoicePanel';
 import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
@@ -21,20 +22,17 @@ import { AISongModal } from './components/AISongModal';
 import { RbsImportModal } from './components/RbsImportModal';
 import { CloudStatus } from './components/CloudStatus';
 import { Toast } from './components/Toast';
-import type { CloudItemType } from './services/CloudStorage';
 import { SupertonicService } from './services/Supertonic';
 import { loadingProgressStore } from './stores/loadingProgressStore';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
-import { audioBufferToWav, blobToBase64 } from './utils/audioExport';
 import { copySteps, pasteSteps } from './utils/clipboardUtils';
 import { MainSequencer, ROWS } from './components/MainSequencer';
 import type { MainSequencerHandle } from './components/MainSequencer';
 import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
 import { SEQUENCER_STYLES } from './components/sequencer/constants';
 import { Harmonizer, type HarmonizerConfig, HARMONIZE_PRESETS } from './engines/Harmonizer';
-import { AISongImporter, parseAISongJSON, type AISongData } from './importers/ai-song';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -51,191 +49,25 @@ import {
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Note, Bass2Params, PhonemeData } from './types'
-
-// --- CONSTANTS ---
-const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
-    sampleName: 'bank_0',
-    playbackSpeed: 1.0,
-    volume: 1.0,
-    filterCutoff: 20000,
-    filterResonance: 0,
-    drive: 0,
-    delaySend: 0,
-    mode: 'loop',
-    grainSize: 4410,
-    freeze: 0,
-    freezeLfoRate: 0,
-    freezeLfoDepth: 0
-};
-
-const INITIAL_SAMPLER_PARAMS: SamplerParams = Array.from({ length: 8 }, (_, i) => ({
-    ...DEFAULT_SAMPLER_BANK_PARAMS,
-    sampleName: `bank_${i}`
-}));
-
-const UPDATED_INITIAL_PATTERN: Pattern = {
-    ...INITIAL_PATTERN,
-    sampler: Array.from({ length: 8 }, () => ({ steps: Array(NUM_STEPS).fill(null) }))
-};
-
-// --- TYPES FOR STORAGE ---
-type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
-type SongSnapshot = {
-    pattern: Pattern;
-    tempo: number;
-    ambianceUrl: string;
-    backgroundImage: string;
-    params: {
-        synthA: SynthParams;
-        synthB: SynthParams;
-        bass2: Bass2Params;
-        kick: KickParams;
-        snare: SnareParams;
-        closedHat: any;
-        openHat: any;
-        sampler: SamplerParams;
-    }
-};
-
-const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (PartSequence | PartSequence[] | null)[]> => {
-    const storage: any = {
-        partA: Array(8).fill(null),
-        partB: Array(8).fill(null),
-        bass2: Array(8).fill(null),
-        kick: Array(8).fill(null),
-        snare: Array(8).fill(null),
-        closedHat: Array(8).fill(null),
-        openHat: Array(8).fill(null),
-        sampler: Array(8).fill(null),
-    };
-
-    (Object.keys(storage) as TrackKey[]).forEach(key => {
-        storage[key][0] = JSON.parse(JSON.stringify(initialPattern[key]));
-    });
-
-    return storage;
-};
-
-const COLOR_LEAD = [0.0, 0.9, 1.0] as [number, number, number];
-const COLOR_BASS = [1.0, 0.2, 0.8] as [number, number, number];
-const COLOR_BASS2 = [1.0, 0.0, 0.4] as [number, number, number];
-const COLOR_KICK = [1.0, 0.6, 0.0] as [number, number, number];
-const COLOR_SNARE = [0.2, 1.0, 0.2] as [number, number, number];
-const COLOR_CH = [0.8, 0.8, 0.0] as [number, number, number];
-const COLOR_OH = [0.9, 0.5, 0.0] as [number, number, number];
-const COLOR_SAMPLER = [0.6, 0.4, 1.0] as [number, number, number];
-
-const EMPTY_STEPS = Array(32).fill(null);
-const EMPTY_SEQ = { steps: EMPTY_STEPS };
-const EMPTY_SAMPLER_SEQUENCE = Array.from({ length: 8 }, () => ({ steps: EMPTY_STEPS }));
-const EMPTY_PATTERN: Pattern = {
-    partA: EMPTY_SEQ,
-    partB: EMPTY_SEQ,
-    bass2: EMPTY_SEQ,
-    kick: EMPTY_SEQ,
-    snare: EMPTY_SEQ,
-    closedHat: EMPTY_SEQ,
-    openHat: EMPTY_SEQ,
-    sampler: EMPTY_SAMPLER_SEQUENCE,
-};
-
-// --- MODULE CONTROL HELPERS ---
-// --- BASS2 CONTROL HELPERS ---
-const getBass2Controls = (params: Bass2Params): KnobConfig[] => {
-    const filterModeValue = params.filterMode ?? 0;
-    return [
-        { id: 'waveform', label: 'WAVE', x: 0.10, y: 0.25, size: 0.08, value: params.waveform === '303-sqr' ? 1 : 0, valueDisplay: params.waveform === '303-sqr' ? 'SQR' : 'SAW' },
-        { id: 'cutoff', label: 'CUTOFF', x: 0.30, y: 0.25, size: 0.12, value: params.cutoff / 8000, valueDisplay: `${Math.round(params.cutoff)}Hz` },
-        { id: 'resonance', label: 'RES', x: 0.50, y: 0.25, size: 0.12, value: params.resonance / 20, valueDisplay: `${params.resonance.toFixed(1)}` },
-        { id: 'filterMode', label: 'MODE', x: 0.70, y: 0.25, size: 0.08, value: filterModeValue, valueDisplay: filterModeValue > 0 ? '24dB' : '18dB' },
-        { id: 'decay', label: 'DECAY', x: 0.25, y: 0.55, size: 0.11, value: params.decay / 2, valueDisplay: `${params.decay.toFixed(2)}s` },
-        { id: 'accent', label: 'ACCENT', x: 0.45, y: 0.55, size: 0.11, value: params.accent, valueDisplay: `${Math.round(params.accent * 100)}%` },
-        { id: 'envMod', label: 'ENV MOD', x: 0.65, y: 0.55, size: 0.11, value: params.envMod, valueDisplay: `${Math.round(params.envMod * 100)}%` },
-        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.80, size: 0.09, value: (params.pitch + 24) / 48, valueDisplay: `${params.pitch > 0 ? '+' : ''}${params.pitch.toFixed(0)}st` },
-        { id: 'volume', label: 'LEVEL', x: 0.85, y: 0.80, size: 0.10, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
-    ];
-};
-
-const getSynthControls = (params: SynthParams): KnobConfig[] => {
-    const filterModeValue = params.filterMode ?? 0;
-    return [
-        { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack, valueDisplay: `${params.attack.toFixed(2)}s` },
-        { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2, valueDisplay: `${params.decay.toFixed(2)}s` },
-        { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain, valueDisplay: `${Math.round(params.sustain * 100)}%` },
-        { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2, valueDisplay: `${params.release.toFixed(2)}s` },
-        { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000, valueDisplay: `${Math.round(params.filterCutoff)}Hz` },
-        { id: 'filterResonance', label: 'RES', x: 0.50, y: 0.60, size: 0.12, value: params.filterResonance / 20, valueDisplay: `${params.filterResonance.toFixed(1)}` },
-        { id: 'filterMode', label: 'MODE', x: 0.65, y: 0.60, size: 0.08, value: filterModeValue, valueDisplay: filterModeValue > 0 ? '24dB' : '18dB' },
-        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48, valueDisplay: `${params.pitch > 0 ? '+' : ''}${params.pitch.toFixed(1)}st` },
-        { id: 'length', label: 'GATE', x: 0.75, y: 0.50, size: 0.09, value: (params.length || 0.25) / 2, valueDisplay: `${(params.length || 0.25).toFixed(2)}s` },
-        { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
-        { id: 'delayMix', label: 'DLY MIX', x: 0.85, y: 0.80, size: 0.07, value: params.delayMix, valueDisplay: `${Math.round(params.delayMix * 100)}%` },
-        { id: 'delayTime', label: 'DLY TIME', x: 0.95, y: 0.80, size: 0.07, value: params.delayTime, valueDisplay: `${params.delayTime.toFixed(2)}s` },
-    ];
-};
-const getKickControls = (params: KickParams): KnobConfig[] => [
-    { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130, valueDisplay: `${Math.round(params.pitch)}Hz` },
-    { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay, valueDisplay: `${params.decay.toFixed(2)}s` },
-    { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone, valueDisplay: `${Math.round(params.tone * 100)}%` },
-    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
-];
-const getSnareControls = (params: SnareParams): KnobConfig[] => [
-    { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300, valueDisplay: `${Math.round(params.tone)}Hz` },
-    { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000, valueDisplay: `${Math.round(params.noise)}Hz` },
-    { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2, valueDisplay: `${params.decay.toFixed(2)}s` },
-    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
-];
-const getClosedHatControls = (params: any): KnobConfig[] => [
-    { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay, valueDisplay: `${params.decay.toFixed(2)}s` },
-    { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000, valueDisplay: `${(params.pitch / 1000).toFixed(1)}kHz` },
-    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
-];
-const getOpenHatControls = (params: any): KnobConfig[] => [
-    { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay, valueDisplay: `${params.decay.toFixed(2)}s` },
-    { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000, valueDisplay: `${(params.pitch / 1000).toFixed(1)}kHz` },
-    { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
-];
-const getSamplerControls = (params: SamplerBankParams): KnobConfig[] => [
-    { id: 'volume', label: 'LEVEL', x: 0.8, y: 0.25, size: 0.1, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
-    { id: 'playbackSpeed', label: 'SPEED', x: 0.2, y: 0.25, size: 0.1, value: (params.playbackSpeed) / 4.0, valueDisplay: `${params.playbackSpeed.toFixed(2)}x` },
-    { id: 'filterCutoff', label: 'CUTOFF', x: 0.2, y: 0.65, size: 0.12, value: params.filterCutoff / 20000, valueDisplay: `${Math.round(params.filterCutoff)}Hz` },
-    { id: 'filterResonance', label: 'RES', x: 0.4, y: 0.65, size: 0.12, value: params.filterResonance / 20, valueDisplay: `${params.filterResonance.toFixed(1)}` },
-    { id: 'drive', label: 'DRIVE', x: 0.6, y: 0.65, size: 0.12, value: params.drive, valueDisplay: `${Math.round(params.drive * 100)}%` },
-    { id: 'delaySend', label: 'DELAY', x: 0.8, y: 0.65, size: 0.12, value: params.delaySend, valueDisplay: `${Math.round(params.delaySend * 100)}%` },
-    { id: 'glitchChance', label: 'GLITCH', x: 0.5, y: 0.85, size: 0.08, value: params.glitchChance || 0, valueDisplay: `${Math.round((params.glitchChance || 0) * 100)}%` },
-];
-
-// --- COMPONENTS ---
-
-const StartOverlay = ({ onStart, isReady }: { onStart: () => void, isReady: boolean }) => {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="start-overlay-title">
-            <div className="text-center p-8 bg-[#1f2937] border-2 border-cyan-500 rounded-2xl shadow-2xl max-w-lg w-full">
-                <h1 id="start-overlay-title" className="text-4xl font-bold font-orbitron text-cyan-400 mb-2 tracking-widest drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]">HYPHON</h1>
-                <p className="text-gray-400 mb-8 font-mono text-sm tracking-wide">BROWSER AUDIO WORKSTATION</p>
-                <div className="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700 text-left font-mono text-xs text-gray-300" role="status" aria-live="polite">
-                    <p className="mb-2 text-cyan-500 font-bold">SYSTEM CHECK:</p>
-                    <div className="flex justify-between mb-1"><span>AUDIO ENGINE:</span><span className="text-green-400">READY</span></div>
-                    <div className="flex justify-between mb-1"><span>WEBGPU:</span><span className="text-green-400">DETECTED</span></div>
-                    <div className="flex justify-between"><span>CORE (PYODIDE):</span>{isReady ? <span className="text-green-400">LOADED</span> : <span className="text-yellow-400 animate-pulse">LOADING...</span>}</div>
-                </div>
-                <button onClick={onStart} disabled={!isReady} aria-busy={!isReady} className={`w-full py-4 rounded-xl font-orbitron text-xl font-bold tracking-widest transition-all duration-300 ${isReady ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.6)] hover:shadow-[0_0_30px_rgba(6,182,212,0.8)] border border-cyan-400 cursor-pointer transform hover:scale-[1.02]' : 'bg-gray-700 text-gray-500 cursor-wait border border-gray-600'}`}>{isReady ? 'INITIALIZE SYSTEM' : 'LOADING RESOURCES...'}</button>
-            </div>
-        </div>
-    );
-};
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData } from './types'
+import {
+    DEFAULT_SAMPLER_BANK_PARAMS, INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
+    type TrackKey, type SongSnapshot,
+    getInitialTrackStorage,
+    COLOR_LEAD, COLOR_BASS, COLOR_BASS2, COLOR_KICK, COLOR_SNARE, COLOR_CH, COLOR_OH, COLOR_SAMPLER,
+    EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE, EMPTY_PATTERN,
+} from './constants/appDefaults'
+import {
+    getBass2Controls, getSynthControls, getKickControls, getSnareControls,
+    getClosedHatControls, getOpenHatControls, getSamplerControls,
+} from './utils/knobConfigs'
+import { StartOverlay } from './components/StartOverlay'
 
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
     const [isAISongModalOpen, setIsAISongModalOpen] = useState(false);
-    // AI Song Import loading states
-    const [isImportingAISong, setIsImportingAISong] = useState(false);
-    const [aiImportProgress, setAiImportProgress] = useState(0);
-    const [aiImportStage, setAiImportStage] = useState<'parsing' | 'validating' | 'converting' | 'uploading' | 'loading' | 'complete' | 'error' | null>(null);
-    const [aiImportError, setAiImportError] = useState<string | null>(null);
     const [isRbsImportModalOpen, setIsRbsImportModalOpen] = useState(false);
     const [isLyricMapperOpen, setIsLyricMapperOpen] = useState(false);
     const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
@@ -499,227 +331,33 @@ export const App: React.FC = () => {
     const songMeasureRef = useRef(0);
     const isFirstStepRef = useRef(true);
 
-    const onStep = useCallback((step: number) => {
-        currentStepRef.current = step;
-        if (sequencerRef.current) sequencerRef.current.setHighlight(step);
-        if (!audioEngine) return
-        const time = audioEngine.context.currentTime
-        let activePattern = patternRef.current;
-
-        if (isSongModeActiveRef.current) {
-            if (step === 0) {
-                if (isFirstStepRef.current) {
-                    isFirstStepRef.current = false;
-                } else {
-                    const nextM = songMeasureRef.current + 1;
-                    if (nextM < songStructureRef.current.length) {
-                        songMeasureRef.current = nextM;
-                        setTimeout(() => setCurrentSongMeasure(nextM), 0);
-                    } else {
-                        songMeasureRef.current = 0;
-                        setTimeout(() => setCurrentSongMeasure(0), 0);
-                    }
-                }
-            }
-            const currentMeasureIdx = songMeasureRef.current;
-            const measureData = songStructureRef.current[currentMeasureIdx];
-            if (measureData) {
-                const getSeq = (key: TrackKey) => {
-                    const slot = measureData[key];
-                    if (slot === null) { return key === 'sampler' ? EMPTY_SAMPLER_SEQUENCE : EMPTY_SEQ; }
-                    const stored = trackStorageRef.current[key][slot];
-                    if (!stored) { return key === 'sampler' ? EMPTY_SAMPLER_SEQUENCE : EMPTY_SEQ; }
-                    return stored;
-                };
-                activePattern = { partA: getSeq('partA'), partB: getSeq('partB'), bass2: getSeq('bass2'), kick: getSeq('kick'), snare: getSeq('snare'), closedHat: getSeq('closedHat'), openHat: getSeq('openHat'), sampler: getSeq('sampler') } as Pattern;
-            }
-        }
-
-        const p = activePattern;
-        const stepTime = 60 / tempo / 4;
-
-        const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
-            const stepData = p[trackKey].steps[step];
-            if (stepData) {
-                // Probability Check
-                if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-
-                const currentBaseFreq = noteToFrequency(stepData.note) * Math.pow(2, params.pitch / 12);
-                let slideFrom: number | undefined = undefined;
-                if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
-                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
-
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
-                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams);
-                lastFreqRef.current[trackKey] = currentBaseFreq;
-            }
-        };
-
-        // Trigger BASS 2 (TB-303) - Uses independent bass2 params
-        const triggerBass2 = () => {
-            const stepData = p.bass2.steps[step];
-            if (stepData) {
-                if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                
-                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
-                
-                // Create SynthParams-like object for bass2
-                const bass2Params: SynthParams = {
-                    waveform: bass2Ref.current.waveform,
-                    pitch: bass2Ref.current.pitch,
-                    filterCutoff: bass2Ref.current.cutoff,
-                    filterResonance: bass2Ref.current.resonance,
-                    filterMode: bass2Ref.current.filterMode,
-                    attack: 0.01,
-                    decay: bass2Ref.current.decay,
-                    sustain: 0,
-                    release: 0.1,
-                    length: 0.25,
-                    volume: bass2Ref.current.volume,
-                    delayTime: 0,
-                    delayFeedback: 0,
-                    delayMix: 0,
-                };
-                
-                // Apply bass2 params to Open303Manager before playing
-                if (audioEngine.open303Engine) {
-                    const manager = audioEngine.open303Engine as any;
-                    if (manager.applyBass2Params) {
-                        manager.applyBass2Params(bass2Ref.current);
-                    }
-                }
-                
-                // @ts-expect-error - Auto-generated to fix CI build
-                audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2', noteParams);
-            }
-        };
-
-        triggerSynth('partA', synthARef.current);
-        triggerSynth('partB', synthBRef.current);
-        triggerBass2();
-
-        // Drums (Basic probability check)
-        const playDrumIfActive = (trackKey: 'kick' | 'snare' | 'closedHat' | 'openHat', sound: any, params: any) => {
-            const stepData = p[trackKey].steps[step];
-            if (stepData) {
-                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                 const noteParams = { retrigger: stepData.retrigger };
-                 audioEngine.playDrum(sound, params, time, noteParams, stepTime);
-            }
-        };
-
-        playDrumIfActive('kick', 'kick', kickRef.current);
-        playDrumIfActive('snare', 'snare', snareRef.current);
-        playDrumIfActive('openHat', 'openHat', openHatRef.current);
-        if (!p.openHat.steps[step]) playDrumIfActive('closedHat', 'closedHat', closedHatRef.current); // Only closed if open not playing
-
-        p.sampler.forEach((seq, bankIdx) => {
-            const stepData = seq.steps[step];
-            if (stepData) {
-                if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-
-                let slideFromMidi: number | undefined = undefined;
-                if (stepData.slide && lastSamplerMidiRef.current[bankIdx] !== undefined) {
-                    slideFromMidi = lastSamplerMidiRef.current[bankIdx];
-                }
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes, freeze: stepData.freeze };
-                // Combine note and chord for polyphonic playback
-                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
-                lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
-                
-                // Pass sampler voice params from the panel (using ref for latest values)
-                const voiceParams = samplerVoiceParamsRef.current;
-                const bankParams = {
-                    ...samplerRef.current[bankIdx],
-                    rootNote: voiceParams.rootNote,
-                    coarseTune: voiceParams.coarseTune,
-                    fineTune: voiceParams.fineTune,
-                    formantShift: voiceParams.formantShift,
-                    pitchAttack: voiceParams.pitchAttack,
-                    pitchDecay: voiceParams.pitchDecay,
-                    quality: voiceParams.quality,
-                    stretchMode: voiceParams.stretchMode,
-                    lockToSequencer: voiceParams.lockToSequencer
-                };
-                
-                // If lockToSequencer is enabled, quantize to active sequencer steps
-                let finalNotes = notes;
-                if (voiceParams.lockToSequencer && typeof notes === 'string') {
-                    const activeSteps = seq.steps.map((s, i) => s ? i : -1).filter(i => i !== -1);
-                    if (activeSteps.length > 0) {
-                        // Find nearest active step to quantize to
-                        const currentStepIndex = activeSteps.findIndex(s => s >= step) || 0;
-                        const targetStep = activeSteps[currentStepIndex] ?? activeSteps[0];
-                        const targetStepData = seq.steps[targetStep];
-                        if (targetStepData?.note) {
-                            finalNotes = targetStepData.chord 
-                                ? [targetStepData.note, ...targetStepData.chord] 
-                                : targetStepData.note;
-                        }
-                    }
-                }
-                
-                // @ts-expect-error - Auto-generated to fix CI build
-                audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, noteParams);
-            }
-        });
-
-        // Visual Slice Feedback for Active Bank
-        if (sliceHighlightRef.current) {
-            const bankIdx = activeSamplerBankRef.current;
-            const bankParams = samplerRef.current[bankIdx];
-
-            // Only update if we are in Phoneme Slice Mode (and bank exists)
-            if (bankParams && bankParams.sliceMode === 'phoneme') {
-                 let activeSlice = -1;
-                 // Look back to find sustaining note
-                 for (let i = step; i >= Math.max(0, step - 15); i--) {
-                     const s = patternRef.current.sampler[bankIdx]?.steps[i];
-                     if (s && s.note) {
-                         const len = s.length || 1;
-                         if (i + len > step) {
-                             if (s.sliceIndex !== undefined) {
-                                 activeSlice = s.sliceIndex;
-                             } else {
-                                 activeSlice = noteToMidi(s.note) - 60;
-                             }
-                             break;
-                         }
-                     }
-                 }
-                 sliceHighlightRef.current(activeSlice);
-            }
-        }
-
-        // Apply Automation
-        if (onParamChange) {
-            const bankIdx = activeSamplerBankRef.current;
-            const bankSeq = p.sampler[bankIdx];
-            if (bankSeq && bankSeq.automation) {
-                const stepDuration = 60 / tempo / 4; // Length of a 16th note in seconds
-
-                // Formant Shift
-                const formantVal = bankSeq.automation['formantShift']?.[step];
-                if (formantVal !== undefined && formantVal !== null) {
-                     // Map 0-1 to -12 to +12
-                     const mapped = (formantVal * 24) - 12;
-                     onParamChange(bankIdx, 'formantShift', mapped, stepDuration);
-                }
-
-                // Vibrato Depth
-                const vibVal = bankSeq.automation['vibratoDepth']?.[step];
-                if (vibVal !== undefined && vibVal !== null) {
-                     onParamChange(bankIdx, 'vibratoDepth', vibVal * 100);
-                }
-
-                // Pitch Scale (e.g. 0.5 to 2.0) - centered at 0.5 (1.0)
-                // Let's assume automation 0-1 maps to 0.5x to 2.0x?
-                // Or just keep simple for now. Formant is main goal.
-            }
-        }
-
-    }, [audioEngine, tempo, onParamChange])
+    const { onStep } = useStepHandler({
+        audioEngine,
+        tempo,
+        onParamChange,
+        currentStepRef,
+        sequencerRef,
+        patternRef,
+        lastFreqRef,
+        lastSamplerMidiRef,
+        synthARef,
+        synthBRef,
+        bass2Ref,
+        kickRef,
+        snareRef,
+        closedHatRef,
+        openHatRef,
+        samplerRef,
+        samplerVoiceParamsRef,
+        activeSamplerBankRef,
+        sliceHighlightRef,
+        isSongModeActiveRef,
+        songStructureRef,
+        songMeasureRef,
+        isFirstStepRef,
+        trackStorageRef,
+        setCurrentSongMeasure,
+    })
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
@@ -1223,15 +861,26 @@ export const App: React.FC = () => {
         }
     }, [audioEngine, activeSamplerBank, ttsPhrases]);
 
-    const handleSaveSong = async (slot: number) => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); const snapshot: SongSnapshot = { pattern, tempo, ambianceUrl, backgroundImage, params: { synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler } }; setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; }); setActiveSongSlot(slot); };
-    const loadSong = useCallback((slot: number) => { const snapshot = songStorage[slot]; if (!snapshot) return; setPattern(snapshot.pattern); setTempo(snapshot.tempo); setAmbianceUrl(snapshot.ambianceUrl); setBackgroundImage(snapshot.backgroundImage); setSynthA(snapshot.params.synthA); setSynthB(snapshot.params.synthB); setBass2(snapshot.params.bass2 ?? DEFAULT_BASS2_PARAMS); setKick(snapshot.params.kick); setSnare(snapshot.params.snare); setClosedHat(snapshot.params.closedHat); setOpenHat(snapshot.params.openHat); setSampler(snapshot.params.sampler); setActiveSongSlot(slot); synthARef.current = snapshot.params.synthA; synthBRef.current = snapshot.params.synthB; bass2Ref.current = snapshot.params.bass2 ?? DEFAULT_BASS2_PARAMS; kickRef.current = snapshot.params.kick; snareRef.current = snapshot.params.snare; closedHatRef.current = snapshot.params.closedHat; openHatRef.current = snapshot.params.openHat; samplerRef.current = snapshot.params.sampler; }, [songStorage]);
-    const getSongData = useCallback(async () => { const encodedSamples: { [k: number]: string } = {}; await Promise.all(sampleBuffers.map(async (buf, idx) => { if (buf) { const wavBlob = audioBufferToWav(buf); const b64 = await blobToBase64(wavBlob); encodedSamples[idx] = b64; } })); return { version: 1, pattern: patternRef.current, tempo: tempoRef.current, ambianceUrl, backgroundImage, params: { synthA: synthARef.current, synthB: synthBRef.current, bass2: bass2Ref.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, trackStorage: trackStorageRef.current, activeTrackSlots: activeTrackSlotsRef.current, songStructure: songStructureRef.current, embeddedSamples: encodedSamples, ttsPhrases } as SavedSongData; }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
-    const getBankData = useCallback(() => { return { type: 'bank', trackStorage }; }, [trackStorage]);
-    const getPatternData = useCallback(() => { return { type: 'pattern', pattern }; }, [pattern]);
-    // @ts-expect-error - Auto-generated to fix CI build
-    const loadCloudData = useCallback(async (data: any, type: CloudItemType) => { console.log("Loading Cloud Data:", type, data); if (type === 'song') { const songData = data as SavedSongData; if (songData.pattern) setPattern(songData.pattern); if (songData.tempo) setTempo(songData.tempo); if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl); if (songData.backgroundImage !== undefined) setBackgroundImage(songData.backgroundImage); if (songData.params) { if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; } if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; } if (songData.params.bass2) { setBass2(songData.params.bass2); bass2Ref.current = songData.params.bass2; } if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; } if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; } if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; } if (songData.params.openHat) { setOpenHat(songData.params.openHat); openHatRef.current = songData.params.openHat; } if (songData.params.sampler) { const samplerWithMode = songData.params.sampler.map(bank => ({ ...bank, mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable' })); setSampler(samplerWithMode); samplerRef.current = samplerWithMode; } } if (songData.trackStorage) setTrackStorage(songData.trackStorage as unknown as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>); if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots as unknown as Record<TrackKey, number>); if (songData.songStructure) setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]); if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) { setTtsPhrases(songData.ttsPhrases); } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) { const normalized = Array(8).fill("Hello World"); songData.ttsPhrases.forEach((phrase, idx) => { if (idx < 8) normalized[idx] = phrase || "Hello World"; }); setTtsPhrases(normalized); } else { setTtsPhrases(Array(8).fill("Hello World")); } if (songData.embeddedSamples && audioEngine) { const loadedBuffers = new Array(8).fill(null); await Promise.all(Object.entries(songData.embeddedSamples).map(async ([idx, b64]) => { try { const fetchRes = await fetch(b64); const arrayBuf = await fetchRes.arrayBuffer(); const audioBuf = await audioEngine.context.decodeAudioData(arrayBuf); const bankIdx = parseInt(idx); const bankName = `bank_${bankIdx}`; audioEngine.loadSampleToEngine(bankName, audioBuf); loadedBuffers[bankIdx] = audioBuf; } catch (e) { console.error(`Failed to load sample bank ${idx}`, e); } })); setSampleBuffers(loadedBuffers); } showToast("Song loaded!", "success"); } else if (type === 'bank') { if (data.trackStorage) { setTrackStorage(data.trackStorage); showToast("Pattern Bank loaded!", "success"); } } else if (type === 'pattern') { if (data.pattern) { setPattern(data.pattern); showToast("Pattern loaded!", "success"); } } }, [audioEngine, sampleBuffers, showToast]);
-    const exportSongToFile = useCallback(async () => { const songData = await getSongData(); const jsonStr = JSON.stringify(songData, null, 2); const blob = new Blob([jsonStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `hyphon-song-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }, [getSongData]);
-    const importSongFromFile = useCallback(() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = async (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; try { const text = await file.text(); const songData = JSON.parse(text); await loadCloudData(songData, 'song'); } catch (err) { console.error('Failed to load song:', err); showToast("Failed to load song file.", "error"); } }; input.click(); }, [loadCloudData, showToast]);
+    // Song persistence / file I/O (extracted to useSongStorage hook)
+    const {
+        getSongData, getBankData, getPatternData,
+        exportSongToFile, importSongFromFile,
+        handleSaveSong, loadSong, loadCloudData,
+        handleAISongImport, handleRbsImport,
+        isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
+    } = useSongStorage({
+        patternRef, tempoRef,
+        synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
+        trackStorageRef, activeTrackSlotsRef, songStructureRef,
+        ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases,
+        songStorage, pattern, tempo, trackStorage,
+        setPattern, setTempo, setAmbianceUrl, setBackgroundImage,
+        setSynthA, setSynthB, setBass2, setKick, setSnare, setClosedHat, setOpenHat, setSampler,
+        setTrackStorage, setActiveTrackSlots, setSongStructure, setSampleBuffers, setTtsPhrases,
+        setSongStorage, setActiveSongSlot,
+        audioEngine, showToast,
+        setIsAISongModalOpen, setIsRbsImportModalOpen,
+    });
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal }); }, [updateSynthA, updateSynthB]);
     const handleBass2Change = useCallback((id: string, val: number) => { let realVal = val; if (id === 'waveform') realVal = val > 0.5 ? 1 : 0; else if (id === 'cutoff') realVal = val * 8000; else if (id === 'resonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'pitch') realVal = Math.floor(val * 48 - 24); updateBass2({ [id]: realVal }); }, [updateBass2]);
@@ -1400,173 +1049,6 @@ export const App: React.FC = () => {
         }
     }, [handleGenerateTTS, ttsPhrases, selection, setPattern, setSampler, updateStorageForTrack, showToast]);
 
-    // Handle AI song import - converts AI format to Hyphon and loads it
-    const handleAISongImport = useCallback(async (song: SavedSongData, aiData: AISongData) => {
-        setIsImportingAISong(true);
-        setAiImportProgress(0);
-        setAiImportError(null);
-        
-        try {
-            // Stage 1: Parsing (handled in modal, but show in overlay)
-            setAiImportStage('parsing');
-            setAiImportProgress(10);
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // Stage 2: Validating
-            setAiImportStage('validating');
-            setAiImportProgress(25);
-            await new Promise(resolve => setTimeout(resolve, 150));
-            
-            // Stage 3: Converting
-            setAiImportStage('converting');
-            setAiImportProgress(40);
-            await new Promise(resolve => setTimeout(resolve, 150));
-            
-            // Stage 4: Attempt cloud upload (optional, can fail gracefully)
-            setAiImportStage('uploading');
-            setAiImportProgress(60);
-            
-            // Try to save to cloud storage if available
-            try {
-                const { CloudStorage } = await import('./services/CloudStorage');
-                // @ts-expect-error - Auto-generated to fix CI build
-                const cloud = CloudStorage.getInstance();
-                if (cloud.isAvailable()) {
-                    await cloud.save('song', {
-                        name: aiData.meta.title,
-                        data: song,
-                        metadata: {
-                            title: aiData.meta.title,
-                            author: aiData.meta.author,
-                            generator: aiData.meta.generator,
-                            importedAt: new Date().toISOString()
-                        }
-                    });
-                    setAiImportProgress(80);
-                }
-            } catch (cloudError) {
-                // Cloud upload failed but we'll continue with local import
-                console.warn('Cloud upload failed:', cloudError);
-                // @ts-expect-error - Auto-generated to fix CI build
-                showToast('Song imported locally (cloud upload failed)', 'info');
-                setAiImportProgress(80);
-            }
-            
-            // Stage 5: Loading into sequencer
-            setAiImportStage('loading');
-            setAiImportProgress(90);
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-            // Load the song data using existing loadCloudData logic
-            loadCloudData(song, 'song');
-            
-            // Complete
-            setAiImportProgress(100);
-            setAiImportStage('complete');
-            
-            showToast(`✨ Imported "${aiData.meta.title}" by ${aiData.meta.author}`, 'success');
-            
-            // Close modal after brief delay on success
-            setTimeout(() => {
-                setIsAISongModalOpen(false);
-                setIsImportingAISong(false);
-                setAiImportStage(null);
-                setAiImportProgress(0);
-            }, 1500);
-            
-        } catch (error) {
-            console.error('AI Song Import Error:', error);
-            setAiImportStage('error');
-            
-            // Provide specific error messages based on error type
-            let errorMessage = 'Import failed: Unknown error';
-            if (error instanceof Error) {
-                if (error.message.includes('JSON') || error.message.includes('parse')) {
-                    errorMessage = `Invalid JSON syntax: ${error.message}`;
-                } else if (error.message.includes('validation') || error.message.includes('required')) {
-                    errorMessage = `Song validation failed: ${error.message}`;
-                } else if (error.message.includes('network') || error.message.includes('fetch')) {
-                    errorMessage = 'Network error - song saved locally';
-                } else {
-                    errorMessage = `Import failed: ${error.message}`;
-                }
-            }
-            
-            setAiImportError(errorMessage);
-            showToast(errorMessage, 'error');
-            
-            // Keep overlay visible for a moment so user can see error
-            setTimeout(() => {
-                setIsImportingAISong(false);
-                setAiImportStage(null);
-                setAiImportError(null);
-            }, 3000);
-            
-            // Re-throw so modal can handle retry if needed
-            throw error;
-        }
-    }, [loadCloudData, showToast]);
-
-    // Handle RBS import - converts HyphonSong to SavedSongData and loads it
-    const handleRbsImport = useCallback((song: import('./importers/rbs').HyphonSong) => {
-        // Convert HyphonSong to SavedSongData format
-        const savedSong: SavedSongData = {
-            version: 1,
-            pattern: song.pattern,
-            tempo: song.tempo,
-            ambianceUrl: '',
-            backgroundImage: '',
-            params: {
-                synthA: song.params.synthA,
-                synthB: song.params.synthB,
-                kick: song.params.kick,
-                snare: song.params.snare,
-                closedHat: song.params.closedHat,
-                openHat: song.params.openHat,
-                // @ts-expect-error - Auto-generated to fix CI build
-                sampler: song.params.sampler || Array.from({ length: 8 }, () => ({
-                    sampleName: 'bank_0',
-                    playbackSpeed: 1.0,
-                    volume: 1.0,
-                    filterCutoff: 20000,
-                    filterResonance: 0,
-                    drive: 0,
-                    delaySend: 0,
-                    mode: 'loop',
-                    grainSize: 4410
-                }))
-            },
-            trackStorage: {
-                partA: [song.pattern.partA, ...Array(7).fill(null)],
-                partB: [song.pattern.partB, ...Array(7).fill(null)],
-                bass2: [song.pattern.bass2, ...Array(7).fill(null)],
-                kick: [song.pattern.kick, ...Array(7).fill(null)],
-                snare: [song.pattern.snare, ...Array(7).fill(null)],
-                closedHat: [song.pattern.closedHat, ...Array(7).fill(null)],
-                openHat: [song.pattern.openHat, ...Array(7).fill(null)],
-                sampler: [song.pattern.sampler, ...Array(7).fill(null)]
-            },
-            activeTrackSlots: {
-                partA: 0, partB: 0, bass2: 0, kick: 0,
-                snare: 0, closedHat: 0, openHat: 0, sampler: 0
-            },
-            songStructure: Array(16).fill(null).map(() => ({
-                partA: 0, partB: 0, bass2: 0, kick: 0,
-                snare: 0, closedHat: 0, openHat: 0, sampler: null
-            })),
-            ttsPhrases: Array(8).fill('Hello World')
-        };
-        
-        // Also set bass2 params if they exist
-        if (song.params.bass2) {
-            setBass2(song.params.bass2);
-            bass2Ref.current = song.params.bass2;
-        }
-        
-        loadCloudData(savedSong, 'song');
-        setIsRbsImportModalOpen(false);
-        showToast(`Imported "${song.metadata.name}" from RBS`, 'success');
-    }, [loadCloudData, showToast]);
 
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
