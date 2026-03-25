@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, memo, useCallback } from 'react';
+import React, { useRef, useState, useEffect, memo, useCallback, useMemo } from 'react';
 import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
@@ -173,106 +173,41 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const updateParamRef = useRef(updateParam);
     useEffect(() => { updateParamRef.current = updateParam; });
 
-    // Stable Handlers for Knobs to prevent re-renders
-    const handleSpeedChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'playbackSpeed', v);
-        else updateParamRef.current('playbackSpeed', v);
+    // Stable Handlers for Knobs - factory pattern to avoid 20 identical useCallback blocks
+    const paramHandlers = useMemo(() => {
+        const paramNames = [
+            'playbackSpeed', 'volume', 'filterCutoff', 'drive',
+            'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
+            'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
+            'freezeLfoRate', 'freezeLfoDepth', 'attack', 'decay',
+            'sustain', 'release', 'choir', 'glitchChance'
+        ] as const;
+        return Object.fromEntries(paramNames.map(p => [p, (v: number) => {
+            if (onParamChange) onParamChange(activeBankIdx, p, v);
+            else updateParamRef.current(p as any, v);
+        }])) as Record<typeof paramNames[number], (v: number) => void>;
     }, [activeBankIdx, onParamChange]);
 
-    const handleVolumeChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'volume', v);
-        else updateParamRef.current('volume', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleFilterChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'filterCutoff', v);
-        else updateParamRef.current('filterCutoff', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleDriveChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'drive', v);
-        else updateParamRef.current('drive', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleTimeRatioChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'timeRatio', v);
-        else updateParamRef.current('timeRatio', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handlePitchScaleChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'pitchScale', v);
-        else updateParamRef.current('pitchScale', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleFormantShiftChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'formantShift', v);
-        else updateParamRef.current('formantShift', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleVibratoDepthChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'vibratoDepth', v);
-        else updateParamRef.current('vibratoDepth', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleTremoloRateChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'tremoloRate', v);
-        else updateParamRef.current('tremoloRate', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleTremoloDepthChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'tremoloDepth', v);
-        else updateParamRef.current('tremoloDepth', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleBreathIntensityChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'breathIntensity', v);
-        else updateParamRef.current('breathIntensity', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleFreezeChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'freeze', v);
-        else updateParamRef.current('freeze', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleFreezeLfoRateChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'freezeLfoRate', v);
-        else updateParamRef.current('freezeLfoRate', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleFreezeLfoDepthChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'freezeLfoDepth', v);
-        else updateParamRef.current('freezeLfoDepth', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleAttackChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'attack', v);
-        else updateParamRef.current('attack', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleDecayChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'decay', v);
-        else updateParamRef.current('decay', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleSustainChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'sustain', v);
-        else updateParamRef.current('sustain', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleReleaseChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'release', v);
-        else updateParamRef.current('release', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleChoirChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'choir', v);
-        else updateParamRef.current('choir', v);
-    }, [activeBankIdx, onParamChange]);
-
-    const handleGlitchChange = useCallback((v: number) => {
-        if (onParamChange) onParamChange(activeBankIdx, 'glitchChance', v);
-        else updateParamRef.current('glitchChance', v);
-    }, [activeBankIdx, onParamChange]);
+    const handleSpeedChange = paramHandlers.playbackSpeed;
+    const handleVolumeChange = paramHandlers.volume;
+    const handleFilterChange = paramHandlers.filterCutoff;
+    const handleDriveChange = paramHandlers.drive;
+    const handleTimeRatioChange = paramHandlers.timeRatio;
+    const handlePitchScaleChange = paramHandlers.pitchScale;
+    const handleFormantShiftChange = paramHandlers.formantShift;
+    const handleVibratoDepthChange = paramHandlers.vibratoDepth;
+    const handleTremoloRateChange = paramHandlers.tremoloRate;
+    const handleTremoloDepthChange = paramHandlers.tremoloDepth;
+    const handleBreathIntensityChange = paramHandlers.breathIntensity;
+    const handleFreezeChange = paramHandlers.freeze;
+    const handleFreezeLfoRateChange = paramHandlers.freezeLfoRate;
+    const handleFreezeLfoDepthChange = paramHandlers.freezeLfoDepth;
+    const handleAttackChange = paramHandlers.attack;
+    const handleDecayChange = paramHandlers.decay;
+    const handleSustainChange = paramHandlers.sustain;
+    const handleReleaseChange = paramHandlers.release;
+    const handleChoirChange = paramHandlers.choir;
+    const handleGlitchChange = paramHandlers.glitchChance;
 
     // Phase 1: Vocal Workstation - Pitch Control Handlers
     const handlePitchControlChange = useCallback((key: keyof PitchControlValues, value: number | string | boolean) => {
