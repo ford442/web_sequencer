@@ -79,6 +79,7 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
                 <button
                     onClick={() => onSelect(null)}
                     aria-label="Clear pattern from step"
+                    title="Clear pattern from step"
                     className="w-full mt-2 py-1 bg-red-900/40 text-red-400 border border-red-900/60 rounded text-[10px] font-bold hover:bg-red-900/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                     CLEAR
