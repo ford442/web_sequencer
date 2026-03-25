@@ -12,7 +12,7 @@ import { SamplerVoicePanel } from './components/SamplerVoicePanel';
 import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
-import { LyricMapper } from './components/LyricMapper';
+import { LyricTrack } from './components/LyricTrack';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { VoiceEditor } from './components/VoiceEditor';
 import { SamplerPanel } from './components/SamplerPanel';
@@ -69,7 +69,7 @@ export const App: React.FC = () => {
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
     const [isAISongModalOpen, setIsAISongModalOpen] = useState(false);
     const [isRbsImportModalOpen, setIsRbsImportModalOpen] = useState(false);
-    const [isLyricMapperOpen, setIsLyricMapperOpen] = useState(false);
+    const [isLyricTrackVisible, setIsLyricTrackVisible] = useState(false);
     const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -994,14 +994,14 @@ export const App: React.FC = () => {
             updateStorageForTrack('openHat', newOH);
 
             showToast("Drumkit generated from text!", "success");
-            setIsLyricMapperOpen(false);
+            setIsLyricTrackVisible(false);
         } catch(e) {
             console.error(e);
             showToast("Failed to generate drums.", "error");
         }
     }, [handleGenerateTTS, audioEngine, updateStorageForTrack, showToast]);
 
-    const handleLyricApply = useCallback(async (text: string, mapToSelection: boolean) => {
+    const handleLyricApply = useCallback(async (text: string) => {
         try {
             await handleGenerateTTS(text);
 
@@ -1010,46 +1010,47 @@ export const App: React.FC = () => {
             newPhrases[activeSamplerBankRef.current] = text;
             setTtsPhrases(newPhrases);
 
-            if (mapToSelection && selection && selection.trackKey === 'sampler') {
-                const { startStep, endStep } = selection;
-                const low = Math.min(startStep, endStep);
-                const high = Math.max(startStep, endStep);
+            // Global Lyric Track Distribution: Map to all active steps in the current bank
+            const prev = patternRef.current;
+            const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+            const bankIdx = activeSamplerBankRef.current;
+            const bank = copy.sampler[bankIdx];
 
-                const prev = patternRef.current;
-                const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
-                const bankIdx = activeSamplerBankRef.current;
-                const bank = copy.sampler[bankIdx];
-
-                let noteIndex = 0;
-                for (let i = low; i <= high; i++) {
-                    if (!bank.steps[i]) {
-                         bank.steps[i] = { note: 'C4', velocity: 1, length: 1 };
-                    }
-                    if (bank.steps[i]) {
-                         bank.steps[i]!.sliceIndex = noteIndex;
-                         noteIndex++;
-                    }
+            let noteIndex = 0;
+            // Iterate through all 32 steps
+            for (let i = 0; i < 32; i++) {
+                // If there's an active step (note exists and velocity > 0)
+                if (bank.steps[i] && bank.steps[i]!.velocity > 0) {
+                     bank.steps[i]!.sliceIndex = noteIndex;
+                     noteIndex++;
                 }
-
-                setPattern(copy);
-                updateStorageForTrack('sampler', copy.sampler);
-
-                // Update Sampler Params to enable slice mode
-                setSampler(prevParams => {
-                    const next = [...prevParams];
-                    if (next[bankIdx]) {
-                        next[bankIdx] = { ...next[bankIdx], sliceMode: 'phoneme' };
-                    }
-                    samplerRef.current = next;
-                    return next;
-                });
-
-                showToast("Lyrics Mapped!", "success");
             }
+
+            setPattern(copy);
+            updateStorageForTrack('sampler', copy.sampler);
+
+            // Update Sampler Params to enable slice mode
+            setSampler(prevParams => {
+                const next = [...prevParams];
+                if (next[bankIdx]) {
+                    next[bankIdx] = { ...next[bankIdx], sliceMode: 'phoneme' };
+                }
+                samplerRef.current = next;
+                return next;
+            });
+
+            if (noteIndex > 0) {
+                showToast(`Mapped ${noteIndex} syllables across Sampler Bank ${bankIdx + 1}!`, "success");
+            } else {
+                showToast("Generated TTS! (No notes found to map syllables to)", "success");
+            }
+
+            setIsLyricTrackVisible(false);
         } catch (e) {
-            // Error handled in handleGenerateTTS
+            console.error(e);
+            showToast("Failed to generate or map lyrics.", "error");
         }
-    }, [handleGenerateTTS, ttsPhrases, selection, setPattern, setSampler, updateStorageForTrack, showToast]);
+    }, [handleGenerateTTS, ttsPhrases, updateStorageForTrack, showToast]);
 
 
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
@@ -1533,7 +1534,6 @@ export const App: React.FC = () => {
             <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
             {/* @ts-expect-error - Auto-generated to fix CI build */}
             <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
-            <LyricMapper isOpen={isLyricMapperOpen} onClose={() => setIsLyricMapperOpen(false)} onApply={handleLyricApply} onTextToDrum={handleTextToDrums} initialText={ttsPhrases[activeSamplerBank] || ""} isGenerating={isGenerating} hasSelection={!!selection && selection.trackKey === 'sampler'} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
             {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
@@ -1541,6 +1541,14 @@ export const App: React.FC = () => {
             {/* Standard 2D Layout */}
             {transportToolbarNode}
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
+
+            <LyricTrack
+                isVisible={isLyricTrackVisible}
+                initialText={ttsPhrases[activeSamplerBank] || ""}
+                isGenerating={isGenerating}
+                onApply={handleLyricApply}
+                onClose={() => setIsLyricTrackVisible(false)}
+            />
 
             <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto pb-12">
                 {/* Sequencer — top section */}
@@ -1596,10 +1604,10 @@ export const App: React.FC = () => {
 
                     {/* LYRICS Button */}
                     <button 
-                        onClick={() => setIsLyricMapperOpen(!isLyricMapperOpen)} 
-                        aria-pressed={isLyricMapperOpen} 
-                        aria-label="Open Lyric Mapper" 
-                        className={`h-6 px-2.5 rounded-md font-orbitron text-[10px] font-bold tracking-wide transition-all ${isLyricMapperOpen ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'bg-zinc-800 text-cyan-400 border border-zinc-700 hover:bg-zinc-700'}`}
+                        onClick={() => setIsLyricTrackVisible(!isLyricTrackVisible)}
+                        aria-pressed={isLyricTrackVisible}
+                        aria-label="Toggle Global Lyric Track"
+                        className={`h-6 px-2.5 rounded-md font-orbitron text-[10px] font-bold tracking-wide transition-all ${isLyricTrackVisible ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'bg-zinc-800 text-cyan-400 border border-zinc-700 hover:bg-zinc-700'}`}
                     >
                         LYRICS
                     </button>
