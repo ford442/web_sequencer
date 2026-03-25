@@ -5,6 +5,7 @@ import { LadderButton } from './sampler/LadderButton';
 import { VerticalKnob } from './sampler/VerticalKnob';
 import { HSlider } from './sampler/HSlider';
 import { HarmonizerPopover } from './sampler/HarmonizerPopover';
+import { HardwareModule } from './HardwareModule';
 
 interface SamplerVoicePanelProps {
     title: string;

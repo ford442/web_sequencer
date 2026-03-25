@@ -359,10 +359,11 @@ export const App: React.FC = () => {
         setCurrentSongMeasure,
     })
 
-    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
-    useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
     const sequencerRef = useRef<MainSequencerHandle>(null);
     const currentStepRef = useRef(-1);
+
+    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
+    useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
 
     useEffect(() => {
         if (!schedPlaying) {
