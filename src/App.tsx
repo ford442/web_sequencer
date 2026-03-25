@@ -331,6 +331,9 @@ export const App: React.FC = () => {
     const songMeasureRef = useRef(0);
     const isFirstStepRef = useRef(true);
 
+    const sequencerRef = useRef<MainSequencerHandle>(null);
+    const currentStepRef = useRef(-1);
+
     const { onStep } = useStepHandler({
         audioEngine,
         tempo,
@@ -361,8 +364,6 @@ export const App: React.FC = () => {
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
-    const sequencerRef = useRef<MainSequencerHandle>(null);
-    const currentStepRef = useRef(-1);
 
     useEffect(() => {
         if (!schedPlaying) {
@@ -868,6 +869,7 @@ export const App: React.FC = () => {
         handleSaveSong, loadSong, loadCloudData,
         handleAISongImport, handleRbsImport,
         isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
+        setIsImportingAISong, setAiImportStage, setAiImportProgress,
     } = useSongStorage({
         patternRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,

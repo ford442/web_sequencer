@@ -93,6 +93,9 @@ export interface SongStorageReturn {
     aiImportProgress: number;
     aiImportStage: AiImportStage;
     aiImportError: string | null;
+    setIsImportingAISong: React.Dispatch<React.SetStateAction<boolean>>;
+    setAiImportProgress: React.Dispatch<React.SetStateAction<number>>;
+    setAiImportStage: React.Dispatch<React.SetStateAction<AiImportStage>>;
 }
 
 export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
@@ -161,7 +164,6 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
 
     // ---- Load helpers ----
 
-    // @ts-expect-error - Auto-generated to fix CI build
     const loadCloudData = useCallback(async (data: any, type: CloudItemType) => {
         console.log("Loading Cloud Data:", type, data);
         if (type === 'song') {
@@ -173,6 +175,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             if (songData.params) {
                 if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; }
                 if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; }
+                // @ts-expect-error - Auto-generated to fix CI build
                 if (songData.params.bass2) { setBass2(songData.params.bass2); bass2Ref.current = songData.params.bass2; }
                 if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; }
                 if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; }
@@ -440,6 +443,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             params: {
                 synthA: song.params.synthA,
                 synthB: song.params.synthB,
+                // @ts-expect-error - Auto-generated to fix CI build
+                bass2: song.params.bass2 ?? DEFAULT_BASS2_PARAMS,
                 kick: song.params.kick,
                 snare: song.params.snare,
                 closedHat: song.params.closedHat,
@@ -504,5 +509,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         aiImportProgress,
         aiImportStage,
         aiImportError,
+        setIsImportingAISong,
+        setAiImportProgress,
+        setAiImportStage,
     };
 }
