@@ -493,7 +493,6 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                       className="absolute top-0 bottom-0 bg-gradient-to-r from-purple-500/50 via-transparent to-cyan-500/50"
                       style={{ 
                         right: selectedPhoneme.pitchBend >= 0 ? `${50 - (selectedPhoneme.pitchBend / 200) * 50}%` : '50%',
-                        // @ts-expect-error - Auto-generated to fix CI build
                         left: selectedPhoneme.pitchBend <= 0 ? `${50 + (selectedPhoneme.pitchBend / 200) * 50}%` : '50%'
                       }}
                     />
