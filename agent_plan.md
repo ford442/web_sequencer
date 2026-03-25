@@ -48,7 +48,7 @@
 * **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
-* **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes.
+* [x] **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes. (Implemented via global Lyric Track lane and `sliceIndex` auto-mapping!)
 * **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * [x] **Idea:** "Per-Step Reverse" - Allow reversing the TTS sample on a per-step basis for creative rhythmic effects. (Implemented in Sampler phoneme slicing!)
@@ -64,6 +64,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-06-11] - Implemented Global Lyric Track: Replaced `LyricMapper` dialog with a dedicated `LyricTrack` component in `App.tsx`. Text generation now automatically maps syllables/words to consecutive active notes in the sequence using `sliceIndex`, fulfilling the Lyric Track Innovation Lab idea.
 * [Date] - Implemented Dynamic Tremolo Effect: Exposed Tremolo Rate and Depth knobs to the `SamplerPanel` UI and mapped them through `useAudioEngine.ts` and `SingingVoice.ts` down to the `RubberBandProcessor` AudioWorklet to allow dynamic amplitude modulation for rhythmic pulsing effects on vocals.
 * [2026-06-10] - Implemented Vocal Envelope Shaper: Upgraded `ExpressiveVoiceProcessor` to support a full ADSR (Attack, Decay, Sustain, Release) envelope for TTS samples. Added Decay and Sustain knobs to the `SamplerPanel` UI and mapped parameters via `SingingVoice` and `useAudioEngine`. Added a new Innovation Lab task for Tremolo Effect.
 * [2026-06-09] - Implemented Filter Envelope Mod: Added `envMod` control to `NoteSelector` and wired it through `App.tsx` and `audioPlayback.ts` to allow step-sequenced filter envelope modulation amounts.
