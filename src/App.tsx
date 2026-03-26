@@ -1597,6 +1597,7 @@ export const App: React.FC = () => {
                         >
                             <option value="formantShift">Formant</option>
                             <option value="vibratoDepth">Vibrato</option>
+                            <option value="chordInversion">Chord Inversion</option>
                         </select>
                     )}
 
