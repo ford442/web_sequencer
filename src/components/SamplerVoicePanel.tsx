@@ -1,12 +1,10 @@
-// @ts-expect-error - Auto-generated to fix CI build
-import { Harmonizer, type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../engines/Harmonizer';
-import React, { useState, useCallback } from 'react';
+import { type HarmonizerConfig } from '../engines/Harmonizer';
+import React, { useState } from 'react';
 import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { LadderButton } from './sampler/LadderButton';
 import { VerticalKnob } from './sampler/VerticalKnob';
 import { HSlider } from './sampler/HSlider';
 import { HarmonizerPopover } from './sampler/HarmonizerPopover';
-import { HardwareModule } from './HardwareModule';
 
 interface SamplerVoicePanelProps {
     title: string;
