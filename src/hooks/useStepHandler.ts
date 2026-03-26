@@ -3,8 +3,28 @@ import type { Pattern, SynthParams, Bass2Params, SamplerParams, AudioEngine, Par
 import type { MainSequencerHandle } from '../components/MainSequencer'
 import type { TrackKey } from '../constants/appDefaults'
 import { noteToFrequency } from '../constants'
-import { noteToMidi } from '../utils/musicTheory'
+import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults'
+
+function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
+    const notesArray = Array.isArray(notes) ? notes : [notes];
+    if (notesArray.length <= 1) return notes; // No inversions for single notes
+
+    const maxInversions = notesArray.length - 1;
+    const numInversions = Math.round(inversionVal * maxInversions);
+
+    if (numInversions === 0) return notes;
+
+    const midiNotes = notesArray.map(noteToMidi);
+    midiNotes.sort((a, b) => a - b);
+
+    for (let i = 0; i < numInversions; i++) {
+        const lowest = midiNotes.shift()!;
+        midiNotes.push(lowest + 12);
+    }
+
+    return midiNotes.map(midiToNote);
+}
 
 export interface UseStepHandlerOptions {
     audioEngine: AudioEngine | null;
@@ -119,7 +139,10 @@ export const useStepHandler = ({
                 const currentBaseFreq = noteToFrequency(stepData.note) * Math.pow(2, params.pitch / 12);
                 let slideFrom: number | undefined = undefined;
                 if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
-                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+
+                const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+                const invVal = activePattern[trackKey].automation?.['chordInversion']?.[step] ?? 0;
+                const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
                 audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams);
@@ -133,7 +156,10 @@ export const useStepHandler = ({
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
-                const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+                const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+                const invVal = activePattern.bass2.automation?.['chordInversion']?.[step] ?? 0;
+                const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
+
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
 
                 // Create SynthParams-like object for bass2
