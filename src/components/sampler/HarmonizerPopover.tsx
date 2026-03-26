@@ -111,12 +111,15 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = ({ isOpen, on
                 <div className="p-4 space-y-4">
                     {/* Voice Count - Toggle switch style */}
                     <div className="space-y-2">
-                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Voices</span>
-                        <div className="flex gap-2 bg-zinc-950/50 p-1 rounded-lg border border-zinc-800">
+                        <span id="voice-count-label" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Voices</span>
+                        <div role="radiogroup" aria-labelledby="voice-count-label" className="flex gap-2 bg-zinc-950/50 p-1 rounded-lg border border-zinc-800">
                             {[2, 3, 4].map(count => (
                                 <button
                                     key={count}
+                                    role="radio"
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
+                                    aria-label={`${count} Voices`}
+                                    aria-checked={localConfig.voiceCount === count}
                                     className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${
                                         localConfig.voiceCount === count
                                             ? 'text-black shadow-lg'
@@ -135,12 +138,15 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = ({ isOpen, on
 
                     {/* Harmony Type - 3D button style */}
                     <div className="space-y-2">
-                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Type</span>
-                        <div className="grid grid-cols-2 gap-1.5">
+                        <span id="harmony-type-label" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Type</span>
+                        <div role="radiogroup" aria-labelledby="harmony-type-label" className="grid grid-cols-2 gap-1.5">
                             {harmonyTypes.map(({ value, label }) => (
                                 <button
                                     key={value}
+                                    role="radio"
                                     onClick={() => handleHarmonyTypeChange(value)}
+                                    aria-label={`${label} Harmony`}
+                                    aria-checked={localConfig.harmonyType === value}
                                     className={`py-1.5 rounded-md text-[9px] font-bold transition-all relative overflow-hidden ${
                                         localConfig.harmonyType === value
                                             ? 'text-white'
