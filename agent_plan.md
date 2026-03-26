@@ -44,8 +44,9 @@
 
 ## 🧠 Innovation Lab (The "Dream" Log)
 * [x] **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time. (Implemented in Sampler and RubberBandProcessor via a 100ms looping Hann window!)
-* **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A.
+* [x] **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A. (Implemented via automation track logic in `useStepHandler.ts` and `App.tsx`!)
 * **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
+* **Idea:** "Custom Sample Slicing UI" - Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
 * [x] **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes. (Implemented via global Lyric Track lane and `sliceIndex` auto-mapping!)
@@ -64,6 +65,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-06-12] - Implemented Chord Evolving: Added 'Chord Inversion' automation parameter allowing users to draw curves that dynamically shift the inversions of chords per step for synth and bass tracks, fulfilling the Chord Evolving Innovation Lab idea.
 * [2026-06-11] - Implemented Global Lyric Track: Replaced `LyricMapper` dialog with a dedicated `LyricTrack` component in `App.tsx`. Text generation now automatically maps syllables/words to consecutive active notes in the sequence using `sliceIndex`, fulfilling the Lyric Track Innovation Lab idea.
 * [Date] - Implemented Dynamic Tremolo Effect: Exposed Tremolo Rate and Depth knobs to the `SamplerPanel` UI and mapped them through `useAudioEngine.ts` and `SingingVoice.ts` down to the `RubberBandProcessor` AudioWorklet to allow dynamic amplitude modulation for rhythmic pulsing effects on vocals.
 * [2026-06-10] - Implemented Vocal Envelope Shaper: Upgraded `ExpressiveVoiceProcessor` to support a full ADSR (Attack, Decay, Sustain, Release) envelope for TTS samples. Added Decay and Sustain knobs to the `SamplerPanel` UI and mapped parameters via `SingingVoice` and `useAudioEngine`. Added a new Innovation Lab task for Tremolo Effect.
