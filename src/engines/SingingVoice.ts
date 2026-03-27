@@ -688,6 +688,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set formant LFO rate in Hz.
+     * @param rate LFO rate in Hz
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFormantLfoRate(rate: number, time?: number): void {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            this.formantShifter.setLfoRate(rate, time);
+        }
+    }
+
+    /**
+     * Set formant LFO depth.
+     * @param depth LFO depth (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFormantLfoDepth(depth: number, time?: number): void {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            this.formantShifter.setLfoDepth(depth, time);
+        }
+    }
+
+    /**
      * Set formant shift in semitones.
      * @param semitones Formant shift in semitones (e.g., -12 to 12)
      * @param time Optional time to apply the change (default: now)
