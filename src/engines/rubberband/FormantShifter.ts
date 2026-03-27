@@ -92,6 +92,12 @@ export class FormantShifter {
     private sourceFormants: FormantFrequencies;
     private currentShift: FormantShift | null = null;
     
+    // LFO components
+    private lfo: OscillatorNode | null = null;
+    private lfoGain: GainNode | null = null;
+    private lfoRate: number = 0;
+    private lfoDepth: number = 0;
+
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
         this.sourceFormants = config.sourceFormants ?? VOICE_FORMANTS.default;
@@ -156,6 +162,26 @@ export class FormantShifter {
             filters[i].connect(filters[i + 1]);
         }
         
+        // Create LFO if createOscillator is available (tests might use mock AudioContext)
+        if (typeof this.audioContext.createOscillator === 'function') {
+            this.lfo = this.audioContext.createOscillator();
+            this.lfo.type = 'sine';
+            this.lfo.frequency.value = this.lfoRate;
+
+            this.lfoGain = this.audioContext.createGain();
+            this.lfoGain.gain.value = this.lfoDepth * 1200; // Map depth (0-1) to cents (up to 1 octave)
+
+            this.lfo.connect(this.lfoGain);
+
+            // Connect LFO to the detune param of the peaking filters
+            // Only connect to the boosting filters (the first half of the array), not the compensatory ones
+            for (let i = 0; i < formants.length; i++) {
+                this.lfoGain.connect(filters[i].detune);
+            }
+
+            this.lfo.start();
+        }
+
         this.filterNodes = filters;
         this.currentShift = shift;
         return filters;
@@ -176,6 +202,34 @@ export class FormantShifter {
         return this.createFilterChain(shift);
     }
     
+    /**
+     * Set the LFO rate for formant shifting.
+     * @param rate LFO rate in Hz
+     * @param time Optional time to apply the change
+     */
+    setLfoRate(rate: number, time?: number): void {
+        this.lfoRate = rate;
+        if (this.lfo) {
+            const t = time || this.audioContext.currentTime;
+            this.lfo.frequency.cancelScheduledValues(t);
+            this.lfo.frequency.setValueAtTime(rate, t);
+        }
+    }
+
+    /**
+     * Set the LFO depth for formant shifting.
+     * @param depth LFO depth (0-1)
+     * @param time Optional time to apply the change
+     */
+    setLfoDepth(depth: number, time?: number): void {
+        this.lfoDepth = depth;
+        if (this.lfoGain) {
+            const t = time || this.audioContext.currentTime;
+            this.lfoGain.gain.cancelScheduledValues(t);
+            this.lfoGain.gain.setValueAtTime(depth * 1200, t); // Map 0-1 to 0-1200 cents
+        }
+    }
+
     /**
      * Update an existing filter chain with new shift values.
      * More efficient than recreating the entire chain.
@@ -322,6 +376,16 @@ export class FormantShifter {
         this.filterNodes.forEach(filter => filter.disconnect());
         this.filterNodes = [];
         this.currentShift = null;
+
+        if (this.lfo) {
+            this.lfo.stop();
+            this.lfo.disconnect();
+            this.lfo = null;
+        }
+        if (this.lfoGain) {
+            this.lfoGain.disconnect();
+            this.lfoGain = null;
+        }
     }
     
     /**

@@ -77,6 +77,8 @@ export interface SamplerBankParams {
   freeze?: number;         // Freeze/smear amount (0-1)
   freezeLfoRate?: number;  // Freeze LFO rate (Hz)
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
+  formantLfoRate?: number; // Formant LFO rate (Hz)
+  formantLfoDepth?: number; // Formant LFO depth (0-1)
   attack?: number;         // Amplitude envelope attack time (seconds)
   decay?: number;          // Amplitude envelope decay time (seconds)
   sustain?: number;        // Amplitude envelope sustain level (0-1)
@@ -153,6 +155,8 @@ export interface Note {
   reverse?: boolean; // Play sample in reverse (Sampler only)
   sliceIndex?: number; // Specific phoneme/slice index to trigger (Sampler only)
   freeze?: number; // Spectral freeze/smear amount (0-1) (Sampler only)
+  formantLfoRate?: number; // Formant LFO rate (Hz)
+  formantLfoDepth?: number; // Formant LFO depth (0-1)
   filterCutoff?: number; // 0-1, exponentially mapped to Hz
   filterResonance?: number; // 0-1, linearly mapped to Q factor
   envMod?: number; // 0-1, envelope modulation override for filters
