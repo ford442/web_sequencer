@@ -61,10 +61,13 @@
 * **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds.
 * [x] **Idea:** "Per-Step Filter & Resonance" - Allow sequence steps to override cutoff and resonance for rhythmic acid-style filtering of TTS samples. (Implemented!)
 * [x] **Idea:** "Filter Envelope Mod" - Allow the sequence steps to have an envelope mod amount that specifically shapes the filter envelope per step. (Implemented!)
+* [x] **Idea:** "Vocal Formant LFO" - Introduce a Formant LFO with rate and depth controls for dynamic rhythmic Wah-Wah effects on TTS vowels. (Implemented in FormantShifter and SamplerPanel!)
+* **Idea:** "Step-Sequenced Formant LFO" - Allow individual steps to override the global Formant LFO rate and depth for highly articulated rhythmic sequences.
 
 ---
 
 ## 📜 Changelog
+* [2026-06-13] - Implemented Vocal Formant LFO: Added `formantLfoRate` and `formantLfoDepth` to `FormantShifter.ts`, routing an internal oscillator to the detune parameters of the peaking filters to create a rhythmic Wah-Wah effect. Added UI controls to `SamplerPanel.tsx`. Fulfills the "Vocal Formant LFO" Innovation Lab idea. Added new idea: Step-Sequenced Formant LFO.
 * [2026-06-12] - Implemented Chord Evolving: Added 'Chord Inversion' automation parameter allowing users to draw curves that dynamically shift the inversions of chords per step for synth and bass tracks, fulfilling the Chord Evolving Innovation Lab idea.
 * [2026-06-11] - Implemented Global Lyric Track: Replaced `LyricMapper` dialog with a dedicated `LyricTrack` component in `App.tsx`. Text generation now automatically maps syllables/words to consecutive active notes in the sequence using `sliceIndex`, fulfilling the Lyric Track Innovation Lab idea.
 * [Date] - Implemented Dynamic Tremolo Effect: Exposed Tremolo Rate and Depth knobs to the `SamplerPanel` UI and mapped them through `useAudioEngine.ts` and `SingingVoice.ts` down to the `RubberBandProcessor` AudioWorklet to allow dynamic amplitude modulation for rhythmic pulsing effects on vocals.

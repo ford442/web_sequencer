@@ -145,6 +145,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         tremoloRate: 0.1,
         breathIntensity: 0,
         freeze: 0,
+        formantLfoRate: 0,
+        formantLfoDepth: 0,
         attack: 0.05,
         decay: 0.1,
         sustain: 1.0,
@@ -179,7 +181,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoRate', 'freezeLfoDepth', 'attack', 'decay',
+            'freezeLfoRate', 'freezeLfoDepth', 'formantLfoRate', 'formantLfoDepth', 'attack', 'decay',
             'sustain', 'release', 'choir', 'glitchChance'
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: number) => {
@@ -202,6 +204,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleFreezeChange = paramHandlers.freeze;
     const handleFreezeLfoRateChange = paramHandlers.freezeLfoRate;
     const handleFreezeLfoDepthChange = paramHandlers.freezeLfoDepth;
+    const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
+    const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
     const handleAttackChange = paramHandlers.attack;
     const handleDecayChange = paramHandlers.decay;
     const handleSustainChange = paramHandlers.sustain;
@@ -904,6 +908,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Frz LFO Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Frz LFO Depth" value={currentParams.freezeLfoDepth ?? 0} onChange={handleFreezeLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
+                            <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Choir" value={currentParams.choir ?? 0} onChange={handleChoirChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Glitch" value={currentParams.glitchChance ?? 0} onChange={handleGlitchChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Attack" value={currentParams.attack ?? 0.05} onChange={handleAttackChange} min={0.001} max={2.0} step={0.01} color="indigo" unit="s" />

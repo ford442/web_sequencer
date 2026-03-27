@@ -358,6 +358,18 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                                 voice.setFreeze(params.freeze, triggerTime);
                             }
 
+                            // Apply Formant LFO
+                            if (noteParams?.formantLfoRate !== undefined) {
+                                voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);
+                            } else if (params.formantLfoRate !== undefined) {
+                                voice.setFormantLfoRate(params.formantLfoRate, triggerTime);
+                            }
+                            if (noteParams?.formantLfoDepth !== undefined) {
+                                voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
+                            } else if (params.formantLfoDepth !== undefined) {
+                                voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
+                            }
+
                             // Load buffer
                             voice.loadBuffer(buffer.getChannelData(0));
 
