@@ -24,7 +24,7 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = ({ onClose }) 
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-5xl p-6 relative">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-5xl p-6 relative" role="dialog" aria-modal="true" aria-labelledby="gamepad-debugger-title">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-white"
@@ -35,7 +35,7 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = ({ onClose }) 
           </svg>
         </button>
 
-        <h2 className="text-2xl font-bold text-cyan-400 mb-6 flex items-center gap-2">
+        <h2 id="gamepad-debugger-title" className="text-2xl font-bold text-cyan-400 mb-6 flex items-center gap-2">
           <span>🎮</span> Gamepad Debugger
         </h2>
 
