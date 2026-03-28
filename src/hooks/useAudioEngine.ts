@@ -270,7 +270,9 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     phonemes?: PhonemeData[],
                     freeze?: number,
                     filterCutoff?: number,
-                    filterResonance?: number
+                    filterResonance?: number,
+                    formantLfoRate?: number,
+                    formantLfoDepth?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
