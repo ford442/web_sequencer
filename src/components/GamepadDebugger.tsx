@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 // A visual debugger for the gamepad states
 // Ports the logic from the standalone HTML tester
 
 export const GamepadDebugger: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [gamepads, setGamepads] = useState<Gamepad[]>([]);
+  const modalRef = useFocusTrap<HTMLDivElement>(true, onClose);
   const reqRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -23,12 +25,14 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = ({ onClose }) 
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-5xl p-6 relative" role="dialog" aria-modal="true" aria-labelledby="gamepad-debugger-title">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto" onClick={onClose}>
+      <div aria-hidden="true" className="absolute inset-0 z-0"></div>
+      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-5xl p-6 relative" role="dialog" aria-modal="true" aria-labelledby="gamepad-debugger-title" ref={modalRef} onClick={e => e.stopPropagation()}>
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-white"
           aria-label="Close Debugger"
+          title="Close Debugger"
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
