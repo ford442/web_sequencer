@@ -17,6 +17,7 @@
 - [x] **Polyphonic Singing:** Implement `SingingVoiceManager` to allow polyphonic playback (chords) for the TTS engine, supporting multiple simultaneous phoneme streams.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
+- [x] **Step-Sequenced Vibrato:** Allow individual sequencer steps to override the global Vibrato Depth, enabling natural vocal phrasing without affecting short rhythmic syllables.
 - [x] **Vocal Envelope Shaper:** Upgraded the `ExpressiveVoiceProcessor` to use a full ADSR (Attack, Decay, Sustain, Release) envelope, exposing Decay and Sustain knobs to the `SamplerPanel` to allow granular shaping of TTS syllables into sharp plucks or smooth pads.
 - [x] **Dynamic Tremolo (AM) Effect:** Expose the Tremolo effect from `ExpressiveVoiceProcessor` to the UI (Rate and Depth knobs) and map it to `SingingVoice` and `SamplerPanel` to make TTS playback more rhythmic.
 - [x] **Per-Step Freeze Amount:** Implemented `freeze` parameter in `NoteSelector` and mapped it through `useAudioEngine` to `SingingVoice` to allow for rhythmic, per-step granular stutters and smears.
@@ -64,10 +65,13 @@
 * [x] **Idea:** "Vocal Formant LFO" - Introduce a Formant LFO with rate and depth controls for dynamic rhythmic Wah-Wah effects on TTS vowels. (Implemented in FormantShifter and SamplerPanel!)
 * [x] **Idea:** "Step-Sequenced Formant LFO" - Allow individual steps to override the global Formant LFO rate and depth for highly articulated rhythmic sequences.
 * **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation.
+* **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide.
+* **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack).
 
 ---
 
 ## 📜 Changelog
+* [2026-06-15] - Implemented Step-Sequenced Vibrato: Added `vibratoDepth` controls to the `NoteSelector` component and wired them into `App.tsx` and `useAudioEngine.ts` to allow per-step overrides of the global Vibrato Depth for natural phrasing. Added new ideas: "Glissando/Portamento Curve Drawing" and "Phoneme-Aware Velocity".
 * [2026-06-14] - Implemented Step-Sequenced Formant LFO: Added `formantLfoRate` and `formantLfoDepth` controls to the `NoteSelector` component and wired them into `App.tsx` and `useAudioEngine.ts` to allow per-step overrides of the global Formant LFO settings for dynamic, rhythmic Wah-Wah effects. Added new idea: Custom Waveform LFO.
 * [2026-06-13] - Implemented Vocal Formant LFO: Added `formantLfoRate` and `formantLfoDepth` to `FormantShifter.ts`, routing an internal oscillator to the detune parameters of the peaking filters to create a rhythmic Wah-Wah effect. Added UI controls to `SamplerPanel.tsx`. Fulfills the "Vocal Formant LFO" Innovation Lab idea. Added new idea: Step-Sequenced Formant LFO.
 * [2026-06-12] - Implemented Chord Evolving: Added 'Chord Inversion' automation parameter allowing users to draw curves that dynamically shift the inversions of chords per step for synth and bass tracks, fulfilling the Chord Evolving Innovation Lab idea.

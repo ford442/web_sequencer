@@ -272,7 +272,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     filterCutoff?: number,
                     filterResonance?: number,
                     formantLfoRate?: number,
-                    formantLfoDepth?: number
+                    formantLfoDepth?: number,
+                    vibratoDepth?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -344,7 +345,11 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             }
 
                             // Sync other params
-                            if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            if (noteParams?.vibratoDepth !== undefined) {
+                                voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
+                            } else if (params.vibratoDepth !== undefined) {
+                                voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            }
                             if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
                             if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
                             if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
@@ -585,7 +590,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     phonemes?: PhonemeData[],
                     freeze?: number,
                     filterCutoff?: number,
-                    filterResonance?: number
+                    filterResonance?: number,
+                    vibratoDepth?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
