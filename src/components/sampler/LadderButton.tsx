@@ -9,6 +9,8 @@ export interface LadderButtonProps {
 export const LadderButton: React.FC<LadderButtonProps> = ({ note, isActive, onClick }) => (
     <button
         onClick={onClick}
+        aria-label={`Select Note ${note}`}
+        aria-pressed={isActive}
         className={`w-8 h-5 text-[9px] font-mono font-bold rounded transition-all relative overflow-hidden ${
             isActive
                 ? 'bg-cyan-500 text-black shadow-[0_0_8px_rgba(6,182,212,0.6)]'
