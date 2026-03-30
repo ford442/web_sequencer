@@ -1,5 +1,5 @@
 import { type HarmonizerConfig } from '../engines/Harmonizer';
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { LadderButton } from './sampler/LadderButton';
 import { VerticalKnob } from './sampler/VerticalKnob';
@@ -40,6 +40,7 @@ const midiToNote = (midi: number) => {
 };
 
 
+
 export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
     title,
     colorHex,
@@ -72,6 +73,8 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
     const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
     const [isHarmonizerOpen, setIsHarmonizerOpen] = useState(false);
+
+    const ladderButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
     const handleRootNoteChange = (midi: number) => {
         setLocalRootNote(midi);
@@ -106,6 +109,41 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
 
     const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
 
+    const handleRootNoteKeyDown = (e: React.KeyboardEvent) => {
+        let nextNote = localRootNote;
+        let handled = false;
+
+        if (e.key === 'ArrowUp') {
+            nextNote = localRootNote + 1;
+            handled = true;
+        } else if (e.key === 'ArrowDown') {
+            nextNote = localRootNote - 1;
+            handled = true;
+        } else if (e.key === 'PageUp') {
+            nextNote = localRootNote + 12;
+            handled = true;
+        } else if (e.key === 'PageDown') {
+            nextNote = localRootNote - 12;
+            handled = true;
+        }
+
+        if (handled) {
+            e.preventDefault();
+            // Restrict to the visible range or absolute bounds if needed
+            // Currently ladderNotes is computed relative to localRootNote
+            // but we can clamp to 0-127 MIDI bounds
+            const clamped = Math.max(0, Math.min(127, nextNote));
+            if (clamped !== localRootNote) {
+                handleRootNoteChange(clamped);
+                // Focus the newly selected button on next render cycle
+                setTimeout(() => {
+                    const btn = ladderButtonRefs.current.get(clamped);
+                    if (btn) btn.focus();
+                }, 0);
+            }
+        }
+    };
+
     // Default harmonizer config
     const defaultConfig: HarmonizerConfig = {
         voiceCount: 2,
@@ -139,14 +177,23 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                 }} />
                 {/* Left: Root Note Ladder */}
                 <div className="flex flex-col items-center gap-2 w-12 relative z-10">
-                    <span className="text-[9px] font-mono text-purple-400 font-bold tracking-wider px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20">ROOT</span>
-                    <div className="flex flex-col gap-0.5 p-1.5 rounded-lg bg-zinc-950/50 border border-zinc-800/50">
+                    <span className="text-[9px] font-mono text-purple-400 font-bold tracking-wider px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20" id="root-note-label">ROOT</span>
+                    <div
+                        className="flex flex-col gap-0.5 p-1.5 rounded-lg bg-zinc-950/50 border border-zinc-800/50"
+                        role="radiogroup"
+                        aria-labelledby="root-note-label"
+                        onKeyDown={handleRootNoteKeyDown}
+                    >
                         {ladderNotes.map(({ midi, note }) => (
                             <LadderButton
                                 key={midi}
                                 note={note}
                                 isActive={midi === localRootNote}
                                 onClick={() => handleRootNoteChange(midi)}
+                                buttonRef={(el) => {
+                                    if (el) ladderButtonRefs.current.set(midi, el);
+                                    else ladderButtonRefs.current.delete(midi);
+                                }}
                             />
                         ))}
                     </div>
