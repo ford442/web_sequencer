@@ -263,6 +263,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                                 <select
                                     value={localQuality}
                                     onChange={(e) => handleParamChange('quality', e.target.value)}
+                                    aria-label="RubberBand Quality"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
                                     <option value="preview">Preview</option>
@@ -277,6 +278,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                                 <select
                                     value={localStretch}
                                     onChange={(e) => handleParamChange('stretchMode', e.target.value)}
+                                    aria-label="RubberBand Stretch Mode"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
                                     <option value="precise">Precise</option>
@@ -302,6 +304,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                                 checked={localLock}
                                 onChange={(e) => handleParamChange('lockToSequencer', e.target.checked)}
                                 className="sr-only"
+                                aria-label="Lock to Sequencer Notes"
                             />
                             <span className={`text-[10px] font-mono transition-colors ${localLock ? 'text-cyan-400' : 'text-gray-400 group-hover:text-gray-300'}`}>LOCK TO SEQUENCER NOTES</span>
                         </label>
