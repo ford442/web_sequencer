@@ -4,14 +4,19 @@ export interface LadderButtonProps {
     note: string;
     isActive: boolean;
     onClick: () => void;
+    buttonRef?: React.Ref<HTMLButtonElement>;
 }
 
-export const LadderButton: React.FC<LadderButtonProps> = ({ note, isActive, onClick }) => (
+export const LadderButton: React.FC<LadderButtonProps> = ({ note, isActive, onClick, buttonRef }) => (
     <button
+        ref={buttonRef}
         onClick={onClick}
-        aria-label={`Select Note ${note}`}
-        aria-pressed={isActive}
-        className={`w-8 h-5 text-[9px] font-mono font-bold rounded transition-all relative overflow-hidden ${
+        role="radio"
+        aria-checked={isActive}
+        tabIndex={isActive ? 0 : -1}
+        aria-label={`Select root note ${note}`}
+        title={`Select root note ${note}`}
+        className={`w-8 h-5 text-[9px] font-mono font-bold rounded transition-all relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 ${
             isActive
                 ? 'bg-cyan-500 text-black shadow-[0_0_8px_rgba(6,182,212,0.6)]'
                 : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
