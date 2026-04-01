@@ -386,7 +386,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" className="bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
@@ -394,7 +394,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
               <span className="text-2xl">🎹</span>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Import ReBirth RB-338 File</h2>
+              <h2 id="rbs-import-title" className="text-lg font-bold text-white">Import ReBirth RB-338 File</h2>
               <p className="text-xs text-gray-400">Import .rbs pattern files from ReBirth RB-338</p>
             </div>
           </div>
@@ -459,7 +459,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
 
           {/* Parse Progress */}
           {isParsing && (
-            <div className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div aria-live="polite" className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-amber-400">
                   <span className="animate-spin">⏳</span>
@@ -728,6 +728,8 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
               <div className="border border-gray-800 rounded-lg overflow-hidden">
                 <button
                   onClick={() => setShowOptions(!showOptions)}
+                  aria-expanded={showOptions}
+                  aria-controls="import-options-panel"
                   className="w-full p-3 bg-gray-900/50 flex items-center justify-between hover:bg-gray-800/50 transition-all"
                 >
                   <span className="text-sm font-medium text-gray-300">Import Options</span>
@@ -735,7 +737,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
                 </button>
                 
                 {showOptions && (
-                  <div className="p-4 space-y-4 bg-gray-900/30">
+                  <div id="import-options-panel" className="p-4 space-y-4 bg-gray-900/30">
                     {/* Expand Steps */}
                     <label className="flex items-center justify-between">
                       <span className="text-sm text-gray-400">Expand 16 → 32 steps</span>
@@ -838,6 +840,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
             <button
               onClick={handleImport}
               disabled={!isComplete || isImporting}
+              aria-busy={isImporting}
               className={`px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 ${
                 isComplete && !isImporting
                   ? 'bg-amber-600 hover:bg-amber-500 text-white'
