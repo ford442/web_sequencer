@@ -66,11 +66,12 @@
 * [x] **Idea:** "Step-Sequenced Formant LFO" - Allow individual steps to override the global Formant LFO rate and depth for highly articulated rhythmic sequences.
 * **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation.
 * **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide.
-* **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack).
+* [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope scaling in `triggerSlice`!)
 
 ---
 
 ## 📜 Changelog
+* [2026-03-31] - Implemented Phoneme-Aware Velocity: Modified `SingingVoice.ts` and `triggerSlice` to dynamically scale the envelope attack and decay based on the `phoneme.category` properties (e.g. extremely fast attacks for plosives, smooth for vowels) for more natural articulated vocal rendering. Added new idea: Voice Layering / Chorus per Voice.
 * [2026-06-15] - Implemented Step-Sequenced Vibrato: Added `vibratoDepth` controls to the `NoteSelector` component and wired them into `App.tsx` and `useAudioEngine.ts` to allow per-step overrides of the global Vibrato Depth for natural phrasing. Added new ideas: "Glissando/Portamento Curve Drawing" and "Phoneme-Aware Velocity".
 * [2026-06-14] - Implemented Step-Sequenced Formant LFO: Added `formantLfoRate` and `formantLfoDepth` controls to the `NoteSelector` component and wired them into `App.tsx` and `useAudioEngine.ts` to allow per-step overrides of the global Formant LFO settings for dynamic, rhythmic Wah-Wah effects. Added new idea: Custom Waveform LFO.
 * [2026-06-13] - Implemented Vocal Formant LFO: Added `formantLfoRate` and `formantLfoDepth` to `FormantShifter.ts`, routing an internal oscillator to the detune parameters of the peaking filters to create a rhythmic Wah-Wah effect. Added UI controls to `SamplerPanel.tsx`. Fulfills the "Vocal Formant LFO" Innovation Lab idea. Added new idea: Step-Sequenced Formant LFO.
