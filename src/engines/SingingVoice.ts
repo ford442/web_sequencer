@@ -472,6 +472,31 @@ export class SingingVoice {
         const startSample = Math.floor(phoneme.start * alignment.sampleRate);
         const endSample = Math.floor(phoneme.end * alignment.sampleRate);
 
+        // Phoneme-Aware Velocity: Dynamically scale amplitude envelope based on phoneme category
+        // We override the baseline parameters for the duration of this slice.
+        const now = this.audioContext.currentTime;
+        switch (phoneme.category) {
+            case 'plosive':
+                this.setAttack(0.01, now);
+                this.setDecay(0.1, now);
+                break;
+            case 'fricative':
+                this.setAttack(0.05, now);
+                this.setDecay(0.2, now);
+                break;
+            case 'vowel':
+            case 'liquid':
+            case 'nasal':
+                this.setAttack(0.1, now);
+                this.setDecay(0.4, now);
+                break;
+            default:
+                // Fallback to default/smoother envelope
+                this.setAttack(0.05, now);
+                this.setDecay(0.1, now);
+                break;
+        }
+
         this.setPitch(pitch);
         this.setTimeRatio(1.0); // Reset time stretch for slice playback usually
 
