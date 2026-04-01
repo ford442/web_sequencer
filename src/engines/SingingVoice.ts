@@ -479,6 +479,7 @@ export class SingingVoice {
         // Apply Phoneme-Aware Velocity formatting to amplitude envelope
         let scaledAttack = this.currentAttack;
         let scaledDecay = this.currentDecay;
+        const now = this.audioContext.currentTime;
 
         switch (phoneme.category) {
             case 'plosive':
