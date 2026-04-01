@@ -107,6 +107,10 @@ export class SingingVoice {
     private pitchAttack: number = 0;    // Pitch envelope attack time (0-1)
     private pitchDecay: number = 0;     // Pitch envelope decay time (0-1)
     
+    /** Envelope Baseline Tracker for Phoneme-Aware Velocity */
+    private currentAttack: number = 0.05;
+    private currentDecay: number = 0.1;
+
     /** Phoneme aligner for Section 3 implementation */
     private phonemeAligner: PhonemeAligner | null = null;
     
@@ -472,35 +476,46 @@ export class SingingVoice {
         const startSample = Math.floor(phoneme.start * alignment.sampleRate);
         const endSample = Math.floor(phoneme.end * alignment.sampleRate);
 
-        // Phoneme-Aware Velocity: Dynamically scale amplitude envelope based on phoneme category
-        // We override the baseline parameters for the duration of this slice.
+        // Apply Phoneme-Aware Velocity formatting to amplitude envelope
+        let scaledAttack = this.currentAttack;
+        let scaledDecay = this.currentDecay;
         const now = this.audioContext.currentTime;
+
         switch (phoneme.category) {
             case 'plosive':
-                this.setAttack(0.01, now);
-                this.setDecay(0.1, now);
+                scaledAttack = Math.max(0.001, this.currentAttack * 0.1); // Extremely fast attack
+                scaledDecay = Math.max(0.001, this.currentDecay * 0.5);   // Faster decay
                 break;
             case 'fricative':
-                this.setAttack(0.05, now);
-                this.setDecay(0.2, now);
+                scaledAttack = Math.max(0.001, this.currentAttack * 0.5); // Fast attack
                 break;
-            case 'vowel':
             case 'liquid':
             case 'nasal':
-                this.setAttack(0.1, now);
-                this.setDecay(0.4, now);
+                scaledAttack = Math.min(2.0, this.currentAttack * 1.2);   // Smoother attack
+                break;
+            case 'vowel':
+                scaledAttack = Math.min(2.0, this.currentAttack * 1.5);   // Smooth attack
+                scaledDecay = Math.min(2.0, this.currentDecay * 1.2);     // Longer decay
                 break;
             default:
-                // Fallback to default/smoother envelope
-                this.setAttack(0.05, now);
-                this.setDecay(0.1, now);
                 break;
+        }
+
+        if (this.workletNode) {
+            this.workletNode.parameters.get('attack')?.setValueAtTime(scaledAttack, this.audioContext.currentTime);
+            this.workletNode.parameters.get('decay')?.setValueAtTime(scaledDecay, this.audioContext.currentTime);
         }
 
         this.setPitch(pitch);
         this.setTimeRatio(1.0); // Reset time stretch for slice playback usually
 
         await this.process(audio, startSample, endSample, reverse);
+
+        // Reset envelopes immediately after trigger to avoid bleeding onto next normal note processing
+        if (this.workletNode) {
+            this.workletNode.parameters.get('attack')?.setValueAtTime(this.currentAttack, this.audioContext.currentTime + 0.1);
+            this.workletNode.parameters.get('decay')?.setValueAtTime(this.currentDecay, this.audioContext.currentTime + 0.1);
+        }
     }
 
     /**
@@ -835,6 +850,7 @@ export class SingingVoice {
      * @param time Optional time to apply the change (default: now)
      */
     setAttack(attack: number, time?: number): void {
+        this.currentAttack = attack;
         if (this.workletNode) {
             this.workletNode.parameters.get('attack')?.setValueAtTime(attack, time || this.audioContext.currentTime);
         }
@@ -846,6 +862,7 @@ export class SingingVoice {
      * @param time Optional time to apply the change (default: now)
      */
     setDecay(decay: number, time?: number): void {
+        this.currentDecay = decay;
         if (this.workletNode) {
             this.workletNode.parameters.get('decay')?.setValueAtTime(decay, time || this.audioContext.currentTime);
         }
