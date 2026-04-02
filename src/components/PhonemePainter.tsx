@@ -365,6 +365,10 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 <button
                   onClick={() => setShowAddMenu(!showAddMenu)}
                   className="px-3 py-1.5 text-[10px] font-mono bg-gradient-to-b from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white rounded-md border border-cyan-500/50 shadow-[0_2px_8px_rgba(6,182,212,0.3),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all"
+                  aria-expanded={showAddMenu}
+                  aria-controls="add-phoneme-menu"
+                  aria-label="Toggle add phoneme menu"
+                  title="Toggle add phoneme menu"
                 >
                   <span className="flex items-center gap-1">+ Add Phoneme</span>
                 </button>
@@ -373,7 +377,8 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             
             {/* Add phoneme menu - improved styling */}
             {showAddMenu && (
-              <div 
+              <div
+                id="add-phoneme-menu"
                 className="absolute right-4 top-10 z-30 w-64 rounded-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
                 style={{
                   background: 'linear-gradient(145deg, rgba(24,24,27,0.98), rgba(9,9,11,0.99))',
@@ -398,6 +403,8 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                             onClick={() => handleAddPhoneme(ph)}
                             className="px-2 py-1 text-[10px] font-mono bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 text-zinc-300 rounded border border-zinc-700 hover:border-cyan-500/50 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                             style={{ color: getPhonemeColor(ph) }}
+                            aria-label={`Add ${ph} phoneme`}
+                            title={`Add ${ph} phoneme`}
                           >
                             {ph}
                           </button>
@@ -587,6 +594,8 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           <button
             onClick={handleClear}
             className="px-4 py-2 text-xs font-mono text-red-400 hover:text-red-300 rounded-md border border-red-900/30 bg-gradient-to-b from-red-950/30 to-red-950/10 hover:from-red-950/50 hover:to-red-950/20 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+            aria-label="Clear all phonemes"
+            title="Clear all phonemes"
           >
             Clear All
           </button>
@@ -595,12 +604,16 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             <button
               onClick={onClose}
               className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-white rounded-md bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+              aria-label="Cancel changes"
+              title="Cancel changes"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               className="px-6 py-2 text-xs font-mono font-bold text-black rounded-md bg-gradient-to-b from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 border border-cyan-400 transition-all shadow-[0_4px_16px_rgba(6,182,212,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] relative overflow-hidden group"
+              aria-label="Save changes"
+              title="Save changes"
             >
               <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500" />
               <span className="relative">Save Changes</span>
