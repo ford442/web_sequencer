@@ -35,6 +35,7 @@
 - [x] **Glitch Mode:** Add a probability knob that randomly retriggers/stutters the start of a TTS sample (granular synthesis) in the UI.
 - [x] **Cleanup Legacy Code:** Identify and remove unused components like `src/components/Sequencer.tsx` to streamline maintenance.
 - [x] **Refactor NoteSelector Focus Management:** Verified `NoteSelector` robustness with new test suite `src/components/__tests__/NoteSelector.test.tsx` mocking `requestAnimationFrame`.
+- [x] **Step-Sequenced Drive:** Allow individual sequencer steps to override the global Drive/Distortion amount for aggressive, rhythmic vocal accents.
 
 ### Domain C: Accessibility & Mobile
 - [x] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
@@ -69,6 +70,7 @@
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope overrides in `SingingVoice.ts`!)
 * **Idea:** "Spectral Morphing" - Implement functionality to morph spectrally between two different TTS phonemes or samples over a sequence of steps.
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope scaling in `triggerSlice`!)
+* **Idea:** "Dynamic Reverb" - Allow users to draw automation curves for reverb send per step.
 
 ---
 

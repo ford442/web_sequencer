@@ -161,6 +161,7 @@ export interface Note {
   filterResonance?: number; // 0-1, linearly mapped to Q factor
   envMod?: number; // 0-1, envelope modulation override for filters
   vibratoDepth?: number; // 0-100%, vibrato depth override (Sampler only)
+  drive?: number; // 0-1, distortion/drive amount override (Sampler only)
   
   // Phase 2: Melodic Lyric Mode - Per-step pitch control
   pitch?: number; // MIDI note number for sampler melodic mode (default: 60 = C4)
@@ -199,7 +200,7 @@ export interface AudioEngine {
     open303Engine?: Open303Oscillator | Open303Manager | null;
     playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number, filterCutoff?: number, filterResonance?: number, envMod?: number }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number }, stepTime?: number) => void;
-    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number }) => void;
+    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;

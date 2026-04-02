@@ -273,7 +273,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     filterResonance?: number,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
-                    vibratoDepth?: number
+                    vibratoDepth?: number,
+                    drive?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -313,6 +314,15 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
                             let finalDest = destination || masterGainRef.current!;
+
+                            // Apply Drive/Distortion if present
+                            const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                            if (driveAmount !== undefined && driveAmount > 0) {
+                                const shaper = context.createWaveShaper();
+                                shaper.curve = makeDistortionCurve(driveAmount * 100);
+                                shaper.connect(finalDest);
+                                finalDest = shaper;
+                            }
 
                             // Apply Per-Step Filter if present, or fallback to global filter settings
                             if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
@@ -528,8 +538,9 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     filter.Q.value = resonance;
 
                     const shaper = context.createWaveShaper();
-                    if (params.drive > 0) {
-                        shaper.curve = makeDistortionCurve(params.drive * 100);
+                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                    if (driveAmount > 0) {
+                        shaper.curve = makeDistortionCurve(driveAmount * 100);
                     } else {
                         shaper.curve = null;
                     }
@@ -591,7 +602,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     freeze?: number,
                     filterCutoff?: number,
                     filterResonance?: number,
-                    vibratoDepth?: number
+                    vibratoDepth?: number,
+                    drive?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
