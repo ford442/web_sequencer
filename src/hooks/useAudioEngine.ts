@@ -358,8 +358,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             // Apply Character Morphing
                             const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
                             const morphTarget = params.morphTarget || 'female';
-                            // @ts-expect-error morphTarget is a string from SamplerBankParams but maps to VoiceCharacter internally
-                            voice.setCharacterMorph(morphAmount, morphTarget, 0.05); // Use short ramp time
+                            voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
 
                             // Sync other params
                             if (noteParams?.vibratoDepth !== undefined) {
