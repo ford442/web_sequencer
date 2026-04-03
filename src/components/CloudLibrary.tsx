@@ -299,8 +299,8 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                             <form onSubmit={handleUpload} className="space-y-4">
                                 
                                 {/* Type Selection */}
-                                <div className="bg-gray-800/50 p-3 rounded-lg border border-gray-700">
-                                    <label className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</label>
+                                <fieldset className="bg-gray-800/50 p-3 rounded-lg border border-gray-700">
+                                    <legend className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</legend>
                                     <div className="flex gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus:ring-1 focus:ring-pink-500"/>
@@ -320,7 +320,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                         {uploadType === 'bank' && "Saves all 8 pattern slots for all tracks."}
                                         {uploadType === 'pattern' && "Saves only the currently active pattern."}
                                     </div>
-                                </div>
+                                </fieldset>
 
                                 <div>
                                     <label htmlFor="cloud-upload-name" className="block text-xs text-gray-400 font-mono mb-1">Name</label>
