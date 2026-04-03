@@ -1329,6 +1329,7 @@ export const App: React.FC = () => {
                             currentFormantLfoDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.formantLfoDepth ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.formantLfoDepth ?? 0}
                             currentVibratoDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.vibratoDepth ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.vibratoDepth ?? 0}
                             currentDrive={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.drive : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.drive}
+                            currentCharacterMorph={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.characterMorph : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.characterMorph}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
                             onPropertyChange={handleNotePropertyChange}
