@@ -768,6 +768,19 @@ export class SingingVoice {
     }
 
     /**
+     * Set character morphing amount and target.
+     * @param amount Morph amount (0 to 1)
+     * @param target Target voice character
+     * @param rampTime Optional duration to ramp to the new formant value smoothly
+     */
+    setCharacterMorph(amount: number, target: VoiceCharacter, rampTime: number = 0.05): void {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            const shift = this.formantShifter.interpolateCharacters('default', target, amount);
+            this.formantShifter.updateFilterChain(shift, rampTime);
+        }
+    }
+
+    /**
      * Set vibrato depth percentage.
      * @param percent Vibrato depth (0-100)
      * @param time Optional time to apply the change (default: now)

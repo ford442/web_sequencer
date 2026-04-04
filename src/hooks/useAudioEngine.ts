@@ -274,7 +274,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     vibratoDepth?: number,
-                    drive?: number
+                    drive?: number,
+                    characterMorph?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -353,6 +354,11 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             } else if (params.formantShift !== undefined) {
                                 voice.setFormantShift(params.formantShift, triggerTime);
                             }
+
+                            // Apply Character Morphing
+                            const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+                            const morphTarget = params.morphTarget || 'female';
+                            voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
 
                             // Sync other params
                             if (noteParams?.vibratoDepth !== undefined) {
@@ -603,7 +609,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     filterCutoff?: number,
                     filterResonance?: number,
                     vibratoDepth?: number,
-                    drive?: number
+                    drive?: number,
+                    characterMorph?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
