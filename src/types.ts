@@ -79,6 +79,8 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
+  characterMorph?: number; // Morph amount between characters (0-1)
+  morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright'; // Target character for morphing
   attack?: number;         // Amplitude envelope attack time (seconds)
   decay?: number;          // Amplitude envelope decay time (seconds)
   sustain?: number;        // Amplitude envelope sustain level (0-1)
@@ -157,6 +159,7 @@ export interface Note {
   freeze?: number; // Spectral freeze/smear amount (0-1) (Sampler only)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
+  characterMorph?: number; // Morph amount between characters (0-1)
   filterCutoff?: number; // 0-1, exponentially mapped to Hz
   filterResonance?: number; // 0-1, linearly mapped to Q factor
   envMod?: number; // 0-1, envelope modulation override for filters

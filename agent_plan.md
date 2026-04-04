@@ -68,13 +68,14 @@
 * **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation.
 * **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide.
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope overrides in `SingingVoice.ts`!)
-* **Idea:** "Spectral Morphing" - Implement functionality to morph spectrally between two different TTS phonemes or samples over a sequence of steps.
+* [x] **Idea:** "Spectral Morphing" - Implement functionality to morph spectrally between two different TTS phonemes or samples over a sequence of steps. (Implemented via FormantShifter Voice Character Morphing and step-sequenced automation!)
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope scaling in `triggerSlice`!)
 * **Idea:** "Dynamic Reverb" - Allow users to draw automation curves for reverb send per step.
 
 ---
 
 ## 📜 Changelog
+* [2026-06-17] - Implemented Spectral Morphing: Added `characterMorph` and `morphTarget` to allow smooth interpolation between voice characters (e.g., male to female) per sequence step using `FormantShifter.ts`. Added Morph knob and target selector to `SamplerPanel.tsx` and override controls to `NoteSelector.tsx`.
 * [2026-06-16] - Implemented Phoneme-Aware Velocity: Modified `triggerSlice` in `SingingVoice.ts` to dynamically scale the amplitude envelope attack and decay based on the `phoneme.category` parameter (e.g., extremely fast attack for plosives, smoother attack for vowels). Added new Innovation Lab idea: Spectral Morphing.
 * [2026-03-31] - Implemented Phoneme-Aware Velocity: Modified `SingingVoice.ts` and `triggerSlice` to dynamically scale the envelope attack and decay based on the `phoneme.category` properties (e.g. extremely fast attacks for plosives, smooth for vowels) for more natural articulated vocal rendering. Added new idea: Voice Layering / Chorus per Voice.
 * [2026-06-15] - Implemented Step-Sequenced Vibrato: Added `vibratoDepth` controls to the `NoteSelector` component and wired them into `App.tsx` and `useAudioEngine.ts` to allow per-step overrides of the global Vibrato Depth for natural phrasing. Added new ideas: "Glissando/Portamento Curve Drawing" and "Phoneme-Aware Velocity".
