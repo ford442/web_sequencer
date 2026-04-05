@@ -346,6 +346,15 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                             voice.connectOutput(finalDest);
 
+                            // Setup Reverb Send
+                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                            if (reverbSendAmount > 0 && reverbNodeRef.current) {
+                                const reverbGain = context.createGain();
+                                reverbGain.gain.value = reverbSendAmount;
+                                reverbGain.connect(reverbNodeRef.current);
+                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
+                            }
+
                             // Apply Timbre Modulation (Formant Shift)
                             if (noteParams?.timbre !== undefined) {
                                 const baseShift = params.formantShift || 0;

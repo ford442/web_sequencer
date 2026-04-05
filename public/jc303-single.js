@@ -293,6 +293,11 @@ function checkStackCookie() {
 
 // end include: runtime_stack_check.js
 // include: runtime_exceptions.js
+// Base Emscripten EH error class
+class EmscriptenEH {}
+
+class EmscriptenSjLj extends EmscriptenEH {}
+
 // end include: runtime_exceptions.js
 // include: runtime_debug.js
 var runtimeDebug = true;
@@ -484,9 +489,12 @@ function postRun() {
   callRuntimeCallbacks(onPostRuns);
 }
 
-/** @param {string|number=} what */ function abort(what) {
+/**
+ * @param {string|number=} what
+ * @noreturn
+ */ function abort(what) {
   Module["onAbort"]?.(what);
-  what = "Aborted(" + what + ")";
+  what = `Aborted(${what})`;
   // TODO(sbc): Should we remove printing and leave it up to whoever
   // catches the exception?
   err(what);
@@ -986,6 +994,7 @@ var emval_handles = [ 0, 1, , 1, null, 1, true, 1, false, 1 ];
 var __emval_decref = handle => {
   if (handle > 9 && 0 === --emval_handles[handle + 1]) {
     assert(emval_handles[handle] !== undefined, `Decref for unallocated handle.`);
+    var value = emval_handles[handle];
     emval_handles[handle] = undefined;
     emval_freelist.push(handle);
   }
@@ -1476,7 +1485,7 @@ var stringToUTF8Array = (str, heap, outIdx, maxBytesToWrite) => {
       heap[outIdx++] = 128 | (u & 63);
     } else {
       if (outIdx + 3 >= endIdx) break;
-      if (u > 1114111) warnOnce("Invalid Unicode code point " + ptrToString(u) + " encountered when serializing a JS string to a UTF-8 string in wasm memory! (Valid unicode code points should be in range 0-0x10FFFF).");
+      if (u > 1114111) warnOnce(`Invalid Unicode code point ${ptrToString(u)} encountered when serializing a JS string to a UTF-8 string in wasm memory! (Valid unicode code points should be in range 0-0x10FFFF).`);
       heap[outIdx++] = 240 | (u >> 18);
       heap[outIdx++] = 128 | ((u >> 12) & 63);
       heap[outIdx++] = 128 | ((u >> 6) & 63);
@@ -1567,7 +1576,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     if ((u0 & 240) == 224) {
       u0 = ((u0 & 15) << 12) | (u1 << 6) | u2;
     } else {
-      if ((u0 & 248) != 240) warnOnce("Invalid UTF-8 leading byte " + ptrToString(u0) + " encountered when deserializing a UTF-8 string in wasm memory to a JS string!");
+      if ((u0 & 248) != 240) warnOnce(`Invalid UTF-8 leading byte ${ptrToString(u0)} encountered when deserializing a UTF-8 string in wasm memory to a JS string!`);
       u0 = ((u0 & 7) << 18) | (u1 << 12) | (u2 << 6) | (heapOrArray[idx++] & 63);
     }
     if (u0 < 65536) {
@@ -1966,7 +1975,7 @@ var _fd_write = (fd, iov, iovcnt, pnum) => {
 var getCFunc = ident => {
   var func = Module["_" + ident];
   // closure exported function
-  assert(func, "Cannot call unknown function " + ident + ", make sure it is exported");
+  assert(func, `Cannot call unknown function ${ident}, make sure it is exported`);
   return func;
 };
 
