@@ -21,7 +21,7 @@ export const WaveformFloatingToggle: React.FC<WaveformFloatingToggleProps> = ({ 
         title={open ? 'Close waveform selector' : 'Open waveform selector'}
         onClick={() => setOpen(!open)}
         disabled={disabled}
-        className={`rounded-md px-3 py-2 font-mono text-xs font-bold shadow-lg transition-all ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-800' : 'bg-cyan-900 hover:bg-cyan-800 text-cyan-300 border border-cyan-700'}`}
+        className={`rounded-md px-3 py-2 font-mono text-xs font-bold shadow-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 focus-visible:ring-cyan-400 ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-800' : 'bg-cyan-900 hover:bg-cyan-800 text-cyan-300 border border-cyan-700'}`}
       >
         {open ? '✕ Close' : '♪ Waveforms'}
       </button>
