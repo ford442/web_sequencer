@@ -84,6 +84,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
     // Master Volume & Pan
     const masterGainRef = useRef<GainNode | null>(null);
+    const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
 
     const pyodideRef = useRef(pyodide);
@@ -103,6 +104,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
+        reverbNodeRef,
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
@@ -274,6 +276,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     vibratoDepth?: number,
+                    reverbSend?: number,
                     drive?: number,
                     characterMorph?: number
                 },
@@ -345,6 +348,15 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                             }
 
                             voice.connectOutput(finalDest);
+
+                            // Setup Reverb Send
+                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                            if (reverbSendAmount > 0 && reverbNodeRef.current) {
+                                const reverbGain = context.createGain();
+                                reverbGain.gain.value = reverbSendAmount;
+                                reverbGain.connect(reverbNodeRef.current);
+                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
+                            }
 
                             // Apply Timbre Modulation (Formant Shift)
                             if (noteParams?.timbre !== undefined) {
@@ -609,6 +621,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     filterCutoff?: number,
                     filterResonance?: number,
                     vibratoDepth?: number,
+                    reverbSend?: number,
                     drive?: number,
                     characterMorph?: number
                 }

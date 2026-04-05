@@ -57,6 +57,7 @@ interface ActiveSamplerNote {
 
 export interface PlaybackRefs {
     masterGainRef: MutableRefObject<GainNode | null>;
+    reverbNodeRef: MutableRefObject<ConvolverNode | null>;
     masterPannerRef: MutableRefObject<StereoPannerNode | null>;
     noiseBufferRef: MutableRefObject<AudioBuffer | null>;
     open303ManagerRef: MutableRefObject<Open303Manager | null>;
