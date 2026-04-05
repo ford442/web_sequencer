@@ -84,6 +84,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
     // Master Volume & Pan
     const masterGainRef = useRef<GainNode | null>(null);
+    const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
 
     const pyodideRef = useRef(pyodide);
