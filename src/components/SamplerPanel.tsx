@@ -828,8 +828,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                                 melodicMode ? 'bg-purple-600' : 'bg-gray-700'
                             }`}
-                            aria-label={melodicMode ? 'Disable Melodic Mode' : 'Enable Melodic Mode'}
-                            aria-pressed={melodicMode}
+                            aria-label="Melodic Mode"
+                            role="switch"
+                            aria-checked={melodicMode}
                         >
                             <span
                                 className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
