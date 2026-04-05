@@ -164,6 +164,7 @@ export interface Note {
   filterResonance?: number; // 0-1, linearly mapped to Q factor
   envMod?: number; // 0-1, envelope modulation override for filters
   vibratoDepth?: number; // 0-100%, vibrato depth override (Sampler only)
+  reverbSend?: number; // 0-1, amount sent to reverb bus
   drive?: number; // 0-1, distortion/drive amount override (Sampler only)
   
   // Phase 2: Melodic Lyric Mode - Per-step pitch control
