@@ -51,6 +51,7 @@ export const LyricTrack: React.FC<LyricTrackProps> = ({
                 onClick={onClose}
                 className="px-2 py-1.5 text-gray-500 hover:text-white"
                 aria-label="Close Lyric Track"
+                title="Close Lyric Track"
             >
                 ✕
             </button>

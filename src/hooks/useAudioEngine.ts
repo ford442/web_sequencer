@@ -103,6 +103,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
+        reverbNodeRef,
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
@@ -274,6 +275,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     vibratoDepth?: number,
+                    reverbSend?: number,
                     drive?: number,
                     characterMorph?: number
                 },
@@ -618,6 +620,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     filterCutoff?: number,
                     filterResonance?: number,
                     vibratoDepth?: number,
+                    reverbSend?: number,
                     drive?: number,
                     characterMorph?: number
                 }
