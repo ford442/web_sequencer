@@ -19,3 +19,7 @@
 ## 2025-03-31 - Semantic Grouping for Custom Radio Buttons
 **Learning:** Custom UI components that act as a list of mutually exclusive options (like `LadderButton` used for selecting a Root Note) often just render as standard buttons. This forces keyboard users to tab through every single option and leaves screen readers without context about the total number of options or which one is currently selected.
 **Action:** When creating custom single-selection lists, group them in a container with `role="radiogroup"` and `aria-labelledby`, assign `role="radio"` and `aria-checked` to the individual buttons, and implement roving `tabIndex` with Arrow Up/Down navigation. This allows users to tab into the group once and use arrow keys to navigate, matching native `<input type="radio">` behavior.
+
+## 2024-05-18 - Missing Focus Visible States on Custom Switches
+**Learning:** Custom UI controls that mimic native inputs (like pill-shaped switches for Reverse or Melodic Mode) frequently omit `focus-visible` styles, rendering them completely invisible to keyboard users when tabbing through the interface. Furthermore, developers frequently mistakenly use `aria-pressed` with `role="button"` instead of the correct `role="switch"` with `aria-checked` for these pill-shaped components.
+**Action:** Always verify that interactive custom switches not only have appropriate ARIA roles (`role="switch"`, `aria-checked`) but explicitly define `focus:outline-none focus-visible:ring-*` classes.

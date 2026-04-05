@@ -64,7 +64,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
             >
                 <div className="flex justify-between items-center pb-2 border-b border-cyan-900/30">
                     <span id="note-selector-title" className="text-xs font-bold font-orbitron text-cyan-400 tracking-widest drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]">NOTE PROPERTIES</span>
-                    <button onClick={onClose} aria-label="Close" title="Close" className="text-cyan-600 hover:text-white">✕</button>
+                    <button onClick={onClose} aria-label="Close" title="Close" className="text-cyan-600 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 rounded">✕</button>
                 </div>
 
                 {/* NEW: Duration Control */}
@@ -413,7 +413,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                             <button
                                 id="note-reverse"
                                 onClick={() => onPropertyChange('reverse', !currentReverse)}
-                                className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 ${currentReverse ? 'bg-cyan-500 justify-end shadow-[0_0_8px_rgba(6,182,212,0.4)]' : 'bg-gray-700 justify-start border border-gray-600'}`}
+                                className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${currentReverse ? 'bg-cyan-500 justify-end shadow-[0_0_8px_rgba(6,182,212,0.4)]' : 'bg-gray-700 justify-start border border-gray-600'}`}
                                 aria-checked={currentReverse}
                                 role="switch"
                                 aria-label="Play slice in reverse"

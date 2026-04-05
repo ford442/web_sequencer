@@ -88,7 +88,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
             >
                 <div className="flex justify-between items-center mb-4">
                     <h2 id="voice-designer-title" className="text-xl font-orbitron text-purple-400">VOICE DESIGNER <span className="text-xs text-gray-500 ml-2">(WebGPU)</span></h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-400 rounded" aria-label="Close Voice Designer">✕</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-400 rounded" aria-label="Close Voice Designer" title="Close Voice Designer">✕</button>
                 </div>
 
                 {/* Heatmap Area */}

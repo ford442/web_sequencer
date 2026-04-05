@@ -428,7 +428,7 @@ export const SongMode = memo(({
                             </span>
                         ) : 'EXPORT XM'}
                     </button>
-                    <button onClick={onToggle} aria-label="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors">✕</button>
+                    <button onClick={onToggle} aria-label="Close Song Mode" title="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors">✕</button>
                 </div>
             </div>
 
