@@ -680,6 +680,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
               onClick={handleClose}
               className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
               aria-label="Close modal"
+              title="Close modal"
             >
               ✕
             </button>
