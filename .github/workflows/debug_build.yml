@@ -30,22 +30,15 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'pnpm' # pnpm is now properly available
 
-    # 3. SETUP NODE.JS (Fixes: "Unable to locate pnpm" by running AFTER step 2)
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm' # Now safe to use because pnpm is installed
-
-    # 4. SETUP EMSCRIPTEN (Fixes: "400 Bad Request" by disabling cache)
+    # 4. SETUP EMSCRIPTEN
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
       with:
         version: 3.1.51
-        no-cache: true
+        no-cache: false
 
     # 5. INSTALL DEPENDENCIES (Fixes: "ERR_PNPM_OUTDATED_LOCKFILE")
     - name: Install Dependencies
