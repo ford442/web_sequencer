@@ -1693,6 +1693,8 @@ export const App: React.FC = () => {
                             value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} onDoubleClick={handleMasterVolumeReset}
                             className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
                             aria-label="Master Volume"
+                            title={`Volume: ${Math.round(masterVolume * 100)}%`}
+                            aria-valuetext={`${Math.round(masterVolume * 100)}%`}
                         />
                     </div>
                     <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
@@ -1701,6 +1703,8 @@ export const App: React.FC = () => {
                             value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} onDoubleClick={handleGlobalPanReset}
                             className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
                             aria-label="Global Pan"
+                            title={`Pan: ${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% L' : Math.round(globalPan * 100) + '% R'}`}
+                            aria-valuetext={`${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% Left' : Math.round(globalPan * 100) + '% Right'}`}
                         />
                     </div>
 
