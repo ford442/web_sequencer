@@ -806,7 +806,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     };
 
-    const handleNotePropertyChange = (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph', value: number | boolean) => {
+    const handleNotePropertyChange = (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend', value: number | boolean) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;

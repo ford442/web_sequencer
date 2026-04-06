@@ -10,6 +10,8 @@ on:
 jobs:
   build-and-diagnose:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
     # 1. CHECKOUT (Fixes: "No url found for submodule" by disabling recursion)
