@@ -145,6 +145,7 @@ export const App: React.FC = () => {
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [backgroundImage, setBackgroundImage] = useState<string>('')
     const [masterVolume, setMasterVolume] = useState(0.8)
+    const [masterSaturation, setMasterSaturation] = useState(0)
     const [globalPan, setGlobalPan] = useState(0)
 
     const [isSongModeOpen, setIsSongModeOpen] = useState(false);
@@ -397,6 +398,10 @@ export const App: React.FC = () => {
     const handleMasterVolume = (e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v); };
     const handleMasterVolumeKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); } };
     const handleMasterVolumeReset = () => { setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); };
+
+    const handleMasterSaturation = (e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterSaturation(v); audioEngine?.setMasterSaturation(v); };
+    const handleMasterSaturationKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterSaturation(0); audioEngine?.setMasterSaturation(0); } };
+    const handleMasterSaturationReset = () => { setMasterSaturation(0); audioEngine?.setMasterSaturation(0); };
 
     const handleGlobalPan = (e: React.ChangeEvent<HTMLInputElement>) => { const p = parseFloat(e.target.value); const val = (p > -0.1 && p < 0.1) ? 0 : p; setGlobalPan(val); audioEngine?.setGlobalPan(val); };
     const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } };
@@ -1687,6 +1692,16 @@ export const App: React.FC = () => {
 
                 {/* Right: Utility Toggles */}
                 <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
+                        <input
+                            type="range" min="0" max="1" step="0.01"
+                            value={masterSaturation} onChange={handleMasterSaturation} onKeyDown={handleMasterSaturationKeyDown} onDoubleClick={handleMasterSaturationReset}
+                            className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                            aria-label="Master Saturation"
+                            title={`Warmth: ${Math.round(masterSaturation * 100)}%`}
+                            aria-valuetext={`${Math.round(masterSaturation * 100)}%`}
+                        />
+                    </div>
                     <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
                         <input
                             type="range" min="0" max="1.5" step="0.01"

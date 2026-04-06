@@ -217,6 +217,7 @@ export interface AudioEngine {
     stopAmbiance: () => void;
     setAmbianceVolume: (volume: number) => void;
     setMasterVolume: (volume: number) => void;
+    setMasterSaturation: (amount: number) => void;
     setGlobalPan: (pan: number) => void;
     detectSamplePitch?: (buffer: AudioBuffer) => Promise<unknown>;
     processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
