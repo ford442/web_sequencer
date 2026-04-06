@@ -1,23 +1,33 @@
 import type { MutableRefObject } from 'react';
 import { Harmonizer } from '../../engines/Harmonizer';
 
+import { makeDistortionCurve } from './distortion';
+
 export function initializeMasterOutput(
     context: AudioContext,
     masterGainRef: MutableRefObject<GainNode | null>,
     masterPannerRef: MutableRefObject<StereoPannerNode | null>,
+    masterSaturationRef: MutableRefObject<WaveShaperNode | null>,
 ): GainNode {
     const masterGain = context.createGain();
     masterGain.gain.setValueAtTime(0.8, 0);
     masterGainRef.current = masterGain;
 
+    const masterSaturation = context.createWaveShaper();
+    masterSaturation.curve = makeDistortionCurve(0);
+    masterSaturation.oversample = '4x';
+    masterSaturationRef.current = masterSaturation;
+
+    masterGain.connect(masterSaturation);
+
     if (context.createStereoPanner) {
         const masterPanner = context.createStereoPanner();
         masterPanner.pan.setValueAtTime(0, 0);
         masterPannerRef.current = masterPanner;
-        masterGain.connect(masterPanner);
+        masterSaturation.connect(masterPanner);
         masterPanner.connect(context.destination);
     } else {
-        masterGain.connect(context.destination);
+        masterSaturation.connect(context.destination);
     }
 
     return masterGain;

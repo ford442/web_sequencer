@@ -71,11 +71,13 @@
 * [x] **Idea:** "Spectral Morphing" - Implement functionality to morph spectrally between two different TTS phonemes or samples over a sequence of steps. (Implemented via FormantShifter Voice Character Morphing and step-sequenced automation!)
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope scaling in `triggerSlice`!)
 * [x] **Idea:** "Dynamic Reverb" - Allow users to draw automation curves for reverb send per step. (Implemented!)
-* **Idea:** "Global Saturation / Tape Warmth" - Add a master channel saturation unit to glue the mix together.
+* [x] **Idea:** "Global Saturation / Tape Warmth" - Add a master channel saturation unit to glue the mix together. (Implemented via WaveShaperNode!)
+* **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
 
 ---
 
 ## 📜 Changelog
+* [2026-06-19] - Implemented Global Saturation: Added a master channel `WaveShaperNode` with a variable distortion curve mapped to a "Warmth" (Saturation) slider in the top utility UI. Routed the entire master mix through it to add glue and presence. Added new idea: "AI Auto-Mix Assistant".
 * [2026-06-18] - Implemented Dynamic Reverb: Added a `ConvolverNode` hooked up to the master output with a generated exponential decay noise impulse response. Mapped `reverbSend` from individual sequence steps in `NoteSelector` to send audio from the TTS `SingingVoice` into the new global reverb bus. Added new idea: "Global Saturation / Tape Warmth".
 * [2026-06-17] - Implemented Spectral Morphing: Added `characterMorph` and `morphTarget` to allow smooth interpolation between voice characters (e.g., male to female) per sequence step using `FormantShifter.ts`. Added Morph knob and target selector to `SamplerPanel.tsx` and override controls to `NoteSelector.tsx`.
 * [2026-06-16] - Implemented Phoneme-Aware Velocity: Modified `triggerSlice` in `SingingVoice.ts` to dynamically scale the amplitude envelope attack and decay based on the `phoneme.category` parameter (e.g., extremely fast attack for plosives, smoother attack for vowels). Added new Innovation Lab idea: Spectral Morphing.

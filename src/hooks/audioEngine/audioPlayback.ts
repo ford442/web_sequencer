@@ -13,6 +13,7 @@ import { Harmonizer, type HarmonizerConfig } from '../../engines/Harmonizer';
 import { Open303Manager } from '../../engines/Open303Manager';
 import { VoiceManager } from '../../engines/VoiceManager';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
+import { makeDistortionCurve } from './distortion';
 
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
 export interface SynthNoteParams {
@@ -57,6 +58,7 @@ interface ActiveSamplerNote {
 
 export interface PlaybackRefs {
     masterGainRef: MutableRefObject<GainNode | null>;
+    masterSaturationRef: MutableRefObject<WaveShaperNode | null>;
     reverbNodeRef: MutableRefObject<ConvolverNode | null>;
     masterPannerRef: MutableRefObject<StereoPannerNode | null>;
     noiseBufferRef: MutableRefObject<AudioBuffer | null>;
@@ -399,6 +401,12 @@ export function createAmbianceControls(
 export function setMasterVolume(masterGainRef: MutableRefObject<GainNode | null>, value: number): void {
     if (masterGainRef.current) {
         masterGainRef.current.gain.value = value;
+    }
+}
+
+export function setMasterSaturation(masterSaturationRef: MutableRefObject<WaveShaperNode | null>, amount: number): void {
+    if (masterSaturationRef.current) {
+        masterSaturationRef.current.curve = makeDistortionCurve(amount * 100);
     }
 }
 
