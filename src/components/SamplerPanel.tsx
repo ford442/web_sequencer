@@ -923,6 +923,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                     onChange={(e) => updateParamRef.current('morphTarget', e.target.value)}
                                     className="w-[50px] bg-indigo-950 text-[8px] text-indigo-300 border border-indigo-700 rounded px-0.5 py-0.5 outline-none focus:border-indigo-400 mt-1"
                                     title="Morph Target Character"
+                                    aria-label="Morph Target Character"
                                 >
                                     <option value="male">Male</option>
                                     <option value="female">Female</option>
