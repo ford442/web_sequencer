@@ -22,6 +22,7 @@ import {
     setGlobalPan as setMasterPan,
     setHarmonizerConfig as applyHarmonizerConfig,
     setMasterVolume as setMasterGainVolume,
+    setMasterSaturation as setMasterGainSaturation,
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
 import { makeDistortionCurve } from './audioEngine/distortion';
@@ -84,6 +85,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
     // Master Volume & Pan
     const masterGainRef = useRef<GainNode | null>(null);
+    const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
 
@@ -104,6 +106,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
+        masterSaturationRef,
         reverbNodeRef,
         masterPannerRef,
         noiseBufferRef,
@@ -143,7 +146,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 console.log("AudioContext resumed");
             }
 
-            const masterGain = initializeMasterOutput(context, masterGainRef, masterPannerRef);
+            const masterGain = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef);
 
             // Initialize Engines
             const gpuEngine = new WebGpuOscillator();
@@ -730,6 +733,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             };
             const { playAmbiance, stopAmbiance, setAmbianceVolume } = createAmbianceControls(context, playbackRefs);
             const setMasterVolume = (value: number) => setMasterGainVolume(masterGainRef, value);
+            const setMasterSaturation = (amount: number) => setMasterGainSaturation(masterSaturationRef, amount);
             const setGlobalPan = (value: number) => setMasterPan(masterPannerRef, value);
 
             const detectSamplePitch = async (_b: AudioBuffer) => null;
@@ -762,6 +766,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 stopAmbiance,
                 setAmbianceVolume,
                 setMasterVolume,
+                setMasterSaturation,
                 setGlobalPan,
                 detectSamplePitch,
                 processSinging,
