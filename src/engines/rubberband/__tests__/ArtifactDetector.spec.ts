@@ -125,11 +125,12 @@ describe('ArtifactDetector', () => {
             
             expect(capturedMetrics).not.toBeNull();
             if (capturedMetrics) {
-                expect(capturedMetrics.spectralFlux).toBeGreaterThanOrEqual(0);
-                expect(capturedMetrics.rmsLevel).toBeGreaterThan(0);
-                expect(capturedMetrics.peakLevel).toBeGreaterThan(0);
-                expect(capturedMetrics.quality).toBeGreaterThanOrEqual(0);
-                expect(capturedMetrics.quality).toBeLessThanOrEqual(1);
+                const metrics = capturedMetrics as QualityMetrics;
+                expect(metrics.spectralFlux).toBeGreaterThanOrEqual(0);
+                expect(metrics.rmsLevel).toBeGreaterThan(0);
+                expect(metrics.peakLevel).toBeGreaterThan(0);
+                expect(metrics.quality).toBeGreaterThanOrEqual(0);
+                expect(metrics.quality).toBeLessThanOrEqual(1);
             }
             
             unsubscribe();

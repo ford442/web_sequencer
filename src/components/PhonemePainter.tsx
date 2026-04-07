@@ -212,7 +212,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
         }));
         break;
       case 'Delete':
-      case 'Backspace':
+      case 'Backspace': {
         e.preventDefault();
         handleDelete(phonemeId);
         // Focus next phoneme or add button
@@ -221,6 +221,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           setSelectedId(nextPhoneme.id);
         }
         break;
+      }
       case 'Tab':
         // Navigate between phonemes
         if (e.shiftKey) {
@@ -239,26 +240,6 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
         break;
     }
   };
-
-  // Helper for keyboard resize
-  const handleResize = useCallback((id: string, side: 'left' | 'right', deltaNormalized: number) => {
-    setPhonemes(prev => {
-      const idx = prev.findIndex(p => p.id === id);
-      if (idx === -1) return prev;
-
-      const p = prev[idx];
-      const newPhonemes = [...prev];
-
-      if (side === 'left') {
-        const newStart = Math.max(0, Math.min(p.end - 0.05, p.start + deltaNormalized));
-        newPhonemes[idx] = { ...p, start: newStart };
-      } else {
-        const newEnd = Math.max(p.start + 0.05, Math.min(1, p.end + deltaNormalized));
-        newPhonemes[idx] = { ...p, end: newEnd };
-      }
-      return newPhonemes;
-    });
-  }, []);
 
   // Handle drag
   const handleDrag = useCallback((id: string, deltaX: number) => {

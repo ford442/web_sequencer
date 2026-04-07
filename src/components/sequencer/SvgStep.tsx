@@ -11,7 +11,7 @@ interface SvgStepProps {
     refsArray: MutableRefObject<(SVGGElement | null)[]>;
     rowLabel: string;
     rowKey: TrackKey;
-    onToggle: (k: TrackKey, i: number, e: any) => void;
+    onToggle: (k: TrackKey, i: number, e: PointerEvent | React.KeyboardEvent) => void;
     onRightMouseDown: (k: TrackKey, i: number, e: MouseEvent) => void;
     onEditLength: (k: TrackKey, i: number, len: number) => void;
     length?: number;
@@ -24,7 +24,7 @@ interface SvgStepProps {
 }
 
 export const SvgStep = memo(({
-    stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
+    stepIndex, active, note, refsArray: _refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
     onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing
 }: SvgStepProps) => {
     const baseWidth = 18;
@@ -76,13 +76,13 @@ export const SvgStep = memo(({
         if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
     };
 
-    // Use local ref to avoid mutating props directly
+    // Use local ref and avoid mutating props
     const localRef = useRef<SVGGElement | null>(null);
 
     return (
         <g 
             transform={`translate(${x}, 0)`} 
-            ref={(el) => { localRef.current = el; if (refsArray.current) refsArray.current[stepIndex] = el; }} 
+            ref={localRef}
             className="svg-step" 
             role="button" 
             tabIndex={0} 
@@ -94,12 +94,6 @@ export const SvgStep = memo(({
                 if (e.key === 'Enter' || e.key === ' ') { 
                     e.preventDefault(); 
                     onToggle(rowKey, stepIndex, e); 
-                } else if (e.key === 'ArrowRight') {
-                    const nextEl = refsArray.current?.[stepIndex + 1];
-                    nextEl?.focus();
-                } else if (e.key === 'ArrowLeft') {
-                    const prevEl = refsArray.current?.[stepIndex - 1];
-                    prevEl?.focus();
                 }
             }} 
             onContextMenu={(e) => e.preventDefault()} 

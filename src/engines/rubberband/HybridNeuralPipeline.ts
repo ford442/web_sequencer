@@ -141,6 +141,7 @@ export interface PipelineCallbacks {
 export class HybridNeuralPipeline {
     private config: Required<HybridPipelineConfig>;
     private isInitialized = false;
+    private isMelGeneratorInitialized = false;
     private vocoderSessions: VocoderSession[] = [];
     private fftLookup: Map<number, { real: Float32Array; imag: Float32Array }> = new Map();
     private melFilterbank: Float32Array | null = null;

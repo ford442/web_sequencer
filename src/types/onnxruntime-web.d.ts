@@ -9,10 +9,20 @@ declare module 'onnxruntime-web' {
 
   export interface InferenceSession {
     run(feeds: Record<string, Tensor>): Promise<Record<string, Tensor>>;
+    inputNames?: string[];
+    outputNames?: string[];
+    release?(): void;
+  }
+
+  export interface SessionOptions {
+    executionProviders?: string[] | { name: string }[];
+    graphOptimizationLevel?: 'none' | 'basic' | 'extended' | 'all';
+    enableCpuMemArena?: boolean;
+    enableMemPattern?: boolean;
   }
 
   export namespace InferenceSession {
-    function create(modelPath: string): Promise<InferenceSession>;
+    function create(modelPath: string, options?: SessionOptions): Promise<InferenceSession>;
   }
 
   export const Tensor: {
