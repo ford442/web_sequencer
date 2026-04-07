@@ -23,7 +23,8 @@ export interface Open303Params {
  */
 export interface Open303Config {
     /**
-     * Prefer AudioWorklet over ScriptProcessorNode
+     * Prefer AudioWorklet over legacy ScriptProcessorNode
+     * @deprecated AudioWorklet is now the only supported path
      * @default true
      */
     preferWorklet?: boolean;
@@ -34,13 +35,6 @@ export interface Open303Config {
      * @default false (uses single-threaded for broader compatibility)
      */
     preferThreaded?: boolean;
-    
-    /**
-     * Force ScriptProcessorNode mode (disable AudioWorklet)
-     * Useful for debugging or compatibility
-     * @default false
-     */
-    forceScriptProcessor?: boolean;
     
     /**
      * Force single-threaded WASM (disable threaded variant)
@@ -57,7 +51,6 @@ export interface Open303Config {
 export const DEFAULT_303_CONFIG: Open303Config = {
     preferWorklet: true,
     preferThreaded: false,
-    forceScriptProcessor: false,
     forceSingleThreaded: false,
 };
 

@@ -49,7 +49,7 @@ type AudioWindow = Window & typeof globalThis & {
     audioContext?: AudioContext;
 };
 
-export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean = false) => {
+export const useAudioEngine = (pyodide: unknown) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
@@ -66,7 +66,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
     const choirLeftPannerRef = useRef<StereoPannerNode | null>(null);
     const choirRightPannerRef = useRef<StereoPannerNode | null>(null);
 
-    const sustainNodeRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
+    const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
     const ambianceGainNodeRef = useRef<GainNode | null>(null);
@@ -195,7 +195,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
             voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined);
 
-            await initializeSustainProcessor(context, forceScriptProcessor, sustainProcessorUrl, sustainNodeRef, masterGainRef);
+            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
 
             // --- Singing Voice Manager Init ---
             try {
@@ -216,7 +216,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     enableFormantShifting: true
                 });
 
-                await manager.init(forceScriptProcessor, wasmBinary);
+                await manager.init(wasmBinary);
                 singingVoiceManagerRef.current = manager;
 
                 initializeChoirBuses(
@@ -788,7 +788,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             setIsReady(true);
             isInitializing.current = false;
         }
-    }, [audioEngine, forceScriptProcessor, playbackRefs]);
+    }, [audioEngine, playbackRefs]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
         applyVoiceParamUpdate({

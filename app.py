@@ -166,6 +166,8 @@ class ItemPayload(BaseModel):
     description: Optional[str] = ""
     type: str = "song"
     data: dict
+    tags: Optional[List[str]] = None
+    folder: Optional[str] = "default"
 
 class MetaData(BaseModel):
     id: str
@@ -175,6 +177,11 @@ class MetaData(BaseModel):
     type: str
     description: Optional[str] = ""
     filename: str
+    size: Optional[int] = None
+    url: Optional[str] = None
+    version: Optional[int] = 1
+    tags: Optional[List[str]] = None
+    folder: Optional[str] = "default"
 
 # --- RESPONSE WRAPPER (matches frontend StorageResult) ---
 class StorageResult(BaseModel):
@@ -183,6 +190,8 @@ class StorageResult(BaseModel):
     url: Optional[str] = None
     timestamp: Optional[str] = None
     action: Optional[str] = None
+    size: Optional[int] = None
+    folder: Optional[str] = None
     error: Optional[str] = None
 
 class SortBy(str, Enum):
@@ -343,7 +352,12 @@ async def upload_item(payload: ItemPayload):
         "date": date_str,
         "type": item_type,
         "description": payload.description,
-        "filename": f"{item_id}.json"
+        "filename": f"{item_id}.json",
+        "size": 0,
+        "url": f"/api/songs/{item_id}",
+        "version": 1,
+        "tags": payload.tags or [],
+        "folder": payload.folder or "default"
     }
     payload.data["_cloud_meta"] = meta
 
@@ -392,6 +406,10 @@ async def upload_item(payload: ItemPayload):
                     raise e
     
             await run_sftp(_perform_write)
+            # Calculate size from the JSON data
+            json_bytes = json.dumps(payload.data).encode('utf-8')
+            size = len(json_bytes)
+            
             # Invalidate cache
             await cache.delete(f"library:{item_type}")
             await cache.delete("library:all")
@@ -401,7 +419,9 @@ async def upload_item(payload: ItemPayload):
                 id=item_id,
                 url=f"/api/songs/{item_id}",
                 timestamp=date_str,
-                action="created"
+                action="created",
+                size=size,
+                folder=payload.folder or "default"
             )
         except Exception as e:
             print(f"Upload Error: {e}")

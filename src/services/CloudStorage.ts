@@ -323,17 +323,17 @@ export const CloudStorage = {
   /**
    * Get all songs from the cloud storage
    * @param typeFilter - Optional filter by item type
-   * @param folder - Optional folder filter
+   * @param search - Optional search query (name, author, or description)
    * @returns StorageResult with array of CloudSongMeta
    */
   async getSongs(
     typeFilter?: CloudItemType,
-    folder?: string
+    search?: string
   ): Promise<StorageResult<CloudSongMeta[]>> {
     try {
       const params = new URLSearchParams();
       if (typeFilter) params.append('type', typeFilter);
-      if (folder) params.append('folder', folder);
+      if (search) params.append('search', search);
       
       const url = `${API_BASE_URL}/api/songs${params.toString() ? '?' + params.toString() : ''}`;
       
@@ -473,9 +473,9 @@ export const CloudStorage = {
   /**
    * Delete an item from cloud storage
    * @param id - Song ID to delete
-   * @returns StorageResult with success status
+   * @returns StorageResult with success status and backend response data
    */
-  async deleteItem(id: string): Promise<StorageResult<void>> {
+  async deleteItem(id: string): Promise<StorageResult<{ action?: string; id?: string }>> {
     try {
       const { url, options } = await applyRequestInterceptors(
         `${API_BASE_URL}/api/songs/${encodeURIComponent(id)}`,
@@ -496,7 +496,15 @@ export const CloudStorage = {
         };
       }
 
-      return { success: true };
+      // Parse the rich response from backend
+      const responseData = await resWithInterceptors.json().catch(() => ({}));
+      return { 
+        success: true, 
+        data: {
+          action: responseData.action,
+          id: responseData.id
+        }
+      };
     } catch (e) {
       console.error("[CloudStorage] Delete error:", e);
       return { success: false, error: classifyError(e) };
@@ -569,50 +577,12 @@ export const CloudStorage = {
 
   /**
    * Search songs by query string
-   * @param query - Search query (title, author, or tags)
+   * @param query - Search query (title, author, or description)
    * @returns StorageResult with matching songs
    */
   async searchSongs(query: string): Promise<StorageResult<CloudSongMeta[]>> {
-    try {
-      const url = `${API_BASE_URL}/api/songs?search=${encodeURIComponent(query)}`;
-      
-      const { url: finalUrl, options } = await applyRequestInterceptors(url, {});
-      const res = await fetchWithRetry(finalUrl, options);
-      const resWithInterceptors = await applyResponseInterceptors(res, finalUrl);
-
-      if (!resWithInterceptors.ok) {
-        return {
-          success: false,
-          error: classifyError(
-            new Error(`Search failed: HTTP ${resWithInterceptors.status}`),
-            finalUrl,
-            resWithInterceptors.status
-          )
-        };
-      }
-
-      const data: ApiSongResponse[] = await resWithInterceptors.json();
-      
-      const mapped: CloudSongMeta[] = data.map(item => ({
-        id: item.id,
-        name: item.name,
-        author: item.author,
-        date: item.date,
-        type: item.type,
-        description: item.description,
-        filename: item.filename,
-        size: item.size,
-        url: item.url,
-        version: item.version,
-        tags: item.tags,
-        folder: item.folder
-      }));
-      
-      return { success: true, data: mapped };
-    } catch (e) {
-      console.error("[CloudStorage] Search error:", e);
-      return { success: false, error: classifyError(e) };
-    }
+    // Delegate to getSongs which now supports search parameter
+    return this.getSongs(undefined, query);
   }
 };
 
