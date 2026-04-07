@@ -13,6 +13,9 @@ export interface PhonemeBlockProps {
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onPitchBendChange: (id: string, bend: number) => void;
+  tabIndex?: number;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  ariaLabel?: string;
 }
 
 export const PhonemeBlock = memo(({
@@ -25,7 +28,10 @@ export const PhonemeBlock = memo(({
   onResizeStart,
   onSelect,
   onDelete,
-  onPitchBendChange
+  onPitchBendChange,
+  tabIndex = -1,
+  onKeyDown,
+  ariaLabel
 }: PhonemeBlockProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartX = useRef(0);
@@ -82,6 +88,12 @@ export const PhonemeBlock = memo(({
           ? `0 0 20px ${color}60, inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.4)`
           : `0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)`
       }}
+      tabIndex={tabIndex}
+      role="button"
+      aria-label={ariaLabel || `${phoneme.symbol} phoneme`}
+      aria-pressed={isSelected}
+      onKeyDown={onKeyDown}
+      onClick={() => onSelect(phoneme.id)}
     >
       {/* Main block content */}
       <div
@@ -112,9 +124,10 @@ export const PhonemeBlock = memo(({
         {isSelected && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(phoneme.id); }}
-            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white text-xs flex items-center justify-center shadow-lg border border-red-400/50 transition-all"
-            title="Delete phoneme"
+            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white text-xs flex items-center justify-center shadow-lg border border-red-400/50 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+            title="Delete phoneme (Delete key)"
             aria-label="Delete phoneme"
+            tabIndex={tabIndex}
           >
             ×
           </button>
