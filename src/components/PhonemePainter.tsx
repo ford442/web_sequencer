@@ -12,6 +12,7 @@
  * - Auto-Align using PhonemeAligner
  * - Add/Delete phonemes
  * - Holographic/faux-plastic aesthetic
+ * - Keyboard navigation support (WCAG 2.1 AA)
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
@@ -50,6 +51,9 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   
   const timelineRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const phonemeButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const addMenuRef = useRef<HTMLDivElement>(null);
   const resizeState = useRef<{ id: string; side: 'left' | 'right'; startX: number; startValue: number } | null>(null);
   
   const TIMELINE_WIDTH = 600;
@@ -80,6 +84,160 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
       setSelectedId(null);
     }
   }, [isOpen, note, alignment]);
+
+  // Focus trap and escape key handling
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape to close
+      if (e.key === 'Escape') {
+        if (showAddMenu) {
+          setShowAddMenu(false);
+        } else {
+          onClose();
+        }
+        return;
+      }
+
+      // Focus management
+      if (e.key === 'Tab') {
+        // Let default tab behavior work, but ensure focus stays in modal
+        const focusableElements = containerRef.current?.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusableElements || focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // Focus first element when opened
+    const timer = setTimeout(() => {
+      containerRef.current?.querySelector('button')?.focus();
+    }, 100);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(timer);
+    };
+  }, [isOpen, onClose, showAddMenu]);
+
+  // Keyboard navigation for phoneme blocks
+  const handlePhonemeKeyDown = useCallback((e: React.KeyboardEvent, phonemeId: string) => {
+    const phoneme = phonemes.find(p => p.id === phonemeId);
+    if (!phoneme) return;
+
+    const phonemeIndex = phonemes.findIndex(p => p.id === phonemeId);
+    const STEP_SIZE = 0.01; // 1% increments
+    const BIG_STEP = 0.05;  // 5% increments
+
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Extend right
+          handleResize(phonemeId, 'right', BIG_STEP);
+        } else {
+          // Move right
+          handleDrag(phonemeId, TIMELINE_WIDTH * STEP_SIZE);
+        }
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Extend left
+          handleResize(phonemeId, 'right', -BIG_STEP);
+        } else {
+          // Move left
+          handleDrag(phonemeId, -TIMELINE_WIDTH * STEP_SIZE);
+        }
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        // Increase pitch bend
+        handlePitchBendChange(phonemeId, Math.min(100, phoneme.pitchBend + (e.shiftKey ? 20 : 5)));
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        // Decrease pitch bend
+        handlePitchBendChange(phonemeId, Math.max(-100, phoneme.pitchBend - (e.shiftKey ? 20 : 5)));
+        break;
+      case 'Home':
+        e.preventDefault();
+        // Move to start
+        setPhonemes(prev => prev.map(p => 
+          p.id === phonemeId ? { ...p, start: 0, end: p.end - p.start } : p
+        ));
+        break;
+      case 'End':
+        e.preventDefault();
+        // Move to end
+        setPhonemes(prev => prev.map(p => {
+          if (p.id !== phonemeId) return p;
+          const duration = p.end - p.start;
+          return { ...p, start: 1 - duration, end: 1 };
+        }));
+        break;
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        handleDelete(phonemeId);
+        // Focus next phoneme or add button
+        const nextPhoneme = phonemes[phonemeIndex + 1];
+        if (nextPhoneme) {
+          setSelectedId(nextPhoneme.id);
+        }
+        break;
+      case 'Tab':
+        // Navigate between phonemes
+        if (e.shiftKey) {
+          const prevPhoneme = phonemes[phonemeIndex - 1];
+          if (prevPhoneme) {
+            e.preventDefault();
+            setSelectedId(prevPhoneme.id);
+          }
+        } else {
+          const nextPhoneme = phonemes[phonemeIndex + 1];
+          if (nextPhoneme) {
+            e.preventDefault();
+            setSelectedId(nextPhoneme.id);
+          }
+        }
+        break;
+    }
+  }, [phonemes]);
+
+  // Helper for keyboard resize
+  const handleResize = useCallback((id: string, side: 'left' | 'right', deltaNormalized: number) => {
+    setPhonemes(prev => {
+      const idx = prev.findIndex(p => p.id === id);
+      if (idx === -1) return prev;
+      
+      const p = prev[idx];
+      const newPhonemes = [...prev];
+      
+      if (side === 'left') {
+        const newStart = Math.max(0, Math.min(p.end - 0.05, p.start + deltaNormalized));
+        newPhonemes[idx] = { ...p, start: newStart };
+      } else {
+        const newEnd = Math.max(p.start + 0.05, Math.min(1, p.end + deltaNormalized));
+        newPhonemes[idx] = { ...p, end: newEnd };
+      }
+      return newPhonemes;
+    });
+  }, []);
   
   // Handle drag
   const handleDrag = useCallback((id: string, deltaX: number) => {
@@ -238,16 +396,50 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
     phonemes.find(p => p.id === selectedId) || null,
     [phonemes, selectedId]
   );
+
+  // Announce changes to screen readers
+  const announceToScreenReader = useCallback((message: string) => {
+    const announcement = document.createElement('div');
+    announcement.setAttribute('role', 'status');
+    announcement.setAttribute('aria-live', 'polite');
+    announcement.setAttribute('aria-atomic', 'true');
+    announcement.className = 'sr-only';
+    announcement.textContent = message;
+    document.body.appendChild(announcement);
+    setTimeout(() => document.body.removeChild(announcement), 1000);
+  }, []);
   
   if (!isOpen) return null;
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div 
+      ref={containerRef}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="phoneme-painter-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={onClose}
+        aria-hidden="true"
       />
+      
+      {/* Skip to content link for keyboard users */}
+      <a 
+        href="#phoneme-timeline" 
+        className="skip-link"
+        onClick={(e) => {
+          e.preventDefault();
+          timelineRef.current?.focus();
+        }}
+      >
+        Skip to timeline
+      </a>
       
       {/* Popover Container with hardware panel aesthetic */}
       <div 
@@ -297,7 +489,10 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 </svg>
               </div>
               <div>
-                <h2 className="text-sm font-bold text-cyan-300 font-mono tracking-wider flex items-center gap-2">
+                <h2 
+                  id="phoneme-painter-title"
+                  className="text-sm font-bold text-cyan-300 font-mono tracking-wider flex items-center gap-2"
+                >
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
                   PHONEME PAINTER
                 </h2>
@@ -334,7 +529,13 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           </div>
           
           {/* Timeline with Draggable Phonemes */}
-          <div className="relative rounded-lg border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <div 
+            id="phoneme-timeline"
+            ref={timelineRef}
+            tabIndex={0}
+            aria-label="Phoneme timeline. Use arrow keys to navigate and adjust phonemes."
+            className="relative rounded-lg border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] outline-none focus:ring-2 focus:ring-cyan-500/50"
+          >
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider flex items-center gap-1.5">
                 <span className="w-1 h-1 rounded-full bg-purple-500/50" />
@@ -368,18 +569,32 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                   aria-expanded={showAddMenu}
                   aria-controls="add-phoneme-menu"
                   aria-label="Toggle add phoneme menu"
-                  title="Toggle add phoneme menu"
+                  aria-haspopup="menu"
+                  title="Toggle add phoneme menu (A)"
                 >
                   <span className="flex items-center gap-1">+ Add Phoneme</span>
                 </button>
               </div>
             </div>
             
+            {/* Keyboard shortcuts hint */}
+            <div className="text-[9px] text-zinc-600 font-mono mb-2 flex items-center gap-2">
+              <span>Shortcuts:</span>
+              <span className="px-1 py-0.5 bg-zinc-800 rounded">←→ Move</span>
+              <span className="px-1 py-0.5 bg-zinc-800 rounded">Shift+←→ Resize</span>
+              <span className="px-1 py-0.5 bg-zinc-800 rounded">↑↓ Pitch</span>
+              <span className="px-1 py-0.5 bg-zinc-800 rounded">Del Delete</span>
+              <span className="px-1 py-0.5 bg-zinc-800 rounded">Tab Navigate</span>
+            </div>
+            
             {/* Add phoneme menu - improved styling */}
             {showAddMenu && (
               <div
                 id="add-phoneme-menu"
-                className="absolute right-4 top-10 z-30 w-64 rounded-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
+                ref={addMenuRef}
+                role="menu"
+                aria-label="Add phoneme menu"
+                className="absolute right-4 top-16 z-30 w-64 rounded-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
                 style={{
                   background: 'linear-gradient(145deg, rgba(24,24,27,0.98), rgba(9,9,11,0.99))',
                   border: '1px solid rgba(6,182,212,0.3)',
@@ -394,17 +609,19 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                 </div>
                 <div className="max-h-48 overflow-y-auto p-2 space-y-2">
                   {COMMON_PHONEMES.map(group => (
-                    <div key={group.cat}>
+                    <div key={group.cat} role="group" aria-label={group.cat}>
                       <div className="text-[9px] text-zinc-500 font-mono uppercase mb-1.5 px-1">{group.cat}</div>
                       <div className="flex flex-wrap gap-1">
-                        {group.phones.map(ph => (
+                        {group.phones.map((ph, idx) => (
                           <button
                             key={ph}
+                            ref={el => { phonemeButtonRefs.current[idx] = el; }}
                             onClick={() => handleAddPhoneme(ph)}
                             className="px-2 py-1 text-[10px] font-mono bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 text-zinc-300 rounded border border-zinc-700 hover:border-cyan-500/50 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                             style={{ color: getPhonemeColor(ph) }}
                             aria-label={`Add ${ph} phoneme`}
                             title={`Add ${ph} phoneme`}
+                            role="menuitem"
                           >
                             {ph}
                           </button>
@@ -418,7 +635,6 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             
             {/* Timeline track */}
             <div 
-              ref={timelineRef}
               className="relative h-28 bg-zinc-950/50 rounded-lg border border-zinc-800/50 shadow-[inset_0_2px_8px_rgba(0,0,0,0.5)]"
               style={{ width: TIMELINE_WIDTH }}
               onClick={() => setSelectedId(null)}
@@ -442,19 +658,28 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
               
               {/* Phoneme blocks */}
               {phonemes.map((ph, idx) => (
-                <PhonemeBlock
+                <div
                   key={ph.id}
-                  phoneme={ph}
-                  index={idx}
-                  isSelected={selectedId === ph.id}
-                  pixelsPerUnit={TIMELINE_WIDTH}
-                  timelineWidth={TIMELINE_WIDTH}
-                  onDrag={handleDrag}
-                  onResizeStart={handleResizeStart}
-                  onSelect={setSelectedId}
-                  onDelete={handleDelete}
-                  onPitchBendChange={handlePitchBendChange}
-                />
+                  role="button"
+                  tabIndex={selectedId === ph.id ? 0 : -1}
+                  aria-label={`${ph.symbol} phoneme, ${((ph.end - ph.start) * 100).toFixed(0)}% duration, pitch ${ph.pitchBend} cents`}
+                  aria-pressed={selectedId === ph.id}
+                  onKeyDown={(e) => handlePhonemeKeyDown(e, ph.id)}
+                  onClick={() => setSelectedId(ph.id)}
+                >
+                  <PhonemeBlock
+                    phoneme={ph}
+                    index={idx}
+                    isSelected={selectedId === ph.id}
+                    pixelsPerUnit={TIMELINE_WIDTH}
+                    timelineWidth={TIMELINE_WIDTH}
+                    onDrag={handleDrag}
+                    onResizeStart={handleResizeStart}
+                    onSelect={setSelectedId}
+                    onDelete={handleDelete}
+                    onPitchBendChange={handlePitchBendChange}
+                  />
+                </div>
               ))}
               
               {phonemes.length === 0 && (
@@ -468,6 +693,8 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           {/* Selected Phoneme Controls */}
           {selectedPhoneme && (
             <div 
+              role="region"
+              aria-label="Selected phoneme controls"
               className="rounded-lg border p-4 relative overflow-hidden"
               style={{
                 borderColor: `${getPhonemeColor(selectedPhoneme.symbol)}40`,
@@ -533,14 +760,14 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                   <div className="flex gap-1">
                     <button
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend - 10)}
-                      className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700"
+                      className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       aria-label="Decrease pitch bend"
                     >
                       −
                     </button>
                     <button
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend + 10)}
-                      className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700"
+                      className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       aria-label="Increase pitch bend"
                     >
                       +
@@ -562,7 +789,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                         p.id === selectedPhoneme.id ? { ...p, volume: vol } : p
                       ));
                     }}
-                    className="w-24 h-1 bg-zinc-700 rounded-lg appearance-none"
+                    className="w-24 h-1 bg-zinc-700 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     aria-label="Volume"
                     aria-valuetext={`${Math.round((selectedPhoneme.volume || 1) * 100)}%`}
                   />
@@ -593,7 +820,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
         <div className="border-t border-zinc-800 bg-zinc-950/50 px-6 py-4 flex items-center justify-between relative">
           <button
             onClick={handleClear}
-            className="px-4 py-2 text-xs font-mono text-red-400 hover:text-red-300 rounded-md border border-red-900/30 bg-gradient-to-b from-red-950/30 to-red-950/10 hover:from-red-950/50 hover:to-red-950/20 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+            className="px-4 py-2 text-xs font-mono text-red-400 hover:text-red-300 rounded-md border border-red-900/30 bg-gradient-to-b from-red-950/30 to-red-950/10 hover:from-red-950/50 hover:to-red-950/20 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-2 focus:ring-red-500"
             aria-label="Clear all phonemes"
             title="Clear all phonemes"
           >
@@ -603,7 +830,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-white rounded-md bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+              className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-white rounded-md bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-2 focus:ring-zinc-500"
               aria-label="Cancel changes"
               title="Cancel changes"
             >
@@ -611,7 +838,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
             </button>
             <button
               onClick={handleSave}
-              className="px-6 py-2 text-xs font-mono font-bold text-black rounded-md bg-gradient-to-b from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 border border-cyan-400 transition-all shadow-[0_4px_16px_rgba(6,182,212,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] relative overflow-hidden group"
+              className="px-6 py-2 text-xs font-mono font-bold text-black rounded-md bg-gradient-to-b from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 border border-cyan-400 transition-all shadow-[0_4px_16px_rgba(6,182,212,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] relative overflow-hidden group focus:outline-none focus:ring-2 focus:ring-cyan-500"
               aria-label="Save changes"
               title="Save changes"
             >
@@ -619,6 +846,12 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
               <span className="relative">Save Changes</span>
             </button>
           </div>
+        </div>
+        
+        {/* Screen reader announcements */}
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {phonemes.length} phonemes in timeline
+          {selectedPhoneme && `, ${selectedPhoneme.symbol} selected`}
         </div>
       </div>
     </div>
