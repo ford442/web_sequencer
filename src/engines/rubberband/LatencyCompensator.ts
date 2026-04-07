@@ -682,13 +682,10 @@ export class LatencyCompensator {
             );
             
             for (const note of notes) {
-                const triggerStart = performance.now();
-                
                 this.scheduler.markTriggered(note);
                 this.noteCallback?.(note);
                 
                 // Record timing accuracy
-                const triggerEnd = performance.now();
                 this.scheduler.recordDrift(note.startTime, currentTime);
             }
             
@@ -852,7 +849,8 @@ export class MidiClockGenerator {
     private bpm: number = 120;
     private startTime: number = 0;
     private isRunning: boolean = false;
-    private pulseCount: number = 0;
+    private pulseCount: number = -1; // Start at -1 so first pulse at time 0 is sent
+    private lastPulseTime: number = 0;
     private onPulseCallback: (() => void) | null = null;
 
     constructor(bpm: number = 120) {
@@ -867,7 +865,8 @@ export class MidiClockGenerator {
     start(startTime: number): void {
         this.startTime = startTime;
         this.isRunning = true;
-        this.pulseCount = 0;
+        this.pulseCount = -1; // Reset so first pulse is sent immediately
+        this.lastPulseTime = startTime;
     }
 
     /**
@@ -900,7 +899,7 @@ export class MidiClockGenerator {
      */
     getTick(currentTime: number): number {
         const position = this.getPosition(currentTime);
-        const totalPulses = position * MIDI_TIMING.PPQN;
+        const totalPulses = Math.floor(position * MIDI_TIMING.PPQN);
         return Math.floor(totalPulses) % MIDI_TIMING.PPQN;
     }
 
@@ -916,12 +915,21 @@ export class MidiClockGenerator {
         const position = this.getPosition(currentTime);
         const totalPulses = Math.floor(position * MIDI_TIMING.PPQN);
         
+        // Send pulse if we've advanced to a new pulse count
         if (totalPulses > this.pulseCount) {
             this.pulseCount = totalPulses;
+            this.lastPulseTime = currentTime;
             return true;
         }
         
         return false;
+    }
+
+    /**
+     * Get the time of the last pulse.
+     */
+    getLastPulseTime(): number {
+        return this.lastPulseTime;
     }
 
     /**

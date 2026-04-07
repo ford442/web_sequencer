@@ -519,8 +519,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             )}
             {/* --- FIXED HEADER --- */}
             <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
-                {/* Bank Tabs */}
-                <div className="flex gap-1 overflow-x-auto scrollbar-none" role="tablist" aria-label="Sample Banks">
+                {/* Bank Tabs - Mobile touch optimized */}
+                <div className="flex gap-1 overflow-x-auto scrollbar-none touch-pan-x" role="tablist" aria-label="Sample Banks">
                     {SAMPLE_BANKS.map((label, i) => (
                         <button
                             key={i}
@@ -533,13 +533,14 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             tabIndex={activeBankIdx === i ? 0 : -1}
                             onClick={() => onBankChange(i)}
                             onKeyDown={(e) => handleKeyDown(e, i)}
-                            className={`relative min-w-[28px] py-1.5 text-[10px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                            className={`relative min-w-[36px] min-h-[44px] py-2 px-2 text-[11px] font-bold border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 touch-manipulation select-none ${
                                 flashBankIdx === i ? 'bg-green-600 border-green-400 text-white animate-pulse' :
                                 activeBankIdx === i
                                     ? 'bg-purple-600 border-purple-400 text-white shadow-md'
                                     : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
                             }`}
                             title={`Select Bank ${i+1}${multisampleReady?.[i] ? ' (Multisample Ready)' : loadedBanks?.[i] ? ' (Loaded)' : ''}`}
+                            style={{ touchAction: 'manipulation' }}
                         >
                             {label}
                             {/* Status indicators */}

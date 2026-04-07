@@ -236,6 +236,17 @@
    MOBILE TOUCH IMPROVEMENTS
    ============================================ */
 
+/* Touch manipulation utility */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch pan for horizontal scrolling */
+.touch-pan-x {
+  touch-action: pan-x;
+}
+
 /* Minimum touch target size (44x44px per WCAG 2.1 AA) */
 @media (pointer: coarse), (hover: none) {
   /* Base touch targets */

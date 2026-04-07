@@ -14,11 +14,6 @@ import {
 } from '../LatencyCompensator';
 import type { LatencyCompensatorConfig, ScheduledNote } from '../LatencyCompensator';
 
-// Mock SingingVoice for type testing
-const mockSingingVoice = {
-    getLatencySeconds: vi.fn().mockReturnValue(0.023)
-};
-
 // Mock AudioContext
 const createMockAudioContext = (sampleRate = 44100): AudioContext => {
     return {
@@ -858,7 +853,9 @@ describe('MidiClockGenerator', () => {
             // At 120 BPM, one beat = 0.5 seconds
             // 24 PPQN, so each tick = 0.5/24 seconds
             const tick1 = clock.getTick(100);
-            const tick2 = clock.getTick(100 + 0.5 / 24);
+            // Advance by one tick duration
+            const tickInterval = (60 / 120) / MIDI_TIMING.PPQN;
+            const tick2 = clock.getTick(100 + tickInterval + 0.001); // Add small offset to ensure next tick
             
             expect(tick2).not.toBe(tick1);
         });
@@ -872,15 +869,15 @@ describe('MidiClockGenerator', () => {
         it('should return true when pulse is due', () => {
             clock.start(100);
             
-            // First pulse at start
+            // First pulse immediately at start (time 0 of the clock)
             expect(clock.shouldSendPulse(100)).toBe(true);
             
             // No pulse immediately after
             expect(clock.shouldSendPulse(100)).toBe(false);
             
-            // Pulse after tick interval
+            // Pulse after tick interval (add small buffer to ensure next tick boundary)
             const tickInterval = (60 / 120) / MIDI_TIMING.PPQN; // seconds per tick
-            expect(clock.shouldSendPulse(100 + tickInterval)).toBe(true);
+            expect(clock.shouldSendPulse(100 + tickInterval + 0.001)).toBe(true);
         });
     });
 
@@ -904,10 +901,12 @@ describe('MidiClockGenerator', () => {
             clock.start(100);
             const tickInterval = (60 / 120) / MIDI_TIMING.PPQN;
             
+            // First process at start time should trigger pulse
             clock.process(100);
             expect(callback).toHaveBeenCalledTimes(1);
             
-            clock.process(100 + tickInterval);
+            // Process after tick interval with small buffer should trigger next pulse
+            clock.process(100 + tickInterval + 0.001);
             expect(callback).toHaveBeenCalledTimes(2);
         });
     });

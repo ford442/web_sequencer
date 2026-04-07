@@ -92,7 +92,7 @@ export const App: React.FC = () => {
     }, []);
 
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
-    const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide, forceScriptProcessorFallback)
+    const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
     // NEW: Automation View State

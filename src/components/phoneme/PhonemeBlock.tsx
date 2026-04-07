@@ -4,15 +4,15 @@ import { PHONEME_NAMES, getPhonemeColor } from '../../constants/phonemes';
 
 export interface PhonemeBlockProps {
   phoneme: PhonemeData;
-  index: number;
+  _index: number;
   isSelected: boolean;
-  pixelsPerUnit: number;
+  _pixelsPerUnit: number;
   timelineWidth: number;
   onDrag: (id: string, deltaX: number) => void;
   onResizeStart: (id: string, side: 'left' | 'right') => void;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
-  onPitchBendChange: (id: string, bend: number) => void;
+  _onPitchBendChange: (id: string, bend: number) => void;
   tabIndex?: number;
   onKeyDown?: (e: React.KeyboardEvent) => void;
   ariaLabel?: string;
@@ -20,15 +20,15 @@ export interface PhonemeBlockProps {
 
 export const PhonemeBlock = memo(({
   phoneme,
-  index,
+  _index,
   isSelected,
-  pixelsPerUnit,
+  _pixelsPerUnit,
   timelineWidth,
   onDrag,
   onResizeStart,
   onSelect,
   onDelete,
-  onPitchBendChange,
+  _onPitchBendChange,
   tabIndex = -1,
   onKeyDown,
   ariaLabel

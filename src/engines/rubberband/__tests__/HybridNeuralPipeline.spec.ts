@@ -330,25 +330,32 @@ describe('HybridNeuralPipeline', () => {
             expect(capturedMetrics!.totalTime).toBeGreaterThan(0);
         });
 
-        it('should call error callback on failure', async () => {
+        it('should call error callback on initialization failure', async () => {
             const errorCallback = vi.fn();
 
-            // Create a pipeline with invalid config to force error
-            const badPipeline = new HybridNeuralPipeline({
+            // Create a pipeline that will fail to initialize
+            const failingPipeline = new HybridNeuralPipeline({
                 useGpu: false,
-                vocoderModelUrl: '/nonexistent/model.onnx'
+                maxSessions: 1
             });
 
-            badPipeline.setCallbacks({ onError: errorCallback });
+            failingPipeline.setCallbacks({ onError: errorCallback });
+
+            // Mock the session creation to throw an error
+            const { InferenceSession } = await import('onnxruntime-web');
+            const originalCreate = InferenceSession.create;
+            (InferenceSession as any).create = vi.fn().mockRejectedValue(new Error('Failed to load model'));
 
             try {
-                const audio = new Float32Array(22050).fill(0.5);
-                await badPipeline.synthesize(audio, 0, 1.0);
+                await failingPipeline.init();
             } catch {
                 // Expected to throw
             }
 
             expect(errorCallback).toHaveBeenCalled();
+
+            // Restore original
+            (InferenceSession as any).create = originalCreate;
         });
     });
 

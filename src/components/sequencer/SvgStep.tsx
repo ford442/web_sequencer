@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import type { PointerEvent, MouseEvent, MutableRefObject, CSSProperties } from 'react';
 import type { TrackKey } from '../../types';
 import { TRACK_COLORS } from './constants';
@@ -76,8 +76,36 @@ export const SvgStep = memo(({
         if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
     };
 
+    // Use local ref to avoid mutating props directly
+    const localRef = useRef<SVGGElement | null>(null);
+
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as CSSProperties}>
+        <g 
+            transform={`translate(${x}, 0)`} 
+            ref={(el) => { localRef.current = el; if (refsArray.current) refsArray.current[stepIndex] = el; }} 
+            className="svg-step" 
+            role="button" 
+            tabIndex={0} 
+            aria-label={`${rowLabel} step ${stepIndex + 1}${active ? ', active' : ''}`}
+            aria-pressed={active}
+            onPointerDown={handlePointerDown} 
+            onPointerEnter={handlePointerEnter} 
+            onKeyDown={(e) => { 
+                if (e.key === 'Enter' || e.key === ' ') { 
+                    e.preventDefault(); 
+                    onToggle(rowKey, stepIndex, e); 
+                } else if (e.key === 'ArrowRight') {
+                    const nextEl = refsArray.current?.[stepIndex + 1];
+                    nextEl?.focus();
+                } else if (e.key === 'ArrowLeft') {
+                    const prevEl = refsArray.current?.[stepIndex - 1];
+                    prevEl?.focus();
+                }
+            }} 
+            onContextMenu={(e) => e.preventDefault()} 
+            cursor="pointer" 
+            style={{ transition: 'all 0.1s ease', touchAction: 'manipulation', '--focus-color': focusColor } as CSSProperties}
+        >
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
             {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />

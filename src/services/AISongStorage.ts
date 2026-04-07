@@ -1539,7 +1539,7 @@ export const AISongStorage = {
    * @param songId - The song ID to delete
    * @returns StorageResult with success status
    */
-  async deleteAISong(songId: string): Promise<StorageResult<void>> {
+  async deleteAISong(songId: string): Promise<StorageResult<{ action?: string; id?: string }>> {
     log('Deleting AI song:', songId);
     
     const result = await CloudStorage.deleteItem(songId);
@@ -1550,7 +1550,7 @@ export const AISongStorage = {
       logError('Delete failed:', result.error);
     }
     
-    return result;
+    return result as StorageResult<{ action?: string; id?: string }>;
   },
 
   /**

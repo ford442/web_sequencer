@@ -7,7 +7,7 @@
  * Communicates with main thread via postMessage.
  */
 
-import { ArtifactDetector, ArtifactDetectorConfig, DEFAULT_ARTIFACT_CONFIG, ArtifactDetection, QualityMetrics } from './ArtifactDetector';
+import { ArtifactDetector, ArtifactDetectorConfig, DEFAULT_ARTIFACT_CONFIG, ArtifactDetection, QualityMetrics } from '../engines/rubberband/ArtifactDetector';
 
 // AudioWorklet processor interface declarations
 declare const globalThis: {
@@ -113,9 +113,9 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
      * Handle messages from main thread
      */
     private handleMessage(event: MessageEvent<ProcessorMessage>): void {
-        const { type, ...data } = event.data;
+        const data = event.data;
 
-        switch (type) {
+        switch (data.type) {
             case 'init':
                 if (data.config) {
                     this.config = { ...this.config, ...data.config };
@@ -154,9 +154,10 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                 break;
 
             case 'enableReporting':
-                this.reportingEnabled = data.enabled ?? true;
-                if (data.interval) {
-                    this.reportIntervalMs = data.interval;
+                this.reportingEnabled = (data as { enabled: boolean; interval?: number }).enabled ?? true;
+                const interval = (data as { enabled: boolean; interval?: number }).interval;
+                if (interval) {
+                    this.reportIntervalMs = interval;
                 }
                 this.port.postMessage({
                     type: 'reportingUpdated',
@@ -166,8 +167,9 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                 break;
 
             case 'setDryBuffer':
-                if (data.buffer) {
-                    this.dryBuffer = new Float32Array(data.buffer);
+                const buffer = (data as { buffer: ArrayBuffer }).buffer;
+                if (buffer) {
+                    this.dryBuffer = new Float32Array(buffer);
                     this.dryBufferIndex = 0;
                 }
                 break;
@@ -175,7 +177,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             default:
                 this.port.postMessage({
                     type: 'error',
-                    error: `Unknown message type: ${type}`
+                    error: `Unknown message type: ${(data as { type: string }).type}`
                 });
         }
     }
