@@ -5,6 +5,7 @@ import paramiko
 import uvicorn
 import asyncio
 import socket
+import logging
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -14,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from aiocache import Cache
 from datetime import datetime
+from enum import Enum
 
 # --- CONFIGURATION ---
 FTP_HOST = os.environ.get("FTP_HOST")
@@ -174,6 +176,21 @@ class MetaData(BaseModel):
     description: Optional[str] = ""
     filename: str
 
+# --- RESPONSE WRAPPER (matches frontend StorageResult) ---
+class StorageResult(BaseModel):
+    success: bool = True
+    id: Optional[str] = None
+    url: Optional[str] = None
+    timestamp: Optional[str] = None
+    action: Optional[str] = None
+    error: Optional[str] = None
+
+class SortBy(str, Enum):
+    date = "date"
+    name = "name"
+    author = "author"
+    rating = "rating"
+
 # --- ASYNC HELPERS ---
 
 def get_config(item_type: str):
@@ -207,8 +224,15 @@ def home():
 
 # --- LISTING (Cached) ---
 @app.get("/api/songs", response_model=List[MetaData])
-async def list_library(type: Optional[str] = Query(None)):
-    cache_key = f"library:{type or 'all'}"
+async def list_library(
+    type: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, description="Search name, author, or description"),
+    sort_by: SortBy = Query(SortBy.date),
+    sort_desc: bool = Query(True),
+    genre: Optional[str] = Query(None),
+    min_rating: Optional[int] = Query(None, ge=1, le=10)
+):
+    cache_key = f"library:{type or 'all'}:{search}:{sort_by}:{sort_desc}:{genre}:{min_rating}"
     cached = await cache.get(cache_key)
     if cached:
         return cached
@@ -220,9 +244,9 @@ async def list_library(type: Optional[str] = Query(None)):
         # We need to remember root to navigate up/down
         root = await run_sftp(sftp.getcwd)
 
-        types = [type] if type else ["song", "pattern", "bank"]
+        search_types = [type] if type else ["song", "pattern", "bank", "sample", "music", "shader", "note"]
 
-        for t in types:
+        for t in search_types:
             config = get_config(t)
             try:
                 # Run the chdir + read in one thread block to avoid hopping
@@ -240,9 +264,32 @@ async def list_library(type: Optional[str] = Query(None)):
                         return []
 
                 items = await run_sftp(_fetch_list)
-                results.extend(items)
-            except Exception:
-                pass
+                if isinstance(items, list):
+                    results.extend(items)
+            except Exception as e:
+                print(f"Error listing {t}: {e}")
+
+        # Search filter (exactly what frontend expects)
+        if search:
+            search_lower = search.lower()
+            results = [
+                r for r in results
+                if search_lower in str(r.get("name", "")).lower()
+                or search_lower in str(r.get("author", "")).lower()
+                or search_lower in str(r.get("description", "")).lower()
+            ]
+
+        # Existing filters
+        if genre:
+            results = [r for r in results if r.get("genre") == genre]
+        if min_rating is not None:
+            results = [r for r in results if (r.get("rating") or 0) >= min_rating]
+
+        # Sort
+        def sort_key(item):
+            val = item.get(sort_by.value)
+            return (1, "") if val is None else (0, val)
+        results.sort(key=sort_key, reverse=sort_desc)
 
         # Cache for 30s
         await cache.set(cache_key, results, ttl=30)
@@ -349,10 +396,117 @@ async def upload_item(payload: ItemPayload):
             await cache.delete(f"library:{item_type}")
             await cache.delete("library:all")
             
-            return {"success": True, "id": item_id}
+            return StorageResult(
+                success=True,
+                id=item_id,
+                url=f"/api/songs/{item_id}",
+                timestamp=date_str,
+                action="created"
+            )
         except Exception as e:
             print(f"Upload Error: {e}")
             raise HTTPException(500, str(e))
+        finally:
+            await sftp_pool.release(sftp, transport)
+
+# ====================== DELETE ENDPOINT ======================
+@app.delete("/api/songs/{item_id}")
+async def delete_item(item_id: str, type: Optional[str] = Query(None)):
+    """
+    Deletes item + removes from index.
+    Called by CloudStorage.deleteItem().
+    """
+    search_types = [type] if type else ["song", "pattern", "bank", "sample", "music", "note", "shader"]
+
+    async with INDEX_LOCK:
+        sftp, transport = await sftp_pool.acquire()
+        try:
+            root = await run_sftp(sftp.getcwd)
+            
+            for t in search_types:
+                config = get_config(t)
+
+                # Try to delete the file (most are {id}.json)
+                def _check_and_delete():
+                    try:
+                        sftp.chdir(config["folder"])
+                        file_path = f"{item_id}.json"
+                        try:
+                            sftp.remove(file_path)
+                            return True
+                        except:
+                            return False
+                    except:
+                        return False
+                    finally:
+                        try:
+                            sftp.chdir(root)
+                        except:
+                            pass
+                
+                deleted = await run_sftp(_check_and_delete)
+
+                # For samples/music that store original filename in index
+                def _remove_from_index():
+                    try:
+                        sftp.chdir(config["folder"])
+                        try:
+                            with sftp.open(config["index"], 'r') as f:
+                                current = json.load(f)
+                        except:
+                            current = []
+                        
+                        entry = next((item for item in current if item.get("id") == item_id), None)
+                        
+                        # Remove from index
+                        if isinstance(current, list):
+                            new_index = [item for item in current if item.get("id") != item_id]
+                            with sftp.open(config["index"], 'wb') as f:
+                                f.write(json.dumps(new_index).encode('utf-8'))
+                        
+                        sftp.chdir(root)
+                        return entry
+                    except Exception as e:
+                        print(f"Error removing from index: {e}")
+                        try:
+                            sftp.chdir(root)
+                        except:
+                            pass
+                        return None
+                
+                entry = await run_sftp(_remove_from_index)
+                
+                # Delete by filename if entry has one
+                if entry and "filename" in entry:
+                    def _delete_by_filename():
+                        try:
+                            sftp.chdir(config["folder"])
+                            try:
+                                sftp.remove(entry["filename"])
+                            except:
+                                pass
+                            sftp.chdir(root)
+                        except:
+                            pass
+                    await run_sftp(_delete_by_filename)
+
+                if deleted or entry:
+                    # Clear cache
+                    await cache.delete(f"library:{t}")
+                    await cache.delete("library:all")
+                    
+                    return StorageResult(
+                        success=True,
+                        id=item_id,
+                        action="deleted"
+                    )
+
+            raise HTTPException(status_code=404, detail="Item not found")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"Delete failed for {item_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
         finally:
             await sftp_pool.release(sftp, transport)
 

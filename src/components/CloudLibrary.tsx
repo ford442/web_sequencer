@@ -69,9 +69,17 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
     const loadLibrary = async () => {
         setIsLoading(true);
-        const list = await CloudStorage.getSongs(filterType === 'all' ? undefined : (filterType as any));
-        // @ts-expect-error - Auto-generated to fix CI build
-        setSongs(list);
+        try {
+            const result = await CloudStorage.getSongs(
+                filterType === 'all' ? undefined : (filterType as CloudItemType)
+            );
+            // Backend returns raw array for listing (no StorageResult wrapper)
+            setSongs(Array.isArray(result) ? result : []);
+        } catch (err) {
+            console.error('[CloudLibrary] Failed to load:', err);
+            setSongs([]);
+            onShowToast('Failed to load library', 'error');
+        }
         setIsLoading(false);
     };
 
