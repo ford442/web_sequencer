@@ -1,14 +1,13 @@
-import { RingBuffer } from '../utils/ringBuffer';
 import processorUrl from '../audio-worklets/rubberband-processor.ts?worker&url';
 import { PhonemeAligner, type AlignmentResult } from './rubberband/PhonemeAligner';
 import { FormantShifter, type VoiceCharacter } from './rubberband/FormantShifter';
 
 /**
  * SingingVoice - High-fidelity vocal synthesis engine
- * 
+ *
  * Part of the RUBBERBAND_ENHANCEMENT_PLAN implementation.
  * Integrates Supertonic TTS with Rubber Band for singing synthesis.
- * 
+ *
  * Key features:
  * - Multi-resolution pitch caching (Section 2): Pre-render at multiple base pitches
  * - Formant preservation: Avoids "chipmunk effect"
@@ -85,38 +84,35 @@ export function freqToMidi(freq: number): number {
 export class SingingVoice {
     private audioContext: AudioContext;
     private workletNode: AudioWorkletNode | null = null;
-    private scriptProcessorNode: ScriptProcessorNode | null = null;
-    private useWorklet: boolean = true;
-    private _outputRingBuffer: RingBuffer | undefined;
     private config: SingingVoiceConfig;
-    
+
     /** Latency of the Rubber Band processor in samples */
     private processorLatency: number = 0;
-    
+
     /** Cache for pre-rendered TTS at different base pitches (Section 2) */
     private pitchCache: PitchCache = {
         low: null,
         mid: null,
         high: null
     };
-    
+
     /** Voice pitch parameters for sampler playback */
     private rootNote: number = 60;      // Base MIDI note (C4 default)
     private coarseTune: number = 0;     // Coarse tuning in semitones (-24 to +24)
     private fineTune: number = 0;       // Fine tuning in cents (-50 to +50)
     private pitchAttack: number = 0;    // Pitch envelope attack time (0-1)
     private pitchDecay: number = 0;     // Pitch envelope decay time (0-1)
-    
+
     /** Envelope Baseline Tracker for Phoneme-Aware Velocity */
     private currentAttack: number = 0.05;
     private currentDecay: number = 0.1;
 
     /** Phoneme aligner for Section 3 implementation */
     private phonemeAligner: PhonemeAligner | null = null;
-    
+
     /** Formant shifter for Section 4 implementation */
     private formantShifter: FormantShifter | null = null;
-    
+
     /** Last alignment result for current audio */
     private lastAlignment: AlignmentResult | null = null;
 
@@ -132,7 +128,7 @@ export class SingingVoice {
             voiceCharacter: config.voiceCharacter ?? 'default',
             phonemeAlignerUrl: config.phonemeAlignerUrl
         };
-        
+
         // Initialize phoneme aligner if enabled
         if (this.config.enablePhonemeStretching) {
             this.phonemeAligner = new PhonemeAligner({
@@ -140,7 +136,7 @@ export class SingingVoice {
                 useLocalAlignment: !this.config.phonemeAlignerUrl
             });
         }
-        
+
         // Initialize formant shifter if enabled
         if (this.config.enableFormantShifting) {
             this.formantShifter = new FormantShifter({
@@ -152,97 +148,86 @@ export class SingingVoice {
     /**
      * Initialize the Rubber Band AudioWorklet processor.
      * Must be called before processing audio.
-     * @param forceScriptProcessor If true, will use ScriptProcessorNode fallback
+     * AudioWorklet is now the only supported path - ScriptProcessorNode fallback removed.
+     * @param _forceScriptProcessor Deprecated parameter - no longer used
      * @param wasmBinary Optional pre-loaded WASM binary to avoid refetching
      */
-    async initWorklet(forceScriptProcessor: boolean = false, wasmBinary?: ArrayBuffer): Promise<void> {
-        // Clean up existing nodes if reinitializing
-        if (this.workletNode || this.scriptProcessorNode) {
-            if (this.workletNode) {
-                this.workletNode.disconnect();
-                this.workletNode = null;
-            }
-            if (this.scriptProcessorNode) {
-                // Clean up event handler to prevent memory leaks
-                this.scriptProcessorNode.onaudioprocess = null;
-                this.scriptProcessorNode.disconnect();
-                this.scriptProcessorNode = null;
-            }
+    async initWorklet(_forceScriptProcessor: boolean = false, wasmBinary?: ArrayBuffer): Promise<void> {
+        // Clean up existing node if reinitializing
+        if (this.workletNode) {
+            this.workletNode.disconnect();
+            this.workletNode = null;
         }
 
-        // Try AudioWorklet first (if not forcing fallback)
-        if (!forceScriptProcessor && this.audioContext.audioWorklet) {
-            try {
-                await this.audioContext.audioWorklet.addModule(processorUrl);
+        // AudioWorklet is the only supported path
+        if (!this.audioContext.audioWorklet) {
+            throw new Error('AudioWorklet is not supported in this browser. SingingVoice requires AudioWorklet.');
+        }
 
-                // Fetch the WASM binary on the main thread to bypass worklet restrictions
-                // OR use the pre-loaded one if provided (for multi-voice optimization)
-                let binary = wasmBinary;
-                if (!binary) {
-                    const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch rubberband.wasm: ${response.statusText}`);
-                    }
-                    binary = await response.arrayBuffer();
+        try {
+            await this.audioContext.audioWorklet.addModule(processorUrl);
+
+            // Fetch the WASM binary on the main thread to bypass worklet restrictions
+            // OR use the pre-loaded one if provided (for multi-voice optimization)
+            let binary = wasmBinary;
+            if (!binary) {
+                const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch rubberband.wasm: ${response.statusText}`);
                 }
-
-                // Create shared buffers for ring buffers
-                const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
-                const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
-
-                this._outputRingBuffer = new RingBuffer(outputBuffer);
-
-                this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
-                
-                // Initialize the worklet with the fetched binary and buffers (flat structure)
-                this.workletNode.port.postMessage({
-                    type: 'INIT_WASM',
-                    inputBuffer,
-                    outputBuffer,
-                    wasmBinary: binary,
-                    moduleUrl: '/rubberband.js'
-                });
-
-                // Wait for ready signal
-                await new Promise<void>((resolve) => {
-                    const handler = (event: MessageEvent) => {
-                        if (event.data.type === 'READY') {
-                            this.workletNode!.port.removeEventListener('message', handler);
-                            resolve();
-                        }
-                    };
-                    this.workletNode!.port.addEventListener('message', handler);
-                });
-                
-                this.useWorklet = true;
-                console.log('SingingVoice: AudioWorklet initialized successfully');
-                return;
-            } catch (e) {
-                console.warn('SingingVoice: AudioWorklet initialization failed, falling back to ScriptProcessorNode', e);
+                binary = await response.arrayBuffer();
             }
-        }
 
-        // Fallback to ScriptProcessorNode
-        console.log('SingingVoice: Initializing ScriptProcessorNode fallback');
-        this.scriptProcessorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
-        // Note: ScriptProcessorNode has limited functionality - pitch/time shifting won't work
-        // This is a basic pass-through for audio continuity
-        this.scriptProcessorNode.onaudioprocess = (e) => {
-            // Simple pass-through processing
-            const input = e.inputBuffer.getChannelData(0);
-            const output = e.outputBuffer.getChannelData(0);
-            output.set(input);
-        };
-        this.useWorklet = false;
-        console.log('SingingVoice: ScriptProcessorNode fallback initialized (limited functionality)');
+            // Create shared buffers for ring buffers
+            const inputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
+            const outputBuffer = new SharedArrayBuffer(this.config.bufferSize! * 4);
+
+            this.workletNode = new AudioWorkletNode(this.audioContext, 'RubberBandProcessor');
+
+            // Initialize the worklet with the fetched binary and buffers (flat structure)
+            this.workletNode.port.postMessage({
+                type: 'INIT_WASM',
+                inputBuffer,
+                outputBuffer,
+                wasmBinary: binary,
+                moduleUrl: '/rubberband.js'
+            });
+
+            // Wait for ready signal
+            await new Promise<void>((resolve, reject) => {
+                const handler = (event: MessageEvent) => {
+                    if (event.data.type === 'READY') {
+                        this.workletNode!.port.removeEventListener('message', handler);
+                        resolve();
+                    } else if (event.data.type === 'ERROR') {
+                        this.workletNode!.port.removeEventListener('message', handler);
+                        reject(new Error(event.data.error || 'Worklet initialization failed'));
+                    }
+                };
+                this.workletNode!.port.addEventListener('message', handler);
+
+                // Timeout after 10 seconds
+                setTimeout(() => {
+                    this.workletNode!.port.removeEventListener('message', handler);
+                    reject(new Error('Worklet initialization timeout'));
+                }, 10000);
+            });
+
+            console.log('SingingVoice: AudioWorklet initialized successfully');
+        } catch (e) {
+            console.error('SingingVoice: AudioWorklet initialization failed:', e);
+            this.workletNode = null;
+            throw new Error(`AudioWorklet initialization failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
     }
 
     /**
      * Get the output ring buffer instance.
      * Useful for visualizing output or analyzing processed audio on the main thread.
+     * @deprecated RingBuffer access removed - use standard AudioWorklet output instead
      */
-    get outputRingBuffer(): RingBuffer | undefined {
-        return this._outputRingBuffer;
+    get outputRingBuffer(): null {
+        return null;
     }
 
     /**
@@ -251,13 +236,12 @@ export class SingingVoice {
      * @param time Optional time to apply the change (default: now)
      */
     setPitch(ratio: number, time?: number): void {
-        if (this.useWorklet && this.workletNode) {
+        if (this.workletNode) {
             const t = time || this.audioContext.currentTime;
             const param = this.workletNode.parameters.get('pitchScale')!;
             param.cancelScheduledValues(t);
             param.setValueAtTime(ratio, t);
         }
-        // ScriptProcessorNode fallback doesn't support pitch shifting
     }
 
     /**
@@ -266,7 +250,7 @@ export class SingingVoice {
      * @param time Time to reach the target ratio
      */
     linearRampToPitch(ratio: number, time: number): void {
-        if (this.useWorklet && this.workletNode) {
+        if (this.workletNode) {
             this.workletNode.parameters.get('pitchScale')!.linearRampToValueAtTime(ratio, time);
         }
     }
@@ -294,7 +278,7 @@ export class SingingVoice {
     /**
      * Set pitch from MIDI note number relative to base note.
      * Uses stored rootNote, coarseTune, and fineTune values.
-     * 
+     *
      * @param targetMidiNote Target MIDI note for pitch shifting (can include fractional cents)
      * @param baseMidiNote Base MIDI note (default: uses stored rootNote) - the root note of the sample
      * @param time Optional time to apply the change (default: now)
@@ -306,21 +290,21 @@ export class SingingVoice {
         const effectiveBaseNote = baseMidiNote ?? this.rootNote;
         const effectiveCoarse = coarseTune ?? this.coarseTune;
         const effectiveFine = fineTune ?? this.fineTune;
-        
+
         // Apply coarse and fine tuning offsets
         const totalSemitoneOffset = effectiveCoarse + (effectiveFine / 100);
         const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
-        
+
         const targetFreq = midiToFreq(adjustedTargetMidi);
         const baseFreq = midiToFreq(effectiveBaseNote);
-        
+
         // Calculate pitch ratio, clamped to optimal range for best quality
         let pitchRatio = targetFreq / baseFreq;
         pitchRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, pitchRatio));
-        
+
         this.setPitch(pitchRatio, time);
     }
-    
+
     /**
      * Get the current configuration.
      * Useful for checking quality settings and other parameters.
@@ -328,7 +312,7 @@ export class SingingVoice {
     getConfig(): SingingVoiceConfig {
         return { ...this.config };
     }
-    
+
     /**
      * Update configuration at runtime.
      * Note: Some settings may require re-initialization to take effect.
@@ -336,7 +320,7 @@ export class SingingVoice {
     setConfig(updates: Partial<SingingVoiceConfig>): void {
         this.config = { ...this.config, ...updates };
     }
-    
+
     /**
      * Get the nearest base pitch level for a target frequency.
      * Used for multi-resolution pitch caching (Section 2).
@@ -349,7 +333,7 @@ export class SingingVoice {
         if (freq < 400) return 'mid';
         return 'high';
     }
-    
+
     /**
      * Get the reference frequency for a cache level.
      * @param level The pitch cache level
@@ -358,7 +342,7 @@ export class SingingVoice {
     getReferenceFrequency(level: keyof PitchCache): number {
         return REFERENCE_FREQUENCIES[level];
     }
-    
+
     /**
      * Set cached audio for a specific pitch level.
      * Call this with pre-rendered TTS audio at different reference pitches.
@@ -368,7 +352,7 @@ export class SingingVoice {
     setCachedAudio(level: keyof PitchCache, audio: Float32Array): void {
         this.pitchCache[level] = audio;
     }
-    
+
     /**
      * Get cached audio for a specific pitch level.
      * @param level The pitch cache level
@@ -377,7 +361,7 @@ export class SingingVoice {
     getCachedAudio(level: keyof PitchCache): Float32Array | null {
         return this.pitchCache[level];
     }
-    
+
     /**
      * Process audio with optimal pitch shifting using cached base pitches.
      * Automatically selects the nearest cached base pitch to minimize artifacts.
@@ -387,23 +371,23 @@ export class SingingVoice {
     processWithOptimalPitch(targetMidiNote: number): boolean {
         const cacheLevel = this.getNearestBasePitch(targetMidiNote);
         const cachedAudio = this.pitchCache[cacheLevel];
-        
+
         if (!cachedAudio) {
             console.warn(`No cached audio for level '${cacheLevel}'. Please render TTS first.`);
             return false;
         }
-        
+
         // Calculate pitch shift from the cached base to the target
         const baseFreq = REFERENCE_FREQUENCIES[cacheLevel];
         const targetFreq = midiToFreq(targetMidiNote);
         const pitchRatio = Math.max(
-            PITCH_RATIO_LIMITS.MIN, 
+            PITCH_RATIO_LIMITS.MIN,
             Math.min(PITCH_RATIO_LIMITS.MAX, targetFreq / baseFreq)
         );
-        
+
         this.setPitch(pitchRatio);
         this.process(cachedAudio);
-        
+
         return true;
     }
 
@@ -524,22 +508,18 @@ export class SingingVoice {
      * @param time Optional time to apply the change (default: now)
      */
     setTimeRatio(timeRatio: number, time?: number): void {
-        if (this.useWorklet && this.workletNode) {
+        if (this.workletNode) {
             this.workletNode.parameters.get('timeRatio')!.setValueAtTime(timeRatio, time || this.audioContext.currentTime);
         }
-        // ScriptProcessorNode fallback doesn't support time stretching
     }
 
     /**
-     * Get the underlying AudioWorkletNode or ScriptProcessorNode.
-     * @returns The audio node
+     * Get the underlying AudioWorkletNode.
+     * @returns The AudioWorkletNode
      */
-    getSourceNode(): AudioWorkletNode | ScriptProcessorNode {
-        if (this.useWorklet && this.workletNode) {
+    getSourceNode(): AudioWorkletNode {
+        if (this.workletNode) {
             return this.workletNode;
-        }
-        if (this.scriptProcessorNode) {
-            return this.scriptProcessorNode;
         }
         throw new Error('SingingVoice not initialized. Call initWorklet() first.');
     }
@@ -549,9 +529,8 @@ export class SingingVoice {
      * @param destination AudioNode to connect to
      */
     connect(destination: AudioNode): void {
-        const node = this.useWorklet ? this.workletNode : this.scriptProcessorNode;
-        if (node) {
-            node.connect(destination);
+        if (this.workletNode) {
+            this.workletNode.connect(destination);
         }
     }
 
@@ -560,12 +539,11 @@ export class SingingVoice {
      * @param destination Optional specific destination to disconnect from
      */
     disconnect(destination?: AudioNode): void {
-        const node = this.useWorklet ? this.workletNode : this.scriptProcessorNode;
-        if (node) {
+        if (this.workletNode) {
             if (destination) {
-                node.disconnect(destination);
+                this.workletNode.disconnect(destination);
             } else {
-                node.disconnect();
+                this.workletNode.disconnect();
             }
         }
     }
@@ -577,7 +555,7 @@ export class SingingVoice {
     getLatency(): number {
         return this.processorLatency;
     }
-    
+
     /**
      * Get latency in seconds.
      * Useful for MIDI synchronization (Section 9).
@@ -585,11 +563,11 @@ export class SingingVoice {
     getLatencySeconds(): number {
         return this.processorLatency / this.audioContext.sampleRate;
     }
-    
+
     /**
      * Align phonemes in the given audio (Section 3).
      * Stores the result internally for later use with phoneme-aware stretching.
-     * 
+     *
      * @param audio Audio samples to align
      * @param text Text/lyrics to align
      * @returns Alignment result with phoneme segments
@@ -599,16 +577,16 @@ export class SingingVoice {
             console.warn('PhonemeAligner not enabled. Set enablePhonemeStretching: true in config.');
             return null;
         }
-        
+
         this.lastAlignment = await this.phonemeAligner.alignPhonemes(
             audio,
             text,
             this.audioContext.sampleRate
         );
-        
+
         return this.lastAlignment;
     }
-    
+
     /**
      * Set the current alignment result manually.
      * Useful for multi-bank setups where alignment is pre-calculated/cached.
@@ -625,32 +603,32 @@ export class SingingVoice {
     getLastAlignment(): AlignmentResult | null {
         return this.lastAlignment;
     }
-    
+
     /**
      * Send phoneme boundaries to AudioWorklet for real-time processing (Section 3).
      * Call this after alignPhonemes() to enable phoneme-aware stretching.
-     * 
+     *
      * @param targetDuration Optional target duration for stretch calculation
      */
     sendPhonemeDataToWorklet(targetDuration?: number): void {
         if (!this.lastAlignment || !this.phonemeAligner || !this.workletNode) {
             return;
         }
-        
+
         const phonemes = this.lastAlignment.phonemes;
-        
+
         // Calculate stretch ratios if target duration specified
         let ratios: number[] | undefined;
         if (targetDuration !== undefined) {
             ratios = this.phonemeAligner.calculateStretchRatios(phonemes, targetDuration);
         }
-        
+
         // Create shared buffer with phoneme data
         const sharedBuffer = this.phonemeAligner.createSharedPhonemeBuffer(
             phonemes,
             this.audioContext.sampleRate
         );
-        
+
         // Send to worklet
         this.workletNode.port.postMessage({
             type: 'setPhonemeData',
@@ -660,10 +638,10 @@ export class SingingVoice {
             }
         });
     }
-    
+
     /**
      * Set voice character for formant shifting (Section 4).
-     * 
+     *
      * @param character Target voice character
      * @param sourceCharacter Source voice character (default: 'default')
      */
@@ -672,11 +650,11 @@ export class SingingVoice {
             console.warn('FormantShifter not enabled. Set enableFormantShifting: true in config.');
             return;
         }
-        
+
         this.formantShifter.createCharacterFilterChain(character, sourceCharacter);
         this.config.voiceCharacter = character;
     }
-    
+
     /**
      * Get the formant shifter for advanced control.
      * Returns null if formant shifting is not enabled.
@@ -684,7 +662,7 @@ export class SingingVoice {
     getFormantShifter(): FormantShifter | null {
         return this.formantShifter;
     }
-    
+
     /**
      * Get the phoneme aligner for advanced control.
      * Returns null if phoneme stretching is not enabled.
@@ -692,7 +670,7 @@ export class SingingVoice {
     getPhonemeAligner(): PhonemeAligner | null {
         return this.phonemeAligner;
     }
-    
+
     /**
      * Connect the output of this voice to an audio destination.
      * If formant shifting is enabled, routes through the formant shifter first.
@@ -700,27 +678,25 @@ export class SingingVoice {
      * @param destination Destination audio node
      */
     connectOutput(destination: AudioNode): void {
-        const node = this.useWorklet ? this.workletNode : this.scriptProcessorNode;
-        if (!node) {
+        if (!this.workletNode) {
             throw new Error('Voice not initialized. Call initWorklet() first.');
         }
         
         if (this.formantShifter && this.config.enableFormantShifting) {
             // Route through formant shifter
-            this.formantShifter.connect(node, destination);
+            this.formantShifter.connect(this.workletNode, destination);
         } else {
             // Direct connection
-            node.connect(destination);
+            this.workletNode.connect(destination);
         }
     }
-    
+
     /**
      * Disconnect the output.
      */
     disconnectOutput(): void {
-        const node = this.useWorklet ? this.workletNode : this.scriptProcessorNode;
-        if (node) {
-            node.disconnect();
+        if (this.workletNode) {
+            this.workletNode.disconnect();
         }
         if (this.formantShifter) {
             this.formantShifter.disconnect();

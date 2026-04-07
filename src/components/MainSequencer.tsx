@@ -654,7 +654,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 </div>
             )}
 
-            <svg viewBox={`0 0 ${requiredWidth} 500`} style={{ minWidth: `${svgWidthPercent}%` }} height="100%" preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
+            <svg viewBox={`0 0 ${requiredWidth} 680`} style={{ minWidth: `${svgWidthPercent}%` }} height="100%" preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
                 <g transform="translate(100, 40)">
                     {ROWS.map((row, rIdx) => {
