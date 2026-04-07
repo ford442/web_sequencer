@@ -610,7 +610,7 @@ export const exportSongToXM = async (
     // OH
     const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
     const pitchOH = calculateXMPitchParams(bufOH.sampleRate);
-    const dataOH = normalizeAndConvertToInt16(bufOH.getChannelData(0));
+    const dataOH = normalizeAndConvertTo16Bit(bufOH.getChannelData(0));
 
     const sampleOH = createSample({
         name: 'Open Hat',
