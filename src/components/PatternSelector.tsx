@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -22,6 +22,24 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
     x, y, currentPattern, onSelect, onClose
 }) => {
     const dialogRef = useFocusTrap(true, onClose);
+    const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+    const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+        let nextIndex = -1;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            nextIndex = (index + 1) % 8;
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            nextIndex = (index - 1 + 8) % 8;
+        }
+
+        if (nextIndex !== -1) {
+            e.preventDefault();
+            buttonRefs.current[nextIndex]?.focus();
+        }
+    };
+
+    // Determine which button should receive focus if user tabs in
+    const focusIndex = currentPattern !== null ? currentPattern : 0;
 
     return (
         <>
@@ -49,7 +67,11 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
                     <button onClick={onClose} aria-label="Close pattern selector" title="Close pattern selector" className="text-gray-500 hover:text-white text-xs focus:outline-none focus-visible:ring-1 focus-visible:ring-white rounded">✕</button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5">
+                <div
+                    className="grid grid-cols-2 gap-1.5"
+                    role="radiogroup"
+                    aria-labelledby="pattern-selector-title"
+                >
                     {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => {
                         const color = getPatternColor(slot);
                         const isSelected = currentPattern === slot;
@@ -57,10 +79,14 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
                         return (
                             <button
                                 key={slot}
+                                ref={(el) => { buttonRefs.current[slot] = el; }}
                                 onClick={() => onSelect(slot)}
-                                aria-label={`Select Pattern ${slot + 1}`}
+                                onKeyDown={(e) => handleKeyDown(e, slot)}
+                                tabIndex={slot === focusIndex ? 0 : -1}
+                                aria-label={`Pattern ${slot + 1}`}
                                 title={`Pattern ${slot + 1}`}
-                                aria-pressed={isSelected}
+                                role="radio"
+                                aria-checked={isSelected}
                                 className="w-10 h-8 rounded text-xs font-bold flex items-center justify-center transition-all hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-gray-900"
                                 style={{
                                     backgroundColor: isSelected ? '#fff' : color,
