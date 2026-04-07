@@ -77,7 +77,6 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
         this.port.onmessage = this.handleMessage.bind(this);
         
         // Get sample rate from global scope
-        // @ts-expect-error AudioWorkletGlobalScope has sampleRate
         this.sampleRate = typeof globalThis.sampleRate === 'number' 
             ? globalThis.sampleRate 
             : 44100;
