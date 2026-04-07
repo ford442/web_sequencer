@@ -1,3 +1,13 @@
+// @mode: bridge
+// XM Export utilities with WASM-accelerated DSP
+// AssemblyScript implementation: assembly/xmExport.ts
+// WASM output: src/wasm/xmExport.wasm
+//
+// This file serves as a bridge between JavaScript and the AssemblyScript WASM module.
+// The heavy DSP functions (getPeak, findZeroCrossing, normalizeAndConvert) are
+// implemented in WASM for better performance. Original JS implementations are
+// kept as fallbacks when WASM is unavailable.
+
 import {
     createModule, createPattern, createInstrument, createSample, addSampleToInstrument,
     XMWriter, noteNameToValue, LoopType
@@ -5,7 +15,60 @@ import {
 import type { PartSequence, Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams } from '../types';
 import { renderSynthToBuffer, renderDrumToBuffer } from './renderAudio';
 
+// WASM module import
+import initXmExport from '../wasm/xmExport.wasm?init';
+
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
+// --- WASM Module State ---
+interface XmExportWasmExports {
+    findPeak(bufferPtr: number, length: number): number;
+    findZeroCrossing(bufferPtr: number, position: number, direction: number, maxSearch: number): number;
+    normalizeAndConvert(bufferPtr: number, outputPtr: number, length: number, peak: number, targetPeak: number): void;
+    convertToInt16(bufferPtr: number, outputPtr: number, length: number): void;
+    memory: WebAssembly.Memory;
+    __new(size: number, id: number): number;
+    __pin(ptr: number): number;
+    __unpin(ptr: number): void;
+}
+
+let wasmInstance: XmExportWasmExports | null = null;
+let wasmMemory: WebAssembly.Memory | null = null;
+let wasmReady = false;
+
+/**
+ * Initialize the XM Export WASM module.
+ * Call this before using any WASM-accelerated functions.
+ */
+export async function initXmExportWasm(): Promise<boolean> {
+    if (wasmReady) return true;
+    
+    try {
+        const instance = await initXmExport({
+            env: {
+                abort: () => {}
+            }
+        });
+        
+        wasmInstance = instance.exports as unknown as XmExportWasmExports;
+        wasmMemory = wasmInstance.memory;
+        wasmReady = true;
+        
+        console.log('[xmExport] WASM module initialized');
+        return true;
+    } catch (e) {
+        console.warn('[xmExport] WASM initialization failed, using JS fallback:', e);
+        wasmReady = false;
+        return false;
+    }
+}
+
+/**
+ * Check if WASM module is ready for use.
+ */
+export function isXmExportWasmReady(): boolean {
+    return wasmReady && wasmInstance !== null && wasmMemory !== null;
+}
 
 // --- Configuration Constants ---
 /** Peak level threshold below which normalization is applied */
@@ -35,14 +98,40 @@ const downloadBlob = (blob: Blob, filename: string) => {
 // @perf-optimized: extracted for reuse to avoid redundant iterations
 /**
  * Find the peak amplitude in a buffer.
+ * Uses WASM if available, falls back to JS implementation.
  * @param input Float32Array audio buffer
  * @returns peak amplitude (0 to 1+)
  */
 const getPeak = (input: Float32Array): number => {
+    // Try WASM path first
+    if (isXmExportWasmReady() && wasmInstance && wasmMemory) {
+        try {
+            const length = input.length;
+            const bytesNeeded = length * 4;
+            
+            // Allocate memory in WASM
+            const ptr = wasmInstance.__new(bytesNeeded, 0);
+            wasmInstance.__pin(ptr);
+            
+            try {
+                // Copy input to WASM memory
+                const wasmFloats = new Float32Array(wasmMemory.buffer, ptr, length);
+                wasmFloats.set(input);
+                
+                // Call WASM function
+                const peak = wasmInstance.findPeak(ptr, length);
+                return peak;
+            } finally {
+                wasmInstance.__unpin(ptr);
+            }
+        } catch (e) {
+            console.warn('[xmExport] WASM getPeak failed, using fallback:', e);
+        }
+    }
+    
+    // JS Fallback
     let peak = 0;
     const len = input.length;
-    // Unrolling loop slightly for potential speedup in some engines, or just keep simple.
-    // Simple is fine for JIT.
     for (let i = 0; i < len; i++) {
         const abs = Math.abs(input[i]);
         if (abs > peak) peak = abs;
@@ -51,65 +140,58 @@ const getPeak = (input: Float32Array): number => {
 };
 
 /**
- * Normalize an audio buffer to a target peak level (default -1dB).
- * This addresses Task 4: Fix low sampler volume.
- * @param input Float32Array audio buffer
- * @param targetPeakDb Target peak in dB (default -1)
- * @param canMutate Whether the input buffer can be modified in-place (default false)
- * @returns Normalized Float32Array
- */
-
-/*
-const normalizeBuffer = (input: Float32Array, targetPeakDb: number = -1, canMutate: boolean = false): Float32Array => {
-    // Find peak amplitude
-    const peak = getPeak(input);
-
-    // If peak is already near target or buffer is silent, return as-is
-    if (peak < 0.001) return input;
-
-    // Calculate target peak (linear)
-    const targetPeak = Math.pow(10, targetPeakDb / 20);
-
-    // Only normalize if peak is below threshold
-    if (peak < NORMALIZATION_PEAK_THRESHOLD) {
-        const gain = targetPeak / peak;
-        const output = canMutate ? input : new Float32Array(input.length);
-        for (let i = 0; i < input.length; i++) {
-            const val = input[i] * gain;
-            if (val > 1) output[i] = 1;
-            else if (val < -1) output[i] = -1;
-            else output[i] = val;
-        }
-        return output;
-    }
-
-    return input;
-};
-*/
-
-// @migrate-target: assemblyscript
-// @perf-optimized: Replaced broken/slow tanh soft-clip with fast hard-clip and optimized float->int conversion
-/**
  * Convert float32 buffer to int16.
+ * Uses WASM if available, falls back to JS implementation.
  * Uses hard-clipping for performance and linear consistency.
- * Previous implementation used Math.tanh > 0.95 which introduced a severe discontinuity (0.95 -> 0.74).
  * @param input Float32Array audio buffer
  * @returns Int16Array for XM sample
  */
 export const floatTo16BitPCM = (input: Float32Array): Int16Array => {
+    // Try WASM path first
+    if (isXmExportWasmReady() && wasmInstance && wasmMemory) {
+        try {
+            const length = input.length;
+            const inputBytes = length * 4;
+            const outputBytes = length * 2;
+            
+            // Allocate memory in WASM
+            const inputPtr = wasmInstance.__new(inputBytes, 0);
+            const outputPtr = wasmInstance.__new(outputBytes, 0);
+            wasmInstance.__pin(inputPtr);
+            wasmInstance.__pin(outputPtr);
+            
+            try {
+                // Copy input to WASM memory
+                const wasmFloats = new Float32Array(wasmMemory.buffer, inputPtr, length);
+                wasmFloats.set(input);
+                
+                // Call WASM function
+                wasmInstance.convertToInt16(inputPtr, outputPtr, length);
+                
+                // Copy result back
+                const result = new Int16Array(length);
+                const wasmInts = new Int16Array(wasmMemory.buffer, outputPtr, length);
+                result.set(wasmInts);
+                return result;
+            } finally {
+                wasmInstance.__unpin(inputPtr);
+                wasmInstance.__unpin(outputPtr);
+            }
+        } catch (e) {
+            console.warn('[xmExport] WASM floatTo16BitPCM failed, using fallback:', e);
+        }
+    }
+    
+    // JS Fallback
     const output = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
         let s = input[i];
 
         // Fast Hard Clip
-        // Since input is likely normalized, this only catches rare peaks.
         if (s > 1.0) s = 1.0;
         else if (s < -1.0) s = -1.0;
 
-        // Optimized conversion (truncation via bitwise OR is faster than Math.round)
-        // 0.5 added for rounding behavior (s * 32767 + 0.5) | 0
-        // But for pure speed and 16-bit, truncation is acceptable.
-        // We use direct multiplication and casting which is very fast in JS engines.
+        // Optimized conversion
         output[i] = (s * 32767) | 0;
     }
     return output;
@@ -118,6 +200,7 @@ export const floatTo16BitPCM = (input: Float32Array): Int16Array => {
 // @perf-optimized: Combines normalization and int16 conversion to avoid intermediate buffer allocation
 /**
  * Normalize and convert float32 buffer to int16 in a single pass (after peak finding).
+ * Uses WASM if available, falls back to JS implementation.
  * Reduces memory allocation by skipping the intermediate Float32Array.
  * @param input Float32Array audio buffer
  * @param targetPeakDb Target peak in dB (default -1)
@@ -127,7 +210,46 @@ export const floatTo16BitPCM = (input: Float32Array): Int16Array => {
 const normalizeAndConvertTo16Bit = (input: Float32Array, targetPeakDb: number = -1, knownPeak?: number): Int16Array => {
     // 1. Find Peak (if not provided)
     const peak = (knownPeak !== undefined) ? knownPeak : getPeak(input);
-
+    
+    // Try WASM path first
+    if (isXmExportWasmReady() && wasmInstance && wasmMemory) {
+        try {
+            const length = input.length;
+            const inputBytes = length * 4;
+            const outputBytes = length * 2;
+            
+            // Calculate target peak
+            const targetPeak = Math.pow(10, targetPeakDb / 20);
+            
+            // Allocate memory in WASM
+            const inputPtr = wasmInstance.__new(inputBytes, 0);
+            const outputPtr = wasmInstance.__new(outputBytes, 0);
+            wasmInstance.__pin(inputPtr);
+            wasmInstance.__pin(outputPtr);
+            
+            try {
+                // Copy input to WASM memory
+                const wasmFloats = new Float32Array(wasmMemory.buffer, inputPtr, length);
+                wasmFloats.set(input);
+                
+                // Call WASM function
+                wasmInstance.normalizeAndConvert(inputPtr, outputPtr, length, peak, targetPeak);
+                
+                // Copy result back
+                const result = new Int16Array(length);
+                const wasmInts = new Int16Array(wasmMemory.buffer, outputPtr, length);
+                result.set(wasmInts);
+                return result;
+            } finally {
+                wasmInstance.__unpin(inputPtr);
+                wasmInstance.__unpin(outputPtr);
+            }
+        } catch (e) {
+            console.warn('[xmExport] WASM normalizeAndConvertTo16Bit failed, using fallback:', e);
+        }
+    }
+    
+    // JS Fallback
     const output = new Int16Array(input.length);
     let gain = 1.0;
 
@@ -155,6 +277,7 @@ const normalizeAndConvertTo16Bit = (input: Float32Array, targetPeakDb: number = 
 // @perf-bottleneck: Tight loop searching for values, called frequently by findSynthLoopPoints
 /**
  * Find a zero-crossing point near the given position.
+ * Uses WASM if available, falls back to JS implementation.
  * @param buffer Audio buffer
  * @param position Starting position to search from
  * @param direction 1 = forward, -1 = backward
@@ -162,6 +285,37 @@ const normalizeAndConvertTo16Bit = (input: Float32Array, targetPeakDb: number = 
  * @returns Position of zero crossing
  */
 const findZeroCrossing = (buffer: Float32Array, position: number, direction: number = 1, maxSearch: number = 1000): number => {
+    // Try WASM path first
+    if (isXmExportWasmReady() && wasmInstance && wasmMemory) {
+        try {
+            const length = buffer.length;
+            const bytesNeeded = length * 4;
+            
+            // Allocate memory in WASM
+            const ptr = wasmInstance.__new(bytesNeeded, 0);
+            wasmInstance.__pin(ptr);
+            
+            try {
+                // Copy buffer to WASM memory
+                const wasmFloats = new Float32Array(wasmMemory.buffer, ptr, length);
+                wasmFloats.set(buffer);
+                
+                // Clamp position to valid range
+                const clampedPos = Math.max(1, Math.min(position, length - 1));
+                const clampedMaxSearch = Math.min(maxSearch, length);
+                
+                // Call WASM function
+                const result = wasmInstance.findZeroCrossing(ptr, clampedPos, direction, clampedMaxSearch);
+                return result;
+            } finally {
+                wasmInstance.__unpin(ptr);
+            }
+        } catch (e) {
+            console.warn('[xmExport] WASM findZeroCrossing failed, using fallback:', e);
+        }
+    }
+    
+    // JS Fallback
     const len = buffer.length;
 
     if (direction === 1) {
@@ -193,24 +347,19 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
     const len = buffer.length;
 
     // Adjust threshold based on peak amplitude if it would have been normalized
-    // Target normalized peak is approx 0.89 (-1dB)
-    // If peak is small (e.g. 0.1), effective threshold should be smaller relative to signal
-    // Formula: 0.2 * (peak / 0.89) if peak < 0.5, else 0.2
     let threshold = 0.2;
     if (peakAmplitude < NORMALIZATION_PEAK_THRESHOLD && peakAmplitude > 0.001) {
          threshold = 0.2 * (peakAmplitude / 0.891);
     }
 
     // 1. Define Search Region (Steady State)
-    // Be less aggressive with skipping if buffer is short.
-    // Ensure we at least have 200ms or 50% of buffer.
     let steadyStateStart = Math.min(Math.floor(attackDecayTime * sampleRate), Math.floor(len * 0.4));
-    let steadyStateEnd = Math.floor(len * 0.95); // Use up to 95%
+    let steadyStateEnd = Math.floor(len * 0.95);
 
     // Minimum loop: 20ms is enough for a cycle (50Hz)
     const minLoopLength = Math.floor(sampleRate * 0.02);
 
-    // Fallback for short buffers: Use 25% to 75% of buffer
+    // Fallback for short buffers
     if (steadyStateEnd - steadyStateStart < minLoopLength * 2) {
         steadyStateStart = Math.floor(len * 0.25);
         steadyStateEnd = Math.floor(len * 0.75);
@@ -221,10 +370,8 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
     }
 
     // 2. Find Loop Start (Zero Crossing)
-    // Scan a reasonable window (e.g. 200ms) around steadyStateStart
     const searchWindow = Math.floor(sampleRate * 0.2);
 
-    // Helper to find crossing with specific direction
     const findCross = (start: number, end: number, step: number): number => {
         if (step > 0) {
             for (let i = start; i < end; i += step) {
@@ -243,35 +390,26 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
     let loopStart = findCross(steadyStateStart, Math.min(steadyStateStart + searchWindow, len-1), 1);
 
     if (loopStart === -1) {
-        // Fallback: Just pick the start of the region
         loopStart = steadyStateStart;
     }
 
     // 3. Find Loop End (Matching Start)
-    // We want a point where value is close to buffer[loopStart] and slope is similar.
-    // Ideally, another zero crossing if loopStart was one.
-
-    // Search backwards from steadyStateEnd
     let loopEnd = -1;
 
-    // Search for zero crossing near end
     const endSearchLimit = Math.max(loopStart + minLoopLength, steadyStateEnd - searchWindow);
     loopEnd = findCross(steadyStateEnd, endSearchLimit, -1);
 
     if (loopEnd === -1) {
-        // If no zero crossing at end, search for value match
         const targetVal = buffer[loopStart];
-        const targetSlope = buffer[loopStart] - buffer[loopStart-1] || 1; // avoid 0
+        const targetSlope = buffer[loopStart] - buffer[loopStart-1] || 1;
 
         let bestErr = Infinity;
         let bestIdx = -1;
 
-        // Scan last 30% of valid region
         const scanStart = Math.max(loopStart + minLoopLength, Math.floor(len * 0.6));
         for(let i = steadyStateEnd; i > scanStart; i--) {
             const val = buffer[i];
             const slope = buffer[i] - buffer[i-1];
-            // Check slope direction matches (roughly)
             if (Math.sign(slope) === Math.sign(targetSlope)) {
                 const err = Math.abs(val - targetVal);
                 if (err < bestErr) {
@@ -281,19 +419,15 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
             }
         }
 
-        // Only accept if error is reasonably small
         if (bestIdx !== -1 && bestErr < threshold) {
             loopEnd = bestIdx;
         }
     }
 
-    // Validation
     if (loopEnd !== -1 && loopEnd > loopStart + minLoopLength) {
         return { loopStart, loopEnd };
     }
 
-    // Ultimate Fallback: just loop steady state region if we have space
-    // This might click, but it's better than silence for a synth pad
     if (steadyStateEnd > steadyStateStart + minLoopLength) {
         return { loopStart: steadyStateStart, loopEnd: steadyStateEnd };
     }
@@ -303,7 +437,6 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
 
 /**
  * Find loop points for a sampler based on user settings.
- * This addresses Task 2: Implement note sustain for samplers.
  * @param buffer Audio buffer
  * @param loopEnabled Whether looping is enabled
  * @param sampleRate Sample rate
@@ -315,20 +448,13 @@ const findSamplerLoopPoints = (buffer: Float32Array, loopEnabled: boolean, sampl
     }
 
     const len = buffer.length;
-
-    // For samplers, we want to loop a portion near the end to sustain the sound
-    // Skip transient at beginning (first 10ms)
     const transientSkip = Math.floor(sampleRate * 0.01);
-
-    // Find stable region for looping (middle to end)
     const loopRegionStart = Math.max(transientSkip, Math.floor(len * 0.2));
     const loopRegionEnd = Math.floor(len * 0.95);
 
-    // Find zero crossings for clean loop
     const loopStart = findZeroCrossing(buffer, loopRegionStart, 1, Math.floor(sampleRate * 0.1));
     const loopEnd = findZeroCrossing(buffer, loopRegionEnd, -1, Math.floor(sampleRate * 0.1));
 
-    // Minimum loop length (20ms)
     const minLoop = Math.floor(sampleRate * 0.02);
 
     if (loopEnd <= loopStart + minLoop) {
@@ -340,19 +466,12 @@ const findSamplerLoopPoints = (buffer: Float32Array, loopEnabled: boolean, sampl
 
 /**
  * Calculate XM relative note and finetune for a given sample rate
- * so that the sample plays at its original pitch when C-4 is triggered.
- * * XM standard C-4 frequency is 8363 Hz.
- * Formula: RelNote = 12 * log2(SampleRate / 8363)
  */
 const calculateXMPitchParams = (sampleRate: number) => {
     const C4_FREQ = 8363;
     const totalSemitones = 12 * Math.log2(sampleRate / C4_FREQ);
     
-    // Relative Note (Semitone offset)
     const relativeNote = Math.round(totalSemitones);
-    
-    // Fine Tune (1/128th of a semitone)
-    // Range: -128 to +127
     const fineTune = Math.round((totalSemitones - relativeNote) * 128);
     
     return {
@@ -370,16 +489,16 @@ export const exportSongToXM = async (
     tempo: number,
     currentPattern?: Pattern,
     engines?: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        webGpuEngine?: any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        wasmEngine?: any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        pyodide?: any
+        webGpuEngine?: unknown,
+        wasmEngine?: unknown,
+        pyodide?: unknown
     },
     sampleBuffers?: (AudioBuffer | null)[]
 ) => {
     console.log("Starting XM Export with engines:", engines);
+
+    // Initialize WASM module for export
+    await initXmExportWasm();
 
     // 1. Create Module
     const mod = createModule({
@@ -390,24 +509,15 @@ export const exportSongToXM = async (
     });
 
     // 2. Render and Add Instruments
-    // Mapping:
-    // 1=SynthA, 2=SynthB, 3=Kick, 4=Snare, 5=CH, 6=OH
-    // 7-14 = Sampler Banks 0-7
-
     // Synth A
     const synthADuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthA.attack + params.synthA.decay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufA = await renderSynthToBuffer(params.synthA, 'C4', synthADuration, engines);
     const rawDataA = bufA.getChannelData(0);
 
-    // OPTIMIZED: Combined normalization and loop finding
-    // 1. Find Peak (once)
     const peakA = getPeak(rawDataA);
-    // 2. Find Loop Points (using scaled threshold on raw data)
     const loopPointsA = findSynthLoopPoints(rawDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay, peakA);
-    // 3. Normalize & Convert (passing known peak to skip re-scan)
     const dataA = normalizeAndConvertTo16Bit(rawDataA, -1, peakA);
 
-    // UPDATED: Calculate pitch for Synths too (handles 44.1k/48k correctly)
     const pitchA = calculateXMPitchParams(bufA.sampleRate);
 
     const sampleA = createSample({
@@ -429,12 +539,10 @@ export const exportSongToXM = async (
     const bufB = await renderSynthToBuffer(params.synthB, 'C4', synthBDuration, engines);
     const rawDataB = bufB.getChannelData(0);
 
-    // OPTIMIZED: Combined normalization and loop finding
     const peakB = getPeak(rawDataB);
     const loopPointsB = findSynthLoopPoints(rawDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay, peakB);
     const dataB = normalizeAndConvertTo16Bit(rawDataB, -1, peakB);
     
-    // UPDATED: Calculate pitch for Synths
     const pitchB = calculateXMPitchParams(bufB.sampleRate);
 
     const sampleB = createSample({
@@ -454,7 +562,6 @@ export const exportSongToXM = async (
     // Kick
     const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide);
     const pitchKick = calculateXMPitchParams(bufKick.sampleRate);
-    // OPTIMIZED: Combined normalization and conversion (No loop points needed)
     const dataKick = normalizeAndConvertTo16Bit(bufKick.getChannelData(0));
     
     const sampleKick = createSample({
@@ -471,7 +578,6 @@ export const exportSongToXM = async (
     // Snare
     const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide);
     const pitchSnare = calculateXMPitchParams(bufSnare.sampleRate);
-    // OPTIMIZED: Combined normalization and conversion
     const dataSnare = normalizeAndConvertTo16Bit(bufSnare.getChannelData(0));
 
     const sampleSnare = createSample({
@@ -488,7 +594,6 @@ export const exportSongToXM = async (
     // CH
     const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide);
     const pitchCH = calculateXMPitchParams(bufCH.sampleRate);
-    // OPTIMIZED: Combined normalization and conversion
     const dataCH = normalizeAndConvertTo16Bit(bufCH.getChannelData(0));
 
     const sampleCH = createSample({
@@ -505,8 +610,7 @@ export const exportSongToXM = async (
     // OH
     const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
     const pitchOH = calculateXMPitchParams(bufOH.sampleRate);
-    // OPTIMIZED: Combined normalization and conversion
-    const dataOH = normalizeAndConvertTo16Bit(bufOH.getChannelData(0));
+    const dataOH = normalizeAndConvertToInt16(bufOH.getChannelData(0));
 
     const sampleOH = createSample({
         name: 'Open Hat',
@@ -524,28 +628,22 @@ export const exportSongToXM = async (
         const instName = `Sampler Bank ${i+1}`;
         const inst = createInstrument(instName);
 
-        // Check if we have a buffer for this bank
         if (sampleBuffers && sampleBuffers[i]) {
              const buffer = sampleBuffers[i]!;
              const pitchShift = Math.round(Math.log2(params.sampler[i].playbackSpeed) * 12);
              const rawData = buffer.getChannelData(0);
 
-             // Loop points on RAW data (Scale Invariant)
              const enableLoop = buffer.duration > SAMPLER_LOOP_DURATION_THRESHOLD;
              const loopPoints = findSamplerLoopPoints(rawData, enableLoop, buffer.sampleRate);
 
-             // OPTIMIZED: Combined normalization and conversion
-             // Keeps rawData pristine (Sampler buffers are shared)
              const data16 = normalizeAndConvertTo16Bit(rawData, -1);
 
-             // UPDATED: Calculate pitch correction for the sample rate
              const { relativeNote, fineTune } = calculateXMPitchParams(buffer.sampleRate);
 
              const sample = createSample({
                 name: params.sampler[i].sampleName || `Sample ${i}`,
                 data: data16,
                 volume: Math.min(64, Math.floor(params.sampler[i].volume * 64)),
-                // Add pitchShift (from playback speed) to the base relativeNote (from sample rate)
                 relativeNoteNumber: relativeNote + pitchShift,
                 fineTune: fineTune,
                 loopType: loopPoints.loopType,
@@ -586,8 +684,8 @@ export const exportSongToXM = async (
         let inst, chan;
 
         if (trackKey === 'sampler') {
-            inst = 7 + bankIdx;   // Instruments 7-14
-            chan = 6 + bankIdx;   // Channels 6-13
+            inst = 7 + bankIdx;
+            chan = 6 + bankIdx;
         } else {
             inst = baseTrackMap[trackKey].inst;
             chan = baseTrackMap[trackKey].chan;
@@ -595,10 +693,6 @@ export const exportSongToXM = async (
 
         sequence.steps.forEach((stepData, row) => {
             if (stepData && row < 32) {
-                // Ensure we don't write outside channel bounds
-                // Note: xmPat from createPattern doesn't expose numberOfChannels in type def,
-                // but we know it matches what we requested (14).
-                // Assuming 14 channels based on createPattern(32, 14) call.
                 if (chan < 14) {
                     const note = xmPat.data[row][chan];
 
@@ -606,7 +700,7 @@ export const exportSongToXM = async (
                         const nVal = noteNameToValue(stepData.note);
                         note.note = nVal;
                     } else {
-                        note.note = 49; // C-4
+                        note.note = 49;
                     }
 
                     note.instrument = inst;
@@ -617,11 +711,10 @@ export const exportSongToXM = async (
     };
 
     if (useFallbackPattern) {
-        const xmPat = createPattern(32, 14); // 14 Channels
+        const xmPat = createPattern(32, 14);
 
         (Object.keys(baseTrackMap) as TrackKey[]).forEach(trackKey => {
             if (trackKey === 'sampler') {
-                // Iterate all 8 banks
                 currentPattern.sampler.forEach((seq, idx) => {
                     fillPatternFromSequence(xmPat, seq, 'sampler', idx);
                 });
@@ -648,13 +741,11 @@ export const exportSongToXM = async (
                 if (!storedData) return;
 
                 if (trackKey === 'sampler') {
-                    // storedData is PartSequence[]
                     const sequences = storedData as PartSequence[];
                     sequences.forEach((seq, idx) => {
                         fillPatternFromSequence(xmPat, seq, 'sampler', idx);
                     });
                 } else {
-                    // storedData is PartSequence
                     fillPatternFromSequence(xmPat, storedData as PartSequence, trackKey);
                 }
             });
