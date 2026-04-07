@@ -7,7 +7,8 @@
  * Communicates with main thread via postMessage.
  */
 
-import { ArtifactDetector, ArtifactDetectorConfig, DEFAULT_ARTIFACT_CONFIG, ArtifactDetection, QualityMetrics } from '../engines/rubberband/ArtifactDetector';
+import { ArtifactDetector, DEFAULT_ARTIFACT_CONFIG } from '../engines/rubberband/ArtifactDetector';
+import type { ArtifactDetectorConfig, ArtifactDetection, QualityMetrics } from '../engines/rubberband/ArtifactDetector';
 
 // AudioWorklet processor interface declarations
 declare const globalThis: {
@@ -20,12 +21,12 @@ interface AudioWorkletProcessor {
     process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
 }
 
-declare var AudioWorkletProcessor: {
+declare const AudioWorkletProcessor: {
     prototype: AudioWorkletProcessor;
-    new(options?: any): AudioWorkletProcessor;
+    new(options?: unknown): AudioWorkletProcessor;
 };
 
-declare function registerProcessor(name: string, processorCtor: (new (options?: any) => AudioWorkletProcessor)): void;
+declare function registerProcessor(name: string, processorCtor: (new (options?: unknown) => AudioWorkletProcessor)): void;
 
 /**
  * Processor port message types
@@ -76,7 +77,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
         this.port.onmessage = this.handleMessage.bind(this);
         
         // Get sample rate from global scope
-        // @ts-ignore
+        // @ts-expect-error AudioWorkletGlobalScope has sampleRate
         this.sampleRate = typeof globalThis.sampleRate === 'number' 
             ? globalThis.sampleRate 
             : 44100;
@@ -153,7 +154,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                 this.port.postMessage({ type: 'historyCleared' });
                 break;
 
-            case 'enableReporting':
+            case 'enableReporting': {
                 this.reportingEnabled = (data as { enabled: boolean; interval?: number }).enabled ?? true;
                 const interval = (data as { enabled: boolean; interval?: number }).interval;
                 if (interval) {
@@ -165,14 +166,16 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                     interval: this.reportIntervalMs
                 });
                 break;
+            }
 
-            case 'setDryBuffer':
+            case 'setDryBuffer': {
                 const buffer = (data as { buffer: ArrayBuffer }).buffer;
                 if (buffer) {
                     this.dryBuffer = new Float32Array(buffer);
                     this.dryBufferIndex = 0;
                 }
                 break;
+            }
 
             default:
                 this.port.postMessage({
