@@ -1,6 +1,6 @@
 // src/services/CloudStorage.ts
-// HF Storage Manager API Integration
-// Base URL: https://ford442-storage-manager.hf.space
+// VPS Storage Manager API Integration
+// Base URL: https://storage.noahcohn.com:8000
 
 import type { SavedSongData } from '../types';
 
@@ -8,7 +8,7 @@ import type { SavedSongData } from '../types';
 // API CONFIGURATION
 // =============================================================================
 
-export const API_BASE_URL = "https://ford442-storage-manager.hf.space";
+export const API_BASE_URL = "https://storage.noahcohn.com:8000";
 export const DEFAULT_TIMEOUT_MS = 15000;
 export const MAX_RETRIES = 3;
 export const INITIAL_RETRY_DELAY_MS = 1000;
