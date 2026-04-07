@@ -355,10 +355,11 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
     // 8 white keys on bottom, 5 black keys on top (staggered between white keys)
     const totalWidth = 800;
     const numWhiteKeys = 8;
-    const whiteKeyWidth = totalWidth / numWhiteKeys; // 100px each
+    const fKeyGap = 30; // Gap between F5 and F4 key groups
+    const whiteKeyWidth = (totalWidth - fKeyGap) / numWhiteKeys; // Adjusted for gap
     const whiteKeyHeight = 90;
-    const blackKeyWidth = whiteKeyWidth * 0.65; // ~65px
-    const blackKeyHeight = whiteKeyHeight * 0.65; // ~58px
+    const blackKeyWidth = whiteKeyWidth * 0.85; // Increased from 0.65 to 0.85
+    const blackKeyHeight = whiteKeyHeight * 0.75; // Increased from 0.65 to 0.75
     const rowGap = 5;
 
     // White keys (bottom row)
@@ -434,6 +435,18 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                             onMouseEnter={handleMouseEnterStable}
                             onStopMouse={handleStopMouseStable}
                         />
+                    );
+                })}
+            </svg>
+        </div>
+    );
+});
+ })}
+            </svg>
+        </div>
+    );
+});
+               />
                     );
                 })}
             </svg>
