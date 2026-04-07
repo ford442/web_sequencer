@@ -441,15 +441,3 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
         </div>
     );
 });
- })}
-            </svg>
-        </div>
-    );
-});
-               />
-                    );
-                })}
-            </svg>
-        </div>
-    );
-});
