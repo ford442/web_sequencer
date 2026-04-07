@@ -33,7 +33,7 @@ export class SingingVoiceManager {
         for (let i = 0; i < this.maxVoices; i++) {
             const voice = new SingingVoice(this.audioContext, this.config);
             this.voices.push(voice);
-            initPromises.push(voice.initWorklet(wasmBinary));
+            initPromises.push(voice.initWorklet(false, wasmBinary));
         }
 
         await Promise.all(initPromises);

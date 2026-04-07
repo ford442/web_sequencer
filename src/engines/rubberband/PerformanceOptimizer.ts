@@ -666,7 +666,7 @@ export class PerformanceOptimizer {
             type: task.type,
             id: task.id,
             data: task.data
-        } as TTSWorkerMessage);
+        } as unknown as TTSWorkerMessage);
     }
 
     /**

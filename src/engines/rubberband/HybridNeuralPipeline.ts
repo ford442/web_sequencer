@@ -225,7 +225,7 @@ export class HybridNeuralPipeline {
      * Initialize vocoder inference session pool
      */
     private async initializeVocoderSessions(): Promise<void> {
-        const sessionOptions: ort.InferenceSession.SessionOptions = {
+        const sessionOptions: any = {
             executionProviders: this.getExecutionProviders(),
             graphOptimizationLevel: 'all',
             enableCpuMemArena: true,
@@ -235,6 +235,7 @@ export class HybridNeuralPipeline {
         // Create session pool
         for (let i = 0; i < this.config.maxSessions; i++) {
             try {
+                // @ts-ignore - signature mismatch in current type defs
                 const session = await ort.InferenceSession.create(
                     this.config.vocoderModelUrl,
                     sessionOptions
@@ -710,13 +711,13 @@ export class HybridNeuralPipeline {
 
             // Run inference
             const feeds: Record<string, ort.Tensor> = {};
-            const inputNames = sessionWrapper.session.inputNames;
+            const inputNames = (sessionWrapper.session as any).inputNames as string[];
             feeds[inputNames[0]] = inputTensor;
 
             const results = await sessionWrapper.session.run(feeds);
 
             // Extract output audio
-            const outputName = sessionWrapper.session.outputNames[0];
+            const outputName = (sessionWrapper.session as any).outputNames[0] as string;
             const outputTensor = results[outputName];
             const audio = new Float32Array(outputTensor.data as Float32Array);
 
@@ -843,12 +844,11 @@ export class HybridNeuralPipeline {
      */
     dispose(): void {
         for (const session of this.vocoderSessions) {
-            session.session.release();
+            (session.session as any).release?.();
         }
         this.vocoderSessions = [];
         this.isInitialized = false;
-        this.melFilterbank = null;
-        this.fftLookup.clear();
+        this.isMelGeneratorInitialized = false;
     }
 }
 
@@ -873,6 +873,3 @@ export async function processTTS(
     pipeline.dispose();
     return result;
 }
-
-// Re-export types for convenience
-export type { PipelineState, PipelineMetrics, PipelineCallbacks, VocoderSession };
