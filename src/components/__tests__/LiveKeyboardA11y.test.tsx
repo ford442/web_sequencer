@@ -19,7 +19,7 @@ describe('LiveKeyboard Accessibility', () => {
         expect(dialog).toHaveAttribute('aria-labelledby', 'keyboard-guide-title');
 
         // 3. Check for Title ID matching aria-labelledby
-        const title = screen.getByText('PIANO MODE');
+        const title = screen.getByText('PIANO KEYBOARD');
         expect(title).toHaveAttribute('id', 'keyboard-guide-title');
 
         // 4. Verify Initial Focus
