@@ -272,6 +272,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
+                    slideType?: 'linear' | 'exponential',
                     phonemes?: PhonemeData[],
                     freeze?: number,
                     filterCutoff?: number,
@@ -281,7 +282,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     vibratoDepth?: number,
                     reverbSend?: number,
                     drive?: number,
-                    characterMorph?: number
+                    characterMorph?: number,
+                    breathIntensity?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -383,7 +385,11 @@ export const useAudioEngine = (pyodide: unknown) => {
                             }
                             if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
                             if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
-                            if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
+                            if (noteParams?.breathIntensity !== undefined) {
+                                voice.setBreathIntensity(noteParams.breathIntensity, triggerTime);
+                            } else if (params.breathIntensity !== undefined) {
+                                voice.setBreathIntensity(params.breathIntensity, triggerTime);
+                            }
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
                             if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
                             if (params.sustain !== undefined) voice.setSustain(params.sustain, triggerTime);
@@ -444,7 +450,12 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime);
                                 // Glide over half the target duration or a minimum of 0.15s, bounded by actual duration
                                 const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
-                                voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration);
+
+                                if (noteParams?.slideType === 'exponential' || params.portamentoType === 'exponential') {
+                                    voice.exponentialRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration);
+                                } else {
+                                    voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration);
+                                }
                             } else {
                                 voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
                             }
@@ -619,6 +630,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
+                    slideType?: 'linear' | 'exponential',
                     phonemes?: PhonemeData[],
                     freeze?: number,
                     filterCutoff?: number,
@@ -626,7 +638,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     vibratoDepth?: number,
                     reverbSend?: number,
                     drive?: number,
-                    characterMorph?: number
+                    characterMorph?: number,
+                    breathIntensity?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
