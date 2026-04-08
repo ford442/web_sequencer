@@ -7,9 +7,9 @@ describe('WaveformSelector', () => {
     const onChange = vi.fn();
     render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
 
-    // First find the trigger button and click it to open the popover
-    const trigger = screen.getByLabelText(/Current waveform: sawtooth/i);
-    fireEvent.click(trigger);
+    // First find the dropdown button and click it to open the popover
+    const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
+    fireEvent.click(dropdownBtn);
 
     // Now wait for the buttons to appear in the DOM
     await waitFor(() => {
@@ -22,9 +22,9 @@ describe('WaveformSelector', () => {
     const onChange = vi.fn();
     render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
 
-    // Open popover
-    const trigger = screen.getByLabelText(/Current waveform: sawtooth/i);
-    fireEvent.click(trigger);
+    // Open popover via dropdown button
+    const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
+    fireEvent.click(dropdownBtn);
 
     // Wait for buttons
     await waitFor(() => {
@@ -45,5 +45,17 @@ describe('WaveformSelector', () => {
 
     // Should revert to selected waveform description (sawtooth)
     expect(screen.getByText('Standard Sawtooth. Rich harmonics, great for leads and basses.')).toBeInTheDocument();
+  });
+
+  it('cycles through basic waveforms when main button is clicked', async () => {
+    const onChange = vi.fn();
+    render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
+
+    // Find the main waveform button and click it
+    const trigger = screen.getByLabelText(/Current waveform: sawtooth\. Click to cycle\./i);
+    fireEvent.click(trigger);
+
+    // Should call onChange with the next waveform (square)
+    expect(onChange).toHaveBeenCalledWith('square');
   });
 });

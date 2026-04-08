@@ -44,6 +44,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private isPlaying = false;
   private isReverse = false;
   private freezePhase: number = 0;
+  private freezeLfoPhase: number = 0;
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -58,7 +59,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'tremoloRate', defaultValue: 0.1, minValue: 0.1, maxValue: 20.0 },
       { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'attack', defaultValue: 0.05, minValue: 0.001, maxValue: 2.0 },
-      { name: 'release', defaultValue: 0.1, minValue: 0.001, maxValue: 5.0 }
+      { name: 'decay', defaultValue: 0.1, minValue: 0.001, maxValue: 2.0 },
+      { name: 'sustain', defaultValue: 1.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'release', defaultValue: 0.1, minValue: 0.001, maxValue: 5.0 },
+      { name: 'freeze', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'freezeLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
+      { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -239,13 +245,15 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
     const breath = parameters.breathIntensity[0];
     const attack = parameters.attack ? parameters.attack[0] : 0.05;
+    const decay = parameters.decay ? parameters.decay[0] : 0.1;
+    const sustain = parameters.sustain ? parameters.sustain[0] : 1.0;
     const release = parameters.release ? parameters.release[0] : 0.1;
 
     this.expressiveProcessor.updateConfig({
       vibrato: { depth: vibDepth, rate: vibRate, enabled: vibDepth > 0 },
       tremolo: { depth: tremDepth, rate: tremRate, enabled: tremDepth > 0 },
       breath: { amount: breath, enabled: breath > 0, filterCutoff: 2000 },
-      envelope: { attack, release }
+      envelope: { attack, decay, sustain, release }
     });
 
     // Combine note pitch with parameter modulation
@@ -265,7 +273,29 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         const samplesRequired = this.rubberBand.getSamplesRequired();
 
-        const freezeAmt = parameters.freeze ? parameters.freeze[0] : 0.0;
+        const freezeBase = parameters.freeze ? parameters.freeze[0] : 0.0;
+        const freezeLfoRate = parameters.freezeLfoRate ? parameters.freezeLfoRate[0] : 0.0;
+        const freezeLfoDepth = parameters.freezeLfoDepth ? parameters.freezeLfoDepth[0] : 0.0;
+
+        // Advance LFO phase (we can do this per block/process call rather than per sample since block is 128 samples (~2.9ms at 44.1kHz),
+        // which is fast enough for low-frequency LFOs up to 20Hz. We'll add the increment based on the block size).
+        // Wait, the plan explicitly said "Update this.freezeLfoPhase by adding 2 * Math.PI * freezeLfoRate / sampleRate for each sample processed in the block".
+        // Let's do it per sample below when processing if it's frozen, OR just compute it once per block if we just need a single freeze decision for the block.
+        // Actually, the freeze decision is for the *entire block* because we feed `samplesRequired` to RubberBand.
+        // So we just advance it once by block size (128 samples).
+        const sRate = typeof globalThis.sampleRate === 'number' ? globalThis.sampleRate : 44100;
+        const framesInBlock = 128; // standard Web Audio block size
+        this.freezeLfoPhase += (2 * Math.PI * freezeLfoRate * framesInBlock) / sRate;
+        if (this.freezeLfoPhase > 2 * Math.PI) {
+            this.freezeLfoPhase -= 2 * Math.PI;
+        }
+
+        const lfoValue = Math.sin(this.freezeLfoPhase);
+        // Map sine from [-1, 1] to [0, 1] for unipolar modulation, or keep it bipolar?
+        // Let's use bipolar modulation: freezeBase + freezeLfoDepth * sin
+        let freezeAmt = freezeBase + (freezeLfoDepth * lfoValue);
+        freezeAmt = Math.max(0.0, Math.min(1.0, freezeAmt));
+
         const isFrozen = freezeAmt > 0.5;
 
         if (isFrozen) {

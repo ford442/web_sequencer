@@ -189,22 +189,74 @@ Combine Rubber Band's strengths with neural vocoding for ultimate quality.
 
 ### Implementation
 
+See `src/engines/rubberband/HybridNeuralPipeline.ts` for full implementation.
+
 ```typescript
-// 1. Generate mel-spectrogram from TTS
-const melSpec = await this.tts.generateMels(lyrics);
+// Full pipeline: TTS → Mel → Pitch Shift → Vocoder
+const pipeline = new HybridNeuralPipeline({
+    melConfig: {
+        nMels: 80,
+        nFft: 1024,
+        hopLength: 256,
+        sampleRate: 22050,
+        fMin: 0,
+        fMax: 8000
+    },
+    useGpu: true,           // Enable WebGPU acceleration
+    maxSessions: 2          // Session pool for concurrent processing
+});
 
-// 2. Pitch-shift the spectrogram directly (avoids phase issues)
-const shiftedSpec = pitchShiftMels(melSpec, midiNote);
+await pipeline.init();
 
-// 3. Use Rubber Band for time-stretching only (where it excels)
-rubberBand.setPitchScale(1.0); // No pitch shift
-rubberBand.setTimeRatio(timeRatio);
-
-// 4. Synthesize with neural vocoder (e.g., HiFi-GAN WASM)
-const audio = await this.hifiGan.synthesize(shiftedSpec);
+// Process TTS audio through pipeline
+const result = await pipeline.synthesize(ttsAudio, pitchSemitones, timeRatio);
 ```
 
-This leverages TTS for content, Rubber Band for timing, and neural vocoder for quality.
+#### Key Features
+
+1. **Mel-spectrogram computation** - Custom FFT implementation with configurable parameters
+2. **Pitch shifting in mel domain** - Avoids phase artifacts from time-domain shifting
+3. **ONNX Runtime Web vocoder** - HiFi-GAN inference with WebGPU/WebGL/WASM fallback
+4. **Session pooling** - Multiple concurrent inference sessions for performance
+5. **Pre-allocated buffers** - Minimizes GC during real-time processing
+
+#### Architecture
+
+```
+┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌─────────────┐
+│  TTS Audio  │ →  │  Mel-Spec    │ →  │ Pitch Shift │ →  │   HiFi-GAN  │
+│  (Float32)  │    │  (FFT+Mel)   │    │  (Mel bins) │    │  (ONNX/Web) │
+└─────────────┘    └──────────────┘    └─────────────┘    └─────────────┘
+```
+
+#### WebGPU Acceleration
+
+```typescript
+// Automatic provider selection (WebGPU → WebGL → WASM)
+const pipeline = new HybridNeuralPipeline({
+    executionProviders: ['webgpu', 'webgl', 'wasm'],
+    useGpu: true
+});
+
+// Check current provider
+const provider = pipeline.getExecutionProvider();
+console.log(provider); // 'webgpu', 'webgl', or 'wasm'
+```
+
+#### Performance Metrics
+
+```typescript
+pipeline.setCallbacks({
+    onMetrics: (metrics) => {
+        console.log(`Total: ${metrics.totalTime}ms`);
+        console.log(`Mel: ${metrics.melConversionTime}ms`);
+        console.log(`Pitch: ${metrics.pitchShiftTime}ms`);
+        console.log(`Vocoder: ${metrics.vocoderTime}ms`);
+    }
+});
+```
+
+This leverages TTS for content, mel-domain pitch shifting for artifact-free transposition, and neural vocoder for high-quality synthesis.
 
 ---
 
@@ -403,7 +455,7 @@ Exposed option constants for JavaScript:
 | **Section 3: Phoneme Alignment** | `src/engines/rubberband/PhonemeAligner.ts` | STUB |
 | **Section 4: Formant Shifting** | `src/engines/rubberband/FormantShifter.ts` | STUB |
 | **Section 5: Expression Layer** | `src/engines/rubberband/ExpressiveVoiceProcessor.ts` | ✅ IMPLEMENTED |
-| **Section 6: Hybrid Neural** | `src/engines/rubberband/HybridNeuralPipeline.ts` | STUB |
+| **Section 6: Hybrid Neural** | `src/engines/rubberband/HybridNeuralPipeline.ts` | ✅ IMPLEMENTED |
 | **Section 7: Performance** | `src/engines/rubberband/PerformanceOptimizer.ts` | STUB |
 | **Section 8: Concatenative** | `src/engines/rubberband/ConcatenativeHybrid.ts` | STUB (partial impl) |
 | **Section 9: Latency Sync** | `src/engines/rubberband/LatencyCompensator.ts` | STUB (partial impl) |

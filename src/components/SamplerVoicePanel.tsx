@@ -1,6 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import { type HarmonizerConfig } from '../engines/Harmonizer';
+import React, { useState, useRef } from 'react';
 import { HardwareModule, type KnobConfig } from './HardwareModule';
-import { Harmonizer, type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../engines/Harmonizer';
+import { LadderButton } from './sampler/LadderButton';
+import { VerticalKnob } from './sampler/VerticalKnob';
+import { HSlider } from './sampler/HSlider';
+import { HarmonizerPopover } from './sampler/HarmonizerPopover';
 
 interface SamplerVoicePanelProps {
     title: string;
@@ -35,27 +39,6 @@ const midiToNote = (midi: number) => {
     return `${NOTES[noteIndex]}${octave}`;
 };
 
-// Mini Ladder Button Component
-const LadderButton: React.FC<{
-    note: string;
-    isActive: boolean;
-    onClick: () => void;
-}> = ({ note, isActive, onClick }) => (
-    <button
-        onClick={onClick}
-        className={`w-8 h-5 text-[9px] font-mono font-bold rounded transition-all relative overflow-hidden ${
-            isActive
-                ? 'bg-cyan-500 text-black shadow-[0_0_8px_rgba(6,182,212,0.6)]'
-                : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-        }`}
-    >
-        {/* LED indicator for active state */}
-        {isActive && (
-            <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)]" />
-        )}
-        <span className={isActive ? 'pl-1.5' : ''}>{note}</span>
-    </button>
-);
 
 // Vertical Knob Component (for pitch envelope)
 const VerticalKnob: React.FC<{
@@ -498,10 +481,12 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
     const [localFormant, setLocalFormant] = useState(formantShift);
     const [localPitchAtk, setLocalPitchAtk] = useState(pitchAttack);
     const [localPitchDec, setLocalPitchDecay] = useState(pitchDecay);
-    const [localQuality, setLocalQuality] = useState(quality);
-    const [localStretch, setLocalStretch] = useState(stretchMode);
+    const [localQuality, setLocalQuality] = useState<typeof quality>(quality);
+    const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
     const [isHarmonizerOpen, setIsHarmonizerOpen] = useState(false);
+
+    const ladderButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
     const handleRootNoteChange = (midi: number) => {
         setLocalRootNote(midi);
@@ -515,10 +500,8 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
             case 'formantShift': setLocalFormant(value as number); break;
             case 'pitchAttack': setLocalPitchAtk(value as number); break;
             case 'pitchDecay': setLocalPitchDecay(value as number); break;
-            // @ts-expect-error - Auto-generated to fix CI build
-            case 'quality': setLocalQuality(value as string); break;
-            // @ts-expect-error - Auto-generated to fix CI build
-            case 'stretchMode': setLocalStretch(value as string); break;
+            case 'quality': setLocalQuality(value as typeof quality); break;
+            case 'stretchMode': setLocalStretch(value as typeof stretchMode); break;
             case 'lockToSequencer': setLocalLock(value as boolean); break;
         }
         onSamplerParamChange?.(param, value);
@@ -537,6 +520,41 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
     }, [localRootNote]);
 
     const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
+
+    const handleRootNoteKeyDown = (e: React.KeyboardEvent) => {
+        let nextNote = localRootNote;
+        let handled = false;
+
+        if (e.key === 'ArrowUp') {
+            nextNote = localRootNote + 1;
+            handled = true;
+        } else if (e.key === 'ArrowDown') {
+            nextNote = localRootNote - 1;
+            handled = true;
+        } else if (e.key === 'PageUp') {
+            nextNote = localRootNote + 12;
+            handled = true;
+        } else if (e.key === 'PageDown') {
+            nextNote = localRootNote - 12;
+            handled = true;
+        }
+
+        if (handled) {
+            e.preventDefault();
+            // Restrict to the visible range or absolute bounds if needed
+            // Currently ladderNotes is computed relative to localRootNote
+            // but we can clamp to 0-127 MIDI bounds
+            const clamped = Math.max(0, Math.min(127, nextNote));
+            if (clamped !== localRootNote) {
+                handleRootNoteChange(clamped);
+                // Focus the newly selected button on next render cycle
+                setTimeout(() => {
+                    const btn = ladderButtonRefs.current.get(clamped);
+                    if (btn) btn.focus();
+                }, 0);
+            }
+        }
+    };
 
     // Default harmonizer config
     const defaultConfig: HarmonizerConfig = {
@@ -571,14 +589,23 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                 }} />
                 {/* Left: Root Note Ladder */}
                 <div className="flex flex-col items-center gap-2 w-12 relative z-10">
-                    <span className="text-[9px] font-mono text-purple-400 font-bold tracking-wider px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20">ROOT</span>
-                    <div className="flex flex-col gap-0.5 p-1.5 rounded-lg bg-zinc-950/50 border border-zinc-800/50">
+                    <span className="text-[9px] font-mono text-purple-400 font-bold tracking-wider px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20" id="root-note-label">ROOT</span>
+                    <div
+                        className="flex flex-col gap-0.5 p-1.5 rounded-lg bg-zinc-950/50 border border-zinc-800/50"
+                        role="radiogroup"
+                        aria-labelledby="root-note-label"
+                        onKeyDown={handleRootNoteKeyDown}
+                    >
                         {ladderNotes.map(({ midi, note }) => (
                             <LadderButton
                                 key={midi}
                                 note={note}
                                 isActive={midi === localRootNote}
                                 onClick={() => handleRootNoteChange(midi)}
+                                buttonRef={(el) => {
+                                    if (el) ladderButtonRefs.current.set(midi, el);
+                                    else ladderButtonRefs.current.delete(midi);
+                                }}
                             />
                         ))}
                     </div>
@@ -648,6 +675,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                                 <select
                                     value={localQuality}
                                     onChange={(e) => handleParamChange('quality', e.target.value)}
+                                    aria-label="RubberBand Quality"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
                                     <option value="preview">Preview</option>
@@ -662,6 +690,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                                 <select
                                     value={localStretch}
                                     onChange={(e) => handleParamChange('stretchMode', e.target.value)}
+                                    aria-label="RubberBand Stretch Mode"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
                                     <option value="precise">Precise</option>
@@ -672,8 +701,15 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                             </div>
                         </div>
 
-                        <label className="flex items-center gap-2 cursor-pointer mt-1 group">
-                            <div className={`w-9 h-5 rounded-full border transition-all relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${localLock ? 'bg-cyan-600/80 border-cyan-400' : 'bg-zinc-800 border-zinc-600'}`}>
+                        <div className="flex items-center gap-2 mt-1">
+                            <button
+                                type="button"
+                                onClick={() => handleParamChange('lockToSequencer', !localLock)}
+                                className={`w-9 h-5 rounded-full border transition-all relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 ${localLock ? 'bg-cyan-600/80 border-cyan-400' : 'bg-zinc-800 border-zinc-600'}`}
+                                role="switch"
+                                aria-checked={localLock}
+                                aria-label="Lock to Sequencer Notes"
+                            >
                                 <div className={`w-4 h-4 rounded-full bg-gradient-to-b from-zinc-200 to-zinc-400 transition-all absolute top-0.5 shadow-md ${localLock ? 'translate-x-4' : 'translate-x-0.5'}`}>
                                     <div className="absolute top-0.5 left-0.5 right-0.5 h-px bg-white/50 rounded-full" />
                                 </div>
@@ -681,15 +717,15 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                                 {localLock && (
                                     <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-cyan-300 shadow-[0_0_6px_rgba(34,211,238,0.8)]" />
                                 )}
-                            </div>
-                            <input
-                                type="checkbox"
-                                checked={localLock}
-                                onChange={(e) => handleParamChange('lockToSequencer', e.target.checked)}
-                                className="sr-only"
-                            />
-                            <span className={`text-[10px] font-mono transition-colors ${localLock ? 'text-cyan-400' : 'text-gray-400 group-hover:text-gray-300'}`}>LOCK TO SEQUENCER NOTES</span>
-                        </label>
+                            </button>
+                            <span
+                                className={`text-[10px] font-mono transition-colors cursor-pointer select-none ${localLock ? 'text-cyan-400' : 'text-gray-400 hover:text-gray-300'}`}
+                                onClick={() => handleParamChange('lockToSequencer', !localLock)}
+                                aria-hidden="true"
+                            >
+                                LOCK TO SEQUENCER NOTES
+                            </span>
+                        </div>
                     </div>
 
                     {/* Divider */}
@@ -716,6 +752,9 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                             <div className="relative">
                                 <button
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
+                                    aria-haspopup="dialog"
+                                    aria-expanded={isHarmonizerOpen}
+                                    aria-label="Harmonizer Settings"
                                     className={`px-4 py-1.5 rounded-lg text-[10px] font-bold font-orbitron tracking-wider transition-all border relative overflow-hidden ${
                                         isHarmonizeActive
                                             ? 'text-black'

@@ -6,6 +6,9 @@ export class WebGpuBackend {
     pipelines: Record<string, GPUComputePipeline> = {};
     ready: boolean = false;
 
+    // Persistent 16-byte uniform buffer reused across all runOp() calls
+    private uniformBuffer: GPUBuffer | null = null;
+
     async init(): Promise<boolean> {
         if (!navigator.gpu) {
             console.warn("WebGPU not supported on this browser.");
@@ -20,6 +23,11 @@ export class WebGpuBackend {
             }
             this.device = await this.adapter.requestDevice();
             this.initShaders();
+            // Allocate persistent uniform buffer (16 bytes: rows, cols, factor, seed)
+            this.uniformBuffer = this.device.createBuffer({
+                size: 16,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            });
             this.ready = true;
             console.log("WebGPU Backend Initialized 🚀");
             return true;
@@ -158,7 +166,7 @@ export class WebGpuBackend {
     }
 
     async runOp(opName: string, data: Float32Array, dims: number[], params: { factor?: number } = {}): Promise<Float32Array | null> {
-        if (!this.ready || !this.device) return null;
+        if (!this.ready || !this.device || !this.uniformBuffer) return null;
 
         const rows = dims[1];
         const cols = dims[2];
@@ -179,16 +187,12 @@ export class WebGpuBackend {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
         });
 
-        const uniformBuffer = this.device.createBuffer({
-            size: 16,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-
-        // 2. Uniforms
+        // 2. Uniforms — reuse persistent buffer, just write new values
         const factor = params.factor !== undefined ? params.factor : 1.0;
         const seed = Math.random() * 10000;
         const uniformData = new Float32Array([rows, cols, factor, seed]);
-        this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+        this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
+        const uniformBuffer = this.uniformBuffer;
 
         // 3. Bind Group
         const pipeline = this.pipelines[opName];
@@ -222,10 +226,9 @@ export class WebGpuBackend {
         const finalData = new Float32Array(result);
         readbackBuffer.unmap();
 
-        // Cleanup
+        // Cleanup — uniformBuffer is persistent and must NOT be destroyed here
         inputBuffer.destroy();
         outputBuffer.destroy();
-        uniformBuffer.destroy();
         readbackBuffer.destroy();
 
         return finalData;

@@ -4,60 +4,15 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor?: string; }
 
-// Piano Layout Data - 2 Octaves: C5 to B6
-const OCTAVES = [5, 6];
-const WHITE_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-const BLACK_NOTES_MAP: Record<string, string> = {
-    'C': 'C#',
-    'D': 'D#',
-    'F': 'F#',
-    'G': 'G#',
-    'A': 'A#'
-};
-
-// PC Key Mapping for 2 Octaves (C5-B6)
-// White keys: F7-F12, 7-0 (with shifts for the gap between F12 and 7)
-// Black keys: numbers row above
-const KEY_TO_NOTE: Record<string, string> = {
-    // Octave 5 (C5-B5)
-    'F7': 'C5', 'Digit7': 'C#5',
-    'F8': 'D5', 'Digit8': 'D#5', 
-    'F9': 'E5',
-    'F10': 'F5', 'Digit9': 'F#5',
-    'F11': 'G5', 'Digit0': 'G#5',
-    'F12': 'A5', 'Minus': 'A#5',
-    // @ts-expect-error - Auto-generated to fix CI build
-    'Digit0': 'B5', // Using 0 key for B5 (shifted)
-    
-    // Octave 6 (C6-B6) - using number row and letter keys
-    'KeyQ': 'C6', 'Digit2': 'C#6',
-    'KeyW': 'D6', 'Digit3': 'D#6',
-    'KeyE': 'E6',
-    'KeyR': 'F6', 'Digit5': 'F#6',
-    'KeyT': 'G6', 'Digit6': 'G#6',
-    // @ts-expect-error - Auto-generated to fix CI build
-    'KeyY': 'A6', 'Digit7': 'A#6', // Digit7 is already used... let me reconsider
-};
-
-// Better mapping - F-keys for octave 5, number/letter row for octave 6
+// PC Key Mapping for Classic Piano Layout
+// Top row: 5 black keys (C#5, D#5, F#5, G#5, A#5) - mapped to keys 9, 8, 6, 5, 4
+// Bottom row: 8 white keys (C5, D5, E5, F5, G5, A5, B5, C6) - mapped to F8-F1
 const PC_KEY_MAPPING: Record<string, string> = {
-    // First Octave (C5-B5) - Function keys row + number row
-    'F7': 'C5',      'Digit7': 'C#5',
-    'F8': 'D5',      'Digit8': 'D#5',
-    'F9': 'E5',
-    'F10': 'F5',     'Digit9': 'F#5', 
-    'F11': 'G5',     'Digit0': 'G#5',
-    'F12': 'A5',     'Minus': 'A#5',
-    'BracketLeft': 'B5',  // [ key for B5
-    
-    // Second Octave (C6-B6) - QWERTY row + number row shifted
-    'KeyQ': 'C6',    'Digit2': 'C#6',
-    'KeyW': 'D6',    'Digit3': 'D#6', 
-    'KeyE': 'E6',
-    'KeyR': 'F6',    'Digit5': 'F#6',
-    'KeyT': 'G6',    'Digit6': 'G#6',
-    'KeyY': 'A6',    'Equal': 'A#6',  // = key for A#6
-    'KeyU': 'B6',
+    // F-key row (bottom) - White keys
+    'F8': 'C5',   'F7': 'D5',   'F6': 'E5',   'F5': 'F5',
+    'F4': 'G5',   'F3': 'A5',   'F2': 'B5',   'F1': 'C6',
+    // Digit row (top) - Black keys (staggered between white keys)
+    'Digit9': 'C#5',  'Digit8': 'D#5',  'Digit6': 'F#5',  'Digit5': 'G#5',  'Digit4': 'A#5',
 };
 
 const NOTE_TO_KEY = Object.entries(PC_KEY_MAPPING).reduce((acc, [keyCode, note]) => {
@@ -74,20 +29,20 @@ const formatKeyLabel = (code: string) => {
     return code;
 };
 
-// Note display names with colors
+// Note colors for chromatic coloring
 const NOTE_COLORS: Record<string, string> = {
-    'C': '#ef4444',   // Red
-    'C#': '#f97316',  // Orange
-    'D': '#eab308',   // Yellow
-    'D#': '#22c55e',  // Green
-    'E': '#06b6d4',   // Cyan
-    'F': '#3b82f6',   // Blue
-    'F#': '#6366f1',  // Indigo
-    'G': '#a855f7',   // Purple
-    'G#': '#d946ef',  // Magenta
-    'A': '#f43f5e',   // Rose
-    'A#': '#fb7185',  // Pink
-    'B': '#14b8a6',   // Teal
+    'C': '#dc2626',   // Red-600
+    'C#': '#1f2937',  // Black (sharp)
+    'D': '#f97316',   // Orange-500
+    'D#': '#1f2937',  // Black (sharp)
+    'E': '#eab308',   // Yellow-500
+    'F': '#22c55e',   // Green-500
+    'F#': '#1f2937',  // Black (sharp)
+    'G': '#06b6d4',   // Cyan-500
+    'G#': '#1f2937',  // Black (sharp)
+    'A': '#3b82f6',   // Blue-500
+    'A#': '#1f2937',  // Black (sharp)
+    'B': '#a855f7',   // Purple-500
 };
 
 const getNoteBase = (note: string) => note.replace(/\d/, '');
@@ -99,43 +54,80 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn" onClick={onClose}>
             <div role="dialog" aria-modal="true" aria-labelledby="keyboard-guide-title" ref={guideRef} className="relative p-8 border-2 border-dashed border-cyan-500/50 rounded-2xl bg-[#0d1015] shadow-[0_0_50px_rgba(6,182,212,0.15)] max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
-                <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors" aria-label="Close guide">✕</button>
+                <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors" aria-label="Close guide" title="Close Guide">✕</button>
                 <div className="text-center mb-8">
-                    <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">PIANO MODE</h3>
-                    <p className="text-gray-400 font-mono text-sm">2 Octaves: C5 to B6. White keys = F-keys + QWERTY row. Black keys = Number row.</p>
+                    <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">PIANO KEYBOARD</h3>
+                    <p className="text-gray-400 font-mono text-sm">Classic piano layout with 5 black keys and 8 white keys.</p>
                 </div>
-                
+
                 {/* Visual Schematic */}
                 <div className="flex justify-center mb-8">
-                    <svg width="420" height="180" viewBox="0 0 420 180" className="drop-shadow-2xl">
-                        <rect x="10" y="10" width="400" height="160" rx="10" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="5,5" />
-                        
-                        {/* Black keys row */}
-                        <g transform="translate(30, 30)">
-                            <text x="-15" y="15" fill="#06b6d4" fontSize="9" fontFamily="monospace" textAnchor="end">SHARPS</text>
-                            {['7','8','9','0','-','2','3','5','6','='].map((num, i) => (
-                                <g key={num} transform={`translate(${i * 38}, 0)`}>
-                                    <rect width="32" height="28" rx="3" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
-                                    <text x="16" y="18" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="12" fontFamily="monospace">{num}</text>
-                                </g>
-                            ))}
+                    <svg width="400" height="140" viewBox="0 0 400 140" className="drop-shadow-2xl">
+                        <rect x="10" y="10" width="380" height="120" rx="10" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="5,5" />
+
+                        {/* Black keys row (staggered between white keys) */}
+                        <g transform="translate(30, 20)">
+                            <text x="-5" y="18" fill="#f97316" fontSize="9" fontFamily="monospace" textAnchor="end">BLACK</text>
+                            {/* C# between C and D */}
+                            <g transform="translate(35, 0)">
+                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">9</text>
+                            </g>
+                            {/* D# between D and E */}
+                            <g transform="translate(85, 0)">
+                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">8</text>
+                            </g>
+                            {/* F# between F and G */}
+                            <g transform="translate(185, 0)">
+                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">6</text>
+                            </g>
+                            {/* G# between G and A */}
+                            <g transform="translate(235, 0)">
+                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">5</text>
+                            </g>
+                            {/* A# between A and B */}
+                            <g transform="translate(285, 0)">
+                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">4</text>
+                            </g>
                         </g>
 
                         {/* White keys row */}
-                        <g transform="translate(30, 80)">
-                            <text x="-15" y="20" fill="#fff" fontSize="9" fontFamily="monospace" textAnchor="end">NATURALS</text>
-                            {['F7','F8','F9','F10','F11','F12','[','Q','W','E','R','T','Y','U'].map((key, i) => (
-                                <g key={key} transform={`translate(${i * 28}, 0)`}>
-                                    <rect width="24" height="40" rx="3" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1" />
-                                    <text x="12" y="24" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="10" fontFamily="monospace">{key}</text>
+                        <g transform="translate(30, 70)">
+                            <text x="-5" y="25" fill="#22c55e" fontSize="9" fontFamily="monospace" textAnchor="end">WHITE</text>
+                            {['F8','F7','F6','F5','F4','F3','F2','F1'].map((key, i) => (
+                                <g key={key} transform={`translate(${i * 42}, 0)`}>
+                                    <rect width="40" height="50" rx="3" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="2" />
+                                    <text x="20" y="30" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="9" fontFamily="monospace">{key}</text>
                                 </g>
                             ))}
                         </g>
                     </svg>
                 </div>
 
+                {/* Color legend */}
+                <div className="flex justify-center gap-2 mb-6 flex-wrap">
+                    {[
+                        { note: 'C', color: '#dc2626', label: 'Red' },
+                        { note: 'D', color: '#f97316', label: 'Orange' },
+                        { note: 'E', color: '#eab308', label: 'Yellow' },
+                        { note: 'F', color: '#22c55e', label: 'Green' },
+                        { note: 'G', color: '#06b6d4', label: 'Cyan' },
+                        { note: 'A', color: '#3b82f6', label: 'Blue' },
+                        { note: 'B', color: '#a855f7', label: 'Purple' },
+                    ].map(({ note, color, label }) => (
+                        <div key={note} className="flex items-center gap-1 bg-black/30 px-2 py-1 rounded">
+                            <div className="w-3 h-3 rounded" style={{ backgroundColor: color }} />
+                            <span className="text-xs font-mono text-gray-400">{note}={label}</span>
+                        </div>
+                    ))}
+                </div>
+
                 <div className="text-center">
-                    <button onClick={onClose} className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-300 border border-cyan-700/50 rounded font-orbitron text-xs tracking-wider transition-all">GOT IT</button>
+                    <button onClick={onClose} className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-300 border border-cyan-700/50 rounded font-orbitron text-xs tracking-wider transition-all" aria-label="Acknowledge and close guide" title="Acknowledge and close guide">GOT IT</button>
                 </div>
             </div>
         </div>
@@ -145,14 +137,14 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
 // --- PIANO KEY COMPONENT ---
 interface PianoKeyProps {
     note: string;
-    type: 'white' | 'black';
-    isActive: boolean;
-    isHeldByMouse: boolean;
     x: number;
     y: number;
     width: number;
     height: number;
     label: string | null;
+    isBlack: boolean;
+    isActive: boolean;
+    isHeldByMouse: boolean;
     activeColor: string;
     onMouseDown: (note: string) => void;
     onMouseEnter: (note: string) => void;
@@ -160,22 +152,15 @@ interface PianoKeyProps {
 }
 
 const PianoKey = memo(({
-    note, type, isActive, x, y, width, height, label,
-    activeColor, onMouseDown, onMouseEnter, onStopMouse
+    note, x, y, width, height, label, isBlack,
+    isActive, activeColor, onMouseDown, onMouseEnter, onStopMouse
 }: PianoKeyProps) => {
-    const isBlack = type === 'black';
     const noteBase = getNoteBase(note);
     const noteColor = NOTE_COLORS[noteBase] || '#94a3b8';
 
-    // 3D Faux-plastic styling
-    const baseColor = isBlack ? '#1a1a2e' : '#f1f5f9';
-    const sideColor = isBlack ? '#0f0f1a' : '#cbd5e1';
-    const topColor = isBlack ? '#252542' : '#ffffff';
-    
     // Active state with glow
     const glowColor = isActive ? activeColor : noteColor;
-    const keyOpacity = isActive ? 1 : 0.95;
-    const pressOffset = isActive ? 4 : 0;
+    const pressOffset = isActive ? 3 : 0;
 
     return (
         <g
@@ -194,24 +179,26 @@ const PianoKey = memo(({
         >
             {/* Shadow underneath */}
             <rect 
-                x={2} 
+                x={isBlack ? 2 : 2} 
                 y={height - 6 + pressOffset} 
                 width={width - 4} 
-                height={6} 
-                rx={isBlack ? 3 : 4} 
+                height={isBlack ? 6 : 8} 
+                rx={isBlack ? 2 : 4} 
                 fill="#000" 
-                opacity={0.5} 
+                opacity={0.4} 
             />
             
             <g transform={`translate(0, ${pressOffset})`} style={{ transition: 'transform 0.03s ease-out' }}>
-                {/* Key body (sides - 3D thickness) */}
+                {/* Key body */}
                 <rect 
                     x={0} 
                     y={0} 
                     width={width} 
                     height={height} 
                     rx={isBlack ? 3 : 4} 
-                    fill={sideColor}
+                    fill={isBlack ? '#0f172a' : '#f8fafc'}
+                    stroke={isBlack ? '#000' : '#cbd5e1'}
+                    strokeWidth={2}
                 />
                 
                 {/* Key face (main surface) */}
@@ -221,20 +208,21 @@ const PianoKey = memo(({
                     width={width - 4} 
                     height={height - 8} 
                     rx={isBlack ? 2 : 3} 
-                    fill={isActive ? activeColor : baseColor}
-                    opacity={keyOpacity}
+                    fill={isActive ? activeColor : (isBlack ? '#1f2937' : '#f8fafc')}
                 />
 
-                {/* Specular highlight (top edge for 3D effect) */}
-                <rect 
-                    x={4} 
-                    y={3} 
-                    width={width - 8} 
-                    height={3} 
-                    rx={1} 
-                    fill="rgba(255,255,255,0.6)"
-                    opacity={isBlack ? 0.3 : 0.8}
-                />
+                {/* Specular highlight */}
+                {!isBlack && (
+                    <rect 
+                        x={4} 
+                        y={3} 
+                        width={width - 8} 
+                        height={4} 
+                        rx={1} 
+                        fill="rgba(255,255,255,0.8)"
+                        opacity={0.7}
+                    />
+                )}
 
                 {/* LED rim glow when active */}
                 {isActive && (
@@ -251,12 +239,12 @@ const PianoKey = memo(({
                     />
                 )}
 
-                {/* Note name (large, centered, colored) */}
+                {/* Note name */}
                 <text 
                     x={width / 2} 
-                    y={isBlack ? height / 2 + 4 : height / 2 + 6} 
+                    y={height / 2 + (isBlack ? 3 : 5)} 
                     fill={isActive ? '#fff' : (isBlack ? '#e2e8f0' : noteColor)}
-                    fontSize={isBlack ? 14 : 18} 
+                    fontSize={isBlack ? 12 : 16} 
                     fontWeight="bold"
                     textAnchor="middle" 
                     pointerEvents="none"
@@ -265,20 +253,20 @@ const PianoKey = memo(({
                     {note}
                 </text>
 
-                {/* PC Key label (small, at bottom) */}
+                {/* PC Key label */}
                 {label && (
                     <text 
                         x={width / 2} 
-                        y={height - (isBlack ? 8 : 10)} 
-                        fill={isBlack ? '#94a3b8' : '#64748b'}
-                        fontSize={isBlack ? 8 : 10} 
+                        y={height - (isBlack ? 8 : 12)} 
+                        fill={isBlack ? '#94a3b8' : '#475569'}
+                        fontSize={isBlack ? 9 : 10} 
                         textAnchor="middle" 
                         fontFamily="monospace"
                         fontWeight="bold"
                         pointerEvents="none"
                         opacity={0.9}
                     >
-                        {label}
+                        {isBlack ? `[${label}]` : label}
                     </text>
                 )}
             </g>
@@ -363,59 +351,41 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
     }, []);
     const handleStopMouseStable = useCallback(() => setHeldByMouse(null), []);
 
-    // --- PIANO STAGGERED LAYOUT CALCULATIONS ---
+    // --- CLASSIC PIANO LAYOUT ---
+    // 8 white keys on bottom, 5 black keys on top (staggered between white keys)
     const totalWidth = 800;
-    const numWhiteKeys = OCTAVES.length * 7; // 14 white keys
-    const whiteKeyWidth = totalWidth / numWhiteKeys;
-    const whiteKeyHeight = 120;
-    const blackKeyWidth = whiteKeyWidth * 0.65;
-    const blackKeyHeight = whiteKeyHeight * 0.6;
+    const numWhiteKeys = 8;
+    const fKeyGap = 30; // Gap between F5 and F4 key groups
+    const whiteKeyWidth = (totalWidth - fKeyGap) / numWhiteKeys; // Adjusted for gap
+    const whiteKeyHeight = 90;
+    const blackKeyWidth = whiteKeyWidth * 0.85; // Increased from 0.65 to 0.85
+    const blackKeyHeight = whiteKeyHeight * 0.75; // Increased from 0.65 to 0.75
+    const rowGap = 5;
 
-    const whiteKeys: any[] = [];
-    const blackKeys: any[] = [];
+    // White keys (bottom row)
+    const whiteNotes = ['C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5', 'C6'];
+    const whiteKeyCodes = ['F8', 'F7', 'F6', 'F5', 'F4', 'F3', 'F2', 'F1'];
 
-    let whiteIdx = 0;
-    OCTAVES.forEach(octave => {
-        WHITE_NOTES.forEach((noteName, noteIdx) => {
-            const fullNote = `${noteName}${octave}`;
-            const x = whiteIdx * whiteKeyWidth;
-            
-            // White keys at the bottom
-            whiteKeys.push({ 
-                note: fullNote, 
-                x, 
-                y: 0, 
-                width: whiteKeyWidth - 2, 
-                height: whiteKeyHeight, 
-                type: 'white' 
-            });
+    // Black keys (top row) - positioned between specific white keys
+    // C# between C-D, D# between D-E, F# between F-G, G# between G-A, A# between A-B
+    // Positions: after key 0 (C), after key 1 (D), after key 3 (F), after key 4 (G), after key 5 (A)
+    const blackKeyData = [
+        { note: 'C#5', keyCode: 'Digit9', position: 0 }, // Between C and D
+        { note: 'D#5', keyCode: 'Digit8', position: 1 }, // Between D and E
+        { note: 'F#5', keyCode: 'Digit6', position: 3 }, // Between F and G
+        { note: 'G#5', keyCode: 'Digit5', position: 4 }, // Between G and A
+        { note: 'A#5', keyCode: 'Digit4', position: 5 }, // Between A and B
+    ];
 
-            // Black keys are positioned between certain white keys
-            if (BLACK_NOTES_MAP[noteName]) {
-                const blackNote = `${BLACK_NOTES_MAP[noteName]}${octave}`;
-                // Black key sits between this white key and the next
-                const bx = x + whiteKeyWidth - (blackKeyWidth / 2);
-                blackKeys.push({ 
-                    note: blackNote, 
-                    x: bx, 
-                    y: 0, 
-                    width: blackKeyWidth, 
-                    height: blackKeyHeight, 
-                    type: 'black' 
-                });
-            }
-            whiteIdx++;
-        });
-    });
-
-    const svgHeight = whiteKeyHeight + 10;
+    const whiteRowY = blackKeyHeight + rowGap;
+    const svgHeight = whiteRowY + whiteKeyHeight + 10;
 
     return (
         <div className="w-full max-w-[820px] mx-auto mt-4 select-none relative">
-            {/* FLIPPED LAYOUT INFO Banner */}
+            {/* PIANO LAYOUT INFO Banner */}
             <div className="absolute -top-7 right-0 flex items-center gap-2 z-40">
                 <button onClick={() => setShowGuide(true)} title="Show Keyboard Layout Guide" className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all">
-                    <span className="text-xs">⌨</span> FLIPPED LAYOUT INFO
+                    <span className="text-xs">⌨</span> PIANO LAYOUT INFO
                 </button>
             </div>
 
@@ -423,35 +393,50 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
 
             {/* Piano Keyboard SVG */}
             <svg viewBox={`0 0 ${totalWidth} ${svgHeight}`} className="w-full drop-shadow-2xl bg-black/20 rounded-lg p-2">
-                {/* Render White Keys (bottom layer) */}
-                {whiteKeys.map(k => (
+                {/* White keys (bottom row) */}
+                {whiteNotes.map((note, i) => (
                     <PianoKey
-                        key={k.note}
-                        {...k}
-                        label={NOTE_TO_KEY[k.note] ? formatKeyLabel(NOTE_TO_KEY[k.note]) : null}
-                        isActive={targetActiveNotes.has(k.note)}
-                        isHeldByMouse={heldByMouse === k.note}
-                        activeColor={getNoteColor(k.note)}
+                        key={note}
+                        note={note}
+                        x={i * whiteKeyWidth}
+                        y={whiteRowY}
+                        width={whiteKeyWidth - 2}
+                        height={whiteKeyHeight}
+                        label={whiteKeyCodes[i].replace('F', 'F')}
+                        isBlack={false}
+                        isActive={targetActiveNotes.has(note)}
+                        isHeldByMouse={heldByMouse === note}
+                        activeColor={getNoteColor(note)}
                         onMouseDown={handleMouseDownStable}
                         onMouseEnter={handleMouseEnterStable}
                         onStopMouse={handleStopMouseStable}
                     />
                 ))}
 
-                {/* Render Black Keys (top layer, staggered) */}
-                {blackKeys.map(k => (
-                    <PianoKey
-                        key={k.note}
-                        {...k}
-                        label={NOTE_TO_KEY[k.note] ? formatKeyLabel(NOTE_TO_KEY[k.note]) : null}
-                        isActive={targetActiveNotes.has(k.note)}
-                        isHeldByMouse={heldByMouse === k.note}
-                        activeColor={getNoteColor(k.note)}
-                        onMouseDown={handleMouseDownStable}
-                        onMouseEnter={handleMouseEnterStable}
-                        onStopMouse={handleStopMouseStable}
-                    />
-                ))}
+                {/* Black keys (top row) - positioned between white keys */}
+                {blackKeyData.map(({ note, keyCode, position }) => {
+                    // Position black key to the right of the specified white key position
+                    // Centered on the border between white keys
+                    const x = (position + 1) * whiteKeyWidth - (blackKeyWidth / 2);
+                    return (
+                        <PianoKey
+                            key={note}
+                            note={note}
+                            x={x}
+                            y={0}
+                            width={blackKeyWidth}
+                            height={blackKeyHeight}
+                            label={keyCode.replace('Digit', '')}
+                            isBlack={true}
+                            isActive={targetActiveNotes.has(note)}
+                            isHeldByMouse={heldByMouse === note}
+                            activeColor={getNoteColor(note)}
+                            onMouseDown={handleMouseDownStable}
+                            onMouseEnter={handleMouseEnterStable}
+                            onStopMouse={handleStopMouseStable}
+                        />
+                    );
+                })}
             </svg>
         </div>
     );

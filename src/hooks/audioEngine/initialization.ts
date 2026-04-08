@@ -1,23 +1,33 @@
 import type { MutableRefObject } from 'react';
 import { Harmonizer } from '../../engines/Harmonizer';
 
+import { makeDistortionCurve } from './distortion';
+
 export function initializeMasterOutput(
     context: AudioContext,
     masterGainRef: MutableRefObject<GainNode | null>,
     masterPannerRef: MutableRefObject<StereoPannerNode | null>,
+    masterSaturationRef: MutableRefObject<WaveShaperNode | null>,
 ): GainNode {
     const masterGain = context.createGain();
     masterGain.gain.setValueAtTime(0.8, 0);
     masterGainRef.current = masterGain;
 
+    const masterSaturation = context.createWaveShaper();
+    masterSaturation.curve = makeDistortionCurve(0);
+    masterSaturation.oversample = '4x';
+    masterSaturationRef.current = masterSaturation;
+
+    masterGain.connect(masterSaturation);
+
     if (context.createStereoPanner) {
         const masterPanner = context.createStereoPanner();
         masterPanner.pan.setValueAtTime(0, 0);
         masterPannerRef.current = masterPanner;
-        masterGain.connect(masterPanner);
+        masterSaturation.connect(masterPanner);
         masterPanner.connect(context.destination);
     } else {
-        masterGain.connect(context.destination);
+        masterSaturation.connect(context.destination);
     }
 
     return masterGain;
@@ -39,38 +49,28 @@ export async function loadWavBuffer(context: AudioContext, url: string): Promise
 
 export async function initializeSustainProcessor(
     context: AudioContext,
-    forceScriptProcessor: boolean,
     sustainProcessorUrl: string,
-    sustainNodeRef: MutableRefObject<AudioWorkletNode | ScriptProcessorNode | null>,
+    sustainNodeRef: MutableRefObject<AudioWorkletNode | null>,
     masterGainRef: MutableRefObject<GainNode | null>,
 ): Promise<void> {
-    if (!forceScriptProcessor) {
-        try {
-            await context.audioWorklet.addModule(sustainProcessorUrl);
-            const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
-                numberOfInputs: 0,
-                numberOfOutputs: 1,
-                outputChannelCount: [2],
-            });
-            sustainNode.connect(masterGainRef.current!);
-            sustainNodeRef.current = sustainNode;
-            console.log('SustainProcessor AudioWorklet initialized');
-            return;
-        } catch (error) {
-            console.warn('Sustain worklet not available:', error);
-        }
+    // AudioWorklet is now the only supported path
+    // ScriptProcessorNode fallback removed as it's deprecated and runs on main thread
+    try {
+        await context.audioWorklet.addModule(sustainProcessorUrl);
+        const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
+            numberOfInputs: 0,
+            numberOfOutputs: 1,
+            outputChannelCount: [2],
+        });
+        sustainNode.connect(masterGainRef.current!);
+        sustainNodeRef.current = sustainNode;
+        console.log('SustainProcessor AudioWorklet initialized');
+    } catch (error) {
+        console.error('SustainProcessor AudioWorklet initialization failed:', error);
+        // Clear the ref on failure - no fallback
+        sustainNodeRef.current = null;
+        throw new Error('AudioWorklet is required but failed to initialize. Browser may not support AudioWorklet.');
     }
-
-    console.log('SustainProcessor: Using ScriptProcessorNode fallback');
-    const sustainNode = context.createScriptProcessor(4096, 0, 2);
-    sustainNode.onaudioprocess = (event) => {
-        const left = event.outputBuffer.getChannelData(0);
-        const right = event.outputBuffer.getChannelData(1);
-        left.fill(0);
-        right.fill(0);
-    };
-    sustainNode.connect(masterGainRef.current!);
-    sustainNodeRef.current = sustainNode;
 }
 
 export function initializeChoirBuses(
@@ -108,6 +108,23 @@ export function createNoiseBuffer(context: AudioContext): AudioBuffer {
         output[i] = Math.random() * 2 - 1;
     }
     return buffer;
+}
+
+export function createReverbImpulseResponse(context: AudioContext, duration: number = 2.0, decay: number = 2.0): AudioBuffer {
+    const sampleRate = context.sampleRate;
+    const length = sampleRate * duration;
+    const impulse = context.createBuffer(2, length, sampleRate);
+    const left = impulse.getChannelData(0);
+    const right = impulse.getChannelData(1);
+
+    for (let i = 0; i < length; i++) {
+        const n = i / sampleRate;
+        const e = Math.pow(1 - n / duration, decay);
+        left[i] = (Math.random() * 2 - 1) * e;
+        right[i] = (Math.random() * 2 - 1) * e;
+    }
+
+    return impulse;
 }
 
 export function initializeHarmonizer(harmonizerRef: MutableRefObject<Harmonizer | null>): void {

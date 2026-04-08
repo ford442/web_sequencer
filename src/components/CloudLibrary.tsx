@@ -69,9 +69,17 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
     const loadLibrary = async () => {
         setIsLoading(true);
-        const list = await CloudStorage.getSongs(filterType === 'all' ? undefined : (filterType as any));
-        // @ts-expect-error - Auto-generated to fix CI build
-        setSongs(list);
+        try {
+            const result = await CloudStorage.getSongs(
+                filterType === 'all' ? undefined : (filterType as CloudItemType)
+            );
+            // Backend returns raw array for listing (no StorageResult wrapper)
+            setSongs(Array.isArray(result) ? result : []);
+        } catch (err) {
+            console.error('[CloudLibrary] Failed to load:', err);
+            setSongs([]);
+            onShowToast('Failed to load library', 'error');
+        }
         setIsLoading(false);
     };
 
@@ -233,7 +241,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                         </button>
                                     ))}
                                 </div>
-                                <button onClick={loadLibrary} className="text-xs text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">↻ Refresh</button>
+                                <button onClick={loadLibrary} aria-label="Refresh cloud library" className="text-xs text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">↻ Refresh</button>
                             </div>
 
                             {isLoading ? (
@@ -299,8 +307,8 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                             <form onSubmit={handleUpload} className="space-y-4">
                                 
                                 {/* Type Selection */}
-                                <div className="bg-gray-800/50 p-3 rounded-lg border border-gray-700">
-                                    <label className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</label>
+                                <fieldset className="bg-gray-800/50 p-3 rounded-lg border border-gray-700">
+                                    <legend className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</legend>
                                     <div className="flex gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus:ring-1 focus:ring-pink-500"/>
@@ -320,7 +328,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                         {uploadType === 'bank' && "Saves all 8 pattern slots for all tracks."}
                                         {uploadType === 'pattern' && "Saves only the currently active pattern."}
                                     </div>
-                                </div>
+                                </fieldset>
 
                                 <div>
                                     <label htmlFor="cloud-upload-name" className="block text-xs text-gray-400 font-mono mb-1">Name</label>
@@ -390,7 +398,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
 
                 {/* Footer */}
                 <div className="border-t border-gray-800 p-4 bg-gray-900/50 flex justify-end">
-                    <button onClick={onClose} className="text-gray-400 text-xs font-mono hover:text-white px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded">CLOSE</button>
+                    <button onClick={onClose} aria-label="Close cloud library" title="Close cloud library" className="text-gray-400 text-xs font-mono hover:text-white px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded">CLOSE</button>
                 </div>
             </div>
         </div>

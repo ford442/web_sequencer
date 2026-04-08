@@ -339,6 +339,23 @@ server: {
 - Runs on port 7860 by default
 - Supports songs, patterns, banks, and samples via SFTP
 
+### VPS Storage (Primary)
+- **URL**: `https://storage.noahcohn.com:8000`
+- **Alternative**: `https://storage.1ink.us`
+- Provides REST API for songs, patterns, banks, samples
+- Endpoints:
+  - `GET /api/songs` - List songs
+  - `POST /api/songs` - Upload song
+  - `GET /api/songs/{id}` - Get song data
+  - `DELETE /api/songs/{id}` - Delete song
+  - `PATCH /api/songs/{id}` - Update song
+  - `GET /api/patterns` - List patterns
+  - `POST /api/patterns` - Upload pattern
+  - `GET /api/banks` - List banks
+  - `GET /api/samples` - List samples
+  - `POST /api/samples` - Upload sample
+- CORS enabled for all origins
+
 ### TTS Model Files (Optional)
 For voice synthesis feature, download models (~235 MB):
 ```bash

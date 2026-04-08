@@ -68,12 +68,22 @@ export interface SamplerBankParams {
   pitchScale?: number;     // Rubberband pitch shift (0.5-2.0)
   formantShift?: number;   // Formant adjustment (-12 to +12 semitones)
   vibratoDepth?: number;   // Vibrato amount (0-100%)
+  tremoloDepth?: number;   // Tremolo depth amount (0-100%)
+  tremoloRate?: number;    // Tremolo rate in Hz
   breathIntensity?: number; // Breath noise (0-1.0)
   sliceMode?: 'off' | 'phoneme'; // Slice triggering mode
   choir?: number;          // Choir effect amount (0-1) - Detuned side voices
   glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
   freeze?: number;         // Freeze/smear amount (0-1)
+  freezeLfoRate?: number;  // Freeze LFO rate (Hz)
+  freezeLfoDepth?: number; // Freeze LFO depth (0-1)
+  formantLfoRate?: number; // Formant LFO rate (Hz)
+  formantLfoDepth?: number; // Formant LFO depth (0-1)
+  characterMorph?: number; // Morph amount between characters (0-1)
+  morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright'; // Target character for morphing
   attack?: number;         // Amplitude envelope attack time (seconds)
+  decay?: number;          // Amplitude envelope decay time (seconds)
+  sustain?: number;        // Amplitude envelope sustain level (0-1)
   release?: number;        // Amplitude envelope release time (seconds)
   pan?: number;            // Stereo pan (-1 to 1)
   isHarmonyVoice?: boolean; // True if this is a harmonized voice
@@ -146,6 +156,16 @@ export interface Note {
   retrigger?: number; // 2=x2, 3=x3, 4=x4 (Ratchet/Roll)
   reverse?: boolean; // Play sample in reverse (Sampler only)
   sliceIndex?: number; // Specific phoneme/slice index to trigger (Sampler only)
+  freeze?: number; // Spectral freeze/smear amount (0-1) (Sampler only)
+  formantLfoRate?: number; // Formant LFO rate (Hz)
+  formantLfoDepth?: number; // Formant LFO depth (0-1)
+  characterMorph?: number; // Morph amount between characters (0-1)
+  filterCutoff?: number; // 0-1, exponentially mapped to Hz
+  filterResonance?: number; // 0-1, linearly mapped to Q factor
+  envMod?: number; // 0-1, envelope modulation override for filters
+  vibratoDepth?: number; // 0-100%, vibrato depth override (Sampler only)
+  reverbSend?: number; // 0-1, amount sent to reverb bus
+  drive?: number; // 0-1, distortion/drive amount override (Sampler only)
   
   // Phase 2: Melodic Lyric Mode - Per-step pitch control
   pitch?: number; // MIDI note number for sampler melodic mode (default: 60 = C4)
@@ -182,9 +202,9 @@ export interface AudioEngine {
     webGpuEngine?: WebGpuOscillator | null;
     wasmEngine?: WasmOscillator | null;
     open303Engine?: Open303Oscillator | Open303Manager | null;
-    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number }) => void;
+    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number, filterCutoff?: number, filterResonance?: number, envMod?: number }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number }, stepTime?: number) => void;
-    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number }) => void;
+    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
@@ -197,6 +217,7 @@ export interface AudioEngine {
     stopAmbiance: () => void;
     setAmbianceVolume: (volume: number) => void;
     setMasterVolume: (volume: number) => void;
+    setMasterSaturation: (amount: number) => void;
     setGlobalPan: (pan: number) => void;
     detectSamplePitch?: (buffer: AudioBuffer) => Promise<unknown>;
     processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;

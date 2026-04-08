@@ -1,0 +1,455 @@
+/**
+ * Accessibility Styles for Hyphon DAW
+ * 
+ * Implements:
+ * - prefers-reduced-motion: Disable animations for users with motion sensitivity
+ * - prefers-contrast: high: Enhanced contrast for visibility
+ * - Mobile touch improvements: Larger touch targets
+ * - Focus indicators for keyboard navigation
+ */
+
+/* ============================================
+   PREFERS-REDUCED-MOTION
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all CSS animations and transitions */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Specific component overrides */
+  .svg-step,
+  .step-button,
+  button,
+  .knob,
+  .track-slot,
+  .track-label {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* Disable shimmer animation */
+  @keyframes shimmer {
+    0%, 100% { transform: translateX(0); }
+  }
+
+  /* Disable fade animations */
+  @keyframes fadeIn {
+    from, to { opacity: 1; transform: none; }
+  }
+
+  /* Remove scale transforms on hover */
+  button:hover,
+  .step-button:hover {
+    transform: none !important;
+  }
+
+  /* Instant state changes for knobs */
+  .knob,
+  .knob:active {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  /* Disable animate-in classes used in PhonemePainter */
+  .animate-in,
+  .fade-in,
+  .zoom-in,
+  .slide-in-from-top-2 {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Remove pulse animations */
+  .animate-pulse {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Disable spin animations */
+  .animate-spin {
+    animation: none !important;
+  }
+
+  /* Remove progress bar transitions */
+  [class*="progress"] {
+    transition: none !important;
+  }
+}
+
+/* ============================================
+   PREFERS-CONTRAST: HIGH
+   ============================================ */
+
+@media (prefers-contrast: high) {
+  :root {
+    /* High contrast color palette */
+    --hc-bg-primary: #000000;
+    --hc-bg-secondary: #0a0a0a;
+    --hc-text-primary: #ffffff;
+    --hc-text-secondary: #ffff00;
+    --hc-border: #ffffff;
+    --hc-accent: #00ffff;
+    --hc-focus: #ff00ff;
+    --hc-error: #ff0000;
+    --hc-success: #00ff00;
+  }
+
+  /* High contrast backgrounds */
+  body,
+  #root,
+  .bg-\[\#0a0d10\],
+  .bg-\[\#111827\],
+  .bg-gray-900,
+  .bg-zinc-900,
+  .bg-zinc-950,
+  .bg-black\/50,
+  .bg-black\/80 {
+    background-color: var(--hc-bg-primary) !important;
+  }
+
+  .bg-gray-800,
+  .bg-zinc-800,
+  .bg-\[\#1a1d24\],
+  .bg-\[\#141619\] {
+    background-color: var(--hc-bg-secondary) !important;
+  }
+
+  /* High contrast text */
+  .text-gray-300,
+  .text-gray-400,
+  .text-zinc-300,
+  .text-zinc-400,
+  .text-white {
+    color: var(--hc-text-primary) !important;
+  }
+
+  .text-gray-500,
+  .text-zinc-500,
+  .text-gray-600 {
+    color: var(--hc-text-secondary) !important;
+  }
+
+  /* High contrast borders */
+  .border-gray-700,
+  .border-zinc-700,
+  .border-zinc-800,
+  .border-gray-800 {
+    border-color: var(--hc-border) !important;
+    border-width: 2px !important;
+  }
+
+  /* Enhanced focus indicators */
+  *:focus,
+  *:focus-visible {
+    outline: 3px solid var(--hc-focus) !important;
+    outline-offset: 2px !important;
+  }
+
+  button:focus,
+  button:focus-visible,
+  [role="button"]:focus,
+  [role="button"]:focus-visible {
+    outline: 3px solid var(--hc-focus) !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 4px var(--hc-bg-primary), 0 0 0 6px var(--hc-focus) !important;
+  }
+
+  /* High contrast for sequencer steps */
+  .svg-step .step-cap {
+    stroke-width: 2px !important;
+    stroke: var(--hc-border) !important;
+  }
+
+  .svg-step[aria-pressed="true"] .step-cap {
+    fill-opacity: 1 !important;
+    stroke: var(--hc-accent) !important;
+    stroke-width: 3px !important;
+  }
+
+  /* High contrast for track labels */
+  .track-label text {
+    font-weight: bold !important;
+    fill: var(--hc-text-primary) !important;
+  }
+
+  .track-label:focus text {
+    fill: var(--hc-focus) !important;
+    text-shadow: 0 0 0 var(--hc-focus) !important;
+  }
+
+  /* High contrast for active elements */
+  .bg-purple-600,
+  .bg-cyan-600,
+  .bg-green-600 {
+    background-color: var(--hc-accent) !important;
+    color: var(--hc-bg-primary) !important;
+    font-weight: bold !important;
+  }
+
+  /* High contrast status indicators */
+  .text-yellow-500 {
+    color: var(--hc-text-secondary) !important;
+    font-weight: bold !important;
+  }
+
+  .text-red-500 {
+    color: var(--hc-error) !important;
+    font-weight: bold !important;
+  }
+
+  .text-green-500 {
+    color: var(--hc-success) !important;
+    font-weight: bold !important;
+  }
+
+  /* Remove transparency effects */
+  .bg-opacity-50,
+  .bg-opacity-80,
+  .bg-opacity-90,
+  .fill-opacity-60,
+  .fill-opacity-40 {
+    opacity: 1 !important;
+  }
+
+  /* High contrast for phoneme painter */
+  [style*="background: linear-gradient"] {
+    background: var(--hc-bg-secondary) !important;
+    border: 2px solid var(--hc-border) !important;
+  }
+
+  /* High contrast for waveform displays */
+  [class*="waveform"] canvas,
+  canvas[class*="waveform"] {
+    border: 2px solid var(--hc-border) !important;
+  }
+}
+
+/* ============================================
+   MOBILE TOUCH IMPROVEMENTS
+   ============================================ */
+
+/* Touch manipulation utility */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch pan for horizontal scrolling */
+.touch-pan-x {
+  touch-action: pan-x;
+}
+
+/* Minimum touch target size (44x44px per WCAG 2.1 AA) */
+@media (pointer: coarse), (hover: none) {
+  /* Base touch targets */
+  button,
+  [role="button"],
+  [role="radio"],
+  [role="switch"],
+  [role="slider"],
+  .svg-step,
+  .track-slot,
+  input[type="range"] {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  /* Sequencer step touch targets */
+  .svg-step {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .svg-step rect {
+    min-height: 44px;
+  }
+
+  /* Track slot touch targets */
+  .track-slot rect {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Bank tab touch targets */
+  button[role="tab"] {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    padding: 12px !important;
+  }
+
+  /* Mode selector buttons */
+  [role="radiogroup"] button {
+    min-height: 44px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Knob touch targets - increase hit area */
+  .knob,
+  [class*="knob"] {
+    min-height: 48px !important;
+    min-width: 48px !important;
+  }
+
+  /* Slider touch targets */
+  input[type="range"] {
+    min-height: 44px !important;
+  }
+
+  /* Phoneme block touch targets */
+  .phoneme-block {
+    min-height: 44px !important;
+    touch-action: pan-y;
+  }
+
+  /* Remove hover effects on touch devices */
+  button:hover,
+  [role="button"]:hover {
+    transform: none !important;
+  }
+
+  /* Add active state for touch feedback */
+  button:active,
+  [role="button"]:active,
+  .svg-step:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+
+  /* Improve spacing between touch targets */
+  .flex.gap-1 {
+    gap: 8px !important;
+  }
+
+  .space-y-1 > * + * {
+    margin-top: 8px !important;
+  }
+
+  /* Increase tap area for small icons */
+  svg {
+    min-height: 24px;
+    min-width: 24px;
+  }
+
+  /* Prevent text selection during touch interactions */
+  .svg-step,
+  .track-slot,
+  button,
+  [role="button"] {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Prevent callout menu on long press */
+  .svg-step,
+  .track-slot,
+  button,
+  [role="button"] {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* ============================================
+   KEYBOARD NAVIGATION ENHANCEMENTS
+   ============================================ */
+
+/* Visible focus indicators */
+*:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+/* Skip link for keyboard users */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 100;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Focus trap for modal dialogs */
+[role="dialog"]:focus-within {
+  outline: none;
+}
+
+/* Enhanced focus for phoneme painter */
+.phoneme-painter-focus:focus {
+  outline: 3px solid #06b6d4;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.3);
+}
+
+/* Keyboard shortcut hints */
+.keyboard-hint {
+  position: relative;
+}
+
+.keyboard-hint::after {
+  content: attr(data-key);
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #666;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.keyboard-hint:focus::after,
+.keyboard-hint:hover::after {
+  opacity: 1;
+}
+
+/* ============================================
+   SCREEN READER ENHANCEMENTS
+   ============================================ */
+
+/* Visually hidden but accessible to screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ARIA live regions */
+[aria-live="polite"],
+[aria-live="assertive"] {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* Status announcements */
+.status-announcement {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
