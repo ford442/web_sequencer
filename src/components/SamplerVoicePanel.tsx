@@ -289,8 +289,15 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                             </div>
                         </div>
 
-                        <label className="flex items-center gap-2 cursor-pointer mt-1 group">
-                            <div className={`w-9 h-5 rounded-full border transition-all relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${localLock ? 'bg-cyan-600/80 border-cyan-400' : 'bg-zinc-800 border-zinc-600'}`}>
+                        <div className="flex items-center gap-2 mt-1">
+                            <button
+                                type="button"
+                                onClick={() => handleParamChange('lockToSequencer', !localLock)}
+                                className={`w-9 h-5 rounded-full border transition-all relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 ${localLock ? 'bg-cyan-600/80 border-cyan-400' : 'bg-zinc-800 border-zinc-600'}`}
+                                role="switch"
+                                aria-checked={localLock}
+                                aria-label="Lock to Sequencer Notes"
+                            >
                                 <div className={`w-4 h-4 rounded-full bg-gradient-to-b from-zinc-200 to-zinc-400 transition-all absolute top-0.5 shadow-md ${localLock ? 'translate-x-4' : 'translate-x-0.5'}`}>
                                     <div className="absolute top-0.5 left-0.5 right-0.5 h-px bg-white/50 rounded-full" />
                                 </div>
@@ -298,16 +305,15 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                                 {localLock && (
                                     <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-cyan-300 shadow-[0_0_6px_rgba(34,211,238,0.8)]" />
                                 )}
-                            </div>
-                            <input
-                                type="checkbox"
-                                checked={localLock}
-                                onChange={(e) => handleParamChange('lockToSequencer', e.target.checked)}
-                                className="sr-only"
-                                aria-label="Lock to Sequencer Notes"
-                            />
-                            <span className={`text-[10px] font-mono transition-colors ${localLock ? 'text-cyan-400' : 'text-gray-400 group-hover:text-gray-300'}`}>LOCK TO SEQUENCER NOTES</span>
-                        </label>
+                            </button>
+                            <span
+                                className={`text-[10px] font-mono transition-colors cursor-pointer select-none ${localLock ? 'text-cyan-400' : 'text-gray-400 hover:text-gray-300'}`}
+                                onClick={() => handleParamChange('lockToSequencer', !localLock)}
+                                aria-hidden="true"
+                            >
+                                LOCK TO SEQUENCER NOTES
+                            </span>
+                        </div>
                     </div>
 
                     {/* Divider */}
