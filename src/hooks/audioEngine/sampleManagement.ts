@@ -123,6 +123,7 @@ interface VoiceParamUpdateOptions {
     currentTime: number;
     key: keyof SamplerBankParams;
     value: number;
+    rampTime?: number;
 }
 
 export function applyVoiceParamUpdate({
@@ -132,6 +133,7 @@ export function applyVoiceParamUpdate({
     currentTime,
     key,
     value,
+    rampTime
 }: VoiceParamUpdateOptions): void {
     if (manager) {
         manager.getAllVoices().forEach((voice) => {
@@ -143,7 +145,7 @@ export function applyVoiceParamUpdate({
                     voice.setPitch(value);
                     break;
                 case 'formantShift':
-                    voice.setFormantShift(value);
+                    voice.setFormantShift(value, undefined, rampTime);
                     break;
                 case 'vibratoDepth':
                     voice.setVibratoDepth(value);
@@ -153,6 +155,12 @@ export function applyVoiceParamUpdate({
                     break;
                 case 'freeze':
                     voice.setFreeze(value);
+                    break;
+                case 'freezeLfoRate':
+                    voice.setFreezeLfoRate(value);
+                    break;
+                case 'freezeLfoDepth':
+                    voice.setFreezeLfoDepth(value);
                     break;
                 case 'attack':
                     voice.setAttack(value);

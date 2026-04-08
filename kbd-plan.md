@@ -95,7 +95,7 @@ grid-template-columns: repeat(14, 1fr);
 
 ---
 
-### Concept 2 — Whole-Tone Stagger (Keep Mapping, Add Offset)
+### Concept 2 — Whole-Tone Stagger (Keep Mapping, Add Offset) ✅ IMPLEMENTED
 
 **Philosophy:** Keep the current key-to-note mapping unchanged but visually stagger the Digit
 row right by half a key width so it appears to sit *between* the F-key notes — just like black
@@ -116,36 +116,47 @@ BOTTOM ROW — F-keys (full left-edge position, lighter colour)
 No gap in the Digit row (because F↔G and B↔C *are* filled by F4 and Digit6 respectively in
 the whole-tone scheme). Each key is individually coloured by its chromatic identity, not by row.
 
-**Expanded Implementation Details:**
+**Implementation Details:**
 
-1. **Stagger Offset:** Translate Digit row by `keyWidth / 2` (approximately 30-40px)
-2. **Chromatic Coloring:** Each key uses its note's color from `getNoteColor()`:
-   - C = Red, C# = Dark Red
-   - D = Orange, D# = Dark Orange
-   - E = Yellow
-   - F = Green, F# = Dark Green
-   - G = Teal, G# = Dark Teal
-   - A = Blue, A# = Dark Blue
-   - B = Purple
-3. **Visual Connections:** Subtle lines connect vertically adjacent keys to emphasize the half-step relationship
-4. **Active State:** When a note plays, both the key and a small indicator in the "gap" area light up
+1. **Stagger Offset:** Digit row translated by `columnWidth / 2` (half key width)
+2. **Chromatic Coloring:** 
+   - C = Red (#dc2626)
+   - C# = Orange-600 (#ea580c)
+   - D = Orange-500 (#f97316)
+   - D# = Amber-500 (#f59e0b)
+   - E = Yellow (#eab308)
+   - F = Green (#22c55e)
+   - F# = Emerald-500 (#10b981)
+   - G = Cyan (#06b6d4)
+   - G# = Sky-500 (#0ea5e9)
+   - A = Blue (#3b82f6)
+   - A# = Indigo-500 (#6366f1)
+   - B = Purple (#a855f7)
+3. **Vertical Connector Lines:** Dashed lines between rows show half-step relationships
+4. **Key Styling:** 
+   - Digit row: Dark background (#1e293b) with 40% note color tint
+   - F-key row: Light background (#f8fafc) with 20% note color tint
 
-**Animation Suggestions:**
-- Stagger creates a "wave" effect when playing scales
-- Vertical connector lines pulse when both adjacent notes are played together
-- Keys have different press depths based on their "weight" (naturals deeper than accidentals)
+**Files Modified:**
+- `src/components/LiveKeyboard.tsx` - Complete rewrite with staggered layout
 
-**Implementation (SVG transform):**
-```tsx
-// Digit row: translate X by keyWidth / 2
-<g transform={`translate(${keyWidth / 2}, 0)`}>
-  {digitNotes.map(...)}
-</g>
-// F-key row: translate X by 0 (flush left)
-<g transform="translate(0, 0)">
-  {fkeyNotes.map(...)}
-</g>
+**Key Mapping:**
+```typescript
+const PC_KEY_MAPPING: Record<string, string> = {
+    // F-key row (bottom) - F8 to F1
+    'F8': 'C5',   'F7': 'D5',   'F6': 'E5',   'F5': 'F#5',
+    'F4': 'G#5',  'F3': 'A#5',  'F2': 'C6',   'F1': 'D6',
+    // Digit row (top, staggered) - 1 to 8
+    'Digit1': 'C#5',  'Digit2': 'D#5',  'Digit3': 'F5',   'Digit4': 'G5',
+    'Digit5': 'A5',   'Digit6': 'B5',   'Digit7': 'C#6',  'Digit8': 'D#6',
+};
 ```
+
+**Animation Features:**
+- 3D press effect with shadow (3-4px offset when active)
+- LED rim glow using note color with drop-shadow filter
+- Press animation with CSS transition (0.03s ease-out)
+- Chromatic color tint visible on inactive keys
 
 **Text-to-Image Prompt:**
 > "Music software interface showing isomorphic keyboard layout, two horizontal rows of square buttons offset by half-width, top row shifted right creating staggered brick pattern, each button colored by musical note (rainbow chromatic spectrum), bottom row labeled F1-F8, top row labeled 1-8, thin glowing lines connecting vertically adjacent keys, dark background with subtle grid, modern electronic music production UI, minimalist design, high contrast, professional DAW aesthetic"
@@ -375,17 +386,16 @@ Each key displays the actual waveform of the sound it represents:
 
 ## Recommendation
 
-**Start with Concept 2 (Whole-Tone Stagger)** as a quick, zero-risk improvement — just add
-the `translate(keyWidth / 2, 0)` offset to the Digit row and colour each key by its chromatic
+**Concept 2 (Whole-Tone Stagger)** is now ✅ **IMPLEMENTED**. This quick, zero-risk improvement 
+adds the `translate(keyWidth / 2, 0)` offset to the Digit row and colors each key by its chromatic
 identity. This immediately communicates the half-step relationship without touching the mapping.
 
-Layer in **Concept 4 (Colour Bands)** on top of Concept 2 to add octave landmarks.
-
-For a deeper redesign targeting piano intuitiveness, implement **Concept 1 or 5** with the
-remapped key assignments.
+**Next Steps:**
+- Layer in **Concept 4 (Colour Bands)** on top of Concept 2 to add octave landmarks
+- For a deeper redesign targeting piano intuitiveness, implement **Concept 1 or 5** with remapped key assignments
 
 **Progressive Enhancement Path:**
-1. **Week 1:** Implement Concept 2 (stagger + chromatic coloring)
+1. ✅ **Week 1:** Concept 2 (stagger + chromatic coloring) - DONE
 2. **Week 2:** Add Concept 4 (octave bands) on top of Concept 2
 3. **Week 3:** A/B test Concept 1 (true piano split) with power users
 4. **Month 2:** If positive feedback, implement Concept 5 (perspective 3D)

@@ -8,27 +8,66 @@ describe('WaveformSelector', () => {
         const onChange = vi.fn();
         render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
-        const button = screen.getByRole('button', { name: /Current waveform: sawtooth/i });
+        const button = screen.getByRole('button', { name: /Current waveform: sawtooth\. Click to cycle\./i });
         expect(button).toBeInTheDocument();
     });
 
-    it('opens popover on click', async () => {
+    it('cycles through waveforms on click', async () => {
         const onChange = vi.fn();
         render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
-        const trigger = screen.getByRole('button', { name: /Current waveform: sawtooth/i });
+        const trigger = screen.getByRole('button', { name: /Current waveform: sawtooth\. Click to cycle\./i });
+        
+        // Click should cycle to next waveform (sawtooth -> square)
         await userEvent.click(trigger);
+        expect(onChange).toHaveBeenCalledWith('square');
+    });
+
+    it('cycles through all basic waveforms in order', async () => {
+        const onChange = vi.fn();
+        const { rerender } = render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
+
+        // sawtooth -> square
+        const trigger = screen.getByRole('button', { name: /Current waveform: sawtooth\. Click to cycle\./i });
+        await userEvent.click(trigger);
+        expect(onChange).toHaveBeenCalledWith('square');
+
+        // square -> triangle
+        rerender(<WaveformSelector selected="square" onChange={onChange} accentColor="cyan" />);
+        const trigger2 = screen.getByRole('button', { name: /Current waveform: square\. Click to cycle\./i });
+        await userEvent.click(trigger2);
+        expect(onChange).toHaveBeenCalledWith('triangle');
+
+        // triangle -> sine
+        rerender(<WaveformSelector selected="triangle" onChange={onChange} accentColor="cyan" />);
+        const trigger3 = screen.getByRole('button', { name: /Current waveform: triangle\. Click to cycle\./i });
+        await userEvent.click(trigger3);
+        expect(onChange).toHaveBeenCalledWith('sine');
+
+        // sine -> sawtooth (wraps around)
+        rerender(<WaveformSelector selected="sine" onChange={onChange} accentColor="cyan" />);
+        const trigger4 = screen.getByRole('button', { name: /Current waveform: sine\. Click to cycle\./i });
+        await userEvent.click(trigger4);
+        expect(onChange).toHaveBeenCalledWith('sawtooth');
+    });
+
+    it('opens popover on dropdown button click', async () => {
+        const onChange = vi.fn();
+        render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
+
+        const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
+        await userEvent.click(dropdownBtn);
 
         // Check for popover content (e.g. one of the groups or buttons)
         expect(screen.getByText('BASIC')).toBeInTheDocument();
     });
 
-    it('shows description on hover', async () => {
+    it('shows description on hover in dropdown', async () => {
         const onChange = vi.fn();
         render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
-        const trigger = screen.getByRole('button', { name: /Current waveform: sawtooth/i });
-        await userEvent.click(trigger);
+        const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
+        await userEvent.click(dropdownBtn);
 
         const squareBtn = screen.getByRole('button', { name: 'Select square' });
         fireEvent.mouseEnter(squareBtn);

@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import type { PointerEvent, MouseEvent, MutableRefObject, CSSProperties } from 'react';
 import type { TrackKey } from '../../types';
 import { TRACK_COLORS } from './constants';
@@ -11,7 +11,7 @@ interface SvgStepProps {
     refsArray: MutableRefObject<(SVGGElement | null)[]>;
     rowLabel: string;
     rowKey: TrackKey;
-    onToggle: (k: TrackKey, i: number, e: any) => void;
+    onToggle: (k: TrackKey, i: number, e: PointerEvent | React.KeyboardEvent) => void;
     onRightMouseDown: (k: TrackKey, i: number, e: MouseEvent) => void;
     onEditLength: (k: TrackKey, i: number, len: number) => void;
     length?: number;
@@ -24,7 +24,7 @@ interface SvgStepProps {
 }
 
 export const SvgStep = memo(({
-    stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
+    stepIndex, active, note, refsArray: _refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
     onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing
 }: SvgStepProps) => {
     const baseWidth = 18;
@@ -39,7 +39,7 @@ export const SvgStep = memo(({
     const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
     const handlePointerDown = (e: PointerEvent) => {
-        if (e.button === 2) { onRightMouseDown(rowKey, stepIndex, e); return; }
+        if (e.button === 2) { e.preventDefault(); onRightMouseDown(rowKey, stepIndex, e); return; }
         if (e.shiftKey) {
             e.preventDefault(); e.stopPropagation();
             if (active) {
@@ -76,8 +76,30 @@ export const SvgStep = memo(({
         if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
     };
 
+    // Use local ref and avoid mutating props
+    const localRef = useRef<SVGGElement | null>(null);
+
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as CSSProperties}>
+        <g 
+            transform={`translate(${x}, 0)`} 
+            ref={localRef}
+            className="svg-step" 
+            role="button" 
+            tabIndex={0} 
+            aria-label={`${rowLabel} step ${stepIndex + 1}${active ? ', active' : ''}`}
+            aria-pressed={active}
+            onPointerDown={handlePointerDown} 
+            onPointerEnter={handlePointerEnter} 
+            onKeyDown={(e) => { 
+                if (e.key === 'Enter' || e.key === ' ') { 
+                    e.preventDefault(); 
+                    onToggle(rowKey, stepIndex, e); 
+                }
+            }} 
+            onContextMenu={(e) => e.preventDefault()} 
+            cursor="pointer" 
+            style={{ transition: 'all 0.1s ease', touchAction: 'manipulation', '--focus-color': focusColor } as CSSProperties}
+        >
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
             {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />

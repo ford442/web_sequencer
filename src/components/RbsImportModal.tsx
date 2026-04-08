@@ -25,6 +25,18 @@ import {
   type RbsParserError,
   DEFAULT_RBS_IMPORT_OPTIONS
 } from '../importers/rbs';
+import {
+  formatFileSize,
+  categorizeError,
+  getErrorMessage,
+  getErrorSuggestions,
+  getProgressColor,
+  noteToName,
+  generateExampleRbsFile,
+  type ParseStage,
+  type ErrorCategory,
+  type ParseState,
+} from '../utils/rbsImportUtils';
 
 // ============================================================================
 // TYPES
@@ -35,143 +47,6 @@ interface RbsImportModalProps {
   onClose: () => void;
   onImport: (song: HyphonSong) => void;
   onShowToast: (message: string, type: 'success' | 'error' | 'info') => void;
-}
-
-type ParseStage = 'idle' | 'reading' | 'parsing' | 'converting' | 'complete' | 'error';
-type ErrorCategory = 'INVALID_FORMAT' | 'CORRUPTED_DATA' | 'UNSUPPORTED_VERSION' | 'READ_ERROR';
-
-interface ParseState {
-  stage: ParseStage;
-  progress: number;
-  stageLabel: string;
-  error?: RbsParserError;
-  category?: ErrorCategory;
-}
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-/**
- * Format file size for display
- */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/**
- * Categorize parser error
- */
-function categorizeError(error: RbsParserError): ErrorCategory {
-  switch (error.type) {
-    case 'INVALID_FORMAT':
-      return 'INVALID_FORMAT';
-    case 'UNSUPPORTED_VERSION':
-      return 'UNSUPPORTED_VERSION';
-    case 'CORRUPTED_DATA':
-      return 'CORRUPTED_DATA';
-    case 'READ_ERROR':
-      return 'READ_ERROR';
-    default:
-      return 'INVALID_FORMAT';
-  }
-}
-
-/**
- * Get human-readable error message
- */
-function getErrorMessage(error: RbsParserError): string {
-  switch (error.type) {
-    case 'INVALID_FORMAT':
-      return error.message;
-    case 'UNSUPPORTED_VERSION':
-      return `RBS version ${error.version} is not supported. Supported versions: ${error.supported.join(', ')}`;
-    case 'CORRUPTED_DATA':
-      return `Corrupted data in ${error.section}${error.details ? `: ${error.details}` : ''}`;
-    case 'READ_ERROR':
-      return `Read error: ${error.message}`;
-    default:
-      return 'Unknown error';
-  }
-}
-
-/**
- * Get error suggestions based on category
- */
-function getErrorSuggestions(category: ErrorCategory): string[] {
-  switch (category) {
-    case 'INVALID_FORMAT':
-      return [
-        'Ensure the file has a .rbs extension',
-        'Check that the file is a valid ReBirth RB-338 file',
-        'Try re-exporting from ReBirth if possible'
-      ];
-    case 'CORRUPTED_DATA':
-      return [
-        'The file may be damaged or incomplete',
-        'Try opening and re-saving in ReBirth',
-        'Check if the file was transferred correctly'
-      ];
-    case 'UNSUPPORTED_VERSION':
-      return [
-        'This version of RBS is not yet supported',
-        'Try exporting in a compatible format',
-        'Contact support for version compatibility info'
-      ];
-    case 'READ_ERROR':
-      return [
-        'Check file permissions',
-        'Ensure the file is not open in another program',
-        'Try refreshing the page and importing again'
-      ];
-  }
-}
-
-/**
- * Get progress bar color based on stage
- */
-function getProgressColor(stage: ParseStage): string {
-  switch (stage) {
-    case 'idle': return 'bg-gray-700';
-    case 'reading': return 'bg-amber-500';
-    case 'parsing': return 'bg-amber-500';
-    case 'converting': return 'bg-emerald-500';
-    case 'complete': return 'bg-emerald-500';
-    case 'error': return 'bg-red-500';
-  }
-}
-
-/**
- * Convert TB-303 note number to note name
- */
-function noteToName(note: number, octave: number): string {
-  if (note === -1) return '—';
-  const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  return `${notes[note]}${octave}`;
-}
-
-/**
- * Generate example RBS file for testing
- */
-function generateExampleRbsFile(): File {
-  // Create a minimal RBS-like binary structure
-  // This is a mock that will trigger the parser's mock data generation
-  const header = new Uint8Array([
-    0x52, 0x42, 0x53, 0x00, // "RBS\0" magic
-    0x32, 0x2E, 0x30, 0x00, // "2.0\0" version
-  ]);
-  
-  // Add some padding to make it look like a valid file
-  const padding = new Uint8Array(200).fill(0);
-  const data = new Uint8Array([...header, ...padding]);
-  
-  return new File(
-    [data],
-    'Demo_Acid_130BPM.rbs',
-    { type: 'application/octet-stream' }
-  );
 }
 
 // ============================================================================
@@ -511,7 +386,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" className="bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
@@ -519,7 +394,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
               <span className="text-2xl">🎹</span>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Import ReBirth RB-338 File</h2>
+              <h2 id="rbs-import-title" className="text-lg font-bold text-white">Import ReBirth RB-338 File</h2>
               <p className="text-xs text-gray-400">Import .rbs pattern files from ReBirth RB-338</p>
             </div>
           </div>
@@ -527,6 +402,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
             onClick={onClose}
             className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
             title="Close (Esc)"
+            aria-label="Close modal"
           >
             ✕
           </button>
@@ -583,7 +459,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
 
           {/* Parse Progress */}
           {isParsing && (
-            <div className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div aria-live="polite" className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-amber-400">
                   <span className="animate-spin">⏳</span>
@@ -852,6 +728,8 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
               <div className="border border-gray-800 rounded-lg overflow-hidden">
                 <button
                   onClick={() => setShowOptions(!showOptions)}
+                  aria-expanded={showOptions}
+                  aria-controls="import-options-panel"
                   className="w-full p-3 bg-gray-900/50 flex items-center justify-between hover:bg-gray-800/50 transition-all"
                 >
                   <span className="text-sm font-medium text-gray-300">Import Options</span>
@@ -859,7 +737,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
                 </button>
                 
                 {showOptions && (
-                  <div className="p-4 space-y-4 bg-gray-900/30">
+                  <div id="import-options-panel" className="p-4 space-y-4 bg-gray-900/30">
                     {/* Expand Steps */}
                     <label className="flex items-center justify-between">
                       <span className="text-sm text-gray-400">Expand 16 → 32 steps</span>
@@ -962,6 +840,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
             <button
               onClick={handleImport}
               disabled={!isComplete || isImporting}
+              aria-busy={isImporting}
               className={`px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 ${
                 isComplete && !isImporting
                   ? 'bg-amber-600 hover:bg-amber-500 text-white'

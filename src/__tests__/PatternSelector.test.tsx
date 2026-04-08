@@ -52,7 +52,7 @@ describe('PatternSelector', () => {
     it('calls onSelect when a pattern is clicked', () => {
         const onSelect = vi.fn();
         render(<PatternSelector {...defaultProps} onSelect={onSelect} />);
-        const patternBtn = screen.getByLabelText('Select Pattern 1');
+        const patternBtn = screen.getByLabelText('Pattern 1');
         fireEvent.click(patternBtn);
         expect(onSelect).toHaveBeenCalledWith(0);
     });

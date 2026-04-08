@@ -81,6 +81,20 @@ const GROUPS = [
   { label: 'GPU/WEB', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin', 'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
 ];
 
+// Basic waveforms that cycle on click
+const BASIC_WAVEFORMS: Waveform[] = ['sawtooth', 'square', 'triangle', 'sine'];
+
+// Get the next waveform in the cycle
+const getNextWaveform = (current: Waveform): Waveform => {
+  const currentIndex = BASIC_WAVEFORMS.indexOf(current);
+  if (currentIndex === -1) {
+    // If current is not a basic waveform, default to sawtooth
+    return 'sawtooth';
+  }
+  const nextIndex = (currentIndex + 1) % BASIC_WAVEFORMS.length;
+  return BASIC_WAVEFORMS[nextIndex];
+};
+
 export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, onChange, accentColor }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredWaveform, setHoveredWaveform] = useState<Waveform | null>(null);
@@ -96,6 +110,18 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
   const bgClasses = {
       cyan: 'hover:bg-cyan-900/30 text-cyan-400',
       pink: 'hover:bg-pink-900/30 text-pink-400'
+  };
+
+  // Handle waveform cycling on left click
+  const handleWaveformClick = () => {
+    const nextWaveform = getNextWaveform(selected);
+    onChange(nextWaveform);
+  };
+
+  // Handle opening the dropdown
+  const handleOpenDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsOpen(!isOpen);
   };
 
   useEffect(() => {
@@ -114,19 +140,30 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
   }, [isOpen]);
 
   return (
-    <div className="relative inline-block" ref={containerRef}>
-      {/* Trigger Button */}
+    <div className="relative inline-flex items-center gap-1" ref={containerRef}>
+      {/* Main Waveform Button - Cycles on click */}
       <button
         ref={triggerRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleWaveformClick}
         aria-haspopup="true"
         aria-expanded={isOpen}
-        aria-label={`Current waveform: ${selected}. Click to change.`}
+        aria-label={`Current waveform: ${selected}. Click to cycle.`}
+        title={`Current: ${selected}. Click to cycle, arrow for more options.`}
         className={`w-10 h-10 p-2 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-800 hover:bg-gray-700 flex items-center justify-center ${isOpen ? 'ring-2' : ''} ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'}`}
       >
         <WaveformIcon type={selected} />
-        {/* Subtle indicator triangle */}
-        <div className="absolute bottom-0.5 right-0.5 w-0 h-0 border-l-[4px] border-l-transparent border-t-[4px] border-t-gray-400 transform rotate-[-45deg] opacity-50"></div>
+      </button>
+
+      {/* Dropdown Toggle Button */}
+      <button
+        onClick={handleOpenDropdown}
+        aria-label="Open waveform selector"
+        title="More waveforms"
+        className={`w-4 h-10 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-800 hover:bg-gray-700 flex items-center justify-center ${isOpen ? 'ring-2' : ''} ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400 text-cyan-400' : 'focus:ring-pink-400 ring-pink-400 text-pink-400'}`}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3">
+          <path d={isOpen ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} />
+        </svg>
       </button>
 
       {/* Popover */}

@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Accessibility features: reduced-motion, high-contrast, mobile touch */
+@import './accessibility.css';
+
 :root {
   font-family: 'Roboto Mono', monospace;
   background-color: #111827;
@@ -10,6 +13,9 @@
   /* Adding subtle animations and transitions */
   --transition-duration: 0.3s;
   --hover-scale: 1.05;
+  
+  /* Accessibility: Respect user's motion preferences by default */
+  --animation-duration: 0.3s;
 }
 
 body {

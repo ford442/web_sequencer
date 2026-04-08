@@ -22,6 +22,7 @@ import {
     setGlobalPan as setMasterPan,
     setHarmonizerConfig as applyHarmonizerConfig,
     setMasterVolume as setMasterGainVolume,
+    setMasterSaturation as setMasterGainSaturation,
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
 import { makeDistortionCurve } from './audioEngine/distortion';
@@ -48,7 +49,7 @@ type AudioWindow = Window & typeof globalThis & {
     audioContext?: AudioContext;
 };
 
-export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean = false) => {
+export const useAudioEngine = (pyodide: unknown) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
@@ -65,7 +66,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
     const choirLeftPannerRef = useRef<StereoPannerNode | null>(null);
     const choirRightPannerRef = useRef<StereoPannerNode | null>(null);
 
-    const sustainNodeRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
+    const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
     const ambianceGainNodeRef = useRef<GainNode | null>(null);
@@ -84,6 +85,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
     // Master Volume & Pan
     const masterGainRef = useRef<GainNode | null>(null);
+    const masterSaturationRef = useRef<WaveShaperNode | null>(null);
+    const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
 
     const pyodideRef = useRef(pyodide);
@@ -103,6 +106,8 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
+        masterSaturationRef,
+        reverbNodeRef,
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
@@ -141,7 +146,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 console.log("AudioContext resumed");
             }
 
-            const masterGain = initializeMasterOutput(context, masterGainRef, masterPannerRef);
+            const masterGain = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef);
 
             // Initialize Engines
             const gpuEngine = new WebGpuOscillator();
@@ -190,7 +195,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
             voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined);
 
-            await initializeSustainProcessor(context, forceScriptProcessor, sustainProcessorUrl, sustainNodeRef, masterGainRef);
+            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
 
             // --- Singing Voice Manager Init ---
             try {
@@ -207,10 +212,11 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     preserveFormants: true,
                     channels: 1,
                     bufferSize: 16384,
-                    enablePhonemeStretching: true
+                    enablePhonemeStretching: true,
+                    enableFormantShifting: true
                 });
 
-                await manager.init(forceScriptProcessor, wasmBinary);
+                await manager.init(wasmBinary);
                 singingVoiceManagerRef.current = manager;
 
                 initializeChoirBuses(
@@ -252,9 +258,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 multisampleGeneratorRef,
                 vocalAlignmentsRef,
                 singingVoiceManagerRef,
-            });
-
-            // Internal function to play a single sampler voice (supports pitch offset for harmonizer)
+            });            // Internal function to play a single sampler voice (supports pitch offset for harmonizer)
             const playSamplerVoice = (
                 params: SamplerBankParams, 
                 note: string | string[], 
@@ -268,7 +272,16 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    phonemes?: PhonemeData[]
+                    phonemes?: PhonemeData[],
+                    freeze?: number,
+                    filterCutoff?: number,
+                    filterResonance?: number,
+                    formantLfoRate?: number,
+                    formantLfoDepth?: number,
+                    vibratoDepth?: number,
+                    reverbSend?: number,
+                    drive?: number,
+                    characterMorph?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -307,10 +320,45 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
-                            if (destination) {
-                                voice.connectOutput(destination);
-                            } else {
-                                voice.connectOutput(masterGainRef.current!);
+                            let finalDest = destination || masterGainRef.current!;
+
+                            // Apply Drive/Distortion if present
+                            const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                            if (driveAmount !== undefined && driveAmount > 0) {
+                                const shaper = context.createWaveShaper();
+                                shaper.curve = makeDistortionCurve(driveAmount * 100);
+                                shaper.connect(finalDest);
+                                finalDest = shaper;
+                            }
+
+                            // Apply Per-Step Filter if present, or fallback to global filter settings
+                            if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
+                                const filter = context.createBiquadFilter();
+                                filter.type = 'lowpass';
+
+                                const cutoff = noteParams?.filterCutoff !== undefined
+                                    ? Math.max(20, noteParams.filterCutoff * 20000)
+                                    : (params.filterCutoff ?? 20000);
+                                filter.frequency.value = cutoff;
+
+                                const resonance = noteParams?.filterResonance !== undefined
+                                    ? noteParams.filterResonance * 20
+                                    : (params.filterResonance ?? 0);
+                                filter.Q.value = resonance;
+
+                                filter.connect(finalDest);
+                                finalDest = filter;
+                            }
+
+                            voice.connectOutput(finalDest);
+
+                            // Setup Reverb Send
+                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                            if (reverbSendAmount > 0 && reverbNodeRef.current) {
+                                const reverbGain = context.createGain();
+                                reverbGain.gain.value = reverbSendAmount;
+                                reverbGain.connect(reverbNodeRef.current);
+                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
@@ -322,11 +370,43 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                                 voice.setFormantShift(params.formantShift, triggerTime);
                             }
 
+                            // Apply Character Morphing
+                            const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+                            const morphTarget = params.morphTarget || 'female';
+                            voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
+
                             // Sync other params
-                            if (params.vibratoDepth !== undefined) voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            if (noteParams?.vibratoDepth !== undefined) {
+                                voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
+                            } else if (params.vibratoDepth !== undefined) {
+                                voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            }
+                            if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
+                            if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
                             if (params.breathIntensity !== undefined) voice.setBreathIntensity(params.breathIntensity, triggerTime);
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
+                            if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
+                            if (params.sustain !== undefined) voice.setSustain(params.sustain, triggerTime);
                             if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
+
+                            // Apply per-step or global freeze
+                            if (noteParams?.freeze !== undefined) {
+                                voice.setFreeze(noteParams.freeze, triggerTime);
+                            } else if (params.freeze !== undefined) {
+                                voice.setFreeze(params.freeze, triggerTime);
+                            }
+
+                            // Apply Formant LFO
+                            if (noteParams?.formantLfoRate !== undefined) {
+                                voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);
+                            } else if (params.formantLfoRate !== undefined) {
+                                voice.setFormantLfoRate(params.formantLfoRate, triggerTime);
+                            }
+                            if (noteParams?.formantLfoDepth !== undefined) {
+                                voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
+                            } else if (params.formantLfoDepth !== undefined) {
+                                voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
+                            }
 
                             // Load buffer
                             voice.loadBuffer(buffer.getChannelData(0));
@@ -468,12 +548,20 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
 
                     const filter = context.createBiquadFilter();
                     filter.type = 'lowpass';
-                    filter.frequency.value = params.filterCutoff;
-                    filter.Q.value = params.filterResonance;
+                    const cutoff = noteParams?.filterCutoff !== undefined
+                        ? Math.max(20, noteParams.filterCutoff * 20000)
+                        : params.filterCutoff;
+                    filter.frequency.value = cutoff;
+
+                    const resonance = noteParams?.filterResonance !== undefined
+                        ? noteParams.filterResonance * 20
+                        : params.filterResonance;
+                    filter.Q.value = resonance;
 
                     const shaper = context.createWaveShaper();
-                    if (params.drive > 0) {
-                        shaper.curve = makeDistortionCurve(params.drive * 100);
+                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                    if (driveAmount > 0) {
+                        shaper.curve = makeDistortionCurve(driveAmount * 100);
                     } else {
                         shaper.curve = null;
                     }
@@ -531,7 +619,14 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    phonemes?: PhonemeData[]
+                    phonemes?: PhonemeData[],
+                    freeze?: number,
+                    filterCutoff?: number,
+                    filterResonance?: number,
+                    vibratoDepth?: number,
+                    reverbSend?: number,
+                    drive?: number,
+                    characterMorph?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
@@ -638,6 +733,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             };
             const { playAmbiance, stopAmbiance, setAmbianceVolume } = createAmbianceControls(context, playbackRefs);
             const setMasterVolume = (value: number) => setMasterGainVolume(masterGainRef, value);
+            const setMasterSaturation = (amount: number) => setMasterGainSaturation(masterSaturationRef, amount);
             const setGlobalPan = (value: number) => setMasterPan(masterPannerRef, value);
 
             const detectSamplePitch = async (_b: AudioBuffer) => null;
@@ -670,6 +766,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
                 stopAmbiance,
                 setAmbianceVolume,
                 setMasterVolume,
+                setMasterSaturation,
                 setGlobalPan,
                 detectSamplePitch,
                 processSinging,
@@ -691,9 +788,9 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             setIsReady(true);
             isInitializing.current = false;
         }
-    }, [audioEngine, forceScriptProcessor, playbackRefs]);
+    }, [audioEngine, playbackRefs]);
 
-    const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number) => {
+    const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
         applyVoiceParamUpdate({
             manager: singingVoiceManagerRef.current,
             choirLeftGain: choirLeftGainRef.current,
@@ -701,6 +798,7 @@ export const useAudioEngine = (pyodide: unknown, forceScriptProcessor: boolean =
             currentTime: audioEngine?.context.currentTime || 0,
             key,
             value,
+            rampTime
         });
     }, [audioEngine]);
     

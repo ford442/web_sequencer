@@ -17,625 +17,29 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { 
-  AISongImporter, 
-  parseAISongJSON, 
-  type AISongData, 
+import {
+  AISongImporter,
+  parseAISongJSON,
+  type AISongData,
   type AIImportResultType,
   type AIImportErrorDetails
 } from '../importers/ai-song';
 import type { SavedSongData } from '../types';
+import type { TabType, ValidationStage, ErrorCategory, ImportStage, TrackStats, FieldError, ValidationState, DroppedFile, AISongModalProps } from '../types/aiSongModal';
+import { PROMPT_TEMPLATE, EXAMPLES } from '../constants/aiSongExamples';
+import { generateId, fixCommonJsonIssues, categorizeError, getErrorSuggestions, getValidationColor, getTextareaBorderColor, formatFileSize, getFileIcon } from '../utils/aiSongUtils';
+import { PreviewSkeleton } from './ai-song/PreviewSkeleton';
+import { Tooltip } from './ai-song/Tooltip';
 
-type TabType = 'paste' | 'template' | 'preview';
-type ValidationStage = 'idle' | 'parsing' | 'validating' | 'converting' | 'complete' | 'error';
-type ErrorCategory = 'JSON_SYNTAX' | 'SCHEMA_VIOLATION' | 'CONVERSION_ERROR' | 'NETWORK_ERROR';
 
-interface ImportStage {
-  name: string;
-  progress: number;
-  status: 'pending' | 'active' | 'complete' | 'error';
-}
 
-interface TrackStats {
-  totalNotes: number;
-  noteCounts: Record<string, number>;
-  avgVelocity: number;
-  velocitySum: number;
-  noteCount: number;
-  duration: number;
-  automationLaneCount: number;
-  automationPointCount: number;
-  automatedParams: string[];
-}
 
-interface FieldError {
-  field: string;
-  message: string;
-  suggestion?: string;
-}
-
-interface ValidationState {
-  stage: ValidationStage;
-  progress: number;
-  fieldErrors: FieldError[];
-  category?: ErrorCategory;
-}
-
-interface DroppedFile {
-  file: File;
-  id: string;
-  content?: string;
-}
-
-// ============================================================================
-// PROMPT TEMPLATE
-// ============================================================================
-
-const PROMPT_TEMPLATE = `You are a music sequencer AI for Hyphon (a web-based DAW). 
-Generate a complete song in the following JSON format.
-
-HYPHON SONG FORMAT:
-{
-  "meta": {
-    "title": "Song Name",
-    "author": "your-name",
-    "version": "1.0",
-    "createdAt": "2024-03-06T12:00:00Z",
-    "generator": "claude-3-opus",
-    "prompt": "brief description"
-  },
-  "globals": {
-    "tempo": 128,
-    "timeSignature": [4, 4],
-    "swing": 50
-  },
-  "tracks": {
-    "synthA": {
-      "notes": [
-        {"step": 0, "note": "C3", "velocity": 0.8, "accent": true},
-        {"step": 4, "note": "G3"},
-        {"step": 8, "note": "Eb3", "accent": true},
-        {"step": 12, "note": "F3"}
-      ],
-      "params": {
-        "waveform": "303-saw",
-        "filterCutoff": 3000,
-        "filterResonance": 12,
-        "decay": 0.4
-      }
-    },
-    "kick": [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
-    "snare": [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-    "closedHat": [false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true],
-    "openHat": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false]
-  },
-  "automation": [
-    {
-      "target": "synthA",
-      "parameter": "filterCutoff",
-      "steps": [100, null, 110, null, 120, 127, 120, 100, null, null, 100, 110, 120, 127, 120, 100],
-      "interpolation": "linear"
-    }
-  ]
-}
-
-RULES:
-- Steps are 0-15 for 16-step patterns or 0-31 for 32-step patterns
-- Notes use format like "C3", "F#4", "Bb2"
-- Drum tracks are boolean arrays (true = hit on that step)
-- Tempo range: 30-300 BPM
-- Swing: 0-100 (50 = no swing, higher = more shuffle)
-
-AUTOMATION (Optional):
-- Add an "automation" array for parameter changes over time
-- target: synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler, or master
-- parameter: filterCutoff, filterResonance, decay, volume, delayMix, tempo, etc.
-- steps: Array of 16 or 32 values (0-127) or null for no change
-- interpolation: "step", "linear", or "smooth" (default: "step")
-
-Generate a {GENRE} song at {TEMPO} BPM with {MOOD} mood.
-Return ONLY the JSON, no markdown, no explanation.`;
-
-// ============================================================================
-// EXAMPLE SONGS - PRODUCTION-READY DEMO SONGS
-// ============================================================================
-
-const EXAMPLE_TECHNO: AISongData = {
-  meta: { 
-    title: "Warehouse Acid", 
-    author: "AI Demo", 
-    version: "1.0", 
-    createdAt: "2024-03-06T12:00:00Z", 
-    generator: "claude-3-opus", 
-    prompt: "Dark warehouse techno",
-    tags: ["techno", "acid"]
-  },
-  globals: { 
-    tempo: 130, 
-    timeSignature: [4, 4], 
-    swing: 52 
-  },
-  tracks: {
-    synthA: { 
-      notes: [
-        {step: 0, note: "C2", velocity: 0.9, accent: true},
-        {step: 2, note: "C2"},
-        {step: 4, note: "Eb2", accent: true, slide: true},
-        {step: 6, note: "F2"},
-        {step: 8, note: "C2", accent: true},
-        {step: 12, note: "G2", accent: true, slide: true},
-        {step: 14, note: "Bb2"}
-      ], 
-      params: { 
-        waveform: "303-saw", 
-        filterCutoff: 1500, 
-        filterResonance: 18, 
-        decay: 0.4 
-      } 
-    },
-    kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
-    snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-    closedHat: [false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true],
-    openHat: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false]
-  }
-};
-
-const EXAMPLE_HOUSE: AISongData = {
-  meta: { 
-    title: "Funky House", 
-    author: "AI Demo", 
-    version: "1.0", 
-    createdAt: "2024-03-06T12:00:00Z", 
-    generator: "gemini-pro", 
-    prompt: "Funky house with swing",
-    tags: ["house", "funky"]
-  },
-  globals: { 
-    tempo: 124, 
-    timeSignature: [4, 4], 
-    swing: 58 
-  },
-  tracks: {
-    synthA: { 
-      notes: [
-        {step: 0, note: "C3"},
-        {step: 4, note: "E3"},
-        {step: 8, note: "G3"},
-        {step: 12, note: "B3"}
-      ], 
-      params: { 
-        waveform: "303-saw", 
-        filterCutoff: 4000, 
-        filterResonance: 8 
-      } 
-    },
-    synthB: {
-      notes: [
-        {step: 2, note: "G2"},
-        {step: 6, note: "A2"},
-        {step: 10, note: "B2"},
-        {step: 14, note: "D3"}
-      ],
-      params: {
-        waveform: "303-sqr",
-        filterCutoff: 2500,
-        filterResonance: 12
-      }
-    },
-    kick: [true, false, false, true, false, false, true, false, false, true, false, false, true, false, false, true],
-    snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-    closedHat: [true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false]
-  }
-};
-
-const EXAMPLE_DNB: AISongData = {
-  meta: { 
-    title: "Neurofunk Roller", 
-    author: "AI Demo", 
-    version: "1.0", 
-    createdAt: "2024-03-06T12:00:00Z", 
-    generator: "grok", 
-    prompt: "Dark drum and bass",
-    tags: ["dnb", "neurofunk"]
-  },
-  globals: { 
-    tempo: 174, 
-    timeSignature: [4, 4], 
-    swing: 50 
-  },
-  tracks: {
-    synthA: { 
-      notes: [
-        {step: 0, note: "F2", accent: true},
-        {step: 3, note: "F2"},
-        {step: 7, note: "Ab2", accent: true},
-        {step: 10, note: "Bb2"}
-      ], 
-      params: { 
-        waveform: "303-saw", 
-        filterCutoff: 2500, 
-        filterResonance: 15, 
-        decay: 0.3 
-      } 
-    },
-    bass2: {
-      notes: [
-        {step: 0, note: "F1"},
-        {step: 8, note: "Eb1"}
-      ],
-      params: {
-        waveform: "303-sqr",
-        filterCutoff: 1800,
-        filterResonance: 20
-      }
-    },
-    kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
-    snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-    closedHat: [false, true, true, false, false, true, true, false, false, true, true, false, false, true, true, false],
-    openHat: [false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false]
-  }
-};
-
-const EXAMPLE_AUTOMATION: AISongData = {
-  meta: { 
-    title: "Acid with Filter Sweep", 
-    author: "AI Demo", 
-    version: "1.0", 
-    createdAt: "2024-03-06T12:00:00Z", 
-    generator: "claude-3-opus", 
-    prompt: "Acid techno with automated filter",
-    tags: ["techno", "acid", "automation"]
-  },
-  globals: { 
-    tempo: 132, 
-    timeSignature: [4, 4], 
-    swing: 54 
-  },
-  tracks: {
-    synthA: { 
-      notes: [
-        {step: 0, note: "C2", velocity: 0.9, accent: true},
-        {step: 2, note: "C2"},
-        {step: 4, note: "Eb2", accent: true, slide: true},
-        {step: 6, note: "F2"},
-        {step: 8, note: "C2", accent: true},
-        {step: 10, note: "C2"},
-        {step: 12, note: "G2", accent: true, slide: true},
-        {step: 14, note: "Bb2"}
-      ], 
-      params: { 
-        waveform: "303-saw", 
-        filterCutoff: 800, 
-        filterResonance: 20, 
-        decay: 0.4 
-      } 
-    },
-    synthB: {
-      notes: [
-        {step: 4, note: "C3", velocity: 0.7},
-        {step: 12, note: "G3", velocity: 0.7}
-      ],
-      params: {
-        waveform: "303-sqr",
-        filterCutoff: 2000,
-        filterResonance: 15,
-        delayMix: 0.3
-      }
-    },
-    kick: [
-      true, false, false, false, true, false, false, false,
-      true, false, false, false, true, false, false, false
-    ],
-    snare: [
-      false, false, false, false, true, false, false, false,
-      false, false, false, false, true, false, false, false
-    ],
-    closedHat: [
-      false, true, false, true, false, true, false, true,
-      false, true, false, true, false, true, false, true
-    ],
-    openHat: [
-      false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, true, false
-    ]
-  },
-  automation: [
-    {
-      target: 'synthA',
-      parameter: 'filterCutoff',
-      steps: [
-        80, 90, 100, 110, 120, 127, 120, 110,
-        100, 90, 100, 110, 120, 127, 120, 100
-      ],
-      interpolation: 'linear'
-    },
-    {
-      target: 'synthB',
-      parameter: 'delayMix',
-      steps: [
-        0, 10, 20, 30, 40, 50, 60, 70,
-        80, 90, 100, 100, 100, 90, 80, 70
-      ],
-      interpolation: 'smooth'
-    }
-  ]
-};
-
-const EXAMPLES = {
-  techno: { name: "🎛️ Techno Acid (130 BPM)", data: EXAMPLE_TECHNO, emoji: "🎛️", desc: "Dark warehouse acid" },
-  house: { name: "🎹 House Groove (124 BPM)", data: EXAMPLE_HOUSE, emoji: "🎹", desc: "Funky house with swing" },
-  dnb: { name: "🥁 DnB Roller (174 BPM)", data: EXAMPLE_DNB, emoji: "🥁", desc: "Dark neurofunk DnB" },
-  automation: { name: "🎚️ Filter Sweep (132 BPM)", data: EXAMPLE_AUTOMATION, emoji: "🎚️", desc: "With automation lanes" }
-};
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-/**
- * Generate unique ID for files
- */
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 9);
-}
-
-/**
- * Auto-fix common JSON issues
- */
-function fixCommonJsonIssues(json: string): { fixed: string; changes: string[] } {
-  const changes: string[] = [];
-  let fixed = json;
-
-  // Remove markdown code fences
-  const codeFenceMatch = fixed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeFenceMatch) {
-    fixed = codeFenceMatch[1].trim();
-    changes.push('Removed markdown code fences');
-  }
-
-  // Fix trailing commas
-  const beforeTrailingComma = fixed;
-  fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
-  if (fixed !== beforeTrailingComma) {
-    changes.push('Fixed trailing commas');
-  }
-
-  // Fix single quotes to double quotes (basic)
-  const beforeQuotes = fixed;
-  fixed = fixed.replace(/'([^']*)':/g, '"$1":');
-  fixed = fixed.replace(/: '([^']*)'/g, ': "$1"');
-  if (fixed !== beforeQuotes) {
-    changes.push('Converted single quotes to double quotes');
-  }
-
-  // Fix missing quotes around property names
-  const beforePropQuotes = fixed;
-  fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)/g, '$1"$2"$3');
-  if (fixed !== beforePropQuotes) {
-    changes.push('Added quotes around property names');
-  }
-
-  return { fixed, changes };
-}
-
-/**
- * Categorize error type
- */
-function categorizeError(error: string | AIImportErrorDetails): ErrorCategory {
-  const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
-  
-  if (errorStr.includes('JSON') || errorStr.includes('parse') || errorStr.includes('Unexpected')) {
-    return 'JSON_SYNTAX';
-  }
-  if (errorStr.includes('VALIDATION') || errorStr.includes('required') || errorStr.includes('must be')) {
-    return 'SCHEMA_VIOLATION';
-  }
-  if (errorStr.includes('CONVERSION')) {
-    return 'CONVERSION_ERROR';
-  }
-  if (errorStr.includes('STORAGE') || errorStr.includes('upload') || errorStr.includes('network')) {
-    return 'NETWORK_ERROR';
-  }
-  return 'SCHEMA_VIOLATION';
-}
-
-/**
- * Get error suggestions based on category
- */
-function getErrorSuggestions(category: ErrorCategory): string[] {
-  switch (category) {
-    case 'JSON_SYNTAX':
-      return [
-        'Check for missing commas or brackets',
-        'Ensure all strings are in double quotes',
-        'Remove any trailing commas before closing braces',
-        'Try the "Fix Common Issues" button'
-      ];
-    case 'SCHEMA_VIOLATION':
-      return [
-        'Verify the meta.title field exists and is a string',
-        'Check that globals.tempo is a number between 30-300',
-        'Ensure tracks object contains valid track data',
-        'Version must be exactly "1.0"'
-      ];
-    case 'CONVERSION_ERROR':
-      return [
-        'Check note formats (e.g., "C4", "F#3")',
-        'Ensure step values are within 0-31',
-        'Verify velocity values are between 0-1'
-      ];
-    case 'NETWORK_ERROR':
-      return [
-        'Check your internet connection',
-        'The song can still be imported locally',
-        'Try uploading again later'
-      ];
-  }
-}
-
-/**
- * Get validation status color for status bar
- */
-function getValidationColor(stage: ValidationStage): string {
-  switch (stage) {
-    case 'idle': return 'bg-gray-700';
-    case 'parsing': return 'bg-yellow-500';
-    case 'validating': return 'bg-yellow-500';
-    case 'converting': return 'bg-emerald-500';
-    case 'complete': return 'bg-emerald-500';
-    case 'error': return 'bg-red-500';
-  }
-}
-
-/**
- * Get textarea border color based on validation state
- */
-function getTextareaBorderColor(stage: ValidationStage, hasContent: boolean): string {
-  if (!hasContent) return 'border-gray-800 focus:border-emerald-500/50';
-  switch (stage) {
-    case 'idle':
-    case 'parsing':
-    case 'validating':
-      return 'border-yellow-500/50 focus:border-yellow-500';
-    case 'converting':
-    case 'complete':
-      return 'border-emerald-500/50 focus:border-emerald-500';
-    case 'error':
-      return 'border-red-500/50 focus:border-red-500';
-  }
-}
-
-/**
- * Format file size
- */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/**
- * Get file icon based on extension
- */
-function getFileIcon(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  switch (ext) {
-    case 'json': return '📄';
-    case 'txt': return '📝';
-    case 'md': return '📑';
-    default: return '📎';
-  }
-}
-
-// ============================================================================
-// LOADING SKELETON COMPONENT
-// ============================================================================
-
-function PreviewSkeleton() {
-  return (
-    <div className="space-y-4 animate-pulse">
-      {/* Song Info Skeleton */}
-      <div className="p-4 bg-gray-900/50 rounded-lg space-y-3">
-        <div className="h-4 bg-gray-800 rounded w-1/3"></div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <div className="h-3 bg-gray-800 rounded w-16"></div>
-            <div className="h-4 bg-gray-700 rounded w-20"></div>
-          </div>
-          <div className="space-y-2">
-            <div className="h-3 bg-gray-800 rounded w-20"></div>
-            <div className="h-4 bg-gray-700 rounded w-16"></div>
-          </div>
-          <div className="space-y-2">
-            <div className="h-3 bg-gray-800 rounded w-16"></div>
-            <div className="h-4 bg-gray-700 rounded w-20"></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Pattern Grid Skeleton */}
-      <div className="p-4 bg-gray-900/50 rounded-lg space-y-3">
-        <div className="h-4 bg-gray-800 rounded w-1/4"></div>
-        <div className="space-y-1">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-1">
-              <div className="w-20 h-3 bg-gray-800 rounded mr-2"></div>
-              <div className="flex gap-0.5">
-                {Array.from({ length: 32 }).map((_, j) => (
-                  <div key={j} className="w-2 h-4 bg-gray-800 rounded-sm"></div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Stats Skeleton */}
-      <div className="p-4 bg-gray-900/50 rounded-lg space-y-3">
-        <div className="h-4 bg-gray-800 rounded w-1/4"></div>
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-20 h-3 bg-gray-800 rounded"></div>
-              <div className="flex-1 h-2 bg-gray-800 rounded-full"></div>
-              <div className="w-8 h-3 bg-gray-800 rounded"></div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// TOOLTIP COMPONENT
-// ============================================================================
-
-interface TooltipProps {
-  children: React.ReactNode;
-  text: string;
-  position?: 'top' | 'bottom' | 'left' | 'right';
-}
-
-function Tooltip({ children, text, position = 'top' }: TooltipProps) {
-  const positionClasses = {
-    top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-    bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
-    left: 'right-full top-1/2 -translate-y-1/2 mr-2',
-    right: 'left-full top-1/2 -translate-y-1/2 ml-2'
-  };
-
-  const arrowClasses = {
-    top: 'top-full left-1/2 -translate-x-1/2 border-t-gray-900',
-    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-gray-900',
-    left: 'left-full top-1/2 -translate-y-1/2 border-l-gray-900',
-    right: 'right-full top-1/2 -translate-y-1/2 border-r-gray-900'
-  };
-
-  return (
-    <div className="group relative inline-flex">
-      {children}
-      <div className={`absolute ${positionClasses[position]} px-2 py-1 bg-gray-900 text-gray-300 text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 pointer-events-none shadow-lg border border-gray-700`}>
-        {text}
-        <div className={`absolute w-0 h-0 border-4 border-transparent ${arrowClasses[position]}`}></div>
-      </div>
-    </div>
-  );
-}
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-interface AISongModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onImport: (song: SavedSongData, aiData: AISongData) => void;
-  onShowToast: (message: string, type: 'success' | 'error' | 'info') => void;
-  audioEngine?: unknown;
-}
-
-export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps) {
+export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps): React.ReactElement | null {
   const [jsonInput, setJsonInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
@@ -1245,7 +649,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       </div>
       <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(count)}</span>
     </div>
-  )) as React.ReactNode[];
+  )) as React.ReactElement[];
 
   return (
     <div 
@@ -1275,6 +679,8 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
             <button 
               onClick={handleClose}
               className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
+              aria-label="Close modal"
+              title="Close modal"
             >
               ✕
             </button>
@@ -1428,6 +834,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                           <button
                             onClick={() => removeDroppedFile(droppedFile.id)}
                             className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0"
+                            aria-label={`Remove ${droppedFile.file.name}`}
                           >
                             ✕
                           </button>
@@ -1579,19 +986,19 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <p className="flex justify-between sm:block">
                       <span className="text-gray-500">Title:</span> 
-                      <span className="text-emerald-400/70 sm:ml-1">{parsedData.meta.title}</span>
+                        <span className="text-emerald-400/70 sm:ml-1">{String(parsedData.meta.title)}</span>
                     </p>
                     <p className="flex justify-between sm:block">
                       <span className="text-gray-500">Author:</span> 
-                      <span className="text-emerald-400/70 sm:ml-1">{parsedData.meta.author}</span>
+                        <span className="text-emerald-400/70 sm:ml-1">{String(parsedData.meta.author)}</span>
                     </p>
                     <p className="flex justify-between sm:block">
                       <span className="text-gray-500">Tempo:</span> 
-                      <span className="text-emerald-400/70 sm:ml-1">{parsedData.globals.tempo} BPM</span>
+                        <span className="text-emerald-400/70 sm:ml-1">{String(parsedData.globals.tempo)} BPM</span>
                     </p>
                     <p className="flex justify-between sm:block">
                       <span className="text-gray-500">Generator:</span> 
-                      <span className="text-emerald-400/70 sm:ml-1">{parsedData.meta.generator}</span>
+                        <span className="text-emerald-400/70 sm:ml-1">{String(parsedData.meta.generator)}</span>
                     </p>
                     <p className="sm:col-span-2 flex flex-wrap gap-1">
                       <span className="text-gray-500">Tracks:</span> 
@@ -1605,11 +1012,11 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                       <p className="sm:col-span-2 flex flex-wrap gap-1 items-center">
                         <span className="text-gray-500">Automation:</span> 
                         <span className="px-1.5 py-0.5 bg-cyan-500/10 rounded text-cyan-400/70 text-[10px]">
-                          {parsedData.automation.length} lane{parsedData.automation.length !== 1 ? 's' : ''}
+                            {String(parsedData.automation.length)} lane{parsedData.automation.length !== 1 ? 's' : ''}
                         </span>
                         {parsedData.automation.map((lane, idx) => (
                           <span key={idx} className="text-[10px] text-cyan-400/50">
-                            {lane.target}.{lane.parameter}
+                              {String(lane.target)}.{String(lane.parameter)}
                             {idx < parsedData.automation!.length - 1 ? ',' : ''}
                           </span>
                         ))}
@@ -1659,27 +1066,27 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                 <div className="animate-in fade-in duration-300">
                   {/* Song Info */}
                   <div className="p-4 bg-gray-900/50 rounded-lg">
-                    <h3 className="text-sm font-medium text-emerald-400 mb-3">{parsedData.meta.title}</h3>
+                    <h3 className="text-sm font-medium text-emerald-400 mb-3">{String(parsedData.meta.title)}</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
                       <div>
                         <span className="text-gray-500 block">Tempo</span>
-                        <span className="text-white">{parsedData.globals.tempo} BPM</span>
+                        <span className="text-white">{String(parsedData.globals.tempo)} BPM</span>
                       </div>
                       <div>
                         <span className="text-gray-500 block">Time Signature</span>
-                        <span className="text-white">{parsedData.globals.timeSignature.join('/')}</span>
+                        <span className="text-white">{String((parsedData.globals.timeSignature as any[]).join('/'))}</span>
                       </div>
                       <div>
                         <span className="text-gray-500 block">Swing</span>
-                        <span className="text-white">{parsedData.globals.swing}%</span>
+                        <span className="text-white">{String(parsedData.globals?.swing ?? 0)}%</span>
                       </div>
                       <div>
                         <span className="text-gray-500 block">Est. Duration</span>
-                        <span className="text-white">{trackStats.duration.toFixed(1)}s</span>
+                        <span className="text-white">{String(trackStats.duration.toFixed(1))}s</span>
                       </div>
                       <div className="col-span-2 sm:col-span-1">
                         <span className="text-gray-500 block">Total Notes</span>
-                        <span className="text-white">{String(trackStats.totalNotes)}</span>
+                        <span className="text-white">{String(trackStats.totalNotes ?? 0)}</span>
                       </div>
                     </div>
                   </div>
@@ -1690,13 +1097,13 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                     <div className="overflow-x-auto">
                       <div className="inline-block min-w-full">
                         {patternGrid.grid.map((row, trackIdx) => (
-                          <div key={trackIdx} className="flex items-center gap-1 mb-1">
+                          <div key={String(trackIdx)} className="flex items-center gap-1 mb-1">
                             <span className="w-16 sm:w-20 text-[10px] sm:text-xs text-gray-500 text-right mr-2 shrink-0">
                               {String(patternGrid.tracks[trackIdx])}
                             </span>
                             <div className="flex gap-0.5">
                               {row.map((active, stepIdx) => (
-                                <Tooltip key={stepIdx} text={`Step ${stepIdx}`} position="top">
+                                <Tooltip key={stepIdx} text={String(`Step ${stepIdx}`)} position="top">
                                   <div
                                     className={`w-1.5 h-3 sm:w-2 sm:h-4 rounded-sm transition-colors ${
                                       active 
@@ -1716,22 +1123,42 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                   </div>
 
                   {/* Track Statistics */}
-                  <div className="p-4 bg-gray-900/50 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-300 mb-3">Track Statistics</h3>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div className="text-xs">
-                        <span className="text-gray-500">Total Events:</span>
-                        <span className="text-white ml-2">{String(trackStats.totalNotes)}</span>
+                  {trackStats ? (
+                    <div className="p-4 bg-gray-900/50 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-300 mb-3">{String("Track Statistics")}</h3>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="text-xs">
+                          <span className="text-gray-500">{String("Total Events:")}</span>
+                          <span className="text-white ml-2">{String(trackStats.totalNotes)}</span>
+                        </div>
+                        <div className="text-xs">
+                          <span className="text-gray-500">{String("Avg Velocity:")}</span>
+                          <span className="text-white ml-2">{String(Number.isNaN(Number(trackStats.avgVelocity)) ? '0' : (Number(trackStats.avgVelocity) * 100).toFixed(0))}%</span>
+                        </div>
                       </div>
-                      <div className="text-xs">
-                        <span className="text-gray-500">Avg Velocity:</span>
-                        <span className="text-white ml-2">{Number.isNaN(trackStats.avgVelocity) ? '0' : (trackStats.avgVelocity * 100).toFixed(0)}%</span>
+                      <div className="space-y-1.5">
+                        {trackStats?.noteCounts ? (
+                          (Object.entries(trackStats.noteCounts as Record<string, unknown>)).map(([track, count]) => {
+                            const displayCount = typeof count === 'number' ? count : 0;
+                            const progress = Math.min(100, (displayCount / 16) * 100);
+                            return (
+                              <div key={String(track)} className="flex items-center gap-2 text-xs">
+                                <span className="w-16 sm:w-20 text-gray-500 shrink-0">{String(track)}:</span>
+                                <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500/50 rounded-full transition-all duration-500" style={{ width: `${String(progress)}%` }} />
+                                </div>
+                                <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(displayCount)}</span>
+                              </div>
+                            );
+                          })
+                        ) : null}
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       {trackStatisticsRows.length > 0 && (trackStatisticsRows as React.ReactNode)}
                     </div>
                   </div>
+                  ) : null}
 
                   {/* Automation Visualization */}
                   {trackStats.automationLaneCount > 0 && parsedData?.automation && (
