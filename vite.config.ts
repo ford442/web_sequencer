@@ -17,7 +17,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['onnxruntime-web'],
+    exclude: ['onnxruntime-web', 'emsdk'],
   },
   build: {
     sourcemap: true,
