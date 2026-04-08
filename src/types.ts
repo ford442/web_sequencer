@@ -75,6 +75,7 @@ export interface SamplerBankParams {
   choir?: number;          // Choir effect amount (0-1) - Detuned side voices
   glitchChance?: number;   // Probability of glitch/stutter effect (0-1)
   freeze?: number;         // Freeze/smear amount (0-1)
+  portamentoType?: 'linear' | 'exponential'; // Glide curve shape
   freezeLfoRate?: number;  // Freeze LFO rate (Hz)
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   formantLfoRate?: number; // Formant LFO rate (Hz)
@@ -166,6 +167,8 @@ export interface Note {
   vibratoDepth?: number; // 0-100%, vibrato depth override (Sampler only)
   reverbSend?: number; // 0-1, amount sent to reverb bus
   drive?: number; // 0-1, distortion/drive amount override (Sampler only)
+  slideType?: 'linear' | 'exponential'; // Shape of portamento curve
+  breathIntensity?: number; // 0-1, override breath noise amount (Sampler only)
   
   // Phase 2: Melodic Lyric Mode - Per-step pitch control
   pitch?: number; // MIDI note number for sampler melodic mode (default: 60 = C4)

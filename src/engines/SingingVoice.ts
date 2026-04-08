@@ -256,6 +256,17 @@ export class SingingVoice {
     }
 
     /**
+     * Exponentially ramp the pitch scale ratio to the given target.
+     * @param ratio Target pitch multiplier
+     * @param time Time to reach the target ratio
+     */
+    exponentialRampToPitch(ratio: number, time: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('pitchScale')!.exponentialRampToValueAtTime(ratio, time);
+        }
+    }
+
+    /**
      * Linearly ramp the pitch from current value to the target MIDI note.
      */
     linearRampPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number): void {
@@ -273,6 +284,26 @@ export class SingingVoice {
         pitchRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, pitchRatio));
 
         this.linearRampToPitch(pitchRatio, time || this.audioContext.currentTime);
+    }
+
+    /**
+     * Exponentially ramp the pitch from current value to the target MIDI note.
+     */
+    exponentialRampPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number): void {
+        const effectiveBaseNote = baseMidiNote ?? this.rootNote;
+        const effectiveCoarse = coarseTune ?? this.coarseTune;
+        const effectiveFine = fineTune ?? this.fineTune;
+
+        const totalSemitoneOffset = effectiveCoarse + (effectiveFine / 100);
+        const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
+
+        const targetFreq = midiToFreq(adjustedTargetMidi);
+        const baseFreq = midiToFreq(effectiveBaseNote);
+
+        let pitchRatio = targetFreq / baseFreq;
+        pitchRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, pitchRatio));
+
+        this.exponentialRampToPitch(pitchRatio, time || this.audioContext.currentTime);
     }
 
     /**

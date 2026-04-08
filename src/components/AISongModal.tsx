@@ -1153,11 +1153,10 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                           })
                         ) : null}
                       </div>
+                      <div className="space-y-1.5">
+                        {trackStatisticsRows.length > 0 && (trackStatisticsRows as React.ReactNode)}
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      {trackStatisticsRows.length > 0 && (trackStatisticsRows as React.ReactNode)}
-                    </div>
-                  </div>
                   ) : null}
 
                   {/* Automation Visualization */}

@@ -37,6 +37,10 @@
 - [x] **Refactor NoteSelector Focus Management:** Verified `NoteSelector` robustness with new test suite `src/components/__tests__/NoteSelector.test.tsx` mocking `requestAnimationFrame`.
 - [x] **Step-Sequenced Drive:** Allow individual sequencer steps to override the global Drive/Distortion amount for aggressive, rhythmic vocal accents.
 
+- [x] **Glissando/Portamento Curves:** Allow users to draw custom pitch curves or select between Linear and Exponential glide types between steps. (Implemented Exponential Glide in `SingingVoice.ts`!)
+- [x] **Per-Step Breath Intensity:** Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented in `useAudioEngine.ts`!)
+- [ ] **Custom Sample Slicing UI:** Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
+
 ### Domain C: Accessibility & Mobile
 - [x] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
 - [x] **A11y Colors:** Verify high-contrast separation between `synth-1` (Chords) and `synth-2` (Lead) notes.
@@ -48,7 +52,6 @@
 * [x] **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time. (Implemented in Sampler and RubberBandProcessor via a 100ms looping Hann window!)
 * [x] **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A. (Implemented via automation track logic in `useStepHandler.ts` and `App.tsx`!)
 * **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
-* **Idea:** "Custom Sample Slicing UI" - Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
 * [x] **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes. (Implemented via global Lyric Track lane and `sliceIndex` auto-mapping!)
@@ -60,23 +63,23 @@
 * [x] **Idea:** "Vocal Envelope Shaper" - Add granular attack/decay ADSR shaping explicitly for TTS syllables to create sharp plucks or smooth pads from any word. (Implemented in ExpressiveVoiceProcessor and exposed to SamplerPanel!)
 * [x] **Idea:** "Dynamic Tremolo" - Expose Tremolo Rate and Depth to UI to pulse vocals. (Implemented!)
 * [x] **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds. (Implemented in RubberBandProcessor and exposed to SamplerPanel!)
-* **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds.
 * [x] **Idea:** "Per-Step Filter & Resonance" - Allow sequence steps to override cutoff and resonance for rhythmic acid-style filtering of TTS samples. (Implemented!)
 * [x] **Idea:** "Filter Envelope Mod" - Allow the sequence steps to have an envelope mod amount that specifically shapes the filter envelope per step. (Implemented!)
 * [x] **Idea:** "Vocal Formant LFO" - Introduce a Formant LFO with rate and depth controls for dynamic rhythmic Wah-Wah effects on TTS vowels. (Implemented in FormantShifter and SamplerPanel!)
 * [x] **Idea:** "Step-Sequenced Formant LFO" - Allow individual steps to override the global Formant LFO rate and depth for highly articulated rhythmic sequences.
 * **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation.
-* **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide.
+* [x] **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide. (Implemented!)
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope overrides in `SingingVoice.ts`!)
 * [x] **Idea:** "Spectral Morphing" - Implement functionality to morph spectrally between two different TTS phonemes or samples over a sequence of steps. (Implemented via FormantShifter Voice Character Morphing and step-sequenced automation!)
-* [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope scaling in `triggerSlice`!)
 * [x] **Idea:** "Dynamic Reverb" - Allow users to draw automation curves for reverb send per step. (Implemented!)
 * [x] **Idea:** "Global Saturation / Tape Warmth" - Add a master channel saturation unit to glue the mix together. (Implemented via WaveShaperNode!)
 * **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
+* **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
 
 ---
 
 ## 📜 Changelog
+* [2026-06-20] - Implemented Glissando/Portamento Curves & Per-Step Breath Intensity: Added `slideType` parameter (Linear/Exponential) to allow musical variations of pitch glides in TTS, and allowed individual steps to override global breath noise via `breathIntensity`. Added Custom Sample Slicing UI to Active Backlog.
 * [2026-06-19] - Implemented Global Saturation: Added a master channel `WaveShaperNode` with a variable distortion curve mapped to a "Warmth" (Saturation) slider in the top utility UI. Routed the entire master mix through it to add glue and presence. Added new idea: "AI Auto-Mix Assistant".
 * [2026-06-18] - Implemented Dynamic Reverb: Added a `ConvolverNode` hooked up to the master output with a generated exponential decay noise impulse response. Mapped `reverbSend` from individual sequence steps in `NoteSelector` to send audio from the TTS `SingingVoice` into the new global reverb bus. Added new idea: "Global Saturation / Tape Warmth".
 * [2026-06-17] - Implemented Spectral Morphing: Added `characterMorph` and `morphTarget` to allow smooth interpolation between voice characters (e.g., male to female) per sequence step using `FormantShifter.ts`. Added Morph knob and target selector to `SamplerPanel.tsx` and override controls to `NoteSelector.tsx`.
