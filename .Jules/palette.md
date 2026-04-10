@@ -23,3 +23,7 @@
 ## 2024-05-18 - Missing Focus Visible States on Custom Switches
 **Learning:** Custom UI controls that mimic native inputs (like pill-shaped switches for Reverse or Melodic Mode) frequently omit `focus-visible` styles, rendering them completely invisible to keyboard users when tabbing through the interface. Furthermore, developers frequently mistakenly use `aria-pressed` with `role="button"` instead of the correct `role="switch"` with `aria-checked` for these pill-shaped components.
 **Action:** Always verify that interactive custom switches not only have appropriate ARIA roles (`role="switch"`, `aria-checked`) but explicitly define `focus:outline-none focus-visible:ring-*` classes.
+
+## 2024-04-10 - Standardization of aria-busy on Async Import Buttons
+**Learning:** Discovered an inconsistency where some background task buttons (like the AI Song Import button) lacked the `aria-busy` attribute, while others (like RbsImportModal and SamplerPanel) correctly used it to inform screen readers of processing states.
+**Action:** Applied `aria-busy={isImporting}` to the AI Song Import button to standardise asynchronous feedback mechanisms for accessibility across all modal interfaces.
