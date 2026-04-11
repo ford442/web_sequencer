@@ -107,12 +107,22 @@ export function createSampleLibraryControls(refs: SampleManagementRefs) {
         return refs.vocalAlignmentsRef.current.get(bankName) || null;
     };
 
+    const setAlignment = (bankIndex: number, alignment: AlignmentResult | null) => {
+        const bankName = `bank_${bankIndex}`;
+        if (alignment) {
+            refs.vocalAlignmentsRef.current.set(bankName, alignment);
+        } else {
+            refs.vocalAlignmentsRef.current.delete(bankName);
+        }
+    };
+
     return {
         loadSampleToEngine,
         getMultisampleBank,
         isMultisampleReady,
         prepareVocal,
         getAlignment,
+        setAlignment,
     };
 }
 
