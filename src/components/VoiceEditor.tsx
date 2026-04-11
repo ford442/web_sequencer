@@ -74,17 +74,19 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            role="presentation"
-            onClick={onClose}
         >
             <div
+                className="absolute inset-0 z-0"
+                onClick={onClose}
+                aria-hidden="true"
+            />
+            <div
                 ref={trapRef}
-                className="bg-gray-900 border border-purple-500 rounded-xl p-6 w-[600px] shadow-2xl outline-none"
+                className="relative z-10 bg-gray-900 border border-purple-500 rounded-xl p-6 w-[600px] shadow-2xl outline-none"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="voice-designer-title"
                 tabIndex={-1}
-                onClick={e => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center mb-4">
                     <h2 id="voice-designer-title" className="text-xl font-orbitron text-purple-400">VOICE DESIGNER <span className="text-xs text-gray-500 ml-2">(WebGPU)</span></h2>
