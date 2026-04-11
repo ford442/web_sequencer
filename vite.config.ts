@@ -19,6 +19,15 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['onnxruntime-web', 'emsdk'],
   },
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+    watch: {
+      ignored: ['**/emsdk/**']
+    }
+  },
   build: {
     sourcemap: true,
     outDir: 'dist',
@@ -29,12 +38,6 @@ export default defineConfig({
       wasm(),
       topLevelAwait()
     ]
-  },
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    }
   },
   test: {
     environment: 'happy-dom',
