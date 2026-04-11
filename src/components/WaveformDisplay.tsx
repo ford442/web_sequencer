@@ -5,12 +5,17 @@ interface WaveformDisplayProps {
     buffer: AudioBuffer | null;
     alignment: AlignmentResult | null;
     sliceHighlightRef: React.MutableRefObject<((slice: number) => void) | null>;
+    onAlignmentChange?: (alignment: AlignmentResult) => void;
 }
 
-export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignment, sliceHighlightRef }) => {
+export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignment, sliceHighlightRef, onAlignmentChange }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const activeSliceRef = useRef<number>(-1);
+
+    // State for drag interactions
+    const isDraggingRef = useRef(false);
+    const draggedMarkerIndexRef = useRef<number>(-1);
 
     // Keep latest props in ref to access them inside the imperative callback without stale closures
     const propsRef = useRef({ buffer, alignment });
@@ -146,6 +151,167 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
         return () => window.removeEventListener('resize', handleResize);
 
     }, [buffer, alignment, sliceHighlightRef]);
+
+    // Handle mouse interactions for custom slicing
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const getMouseTime = (e: MouseEvent): number | null => {
+            const { buffer } = propsRef.current;
+            if (!buffer) return null;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            return (x / rect.width) * buffer.duration;
+        };
+
+        const getMarkerIndexNearTime = (time: number, thresholdSecs: number): number => {
+            const { alignment } = propsRef.current;
+            if (!alignment) return -1;
+
+            let closestIdx = -1;
+            let minDiff = Infinity;
+
+            // Skip the first marker (index 0) since it's the start of the file
+            for (let i = 1; i < alignment.phonemes.length; i++) {
+                const diff = Math.abs(alignment.phonemes[i].start - time);
+                if (diff < minDiff && diff <= thresholdSecs) {
+                    minDiff = diff;
+                    closestIdx = i;
+                }
+            }
+            return closestIdx;
+        };
+
+        const handleMouseDown = (e: MouseEvent) => {
+            if (!onAlignmentChange || !propsRef.current.alignment || !propsRef.current.buffer) return;
+
+            const time = getMouseTime(e);
+            if (time === null) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const threshold = (5 / rect.width) * propsRef.current.buffer.duration; // 5px threshold
+
+            const markerIdx = getMarkerIndexNearTime(time, threshold);
+
+            if (markerIdx !== -1) {
+                // Clicked on a marker, start dragging
+                isDraggingRef.current = true;
+                draggedMarkerIndexRef.current = markerIdx;
+                e.preventDefault();
+            } else {
+                // Clicked in empty space, add a new slice
+                const { alignment, buffer } = propsRef.current;
+
+                // Find where to insert
+                let insertIdx = alignment.phonemes.findIndex(p => p.start > time);
+                if (insertIdx === -1) insertIdx = alignment.phonemes.length;
+
+                const newPhonemes = [...alignment.phonemes];
+
+                // We split the phoneme at insertIdx - 1
+                const prevPhoneme = newPhonemes[insertIdx - 1];
+
+                const newPhoneme = {
+                    phoneme: `S${alignment.phonemes.length + 1}`,
+                    start: time,
+                    end: prevPhoneme.end,
+                    isVowel: true
+                };
+
+                prevPhoneme.end = time;
+
+                newPhonemes.splice(insertIdx, 0, newPhoneme);
+
+                onAlignmentChange({
+                    ...alignment,
+                    phonemes: newPhonemes
+                });
+            }
+        };
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!onAlignmentChange || !propsRef.current.alignment || !propsRef.current.buffer) return;
+
+            const time = getMouseTime(e);
+            if (time === null) return;
+
+            if (isDraggingRef.current && draggedMarkerIndexRef.current !== -1) {
+                // Update marker position
+                const { alignment } = propsRef.current;
+                const idx = draggedMarkerIndexRef.current;
+                const newPhonemes = [...alignment.phonemes];
+
+                // Constrain time between previous and next markers
+                const minTime = newPhonemes[idx - 1].start + 0.01;
+                const maxTime = idx < newPhonemes.length - 1 ? newPhonemes[idx + 1].start - 0.01 : propsRef.current.buffer.duration - 0.01;
+                const clampedTime = Math.max(minTime, Math.min(time, maxTime));
+
+                newPhonemes[idx].start = clampedTime;
+                newPhonemes[idx - 1].end = clampedTime;
+
+                onAlignmentChange({
+                    ...alignment,
+                    phonemes: newPhonemes
+                });
+            } else {
+                // Update cursor
+                const rect = canvas.getBoundingClientRect();
+                const threshold = (5 / rect.width) * propsRef.current.buffer.duration;
+                const markerIdx = getMarkerIndexNearTime(time, threshold);
+
+                if (markerIdx !== -1) {
+                    canvas.style.cursor = 'col-resize';
+                } else {
+                    canvas.style.cursor = 'crosshair';
+                }
+            }
+        };
+
+        const handleMouseUp = () => {
+            isDraggingRef.current = false;
+            draggedMarkerIndexRef.current = -1;
+        };
+
+        const handleDoubleClick = (e: MouseEvent) => {
+            if (!onAlignmentChange || !propsRef.current.alignment || !propsRef.current.buffer) return;
+
+            const time = getMouseTime(e);
+            if (time === null) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const threshold = (5 / rect.width) * propsRef.current.buffer.duration;
+            const markerIdx = getMarkerIndexNearTime(time, threshold);
+
+            if (markerIdx !== -1) {
+                // Remove marker
+                const { alignment } = propsRef.current;
+                const newPhonemes = [...alignment.phonemes];
+
+                // Merge with previous
+                newPhonemes[markerIdx - 1].end = newPhonemes[markerIdx].end;
+                newPhonemes.splice(markerIdx, 1);
+
+                onAlignmentChange({
+                    ...alignment,
+                    phonemes: newPhonemes
+                });
+            }
+        };
+
+        canvas.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('dblclick', handleDoubleClick);
+
+        return () => {
+            canvas.removeEventListener('mousedown', handleMouseDown);
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            canvas.removeEventListener('dblclick', handleDoubleClick);
+        };
+    }, [onAlignmentChange]);
 
     const label = !buffer
         ? "Waveform visualization: No sample loaded"
