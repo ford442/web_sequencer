@@ -27,3 +27,9 @@
 ## 2024-04-10 - Standardization of aria-busy on Async Import Buttons
 **Learning:** Discovered an inconsistency where some background task buttons (like the AI Song Import button) lacked the `aria-busy` attribute, while others (like RbsImportModal and SamplerPanel) correctly used it to inform screen readers of processing states.
 **Action:** Applied `aria-busy={isImporting}` to the AI Song Import button to standardise asynchronous feedback mechanisms for accessibility across all modal interfaces.
+## 2026-04-09 - Standardize Modal Accessibility for Cloud Library
+**Learning:** The `CloudLibrary` component functioned as a modal visually but lacked standard ARIA modal attributes (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`), causing screen readers to announce it incorrectly or not at all.
+**Action:** When implementing custom modals, always include `role="dialog"`, `aria-modal="true"`, an explicit `aria-labelledby` referencing a visually hidden or visible title element, and an `aria-hidden="true"` on the clickable background overlay.
+## 2024-11-20 - Standardize Backdrop Overlay Accessibility
+**Learning:** Components using `fixed inset-0` with a click handler to close a modal will cause screen readers to announce the entire background as a clickable element. This violates accessibility conventions.
+**Action:** When implementing clickable background overlays for custom modals, always separate the clickable backdrop into its own `<div>` sibling of the dialog element, and explicitly mark it with `aria-hidden="true"`.
