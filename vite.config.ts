@@ -19,6 +19,15 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['onnxruntime-web', 'emsdk'],
   },
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+    watch: {
+      ignored: ['**/emsdk/**']
+    }
+  },
   build: {
     rollupOptions: {
       external: ['loader.mjs']

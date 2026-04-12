@@ -499,6 +499,24 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     };
 
+    // Get alignment
+    const [currentAlignment, setCurrentAlignment] = useState(
+        (audioEngine?.getAlignment && activeBankIdx >= 0) ? audioEngine.getAlignment(activeBankIdx) : null
+    );
+
+    // Sync local state when bank or engine alignment changes
+    useEffect(() => {
+        const alg = (audioEngine?.getAlignment && activeBankIdx >= 0) ? audioEngine.getAlignment(activeBankIdx) : null;
+        setCurrentAlignment(alg);
+    }, [activeBankIdx, audioEngine]);
+
+    const handleAlignmentChange = useCallback((newAlignment: any) => {
+        setCurrentAlignment(newAlignment);
+        if (audioEngine?.setAlignment && activeBankIdx >= 0) {
+            audioEngine.setAlignment(activeBankIdx, newAlignment);
+        }
+    }, [audioEngine, activeBankIdx]);
+
     return (
         <div
             className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
@@ -579,9 +597,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 {/* 1. Waveform Visualization */}
                 <WaveformDisplay
                     buffer={sampleBuffer || null}
-                    alignment={alignment || null}
+                    alignment={currentAlignment}
                     sliceHighlightRef={sliceHighlightRef || dummyRef}
-                    onAlignmentChange={onAlignmentChange}
+                    onAlignmentChange={handleAlignmentChange}
                 />
 
                 {/* Multisample Generator Progress */}
