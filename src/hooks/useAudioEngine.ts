@@ -252,7 +252,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 isMultisampleReady,
                 prepareVocal,
                 getAlignment,
-                setAlignment,
+                setAlignment
             } = createSampleLibraryControls({
                 loadedSampleBuffersRef,
                 multisampleBanksRef,

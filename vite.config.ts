@@ -29,8 +29,20 @@ export default defineConfig({
     }
   },
   build: {
+    rollupOptions: {
+      external: ['loader.mjs']
+    },
     sourcemap: true,
     outDir: 'dist',
+  },
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+    watch: {
+      ignored: ['**/emsdk/**']
+    }
   },
   worker: {
     format: 'es',
