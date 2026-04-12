@@ -31,6 +31,9 @@ interface SamplerPanelProps {
     multisampleReady?: boolean[];
     /** Which banks are currently processing */
     multisampleProcessing?: boolean[];
+    // Slicing support
+    alignment?: import('../engines/rubberband/PhonemeAligner').AlignmentResult | null;
+    onAlignmentChange?: (alignment: import('../engines/rubberband/PhonemeAligner').AlignmentResult) => void;
 }
 
 // 8 Banks
@@ -47,7 +50,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     melodicMode = false, onMelodicModeChange,
     multisampleProgress,
     multisampleReady,
-    multisampleProcessing
+    multisampleProcessing,
+    alignment,
+    onAlignmentChange
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dummyRef = useRef(null); // Fallback for sliceHighlightRef
@@ -989,6 +994,9 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
 
     // 8. Check onGenerateTTS
     if (prev.onGenerateTTS !== next.onGenerateTTS) return false;
+
+    // 9. Check alignment
+    if (prev.alignment !== next.alignment) return false;
 
     return true;
 });

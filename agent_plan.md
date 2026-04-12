@@ -76,10 +76,12 @@
 * **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
 * **Idea:** "Real-time Convolution Reverb for Vocal Spaces" - Enhance the dynamic reverb by allowing users to select impulse response types.
 * **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
+* **Idea:** "Auto-Slice by Transients" - Use energy-based analysis to automatically detect and place slice markers at drum hits or clear transients when a custom sample is loaded.
 
 ---
 
 ## 📜 Changelog
+* [2026-06-21] - Implemented Custom Sample Slicing UI: Updated `WaveformDisplay.tsx` to handle drag-to-adjust, double-click-to-split, and double-click-to-merge interactions on slice boundaries. Hooked it up to `SamplerPanel` and `useAudioEngine` via a new `setAlignment` override function. Added "Auto-Slice by Transients" idea to the Innovation Lab.
 * [2026-06-21] - Implemented Custom Sample Slicing UI: Enhanced `WaveformDisplay.tsx` to support interactive mousedown, drag, and double-click events, allowing users to manually slice custom WAV files directly on the canvas. Connected to the AudioEngine via `setAlignment`.
 * [2026-06-20] - Implemented Glissando/Portamento Curves & Per-Step Breath Intensity: Added `slideType` parameter (Linear/Exponential) to allow musical variations of pitch glides in TTS, and allowed individual steps to override global breath noise via `breathIntensity`. Added Custom Sample Slicing UI to Active Backlog.
 * [2026-06-19] - Implemented Global Saturation: Added a master channel `WaveShaperNode` with a variable distortion curve mapped to a "Warmth" (Saturation) slider in the top utility UI. Routed the entire master mix through it to add glue and presence. Added new idea: "AI Auto-Mix Assistant".
