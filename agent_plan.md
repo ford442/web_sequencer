@@ -39,7 +39,7 @@
 
 - [x] **Glissando/Portamento Curves:** Allow users to draw custom pitch curves or select between Linear and Exponential glide types between steps. (Implemented Exponential Glide in `SingingVoice.ts`!)
 - [x] **Per-Step Breath Intensity:** Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented in `useAudioEngine.ts`!)
-- [ ] **Custom Sample Slicing UI:** Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
+- [x] **Custom Sample Slicing UI:** Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
 
 ### Domain C: Accessibility & Mobile
 - [x] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
@@ -74,11 +74,13 @@
 * [x] **Idea:** "Dynamic Reverb" - Allow users to draw automation curves for reverb send per step. (Implemented!)
 * [x] **Idea:** "Global Saturation / Tape Warmth" - Add a master channel saturation unit to glue the mix together. (Implemented via WaveShaperNode!)
 * **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
+* **Idea:** "Real-time Convolution Reverb for Vocal Spaces" - Enhance the dynamic reverb by allowing users to select impulse response types.
 * **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
 
 ---
 
 ## 📜 Changelog
+* [2026-06-21] - Implemented Custom Sample Slicing UI: Enhanced `WaveformDisplay.tsx` to support interactive mousedown, drag, and double-click events, allowing users to manually slice custom WAV files directly on the canvas. Connected to the AudioEngine via `setAlignment`.
 * [2026-06-20] - Implemented Glissando/Portamento Curves & Per-Step Breath Intensity: Added `slideType` parameter (Linear/Exponential) to allow musical variations of pitch glides in TTS, and allowed individual steps to override global breath noise via `breathIntensity`. Added Custom Sample Slicing UI to Active Backlog.
 * [2026-06-19] - Implemented Global Saturation: Added a master channel `WaveShaperNode` with a variable distortion curve mapped to a "Warmth" (Saturation) slider in the top utility UI. Routed the entire master mix through it to add glue and presence. Added new idea: "AI Auto-Mix Assistant".
 * [2026-06-18] - Implemented Dynamic Reverb: Added a `ConvolverNode` hooked up to the master output with a generated exponential decay noise impulse response. Mapped `reverbSend` from individual sequence steps in `NoteSelector` to send audio from the TTS `SingingVoice` into the new global reverb bus. Added new idea: "Global Saturation / Tape Warmth".
