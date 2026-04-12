@@ -31,6 +31,9 @@ interface SamplerPanelProps {
     multisampleReady?: boolean[];
     /** Which banks are currently processing */
     multisampleProcessing?: boolean[];
+    // Slicing support
+    alignment?: import('../engines/rubberband/PhonemeAligner').AlignmentResult | null;
+    onAlignmentChange?: (alignment: import('../engines/rubberband/PhonemeAligner').AlignmentResult) => void;
 }
 
 // 8 Banks
@@ -47,7 +50,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     melodicMode = false, onMelodicModeChange,
     multisampleProgress,
     multisampleReady,
-    multisampleProcessing
+    multisampleProcessing,
+    alignment,
+    onAlignmentChange
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dummyRef = useRef(null); // Fallback for sliceHighlightRef
@@ -494,11 +499,6 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     };
 
-    // Get alignment
-    const alignment = (audioEngine?.getAlignment && activeBankIdx >= 0)
-        ? audioEngine.getAlignment(activeBankIdx)
-        : null;
-
     return (
         <div
             className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
@@ -579,8 +579,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 {/* 1. Waveform Visualization */}
                 <WaveformDisplay
                     buffer={sampleBuffer || null}
-                    alignment={alignment}
+                    alignment={alignment || null}
                     sliceHighlightRef={sliceHighlightRef || dummyRef}
+                    onAlignmentChange={onAlignmentChange}
                 />
 
                 {/* Multisample Generator Progress */}
@@ -975,6 +976,9 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
 
     // 8. Check onGenerateTTS
     if (prev.onGenerateTTS !== next.onGenerateTTS) return false;
+
+    // 9. Check alignment
+    if (prev.alignment !== next.alignment) return false;
 
     return true;
 });

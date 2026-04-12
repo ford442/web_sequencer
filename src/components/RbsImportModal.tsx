@@ -384,9 +384,13 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
   return (
     <div
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" className="bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div
+        className="absolute inset-0 z-0"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-3">

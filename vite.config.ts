@@ -20,8 +20,20 @@ export default defineConfig({
     exclude: ['onnxruntime-web', 'emsdk'],
   },
   build: {
+    rollupOptions: {
+      external: ['loader.mjs']
+    },
     sourcemap: true,
     outDir: 'dist',
+  },
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+    watch: {
+      ignored: ['**/emsdk/**']
+    }
   },
   worker: {
     format: 'es',
@@ -29,12 +41,6 @@ export default defineConfig({
       wasm(),
       topLevelAwait()
     ]
-  },
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    }
   },
   test: {
     environment: 'happy-dom',
