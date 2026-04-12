@@ -926,6 +926,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                           <button
                             onClick={handleFixCommonIssues}
                             className="px-3 py-1 bg-red-900/50 hover:bg-red-800/50 text-red-300 text-xs rounded transition-all"
+                            aria-label="Fix Common JSON Issues"
                           >
                             🔧 Fix Issues
                           </button>
@@ -935,6 +936,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                         <button
                           onClick={copyErrorReport}
                           className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all"
+                          aria-label="Copy error details to clipboard"
                         >
                           {copiedError ? '✓ Copied!' : '📋 Copy'}
                         </button>
@@ -1044,6 +1046,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                   <button
                     onClick={copyTemplate}
                     className="mb-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-all flex items-center gap-2"
+                    aria-label="Copy AI Prompt Template"
                   >
                     <span>📋</span> Copy Template
                   </button>
@@ -1258,6 +1261,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={() => onShowToast('Audio preview coming soon!', 'info')}
                             disabled
+                            aria-label="Play Preview (Coming Soon)"
                           >
                             <span>▶</span> Play Preview
                           </button>
@@ -1345,6 +1349,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                 onClick={handleClose}
                 disabled={isImporting}
                 className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50"
+                aria-label="Cancel Import"
               >
                 <span className="hidden sm:inline">Cancel</span>
                 <span className="sm:hidden">✕</span>
@@ -1359,6 +1364,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)]'
                     : 'bg-gray-700 text-gray-500'
                 }`}
+                aria-label="Import AI Song"
               >
                 {isImporting ? (
                   <>
