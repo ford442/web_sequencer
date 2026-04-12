@@ -227,6 +227,7 @@ export interface AudioEngine {
     processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
     prepareVocal?: (bankIndex: number, text: string) => Promise<void>;
     getAlignment?: (bankIndex: number) => AlignmentResult | null;
+    setAlignment?: (bankIndex: number, alignment: AlignmentResult | null) => void;
     setSustainMode?: (mode: 'loop' | 'stretch' | 'wavetable') => void;
     setSustainGrainSize?: (size: number) => void;
     playSinging?: (buffer: AudioBuffer, targetNote: string, duration: number, sourceNote?: string) => void;

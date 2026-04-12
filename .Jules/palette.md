@@ -23,3 +23,9 @@
 ## 2024-05-18 - Missing Focus Visible States on Custom Switches
 **Learning:** Custom UI controls that mimic native inputs (like pill-shaped switches for Reverse or Melodic Mode) frequently omit `focus-visible` styles, rendering them completely invisible to keyboard users when tabbing through the interface. Furthermore, developers frequently mistakenly use `aria-pressed` with `role="button"` instead of the correct `role="switch"` with `aria-checked` for these pill-shaped components.
 **Action:** Always verify that interactive custom switches not only have appropriate ARIA roles (`role="switch"`, `aria-checked`) but explicitly define `focus:outline-none focus-visible:ring-*` classes.
+## 2026-04-09 - Standardize Modal Accessibility for Cloud Library
+**Learning:** The `CloudLibrary` component functioned as a modal visually but lacked standard ARIA modal attributes (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`), causing screen readers to announce it incorrectly or not at all.
+**Action:** When implementing custom modals, always include `role="dialog"`, `aria-modal="true"`, an explicit `aria-labelledby` referencing a visually hidden or visible title element, and an `aria-hidden="true"` on the clickable background overlay.
+## 2024-11-20 - Standardize Backdrop Overlay Accessibility
+**Learning:** Components using `fixed inset-0` with a click handler to close a modal will cause screen readers to announce the entire background as a clickable element. This violates accessibility conventions.
+**Action:** When implementing clickable background overlays for custom modals, always separate the clickable backdrop into its own `<div>` sibling of the dialog element, and explicitly mark it with `aria-hidden="true"`.

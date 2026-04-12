@@ -5,16 +5,21 @@ interface WaveformDisplayProps {
     buffer: AudioBuffer | null;
     alignment: AlignmentResult | null;
     sliceHighlightRef: React.MutableRefObject<((slice: number) => void) | null>;
+    onAlignmentChange?: (alignment: AlignmentResult) => void;
 }
 
-export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignment, sliceHighlightRef }) => {
+export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignment, sliceHighlightRef, onAlignmentChange }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const activeSliceRef = useRef<number>(-1);
 
+    // Custom Slicing State
+    const [dragState, setDragState] = React.useState<{ index: number, isStart: boolean } | null>(null);
+    const [hoverState, setHoverState] = React.useState<{ index: number, isStart: boolean } | null>(null);
+
     // Keep latest props in ref to access them inside the imperative callback without stale closures
-    const propsRef = useRef({ buffer, alignment });
-    useEffect(() => { propsRef.current = { buffer, alignment }; }, [buffer, alignment]);
+    const propsRef = useRef({ buffer, alignment, onAlignmentChange });
+    useEffect(() => { propsRef.current = { buffer, alignment, onAlignmentChange }; }, [buffer, alignment, onAlignmentChange]);
 
     useEffect(() => {
         const draw = () => {
@@ -124,6 +129,21 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
                 });
             }
 
+            // Draw hover state if present (and we have an alignment to show)
+            if (alignment && hoverState && !dragState) {
+                const duration = buffer.duration;
+                const p = alignment.phonemes[hoverState.index];
+                const time = hoverState.isStart ? p.start : p.end;
+                const x = (time / duration) * width;
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#22d3ee'; // cyan-400
+                ctx.lineWidth = 2;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+
             // Reset transform for next frame
             ctx.setTransform(1, 0, 0, 1, 0, 0);
         };
@@ -145,7 +165,177 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
 
-    }, [buffer, alignment, sliceHighlightRef]);
+    }, [buffer, alignment, sliceHighlightRef, hoverState, dragState]);
+
+    // Custom Slicing Event Handlers
+    const getTimeFromEvent = (e: React.MouseEvent | MouseEvent): number | null => {
+        const canvas = canvasRef.current;
+        if (!canvas || !buffer) return null;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        return (x / rect.width) * buffer.duration;
+    };
+
+    const getNearestMarker = (time: number): { index: number, isStart: boolean, distance: number } | null => {
+        if (!alignment) return null;
+
+        let nearest: { index: number, isStart: boolean, distance: number } | null = null;
+
+        alignment.phonemes.forEach((p, idx) => {
+            const distStart = Math.abs(p.start - time);
+            const distEnd = Math.abs(p.end - time);
+
+            if (!nearest || distStart < nearest.distance) {
+                nearest = { index: idx, isStart: true, distance: distStart };
+            }
+            if (distEnd < nearest!.distance) {
+                nearest = { index: idx, isStart: false, distance: distEnd };
+            }
+        });
+
+        return nearest;
+    };
+
+    // Constants for interaction
+    const SNAP_DISTANCE_MS = 0.05; // 50ms snap radius
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!buffer || !onAlignmentChange) return;
+
+        const time = getTimeFromEvent(e);
+        if (time === null) return;
+
+        if (dragState && alignment) {
+            // Dragging a marker
+            // Clamp time to bounds
+            const prevEnd = (dragState.isStart && dragState.index > 0) ? alignment.phonemes[dragState.index - 1].start : 0;
+            const nextStart = (!dragState.isStart && dragState.index < alignment.phonemes.length - 1) ? alignment.phonemes[dragState.index + 1].end : buffer.duration;
+
+            // Constrain by same slice's opposite end
+            const minTime = dragState.isStart ? prevEnd : alignment.phonemes[dragState.index].start + 0.01;
+            const maxTime = dragState.isStart ? alignment.phonemes[dragState.index].end - 0.01 : nextStart;
+
+            const newTime = Math.max(minTime, Math.min(maxTime, time));
+
+            const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+            const p = { ...newAlignment.phonemes[dragState.index] };
+
+            if (dragState.isStart) {
+                p.start = newTime;
+                // If there's a previous slice adjacent, update its end
+                if (dragState.index > 0 && Math.abs(alignment.phonemes[dragState.index - 1].end - alignment.phonemes[dragState.index].start) < 0.001) {
+                     newAlignment.phonemes[dragState.index - 1] = { ...newAlignment.phonemes[dragState.index - 1], end: newTime };
+                }
+            } else {
+                p.end = newTime;
+                // If there's a next slice adjacent, update its start
+                if (dragState.index < alignment.phonemes.length - 1 && Math.abs(alignment.phonemes[dragState.index + 1].start - alignment.phonemes[dragState.index].end) < 0.001) {
+                     newAlignment.phonemes[dragState.index + 1] = { ...newAlignment.phonemes[dragState.index + 1], start: newTime };
+                }
+            }
+
+            newAlignment.phonemes[dragState.index] = p;
+            onAlignmentChange(newAlignment);
+
+        } else {
+            // Hovering - Check for nearest marker
+            const nearest = getNearestMarker(time);
+            if (nearest && nearest.distance < SNAP_DISTANCE_MS) {
+                setHoverState({ index: nearest.index, isStart: nearest.isStart });
+            } else {
+                setHoverState(null);
+            }
+        }
+    };
+
+    const handleMouseDown = () => {
+        if (!buffer || !alignment || !onAlignmentChange) return;
+
+        if (hoverState) {
+            setDragState(hoverState);
+        }
+    };
+
+    const handleMouseUp = () => {
+        setDragState(null);
+    };
+
+    const handleMouseLeave = () => {
+        setHoverState(null);
+        setDragState(null);
+    };
+
+    const handleDoubleClick = (e: React.MouseEvent) => {
+        if (!buffer || !onAlignmentChange) return;
+
+        const time = getTimeFromEvent(e);
+        if (time === null) return;
+
+        if (!alignment) {
+            // Create initial slice if none exists
+            onAlignmentChange({
+                phonemes: [{
+                    phoneme: 'SLICE 1',
+                    start: 0,
+                    end: buffer.duration,
+                    isVowel: true
+                }],
+                sampleRate: buffer.sampleRate,
+                duration: buffer.duration,
+                text: ''
+            });
+            return;
+        }
+
+        const nearest = getNearestMarker(time);
+
+        // 1. Remove marker (Merge slices) if clicking close to one
+        if (nearest && nearest.distance < SNAP_DISTANCE_MS) {
+             const { index, isStart } = nearest;
+
+             // Cannot merge if it's the very beginning or end
+             if ((isStart && index === 0) || (!isStart && index === alignment.phonemes.length - 1)) return;
+
+             const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+
+             if (isStart) {
+                 // Merge with previous
+                 newAlignment.phonemes[index - 1].end = newAlignment.phonemes[index].end;
+                 newAlignment.phonemes.splice(index, 1);
+             } else {
+                 // Merge with next
+                 newAlignment.phonemes[index].end = newAlignment.phonemes[index + 1].end;
+                 newAlignment.phonemes.splice(index + 1, 1);
+             }
+
+             onAlignmentChange(newAlignment);
+             setHoverState(null);
+             return;
+        }
+
+        // 2. Add marker (Split slice) if clicking inside one
+        const clickedIndex = alignment.phonemes.findIndex(p => time >= p.start && time <= p.end);
+
+        if (clickedIndex !== -1) {
+            const p = alignment.phonemes[clickedIndex];
+            const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+
+            // Adjust current slice
+            const oldEnd = p.end;
+            newAlignment.phonemes[clickedIndex] = { ...p, end: time };
+
+            // Insert new slice
+            newAlignment.phonemes.splice(clickedIndex + 1, 0, {
+                phoneme: `SLICE ${newAlignment.phonemes.length + 1}`,
+                start: time,
+                end: oldEnd,
+                isVowel: true
+            });
+
+            onAlignmentChange(newAlignment);
+        }
+    };
 
     const label = !buffer
         ? "Waveform visualization: No sample loaded"
@@ -158,6 +348,12 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
             role="img"
             aria-label={label}
             title={label}
+            onMouseMove={handleMouseMove}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            onDoubleClick={handleDoubleClick}
+            style={{ cursor: hoverState ? 'col-resize' : 'default' }}
         >
             <canvas ref={canvasRef} className="w-full h-full block" />
         </div>
