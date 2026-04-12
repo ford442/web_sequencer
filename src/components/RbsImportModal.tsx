@@ -448,6 +448,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all"
                 disabled={isParsing}
+                aria-label="Browse Files to Import"
               >
                 Browse Files
               </button>
@@ -838,6 +839,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
               onClick={onClose}
               disabled={isImporting}
               className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50"
+              aria-label="Cancel Import"
             >
               Cancel
             </button>
