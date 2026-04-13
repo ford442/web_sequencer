@@ -1,5 +1,6 @@
 import React from 'react';
-import { NOTES } from '../utils/musicTheory';
+import { NOTES, getScaleNotes } from '../utils/musicTheory';
+import type { ScaleDefinition } from '../utils/musicTheory';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface NoteSelectorProps {
@@ -12,6 +13,8 @@ interface NoteSelectorProps {
     onLengthChange: (length: number) => void; // NEW: Handle length changes
     onClose: () => void;
     getNoteColor: (note: string) => string;
+    /** Active scale definition for Key Lock — greys out non-scale keys */
+    currentScale?: ScaleDefinition | null;
     // NEW: Per-step parameters
     currentTimbre?: number;
     currentVelocity?: number;
@@ -33,11 +36,12 @@ interface NoteSelectorProps {
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
-    x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor,
+    x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
     currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0, currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
+    const scaleNotes = currentScale ? getScaleNotes(currentScale) : null;
 
     const dialogRef = useFocusTrap(true, onClose);
 
@@ -432,19 +436,22 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                  const fullNote = `${noteName}${octave}`;
                                  const color = getNoteColor(fullNote);
                                  const isSelected = fullNote === currentNote;
+                                 const isInScale = scaleNotes ? scaleNotes.has(noteName) : true;
 
                                  return (
                                      <button
                                         key={fullNote}
-                                        onClick={() => onSelect(fullNote)}
+                                        onClick={() => isInScale && onSelect(fullNote)}
                                         aria-label={`Select ${fullNote}`}
                                         aria-pressed={isSelected}
-                                        className="w-8 h-6 text-[10px] font-mono rounded flex items-center justify-center transition-all hover:scale-110"
+                                        aria-disabled={!isInScale}
+                                        className={`w-8 h-6 text-[10px] font-mono rounded flex items-center justify-center transition-all ${isInScale ? 'hover:scale-110' : 'cursor-not-allowed'}`}
                                         style={{
-                                            backgroundColor: isSelected ? '#fff' : color,
-                                            color: isSelected ? '#000' : (['C#', 'D#', 'F#', 'G#', 'A#'].includes(noteName) ? '#ccc' : '#000'),
+                                            backgroundColor: isSelected ? '#fff' : (isInScale ? color : '#333'),
+                                            color: isSelected ? '#000' : (!isInScale ? '#666' : (['C#', 'D#', 'F#', 'G#', 'A#'].includes(noteName) ? '#ccc' : '#000')),
                                             border: isSelected ? `2px solid ${color}` : 'none',
-                                            boxShadow: isSelected ? '0 0 8px rgba(255,255,255,0.5)' : 'none'
+                                            boxShadow: isSelected ? '0 0 8px rgba(255,255,255,0.5)' : 'none',
+                                            opacity: isInScale ? 1 : 0.35,
                                         }}
                                      >
                                          {noteName}

@@ -11,6 +11,7 @@ import { HardwareModule } from './components/HardwareModule';
 import { SamplerVoicePanel } from './components/SamplerVoicePanel';
 import { WaveformSelector } from './components/WaveformSelector';
 import { NoteSelector } from './components/NoteSelector';
+import { ScaleSelector } from './components/ScaleSelector';
 import { LiveKeyboard } from './components/LiveKeyboard';
 import { LyricTrack } from './components/LyricTrack';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
@@ -27,6 +28,7 @@ import { loadingProgressStore } from './stores/loadingProgressStore';
 import { exportSongToXM } from './utils/xmExport';
 import { getNoteColor } from './utils/noteColors';
 import { noteToMidi, midiToNote } from './utils/musicTheory';
+import type { ScaleDefinition } from './utils/musicTheory';
 import { copySteps, pasteSteps } from './utils/clipboardUtils';
 import { MainSequencer, ROWS } from './components/MainSequencer';
 import type { MainSequencerHandle } from './components/MainSequencer';
@@ -159,6 +161,9 @@ export const App: React.FC = () => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
     const [isNoteDragging, setIsNoteDragging] = useState(false);
     const noteDragRef = useRef<{ track: TrackKey; step: number; startY: number; startMidi: number; hasMoved: boolean; lastMidi: number; pendingSequence?: PartSequence | PartSequence[]; } | null>(null);
+
+    // --- GLOBAL SCALE / KEY LOCK STATE ---
+    const [currentScale, setCurrentScale] = useState<ScaleDefinition | null>(null);
 
     // Ref for visual slice feedback
     const sliceHighlightRef = useRef<((slice: number) => void) | null>(null);
@@ -1210,9 +1215,13 @@ export const App: React.FC = () => {
                         </button>
                     </div>
                 </div>
-            </div>
 
-            {/* Right: Utility Buttons */}
+                {/* Divider */}
+                <div className="w-px h-5 bg-gray-700 mx-1" />
+
+                {/* Key Lock / Scale Selector */}
+                <ScaleSelector currentScale={currentScale} onChange={setCurrentScale} />
+            </div>
             <div className="flex items-center gap-2">
                 {/* Clear Button */}
                 <button 
@@ -1341,6 +1350,7 @@ export const App: React.FC = () => {
                             onPropertyChange={handleNotePropertyChange}
                             onClose={() => setContextMenu(null)}
                             getNoteColor={getNoteColor}
+                            currentScale={currentScale}
                         />
                     </div>
                 )}
