@@ -38,6 +38,7 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
         <button
           onClick={isFrozen ? onUnfreeze : onMixdown}
           disabled={isRendering}
+          aria-busy={isRendering}
           className={`px-3 py-1 text-xs font-bold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${accentClasses[accentColor].ring} ${
             isRendering ? 'bg-gray-600 text-gray-400 cursor-wait' :
             isFrozen ? 'bg-yellow-500 hover:bg-yellow-600 text-gray-900' :

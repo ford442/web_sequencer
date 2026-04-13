@@ -151,7 +151,7 @@ const jsNormalizeAndConvert = (
     targetPeak: number
 ): Float32Array => {
     const output = new Float32Array(input.length);
-    let gain = peak > 0 ? targetPeak / peak : 1.0;
+    const gain = peak > 0 ? targetPeak / peak : 1.0;
     for (let i = 0; i < input.length; i++) {
         let sample = input[i] * gain;
         if (sample > 1.0) sample = 1.0;
@@ -271,17 +271,17 @@ const wasmFloatToInt16Sim = (input: Float32Array): Int16Array => {
     // Unrolled loop simulation
     let i = 0;
     for (; i <= len - 4; i += 4) {
-        let s0 = input[i] * scale;
-        let s1 = input[i + 1] * scale;
-        let s2 = input[i + 2] * scale;
-        let s3 = input[i + 3] * scale;
+        const s0 = input[i] * scale;
+        const s1 = input[i + 1] * scale;
+        const s2 = input[i + 2] * scale;
+        const s3 = input[i + 3] * scale;
         output[i] = s0 > scale ? 32767 : s0 < -scale ? -32768 : Math.round(s0);
         output[i + 1] = s1 > scale ? 32767 : s1 < -scale ? -32768 : Math.round(s1);
         output[i + 2] = s2 > scale ? 32767 : s2 < -scale ? -32768 : Math.round(s2);
         output[i + 3] = s3 > scale ? 32767 : s3 < -scale ? -32768 : Math.round(s3);
     }
     for (; i < len; i++) {
-        let s = input[i] * scale;
+        const s = input[i] * scale;
         output[i] = s > scale ? 32767 : s < -scale ? -32768 : Math.round(s);
     }
     return output;
