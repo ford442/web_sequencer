@@ -35,15 +35,6 @@ export default defineConfig({
     sourcemap: true,
     outDir: 'dist',
   },
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
-    watch: {
-      ignored: ['**/emsdk/**']
-    }
-  },
   worker: {
     format: 'es',
     plugins: () => [
