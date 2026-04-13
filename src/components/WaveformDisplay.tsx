@@ -6,9 +6,10 @@ interface WaveformDisplayProps {
     alignment: AlignmentResult | null;
     sliceHighlightRef: React.MutableRefObject<((slice: number) => void) | null>;
     onAlignmentChange?: (alignment: AlignmentResult) => void;
+    onAutoSlice?: () => void;
 }
 
-export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignment, sliceHighlightRef, onAlignmentChange }) => {
+export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const activeSliceRef = useRef<number>(-1);
@@ -506,20 +507,37 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
         : `Waveform visualization: Sample loaded${alignment ? " with phoneme alignment" : ""}`;
 
     return (
-        <div
-            ref={containerRef}
-            className="w-full h-12 bg-gray-900 rounded border border-gray-700 overflow-hidden mb-1 relative"
-            role="img"
-            aria-label={label}
-            title={label}
-            onMouseMove={handleMouseMove}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-            onDoubleClick={handleDoubleClick}
-            style={{ cursor: hoverState ? 'col-resize' : 'default' }}
-        >
-            <canvas ref={canvasRef} className="w-full h-full block" />
+        <div className="relative group">
+            <div
+                ref={containerRef}
+                className="w-full h-12 bg-gray-900 rounded border border-gray-700 overflow-hidden mb-1 relative"
+                role="img"
+                aria-label={label}
+                title={label}
+                onMouseMove={handleMouseMove}
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                onDoubleClick={handleDoubleClick}
+                style={{ cursor: hoverState ? 'col-resize' : 'default' }}
+            >
+                <canvas ref={canvasRef} className="w-full h-full block" />
+            </div>
+
+            {/* Auto-Slice Overlay Button */}
+            {buffer && onAutoSlice && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onAutoSlice();
+                    }}
+                    className="absolute top-1 right-1 px-2 py-0.5 bg-indigo-900/80 hover:bg-indigo-700 border border-indigo-500/50 text-indigo-100 text-[9px] font-bold font-orbitron rounded shadow opacity-0 group-hover:opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-indigo-400"
+                    aria-label="Auto-slice by transients"
+                    title="Auto-slice sample based on transients"
+                >
+                    AUTO-SLICE
+                </button>
+            )}
         </div>
     );
 };
