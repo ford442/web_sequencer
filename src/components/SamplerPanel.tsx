@@ -4,6 +4,7 @@ import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
 import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
+import { PhonemeAligner } from '../engines/rubberband/PhonemeAligner';
 
 interface SamplerPanelProps {
     params: SamplerParams; // Expecting Array[8]
@@ -517,6 +518,47 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     }, [audioEngine, activeBankIdx]);
 
+    const handleAutoSlice = useCallback(() => {
+        if (!sampleBuffer) return;
+
+        try {
+            // Downmix to mono if stereo
+            const floatData = new Float32Array(sampleBuffer.length);
+            if (sampleBuffer.numberOfChannels === 2) {
+                const left = sampleBuffer.getChannelData(0);
+                const right = sampleBuffer.getChannelData(1);
+                for (let i = 0; i < floatData.length; i++) {
+                    floatData[i] = (left[i] + right[i]) * 0.5;
+                }
+            } else {
+                floatData.set(sampleBuffer.getChannelData(0));
+            }
+
+            // Target -1 triggers the peak-based transient detection
+            const segments = PhonemeAligner.detectSegmentBoundaries(floatData, sampleBuffer.sampleRate, -1);
+
+            // Map segments to the expected PhonemeAligner alignment format
+            const phonemes = segments.map((seg, idx) => ({
+                phoneme: `S${idx + 1}`,
+                start: seg.start,
+                end: seg.end,
+                isVowel: true, // Mark all slices as stretchable
+                category: 'plosive' as const
+            }));
+
+            const newAlignment = {
+                phonemes,
+                sampleRate: sampleBuffer.sampleRate,
+                duration: sampleBuffer.duration,
+                text: ''
+            };
+
+            handleAlignmentChange(newAlignment);
+        } catch (e) {
+            console.error("Auto-slice failed:", e);
+        }
+    }, [sampleBuffer, handleAlignmentChange]);
+
     return (
         <div
             className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
@@ -600,6 +642,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     alignment={currentAlignment}
                     sliceHighlightRef={sliceHighlightRef || dummyRef}
                     onAlignmentChange={handleAlignmentChange}
+                    onAutoSlice={handleAutoSlice}
                 />
 
                 {/* Multisample Generator Progress */}

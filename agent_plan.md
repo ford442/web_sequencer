@@ -73,15 +73,16 @@
 * [x] **Idea:** "Spectral Morphing" - Implement functionality to morph spectrally between two different TTS phonemes or samples over a sequence of steps. (Implemented via FormantShifter Voice Character Morphing and step-sequenced automation!)
 * [x] **Idea:** "Dynamic Reverb" - Allow users to draw automation curves for reverb send per step. (Implemented!)
 * [x] **Idea:** "Global Saturation / Tape Warmth" - Add a master channel saturation unit to glue the mix together. (Implemented via WaveShaperNode!)
+* [x] **Idea:** "Auto-Slice by Transients" - Use energy-based analysis to automatically detect and place slice markers at drum hits or clear transients when a custom sample is loaded. (Implemented via `AUTO-SLICE` button logic in `WaveformDisplay` and `SamplerPanel`!)
 * **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
 * **Idea:** "Real-time Convolution Reverb for Vocal Spaces" - Enhance the dynamic reverb by allowing users to select impulse response types.
 * **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
-* **Idea:** "Auto-Slice by Transients" - Use energy-based analysis to automatically detect and place slice markers at drum hits or clear transients when a custom sample is loaded.
+* **Idea:** "Advanced Slice Tuning" - Allow users to fine-tune slice sensitivity and adjust the threshold parameters for Auto-Slice.
 
 ---
 
 ## 📜 Changelog
-* [2026-06-21] - Implemented Custom Sample Slicing UI: Updated `WaveformDisplay.tsx` to handle drag-to-adjust, double-click-to-split, and double-click-to-merge interactions on slice boundaries. Hooked it up to `SamplerPanel` and `useAudioEngine` via a new `setAlignment` override function. Added "Auto-Slice by Transients" idea to the Innovation Lab.
+* [2026-06-22] - Implemented Auto-Slice by Transients: Added an "AUTO-SLICE" button to the `WaveformDisplay` component that uses energy-based peak detection in `PhonemeAligner.ts` to automatically detect drum hits and transients and populate custom slice markers.
 * [2026-06-21] - Implemented Custom Sample Slicing UI: Enhanced `WaveformDisplay.tsx` to support interactive mousedown, drag, and double-click events, allowing users to manually slice custom WAV files directly on the canvas. Connected to the AudioEngine via `setAlignment`.
 * [2026-06-20] - Implemented Glissando/Portamento Curves & Per-Step Breath Intensity: Added `slideType` parameter (Linear/Exponential) to allow musical variations of pitch glides in TTS, and allowed individual steps to override global breath noise via `breathIntensity`. Added Custom Sample Slicing UI to Active Backlog.
 * [2026-06-19] - Implemented Global Saturation: Added a master channel `WaveShaperNode` with a variable distortion curve mapped to a "Warmth" (Saturation) slider in the top utility UI. Routed the entire master mix through it to add glue and presence. Added new idea: "AI Auto-Mix Assistant".
