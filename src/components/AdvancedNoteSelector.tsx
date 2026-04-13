@@ -3,6 +3,14 @@ import { NOTES, noteToMidi, midiToNote, getScaleNotes, isMidiInScale, nextScaleN
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { getNoteColor } from '../utils/noteColors';
 
+const SHARP_KEYS = new Set(['C#', 'D#', 'F#', 'G#', 'A#']);
+
+/** Extract the note name (e.g. "C#") from a full note string (e.g. "C#4") */
+const extractNoteName = (fullNote: string): string => fullNote.replace(/\d+$/, '');
+
+/** Whether a note name is a sharp (black key) */
+const isSharpKey = (noteName: string): boolean => SHARP_KEYS.has(noteName);
+
 interface AdvancedNoteSelectorProps {
     /** Current note value, e.g. "C4" */
     value: string;
@@ -78,7 +86,11 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
 
         // Snap to scale if active
         if (currentScale && !isMidiInScale(targetMidi, currentScale)) {
-            const direction = targetMidi > lastMidiRef.current ? 1 : -1;
+            // Determine drag direction from the mouse movement delta, not from position comparison
+            const dragDirection = dy >= 0 ? 1 : -1;
+            const direction = targetMidi !== lastMidiRef.current
+                ? (targetMidi > lastMidiRef.current ? 1 : -1)
+                : dragDirection;
             targetMidi = nextScaleNote(targetMidi - direction, direction as 1 | -1, currentScale);
             targetMidi = clamp(targetMidi);
         }
@@ -122,6 +134,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
     const scaleNotes = currentScale ? getScaleNotes(currentScale) : null;
 
     const color = getNoteColor(value, trackKey);
+    const currentNoteName = extractNoteName(value);
 
     return (
         <div className="relative inline-block">
@@ -131,9 +144,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
                 className="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded cursor-ns-resize select-none touch-none border border-transparent hover:border-cyan-500/50 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
                 style={{
                     backgroundColor: color,
-                    color: NOTES.indexOf(value.replace(/\d+$/, '')) >= 0 &&
-                        ['C#', 'D#', 'F#', 'G#', 'A#'].includes(value.replace(/\d+$/, ''))
-                        ? '#ddd' : '#000',
+                    color: isSharpKey(currentNoteName) ? '#ddd' : '#000',
                 }}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
@@ -193,7 +204,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
                                                     ? '#000'
                                                     : !isInScale
                                                         ? '#666'
-                                                        : ['C#', 'D#', 'F#', 'G#', 'A#'].includes(noteName)
+                                                        : isSharpKey(noteName)
                                                             ? '#ddd'
                                                             : '#000',
                                                 border: isSelected ? `2px solid ${noteColor}` : 'none',

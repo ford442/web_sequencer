@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ScaleSelector } from '../ScaleSelector';
 
+import type { ScaleDefinition } from '../../utils/musicTheory';
+
 describe('ScaleSelector', () => {
     const defaultProps = {
-        currentScale: null as ReturnType<typeof vi.fn> | null,
+        currentScale: null as ScaleDefinition | null,
         onChange: vi.fn(),
     };
 
