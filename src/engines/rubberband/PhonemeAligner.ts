@@ -180,7 +180,7 @@ export class PhonemeAligner {
         }
         
         // Detect segment boundaries using energy analysis
-        const segments = this.detectSegmentBoundaries(audio, sampleRate, estimatedPhonemes.length);
+        const segments = PhonemeAligner.detectSegmentBoundaries(audio, sampleRate, estimatedPhonemes.length);
         
         // Map phonemes to segments
         const phonemeSegments: PhonemeSegment[] = estimatedPhonemes.map((phoneme, i) => {
@@ -249,16 +249,17 @@ export class PhonemeAligner {
     
     /**
      * Detect segment boundaries using energy-based analysis.
+     * Useful for auto-slicing drum loops or finding transient points.
      * 
      * @param audio Audio samples
      * @param sampleRate Sample rate
-     * @param targetSegments Number of segments to find
+     * @param targetSegments Target number of segments (or -1 to auto-detect based on peaks)
      * @returns Array of segment boundaries
      */
-    private detectSegmentBoundaries(
+    static detectSegmentBoundaries(
         audio: Float32Array,
         sampleRate: number,
-        targetSegments: number
+        targetSegments: number = -1
     ): Array<{ start: number; end: number }> {
         const hopSize = Math.floor(sampleRate * 0.01); // 10ms hop
         const windowSize = Math.floor(sampleRate * 0.025); // 25ms window
@@ -273,14 +274,40 @@ export class PhonemeAligner {
             energyEnvelope.push(Math.sqrt(energy / windowSize));
         }
         
-        // Find energy minima as potential boundaries
         const boundaries: number[] = [0]; // Start
         
         if (targetSegments > 1) {
             // Simple uniform distribution if we can't detect good boundaries
+            // (Previous default behavior for TTS fallback)
             const segmentDuration = audio.length / sampleRate / targetSegments;
             for (let i = 1; i < targetSegments; i++) {
                 boundaries.push(i * segmentDuration);
+            }
+        } else if (targetSegments === -1) {
+            // Transient detection (peaks)
+            // Calculate a moving average for thresholding
+            let meanEnergy = 0;
+            for (const e of energyEnvelope) meanEnergy += e;
+            meanEnergy /= energyEnvelope.length;
+
+            const threshold = meanEnergy * 1.5; // Heuristic threshold
+            const minDistanceSamples = sampleRate * 0.05; // 50ms min between transients
+
+            let lastBoundarySample = 0;
+
+            for (let i = 1; i < energyEnvelope.length - 1; i++) {
+                const sampleIdx = i * hopSize;
+
+                // Peak detection: higher than neighbors and above threshold
+                if (energyEnvelope[i] > energyEnvelope[i-1] &&
+                    energyEnvelope[i] > energyEnvelope[i+1] &&
+                    energyEnvelope[i] > threshold) {
+
+                    if (sampleIdx - lastBoundarySample > minDistanceSamples) {
+                        boundaries.push(sampleIdx / sampleRate);
+                        lastBoundarySample = sampleIdx;
+                    }
+                }
             }
         }
         
