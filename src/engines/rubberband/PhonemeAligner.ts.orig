@@ -1,17 +1,17 @@
 /**
  * PhonemeAligner - Phoneme-aware time stretching for natural vocal articulation
- * 
+ *
  * Part of RUBBERBAND_ENHANCEMENT_PLAN Section 3: Phoneme-Aware Time Stretching
- * 
+ *
  * This module provides phoneme alignment capabilities for TTS output,
  * enabling vowel stretching while preserving consonant timing.
- * 
+ *
  * STUB FILE - Implementation pending.
- * 
+ *
  * Dependencies to consider:
  * - Montreal Forced Aligner (MFA) for phoneme alignment
  * - SharedArrayBuffer for efficient main thread to AudioWorklet communication
- * 
+ *
  * @see RUBBERBAND_ENHANCEMENT_PLAN.md Section 3
  */
 
@@ -53,7 +53,7 @@ export interface PhonemeAlignerConfig {
 
 /**
  * PhonemeAligner class for extracting phoneme timing from TTS audio.
- * 
+ *
  * Full implementation with:
  * 1. Lightweight phoneme estimation based on signal analysis
  * 2. Phoneme-to-vowel classification (ARPABET standard)
@@ -63,25 +63,25 @@ export interface PhonemeAlignerConfig {
 export class PhonemeAligner {
     private config: PhonemeAlignerConfig;
     private alignerServiceUrl: string | null = null;
-    
+
     constructor(config: PhonemeAlignerConfig = {}) {
         this.config = {
             alignerServiceUrl: config.alignerServiceUrl,
             useLocalAlignment: config.useLocalAlignment ?? true,
             language: config.language ?? 'en-us'
         };
-        
+
         if (config.alignerServiceUrl) {
             this.alignerServiceUrl = config.alignerServiceUrl;
         }
     }
-    
+
     /**
      * Align phonemes to the given audio and text.
-     * 
+     *
      * If alignerServiceUrl is provided, uses external MFA service.
      * Otherwise, uses lightweight local estimation based on energy/spectral analysis.
-     * 
+     *
      * @param audio Float32Array of audio samples
      * @param text The text/lyrics to align
      * @param sampleRate Sample rate of the audio
@@ -96,14 +96,14 @@ export class PhonemeAligner {
         if (this.alignerServiceUrl) {
             return this.alignWithExternalService(audio, text, sampleRate);
         }
-        
+
         // Otherwise, use local lightweight estimation
         return this.localPhonemeEstimation(audio, text, sampleRate);
     }
-    
+
     /**
      * Use external MFA service for accurate phoneme alignment.
-     * 
+     *
      * @param audio Audio samples
      * @param text Text to align
      * @param sampleRate Sample rate
@@ -117,27 +117,27 @@ export class PhonemeAligner {
         if (!this.alignerServiceUrl) {
             throw new Error('Aligner service URL not configured');
         }
-        
+
         // Convert audio to WAV format for transmission
         const wavBlob = this.audioToWav(audio, sampleRate);
-        
+
         // Send to alignment service
         const formData = new FormData();
         formData.append('audio', wavBlob, 'audio.wav');
         formData.append('text', text);
         formData.append('language', this.config.language ?? 'en-us');
-        
+
         const response = await fetch(this.alignerServiceUrl, {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             throw new Error(`Alignment service error: ${response.statusText}`);
         }
-        
+
         const result = await response.json();
-        
+
         // Convert service response to our format
         return {
             phonemes: result.phonemes.map((p: any) => ({
@@ -152,12 +152,12 @@ export class PhonemeAligner {
             text
         };
     }
-    
+
     /**
      * Local lightweight phoneme estimation based on energy and spectral analysis.
      * This is a simplified approach that estimates phoneme boundaries without
      * full forced alignment. Good enough for real-time processing.
-     * 
+     *
      * @param audio Audio samples
      * @param text Text to align
      * @param sampleRate Sample rate
@@ -169,19 +169,19 @@ export class PhonemeAligner {
         sampleRate: number
     ): Promise<AlignmentResult> {
         const duration = audio.length / sampleRate;
-        
+
         // Extract words from text
         const words = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 0);
-        
+
         // Estimate phonemes per word (simplified)
         const estimatedPhonemes: string[] = [];
         for (const word of words) {
             estimatedPhonemes.push(...this.estimatePhonemesForWord(word));
         }
-        
+
         // Detect segment boundaries using energy analysis
         const segments = PhonemeAligner.detectSegmentBoundaries(audio, sampleRate, estimatedPhonemes.length);
-        
+
         // Map phonemes to segments
         const phonemeSegments: PhonemeSegment[] = estimatedPhonemes.map((phoneme, i) => {
             const segment = segments[i] || { start: duration * 0.9, end: duration };
@@ -193,7 +193,7 @@ export class PhonemeAligner {
                 category: this.categorizePhoneme(phoneme)
             };
         });
-        
+
         return Promise.resolve({
             phonemes: phonemeSegments,
             sampleRate,
@@ -201,12 +201,12 @@ export class PhonemeAligner {
             text
         });
     }
-    
+
     /**
      * Estimate phonemes for a word using simple letter-to-phoneme rules.
      * This is a very simplified approach - a real implementation would use
      * a pronunciation dictionary or G2P model.
-     * 
+     *
      * @param word Word to convert
      * @returns Array of phoneme symbols
      */
@@ -214,11 +214,11 @@ export class PhonemeAligner {
         // Very simplified phoneme estimation
         // In a real implementation, use CMU Pronouncing Dictionary or similar
         const phonemes: string[] = [];
-        
+
         for (let i = 0; i < word.length; i++) {
             const char = word[i];
             const nextChar = word[i + 1] || '';
-            
+
             // Map common letter patterns to ARPABET phonemes
             if ('aeiou'.includes(char)) {
                 // Vowels
@@ -243,14 +243,14 @@ export class PhonemeAligner {
                 }
             }
         }
-        
+
         return phonemes;
     }
-    
+
     /**
      * Detect segment boundaries using energy-based analysis.
      * Useful for auto-slicing drum loops or finding transient points.
-     * 
+     *
      * @param audio Audio samples
      * @param sampleRate Sample rate
      * @param targetSegments Target number of segments (or -1 to auto-detect based on peaks)
@@ -259,12 +259,11 @@ export class PhonemeAligner {
     static detectSegmentBoundaries(
         audio: Float32Array,
         sampleRate: number,
-        targetSegments: number = -1,
-        thresholdMultiplier: number = 1.5
+        targetSegments: number = -1
     ): Array<{ start: number; end: number }> {
         const hopSize = Math.floor(sampleRate * 0.01); // 10ms hop
         const windowSize = Math.floor(sampleRate * 0.025); // 25ms window
-        
+
         // Calculate energy envelope
         const energyEnvelope: number[] = [];
         for (let i = 0; i < audio.length - windowSize; i += hopSize) {
@@ -274,9 +273,9 @@ export class PhonemeAligner {
             }
             energyEnvelope.push(Math.sqrt(energy / windowSize));
         }
-        
+
         const boundaries: number[] = [0]; // Start
-        
+
         if (targetSegments > 1) {
             // Simple uniform distribution if we can't detect good boundaries
             // (Previous default behavior for TTS fallback)
@@ -291,7 +290,7 @@ export class PhonemeAligner {
             for (const e of energyEnvelope) meanEnergy += e;
             meanEnergy /= energyEnvelope.length;
 
-            const threshold = meanEnergy * thresholdMultiplier; // Heuristic threshold
+            const threshold = meanEnergy * 1.5; // Heuristic threshold
             const minDistanceSamples = sampleRate * 0.05; // 50ms min between transients
 
             let lastBoundarySample = 0;
@@ -311,9 +310,9 @@ export class PhonemeAligner {
                 }
             }
         }
-        
+
         boundaries.push(audio.length / sampleRate); // End
-        
+
         // Convert to segment objects
         const segments: Array<{ start: number; end: number }> = [];
         for (let i = 0; i < boundaries.length - 1; i++) {
@@ -322,10 +321,10 @@ export class PhonemeAligner {
                 end: boundaries[i + 1]
             });
         }
-        
+
         return segments;
     }
-    
+
     /**
      * Convert Float32Array audio to WAV blob for transmission.
      */
@@ -336,10 +335,10 @@ export class PhonemeAligner {
         const blockAlign = numChannels * bytesPerSample;
         const byteRate = sampleRate * blockAlign;
         const dataSize = audio.length * bytesPerSample;
-        
+
         const buffer = new ArrayBuffer(44 + dataSize);
         const view = new DataView(buffer);
-        
+
         // WAV header
         this.writeString(view, 0, 'RIFF');
         view.setUint32(4, 36 + dataSize, true);
@@ -354,52 +353,52 @@ export class PhonemeAligner {
         view.setUint16(34, bitsPerSample, true);
         this.writeString(view, 36, 'data');
         view.setUint32(40, dataSize, true);
-        
+
         // Convert float samples to 16-bit PCM
         const offset = 44;
         for (let i = 0; i < audio.length; i++) {
             const sample = Math.max(-1, Math.min(1, audio[i]));
             view.setInt16(offset + i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
         }
-        
+
         return new Blob([buffer], { type: 'audio/wav' });
     }
-    
+
     private writeString(view: DataView, offset: number, string: string): void {
         for (let i = 0; i < string.length; i++) {
             view.setUint8(offset + i, string.charCodeAt(i));
         }
     }
-    
+
     /**
      * Categorize a phoneme into more specific types.
-     * 
+     *
      * @param phoneme Phoneme symbol
      * @returns Category of the phoneme
      */
     private categorizePhoneme(phoneme: string): 'vowel' | 'consonant' | 'fricative' | 'plosive' | 'nasal' | 'liquid' {
         const ph = phoneme.toUpperCase();
-        
+
         if (PhonemeAligner.isVowelPhoneme(ph)) return 'vowel';
-        
+
         // Fricatives: continuous turbulent airflow
         if (['F', 'V', 'TH', 'DH', 'S', 'Z', 'SH', 'ZH', 'H'].includes(ph)) return 'fricative';
-        
+
         // Plosives: stop consonants with release burst
         if (['P', 'B', 'T', 'D', 'K', 'G'].includes(ph)) return 'plosive';
-        
+
         // Nasals
         if (['M', 'N', 'NG'].includes(ph)) return 'nasal';
-        
+
         // Liquids
         if (['L', 'R'].includes(ph)) return 'liquid';
-        
+
         return 'consonant';
     }
-    
+
     /**
      * Extract audio region for a specific phoneme.
-     * 
+     *
      * @param audio Full audio buffer
      * @param segment Phoneme segment with timing
      * @param sampleRate Sample rate
@@ -414,11 +413,11 @@ export class PhonemeAligner {
         const endSample = Math.floor(segment.end * sampleRate);
         return audio.subarray(startSample, endSample);
     }
-    
+
     /**
      * Calculate optimal time ratios for each phoneme to achieve target duration.
      * Stretches vowels while keeping consonants at natural length.
-     * 
+     *
      * @param phonemes Array of phoneme segments
      * @param targetDuration Target total duration in seconds
      * @returns Array of time ratios for each phoneme
@@ -428,36 +427,36 @@ export class PhonemeAligner {
         targetDuration: number
     ): number[] {
         if (phonemes.length === 0) return [];
-        
+
         // Calculate original duration
         const originalDuration = phonemes.reduce((sum, p) => sum + (p.end - p.start), 0);
-        
+
         if (originalDuration <= 0) {
             return phonemes.map(() => 1.0);
         }
-        
+
         // Separate vowels and consonants
         const vowelDuration = phonemes
             .filter(p => p.isVowel)
             .reduce((sum, p) => sum + (p.end - p.start), 0);
-        
+
         const consonantDuration = originalDuration - vowelDuration;
-        
+
         // Keep consonants at 1.0 ratio, stretch vowels to fill remaining time
         const remainingTime = targetDuration - consonantDuration;
         const vowelStretchRatio = vowelDuration > 0 ? remainingTime / vowelDuration : 1.0;
-        
+
         // Clamp vowel stretch to reasonable range (0.5 to 3.0)
         const clampedVowelStretch = Math.max(0.5, Math.min(3.0, vowelStretchRatio));
-        
+
         // Return ratios for each phoneme
         return phonemes.map(p => p.isVowel ? clampedVowelStretch : 1.0);
     }
-    
+
     /**
      * Create a SharedArrayBuffer with phoneme boundary data for AudioWorklet.
      * Format: [numPhonemes, start1, end1, isVowel1, start2, end2, isVowel2, ...]
-     * 
+     *
      * @param phonemes Array of phoneme segments
      * @param sampleRate Sample rate to convert times to samples
      * @returns SharedArrayBuffer with phoneme data
@@ -467,9 +466,9 @@ export class PhonemeAligner {
         const bufferSize = (1 + phonemes.length * 4) * 4; // 4 bytes per float32
         const sharedBuffer = new SharedArrayBuffer(bufferSize);
         const view = new Float32Array(sharedBuffer);
-        
+
         view[0] = phonemes.length;
-        
+
         for (let i = 0; i < phonemes.length; i++) {
             const p = phonemes[i];
             const baseIndex = 1 + i * 4;
@@ -478,16 +477,16 @@ export class PhonemeAligner {
             view[baseIndex + 2] = p.isVowel ? 1.0 : 0.0; // Boolean as float
             view[baseIndex + 3] = 1.0;                   // Default stretch ratio
         }
-        
+
         return sharedBuffer;
     }
-    
+
     /**
      * Check if a phoneme is a vowel.
      * Basic classification - can be extended for more accuracy.
      */
     static isVowelPhoneme(phoneme: string): boolean {
-        const vowels = ['AA', 'AE', 'AH', 'AO', 'AW', 'AY', 'EH', 'ER', 'EY', 
+        const vowels = ['AA', 'AE', 'AH', 'AO', 'AW', 'AY', 'EH', 'ER', 'EY',
                         'IH', 'IY', 'OW', 'OY', 'UH', 'UW'];
         return vowels.includes(phoneme.toUpperCase());
     }
@@ -495,20 +494,20 @@ export class PhonemeAligner {
 
 /**
  * Integration Notes:
- * 
+ *
  * 1. To use with RubberBandProcessor:
  *    - Call alignPhonemes() with TTS output
  *    - Use createSharedPhonemeBuffer() to create shared data
  *    - Pass buffer to AudioWorklet via postMessage
  *    - In worklet, process each phoneme region with appropriate timeRatio
- * 
+ *
  * 2. For external MFA service:
  *    - Set alignerServiceUrl in config
  *    - Service should accept POST with audio WAV and text
  *    - Service should return JSON with phoneme array
- * 
+ *
  * 3. Phoneme format: ARPABET standard (CMU Pronouncing Dictionary)
- * 
+ *
  * Example usage:
  * ```typescript
  * const aligner = new PhonemeAligner({ useLocalAlignment: true });

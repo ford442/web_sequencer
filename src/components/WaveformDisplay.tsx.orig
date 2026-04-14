@@ -538,10 +538,6 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
                                 max="100"
                                 value={autoSliceSensitivity}
                                 onChange={(e) => onAutoSliceSensitivityChange(Number(e.target.value))}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onMouseUp={(e) => e.stopPropagation()}
-                                onMouseMove={(e) => e.stopPropagation()}
-                                onClick={(e) => e.stopPropagation()}
                                 className="w-16 h-1 bg-indigo-950 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-indigo-400 [&::-webkit-slider-thumb]:rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                                 title="Auto-slice sensitivity"
                                 aria-label="Auto-slice sensitivity"
