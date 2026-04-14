@@ -60,46 +60,56 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
                     <p className="text-gray-400 font-mono text-sm">Classic piano layout with 5 black keys and 8 white keys.</p>
                 </div>
 
-                {/* Visual Schematic */}
+                {/* Visual Schematic — two groups: {C D E F} and {G A B C} */}
                 <div className="flex justify-center mb-8">
-                    <svg width="400" height="140" viewBox="0 0 400 140" className="drop-shadow-2xl">
-                        <rect x="10" y="10" width="380" height="120" rx="10" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="5,5" />
+                    <svg width="400" height="150" viewBox="0 0 400 150" className="drop-shadow-2xl">
+                        {/* Outer border */}
+                        <rect x="10" y="10" width="380" height="132" rx="10" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="5,5" />
 
-                        {/* Black keys row (staggered between white keys) */}
-                        <g transform="translate(30, 20)">
+                        {/* Group labels */}
+                        <text x="104" y="22" textAnchor="middle" fill="#64748b" fontSize="8" fontFamily="monospace">C D E F</text>
+                        <text x="272" y="22" textAnchor="middle" fill="#64748b" fontSize="8" fontFamily="monospace">G A B C</text>
+
+                        {/* Vertical divider between groups */}
+                        <line x1="200" y1="24" x2="200" y2="132" stroke="#1e3a5f" strokeWidth="1" strokeDasharray="3,3" />
+
+                        {/* Black keys row (staggered, group-aware) */}
+                        {/* Group 1: C# [9] and D# [8] */}
+                        <g transform="translate(30, 28)">
                             <text x="-5" y="18" fill="#f97316" fontSize="9" fontFamily="monospace" textAnchor="end">BLACK</text>
-                            {/* C# between C and D */}
-                            <g transform="translate(35, 0)">
-                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
-                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">9</text>
+                            {/* C# between C(0) and D(1): (0+1)*42 - 16 = 26 */}
+                            <g transform="translate(26, 0)">
+                                <rect width="32" height="38" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="16" y="23" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">9</text>
                             </g>
-                            {/* D# between D and E */}
-                            <g transform="translate(85, 0)">
-                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
-                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">8</text>
+                            {/* D# between D(1) and E(2): (1+1)*42 - 16 = 68 */}
+                            <g transform="translate(68, 0)">
+                                <rect width="32" height="38" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="16" y="23" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">8</text>
                             </g>
-                            {/* F# between F and G */}
-                            <g transform="translate(185, 0)">
-                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
-                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">6</text>
+                            {/* Group 2: F# [6], G# [5], A# [4] — shifted right by gap (16px) */}
+                            {/* F# between F(3) and G(4): (3+1)*42 - 16 + 16 = 168 */}
+                            <g transform="translate(168, 0)">
+                                <rect width="32" height="38" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="16" y="23" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">6</text>
                             </g>
-                            {/* G# between G and A */}
-                            <g transform="translate(235, 0)">
-                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
-                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">5</text>
+                            {/* G# between G(4) and A(5): (4+1)*42 - 16 + 16 = 210 */}
+                            <g transform="translate(210, 0)">
+                                <rect width="32" height="38" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="16" y="23" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">5</text>
                             </g>
-                            {/* A# between A and B */}
-                            <g transform="translate(285, 0)">
-                                <rect width="30" height="40" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
-                                <text x="15" y="24" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">4</text>
+                            {/* A# between A(5) and B(6): (5+1)*42 - 16 + 16 = 252 */}
+                            <g transform="translate(252, 0)">
+                                <rect width="32" height="38" rx="2" fill="#1f2937" stroke="#000" strokeWidth="2" />
+                                <text x="16" y="23" textAnchor="middle" fill="#fff" fontWeight="bold" fontSize="10" fontFamily="monospace">4</text>
                             </g>
                         </g>
 
-                        {/* White keys row */}
-                        <g transform="translate(30, 70)">
+                        {/* White keys row — group 1: i=0–3, group 2: i=4–7 with +16px gap */}
+                        <g transform="translate(30, 74)">
                             <text x="-5" y="25" fill="#22c55e" fontSize="9" fontFamily="monospace" textAnchor="end">WHITE</text>
-                            {['F8','F7','F6','F5','F4','F3','F2','F1'].map((key, i) => (
-                                <g key={key} transform={`translate(${i * 42}, 0)`}>
+                            {(['F8','F7','F6','F5','F4','F3','F2','F1'] as const).map((key, i) => (
+                                <g key={key} transform={`translate(${i < 4 ? i * 42 : i * 42 + 16}, 0)`}>
                                     <rect width="40" height="50" rx="3" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="2" />
                                     <text x="20" y="30" textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize="9" fontFamily="monospace">{key}</text>
                                 </g>
@@ -393,12 +403,12 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
 
             {/* Piano Keyboard SVG */}
             <svg viewBox={`0 0 ${totalWidth} ${svgHeight}`} className="w-full drop-shadow-2xl bg-black/20 rounded-lg p-2">
-                {/* White keys (bottom row) */}
+                {/* White keys (bottom row) — group 1: C D E F (i=0–3), group 2: G A B C (i=4–7) */}
                 {whiteNotes.map((note, i) => (
                     <PianoKey
                         key={note}
                         note={note}
-                        x={i * whiteKeyWidth}
+                        x={i < 4 ? i * whiteKeyWidth : i * whiteKeyWidth + fKeyGap}
                         y={whiteRowY}
                         width={whiteKeyWidth - 2}
                         height={whiteKeyHeight}
@@ -414,10 +424,10 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                 ))}
 
                 {/* Black keys (top row) - positioned between white keys */}
+                {/* positions 0,1 → left group (C#,D#); positions 3,4,5 → right group (F#,G#,A#) */}
                 {blackKeyData.map(({ note, keyCode, position }) => {
-                    // Position black key to the right of the specified white key position
-                    // Centered on the border between white keys
-                    const x = (position + 1) * whiteKeyWidth - (blackKeyWidth / 2);
+                    // Shift right-group black keys by fKeyGap to align with the offset white keys
+                    const x = (position + 1) * whiteKeyWidth - (blackKeyWidth / 2) + (position >= 3 ? fKeyGap : 0);
                     return (
                         <PianoKey
                             key={note}
