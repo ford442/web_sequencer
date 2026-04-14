@@ -518,6 +518,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     }, [audioEngine, activeBankIdx]);
 
+    const [autoSliceSensitivity, setAutoSliceSensitivity] = useState(50);
+
     const handleAutoSlice = useCallback(() => {
         if (!sampleBuffer) return;
 
@@ -534,8 +536,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 floatData.set(sampleBuffer.getChannelData(0));
             }
 
+            // Sensitivity 0 -> multiplier 3.0 (fewer slices)
+            // Sensitivity 100 -> multiplier 0.1 (more slices)
+            const thresholdMultiplier = 3.0 - (autoSliceSensitivity / 100) * 2.9;
+
             // Target -1 triggers the peak-based transient detection
-            const segments = PhonemeAligner.detectSegmentBoundaries(floatData, sampleBuffer.sampleRate, -1);
+            const segments = PhonemeAligner.detectSegmentBoundaries(floatData, sampleBuffer.sampleRate, -1, thresholdMultiplier);
 
             // Map segments to the expected PhonemeAligner alignment format
             const phonemes = segments.map((seg, idx) => ({
@@ -557,7 +563,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         } catch (e) {
             console.error("Auto-slice failed:", e);
         }
-    }, [sampleBuffer, handleAlignmentChange]);
+    }, [sampleBuffer, handleAlignmentChange, autoSliceSensitivity]);
 
     return (
         <div
@@ -643,6 +649,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                     sliceHighlightRef={sliceHighlightRef || dummyRef}
                     onAlignmentChange={handleAlignmentChange}
                     onAutoSlice={handleAutoSlice}
+                    autoSliceSensitivity={autoSliceSensitivity}
+                    onAutoSliceSensitivityChange={setAutoSliceSensitivity}
                 />
 
                 {/* Multisample Generator Progress */}
