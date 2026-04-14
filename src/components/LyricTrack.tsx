@@ -43,6 +43,7 @@ export const LyricTrack: React.FC<LyricTrackProps> = ({
             <button
                 onClick={() => onApply(text)}
                 disabled={isGenerating || !text.trim()}
+                aria-busy={isGenerating}
                 className="px-4 py-1.5 bg-cyan-900 text-cyan-100 border border-cyan-700 rounded hover:bg-cyan-800 disabled:opacity-50 text-xs font-bold font-orbitron whitespace-nowrap"
             >
                 {isGenerating ? 'GENERATING...' : 'APPLY TO TRACK'}
