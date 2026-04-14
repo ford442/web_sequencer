@@ -385,6 +385,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                                     <button
                                         type="submit"
                                         disabled={uploadStatus === 'uploading' || uploadStatus === 'retrying' || uploadStatus === 'success'}
+                                        aria-busy={uploadStatus === 'uploading' || uploadStatus === 'retrying'}
                                         className={`w-full py-3 rounded font-orbitron font-bold text-sm tracking-widest transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white
                                             ${uploadStatus === 'success' ? 'bg-green-600 text-white' :
                                               uploadStatus === 'error' ? 'bg-red-600 text-white' :
