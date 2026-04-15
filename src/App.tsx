@@ -51,7 +51,7 @@ import {
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
 } from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData } from './types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType } from './types'
 import {
     DEFAULT_SAMPLER_BANK_PARAMS, INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
@@ -149,6 +149,7 @@ export const App: React.FC = () => {
     const [masterVolume, setMasterVolume] = useState(0.8)
     const [masterSaturation, setMasterSaturation] = useState(0)
     const [globalPan, setGlobalPan] = useState(0)
+    const [reverbType, setReverbType] = useState<ReverbType>('plate')
 
     const [isSongModeOpen, setIsSongModeOpen] = useState(false);
     const [isSongModeActive, setIsSongModeActive] = useState(false);
@@ -411,6 +412,11 @@ export const App: React.FC = () => {
     const handleGlobalPan = (e: React.ChangeEvent<HTMLInputElement>) => { const p = parseFloat(e.target.value); const val = (p > -0.1 && p < 0.1) ? 0 : p; setGlobalPan(val); audioEngine?.setGlobalPan(val); };
     const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } };
     const handleGlobalPanReset = () => { setGlobalPan(0); audioEngine?.setGlobalPan(0); };
+    const handleReverbType = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const t = e.target.value as ReverbType;
+        setReverbType(t);
+        audioEngine?.setReverbType?.(t);
+    };
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...copy[track]]; copy[track][activeTrackSlotsRef.current[track]] = sequence; return copy; }); }, []);
 
     const handleCopy = useCallback(() => {
@@ -1702,6 +1708,18 @@ export const App: React.FC = () => {
 
                 {/* Right: Utility Toggles */}
                 <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
+                        <select
+                            value={reverbType} onChange={handleReverbType}
+                            className="bg-zinc-800 text-xs text-gray-300 rounded px-1 py-0.5 border border-gray-700 outline-none cursor-pointer uppercase"
+                            title="Master Reverb Type"
+                            aria-label="Master Reverb Type"
+                        >
+                            <option value="room">Room</option>
+                            <option value="plate">Plate</option>
+                            <option value="hall">Hall</option>
+                        </select>
+                    </div>
                     <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
                         <input
                             type="range" min="0" max="1" step="0.01"

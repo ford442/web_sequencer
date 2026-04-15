@@ -38,6 +38,7 @@ import {
     initializeMasterOutput,
     initializeSustainProcessor,
     loadWavBuffer,
+    createReverbImpulseResponse,
 } from './audioEngine/initialization';
 
 // URLs for worklets
@@ -87,6 +88,7 @@ export const useAudioEngine = (pyodide: unknown) => {
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const reverbNodeRef = useRef<ConvolverNode | null>(null);
+    const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
 
     const pyodideRef = useRef(pyodide);
@@ -147,6 +149,12 @@ export const useAudioEngine = (pyodide: unknown) => {
             }
 
             const masterGain = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef);
+
+            // Initialize Reverb Node
+            const reverbNode = context.createConvolver();
+            reverbNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0); // Default to plate
+            reverbNode.connect(masterGain);
+            reverbNodeRef.current = reverbNode;
 
             // Initialize Engines
             const gpuEngine = new WebGpuOscillator();
@@ -750,6 +758,24 @@ export const useAudioEngine = (pyodide: unknown) => {
             const setMasterSaturation = (amount: number) => setMasterGainSaturation(masterSaturationRef, amount);
             const setGlobalPan = (value: number) => setMasterPan(masterPannerRef, value);
 
+            const setReverbType = (type: 'room' | 'plate' | 'hall') => {
+                reverbTypeRef.current = type;
+                if (!reverbNodeRef.current) return;
+
+                let duration = 1.5;
+                let decay = 2.0;
+
+                if (type === 'room') {
+                    duration = 0.5;
+                    decay = 1.0;
+                } else if (type === 'hall') {
+                    duration = 3.5;
+                    decay = 3.0;
+                }
+
+                reverbNodeRef.current.buffer = createReverbImpulseResponse(context, duration, decay);
+            };
+
             const detectSamplePitch = async (_b: AudioBuffer) => null;
             const processSinging = async (_sampleName: string, _note: string, _steps: number, _tempo: number) => null;
             const processSpoon = async (_sampleName: string, _note: string) => null;
@@ -782,6 +808,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 setMasterVolume,
                 setMasterSaturation,
                 setGlobalPan,
+                setReverbType,
                 detectSamplePitch,
                 processSinging,
                 processSpoon,
