@@ -689,7 +689,6 @@ function postRun() {
 
 /**
  * @param {string|number=} what
- * @noreturn
  */ function abort(what) {
   Module["onAbort"]?.(what);
   what = `Aborted(${what})`;
@@ -718,37 +717,20 @@ function postRun() {
 }
 
 // show errors on likely calls to FS when it was not included
+function fsMissing() {
+  abort("Filesystem support (FS) was not included. The problem is that you are using files from JS, but files were not used from C/C++, so filesystem support was not auto-included. You can force-include filesystem support with -sFORCE_FILESYSTEM");
+}
+
 var FS = {
-  error() {
-    abort("Filesystem support (FS) was not included. The problem is that you are using files from JS, but files were not used from C/C++, so filesystem support was not auto-included. You can force-include filesystem support with -sFORCE_FILESYSTEM");
-  },
-  init() {
-    FS.error();
-  },
-  createDataFile() {
-    FS.error();
-  },
-  createPreloadedFile() {
-    FS.error();
-  },
-  createLazyFile() {
-    FS.error();
-  },
-  open() {
-    FS.error();
-  },
-  mkdev() {
-    FS.error();
-  },
-  registerDevice() {
-    FS.error();
-  },
-  analyzePath() {
-    FS.error();
-  },
-  ErrnoError() {
-    FS.error();
-  }
+  init: fsMissing,
+  createDataFile: fsMissing,
+  createPreloadedFile: fsMissing,
+  createLazyFile: fsMissing,
+  open: fsMissing,
+  mkdev: fsMissing,
+  registerDevice: fsMissing,
+  analyzePath: fsMissing,
+  ErrnoError: fsMissing
 };
 
 function createExportWrapper(name, nargs) {
@@ -1084,7 +1066,7 @@ var stackAlloc = sz => __emscripten_stack_alloc(sz);
   return rtn;
 };
 
-/** @noreturn */ function _proc_exit(code) {
+function _proc_exit(code) {
   if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(0, 0, 1, code);
   EXITSTATUS = code;
   if (!keepRuntimeAlive()) {
@@ -1684,7 +1666,7 @@ var assertIntegerRange = (typeName, value, minRange, maxRange) => {
       if (typeof value == "number") {
         value = BigInt(value);
       } else if (typeof value != "bigint") {
-        throw new TypeError(`Cannot convert "${embindRepr(value)}" to ${this.name}`);
+        throw new TypeError(`Cannot convert "${embindRepr(value)}" to ${name}`);
       }
       assertIntegerRange(name, value, minRange, maxRange);
       return value;
@@ -1806,7 +1788,7 @@ var __embind_register_float = (rawType, name, size) => {
     fromWireType: value => value,
     toWireType: (destructors, value) => {
       if (typeof value != "number" && typeof value != "boolean") {
-        throw new TypeError(`Cannot convert ${embindRepr(value)} to ${this.name}`);
+        throw new TypeError(`Cannot convert ${embindRepr(value)} to ${name}`);
       }
       // The VM will perform JS to Wasm value conversion, according to the spec:
       // https://www.w3.org/TR/wasm-js-api-1/#towebassemblyvalue
