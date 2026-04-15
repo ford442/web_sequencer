@@ -77,12 +77,11 @@
 * **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
 * **Idea:** "Real-time Convolution Reverb for Vocal Spaces" - Enhance the dynamic reverb by allowing users to select impulse response types.
 * **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
-* [x] **Idea:** "Advanced Slice Tuning" - Allow users to fine-tune slice sensitivity and adjust the threshold parameters for Auto-Slice. (Implemented in `SamplerPanel` and `WaveformDisplay`!)
+* **Idea:** "Advanced Slice Tuning" - Allow users to fine-tune slice sensitivity and adjust the threshold parameters for Auto-Slice.
 
 ---
 
 ## 📜 Changelog
-* [2026-06-23] - Implemented Advanced Slice Tuning: Added an auto-slice sensitivity slider to the `WaveformDisplay` component. Plumbed the sensitivity state through `SamplerPanel` down to `PhonemeAligner.detectSegmentBoundaries` via a new `thresholdMultiplier` parameter, allowing users to fine-tune transient detection for different sample types.
 * [2026-06-22] - Implemented Auto-Slice by Transients: Added an "AUTO-SLICE" button to the `WaveformDisplay` component that uses energy-based peak detection in `PhonemeAligner.ts` to automatically detect drum hits and transients and populate custom slice markers.
 * [2026-06-21] - Implemented Custom Sample Slicing UI: Enhanced `WaveformDisplay.tsx` to support interactive mousedown, drag, and double-click events, allowing users to manually slice custom WAV files directly on the canvas. Connected to the AudioEngine via `setAlignment`.
 * [2026-06-20] - Implemented Glissando/Portamento Curves & Per-Step Breath Intensity: Added `slideType` parameter (Linear/Exponential) to allow musical variations of pitch glides in TTS, and allowed individual steps to override global breath noise via `breathIntensity`. Added Custom Sample Slicing UI to Active Backlog.
