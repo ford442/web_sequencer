@@ -491,7 +491,6 @@ function postRun() {
 
 /**
  * @param {string|number=} what
- * @noreturn
  */ function abort(what) {
   Module["onAbort"]?.(what);
   what = `Aborted(${what})`;
@@ -520,37 +519,20 @@ function postRun() {
 }
 
 // show errors on likely calls to FS when it was not included
+function fsMissing() {
+  abort("Filesystem support (FS) was not included. The problem is that you are using files from JS, but files were not used from C/C++, so filesystem support was not auto-included. You can force-include filesystem support with -sFORCE_FILESYSTEM");
+}
+
 var FS = {
-  error() {
-    abort("Filesystem support (FS) was not included. The problem is that you are using files from JS, but files were not used from C/C++, so filesystem support was not auto-included. You can force-include filesystem support with -sFORCE_FILESYSTEM");
-  },
-  init() {
-    FS.error();
-  },
-  createDataFile() {
-    FS.error();
-  },
-  createPreloadedFile() {
-    FS.error();
-  },
-  createLazyFile() {
-    FS.error();
-  },
-  open() {
-    FS.error();
-  },
-  mkdev() {
-    FS.error();
-  },
-  registerDevice() {
-    FS.error();
-  },
-  analyzePath() {
-    FS.error();
-  },
-  ErrnoError() {
-    FS.error();
-  }
+  init: fsMissing,
+  createDataFile: fsMissing,
+  createPreloadedFile: fsMissing,
+  createLazyFile: fsMissing,
+  open: fsMissing,
+  mkdev: fsMissing,
+  registerDevice: fsMissing,
+  analyzePath: fsMissing,
+  ErrnoError: fsMissing
 };
 
 function createExportWrapper(name, nargs) {
@@ -958,7 +940,7 @@ var assertIntegerRange = (typeName, value, minRange, maxRange) => {
       if (typeof value == "number") {
         value = BigInt(value);
       } else if (typeof value != "bigint") {
-        throw new TypeError(`Cannot convert "${embindRepr(value)}" to ${this.name}`);
+        throw new TypeError(`Cannot convert "${embindRepr(value)}" to ${name}`);
       }
       assertIntegerRange(name, value, minRange, maxRange);
       return value;
@@ -1076,7 +1058,7 @@ var __embind_register_float = (rawType, name, size) => {
     fromWireType: value => value,
     toWireType: (destructors, value) => {
       if (typeof value != "number" && typeof value != "boolean") {
-        throw new TypeError(`Cannot convert ${embindRepr(value)} to ${this.name}`);
+        throw new TypeError(`Cannot convert ${embindRepr(value)} to ${name}`);
       }
       // The VM will perform JS to Wasm value conversion, according to the spec:
       // https://www.w3.org/TR/wasm-js-api-1/#towebassemblyvalue
@@ -2186,6 +2168,10 @@ var _malloc = Module["_malloc"] = makeInvalidEarlyAccess("_malloc");
 
 var _strerror = makeInvalidEarlyAccess("_strerror");
 
+var _emscripten_stack_get_end = makeInvalidEarlyAccess("_emscripten_stack_get_end");
+
+var _emscripten_stack_get_base = makeInvalidEarlyAccess("_emscripten_stack_get_base");
+
 var _sbrk = makeInvalidEarlyAccess("_sbrk");
 
 var _free = Module["_free"] = makeInvalidEarlyAccess("_free");
@@ -2195,10 +2181,6 @@ var _emscripten_get_sbrk_ptr = makeInvalidEarlyAccess("_emscripten_get_sbrk_ptr"
 var _emscripten_stack_init = makeInvalidEarlyAccess("_emscripten_stack_init");
 
 var _emscripten_stack_get_free = makeInvalidEarlyAccess("_emscripten_stack_get_free");
-
-var _emscripten_stack_get_base = makeInvalidEarlyAccess("_emscripten_stack_get_base");
-
-var _emscripten_stack_get_end = makeInvalidEarlyAccess("_emscripten_stack_get_end");
 
 var __emscripten_stack_restore = makeInvalidEarlyAccess("__emscripten_stack_restore");
 
@@ -2247,13 +2229,13 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports["fflush"] != "undefined", "missing Wasm export: fflush");
   assert(typeof wasmExports["malloc"] != "undefined", "missing Wasm export: malloc");
   assert(typeof wasmExports["strerror"] != "undefined", "missing Wasm export: strerror");
+  assert(typeof wasmExports["emscripten_stack_get_end"] != "undefined", "missing Wasm export: emscripten_stack_get_end");
+  assert(typeof wasmExports["emscripten_stack_get_base"] != "undefined", "missing Wasm export: emscripten_stack_get_base");
   assert(typeof wasmExports["sbrk"] != "undefined", "missing Wasm export: sbrk");
   assert(typeof wasmExports["free"] != "undefined", "missing Wasm export: free");
   assert(typeof wasmExports["emscripten_get_sbrk_ptr"] != "undefined", "missing Wasm export: emscripten_get_sbrk_ptr");
   assert(typeof wasmExports["emscripten_stack_init"] != "undefined", "missing Wasm export: emscripten_stack_init");
   assert(typeof wasmExports["emscripten_stack_get_free"] != "undefined", "missing Wasm export: emscripten_stack_get_free");
-  assert(typeof wasmExports["emscripten_stack_get_base"] != "undefined", "missing Wasm export: emscripten_stack_get_base");
-  assert(typeof wasmExports["emscripten_stack_get_end"] != "undefined", "missing Wasm export: emscripten_stack_get_end");
   assert(typeof wasmExports["_emscripten_stack_restore"] != "undefined", "missing Wasm export: _emscripten_stack_restore");
   assert(typeof wasmExports["_emscripten_stack_alloc"] != "undefined", "missing Wasm export: _emscripten_stack_alloc");
   assert(typeof wasmExports["emscripten_stack_get_current"] != "undefined", "missing Wasm export: emscripten_stack_get_current");
@@ -2290,13 +2272,13 @@ function assignWasmExports(wasmExports) {
   _fflush = createExportWrapper("fflush", 1);
   _malloc = Module["_malloc"] = createExportWrapper("malloc", 1);
   _strerror = createExportWrapper("strerror", 1);
+  _emscripten_stack_get_end = wasmExports["emscripten_stack_get_end"];
+  _emscripten_stack_get_base = wasmExports["emscripten_stack_get_base"];
   _sbrk = createExportWrapper("sbrk", 1);
   _free = Module["_free"] = createExportWrapper("free", 1);
   _emscripten_get_sbrk_ptr = wasmExports["emscripten_get_sbrk_ptr"];
   _emscripten_stack_init = wasmExports["emscripten_stack_init"];
   _emscripten_stack_get_free = wasmExports["emscripten_stack_get_free"];
-  _emscripten_stack_get_base = wasmExports["emscripten_stack_get_base"];
-  _emscripten_stack_get_end = wasmExports["emscripten_stack_get_end"];
   __emscripten_stack_restore = wasmExports["_emscripten_stack_restore"];
   __emscripten_stack_alloc = wasmExports["_emscripten_stack_alloc"];
   _emscripten_stack_get_current = wasmExports["emscripten_stack_get_current"];
