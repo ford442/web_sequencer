@@ -136,6 +136,8 @@ export interface AllDrumParams {
 
 export type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 
+export type ReverbType = 'room' | 'plate' | 'hall';
+
 export interface PhonemeData {
   id: string;
   symbol: string; // ARPABET symbol like 'HH', 'EH', 'LL', 'OW'
@@ -222,6 +224,7 @@ export interface AudioEngine {
     setMasterVolume: (volume: number) => void;
     setMasterSaturation: (amount: number) => void;
     setGlobalPan: (pan: number) => void;
+    setReverbType: (type: ReverbType) => void;
     detectSamplePitch?: (buffer: AudioBuffer) => Promise<unknown>;
     processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
     processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
