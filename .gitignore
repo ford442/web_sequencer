@@ -22,6 +22,10 @@ public/oscillators.wasm
 public/hyphon_native.wasm
 public/hyphon_native.js
 
+# Pyodide runtime (large — download separately)
+public/pyodide.asm.wasm
+public/pyodide.js
+
 # JC303 WASM build artifacts (keep source, exclude builds)
 jc303_wasm/wasm/build/
 jc303_wasm/wasm/build_omp/
@@ -30,6 +34,9 @@ public/jc303.js
 public/jc303.wasm
 public/jc303.worker.js
 public/jc303-web.js
+public/jc303-single*
+public/jc303-threaded*
+public/jc303-worklet*
 
 # Generated WASM
 src/wasm/
