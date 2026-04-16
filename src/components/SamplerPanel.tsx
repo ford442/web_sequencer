@@ -640,7 +640,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             </div>
 
             {/* --- SCROLLABLE CONTENT --- */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700">
+            <div
+                id="sampler-bank-panel"
+                role="tabpanel"
+                aria-labelledby={`sampler-bank-tab-${activeBankIdx}`}
+                className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700"
+            >
 
                 {/* 1. Waveform Visualization */}
                 <WaveformDisplay
