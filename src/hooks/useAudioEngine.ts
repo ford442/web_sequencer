@@ -288,6 +288,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     filterResonance?: number,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
+                    formantShift?: number,
                     vibratoDepth?: number,
                     reverbSend?: number,
                     drive?: number,
@@ -373,8 +374,10 @@ export const useAudioEngine = (pyodide: unknown) => {
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
-                            if (noteParams?.timbre !== undefined) {
-                                const baseShift = params.formantShift || 0;
+                            const baseShift = params.formantShift || 0;
+                            if (noteParams?.formantShift !== undefined) {
+                                voice.setFormantShift(baseShift + noteParams.formantShift, triggerTime);
+                            } else if (noteParams?.timbre !== undefined) {
                                 const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
                                 voice.setFormantShift(baseShift + mod, triggerTime);
                             } else if (params.formantShift !== undefined) {
