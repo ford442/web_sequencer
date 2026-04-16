@@ -23,6 +23,7 @@ interface NoteSelectorProps {
     currentReverse?: boolean;
     currentRetrigger?: number;
     currentFreeze?: number;
+    currentFormantShift?: number;
     currentFilterCutoff?: number;
     currentFilterResonance?: number;
     currentEnvMod?: number;
@@ -32,12 +33,12 @@ interface NoteSelectorProps {
     currentDrive?: number;
     currentCharacterMorph?: number;
     currentReverbSend?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend', value: number | boolean) => void;
+    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0, currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, onPropertyChange
+    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0, currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];

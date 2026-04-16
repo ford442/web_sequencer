@@ -51,7 +51,7 @@
 ## 🧠 Innovation Lab (The "Dream" Log)
 * [x] **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time. (Implemented in Sampler and RubberBandProcessor via a 100ms looping Hann window!)
 * [x] **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A. (Implemented via automation track logic in `useStepHandler.ts` and `App.tsx`!)
-* **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
+* [x] **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
 * [x] **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes. (Implemented via global Lyric Track lane and `sliceIndex` auto-mapping!)
@@ -82,6 +82,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-06-25] - Implemented Step-Sequenced Formant Shifts: Added `formantShift` parameter to `Note` interface and `NoteSelector` UI. Wired it through `useAudioEngine` and `useStepHandler` to allow per-step overrides of the global Formant Shift parameter, fulfilling the "Step-Sequenced Formant Shifts" Innovation Lab idea.
 * [2026-06-24] - Implemented Real-time Convolution Reverb for Vocal Spaces: Added `ReverbType` ('room', 'plate', 'hall') to `types.ts` and updated `useAudioEngine.ts` to dynamically generate and swap the convolution impulse response based on the selected type using `createReverbImpulseResponse`. Added a dropdown selector to `App.tsx` next to the Master Saturation control to allow global reverb type switching.
 * [2026-06-23] - Implemented Advanced Slice Tuning: Added an auto-slice sensitivity slider to the `WaveformDisplay` component. Plumbed the sensitivity state through `SamplerPanel` down to `PhonemeAligner.detectSegmentBoundaries` via a new `thresholdMultiplier` parameter, allowing users to fine-tune transient detection for different sample types.
 * [2026-06-22] - Implemented Auto-Slice by Transients: Added an "AUTO-SLICE" button to the `WaveformDisplay` component that uses energy-based peak detection in `PhonemeAligner.ts` to automatically detect drum hits and transients and populate custom slice markers.
