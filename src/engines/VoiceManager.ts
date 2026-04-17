@@ -13,6 +13,7 @@ export class Voice {
     private wetGain: GainNode;
     private delay: DelayNode;
     private delayGain: GainNode;
+    private panner: StereoPannerNode;
 
     // State
     isActive: boolean = false;
@@ -39,6 +40,8 @@ export class Voice {
         this.delay = context.createDelay();
         this.delayGain = context.createGain();
 
+        this.panner = context.createStereoPanner();
+
         // Connect permanent graph
         // Source -> Filter (connected in play)
         this.filter.connect(this.gain);
@@ -49,8 +52,9 @@ export class Voice {
         this.delayGain.connect(this.delay);
         this.delay.connect(this.wetGain);
 
-        this.dryGain.connect(destination);
-        this.wetGain.connect(destination);
+        this.dryGain.connect(this.panner);
+        this.wetGain.connect(this.panner);
+        this.panner.connect(destination);
 
         // Initial silence
         this.gain.gain.value = 0;
@@ -58,6 +62,9 @@ export class Voice {
 
     // New method for starting a note (Attack + Sustain) without scheduling release
     startNote(params: SynthParams, note: string, time: number, slideFromFreq?: number) {
+        if (params.pan !== undefined) {
+            this.panner.pan.setValueAtTime(params.pan, time);
+        }
         // Clear cleanup
         if (this.cleanupTimer) {
             clearTimeout(this.cleanupTimer);

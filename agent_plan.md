@@ -55,11 +55,11 @@
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
 * [x] **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes. (Implemented via global Lyric Track lane and `sliceIndex` auto-mapping!)
-* **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
+* [x] **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * [x] **Idea:** "Per-Step Reverse" - Allow reversing the TTS sample on a per-step basis for creative rhythmic effects. (Implemented in Sampler phoneme slicing!)
 * [x] **Idea:** "Dynamic Phoneme Pitch Bends" - Allow drawing pitch bend automation within a single phoneme slice (e.g. going up a fifth on a single vowel). (Implemented as Slide/Glide property!)
-* **Idea:** "Text-to-Drumkit" - Auto-generate a drum kit from a TTS phrase by mapping short transient consonants (t, k, p) to hats/snares and vowels to kicks/toms.
+* [x] **Idea:** "Text-to-Drumkit" - Auto-generate a drum kit from a TTS phrase by mapping short transient consonants (t, k, p) to hats/snares and vowels to kicks/toms.
 * [x] **Idea:** "Vocal Envelope Shaper" - Add granular attack/decay ADSR shaping explicitly for TTS syllables to create sharp plucks or smooth pads from any word. (Implemented in ExpressiveVoiceProcessor and exposed to SamplerPanel!)
 * [x] **Idea:** "Dynamic Tremolo" - Expose Tremolo Rate and Depth to UI to pulse vocals. (Implemented!)
 * [x] **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds. (Implemented in RubberBandProcessor and exposed to SamplerPanel!)
@@ -76,7 +76,7 @@
 * [x] **Idea:** "Auto-Slice by Transients" - Use energy-based analysis to automatically detect and place slice markers at drum hits or clear transients when a custom sample is loaded. (Implemented via `AUTO-SLICE` button logic in `WaveformDisplay` and `SamplerPanel`!)
 * **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
 * [x] **Idea:** "Real-time Convolution Reverb for Vocal Spaces" - Enhance the dynamic reverb by allowing users to select impulse response types. (Implemented!)
-* **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
+* [x] **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
 * [x] **Idea:** "Advanced Slice Tuning" - Allow users to fine-tune slice sensitivity and adjust the threshold parameters for Auto-Slice. (Implemented in `SamplerPanel` and `WaveformDisplay`!)
 
 ---
@@ -130,3 +130,4 @@
 * [2026-05-29] - Implemented Phoneme-Aware Time Stretching DSP in RubberBandProcessor, enabling dynamic vowel stretching during playback.
 * [2026-05-29] - Implemented Melodic Lyric Mode: Added `sliceIndex` to Note data, allowing independent pitch control and slice triggering for "Singing" TTS. Updated LyricMapper to preserve pitch.
 * [2026-05-30] - Refactored Sequencer UI: Extracted `Sequencer`, `SequencerRow`, `SvgStep` into dedicated components, removed legacy code, and centralized sequencer constants.
+## 2026-06-26 - Implemented AI Auto-Mix Assistant: Added a deterministic heuristic system triggered via the '✨ AUTO-MIX' button in the master utilities UI. The assistant automatically sets levels and spreads panning across Synth A, Synth B, TB-303 Bass, Drum Kits, and 8-channel Sampler tracks. Connected StereoPannerNodes natively into Open303Manager, VoiceManager, and AudioPlayback to process 'pan' properly on the audio thread.

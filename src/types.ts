@@ -27,6 +27,7 @@ export interface SynthParams {
   release: number; // seconds
   length: number; // seconds (gate time)
   volume: number; // 0-1
+  pan?: number; // Stereo pan (-1 to 1)
   delayTime: number; // seconds
   delayFeedback: number; // 0-1
   delayMix: number; // 0-1 (wet/dry)
@@ -39,6 +40,7 @@ export interface KickParams {
   decay: number;
   tone: number;
   volume: number;
+  pan?: number;
 }
 
 export interface SnareParams {
@@ -46,12 +48,14 @@ export interface SnareParams {
   tone: number;
   noise: number;
   volume: number;
+  pan?: number;
 }
 
 export interface HatParams {
   pitch: number;
   decay: number;
   volume: number;
+  pan?: number;
 }
 
 export interface SamplerBankParams {
@@ -125,6 +129,7 @@ export interface Bass2Params {
   envMod: number;        // 0-1 (envelope modulation)
   volume: number;        // 0-1
   pitch: number;         // Semitones (-24 to +24)
+  pan?: number;          // Stereo pan (-1 to 1)
 }
 
 export interface AllDrumParams {

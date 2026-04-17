@@ -132,7 +132,7 @@ export class Open303Manager {
     /**
      * Apply parameters to bass1 (used by partB)
      */
-    applyBass1Params(params: { filterCutoff: number; filterResonance: number; filterMode?: number; decay: number; volume: number }, waveform: 'saw' | 'sqr'): void {
+    applyBass1Params(params: { filterCutoff: number; filterResonance: number; filterMode?: number; decay: number; volume: number; pan?: number }, waveform: 'saw' | 'sqr'): void {
         if (!this.bass1Ready || !this.bass1) return;
 
         this.bass1.setWaveform(waveform === 'sqr' ? 1.0 : 0.0);
@@ -141,6 +141,10 @@ export class Open303Manager {
         this.bass1.setFilterMode(Math.max(0, Math.min(1, params.filterMode ?? 0)));
         this.bass1.setDecay(Math.max(0, Math.min(1, params.decay)));
         this.bass1.setVolume(params.volume);
+
+        if (params.pan !== undefined) {
+            this.setBass1Pan(params.pan);
+        }
     }
 
     /**
@@ -157,6 +161,10 @@ export class Open303Manager {
         this.bass2.setAccent(params.accent);
         this.bass2.setEnvMod(params.envMod);
         this.bass2.setVolume(params.volume);
+
+        if (params.pan !== undefined) {
+            this.setBass2Pan(params.pan);
+        }
     }
 
     /**
