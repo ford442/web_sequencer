@@ -292,7 +292,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     reverbSend?: number,
                     drive?: number,
                     characterMorph?: number,
-                    breathIntensity?: number
+                    breathIntensity?: number,
+                    formantShift?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -650,7 +651,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     reverbSend?: number,
                     drive?: number,
                     characterMorph?: number,
-                    breathIntensity?: number
+                    breathIntensity?: number,
+                    formantShift?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices

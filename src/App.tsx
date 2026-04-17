@@ -305,6 +305,47 @@ export const App: React.FC = () => {
         }
     }, [audioEngine]);
 
+    const handleAutoMix = useCallback(() => {
+        // Part 1: Auto-Panning
+        updateSynthA({ pan: -0.3 });
+        updateSynthB({ pan: 0.3 });
+        updateBass2({ pan: 0 });
+        updateKick({ pan: 0 });
+        updateSnare({ pan: 0 });
+        updateClosedHat({ pan: 0.15 });
+        updateOpenHat({ pan: 0.25 });
+        setSampler(prev => {
+            const next = [...prev];
+            for (let i = 0; i < 8; i++) {
+                next[i] = { ...next[i], pan: (i % 2 === 0 ? -0.4 : 0.4) + (i * 0.05) };
+            }
+            return next;
+        });
+
+        // Part 2: Auto-Leveling (Heuristics)
+        updateSynthA({ volume: 0.65 });
+        updateSynthB({ volume: 0.65 });
+        updateBass2({ volume: 0.85 }); // TB-303
+        updateKick({ volume: 0.95 });
+        updateSnare({ volume: 0.85 });
+        updateClosedHat({ volume: 0.6 });
+        updateOpenHat({ volume: 0.65 });
+        setSampler(prev => {
+            const next = [...prev];
+            for (let i = 0; i < 8; i++) {
+                next[i] = { ...next[i], volume: 0.7 };
+            }
+            return next;
+        });
+
+        setMasterVolume(0.85);
+        if (audioEngine) {
+            audioEngine.setMasterVolume(0.85);
+        }
+
+        console.log("Auto-Mix Assistant applied deterministic mixing parameters.");
+    }, [updateSynthA, updateSynthB, updateBass2, updateKick, updateSnare, updateClosedHat, updateOpenHat, audioEngine]);
+
     const tempoHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const tempoRef = useRef(tempo);
     useEffect(() => { tempoRef.current = tempo; }, [tempo]);
@@ -1709,6 +1750,16 @@ export const App: React.FC = () => {
 
                 {/* Right: Utility Toggles */}
                 <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
+                        <button
+                            type="button"
+                            onClick={handleAutoMix}
+                            className="bg-zinc-800 text-xs text-yellow-400 font-bold font-orbitron rounded px-2 py-0.5 border border-yellow-500/50 hover:bg-yellow-900/50 hover:border-yellow-400 active:scale-95 transition-all shadow-[0_0_5px_rgba(250,204,21,0.2)]"
+                            title="Auto-Mix Assistant (AI Panning & Leveling)"
+                        >
+                            ✨ AUTO-MIX
+                        </button>
+                    </div>
                     <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
                         <select
                             value={reverbType} onChange={handleReverbType}

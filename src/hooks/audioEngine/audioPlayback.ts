@@ -204,7 +204,15 @@ export function createPlayDrum(
                 gain.gain.exponentialRampToValueAtTime(0.001, now + kickParams.decay);
 
                 osc.connect(gain);
-                gain.connect(refs.masterGainRef.current);
+
+                let finalDest: AudioNode = gain;
+                if (kickParams.pan !== undefined && kickParams.pan !== 0) {
+                    const panner = context.createStereoPanner();
+                    panner.pan.value = kickParams.pan;
+                    finalDest.connect(panner);
+                    finalDest = panner;
+                }
+                finalDest.connect(refs.masterGainRef.current);
 
                 osc.start(now);
                 osc.stop(now + kickParams.decay);
@@ -216,6 +224,14 @@ export function createPlayDrum(
                 osc.frequency.setValueAtTime(250, now);
                 oscGain.gain.setValueAtTime(snareParams.tone * snareParams.volume, now);
                 oscGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
+
+                let finalDestOsc: AudioNode = oscGain;
+                if (snareParams.pan !== undefined && snareParams.pan !== 0) {
+                    const panner = context.createStereoPanner();
+                    panner.pan.value = snareParams.pan;
+                    finalDestOsc.connect(panner);
+                    finalDestOsc = panner;
+                }
 
                 if (refs.noiseBufferRef.current) {
                     const noise = context.createBufferSource();
@@ -229,13 +245,20 @@ export function createPlayDrum(
 
                     noise.connect(noiseFilter);
                     noiseFilter.connect(noiseGain);
-                    noiseGain.connect(refs.masterGainRef.current);
+                    let finalDestNoise: AudioNode = noiseGain;
+                    if (snareParams.pan !== undefined && snareParams.pan !== 0) {
+                        const panner = context.createStereoPanner();
+                        panner.pan.value = snareParams.pan;
+                        finalDestNoise.connect(panner);
+                        finalDestNoise = panner;
+                    }
+                    finalDestNoise.connect(refs.masterGainRef.current);
                     noise.start(now);
                     noise.stop(now + snareParams.decay);
                 }
 
                 osc.connect(oscGain);
-                oscGain.connect(refs.masterGainRef.current);
+                finalDestOsc.connect(refs.masterGainRef.current);
                 osc.start(now);
                 osc.stop(now + snareParams.decay);
             } else {
@@ -252,7 +275,14 @@ export function createPlayDrum(
 
                     src.connect(filter);
                     filter.connect(gain);
-                    gain.connect(refs.masterGainRef.current);
+                    let finalDest: AudioNode = gain;
+                    if (hatParams.pan !== undefined && hatParams.pan !== 0) {
+                        const panner = context.createStereoPanner();
+                        panner.pan.value = hatParams.pan;
+                        finalDest.connect(panner);
+                        finalDest = panner;
+                    }
+                    finalDest.connect(refs.masterGainRef.current);
                     src.start(now);
                     src.stop(now + hatParams.decay);
                 }
