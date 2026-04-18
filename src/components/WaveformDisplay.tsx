@@ -19,13 +19,14 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
     // Custom Slicing State
     const [dragState, setDragState] = React.useState<{ index: number, isStart: boolean } | null>(null);
     const [hoverState, setHoverState] = React.useState<{ index: number, isStart: boolean } | null>(null);
+    const [focusedSliceIndex, setFocusedSliceIndex] = React.useState<number>(0);
     // State for drag interactions
     const isDraggingRef = useRef(false);
     const draggedMarkerIndexRef = useRef<number>(-1);
 
     // Keep latest props in ref to access them inside the imperative callback without stale closures
-    const propsRef = useRef({ buffer, alignment, onAlignmentChange });
-    useEffect(() => { propsRef.current = { buffer, alignment, onAlignmentChange }; }, [buffer, alignment, onAlignmentChange]);
+    const propsRef = useRef<{ buffer: AudioBuffer | null, alignment: AlignmentResult | null, onAlignmentChange?: (alignment: AlignmentResult) => void, focusedSliceIndex: number }>({ buffer, alignment, onAlignmentChange, focusedSliceIndex });
+    useEffect(() => { propsRef.current = { buffer, alignment, onAlignmentChange, focusedSliceIndex }; }, [buffer, alignment, onAlignmentChange, focusedSliceIndex]);
 
     useEffect(() => {
         const draw = () => {
@@ -36,7 +37,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
             const ctx = canvas.getContext('2d');
             if (!ctx) return;
 
-            const { buffer, alignment } = propsRef.current;
+            const { buffer, alignment, focusedSliceIndex } = propsRef.current;
             const activeSlice = activeSliceRef.current;
 
             // Handle High DPI
@@ -110,6 +111,22 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
                     ctx.strokeRect(startX, 0, endX - startX, height);
                 }
 
+                // Keyboard Focus Highlight
+                if (document.activeElement === container && focusedSliceIndex >= 0 && focusedSliceIndex < alignment.phonemes.length) {
+                    const p = alignment.phonemes[focusedSliceIndex];
+                    const startX = (p.start / duration) * width;
+                    const endX = (p.end / duration) * width;
+
+                    ctx.fillStyle = 'rgba(129, 140, 248, 0.2)'; // indigo-400 with opacity
+                    ctx.fillRect(startX, 0, endX - startX, height);
+
+                    ctx.strokeStyle = '#818cf8'; // indigo-400
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeRect(startX, 2, endX - startX, height - 4);
+                    ctx.setLineDash([]);
+                }
+
                 // Draw Lines & Text
                 ctx.textAlign = 'left';
                 ctx.font = '9px monospace';
@@ -170,8 +187,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
         const handleResize = () => requestAnimationFrame(draw);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-
-    }, [buffer, alignment, sliceHighlightRef, hoverState, dragState]);
+    }, [buffer, alignment, sliceHighlightRef, hoverState, dragState, focusedSliceIndex]);
 
     // Custom Slicing Event Handlers
     const getTimeFromEvent = (e: React.MouseEvent | MouseEvent): number | null => {
@@ -270,6 +286,113 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
     const handleMouseLeave = () => {
         setHoverState(null);
         setDragState(null);
+    };
+
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (!buffer || !alignment || !onAlignmentChange) return;
+
+        const numSlices = alignment.phonemes.length;
+        if (numSlices === 0) return;
+
+        let currentIndex = focusedSliceIndex;
+        if (currentIndex >= numSlices) {
+            currentIndex = numSlices - 1;
+            setFocusedSliceIndex(currentIndex);
+        }
+
+        const moveAmount = e.shiftKey ? 0.05 : 0.005; // Use larger steps with shift
+
+        switch (e.key) {
+            case 'ArrowLeft': {
+                e.preventDefault();
+                if (e.ctrlKey || e.metaKey) {
+                    // Navigate slices
+                    setFocusedSliceIndex(Math.max(0, currentIndex - 1));
+                } else {
+                    // Move slice start backward
+                    if (currentIndex > 0) {
+                        const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+                        const newTime = Math.max(0, newAlignment.phonemes[currentIndex].start - moveAmount);
+                        // Don't cross previous marker
+                        if (currentIndex > 0 && newTime <= newAlignment.phonemes[currentIndex - 1].start) {
+                            return;
+                        }
+                        newAlignment.phonemes[currentIndex].start = newTime;
+                        newAlignment.phonemes[currentIndex - 1].end = newTime;
+                        onAlignmentChange(newAlignment);
+                    }
+                }
+                break;
+            }
+            case 'ArrowRight': {
+                e.preventDefault();
+                if (e.ctrlKey || e.metaKey) {
+                    // Navigate slices
+                    setFocusedSliceIndex(Math.min(numSlices - 1, currentIndex + 1));
+                } else {
+                    // Move slice start forward
+                    if (currentIndex > 0) {
+                        const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+                        const newTime = Math.min(buffer.duration, newAlignment.phonemes[currentIndex].start + moveAmount);
+                        // Don't cross next marker
+                        if (newTime >= newAlignment.phonemes[currentIndex].end) {
+                            return;
+                        }
+                        newAlignment.phonemes[currentIndex].start = newTime;
+                        newAlignment.phonemes[currentIndex - 1].end = newTime;
+                        onAlignmentChange(newAlignment);
+                    }
+                }
+                break;
+            }
+            case 'Enter':
+            case ' ': {
+                e.preventDefault();
+                // Add new slice in the middle of current
+                const currentSlice = alignment.phonemes[currentIndex];
+                const midPoint = currentSlice.start + (currentSlice.end - currentSlice.start) / 2;
+
+                const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+
+                // Adjust current slice end
+                newAlignment.phonemes[currentIndex].end = midPoint;
+
+                // Insert new slice
+                newAlignment.phonemes.splice(currentIndex + 1, 0, {
+                    phoneme: `SLICE ${currentIndex + 2}`,
+                    start: midPoint,
+                    end: currentSlice.end,
+                    isVowel: true
+                });
+
+                onAlignmentChange(newAlignment);
+                setFocusedSliceIndex(currentIndex + 1);
+                break;
+            }
+            case 'Backspace':
+            case 'Delete': {
+                e.preventDefault();
+                if (numSlices <= 1) return; // Don't delete the last slice
+
+                const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+
+                if (currentIndex === 0) {
+                    // Merge into next
+                    newAlignment.phonemes[1].start = newAlignment.phonemes[0].start;
+                    newAlignment.phonemes.splice(0, 1);
+                    setFocusedSliceIndex(0);
+                } else {
+                    // Merge into previous
+                    newAlignment.phonemes[currentIndex - 1].end = newAlignment.phonemes[currentIndex].end;
+                    newAlignment.phonemes.splice(currentIndex, 1);
+                    setFocusedSliceIndex(currentIndex - 1);
+                }
+
+                onAlignmentChange(newAlignment);
+                break;
+            }
+        }
     };
 
     const handleDoubleClick = (e: React.MouseEvent) => {
@@ -521,6 +644,9 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseLeave}
                 onDoubleClick={handleDoubleClick}
+                onKeyDown={handleKeyDown}
+                tabIndex={0}
+                aria-description="Use Left/Right arrows to move slices, Ctrl+Left/Right to select slice, Space/Enter to split slice, Delete to remove."
                 style={{ cursor: hoverState ? 'col-resize' : 'default' }}
             >
                 <canvas ref={canvasRef} className="w-full h-full block" />

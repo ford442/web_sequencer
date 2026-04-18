@@ -647,7 +647,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700"
             >
 
-                {/* 1. Waveform Visualization */}
+                {/* 1. Waveform Visualization / Custom Sample Slicing UI */}
+                <div className="flex justify-between items-center px-1 mb-1">
+                    <span className="text-[10px] font-orbitron font-bold text-gray-400">CUSTOM SAMPLE SLICING UI</span>
+                </div>
                 <WaveformDisplay
                     buffer={sampleBuffer || null}
                     alignment={currentAlignment}
