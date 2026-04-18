@@ -72,7 +72,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onCom
           >
             HYPHON
           </h1>
-          <p className="text-gray-400 font-mono text-sm tracking-wide">INITIALIZING AUDIO ENGINE</p>
+          <p id="loading-desc" className="text-gray-400 font-mono text-sm tracking-wide">INITIALIZING AUDIO ENGINE</p>
         </div>
 
         {/* Progress Bar Container */}

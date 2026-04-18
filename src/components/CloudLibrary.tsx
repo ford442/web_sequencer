@@ -198,12 +198,13 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
                 className="w-full max-w-2xl z-10 bg-[#0f1215] border border-cyan-900/50 rounded-xl shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col max-h-[80vh]"
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby="cloud-library-title"
+                aria-labelledby="cloud-library-title" aria-describedby="cloud-library-desc"
                 tabIndex={-1}
             >
 
                 {/* Header Tabs */}
                 <h2 id="cloud-library-title" className="sr-only">Cloud Library</h2>
+                <p id="cloud-library-desc" className="sr-only">Browse, upload, and download songs, patterns, and sample banks from the cloud.</p>
                 <div
                     className="flex border-b border-gray-800 bg-gray-900/50"
                     role="tablist"

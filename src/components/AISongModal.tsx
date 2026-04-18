@@ -664,7 +664,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       <div 
         role="dialog"
         aria-modal="true"
-        aria-labelledby="ai-song-modal-title"
+        aria-labelledby="ai-song-modal-title" aria-describedby="ai-song-modal-desc"
         className="relative z-10 bg-[#0f1115] border border-emerald-500/30 rounded-xl shadow-[0_0_60px_rgba(16,185,129,0.2)] w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -679,7 +679,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
             </div>
             <div>
               <h2 id="ai-song-modal-title" className="text-base sm:text-lg font-bold text-white">Import AI Song</h2>
-              <p className="text-[10px] sm:text-xs text-gray-400 hidden sm:block">Import songs from Claude, Gemini, Jules, Copilot, etc.</p>
+              <p id="ai-song-modal-desc" className="text-[10px] sm:text-xs text-gray-400 hidden sm:block">Import songs from Claude, Gemini, Jules, Copilot, etc.</p>
             </div>
           </div>
           <Tooltip text="Close (Esc)" position="bottom">
