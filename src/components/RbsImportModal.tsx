@@ -390,7 +390,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
         onClick={onClose}
         aria-hidden="true"
       />
-      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" aria-describedby="rbs-import-desc" className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
@@ -399,7 +399,7 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
             </div>
             <div>
               <h2 id="rbs-import-title" className="text-lg font-bold text-white">Import ReBirth RB-338 File</h2>
-              <p className="text-xs text-gray-400">Import .rbs pattern files from ReBirth RB-338</p>
+              <p id="rbs-import-desc" className="text-xs text-gray-400">Import .rbs pattern files from ReBirth RB-338</p>
             </div>
           </div>
           <button

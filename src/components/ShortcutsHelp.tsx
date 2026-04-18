@@ -59,7 +59,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = ({ onClose }) => {
                 className="w-full max-w-2xl z-10 bg-[#0f1215] border border-cyan-900/50 rounded-xl shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col max-h-[80vh]"
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby="shortcuts-title"
+                aria-labelledby="shortcuts-title" aria-describedby="shortcuts-desc"
                 tabIndex={-1}
             >
                 {/* Header */}
@@ -78,7 +78,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = ({ onClose }) => {
                 </div>
 
                 {/* Content */}
-                <div className="p-6 overflow-y-auto custom-scrollbar">
+                <div id="shortcuts-desc" className="p-6 overflow-y-auto custom-scrollbar" aria-label="List of available keyboard shortcuts grouped by section">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {sections.map((section) => (
                             <div key={section.title} className="bg-gray-800/20 rounded-lg p-4 border border-gray-800">
