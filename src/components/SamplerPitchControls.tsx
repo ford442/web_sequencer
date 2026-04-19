@@ -264,17 +264,35 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
           </div>
 
           {/* Auto Follow Checkbox */}
-          <div className="flex items-center gap-2 mt-1">
-            <input
+          <div
+            className="flex items-center gap-2 mt-1 cursor-pointer"
+            onClick={() => onChange('autoFollow', !values.autoFollow)}
+          >
+            <button
+              type="button"
+              role="switch"
+              aria-checked={values.autoFollow}
               id={autoFollowId}
-              type="checkbox"
-              checked={values.autoFollow}
-              onChange={(e) => onChange('autoFollow', e.target.checked)}
-              className="w-3 h-3 rounded border-gray-600 text-purple-600 focus:ring-purple-500 bg-gray-800 cursor-pointer"
-            />
-            <label htmlFor={autoFollowId} className="text-[10px] text-gray-300 cursor-pointer hover:text-white transition-colors leading-none select-none">
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('autoFollow', !values.autoFollow);
+              }}
+              className={`relative inline-flex h-3 w-6 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
+                values.autoFollow ? 'bg-purple-600' : 'bg-gray-800'
+              }`}
+              aria-labelledby={`${autoFollowId}-label`}
+            >
+              <span className="sr-only">Lock to Sequence</span>
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none inline-block h-2 w-2 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  values.autoFollow ? 'translate-x-3' : 'translate-x-0'
+                }`}
+              />
+            </button>
+            <span id={`${autoFollowId}-label`} className="text-[10px] text-gray-300 hover:text-white transition-colors leading-none select-none">
               Lock to Seq
-            </label>
+            </span>
           </div>
         </div>
       </div>
