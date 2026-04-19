@@ -744,37 +744,91 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
                 {showOptions && (
                   <div id="import-options-panel" className="p-4 space-y-4 bg-gray-900/30">
                     {/* Expand Steps */}
-                    <label className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">Expand 16 → 32 steps</span>
-                      <input
-                        type="checkbox"
-                        checked={importOptions.expandTo32Steps}
-                        onChange={(e) => updateOption('expandTo32Steps', e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-amber-500 focus:ring-amber-500/50"
-                      />
-                    </label>
+                    <div
+                      className="flex items-center justify-between cursor-pointer"
+                      onClick={() => updateOption('expandTo32Steps', !importOptions.expandTo32Steps)}
+                    >
+                      <span id="expand-label" className="text-sm text-gray-400 select-none">Expand 16 → 32 steps</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={importOptions.expandTo32Steps}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateOption('expandTo32Steps', !importOptions.expandTo32Steps);
+                        }}
+                        aria-labelledby="expand-label"
+                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
+                          importOptions.expandTo32Steps ? 'bg-amber-600' : 'bg-gray-800'
+                        }`}
+                      >
+                        <span className="sr-only">Expand 16 to 32 steps</span>
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            importOptions.expandTo32Steps ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
 
                     {/* Import Swing */}
-                    <label className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">Import swing settings</span>
-                      <input
-                        type="checkbox"
-                        checked={importOptions.importSwing}
-                        onChange={(e) => updateOption('importSwing', e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-amber-500 focus:ring-amber-500/50"
-                      />
-                    </label>
+                    <div
+                      className="flex items-center justify-between cursor-pointer"
+                      onClick={() => updateOption('importSwing', !importOptions.importSwing)}
+                    >
+                      <span id="swing-label" className="text-sm text-gray-400 select-none">Import swing settings</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={importOptions.importSwing}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateOption('importSwing', !importOptions.importSwing);
+                        }}
+                        aria-labelledby="swing-label"
+                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
+                          importOptions.importSwing ? 'bg-amber-600' : 'bg-gray-800'
+                        }`}
+                      >
+                        <span className="sr-only">Import swing settings</span>
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            importOptions.importSwing ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
 
                     {/* Convert PCF */}
-                    <label className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">Convert PCF to automation</span>
-                      <input
-                        type="checkbox"
-                        checked={importOptions.convertPcfToAutomation}
-                        onChange={(e) => updateOption('convertPcfToAutomation', e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-amber-500 focus:ring-amber-500/50"
-                      />
-                    </label>
+                    <div
+                      className="flex items-center justify-between cursor-pointer"
+                      onClick={() => updateOption('convertPcfToAutomation', !importOptions.convertPcfToAutomation)}
+                    >
+                      <span id="pcf-label" className="text-sm text-gray-400 select-none">Convert PCF to automation</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={importOptions.convertPcfToAutomation}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateOption('convertPcfToAutomation', !importOptions.convertPcfToAutomation);
+                        }}
+                        aria-labelledby="pcf-label"
+                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
+                          importOptions.convertPcfToAutomation ? 'bg-amber-600' : 'bg-gray-800'
+                        }`}
+                      >
+                        <span className="sr-only">Convert PCF to automation</span>
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            importOptions.convertPcfToAutomation ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
 
                     {/* Drum Kit */}
                     <div className="flex items-center justify-between">

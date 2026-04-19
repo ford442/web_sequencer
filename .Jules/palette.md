@@ -13,3 +13,7 @@
 ## 2025-04-18 - Fix orphaned aria-describedby references
 **Learning:** When using `aria-describedby` on a modal dialog (or any element), the `id` it points to must actually exist in the DOM. If the ID is missing (orphaned), screen readers will silently fail to read the crucial contextual information intended for the user (e.g., loading states, instructions).
 **Action:** Always verify that the string provided to `aria-describedby` perfectly matches an `id` attribute on the element containing the descriptive text.
+
+## 2025-04-19 - Replace native checkboxes with ARIA switches for toggle actions
+**Learning:** Native `<input type="checkbox">` elements, when used for immediate state toggles (like "Lock to Seq" or import configuration options), can feel clunky and lack the visual affordance of a modern switch. More importantly, when visually hidden or improperly styled, they can lose native keyboard focus indicators, impairing accessibility.
+**Action:** Always implement custom UI toggle switches using `<button type="button" role="switch" aria-checked={state}>` accompanied by explicit Tailwind `focus-visible` classes (e.g., `focus-visible:ring-2`) and clear `aria-labelledby` linking to their labels. This provides both a polished look and robust screen reader/keyboard support.
