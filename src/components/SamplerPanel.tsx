@@ -998,7 +998,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                 <DrawableLFO
                                     resolution={64}
                                     value={currentParams.customLfoShape || Array(64).fill(0.5)}
-                                    onChange={(newValue: number[]) => updateParamRef.current('customLfoShape', newValue)}
+                                    onChange={(newValue: number[]) => {
+                                        if (onParamChange) onParamChange(activeBankIdx, 'customLfoShape', newValue as any);
+                                        else updateParamRef.current('customLfoShape' as any, newValue as any);
+                                    }}
                                     width={120}
                                     height={40}
                                 />
