@@ -288,6 +288,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     filterResonance?: number,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
+                    customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
                     drive?: number,
@@ -424,6 +425,13 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
                             } else if (params.formantLfoDepth !== undefined) {
                                 voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
+                            }
+                            if (noteParams?.customLfoShape !== undefined) {
+                                voice.setFormantLfoShape(noteParams.customLfoShape);
+                            } else if (params.customLfoShape !== undefined) {
+                                voice.setFormantLfoShape(params.customLfoShape);
+                            } else {
+                                voice.setFormantLfoShape(undefined);
                             }
 
                             // Load buffer
@@ -647,6 +655,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     freeze?: number,
                     filterCutoff?: number,
                     filterResonance?: number,
+                    customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
                     drive?: number,
