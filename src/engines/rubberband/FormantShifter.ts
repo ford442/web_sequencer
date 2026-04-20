@@ -97,6 +97,7 @@ export class FormantShifter {
     private lfoGain: GainNode | null = null;
     private lfoRate: number = 0;
     private lfoDepth: number = 0;
+    private lfoShape: number[] | null = null;
 
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
@@ -165,7 +166,16 @@ export class FormantShifter {
         // Create LFO if createOscillator is available (tests might use mock AudioContext)
         if (typeof this.audioContext.createOscillator === 'function') {
             this.lfo = this.audioContext.createOscillator();
-            this.lfo.type = 'sine';
+            if (this.lfoShape && this.lfoShape.length > 0) {
+                const periodicWave = this.createPeriodicWaveFromShape(this.lfoShape);
+                if (periodicWave) {
+                    this.lfo.setPeriodicWave(periodicWave);
+                } else {
+                    this.lfo.type = 'sine';
+                }
+            } else {
+                this.lfo.type = 'sine';
+            }
             this.lfo.frequency.value = this.lfoRate;
 
             this.lfoGain = this.audioContext.createGain();
@@ -213,6 +223,74 @@ export class FormantShifter {
             const t = time || this.audioContext.currentTime;
             this.lfo.frequency.cancelScheduledValues(t);
             this.lfo.frequency.setValueAtTime(rate, t);
+        }
+    }
+
+    /**
+     * Helper to create a PeriodicWave from a custom LFO shape array using DFT.
+     * @param shape Array of values (-1 to 1) representing the waveform
+     */
+    private createPeriodicWaveFromShape(shape: number[]): PeriodicWave | null {
+        if (!shape || shape.length === 0 || typeof this.audioContext.createPeriodicWave !== 'function') {
+            return null;
+        }
+
+        const N = shape.length;
+        // Need max length of 8192 for createPeriodicWave
+        const maxHarmonics = Math.min(Math.floor(N / 2), 4096);
+        const real = new Float32Array(maxHarmonics + 1);
+        const imag = new Float32Array(maxHarmonics + 1);
+
+        // Discrete Fourier Transform (DFT)
+        // We calculate the fundamental and up to maxHarmonics
+        for (let k = 1; k <= maxHarmonics; k++) {
+            let r = 0;
+            let i = 0;
+            for (let n = 0; n < N; n++) {
+                const angle = (2 * Math.PI * k * n) / N;
+                r += shape[n] * Math.cos(angle);
+                // Note: negative sign because we want to match standard DFT convention,
+                // but createPeriodicWave expects the sine terms to be in `imag` for a standard Fourier series
+                // Web Audio API formulation: x(t) = sum( real[k]*cos(k*w*t) + imag[k]*sin(k*w*t) )
+                i += shape[n] * Math.sin(angle);
+            }
+            real[k] = (2 / N) * r;
+            imag[k] = (2 / N) * i;
+        }
+
+        // DC offset (k=0)
+        let dc = 0;
+        for (let n = 0; n < N; n++) {
+            dc += shape[n];
+        }
+        real[0] = dc / N;
+        imag[0] = 0;
+
+        try {
+            return this.audioContext.createPeriodicWave(real, imag, { disableNormalization: false });
+        } catch (e) {
+            console.error("Failed to create periodic wave:", e);
+            return null;
+        }
+    }
+
+    /**
+     * Set a custom LFO shape.
+     * @param shape Array of values from -1 to 1
+     */
+    setLfoShape(shape: number[] | null): void {
+        this.lfoShape = shape;
+        if (this.lfo) {
+            if (shape && shape.length > 0) {
+                const periodicWave = this.createPeriodicWaveFromShape(shape);
+                if (periodicWave) {
+                    this.lfo.setPeriodicWave(periodicWave);
+                } else {
+                    this.lfo.type = 'sine';
+                }
+            } else {
+                this.lfo.type = 'sine';
+            }
         }
     }
 

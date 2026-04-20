@@ -4,6 +4,7 @@ import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
 import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
+import { DrawableLFO } from './DrawableLFO';
 import { PhonemeAligner } from '../engines/rubberband/PhonemeAligner';
 
 interface SamplerPanelProps {
@@ -189,13 +190,13 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoRate', 'freezeLfoDepth', 'formantLfoRate', 'formantLfoDepth', 'characterMorph', 'attack', 'decay',
+            'freezeLfoRate', 'freezeLfoDepth', 'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
             'sustain', 'release', 'choir', 'glitchChance'
         ] as const;
-        return Object.fromEntries(paramNames.map(p => [p, (v: number) => {
+        return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
             if (onParamChange) onParamChange(activeBankIdx, p, v);
             else updateParamRef.current(p as any, v);
-        }])) as Record<typeof paramNames[number], (v: number) => void>;
+        }])) as Record<typeof paramNames[number], (v: any) => void>;
     }, [activeBankIdx, onParamChange]);
 
     const handleSpeedChange = paramHandlers.playbackSpeed;
@@ -214,6 +215,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleFreezeLfoDepthChange = paramHandlers.freezeLfoDepth;
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
     const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
+    const handleFormantLfoShapeChange = paramHandlers.formantLfoShape;
     const handleCharacterMorphChange = paramHandlers.characterMorph;
     const handleAttackChange = paramHandlers.attack;
     const handleDecayChange = paramHandlers.decay;
@@ -993,6 +995,14 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Frz LFO Depth" value={currentParams.freezeLfoDepth ?? 0} onChange={handleFreezeLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+
+                            <div className="flex flex-col justify-end">
+                                <DrawableLFO
+                                    value={currentParams.formantLfoShape}
+                                    onChange={handleFormantLfoShapeChange}
+                                    label="Fmt LFO Shape"
+                                />
+                            </div>
 
                             {/* Morph Controls */}
                             <div className="flex flex-col items-center justify-start gap-1">

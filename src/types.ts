@@ -84,6 +84,7 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
+  formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)
   characterMorph?: number; // Morph amount between characters (0-1)
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright'; // Target character for morphing
   attack?: number;         // Amplitude envelope attack time (seconds)
@@ -168,6 +169,7 @@ export interface Note {
   formantShift?: number; // Formant shift override (-12 to +12)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
+  formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)
   characterMorph?: number; // Morph amount between characters (0-1)
   filterCutoff?: number; // 0-1, exponentially mapped to Hz
   filterResonance?: number; // 0-1, linearly mapped to Q factor
