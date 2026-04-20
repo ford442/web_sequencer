@@ -70,7 +70,7 @@
 * [x] **Idea:** "Filter Envelope Mod" - Allow the sequence steps to have an envelope mod amount that specifically shapes the filter envelope per step. (Implemented!)
 * [x] **Idea:** "Vocal Formant LFO" - Introduce a Formant LFO with rate and depth controls for dynamic rhythmic Wah-Wah effects on TTS vowels. (Implemented in FormantShifter and SamplerPanel!)
 * [x] **Idea:** "Step-Sequenced Formant LFO" - Allow individual steps to override the global Formant LFO rate and depth for highly articulated rhythmic sequences.
-* **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation.
+* [x] **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented via DrawableLFO and FormantShifter Fourier Transform!)
 * [x] **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide. (Implemented!)
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope overrides in `SingingVoice.ts`!)
 * [x] **Idea:** "Spectral Morphing" - Implement functionality to morph spectrally between two different TTS phonemes or samples over a sequence of steps. (Implemented via FormantShifter Voice Character Morphing and step-sequenced automation!)
@@ -85,6 +85,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-06-26] - Implemented Custom Waveform LFO: Added a new `DrawableLFO` canvas component to `SamplerPanel` allowing users to draw an arbitrary LFO shape. Added a Discrete Fourier Transform (DFT) engine inside `FormantShifter.ts` to convert the normalized shape into a `PeriodicWave` used by the internal Web Audio `OscillatorNode`.
 * [2026-06-25] - Implemented Step-Sequenced Formant Shifts: Added `formantShift` parameter to `Note` interface and `NoteSelector` UI. Wired it through `useAudioEngine` and `useStepHandler` to allow per-step overrides of the global Formant Shift parameter, fulfilling the "Step-Sequenced Formant Shifts" Innovation Lab idea.
 * [2026-06-24] - Implemented Real-time Convolution Reverb for Vocal Spaces: Added `ReverbType` ('room', 'plate', 'hall') to `types.ts` and updated `useAudioEngine.ts` to dynamically generate and swap the convolution impulse response based on the selected type using `createReverbImpulseResponse`. Added a dropdown selector to `App.tsx` next to the Master Saturation control to allow global reverb type switching.
 * [2026-06-23] - Implemented Advanced Slice Tuning: Added an auto-slice sensitivity slider to the `WaveformDisplay` component. Plumbed the sensitivity state through `SamplerPanel` down to `PhonemeAligner.detectSegmentBoundaries` via a new `thresholdMultiplier` parameter, allowing users to fine-tune transient detection for different sample types.

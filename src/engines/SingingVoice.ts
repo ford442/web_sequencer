@@ -146,6 +146,16 @@ export class SingingVoice {
     }
 
     /**
+     * Set custom LFO shape for formant shifting.
+     * @param shape Array of normalized values (0.0 to 1.0)
+     */
+    setFormantLfoShape(shape: number[] | undefined): void {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            this.formantShifter.setCustomLfoShape(shape);
+        }
+    }
+
+    /**
      * Initialize the Rubber Band AudioWorklet processor.
      * Must be called before processing audio.
      * AudioWorklet is now the only supported path - ScriptProcessorNode fallback removed.

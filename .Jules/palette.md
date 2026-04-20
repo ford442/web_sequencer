@@ -17,3 +17,6 @@
 ## 2025-04-19 - Replace native checkboxes with ARIA switches for toggle actions
 **Learning:** Native `<input type="checkbox">` elements, when used for immediate state toggles (like "Lock to Seq" or import configuration options), can feel clunky and lack the visual affordance of a modern switch. More importantly, when visually hidden or improperly styled, they can lose native keyboard focus indicators, impairing accessibility.
 **Action:** Always implement custom UI toggle switches using `<button type="button" role="switch" aria-checked={state}>` accompanied by explicit Tailwind `focus-visible` classes (e.g., `focus-visible:ring-2`) and clear `aria-labelledby` linking to their labels. This provides both a polished look and robust screen reader/keyboard support.
+## $(date +%Y-%m-%d) - Added Title and ARIA labels to Sampler/Harmonizer action buttons
+**Learning:** Icon-only buttons or text-heavy components inside complex modal structures (like Voice Editor and Sampler Panel) often rely on visual context but fail to provide screen-reader accessibility or tooltips for hover interactions, degrading usability.
+**Action:** Always add `aria-label` alongside a matching `title` attribute for icon-only action buttons and quick-presets to ensure both visual hover affordances and screen reader context are available, preventing empty accessibility tree nodes.

@@ -3,6 +3,7 @@ import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
+import { DrawableLFO } from './DrawableLFO';
 import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
 import { PhonemeAligner } from '../engines/rubberband/PhonemeAligner';
 
@@ -993,6 +994,21 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Frz LFO Depth" value={currentParams.freezeLfoDepth ?? 0} onChange={handleFreezeLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+
+                            {/* Custom LFO Shape */}
+                            <div className="flex flex-col items-center justify-start gap-1 col-span-2">
+                                <div className="text-[9px] text-indigo-300 font-bold mb-0.5">CUSTOM LFO SHAPE</div>
+                                <DrawableLFO
+                                    resolution={64}
+                                    value={currentParams.customLfoShape || Array(64).fill(0.5)}
+                                    onChange={(newValue: number[]) => {
+                                        if (onParamChange) onParamChange(activeBankIdx, 'customLfoShape', newValue as any);
+                                        else updateParamRef.current('customLfoShape' as any, newValue as any);
+                                    }}
+                                    width={120}
+                                    height={40}
+                                />
+                            </div>
 
                             {/* Morph Controls */}
                             <div className="flex flex-col items-center justify-start gap-1">
