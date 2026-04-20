@@ -106,15 +106,15 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
 
                 {/* Controls */}
                 <div className="grid grid-cols-4 gap-2 mb-6 font-mono">
-                    <button onClick={() => handleOp('mirrorX')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} title="Mirror the voice pattern horizontally">Mirror X</button>
-                    <button onClick={() => handleOp('mirrorY')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} title="Mirror the voice pattern vertically">Mirror Y</button>
-                    <button onClick={() => handleOp('invertSign')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} title="Invert the phase of the voice pattern">Invert</button>
-                    <button onClick={() => handleOp('randomShift')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} title="Randomly shift voice characteristics">Rand Shift</button>
+                    <button onClick={() => handleOp('mirrorX')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} aria-label="Mirror the voice pattern horizontally" title="Mirror the voice pattern horizontally">Mirror X</button>
+                    <button onClick={() => handleOp('mirrorY')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} aria-label="Mirror the voice pattern vertically" title="Mirror the voice pattern vertically">Mirror Y</button>
+                    <button onClick={() => handleOp('invertSign')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} aria-label="Invert the phase of the voice pattern" title="Invert the phase of the voice pattern">Invert</button>
+                    <button onClick={() => handleOp('randomShift')} className={`${btnClass} bg-gray-800 hover:bg-gray-700 text-gray-300`} aria-label="Randomly shift voice characteristics" title="Randomly shift voice characteristics">Rand Shift</button>
 
-                    <button onClick={() => handleOp('dspSharpen')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} title="Enhance contrast in voice features">Sharpen</button>
-                    <button onClick={() => handleOp('dspTremolo')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} title="Apply amplitude modulation">Tremolo</button>
-                    <button onClick={() => handleOp('dspEcho')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} title="Add delay/echo effect">Echo</button>
-                    <button onClick={() => handleOp('reset')} className={`${btnClass} bg-red-900/30 hover:bg-red-900/50 text-red-300 border border-red-900/50`} title="Reset to original voice style">Reset</button>
+                    <button onClick={() => handleOp('dspSharpen')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} aria-label="Enhance contrast in voice features" title="Enhance contrast in voice features">Sharpen</button>
+                    <button onClick={() => handleOp('dspTremolo')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} aria-label="Apply amplitude modulation" title="Apply amplitude modulation">Tremolo</button>
+                    <button onClick={() => handleOp('dspEcho')} className={`${btnClass} bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-900/50`} aria-label="Add delay/echo effect" title="Add delay/echo effect">Echo</button>
+                    <button onClick={() => handleOp('reset')} className={`${btnClass} bg-red-900/30 hover:bg-red-900/50 text-red-300 border border-red-900/50`} aria-label="Reset to original voice style" title="Reset to original voice style">Reset</button>
                 </div>
 
                 <div className="flex justify-between items-center">
