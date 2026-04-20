@@ -97,6 +97,7 @@ export class FormantShifter {
     private lfoGain: GainNode | null = null;
     private lfoRate: number = 0;
     private lfoDepth: number = 0;
+    private customWave: PeriodicWave | null = null;
 
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
@@ -165,7 +166,11 @@ export class FormantShifter {
         // Create LFO if createOscillator is available (tests might use mock AudioContext)
         if (typeof this.audioContext.createOscillator === 'function') {
             this.lfo = this.audioContext.createOscillator();
-            this.lfo.type = 'sine';
+            if (this.customWave) {
+                this.lfo.setPeriodicWave(this.customWave);
+            } else {
+                this.lfo.type = 'sine';
+            }
             this.lfo.frequency.value = this.lfoRate;
 
             this.lfoGain = this.audioContext.createGain();
@@ -202,6 +207,63 @@ export class FormantShifter {
         return this.createFilterChain(shift);
     }
     
+    /**
+     * Set a custom LFO shape from an array of normalized values.
+     * @param shape Array of normalized values (0.0 to 1.0)
+     */
+    setCustomLfoShape(shape: number[] | undefined): void {
+        if (!shape || shape.length === 0) {
+            this.customWave = null;
+            if (this.lfo) {
+                this.lfo.type = 'sine';
+            }
+            return;
+        }
+
+        // To convert the drawn shape (time domain) into a PeriodicWave (frequency domain),
+        // we'd need to perform a Discrete Fourier Transform (DFT).
+        // For a simpler approach that gives an approximation without heavy math,
+        // we can just use the first few harmonics or a simple mapping,
+        // but for a true custom wave we must calculate real/imaginary coefficients.
+
+        const N = shape.length;
+        // We'll calculate the first 32 harmonics for performance
+        const maxHarmonics = Math.min(32, Math.floor(N / 2));
+
+        const real = new Float32Array(maxHarmonics + 1);
+        const imag = new Float32Array(maxHarmonics + 1);
+
+        // Convert normalized [0, 1] to bipolar [-1, 1]
+        const bipolarShape = shape.map(v => v * 2 - 1);
+
+        for (let k = 1; k <= maxHarmonics; k++) {
+            let sumReal = 0;
+            let sumImag = 0;
+            for (let n = 0; n < N; n++) {
+                const angle = (2 * Math.PI * k * n) / N;
+                sumReal += bipolarShape[n] * Math.cos(angle);
+                sumImag += bipolarShape[n] * Math.sin(angle); // Negated for standard DFT if needed, but this works for synthesis
+            }
+            // Normalize by N and multiply by 2 (standard synthesis coefficient scaling)
+            real[k] = (2 / N) * sumReal;
+            imag[k] = (2 / N) * sumImag;
+        }
+
+        // real[0] is DC offset, usually 0
+        real[0] = 0;
+        imag[0] = 0;
+
+        try {
+            this.customWave = this.audioContext.createPeriodicWave(real, imag, { disableNormalization: false });
+            if (this.lfo) {
+                this.lfo.setPeriodicWave(this.customWave);
+            }
+        } catch (e) {
+            console.error("Failed to create custom LFO PeriodicWave:", e);
+            this.customWave = null;
+        }
+    }
+
     /**
      * Set the LFO rate for formant shifting.
      * @param rate LFO rate in Hz
