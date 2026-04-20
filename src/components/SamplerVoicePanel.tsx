@@ -405,15 +405,17 @@ const HarmonizerPopover: React.FC<{
                         <span className="text-[8px] font-mono text-gray-500 uppercase tracking-wider">Quick Presets</span>
                         <div className="flex gap-1.5 mt-2">
                             {[
-                                { key: 'subtle', label: 'DBL' },
-                                { key: 'classic', label: '3RD' },
-                                { key: 'choir', label: 'CHR' },
-                                { key: 'power', label: '5TH' }
-                            ].map(({ key, label }) => (
+                                { key: 'subtle', label: 'DBL', desc: 'Double (Subtle)' },
+                                { key: 'classic', label: '3RD', desc: '3rd Harmony (Classic)' },
+                                { key: 'choir', label: 'CHR', desc: 'Choir (Thick)' },
+                                { key: 'power', label: '5TH', desc: '5th Harmony (Power)' }
+                            ].map(({ key, label, desc }) => (
                                 <button
                                     key={key}
                                     onClick={() => setLocalConfig(HARMONIZE_PRESETS[key as keyof typeof HARMONIZE_PRESETS]())}
                                     className="flex-1 py-1.5 rounded-md text-[8px] font-bold bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border border-zinc-700 hover:text-zinc-200 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                                    title={desc}
+                                    aria-label={`Apply ${desc} Preset`}
                                 >
                                     {label}
                                 </button>
@@ -424,6 +426,8 @@ const HarmonizerPopover: React.FC<{
                     {/* Apply Button - Animated hardware style */}
                     <button
                         onClick={handleApply}
+                        aria-label="Apply Harmonizer Settings"
+                        title="Apply Harmonizer Settings"
                         className="w-full py-2.5 rounded-lg text-xs font-bold font-orbitron tracking-wider transition-all text-black relative overflow-hidden group"
                         style={{
                             background: `linear-gradient(135deg, ${color} 0%, ${color}dd 50%, ${color} 100%)`,
