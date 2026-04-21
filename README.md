@@ -24,7 +24,7 @@ npm install
 bash download_models.sh
 ```
 
-> **Note:** The TTS feature requires external model files. See [TTS_DEPLOYMENT.md](TTS_DEPLOYMENT.md) for details. The app works fully without these models as a regular sequencer.
+> **Note:** The TTS feature requires external model files. See [TTS_DEPLOYMENT.md](docs/tts/TTS_DEPLOYMENT.md) for details. The app works fully without these models as a regular sequencer.
 
 ## Development
 ```powershell
@@ -86,11 +86,11 @@ The sampler includes Supertonic TTS integration for generating speech from text 
 
 ### Documentation
 
-- **[TTS_DEPLOYMENT.md](TTS_DEPLOYMENT.md)** - Complete deployment guide, asset requirements, troubleshooting
-- **[INTEGRATION_SUMMARY.md](INTEGRATION_SUMMARY.md)** - Technical integration details and architecture
-- **[TTS_IMPLEMENTATION_SUMMARY.md](TTS_IMPLEMENTATION_SUMMARY.md)** - Per-bank TTS feature implementation details
-- **[TTS_VISUAL_GUIDE.md](TTS_VISUAL_GUIDE.md)** - Visual guide and examples for per-bank TTS
-- **[TTS_PER_BANK_VERIFICATION.md](TTS_PER_BANK_VERIFICATION.md)** - Manual testing guide for TTS functionality
+- **[TTS_DEPLOYMENT.md](docs/tts/TTS_DEPLOYMENT.md)** - Complete deployment guide, asset requirements, troubleshooting
+- **[INTEGRATION_SUMMARY.md](docs/archive/INTEGRATION_SUMMARY.md)** - Technical integration details and architecture
+- **[TTS_IMPLEMENTATION_SUMMARY.md](docs/tts/TTS_IMPLEMENTATION_SUMMARY.md)** - Per-bank TTS feature implementation details
+- **[TTS_VISUAL_GUIDE.md](docs/tts/TTS_VISUAL_GUIDE.md)** - Visual guide and examples for per-bank TTS
+- **[TTS_PER_BANK_VERIFICATION.md](docs/tts/TTS_PER_BANK_VERIFICATION.md)** - Manual testing guide for TTS functionality
 
 ### Requirements
 

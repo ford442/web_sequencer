@@ -206,4 +206,4 @@ After rebuilding, clear browser cache and reload. The stack overflow should be e
 ---
 
 *Last Updated: 2026-02-23*
-*Related: [VOCAL_WORKSTATION_PLAN.md](./VOCAL_WORKSTATION_PLAN.md)*
+*Related: [VOCAL_WORKSTATION_PLAN.md](../tts/VOCAL_WORKSTATION_PLAN.md)*
