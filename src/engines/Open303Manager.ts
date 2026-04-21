@@ -1,5 +1,6 @@
 import type { Bass2Params } from '../types';
 import { Open303Oscillator } from './Open303Oscillator';
+import { engineTelemetry } from '../utils/engineTelemetry';
 import type { Open303Config } from './Open303Params';
 
 /**
@@ -89,6 +90,14 @@ export class Open303Manager {
                     bass1: this.bass1Ready,
                     bass2: this.bass2Ready
                 });
+                try {
+                    const b1 = this.bass1?.isFallback ? 'js' : (this.bass1Ready ? 'wasm' : 'none');
+                    const b2 = this.bass2?.isFallback ? 'js' : (this.bass2Ready ? 'wasm' : 'none');
+                    let backend = 'none';
+                    if (b1 === b2) backend = b1;
+                    else backend = 'mixed';
+                    engineTelemetry.registerResolution('jc303', backend, `bass1:${b1},bass2:${b2}`);
+                } catch (_) {}
             }
 
             return this.isReady;

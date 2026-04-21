@@ -40,6 +40,7 @@ import {
     loadWavBuffer,
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
+import { engineTelemetry } from '../utils/engineTelemetry';
 
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
@@ -180,8 +181,10 @@ export const useAudioEngine = (pyodide: unknown) => {
                     open303Manager.connect(masterGain);
                     open303ManagerRef.current = open303Manager;
                     console.log('[useAudioEngine] Open303Manager Ready');
+                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
                 } else {
                     console.warn('[useAudioEngine] Open303Manager failed to initialize');
+                    try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
                 }
             } catch (e) {
                 console.error('[useAudioEngine] Open303Manager crashed during init:', e);
@@ -198,6 +201,17 @@ export const useAudioEngine = (pyodide: unknown) => {
             ]);
             wavSawBufferRef.current = sawBuf;
             wavSqrBufferRef.current = sqrBuf;
+
+            // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
+            try {
+                let oscillatorBackend = 'js';
+                if (gpuEngine && (gpuEngine as any).isSupported) oscillatorBackend = 'webgpu';
+                else if (wasmEngine && (wasmEngine as any).isReady) oscillatorBackend = 'wasm';
+                else if (sawBuf || sqrBuf) oscillatorBackend = 'wav';
+                engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
+            } catch (e) {
+                console.warn('Engine telemetry registration failed for oscillators', e);
+            }
 
             // Initialize Voice Managers
             voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
@@ -226,6 +240,7 @@ export const useAudioEngine = (pyodide: unknown) => {
 
                 await manager.init(wasmBinary);
                 singingVoiceManagerRef.current = manager;
+                try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
 
                 initializeChoirBuses(
                     context,
@@ -244,6 +259,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     // Pre-cache logic
                 }
             } catch (e) {
+                try { engineTelemetry.registerResolution('singingVoice','js','failed to init: ' + String(e)); } catch (err) { /* noop */ }
                 console.warn('SingingVoiceManager failed to init:', e);
             }
 

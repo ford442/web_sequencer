@@ -9,6 +9,7 @@
 
 import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '../types';
 import initTrackFreezer from '../wasm/trackFreezer.wasm?init';
+import { engineTelemetry } from './engineTelemetry';
 
 // WASM Module Loader
 interface WasmExports {
@@ -37,7 +38,9 @@ const loadWasm = async () => {
             }
         });
         wasmInstance = instance.exports as unknown as WasmExports;
+        try { engineTelemetry.registerResolution('trackFreezer','wasm','loaded'); } catch (e) { /* noop */ }
     } catch (e) {
+        try { engineTelemetry.registerResolution('trackFreezer','js','failed to load wasm: ' + String(e)); } catch (err) { /* noop */ }
         console.warn("Failed to load trackFreezer.wasm, using JS fallback", e);
     }
 };
