@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel redundant in-progress runs when new commits are pushed to the same branch/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Lint + Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          # Phase 1 only: no WASM build, no submodule source needed.
+          # Phase 2 will add submodules: true with fetch-depth: 1.
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          # Pins to pnpm 9 to match pnpm-lock.yaml lockfileVersion '9.0'.
+          # Avoids the Apr-2026 pnpm-lock mutation bug in setup-node + pnpm
+          # cache interaction — see: pnpm/action-setup#226.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (ESLint)
+        # eslint.config.js globalIgnores is expanded in this PR to exclude emsdk/,
+        # assembly/, emscripten/, jc303_wasm/, rubberband/, and public/. Keeping
+        # continue-on-error: true for any remaining src/ lint debt until it is
+        # triaged and resolved in a follow-up.
+        run: pnpm lint
+        continue-on-error: true
+
+      - name: Test (Vitest)
+        # WASM artifacts are gitignored and intentionally not built in Phase 1.
+        # Vitest tests degrade gracefully via fs.existsSync guards in WASM tests.
+        # pool=forks performs better than default worker_threads on 2-vCPU runners.
+        run: pnpm exec vitest run --pool forks --maxForks 2
+        env:
+          CI: true
