@@ -821,7 +821,7 @@ export const App: React.FC = () => {
         };
     }, [selection, handleSelectionEnd, updateStorageForTrack, handleCopy, handlePaste]);
 
-    const handleNoteSelect = (note: string) => {
+    const handleNoteSelect = useCallback((note: string) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -841,9 +841,9 @@ export const App: React.FC = () => {
         setPattern(copy);
         updateStorageForTrack(trackKey, changedSequence);
         setContextMenu(null);
-    };
+    }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
-    const handleNoteLengthChange = (newLength: number) => {
+    const handleNoteLengthChange = useCallback((newLength: number) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -861,9 +861,9 @@ export const App: React.FC = () => {
         if (isSampler) { changedSequence = copy.sampler; } else { changedSequence = copy[trackKey]; }
         setPattern(copy);
         updateStorageForTrack(trackKey, changedSequence);
-    };
+    }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
-    const handleNotePropertyChange = (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend', value: number | boolean) => {
+    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'choir', value: number | boolean) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -891,7 +891,7 @@ export const App: React.FC = () => {
         if (isSampler) { changedSequence = copy.sampler; } else { changedSequence = copy[trackKey]; }
         setPattern(copy);
         updateStorageForTrack(trackKey, changedSequence);
-    };
+    }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
     const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern: Pattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, bass2: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })), }; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
@@ -1152,7 +1152,7 @@ export const App: React.FC = () => {
             </div>
         </div>
     ), [bass2.waveform, updateBass2]);
-    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} alignment={activeAlignment} onAlignmentChange={(newAlignment) => { audioEngine?.setAlignment?.(activeSamplerBank, newAlignment); setActiveAlignment(newAlignment); }} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment]);
+    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} alignment={activeAlignment} onAlignmentChange={(newAlignment) => { audioEngine?.setAlignment?.(activeSamplerBank, newAlignment); setActiveAlignment(newAlignment); }} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment]);
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
