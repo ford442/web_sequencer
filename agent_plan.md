@@ -40,6 +40,7 @@
 - [x] **Glissando/Portamento Curves:** Allow users to draw custom pitch curves or select between Linear and Exponential glide types between steps. (Implemented Exponential Glide in `SingingVoice.ts`!)
 - [x] **Per-Step Breath Intensity:** Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented in `useAudioEngine.ts`!)
 - [x] **Custom Sample Slicing UI:** Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
+- [x] **Voice Layering / Chorus per Voice:** Allow a detune spread parameter per step for instant vocal thickening.
 
 - [ ] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 - [ ] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation.
@@ -57,6 +58,7 @@
 * [x] **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
+* [x] **Idea:** "Voice Layering / Chorus per Voice" - Allow a detune spread parameter per step for instant vocal thickening. (Implemented per-step choir in NoteSelector/useAudioEngine!)
 * [x] **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes. (Implemented via global Lyric Track lane and `sliceIndex` auto-mapping!)
 * [x] **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
