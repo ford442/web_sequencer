@@ -1393,6 +1393,7 @@ export const App: React.FC = () => {
                             currentDrive={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.drive : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.drive}
                             currentCharacterMorph={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.characterMorph : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.characterMorph}
                             currentReverbSend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbSend : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.reverbSend}
+                            currentChoir={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.choir : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.choir}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
                             onPropertyChange={handleNotePropertyChange}

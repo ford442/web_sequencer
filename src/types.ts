@@ -176,6 +176,7 @@ export interface Note {
   envMod?: number; // 0-1, envelope modulation override for filters
   vibratoDepth?: number; // 0-100%, vibrato depth override (Sampler only)
   reverbSend?: number; // 0-1, amount sent to reverb bus
+  choir?: number; // 0-1, override choir detune spread (Sampler only)
   drive?: number; // 0-1, distortion/drive amount override (Sampler only)
   slideType?: 'linear' | 'exponential'; // Shape of portamento curve
   breathIntensity?: number; // 0-1, override breath noise amount (Sampler only)

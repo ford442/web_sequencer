@@ -291,6 +291,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    choir?: number,
                     drive?: number,
                     characterMorph?: number,
                     breathIntensity?: number,
@@ -507,9 +508,11 @@ export const useAudioEngine = (pyodide: unknown) => {
                             manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
                             triggerVoice(mainVoiceData.voice, 0, t, duration);
 
-                            if (params.choir && params.choir > 0 && pitchOffsetSemitones === 0) {
+                            const effectiveChoir = noteParams?.choir !== undefined ? noteParams.choir : (params.choir || 0);
+
+                            if (effectiveChoir > 0 && pitchOffsetSemitones === 0) {
                                 const detune = 0.15;
-                                const gain = params.choir * 0.7;
+                                const gain = effectiveChoir * 0.7;
 
                                 if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
@@ -658,6 +661,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    choir?: number,
                     drive?: number,
                     characterMorph?: number,
                     breathIntensity?: number,
