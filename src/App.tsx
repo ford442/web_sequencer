@@ -351,13 +351,13 @@ export const App: React.FC = () => {
     useEffect(() => { tempoRef.current = tempo; }, [tempo]);
 
     const adjustTempo = useCallback((direction: number) => { setTempo(t => Math.max(30, Math.min(300, t + direction))); }, []);
+    const tempoHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleTempoHoldStart = useCallback((direction: number) => {
         adjustTempo(direction);
-        const timeout = setTimeout(() => { tempoHoldIntervalRef.current = setInterval(() => { adjustTempo(direction); }, 50); }, 300);
-        (tempoHoldIntervalRef as any).timeout = timeout;
+        tempoHoldTimeoutRef.current = setTimeout(() => { tempoHoldIntervalRef.current = setInterval(() => { adjustTempo(direction); }, 50); }, 300);
     }, [adjustTempo]);
     const handleTempoHoldEnd = useCallback(() => {
-        if ((tempoHoldIntervalRef as any).timeout) { clearTimeout((tempoHoldIntervalRef as any).timeout); }
+        if (tempoHoldTimeoutRef.current) { clearTimeout(tempoHoldTimeoutRef.current); tempoHoldTimeoutRef.current = null; }
         if (tempoHoldIntervalRef.current) { clearInterval(tempoHoldIntervalRef.current); tempoHoldIntervalRef.current = null; }
     }, []);
     const handleTempoKeyDown = useCallback((e: React.KeyboardEvent, direction: number) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); adjustTempo(direction); } }, [adjustTempo]);
@@ -1390,10 +1390,11 @@ export const App: React.FC = () => {
                             currentFormantLfoRate={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.formantLfoRate ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.formantLfoRate ?? 0}
                             currentFormantLfoDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.formantLfoDepth ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.formantLfoDepth ?? 0}
                             currentVibratoDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.vibratoDepth ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.vibratoDepth ?? 0}
-                            currentDrive={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.drive : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.drive}
-                            currentCharacterMorph={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.characterMorph : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.characterMorph}
-                            currentReverbSend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbSend : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.reverbSend}
-                            currentChoir={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.choir : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.choir}
+                            currentDrive={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.drive : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.drive : undefined)}
+                            currentCharacterMorph={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.characterMorph : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.characterMorph : undefined)}
+                            currentReverbSend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbSend : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbSend : undefined)}
+                            currentDelaySend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.delaySend : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.delaySend : undefined)}
+                            currentChoir={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.choir : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.choir : undefined)}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
                             onPropertyChange={handleNotePropertyChange}
@@ -1405,7 +1406,7 @@ export const App: React.FC = () => {
                 )}
             </MainSequencer>
         );
-    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter]);
+    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter, handleAutomationChange, handleDrawEnter, handleNotePropertyChange, handlePhonemeUpdate, handlePitchChange, activeAlignment, automationParam, currentScale, isDrawing, melodicMode, sampleBuffers, viewMode]);
 
     const keyboardNode = useMemo(() => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
