@@ -192,10 +192,10 @@ npm run build     # Ensure production build succeeds
 ## Documentation References
 
 - `README.md` - Quick start and feature overview
-- `TTS_DEPLOYMENT.md` - Complete TTS setup and troubleshooting
-- `DEVELOPER_CONTEXT.md` - Additional development context
-- `INTEGRATION_SUMMARY.md` - Technical architecture details
-- Various `*_IMPLEMENTATION_SUMMARY.md` files - Feature-specific docs
+- `docs/tts/TTS_DEPLOYMENT.md` - Complete TTS setup and troubleshooting
+- `docs/DEVELOPER_CONTEXT.md` - Additional development context
+- `docs/archive/INTEGRATION_SUMMARY.md` - Technical architecture details
+- Various `docs/` subdirectory `*_IMPLEMENTATION_SUMMARY.md` files - Feature-specific docs
 
 ## Collaboration Notes
 
