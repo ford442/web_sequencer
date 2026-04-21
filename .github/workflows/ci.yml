@@ -53,6 +53,6 @@ jobs:
         # WASM artifacts are gitignored and intentionally not built in Phase 1.
         # Vitest tests degrade gracefully via fs.existsSync guards in WASM tests.
         # pool=forks performs better than default worker_threads on 2-vCPU runners.
-        run: pnpm exec vitest run --pool forks --maxForks 2
+        run: pnpm exec vitest run --pool forks
         env:
           CI: true

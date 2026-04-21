@@ -20,3 +20,7 @@
 ## $(date +%Y-%m-%d) - Added Title and ARIA labels to Sampler/Harmonizer action buttons
 **Learning:** Icon-only buttons or text-heavy components inside complex modal structures (like Voice Editor and Sampler Panel) often rely on visual context but fail to provide screen-reader accessibility or tooltips for hover interactions, degrading usability.
 **Action:** Always add `aria-label` alongside a matching `title` attribute for icon-only action buttons and quick-presets to ensure both visual hover affordances and screen reader context are available, preventing empty accessibility tree nodes.
+
+## 2025-05-18 - Semantic Groupings for Audio Controls
+**Learning:** Complex audio interfaces often group multiple related controls (like Oscillators, Filters, Kick Drum settings, Snare settings) visually. However, screen readers don't inherently convey these groupings if they are just nested `<div>`s with `<h3>` headings. Wrapping related audio controls in `<fieldset>` with an embedded `<legend>` explicitly links the controls together for assistive technologies without changing the visual layout.
+**Action:** When working on complex synthesizer or drum machine components, identify logical groups of controls and replace their wrapper `<div>` and title heading with `<fieldset>` and `<legend className="sr-only">` (or styled appropriately).
