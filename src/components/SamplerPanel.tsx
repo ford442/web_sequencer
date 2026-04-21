@@ -134,7 +134,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     };
 
     // Helpers to access current bank's params safely
-    const currentParams = params[activeBankIdx] || {
+    const currentParams = useMemo(() => params[activeBankIdx] || {
         sampleName: `bank_${activeBankIdx}`,
         playbackSpeed: 1.0,
         volume: 1.0,
