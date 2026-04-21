@@ -2,7 +2,7 @@
 
 > **Purpose**: Transform the sampler into a comprehensive vocal/singing workstation with TTS + RubberBand + per-step phoneme control + harmonizer layers + live painter.
 
-This plan builds on the existing [RUBBERBAND_ENHANCEMENT_PLAN.md](./RUBBERBAND_ENHANCEMENT_PLAN.md) and integrates with the current implementation.
+This plan builds on the existing [RUBBERBAND_ENHANCEMENT_PLAN.md](../audio-engine/RUBBERBAND_ENHANCEMENT_PLAN.md) and integrates with the current implementation.
 
 ---
 

@@ -1,6 +1,7 @@
 import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS, DEFAULT_303_CONFIG } from './Open303Params';
 import { FallbackBassSynth } from './FallbackBassSynth';
+import { engineTelemetry } from '../utils/engineTelemetry';
 
 export class Open303Oscillator {
     private workletNode: AudioWorkletNode | null = null;
@@ -91,9 +92,11 @@ export class Open303Oscillator {
                         if (e.data.type === 'ready') {
                             readyReceived = true;
                             console.log("[Open303] Engine Fully Operational");
+                            try { engineTelemetry.registerResolution('jc303', 'wasm', 'worklet-ready'); } catch (_) {}
                             resolve(true);
                         } else if (e.data.type === 'error') {
                             console.error("[Open303] Worklet Error:", e.data.error);
+                            try { engineTelemetry.recordError('jc303', e.data.error); engineTelemetry.registerResolution('jc303', 'fallback', 'worklet-error'); } catch (_) {}
                             resolve(false);
                         }
                     };
@@ -109,6 +112,7 @@ export class Open303Oscillator {
 
                 if (!initSuccess) {
                     console.warn('[Open303] WASM failed, activating fallback synth');
+                    try { engineTelemetry.registerResolution('jc303', 'fallback', 'wasm-init-failed'); } catch (_) {}
                     this.cleanupWorklet();
                     this.activateFallback();
                     return true; // Return true so audio doesn't die
@@ -120,6 +124,7 @@ export class Open303Oscillator {
                 return true;
 
             } catch (e) {
+                try { engineTelemetry.recordError('jc303', e); engineTelemetry.registerResolution('jc303', 'fallback', 'exception'); } catch (_) {}
                 console.error("Open303 Init Failure:", e);
                 console.warn('[Open303] Activating fallback synth');
                 this.activateFallback();
@@ -136,6 +141,7 @@ export class Open303Oscillator {
         if (!this.audioContext || !this.outputNode) return;
         
         console.log('[Open303] Activating FallbackBassSynth');
+        try { engineTelemetry.registerResolution('jc303','js','fallback-synth'); } catch (_) {}
         this.fallbackSynth = new FallbackBassSynth(this.audioContext);
         this.fallbackSynth.connect(this.outputNode);
         this.isReady = true;
@@ -153,9 +159,15 @@ export class Open303Oscillator {
         if (!this.isReady) return;
         
         if (this.isFallback && this.fallbackSynth) {
+            const t0 = performance.now();
             this.fallbackSynth.noteOn(midiNote, velocity);
+            const t1 = performance.now();
+            try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         } else if (this.workletNode) {
+            const t0 = performance.now();
             this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity } });
+            const t1 = performance.now();
+            try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         }
     }
 
@@ -163,9 +175,15 @@ export class Open303Oscillator {
         if (!this.isReady) return;
         
         if (this.isFallback && this.fallbackSynth) {
+            const t0 = performance.now();
             this.fallbackSynth.noteOff(midiNote);
+            const t1 = performance.now();
+            try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         } else if (this.workletNode) {
+            const t0 = performance.now();
             this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote } });
+            const t1 = performance.now();
+            try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         }
     }
 

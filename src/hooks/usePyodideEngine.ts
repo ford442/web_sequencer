@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { engineTelemetry } from '../utils/engineTelemetry';
 
 // This hook encapsulates the "Spectral Puppet" engine
 export const usePyodideEngine = () => {
@@ -17,6 +18,7 @@ export const usePyodideEngine = () => {
             setPyodide(globalThis.hyphonPyodide);
             setIsPyodideReady(true);
             setPyodideStatus('Python Engine Ready!');
+            try { engineTelemetry.registerResolution('pyodide','pyodide','ready'); } catch (e) { /* noop */ }
         };
 
         // Listen for the event dispatched by our emscripten post-js
@@ -24,6 +26,12 @@ export const usePyodideEngine = () => {
 
         // Cleanup
         return () => window.removeEventListener('hyphon-pyodide-ready', handleReady);
+    }, [isPyodideReady]);
+
+    useEffect(() => {
+        if (isPyodideReady) {
+            try { engineTelemetry.registerResolution('pyodide','pyodide','ready'); } catch (e) { /* noop */ }
+        }
     }, [isPyodideReady]);
 
     return { pyodide, isPyodideReady, pyodideStatus };
