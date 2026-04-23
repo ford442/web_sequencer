@@ -243,13 +243,13 @@ export class VoiceManager {
         return this.voices[0];
     }
 
-    playNote(params: SynthParams, notes: string | string[], time: number, duration: number, slideFromFreq?: number) {
+    playNote(params: SynthParams, notes: string | string[], time: number, duration: number, slideFromFreq?: number): Voice | null {
         const noteArray = Array.isArray(notes) ? notes : [notes];
 
         if (this.isMonophonic) {
             // Mono: Always use voice 0
             const note = noteArray[0];
-            if (!note) return;
+            if (!note) return null;
 
             let voice = this.voices[0];
             if (!voice) {
@@ -257,12 +257,15 @@ export class VoiceManager {
                 this.voices.push(voice);
             }
             voice.play(params, note, time, duration, slideFromFreq);
+            return voice;
         } else {
             // Poly: Trigger voice for each note
+            let lastVoice: Voice | null = null;
             noteArray.forEach((note, idx) => {
                 const slide = idx === 0 ? slideFromFreq : undefined;
                 const voice = this.getVoice(note);
                 voice.play(params, note, time, duration, slide);
+                lastVoice = voice;
 
                 // Rotate used voice to end of list (LRU approximation)
                 const vIdx = this.voices.indexOf(voice);
@@ -271,6 +274,7 @@ export class VoiceManager {
                     this.voices.push(voice);
                 }
             });
+            return lastVoice;
         }
     }
 

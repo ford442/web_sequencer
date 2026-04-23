@@ -57,7 +57,6 @@ import {
     type TrackKey, type SongSnapshot,
     getInitialTrackStorage,
     COLOR_LEAD, COLOR_BASS, COLOR_BASS2, COLOR_KICK, COLOR_SNARE, COLOR_CH, COLOR_OH, COLOR_SAMPLER,
-    EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE, EMPTY_PATTERN,
 } from './constants/appDefaults'
 import {
     getBass2Controls, getSynthControls, getKickControls, getSnareControls,

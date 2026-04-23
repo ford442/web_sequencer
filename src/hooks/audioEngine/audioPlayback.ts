@@ -24,6 +24,7 @@ export interface SynthNoteParams {
     filterCutoff?: number;
     filterResonance?: number;
     envMod?: number;
+    delaySend?: number;
 }
 
 export interface DrumNoteParams {
