@@ -113,6 +113,8 @@ export const useAudioEngine = (pyodide: unknown) => {
         masterGainRef,
         masterSaturationRef,
         reverbNodeRef,
+        delayNodeRef,
+        delayFeedbackRef,
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
@@ -227,8 +229,8 @@ export const useAudioEngine = (pyodide: unknown) => {
             }
 
             // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
-            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined);
+            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
 
             await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
 

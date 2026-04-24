@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, memo, useCallback, useMemo } from 'react';
-import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
+import type { SamplerBankParams, SamplerParams, AudioEngine } from '../types';
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';

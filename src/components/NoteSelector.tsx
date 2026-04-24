@@ -197,6 +197,28 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                             </div>
                         )}
 
+                        {/* Delay Send Control */}
+                        {onPropertyChange && (
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                    <label htmlFor="note-delay-send">Delay Send</label>
+                                    <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%</span>
+                                </div>
+                                <input
+                                    id="note-delay-send"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={currentDelaySend !== undefined ? currentDelaySend : 0}
+                                    onChange={(e) => onPropertyChange('delaySend', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                    aria-valuetext={`${currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%`}
+                                    aria-label="Delay Send"
+                                />
+                            </div>
+                        )}
+
                         {/* Reverb Send Control */}
                         {onPropertyChange && (
                             <>
