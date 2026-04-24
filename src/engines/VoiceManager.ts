@@ -213,18 +213,25 @@ export class VoiceManager {
     private context: AudioContext;
     private destination: AudioNode;
     private isMonophonic: boolean;
+    private globalDelayNode?: DelayNode;
 
     // Buffers
     private wavSaw?: AudioBuffer;
     private wavSqr?: AudioBuffer;
 
-    constructor(context: AudioContext, destination: AudioNode, maxVoices: number, isMonophonic: boolean, wavSaw?: AudioBuffer, wavSqr?: AudioBuffer, public delayNode?: DelayNode, public delayFeedback?: GainNode) {
+    public delayNode?: DelayNode;
+    public delayFeedback?: GainNode;
+
+    constructor(context: AudioContext, destination: AudioNode, maxVoices: number, isMonophonic: boolean, wavSaw?: AudioBuffer, wavSqr?: AudioBuffer, delayNode?: DelayNode, delayFeedback?: GainNode, globalDelayNode?: DelayNode) {
         this.context = context;
         this.destination = destination;
         this.maxVoices = maxVoices;
         this.isMonophonic = isMonophonic;
         this.wavSaw = wavSaw;
         this.wavSqr = wavSqr;
+        this.delayNode = delayNode;
+        this.delayFeedback = delayFeedback;
+        this.globalDelayNode = globalDelayNode;
     }
 
     private getVoice(_note: string): Voice {

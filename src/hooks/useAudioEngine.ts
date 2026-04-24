@@ -325,6 +325,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    delaySend?: number,
                     choir?: number,
                     drive?: number,
                     characterMorph?: number,
