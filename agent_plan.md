@@ -17,6 +17,7 @@
 - [x] **Polyphonic Singing:** Implement `SingingVoiceManager` to allow polyphonic playback (chords) for the TTS engine, supporting multiple simultaneous phoneme streams.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
+- [x] **Per-Step Delay Send:** Allow sequence steps to override the global delay send amount.
 - [x] **Step-Sequenced Vibrato:** Allow individual sequencer steps to override the global Vibrato Depth, enabling natural vocal phrasing without affecting short rhythmic syllables.
 - [x] **Vocal Envelope Shaper:** Upgraded the `ExpressiveVoiceProcessor` to use a full ADSR (Attack, Decay, Sustain, Release) envelope, exposing Decay and Sustain knobs to the `SamplerPanel` to allow granular shaping of TTS syllables into sharp plucks or smooth pads.
 - [x] **Dynamic Tremolo (AM) Effect:** Expose the Tremolo effect from `ExpressiveVoiceProcessor` to the UI (Rate and Depth knobs) and map it to `SingingVoice` and `SamplerPanel` to make TTS playback more rhythmic.
@@ -42,7 +43,7 @@
 - [x] **Custom Sample Slicing UI:** Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
 - [x] **Voice Layering / Chorus per Voice:** Allow a detune spread parameter per step for instant vocal thickening.
 
-- [ ] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
+- [x] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 - [ ] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation.
 
 ### Domain C: Accessibility & Mobile
@@ -79,14 +80,17 @@
 * [x] **Idea:** "Dynamic Reverb" - Allow users to draw automation curves for reverb send per step. (Implemented!)
 * [x] **Idea:** "Global Saturation / Tape Warmth" - Add a master channel saturation unit to glue the mix together. (Implemented via WaveShaperNode!)
 * [x] **Idea:** "Auto-Slice by Transients" - Use energy-based analysis to automatically detect and place slice markers at drum hits or clear transients when a custom sample is loaded. (Implemented via `AUTO-SLICE` button logic in `WaveformDisplay` and `SamplerPanel`!)
-* **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
+* [x] **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
 * [x] **Idea:** "Real-time Convolution Reverb for Vocal Spaces" - Enhance the dynamic reverb by allowing users to select impulse response types. (Implemented!)
 * [x] **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
 * [x] **Idea:** "Advanced Slice Tuning" - Allow users to fine-tune slice sensitivity and adjust the threshold parameters for Auto-Slice. (Implemented in `SamplerPanel` and `WaveformDisplay`!)
 
+* [x] **Idea:** "Per-Step Delay Send" - Allow sequence steps to override the global delay send amount. (Implemented!)
+* **Idea:** "Master Bus Compressor" - Add a `DynamicsCompressorNode` to the master output for gluing the mix together.
 ---
 
 ## 📜 Changelog
+* [2026-06-27] - Verified Gesture Controls: Confirmed pinch-to-zoom is fully implemented in `MainSequencer.tsx` and marked as complete.
 * [2026-06-26] - Implemented Custom Waveform LFO: Added a new `DrawableLFO` canvas component to `SamplerPanel` allowing users to draw an arbitrary LFO shape. Added a Discrete Fourier Transform (DFT) engine inside `FormantShifter.ts` to convert the normalized shape into a `PeriodicWave` used by the internal Web Audio `OscillatorNode`.
 * [2026-06-25] - Implemented Step-Sequenced Formant Shifts: Added `formantShift` parameter to `Note` interface and `NoteSelector` UI. Wired it through `useAudioEngine` and `useStepHandler` to allow per-step overrides of the global Formant Shift parameter, fulfilling the "Step-Sequenced Formant Shifts" Innovation Lab idea.
 * [2026-06-24] - Implemented Real-time Convolution Reverb for Vocal Spaces: Added `ReverbType` ('room', 'plate', 'hall') to `types.ts` and updated `useAudioEngine.ts` to dynamically generate and swap the convolution impulse response based on the selected type using `createReverbImpulseResponse`. Added a dropdown selector to `App.tsx` next to the Master Saturation control to allow global reverb type switching.
