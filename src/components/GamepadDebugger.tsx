@@ -42,14 +42,13 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = ({ onClose }) 
         <h2 id="gamepad-debugger-title" className="text-2xl font-bold text-cyan-400 mb-6 flex items-center gap-2">
           <span>🎮</span> Gamepad Debugger
         </h2>
-
+        <div id="gamepad-debugger-desc" className="sr-only">Displays real-time state of connected gamepads including buttons and axes.</div>
         {gamepads.length === 0 ? (
-           <div id="gamepad-debugger-desc" className="text-center py-12 text-slate-500 border-2 border-dashed border-slate-800 rounded-lg">
+           <div className="text-center py-12 text-slate-500 border-2 border-dashed border-slate-800 rounded-lg">
              No Gamepads Detected. Press a button to wake them up.
            </div>
         ) : (
           <>
-            <div id="gamepad-debugger-desc" className="sr-only">Displays real-time state of connected gamepads including buttons and axes.</div>
             <div className="grid grid-cols-1 gap-6">
             {gamepads.map((gp) => (
               <GamepadCard key={gp.index} gamepad={gp} />

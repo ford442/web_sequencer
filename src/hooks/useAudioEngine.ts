@@ -90,6 +90,8 @@ export const useAudioEngine = (pyodide: unknown) => {
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
+    const delayNodeRef = useRef<DelayNode | null>(null);
+    const delayFeedbackRef = useRef<GainNode | null>(null);
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
 
     const pyodideRef = useRef(pyodide);
@@ -111,6 +113,8 @@ export const useAudioEngine = (pyodide: unknown) => {
         masterGainRef,
         masterSaturationRef,
         reverbNodeRef,
+        delayNodeRef,
+        delayFeedbackRef,
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
@@ -156,6 +160,17 @@ export const useAudioEngine = (pyodide: unknown) => {
             reverbNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0); // Default to plate
             reverbNode.connect(masterGain);
             reverbNodeRef.current = reverbNode;
+
+            // Initialize Global Delay Node
+            const delayNode = context.createDelay(2.0);
+            delayNode.delayTime.value = 0.375; // ~1/8th note at typical tempo
+            const delayFeedback = context.createGain();
+            delayFeedback.gain.value = 0.4;
+            delayNode.connect(delayFeedback);
+            delayFeedback.connect(delayNode);
+            delayNode.connect(masterGain);
+            delayNodeRef.current = delayNode;
+            delayFeedbackRef.current = delayFeedback;
 
             // Initialize Engines
             const gpuEngine = new WebGpuOscillator();
@@ -214,8 +229,8 @@ export const useAudioEngine = (pyodide: unknown) => {
             }
 
             // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
-            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined);
+            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
 
             await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
 
@@ -307,6 +322,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    delaySend?: number,
                     choir?: number,
                     drive?: number,
                     characterMorph?: number,
@@ -389,6 +405,15 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 reverbGain.gain.value = reverbSendAmount;
                                 reverbGain.connect(reverbNodeRef.current);
                                 voice.connectOutput(reverbGain); // connectOutput appends to existing connections
+                            }
+
+                            // Setup Delay Send
+                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                            if (delaySendAmount > 0 && delayNodeRef.current) {
+                                const delayGain = context.createGain();
+                                delayGain.gain.value = delaySendAmount;
+                                delayGain.connect(delayNodeRef.current);
+                                voice.connectOutput(delayGain);
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
@@ -677,6 +702,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    delaySend?: number,
                     choir?: number,
                     drive?: number,
                     characterMorph?: number,
