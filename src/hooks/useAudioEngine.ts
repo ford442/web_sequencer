@@ -470,9 +470,9 @@ export const useAudioEngine = (pyodide: unknown) => {
                             }
 
                             // Formant Envelope
-                            const envAttack = noteParams?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            const envDecay = noteParams?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
-                            const envAmount = noteParams?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
                             if (envAmount !== 0) {
                                 voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
                             }
