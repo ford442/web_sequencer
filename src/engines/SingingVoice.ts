@@ -810,6 +810,15 @@ export class SingingVoice {
     }
 
     /**
+     * Trigger a formant envelope.
+     */
+    setFormantEnvelope(amount: number, attack: number, decay: number, triggerTime: number) {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            this.formantShifter.triggerEnvelope(amount, attack, decay, triggerTime);
+        }
+    }
+
+    /**
      * Set character morphing amount and target.
      * @param amount Morph amount (0 to 1)
      * @param target Target voice character

@@ -35,12 +35,12 @@ interface NoteSelectorProps {
     currentReverbSend?: number;
     currentDelaySend?: number;
     currentChoir?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'delaySend' | 'choir', value: number | boolean) => void;
+    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'delaySend' | 'choir', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0, currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentDelaySend, currentChoir, onPropertyChange
+    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0,  currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentDelaySend, currentChoir, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
