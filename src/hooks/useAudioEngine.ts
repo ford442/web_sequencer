@@ -163,15 +163,12 @@ export const useAudioEngine = (pyodide: unknown) => {
 
             // Initialize Global Delay Node
             const delayNode = context.createDelay(2.0);
-            delayNode.delayTime.value = 0.375; // Default dotted 8th note at 120bpm
-
+            delayNode.delayTime.value = 0.375; // ~1/8th note at typical tempo
             const delayFeedback = context.createGain();
-            delayFeedback.gain.value = 0.4; // Default 40% feedback
-
+            delayFeedback.gain.value = 0.4;
             delayNode.connect(delayFeedback);
             delayFeedback.connect(delayNode);
             delayNode.connect(masterGain);
-
             delayNodeRef.current = delayNode;
             delayFeedbackRef.current = delayFeedback;
 
@@ -411,12 +408,12 @@ export const useAudioEngine = (pyodide: unknown) => {
                             }
 
                             // Setup Delay Send
-                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend ?? 0);
+                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
                             if (delaySendAmount > 0 && delayNodeRef.current) {
-                                const delaySendGain = context.createGain();
-                                delaySendGain.gain.value = delaySendAmount;
-                                delaySendGain.connect(delayNodeRef.current);
-                                voice.connectOutput(delaySendGain); // connectOutput appends to existing connections
+                                const delayGain = context.createGain();
+                                delayGain.gain.value = delaySendAmount;
+                                delayGain.connect(delayNodeRef.current);
+                                voice.connectOutput(delayGain);
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
@@ -705,6 +702,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    delaySend?: number,
                     choir?: number,
                     drive?: number,
                     characterMorph?: number,
