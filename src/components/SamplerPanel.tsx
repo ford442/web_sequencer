@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, memo, useCallback, useMemo } from 'react';
-import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
+import type { SamplerBankParams, SamplerParams, AudioEngine } from '../types';
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
@@ -171,7 +171,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         rbQuality: 'Standard' as 'Fast' | 'Standard' | 'Elastic',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
         autoFollow: false
-    };
+    } as SamplerBankParams, [params, activeBankIdx]);
 
     // Update single param for active bank
     const updateParam = (key: keyof typeof currentParams, value: number | string) => {

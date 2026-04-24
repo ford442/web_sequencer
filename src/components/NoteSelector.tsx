@@ -33,13 +33,14 @@ interface NoteSelectorProps {
     currentDrive?: number;
     currentCharacterMorph?: number;
     currentReverbSend?: number;
+    currentDelaySend?: number;
     currentChoir?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'choir', value: number | boolean) => void;
+    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'delaySend' | 'choir', value: number | boolean) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0, currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentChoir, onPropertyChange
+    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0, currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentDelaySend, currentChoir, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -192,6 +193,28 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`${Math.round((currentFreeze + 0.0001) * 100)}%`}
                                     aria-label="Freeze"
+                                />
+                            </div>
+                        )}
+
+                        {/* Delay Send Control */}
+                        {onPropertyChange && (
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                    <label htmlFor="note-delay-send">Delay Send</label>
+                                    <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%</span>
+                                </div>
+                                <input
+                                    id="note-delay-send"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={currentDelaySend !== undefined ? currentDelaySend : 0}
+                                    onChange={(e) => onPropertyChange('delaySend', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                    aria-valuetext={`${currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%`}
+                                    aria-label="Delay Send"
                                 />
                             </div>
                         )}
