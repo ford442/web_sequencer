@@ -34,13 +34,11 @@ import { MainSequencer, ROWS } from './components/MainSequencer';
 import type { MainSequencerHandle } from './components/MainSequencer';
 import type { AlignmentResult } from './engines/rubberband/PhonemeAligner';
 import { SEQUENCER_STYLES } from './components/sequencer/constants';
-import { Harmonizer, type HarmonizerConfig, HARMONIZE_PRESETS } from './engines/Harmonizer';
+import { type HarmonizerConfig } from './engines/Harmonizer';
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
 import {
-    noteToFrequency,
-    INITIAL_PATTERN,
     NUM_STEPS,
     DEFAULT_TEMPO,
     DEFAULT_SYNTH_PARAMS_A,
@@ -53,11 +51,10 @@ import {
 } from './constants'
 import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType } from './types'
 import {
-    DEFAULT_SAMPLER_BANK_PARAMS, INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
+    INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
     getInitialTrackStorage,
     COLOR_LEAD, COLOR_BASS, COLOR_BASS2, COLOR_KICK, COLOR_SNARE, COLOR_CH, COLOR_OH, COLOR_SAMPLER,
-    EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE, EMPTY_PATTERN,
 } from './constants/appDefaults'
 import {
     getBass2Controls, getSynthControls, getKickControls, getSnareControls,
@@ -863,7 +860,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
-    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'choir', value: number | boolean) => {
+    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'delaySend' | 'choir', value: number | boolean) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -1389,11 +1386,16 @@ export const App: React.FC = () => {
                             currentEnvMod={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.envMod : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.envMod}
                             currentFormantLfoRate={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.formantLfoRate ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.formantLfoRate ?? 0}
                             currentFormantLfoDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.formantLfoDepth ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.formantLfoDepth ?? 0}
+
+
+
+
                             currentVibratoDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.vibratoDepth ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.vibratoDepth ?? 0}
-                            currentDrive={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.drive : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.drive : undefined)}
-                            currentCharacterMorph={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.characterMorph : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.characterMorph : undefined)}
-                            currentReverbSend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbSend : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbSend : undefined)}
-                            currentChoir={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.choir : (contextMenu.track !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.choir : undefined)}
+                            currentDrive={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.drive : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.drive : undefined)}
+                            currentCharacterMorph={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.characterMorph : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.characterMorph : undefined)}
+                            currentReverbSend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbSend : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbSend : undefined)}
+                            currentDelaySend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.delaySend : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.delaySend : undefined)}
+                            currentChoir={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.choir : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.choir : undefined)}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
                             onPropertyChange={handleNotePropertyChange}

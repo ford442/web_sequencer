@@ -90,6 +90,8 @@ export const useAudioEngine = (pyodide: unknown) => {
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
+    const delayNodeRef = useRef<DelayNode | null>(null);
+    const delayFeedbackRef = useRef<GainNode | null>(null);
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
 
     const pyodideRef = useRef(pyodide);
@@ -111,6 +113,8 @@ export const useAudioEngine = (pyodide: unknown) => {
         masterGainRef,
         masterSaturationRef,
         reverbNodeRef,
+        delayNodeRef,
+        delayFeedbackRef,
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
@@ -156,6 +160,17 @@ export const useAudioEngine = (pyodide: unknown) => {
             reverbNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0); // Default to plate
             reverbNode.connect(masterGain);
             reverbNodeRef.current = reverbNode;
+
+            // Initialize Global Delay Node
+            const delayNode = context.createDelay(2.0);
+            delayNode.delayTime.value = 0.375; // ~1/8th note at typical tempo
+            const delayFeedback = context.createGain();
+            delayFeedback.gain.value = 0.4;
+            delayNode.connect(delayFeedback);
+            delayFeedback.connect(delayNode);
+            delayNode.connect(masterGain);
+            delayNodeRef.current = delayNode;
+            delayFeedbackRef.current = delayFeedback;
 
             // Initialize Engines
             const gpuEngine = new WebGpuOscillator();
@@ -214,8 +229,8 @@ export const useAudioEngine = (pyodide: unknown) => {
             }
 
             // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
-            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined);
+            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
 
             await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
 
@@ -307,6 +322,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    delaySend?: number,
                     choir?: number,
                     drive?: number,
                     characterMorph?: number,
@@ -391,6 +407,15 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.connectOutput(reverbGain); // connectOutput appends to existing connections
                             }
 
+                            // Setup Delay Send
+                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                            if (delaySendAmount > 0 && delayNodeRef.current) {
+                                const delayGain = context.createGain();
+                                delayGain.gain.value = delaySendAmount;
+                                delayGain.connect(delayNodeRef.current);
+                                voice.connectOutput(delayGain);
+                            }
+
                             // Apply Timbre Modulation (Formant Shift)
                             const baseShift = params.formantShift || 0;
                             if (noteParams?.formantShift !== undefined) {
@@ -442,6 +467,14 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
                             } else if (params.formantLfoDepth !== undefined) {
                                 voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
+                            }
+
+                            // Formant Envelope
+                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            if (envAmount !== 0) {
+                                voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
                             }
                             if (noteParams?.customLfoShape !== undefined) {
                                 voice.setFormantLfoShape(noteParams.customLfoShape);
@@ -677,6 +710,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    delaySend?: number,
                     choir?: number,
                     drive?: number,
                     characterMorph?: number,

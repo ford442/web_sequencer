@@ -26,11 +26,15 @@ export class Voice {
 
     private cleanupTimer: any = null;
 
-    constructor(context: AudioContext, destination: AudioNode, wavSaw?: AudioBuffer, wavSqr?: AudioBuffer) {
+    private globalDelayNode?: DelayNode;
+    private globalDelaySendGain?: GainNode;
+
+    constructor(context: AudioContext, destination: AudioNode, wavSaw?: AudioBuffer, wavSqr?: AudioBuffer, globalDelayNode?: DelayNode) {
         this.context = context;
         this.destination = destination;
         this.wavSawBuffer = wavSaw;
         this.wavSqrBuffer = wavSqr;
+        this.globalDelayNode = globalDelayNode;
 
         // Create permanent nodes
         this.filter = context.createBiquadFilter();
@@ -55,6 +59,13 @@ export class Voice {
         this.dryGain.connect(this.panner);
         this.wetGain.connect(this.panner);
         this.panner.connect(destination);
+
+        if (this.globalDelayNode) {
+            this.globalDelaySendGain = context.createGain();
+            this.globalDelaySendGain.gain.value = 0;
+            this.gain.connect(this.globalDelaySendGain);
+            this.globalDelaySendGain.connect(this.globalDelayNode);
+        }
 
         // Initial silence
         this.gain.gain.value = 0;
@@ -141,6 +152,13 @@ export class Voice {
         this.currentNote = note;
     }
 
+    setDelaySend(amount: number, time?: number) {
+        if (this.globalDelaySendGain) {
+            const t = time || this.context.currentTime;
+            this.globalDelaySendGain.gain.setValueAtTime(amount, t);
+        }
+    }
+
     stopNote(time: number, params: SynthParams) {
         if (!this.isActive) return;
         this.scheduleRelease(params, time);
@@ -195,18 +213,25 @@ export class VoiceManager {
     private context: AudioContext;
     private destination: AudioNode;
     private isMonophonic: boolean;
+    private globalDelayNode?: DelayNode;
 
     // Buffers
     private wavSaw?: AudioBuffer;
     private wavSqr?: AudioBuffer;
 
-    constructor(context: AudioContext, destination: AudioNode, maxVoices: number, isMonophonic: boolean, wavSaw?: AudioBuffer, wavSqr?: AudioBuffer) {
+    public delayNode?: DelayNode;
+    public delayFeedback?: GainNode;
+
+    constructor(context: AudioContext, destination: AudioNode, maxVoices: number, isMonophonic: boolean, wavSaw?: AudioBuffer, wavSqr?: AudioBuffer, delayNode?: DelayNode, delayFeedback?: GainNode, globalDelayNode?: DelayNode) {
         this.context = context;
         this.destination = destination;
         this.maxVoices = maxVoices;
         this.isMonophonic = isMonophonic;
         this.wavSaw = wavSaw;
         this.wavSqr = wavSqr;
+        this.delayNode = delayNode;
+        this.delayFeedback = delayFeedback;
+        this.globalDelayNode = globalDelayNode;
     }
 
     private getVoice(_note: string): Voice {
@@ -216,7 +241,7 @@ export class VoiceManager {
 
         // Create new if below limit
         if (this.voices.length < this.maxVoices) {
-            const v = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr);
+            const v = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr, this.globalDelayNode);
             this.voices.push(v);
             return v;
         }
@@ -225,26 +250,29 @@ export class VoiceManager {
         return this.voices[0];
     }
 
-    playNote(params: SynthParams, notes: string | string[], time: number, duration: number, slideFromFreq?: number) {
+    playNote(params: SynthParams, notes: string | string[], time: number, duration: number, slideFromFreq?: number): Voice | null {
         const noteArray = Array.isArray(notes) ? notes : [notes];
 
         if (this.isMonophonic) {
             // Mono: Always use voice 0
             const note = noteArray[0];
-            if (!note) return;
+            if (!note) return null;
 
             let voice = this.voices[0];
             if (!voice) {
-                voice = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr);
+                voice = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr, this.globalDelayNode);
                 this.voices.push(voice);
             }
             voice.play(params, note, time, duration, slideFromFreq);
+            return voice;
         } else {
             // Poly: Trigger voice for each note
+            let lastVoice: Voice | null = null;
             noteArray.forEach((note, idx) => {
                 const slide = idx === 0 ? slideFromFreq : undefined;
                 const voice = this.getVoice(note);
                 voice.play(params, note, time, duration, slide);
+                lastVoice = voice;
 
                 // Rotate used voice to end of list (LRU approximation)
                 const vIdx = this.voices.indexOf(voice);
@@ -253,6 +281,7 @@ export class VoiceManager {
                     this.voices.push(voice);
                 }
             });
+            return lastVoice;
         }
     }
 
@@ -260,7 +289,7 @@ export class VoiceManager {
         if (this.isMonophonic) {
             let voice = this.voices[0];
             if (!voice) {
-                voice = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr);
+                voice = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr, this.globalDelayNode);
                 this.voices.push(voice);
             }
             voice.startNote(params, note, time);

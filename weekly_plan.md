@@ -10,7 +10,6 @@ Write ideas here during the week as they come to you.
 Routine prioritizes these over generated ideas.
 Format: - [ ] Short description (optional: more context on next line indented)
 Routine will mark picked items as "[in progress — YYYY-MM-DD]".
--->
 - [ ] **Verify bug-report.md staleness** — confirm `useAudioEngine.ts:1393` try/catch compiles; delete the report if stale or patch if real. Half-day.
 - [ ] **Holographic knob renderer perf audit** — profile WebGPU knob rendering with many simultaneous knobs; identify bottlenecks; optimize. Multi-day.
 - [ ] Holographic knob WGSL render pass unification — single compute-driven render path so every knob shares lighting/material, kill drift between the 2D fallback and the 3D R3F path. (multi-day, per HOLOGRAPHIC_*.md)
@@ -21,6 +20,8 @@ Routine will mark picked items as "[in progress — YYYY-MM-DD]".
 Unfinished items, known bugs, deferred ideas.
 Routine maintains this automatically — you can add items too.
 -->
+- [ ] **Palette: SamplerPanel `<fieldset>` conversion** — Convert `BASIC` and `ENGINE` grouping `div` elements in `src/components/SamplerPanel.tsx` to accessible `<fieldset>`/`<legend className="sr-only">` structures to match `DrumMachine.tsx` and `SynthPart.tsx`.
+- [ ] **Fix SamplerPanel useMemo syntax error** — `src/components/SamplerPanel.tsx(174,6)` is throwing `TS1005: ')' expected` due to an incomplete `useMemo` block for `currentParams`. This needs to be resolved before further component changes.
 - [ ] **Open PR #457** Custom Waveform LFO (Jules) — needs review/merge or rejection
 - [ ] **Open PR #458** aria-label/title on icon buttons (Jules) — needs review/merge
 - [ ] **Open issue #330** Live Keyboard UI arrangement — CSS-grid piano-shape layout; Jules-labeled, still unimplemented
@@ -39,7 +40,6 @@ Routine maintains this automatically — you can add items too.
 <!--
 Completed items, routine archives here with date.
 Prune occasionally when this gets long.
--->
 - 2026-04-20 — Accessible ARIA switches replace native checkboxes (PR #456 merged)
 - 2026-04-19 — Custom Sample Slicing UI with keyboard nav (PR #455 merged)
 - 2026-04-19 — Fix orphaned `aria-describedby` refs in modals (PR #454 merged)

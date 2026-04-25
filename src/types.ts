@@ -84,6 +84,9 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
+  formantEnvAttack?: number; // Formant Envelope Attack time in seconds
+  formantEnvDecay?: number; // Formant Envelope Decay time in seconds
+  formantEnvAmount?: number; // Formant Envelope Amount (semitones shift)
   customLfoShape?: number[]; // Custom LFO shape array
   characterMorph?: number; // Morph amount between characters (0-1)
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright'; // Target character for morphing
@@ -169,6 +172,9 @@ export interface Note {
   formantShift?: number; // Formant shift override (-12 to +12)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
+  formantEnvAttack?: number; // Formant Envelope Attack time in seconds
+  formantEnvDecay?: number; // Formant Envelope Decay time in seconds
+  formantEnvAmount?: number; // Formant Envelope Amount (semitones shift)
   customLfoShape?: number[]; // Custom LFO shape array (Sampler only)
   characterMorph?: number; // Morph amount between characters (0-1)
   filterCutoff?: number; // 0-1, exponentially mapped to Hz
@@ -176,6 +182,7 @@ export interface Note {
   envMod?: number; // 0-1, envelope modulation override for filters
   vibratoDepth?: number; // 0-100%, vibrato depth override (Sampler only)
   reverbSend?: number; // 0-1, amount sent to reverb bus
+  delaySend?: number; // 0-1, amount sent to delay bus
   choir?: number; // 0-1, override choir detune spread (Sampler only)
   drive?: number; // 0-1, distortion/drive amount override (Sampler only)
   slideType?: 'linear' | 'exponential'; // Shape of portamento curve
