@@ -154,6 +154,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         freeze: 0,
         formantLfoRate: 0,
         formantLfoDepth: 0,
+        formantEnvAttack: 0.1,
+        formantEnvDecay: 0.5,
+        formantEnvAmount: 0,
         characterMorph: 0,
         morphTarget: 'female' as 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright',
         attack: 0.05,
@@ -215,6 +218,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleFreezeLfoDepthChange = paramHandlers.freezeLfoDepth;
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
     const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
+    const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
+    const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
+    const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
     const handleCharacterMorphChange = paramHandlers.characterMorph;
     const handleAttackChange = paramHandlers.attack;
     const handleDecayChange = paramHandlers.decay;
@@ -994,6 +1000,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Frz LFO Depth" value={currentParams.freezeLfoDepth ?? 0} onChange={handleFreezeLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
 
                             {/* Custom LFO Shape */}
                             <div className="flex flex-col items-center justify-start gap-1 col-span-2">

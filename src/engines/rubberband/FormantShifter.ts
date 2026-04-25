@@ -99,6 +99,10 @@ export class FormantShifter {
     private lfoDepth: number = 0;
     private customWave: PeriodicWave | null = null;
 
+    // Envelope components
+    private envNode: ConstantSourceNode | null = null;
+    private envGain: GainNode | null = null;
+
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
         this.sourceFormants = config.sourceFormants ?? VOICE_FORMANTS.default;
@@ -185,6 +189,21 @@ export class FormantShifter {
             }
 
             this.lfo.start();
+        }
+
+        // Create Envelope components
+        if (typeof this.audioContext.createConstantSource === 'function') {
+            this.envNode = this.audioContext.createConstantSource();
+            this.envGain = this.audioContext.createGain();
+            this.envGain.gain.value = 0; // Idle state
+
+            this.envNode.connect(this.envGain);
+
+            for (let i = 0; i < formants.length; i++) {
+                this.envGain.connect(filters[i].detune);
+            }
+
+            this.envNode.start();
         }
 
         this.filterNodes = filters;
@@ -448,8 +467,49 @@ export class FormantShifter {
             this.lfoGain.disconnect();
             this.lfoGain = null;
         }
+
+        if (this.envNode) {
+            this.envNode.stop();
+            this.envNode.disconnect();
+            this.envNode = null;
+        }
+        if (this.envGain) {
+            this.envGain.disconnect();
+            this.envGain = null;
+        }
     }
     
+    /**
+     * Trigger a formant envelope.
+     * @param amount Peak shift amount in semitones
+     * @param attack Attack time in seconds
+     * @param decay Decay time in seconds
+     * @param time Trigger time
+     */
+    triggerEnvelope(amount: number, attack: number, decay: number, time?: number): void {
+        if (!this.envGain) return;
+
+        const t = time || this.audioContext.currentTime;
+        const gainParam = this.envGain.gain;
+
+        gainParam.cancelScheduledValues(t);
+        gainParam.setValueAtTime(0, t);
+
+        const peakGain = amount * 100; // Map semitones to cents
+
+        if (attack > 0) {
+            gainParam.linearRampToValueAtTime(peakGain, t + attack);
+        } else {
+            gainParam.setValueAtTime(peakGain, t);
+        }
+
+        if (decay > 0) {
+            gainParam.linearRampToValueAtTime(0, t + attack + decay);
+        } else {
+            gainParam.setValueAtTime(0, t + attack);
+        }
+    }
+
     /**
      * Get the current formant shift settings.
      */

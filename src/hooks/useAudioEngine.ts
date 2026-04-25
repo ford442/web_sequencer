@@ -468,6 +468,14 @@ export const useAudioEngine = (pyodide: unknown) => {
                             } else if (params.formantLfoDepth !== undefined) {
                                 voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
                             }
+
+                            // Formant Envelope
+                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            if (envAmount !== 0) {
+                                voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
+                            }
                             if (noteParams?.customLfoShape !== undefined) {
                                 voice.setFormantLfoShape(noteParams.customLfoShape);
                             } else if (params.customLfoShape !== undefined) {

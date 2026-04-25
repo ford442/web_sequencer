@@ -46,7 +46,7 @@
 - [x] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 - [x] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation.
 
-- [ ] **Vocal Formant Envelope:** Add a dedicated Attack/Decay envelope specifically for formants to create plucky or sweeping vocal filter effects on every note.
+- [x] **Vocal Formant Envelope:** Add a dedicated Attack/Decay envelope specifically for formants to create plucky or sweeping vocal filter effects on every note.
 - [ ] **Step-Sequenced Reverb Types:** Allow sequence steps to override the global reverb type (e.g., switch from a small room to a massive hall on a specific snare or vocal slice).
 - [x] **Per-Step Delay Send:** Allow sequence steps to override the global delay send amount to create rhythmic echoes for TTS or synth sequences.
 
@@ -85,7 +85,7 @@
 * [x] **Idea:** "Global Saturation / Tape Warmth" - Add a master channel saturation unit to glue the mix together. (Implemented via WaveShaperNode!)
 * [x] **Idea:** "Auto-Slice by Transients" - Use energy-based analysis to automatically detect and place slice markers at drum hits or clear transients when a custom sample is loaded. (Implemented via `AUTO-SLICE` button logic in `WaveformDisplay` and `SamplerPanel`!)
 * [x] **Idea:** "Per-Step Delay Send" - Allow sequence steps to override the global delay send amount to create rhythmic echoes for TTS or synth sequences. (Implemented!)
-* **Idea:** "Vocal Formant Envelope" - Add a dedicated Attack/Decay envelope specifically for formants to create plucky or sweeping vocal filter effects on every note.
+* [x] **Idea:** "Vocal Formant Envelope" - Add a dedicated Attack/Decay envelope specifically for formants to create plucky or sweeping vocal filter effects on every note. (Implemented in FormantShifter and SamplerPanel!)
 * **Idea:** "Step-Sequenced Reverb Types" - Allow sequence steps to override the global reverb type (e.g., switch from a small room to a massive hall on a specific snare or vocal slice).
 * **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
 * [x] **Idea:** "Real-time Convolution Reverb for Vocal Spaces" - Enhance the dynamic reverb by allowing users to select impulse response types. (Implemented!)
@@ -97,6 +97,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-06-27] - Implemented Vocal Formant Envelope: Added Formant Envelope parameters to `SamplerBankParams` and `Note` interfaces, allowing users to modulate formant detune amounts via an attack/decay envelope on `ConstantSourceNode` and `GainNode`. Added global and per-step controls to `SamplerPanel` and `NoteSelector`.
 * [2026-06-27] - Verified Gesture Controls: Confirmed pinch-to-zoom is fully implemented in `MainSequencer.tsx` and marked as complete.
 * [2026-06-27] - Implemented Per-Step Delay Send: Added `delaySend` parameter to `Note` interface and updated `NoteSelector` UI to include a slider. Plumbed the parameter through `App.tsx` and updated `useAudioEngine.ts` to allow both Sampler (`playSamplerVoice`) and Synth (`VoiceManager`) engines to override the global delay send bus per-step. Fulfills the "Per-Step Delay Send" Innovation Lab idea.
 * [2026-06-26] - Implemented Custom Waveform LFO: Added a new `DrawableLFO` canvas component to `SamplerPanel` allowing users to draw an arbitrary LFO shape. Added a Discrete Fourier Transform (DFT) engine inside `FormantShifter.ts` to convert the normalized shape into a `PeriodicWave` used by the internal Web Audio `OscillatorNode`.
