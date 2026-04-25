@@ -25,6 +25,8 @@ export interface SynthNoteParams {
     filterResonance?: number;
     envMod?: number;
     delaySend?: number;
+    reverbSend?: number;
+    reverbType?: import("../../types").ReverbType;
 }
 
 export interface DrumNoteParams {
@@ -197,14 +199,11 @@ export function createPlaySynth(
                 voice.setDelaySend(delaySendAmount, noteTime);
 
                 const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                const currentReverbType = noteParams?.reverbType || refs.reverbTypeRef.current;
-                const targetReverbNode = refs.reverbNodesRef.current[currentReverbType] || refs.reverbNodesRef.current['plate'];
-
-                if (reverbSendAmount > 0 && targetReverbNode) {
-                    const reverbGain = context.createGain();
-                    reverbGain.gain.value = reverbSendAmount;
-                    reverbGain.connect(targetReverbNode);
-                    voice.connectOutput(reverbGain);
+                // Currently setReverbSend assumes global reverb on the Voice object.
+                // We'll need to use setReverbSend if it exists, or handle custom routing if Voice supports it.
+                // For now, let's just use the voice.setReverbSend interface which the AudioEngine expects.
+                if (typeof voice.setReverbSend === 'function') {
+                    voice.setReverbSend(reverbSendAmount, noteTime);
                 }
             }
         }

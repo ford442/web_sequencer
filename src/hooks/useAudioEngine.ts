@@ -296,8 +296,8 @@ export const useAudioEngine = (pyodide: unknown) => {
             multisampleGeneratorRef.current = new MultisampleGenerator(context);
 
             // --- Playback Functions Extraction ---
-            const playSynth = createPlaySynth(context, playbackRefs);
-            const playDrum = createPlayDrum(context, playbackRefs);
+            const playSynth = createPlaySynth(context, playbackRefs) as any;
+            const playDrum = createPlayDrum(context, playbackRefs) as any;
             const {
                 loadSampleToEngine,
                 getMultisampleBank,
@@ -489,7 +489,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                             } else if (params.formantLfoShape !== undefined) {
                                 voice.setFormantLfoShape(params.formantLfoShape);
                             } else {
-                                voice.setFormantLfoShape(null);
+                                voice.setFormantLfoShape(undefined);
                             }
 
                             // Formant Envelope
