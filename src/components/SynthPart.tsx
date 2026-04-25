@@ -36,6 +36,7 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
       <div className="flex justify-between items-start">
         <h2 className={`font-orbitron text-xl font-bold ${accentClasses[accentColor].text}`}>{title}</h2>
         <button
+          aria-label={isFrozen ? "Unfreeze Track" : "Mixdown Track"}
           onClick={isFrozen ? onUnfreeze : onMixdown}
           disabled={isRendering}
           aria-busy={isRendering}

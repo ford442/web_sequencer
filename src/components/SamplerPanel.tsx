@@ -171,7 +171,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         rbQuality: 'Standard' as 'Fast' | 'Standard' | 'Elastic',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
         autoFollow: false
-    };
+    });
 
     // Update single param for active bank
     const updateParam = (key: keyof typeof currentParams, value: number | string) => {

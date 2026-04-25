@@ -17,10 +17,11 @@ export const StartOverlay: React.FC<StartOverlayProps> = ({ onStart, isReady }) 
                     <div className="flex justify-between mb-1"><span>WEBGPU:</span><span className="text-green-400">DETECTED</span></div>
                     <div className="flex justify-between"><span>CORE (PYODIDE):</span>{isReady ? <span className="text-green-400">LOADED</span> : <span className="text-yellow-400 animate-pulse">LOADING...</span>}</div>
                 </div>
-                <button 
-                    onClick={onStart} 
-                    disabled={!isReady} 
-                    aria-busy={!isReady} 
+                <button
+                    aria-label="Initialize System"
+                    onClick={onStart}
+                    disabled={!isReady}
+                    aria-busy={!isReady}
                     className={`w-full py-4 rounded-xl font-orbitron text-xl font-bold tracking-widest transition-all duration-300 ${
                         isReady 
                             ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.6)] hover:shadow-[0_0_30px_rgba(6,182,212,0.8)] border border-cyan-400 cursor-pointer transform hover:scale-[1.02]' 
