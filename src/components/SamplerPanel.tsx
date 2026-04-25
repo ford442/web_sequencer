@@ -5,7 +5,6 @@ import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
 import { DrawableLFO } from './DrawableLFO';
 import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
-import { DrawableLFO } from './DrawableLFO';
 import { PhonemeAligner } from '../engines/rubberband/PhonemeAligner';
 
 interface SamplerPanelProps {

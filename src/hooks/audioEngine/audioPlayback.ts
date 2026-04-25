@@ -61,7 +61,8 @@ interface ActiveSamplerNote {
 export interface PlaybackRefs {
     masterGainRef: MutableRefObject<GainNode | null>;
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>;
-    reverbNodeRef: MutableRefObject<ConvolverNode | null>;
+    reverbNodesRef: MutableRefObject<Record<string, ConvolverNode>>;
+    reverbTypeRef: MutableRefObject<'room' | 'plate' | 'hall'>;
     delayNodeRef: MutableRefObject<DelayNode | null>;
     delayFeedbackRef: MutableRefObject<GainNode | null>;
     masterPannerRef: MutableRefObject<StereoPannerNode | null>;
@@ -81,7 +82,7 @@ export interface PlaybackRefs {
 
 export function createPlaySynth(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef'>,
+    refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'reverbNodesRef' | 'reverbTypeRef'>,
 ): PlaySynthFn {
     return (params, note, time, durationSteps = 1, stepTime = 0.2, slideFromFreq, track, noteParams) => {
         if (!refs.masterGainRef.current) {
@@ -194,6 +195,17 @@ export function createPlaySynth(
             if (voice) {
                 const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : 0;
                 voice.setDelaySend(delaySendAmount, noteTime);
+
+                const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                const currentReverbType = noteParams?.reverbType || refs.reverbTypeRef.current;
+                const targetReverbNode = refs.reverbNodesRef.current[currentReverbType] || refs.reverbNodesRef.current['plate'];
+
+                if (reverbSendAmount > 0 && targetReverbNode) {
+                    const reverbGain = context.createGain();
+                    reverbGain.gain.value = reverbSendAmount;
+                    reverbGain.connect(targetReverbNode);
+                    voice.connectOutput(reverbGain);
+                }
             }
         }
     };
@@ -201,7 +213,7 @@ export function createPlaySynth(
 
 export function createPlayDrum(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef'>,
+    refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef'>,
 ): AudioEngine['playDrum'] {
     return (sound, params, time, noteParams, stepTime = 0.125) => {
         if (!refs.masterGainRef.current) {
