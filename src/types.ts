@@ -84,6 +84,7 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
+  formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)
   formantEnvAttack?: number; // Formant Envelope Attack time in seconds
   formantEnvDecay?: number; // Formant Envelope Decay time in seconds
   formantEnvAmount?: number; // Formant Envelope Amount (semitones shift)
@@ -172,6 +173,7 @@ export interface Note {
   formantShift?: number; // Formant shift override (-12 to +12)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
+  formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)
   formantEnvAttack?: number; // Formant Envelope Attack time in seconds
   formantEnvDecay?: number; // Formant Envelope Decay time in seconds
   formantEnvAmount?: number; // Formant Envelope Amount (semitones shift)

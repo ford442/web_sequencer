@@ -319,6 +319,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     filterResonance?: number,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
+                    formantLfoShape?: number[],
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
@@ -467,6 +468,13 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
                             } else if (params.formantLfoDepth !== undefined) {
                                 voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
+                            }
+                            if (noteParams?.formantLfoShape !== undefined) {
+                                voice.setFormantLfoShape(noteParams.formantLfoShape);
+                            } else if (params.formantLfoShape !== undefined) {
+                                voice.setFormantLfoShape(params.formantLfoShape);
+                            } else {
+                                voice.setFormantLfoShape(null);
                             }
 
                             // Formant Envelope

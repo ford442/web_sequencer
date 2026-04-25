@@ -5,6 +5,7 @@ import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
 import { DrawableLFO } from './DrawableLFO';
 import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
+import { DrawableLFO } from './DrawableLFO';
 import { PhonemeAligner } from '../engines/rubberband/PhonemeAligner';
 
 interface SamplerPanelProps {
@@ -193,13 +194,13 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoRate', 'freezeLfoDepth', 'formantLfoRate', 'formantLfoDepth', 'characterMorph', 'attack', 'decay',
+            'freezeLfoRate', 'freezeLfoDepth', 'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
             'sustain', 'release', 'choir', 'glitchChance'
         ] as const;
-        return Object.fromEntries(paramNames.map(p => [p, (v: number) => {
+        return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
             if (onParamChange) onParamChange(activeBankIdx, p, v);
             else updateParamRef.current(p as any, v);
-        }])) as Record<typeof paramNames[number], (v: number) => void>;
+        }])) as Record<typeof paramNames[number], (v: any) => void>;
     }, [activeBankIdx, onParamChange]);
 
     const handleSpeedChange = paramHandlers.playbackSpeed;
@@ -218,6 +219,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleFreezeLfoDepthChange = paramHandlers.freezeLfoDepth;
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
     const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
+    const handleFormantLfoShapeChange = paramHandlers.formantLfoShape;
     const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
     const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
     const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
@@ -1016,6 +1018,14 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                                     }}
                                     width={120}
                                     height={40}
+                                />
+                            </div>
+
+                            <div className="flex flex-col justify-end">
+                                <DrawableLFO
+                                    value={currentParams.formantLfoShape}
+                                    onChange={handleFormantLfoShapeChange}
+                                    label="Fmt LFO Shape"
                                 />
                             </div>
 

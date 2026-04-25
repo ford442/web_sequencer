@@ -792,6 +792,16 @@ export class SingingVoice {
     }
 
     /**
+     * Set custom formant LFO shape.
+     * @param shape Array of values from -1 to 1 representing the LFO waveform.
+     */
+    setFormantLfoShape(shape: number[] | null): void {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            this.formantShifter.setLfoShape(shape);
+        }
+    }
+
+    /**
      * Set formant shift in semitones.
      * @param semitones Formant shift in semitones (e.g., -12 to 12)
      * @param time Optional time to apply the change (default: now)

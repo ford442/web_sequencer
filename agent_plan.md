@@ -43,6 +43,8 @@
 - [x] **Custom Sample Slicing UI:** Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
 - [x] **Voice Layering / Chorus per Voice:** Allow a detune spread parameter per step for instant vocal thickening.
 
+- [ ] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
+- [x] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented in FormantShifter and SamplerPanel using DrawableLFO and PeriodicWave via DFT!)
 - [x] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 - [x] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation.
 
@@ -77,6 +79,9 @@
 * [x] **Idea:** "Filter Envelope Mod" - Allow the sequence steps to have an envelope mod amount that specifically shapes the filter envelope per step. (Implemented!)
 * [x] **Idea:** "Vocal Formant LFO" - Introduce a Formant LFO with rate and depth controls for dynamic rhythmic Wah-Wah effects on TTS vowels. (Implemented in FormantShifter and SamplerPanel!)
 * [x] **Idea:** "Step-Sequenced Formant LFO" - Allow individual steps to override the global Formant LFO rate and depth for highly articulated rhythmic sequences.
+* [x] **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented in FormantShifter and SamplerPanel using DrawableLFO and PeriodicWave via DFT!)
+* **Idea:** "LFO Rate Sync to Tempo" - Allow LFO rates (like Formant LFO or Freeze LFO) to sync to the sequencer tempo.
+* **Idea:** "Microtonal Scale Mapping" - Allow specifying custom microtonal scales rather than the standard 12-TET for Synth and Sampler parts.
 * [x] **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented via DrawableLFO and FormantShifter Fourier Transform!)
 * [x] **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide. (Implemented!)
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope overrides in `SingingVoice.ts`!)
@@ -97,6 +102,7 @@
 ---
 
 ## 📜 Changelog
+* [Date] - Implemented Custom Waveform LFO: Added `DrawableLFO` component to allow users to draw custom LFO shapes for formant modulation. Integrated with `FormantShifter.ts` to convert the drawn array into a `PeriodicWave` using a Discrete Fourier Transform (DFT), passing `formantLfoShape` from the `SamplerPanel` through `SingingVoice` and `useAudioEngine`. Added new ideas: "LFO Rate Sync to Tempo" and "Microtonal Scale Mapping".
 * [2026-06-27] - Implemented Vocal Formant Envelope: Added Formant Envelope parameters to `SamplerBankParams` and `Note` interfaces, allowing users to modulate formant detune amounts via an attack/decay envelope on `ConstantSourceNode` and `GainNode`. Added global and per-step controls to `SamplerPanel` and `NoteSelector`.
 * [2026-06-27] - Verified Gesture Controls: Confirmed pinch-to-zoom is fully implemented in `MainSequencer.tsx` and marked as complete.
 * [2026-06-27] - Implemented Per-Step Delay Send: Added `delaySend` parameter to `Note` interface and updated `NoteSelector` UI to include a slider. Plumbed the parameter through `App.tsx` and updated `useAudioEngine.ts` to allow both Sampler (`playSamplerVoice`) and Synth (`VoiceManager`) engines to override the global delay send bus per-step. Fulfills the "Per-Step Delay Send" Innovation Lab idea.
