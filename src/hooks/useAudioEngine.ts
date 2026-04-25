@@ -88,7 +88,8 @@ export const useAudioEngine = (pyodide: unknown) => {
     // Master Volume & Pan
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
-    const reverbNodeRef = useRef<ConvolverNode | null>(null);
+    const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});
+    const reverbNodeRef = useRef<ConvolverNode | null>(null); // Keep for backwards compatibility if needed temporarily
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
     const delayNodeRef = useRef<DelayNode | null>(null);
     const delayFeedbackRef = useRef<GainNode | null>(null);
@@ -112,7 +113,8 @@ export const useAudioEngine = (pyodide: unknown) => {
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
         masterSaturationRef,
-        reverbNodeRef,
+        reverbNodesRef,
+        reverbTypeRef,
         delayNodeRef,
         delayFeedbackRef,
         masterPannerRef,
@@ -156,10 +158,21 @@ export const useAudioEngine = (pyodide: unknown) => {
             const masterGain = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef);
 
             // Initialize Reverb Node
-            const reverbNode = context.createConvolver();
-            reverbNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0); // Default to plate
-            reverbNode.connect(masterGain);
-            reverbNodeRef.current = reverbNode;
+            // Initialize Reverb Nodes (Room, Plate, Hall)
+            const roomNode = context.createConvolver();
+            roomNode.buffer = createReverbImpulseResponse(context, 0.5, 1.0);
+            roomNode.connect(masterGain);
+
+            const plateNode = context.createConvolver();
+            plateNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0);
+            plateNode.connect(masterGain);
+
+            const hallNode = context.createConvolver();
+            hallNode.buffer = createReverbImpulseResponse(context, 3.5, 3.0);
+            hallNode.connect(masterGain);
+
+            reverbNodesRef.current = { room: roomNode, plate: plateNode, hall: hallNode };
+            reverbNodeRef.current = plateNode; // Fallback
 
             // Initialize Global Delay Node
             const delayNode = context.createDelay(2.0);
@@ -283,8 +296,8 @@ export const useAudioEngine = (pyodide: unknown) => {
             multisampleGeneratorRef.current = new MultisampleGenerator(context);
 
             // --- Playback Functions Extraction ---
-            const playSynth = createPlaySynth(context, playbackRefs);
-            const playDrum = createPlayDrum(context, playbackRefs);
+            const playSynth = createPlaySynth(context, playbackRefs) as any;
+            const playDrum = createPlayDrum(context, playbackRefs) as any;
             const {
                 loadSampleToEngine,
                 getMultisampleBank,
@@ -401,10 +414,12 @@ export const useAudioEngine = (pyodide: unknown) => {
 
                             // Setup Reverb Send
                             const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                            if (reverbSendAmount > 0 && reverbNodeRef.current) {
+                            const currentReverbType = noteParams?.reverbType || reverbTypeRef.current;
+                            const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+                            if (reverbSendAmount > 0 && targetReverbNode) {
                                 const reverbGain = context.createGain();
                                 reverbGain.gain.value = reverbSendAmount;
-                                reverbGain.connect(reverbNodeRef.current);
+                                reverbGain.connect(targetReverbNode);
                                 voice.connectOutput(reverbGain); // connectOutput appends to existing connections
                             }
 
@@ -474,7 +489,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                             } else if (params.formantLfoShape !== undefined) {
                                 voice.setFormantLfoShape(params.formantLfoShape);
                             } else {
-                                voice.setFormantLfoShape(null);
+                                voice.setFormantLfoShape(undefined);
                             }
 
                             // Formant Envelope
@@ -835,20 +850,6 @@ export const useAudioEngine = (pyodide: unknown) => {
 
             const setReverbType = (type: 'room' | 'plate' | 'hall') => {
                 reverbTypeRef.current = type;
-                if (!reverbNodeRef.current) return;
-
-                let duration = 1.5;
-                let decay = 2.0;
-
-                if (type === 'room') {
-                    duration = 0.5;
-                    decay = 1.0;
-                } else if (type === 'hall') {
-                    duration = 3.5;
-                    decay = 3.0;
-                }
-
-                reverbNodeRef.current.buffer = createReverbImpulseResponse(context, duration, decay);
             };
 
             const detectSamplePitch = async (_b: AudioBuffer) => null;

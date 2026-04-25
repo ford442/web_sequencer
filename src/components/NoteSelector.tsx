@@ -33,14 +33,15 @@ interface NoteSelectorProps {
     currentDrive?: number;
     currentCharacterMorph?: number;
     currentReverbSend?: number;
+    currentReverbType?: import('../types').ReverbType;
     currentDelaySend?: number;
     currentChoir?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'delaySend' | 'choir', value: number | boolean) => void;
+    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'choir', value: number | boolean | string) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0,  currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentDelaySend, currentChoir, onPropertyChange
+    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0,  currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentReverbType, currentDelaySend, currentChoir, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -234,11 +235,25 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
                                         max="1"
                                         step="0.01"
                                         value={currentReverbSend !== undefined ? currentReverbSend : 0}
-                                        onChange={(e) => onPropertyChange('reverbSend', parseFloat(e.target.value))}
+                                        onChange={(e) => onPropertyChange?.('reverbSend', parseFloat(e.target.value))}
                                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                         aria-valuetext={`${currentReverbSend !== undefined ? Math.round(currentReverbSend * 100) : 0}%`}
                                         aria-label="Reverb Send"
                                     />
+                                    <div className="flex justify-between items-center mt-1">
+                                        <span className="text-[9px] text-indigo-200/50 uppercase font-bold">Space</span>
+                                        <select
+                                            value={currentReverbType || ''}
+                                            onChange={(e) => onPropertyChange?.('reverbType', e.target.value)}
+                                            className="bg-gray-800/80 text-[10px] text-indigo-200 rounded border border-indigo-900/30 px-1 py-0.5 outline-none focus:border-indigo-500 transition-colors"
+                                            aria-label="Reverb Type Override"
+                                        >
+                                            <option value="">Global</option>
+                                            <option value="room">Room</option>
+                                            <option value="plate">Plate</option>
+                                            <option value="hall">Hall</option>
+                                        </select>
+                                    </div>
                                 </div>
 
 
