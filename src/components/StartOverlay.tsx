@@ -18,6 +18,7 @@ export const StartOverlay: React.FC<StartOverlayProps> = ({ onStart, isReady }) 
                     <div className="flex justify-between"><span>CORE (PYODIDE):</span>{isReady ? <span className="text-green-400">LOADED</span> : <span className="text-yellow-400 animate-pulse">LOADING...</span>}</div>
                 </div>
                 <button 
+                    aria-label="Initialize System"
                     onClick={onStart} 
                     disabled={!isReady} 
                     aria-busy={!isReady} 

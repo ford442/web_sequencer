@@ -24,3 +24,7 @@
 ## 2025-05-18 - Semantic Groupings for Audio Controls
 **Learning:** Complex audio interfaces often group multiple related controls (like Oscillators, Filters, Kick Drum settings, Snare settings) visually. However, screen readers don't inherently convey these groupings if they are just nested `<div>`s with `<h3>` headings. Wrapping related audio controls in `<fieldset>` with an embedded `<legend>` explicitly links the controls together for assistive technologies without changing the visual layout.
 **Action:** When working on complex synthesizer or drum machine components, identify logical groups of controls and replace their wrapper `<div>` and title heading with `<fieldset>` and `<legend className="sr-only">` (or styled appropriately).
+
+## 2026-04-24 - Safe String Replacements for Accessibility
+**Learning:** When applying automated or bulk accessibility fixes (like adding `aria-label`s) across a large React codebase, using aggressive regex replacements often leads to corrupted JSX, duplicated props, and broken builds. React components are too complex for simple regex patterns.
+**Action:** Always favor targeted, exact string matching or AST-based transformations (like jscodeshift) when injecting props. If manual string replacement is necessary, use highly specific search blocks that include surrounding context to ensure safety and prevent unintended side effects.
