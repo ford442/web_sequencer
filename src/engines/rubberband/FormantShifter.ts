@@ -98,6 +98,11 @@ export class FormantShifter {
     private lfoRate: number = 0;
     private lfoDepth: number = 0;
     private lfoShape: number[] | null = null;
+    private customWave: PeriodicWave | null = null;
+
+    // Envelope components
+    private envNode: ConstantSourceNode | null = null;
+    private envGain: GainNode | null = null;
 
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
@@ -192,6 +197,21 @@ export class FormantShifter {
             this.lfo.start();
         }
 
+        // Create Envelope components
+        if (typeof this.audioContext.createConstantSource === 'function') {
+            this.envNode = this.audioContext.createConstantSource();
+            this.envGain = this.audioContext.createGain();
+            this.envGain.gain.value = 0; // Idle state
+
+            this.envNode.connect(this.envGain);
+
+            for (let i = 0; i < formants.length; i++) {
+                this.envGain.connect(filters[i].detune);
+            }
+
+            this.envNode.start();
+        }
+
         this.filterNodes = filters;
         this.currentShift = shift;
         return filters;
@@ -212,6 +232,63 @@ export class FormantShifter {
         return this.createFilterChain(shift);
     }
     
+    /**
+     * Set a custom LFO shape from an array of normalized values.
+     * @param shape Array of normalized values (0.0 to 1.0)
+     */
+    setCustomLfoShape(shape: number[] | undefined): void {
+        if (!shape || shape.length === 0) {
+            this.customWave = null;
+            if (this.lfo) {
+                this.lfo.type = 'sine';
+            }
+            return;
+        }
+
+        // To convert the drawn shape (time domain) into a PeriodicWave (frequency domain),
+        // we'd need to perform a Discrete Fourier Transform (DFT).
+        // For a simpler approach that gives an approximation without heavy math,
+        // we can just use the first few harmonics or a simple mapping,
+        // but for a true custom wave we must calculate real/imaginary coefficients.
+
+        const N = shape.length;
+        // We'll calculate the first 32 harmonics for performance
+        const maxHarmonics = Math.min(32, Math.floor(N / 2));
+
+        const real = new Float32Array(maxHarmonics + 1);
+        const imag = new Float32Array(maxHarmonics + 1);
+
+        // Convert normalized [0, 1] to bipolar [-1, 1]
+        const bipolarShape = shape.map(v => v * 2 - 1);
+
+        for (let k = 1; k <= maxHarmonics; k++) {
+            let sumReal = 0;
+            let sumImag = 0;
+            for (let n = 0; n < N; n++) {
+                const angle = (2 * Math.PI * k * n) / N;
+                sumReal += bipolarShape[n] * Math.cos(angle);
+                sumImag += bipolarShape[n] * Math.sin(angle); // Negated for standard DFT if needed, but this works for synthesis
+            }
+            // Normalize by N and multiply by 2 (standard synthesis coefficient scaling)
+            real[k] = (2 / N) * sumReal;
+            imag[k] = (2 / N) * sumImag;
+        }
+
+        // real[0] is DC offset, usually 0
+        real[0] = 0;
+        imag[0] = 0;
+
+        try {
+            this.customWave = this.audioContext.createPeriodicWave(real, imag, { disableNormalization: false });
+            if (this.lfo) {
+                this.lfo.setPeriodicWave(this.customWave);
+            }
+        } catch (e) {
+            console.error("Failed to create custom LFO PeriodicWave:", e);
+            this.customWave = null;
+        }
+    }
+
     /**
      * Set the LFO rate for formant shifting.
      * @param rate LFO rate in Hz
@@ -464,8 +541,49 @@ export class FormantShifter {
             this.lfoGain.disconnect();
             this.lfoGain = null;
         }
+
+        if (this.envNode) {
+            this.envNode.stop();
+            this.envNode.disconnect();
+            this.envNode = null;
+        }
+        if (this.envGain) {
+            this.envGain.disconnect();
+            this.envGain = null;
+        }
     }
     
+    /**
+     * Trigger a formant envelope.
+     * @param amount Peak shift amount in semitones
+     * @param attack Attack time in seconds
+     * @param decay Decay time in seconds
+     * @param time Trigger time
+     */
+    triggerEnvelope(amount: number, attack: number, decay: number, time?: number): void {
+        if (!this.envGain) return;
+
+        const t = time || this.audioContext.currentTime;
+        const gainParam = this.envGain.gain;
+
+        gainParam.cancelScheduledValues(t);
+        gainParam.setValueAtTime(0, t);
+
+        const peakGain = amount * 100; // Map semitones to cents
+
+        if (attack > 0) {
+            gainParam.linearRampToValueAtTime(peakGain, t + attack);
+        } else {
+            gainParam.setValueAtTime(peakGain, t);
+        }
+
+        if (decay > 0) {
+            gainParam.linearRampToValueAtTime(0, t + attack + decay);
+        } else {
+            gainParam.setValueAtTime(0, t + attack);
+        }
+    }
+
     /**
      * Get the current formant shift settings.
      */

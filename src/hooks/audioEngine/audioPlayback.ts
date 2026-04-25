@@ -11,9 +11,10 @@ import type {
 import { noteToMidi } from '../../utils/musicTheory';
 import { Harmonizer, type HarmonizerConfig } from '../../engines/Harmonizer';
 import { Open303Manager } from '../../engines/Open303Manager';
-import { VoiceManager } from '../../engines/VoiceManager';
+import { VoiceManager, Voice } from '../../engines/VoiceManager';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import { makeDistortionCurve } from './distortion';
+import { engineTelemetry } from '../../utils/engineTelemetry';
 
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
 export interface SynthNoteParams {
@@ -23,6 +24,7 @@ export interface SynthNoteParams {
     filterCutoff?: number;
     filterResonance?: number;
     envMod?: number;
+    delaySend?: number;
 }
 
 export interface DrumNoteParams {
@@ -60,6 +62,8 @@ export interface PlaybackRefs {
     masterGainRef: MutableRefObject<GainNode | null>;
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>;
     reverbNodeRef: MutableRefObject<ConvolverNode | null>;
+    delayNodeRef: MutableRefObject<DelayNode | null>;
+    delayFeedbackRef: MutableRefObject<GainNode | null>;
     masterPannerRef: MutableRefObject<StereoPannerNode | null>;
     noiseBufferRef: MutableRefObject<AudioBuffer | null>;
     open303ManagerRef: MutableRefObject<Open303Manager | null>;
@@ -125,12 +129,18 @@ export function createPlaySynth(
                     const noteDuration = subDuration;
 
                     setTimeout(() => {
+                        const t0 = performance.now();
                         refs.open303ManagerRef.current?.noteOnBass2(midi, 100);
+                        const t1 = performance.now();
+                        try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
 
                     setTimeout(() => {
                         if (slideFromFreq === undefined) {
+                            const t0 = performance.now();
                             refs.open303ManagerRef.current?.noteOffBass2(midi);
+                            const t1 = performance.now();
+                            try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                         }
                     }, (startDelay + noteDuration) * 1000);
                 }
@@ -152,12 +162,18 @@ export function createPlaySynth(
                     const noteDuration = subDuration;
 
                     setTimeout(() => {
+                        const t0 = performance.now();
                         refs.open303ManagerRef.current?.noteOnBass1(midi, 100);
+                        const t1 = performance.now();
+                        try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
 
                     setTimeout(() => {
                         if (slideFromFreq === undefined) {
+                            const t0 = performance.now();
                             refs.open303ManagerRef.current?.noteOffBass1(midi);
+                            const t1 = performance.now();
+                            try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                         }
                     }, (startDelay + noteDuration) * 1000);
 
@@ -168,10 +184,16 @@ export function createPlaySynth(
             const noteDuration = subDuration;
             const effectiveSlide = i === 0 ? slideFromFreq : undefined;
 
+            let voice: Voice | null = null;
             if (track === 'partB' && refs.voiceManagerBRef.current) {
-                refs.voiceManagerBRef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                voice = refs.voiceManagerBRef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
             } else if (refs.voiceManagerARef.current) {
-                refs.voiceManagerARef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                voice = refs.voiceManagerARef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+            }
+
+            if (voice) {
+                const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : 0;
+                voice.setDelaySend(delaySendAmount, noteTime);
             }
         }
     };
@@ -301,7 +323,10 @@ export function createNoteOnSynth(
         if (track === 'bass2') {
             if (refs.open303ManagerRef.current?.isBass2Ready()) {
                 const midi = noteToMidi(note);
+                const t0 = performance.now();
                 refs.open303ManagerRef.current.noteOnBass2(midi, 100);
+                const t1 = performance.now();
+                try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                 const id = refs.nextSynthNoteId.current++;
                 refs.activeSynthNotes.current.set(id, { stop: () => refs.open303ManagerRef.current?.noteOffBass2(midi) });
                 return id;
@@ -313,7 +338,10 @@ export function createNoteOnSynth(
             if (refs.open303ManagerRef.current?.isBass1Ready()) {
                 refs.open303ManagerRef.current.applyBass1Params(params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
                 const midi = noteToMidi(note);
+                const t0 = performance.now();
                 refs.open303ManagerRef.current.noteOnBass1(midi, 100);
+                const t1 = performance.now();
+                try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                 const id = refs.nextSynthNoteId.current++;
                 refs.activeSynthNotes.current.set(id, { stop: () => refs.open303ManagerRef.current?.noteOffBass1(midi) });
                 return id;

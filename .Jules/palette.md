@@ -17,3 +17,14 @@
 ## 2025-04-19 - Replace native checkboxes with ARIA switches for toggle actions
 **Learning:** Native `<input type="checkbox">` elements, when used for immediate state toggles (like "Lock to Seq" or import configuration options), can feel clunky and lack the visual affordance of a modern switch. More importantly, when visually hidden or improperly styled, they can lose native keyboard focus indicators, impairing accessibility.
 **Action:** Always implement custom UI toggle switches using `<button type="button" role="switch" aria-checked={state}>` accompanied by explicit Tailwind `focus-visible` classes (e.g., `focus-visible:ring-2`) and clear `aria-labelledby` linking to their labels. This provides both a polished look and robust screen reader/keyboard support.
+## $(date +%Y-%m-%d) - Added Title and ARIA labels to Sampler/Harmonizer action buttons
+**Learning:** Icon-only buttons or text-heavy components inside complex modal structures (like Voice Editor and Sampler Panel) often rely on visual context but fail to provide screen-reader accessibility or tooltips for hover interactions, degrading usability.
+**Action:** Always add `aria-label` alongside a matching `title` attribute for icon-only action buttons and quick-presets to ensure both visual hover affordances and screen reader context are available, preventing empty accessibility tree nodes.
+
+## 2025-05-18 - Semantic Groupings for Audio Controls
+**Learning:** Complex audio interfaces often group multiple related controls (like Oscillators, Filters, Kick Drum settings, Snare settings) visually. However, screen readers don't inherently convey these groupings if they are just nested `<div>`s with `<h3>` headings. Wrapping related audio controls in `<fieldset>` with an embedded `<legend>` explicitly links the controls together for assistive technologies without changing the visual layout.
+**Action:** When working on complex synthesizer or drum machine components, identify logical groups of controls and replace their wrapper `<div>` and title heading with `<fieldset>` and `<legend className="sr-only">` (or styled appropriately).
+
+## 2026-04-24 - Safe String Replacements for Accessibility
+**Learning:** When applying automated or bulk accessibility fixes (like adding `aria-label`s) across a large React codebase, using aggressive regex replacements often leads to corrupted JSX, duplicated props, and broken builds. React components are too complex for simple regex patterns.
+**Action:** Always favor targeted, exact string matching or AST-based transformations (like jscodeshift) when injecting props. If manual string replacement is necessary, use highly specific search blocks that include surrounding context to ensure safety and prevent unintended side effects.

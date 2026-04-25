@@ -40,6 +40,7 @@ import {
     loadWavBuffer,
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
+import { engineTelemetry } from '../utils/engineTelemetry';
 
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
@@ -89,6 +90,8 @@ export const useAudioEngine = (pyodide: unknown) => {
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
+    const delayNodeRef = useRef<DelayNode | null>(null);
+    const delayFeedbackRef = useRef<GainNode | null>(null);
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
 
     const pyodideRef = useRef(pyodide);
@@ -110,6 +113,8 @@ export const useAudioEngine = (pyodide: unknown) => {
         masterGainRef,
         masterSaturationRef,
         reverbNodeRef,
+        delayNodeRef,
+        delayFeedbackRef,
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
@@ -156,6 +161,17 @@ export const useAudioEngine = (pyodide: unknown) => {
             reverbNode.connect(masterGain);
             reverbNodeRef.current = reverbNode;
 
+            // Initialize Global Delay Node
+            const delayNode = context.createDelay(2.0);
+            delayNode.delayTime.value = 0.375; // ~1/8th note at typical tempo
+            const delayFeedback = context.createGain();
+            delayFeedback.gain.value = 0.4;
+            delayNode.connect(delayFeedback);
+            delayFeedback.connect(delayNode);
+            delayNode.connect(masterGain);
+            delayNodeRef.current = delayNode;
+            delayFeedbackRef.current = delayFeedback;
+
             // Initialize Engines
             const gpuEngine = new WebGpuOscillator();
             await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
@@ -180,8 +196,10 @@ export const useAudioEngine = (pyodide: unknown) => {
                     open303Manager.connect(masterGain);
                     open303ManagerRef.current = open303Manager;
                     console.log('[useAudioEngine] Open303Manager Ready');
+                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
                 } else {
                     console.warn('[useAudioEngine] Open303Manager failed to initialize');
+                    try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
                 }
             } catch (e) {
                 console.error('[useAudioEngine] Open303Manager crashed during init:', e);
@@ -199,9 +217,20 @@ export const useAudioEngine = (pyodide: unknown) => {
             wavSawBufferRef.current = sawBuf;
             wavSqrBufferRef.current = sqrBuf;
 
+            // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
+            try {
+                let oscillatorBackend = 'js';
+                if (gpuEngine && (gpuEngine as any).isSupported) oscillatorBackend = 'webgpu';
+                else if (wasmEngine && (wasmEngine as any).isReady) oscillatorBackend = 'wasm';
+                else if (sawBuf || sqrBuf) oscillatorBackend = 'wav';
+                engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
+            } catch (e) {
+                console.warn('Engine telemetry registration failed for oscillators', e);
+            }
+
             // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined);
-            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined);
+            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
 
             await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
 
@@ -226,6 +255,7 @@ export const useAudioEngine = (pyodide: unknown) => {
 
                 await manager.init(wasmBinary);
                 singingVoiceManagerRef.current = manager;
+                try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
 
                 initializeChoirBuses(
                     context,
@@ -244,6 +274,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     // Pre-cache logic
                 }
             } catch (e) {
+                try { engineTelemetry.registerResolution('singingVoice','js','failed to init: ' + String(e)); } catch (err) { /* noop */ }
                 console.warn('SingingVoiceManager failed to init:', e);
             }
 
@@ -289,8 +320,11 @@ export const useAudioEngine = (pyodide: unknown) => {
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     formantLfoShape?: number[],
+                    customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    delaySend?: number,
+                    choir?: number,
                     drive?: number,
                     characterMorph?: number,
                     breathIntensity?: number,
@@ -374,6 +408,15 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.connectOutput(reverbGain); // connectOutput appends to existing connections
                             }
 
+                            // Setup Delay Send
+                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                            if (delaySendAmount > 0 && delayNodeRef.current) {
+                                const delayGain = context.createGain();
+                                delayGain.gain.value = delaySendAmount;
+                                delayGain.connect(delayNodeRef.current);
+                                voice.connectOutput(delayGain);
+                            }
+
                             // Apply Timbre Modulation (Formant Shift)
                             const baseShift = params.formantShift || 0;
                             if (noteParams?.formantShift !== undefined) {
@@ -432,6 +475,21 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setFormantLfoShape(params.formantLfoShape);
                             } else {
                                 voice.setFormantLfoShape(null);
+                            }
+
+                            // Formant Envelope
+                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            if (envAmount !== 0) {
+                                voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
+                            }
+                            if (noteParams?.customLfoShape !== undefined) {
+                                voice.setFormantLfoShape(noteParams.customLfoShape);
+                            } else if (params.customLfoShape !== undefined) {
+                                voice.setFormantLfoShape(params.customLfoShape);
+                            } else {
+                                voice.setFormantLfoShape(undefined);
                             }
 
                             // Load buffer
@@ -507,9 +565,11 @@ export const useAudioEngine = (pyodide: unknown) => {
                             manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
                             triggerVoice(mainVoiceData.voice, 0, t, duration);
 
-                            if (params.choir && params.choir > 0 && pitchOffsetSemitones === 0) {
+                            const effectiveChoir = noteParams?.choir !== undefined ? noteParams.choir : (params.choir || 0);
+
+                            if (effectiveChoir > 0 && pitchOffsetSemitones === 0) {
                                 const detune = 0.15;
-                                const gain = params.choir * 0.7;
+                                const gain = effectiveChoir * 0.7;
 
                                 if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
@@ -655,8 +715,11 @@ export const useAudioEngine = (pyodide: unknown) => {
                     freeze?: number,
                     filterCutoff?: number,
                     filterResonance?: number,
+                    customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
+                    delaySend?: number,
+                    choir?: number,
                     drive?: number,
                     characterMorph?: number,
                     breathIntensity?: number,

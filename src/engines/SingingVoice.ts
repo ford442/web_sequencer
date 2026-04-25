@@ -146,6 +146,16 @@ export class SingingVoice {
     }
 
     /**
+     * Set custom LFO shape for formant shifting.
+     * @param shape Array of normalized values (0.0 to 1.0)
+     */
+    setFormantLfoShape(shape: number[] | undefined): void {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            this.formantShifter.setCustomLfoShape(shape);
+        }
+    }
+
+    /**
      * Initialize the Rubber Band AudioWorklet processor.
      * Must be called before processing audio.
      * AudioWorklet is now the only supported path - ScriptProcessorNode fallback removed.
@@ -195,20 +205,45 @@ export class SingingVoice {
 
             // Wait for ready signal
             await new Promise<void>((resolve, reject) => {
+                let timeoutId: any = 0;
                 const handler = (event: MessageEvent) => {
+                    try { clearTimeout(timeoutId); } catch (_) {}
                     if (event.data.type === 'READY') {
-                        this.workletNode!.port.removeEventListener('message', handler);
+                        try {
+                            if (typeof (this.workletNode!.port as any).removeEventListener === 'function') {
+                                (this.workletNode!.port as any).removeEventListener('message', handler);
+                            } else {
+                                (this.workletNode!.port as any).onmessage = null;
+                            }
+                        } catch (_) {}
                         resolve();
                     } else if (event.data.type === 'ERROR') {
-                        this.workletNode!.port.removeEventListener('message', handler);
+                        try {
+                            if (typeof (this.workletNode!.port as any).removeEventListener === 'function') {
+                                (this.workletNode!.port as any).removeEventListener('message', handler);
+                            } else {
+                                (this.workletNode!.port as any).onmessage = null;
+                            }
+                        } catch (_) {}
                         reject(new Error(event.data.error || 'Worklet initialization failed'));
                     }
                 };
-                this.workletNode!.port.addEventListener('message', handler);
+                // Support MessagePort implementations that expose addEventListener or onmessage
+                if (typeof (this.workletNode!.port as any).addEventListener === 'function') {
+                    (this.workletNode!.port as any).addEventListener('message', handler);
+                } else {
+                    (this.workletNode!.port as any).onmessage = handler;
+                }
 
                 // Timeout after 10 seconds
-                setTimeout(() => {
-                    this.workletNode!.port.removeEventListener('message', handler);
+                timeoutId = setTimeout(() => {
+                    try {
+                        if (typeof (this.workletNode!.port as any).removeEventListener === 'function') {
+                            (this.workletNode!.port as any).removeEventListener('message', handler);
+                        } else {
+                            (this.workletNode!.port as any).onmessage = null;
+                        }
+                    } catch (_) {}
                     reject(new Error('Worklet initialization timeout'));
                 }, 10000);
             });
@@ -781,6 +816,15 @@ export class SingingVoice {
                 f4Shift: semitones
             };
             this.formantShifter.updateFilterChain(shift, rampTime);
+        }
+    }
+
+    /**
+     * Trigger a formant envelope.
+     */
+    setFormantEnvelope(amount: number, attack: number, decay: number, triggerTime: number) {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            this.formantShifter.triggerEnvelope(amount, attack, decay, triggerTime);
         }
     }
 

@@ -18,28 +18,28 @@ export const DrumMachine: React.FC<DrumMachineProps> = ({ params, onParamsChange
       <h2 className="font-orbitron text-xl font-bold text-yellow-400">Drum Machine</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* KICK */}
-        <div className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Kick</h3>
+        <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
+          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Kick</legend>
           <div className="flex justify-around flex-wrap">
             <Knob label="Pitch" value={params.kick.pitch} onChange={v => handleParamChange('kick', 'pitch', v)} min={20} max={150} color="yellow" unit="Hz" />
             <Knob label="Decay" value={params.kick.decay} onChange={v => handleParamChange('kick', 'decay', v)} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
             <Knob label="Tone" value={params.kick.tone} onChange={v => handleParamChange('kick', 'tone', v)} min={0} max={1} step={0.01} color="yellow" />
             <Knob label="Volume" value={params.kick.volume} onChange={v => handleParamChange('kick', 'volume', v)} min={0} max={1.5} step={0.01} color="yellow" />
           </div>
-        </div>
+        </fieldset>
         {/* SNARE */}
-        <div className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Snare</h3>
+        <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
+          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Snare</legend>
           <div className="flex justify-around flex-wrap">
             <Knob label="Decay" value={params.snare.decay} onChange={v => handleParamChange('snare', 'decay', v)} min={0.05} max={0.5} step={0.01} color="yellow" unit="s" logarithmic />
             <Knob label="Tone" value={params.snare.tone} onChange={v => handleParamChange('snare', 'tone', v)} min={100} max={400} color="yellow" unit="Hz" />
             <Knob label="Noise" value={params.snare.noise} onChange={v => handleParamChange('snare', 'noise', v)} min={1000} max={10000} color="yellow" unit="Hz" logarithmic />
             <Knob label="Volume" value={params.snare.volume} onChange={v => handleParamChange('snare', 'volume', v)} min={0} max={1.5} step={0.01} color="yellow" />
           </div>
-        </div>
+        </fieldset>
         {/* HATS */}
-        <div className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Hi-Hats</h3>
+        <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
+          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Hi-Hats</legend>
           <div className="flex justify-around flex-wrap">
             <Knob label="CH Decay" value={params.closedHat.decay} onChange={v => handleParamChange('closedHat', 'decay', v)} min={0.01} max={0.2} step={0.001} color="yellow" unit="s" logarithmic />
             <Knob label="OH Decay" value={params.openHat.decay} onChange={v => handleParamChange('openHat', 'decay', v)} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
@@ -52,7 +52,7 @@ export const DrumMachine: React.FC<DrumMachineProps> = ({ params, onParamsChange
                 handleParamChange('openHat', 'volume', v);
             }} min={0} max={1.5} step={0.01} color="yellow" />
           </div>
-        </div>
+        </fieldset>
       </div>
     </div>
   );

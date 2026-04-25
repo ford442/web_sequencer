@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 
 interface DrawableLFOProps {
-    value?: number[]; // Array of values from -1 to 1
+    value?: number[]; // Array of values from 0 to 1 (0.5 = neutral)
     onChange: (shape: number[]) => void;
     width?: number;
     height?: number;
@@ -16,20 +16,20 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = ({
     width = 120,
     height = 60,
     resolution = 64,
-    color = '#818cf8', // Indigo-400
+    color = '#4ade80', // Green-400 (from main)
     label = 'Custom LFO'
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
-    // Internal state array to avoid rendering lag
+    // Local state for smooth drawing
     const [localShape, setLocalShape] = useState<number[]>(() => {
         if (value && value.length === resolution) return [...value];
-        // Default to a sine wave if nothing is provided
-        return Array.from({ length: resolution }, (_, i) => Math.sin((i / resolution) * Math.PI * 2));
+        // Default to flat line at 0.5
+        return Array.from({ length: resolution }, () => 0.5);
     });
 
-    // Sync external value when it changes (and we're not actively drawing)
+    // Sync external value when not drawing
     useEffect(() => {
         if (!isDrawing && value && value.length === resolution) {
             setLocalShape([...value]);
@@ -44,7 +44,7 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = ({
 
         ctx.clearRect(0, 0, width, height);
 
-        // Draw center line
+        // Center line
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -52,7 +52,7 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = ({
         ctx.lineTo(width, height / 2);
         ctx.stroke();
 
-        // Draw waveform
+        // Waveform
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.lineJoin = 'round';
@@ -61,66 +61,45 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = ({
 
         for (let i = 0; i < resolution; i++) {
             const x = (i / (resolution - 1)) * width;
-            // Map value (-1 to 1) to y coordinate (height to 0)
-            const val = localShape[i];
-            const y = height / 2 - (val * (height / 2)) * 0.9; // 0.9 padding
-
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
+            // Map 0-1 to Y (1.0 = top, 0.0 = bottom, like main)
+            const y = (1 - localShape[i]) * height;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
         }
         ctx.stroke();
 
-        // Fill area
-        ctx.fillStyle = `${color}33`; // Add transparency to hex
-        ctx.lineTo(width, height / 2);
-        ctx.lineTo(0, height / 2);
+        // Fill
+        ctx.fillStyle = `${color}33`;
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
         ctx.closePath();
         ctx.fill();
-
     }, [localShape, width, height, resolution, color]);
 
-    useEffect(() => {
-        drawCanvas();
-    }, [drawCanvas]);
+    useEffect(() => drawCanvas(), [drawCanvas]);
 
     const updatePoint = (e: React.PointerEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-
-        // Ensure within bounds
         const clampedX = Math.max(0, Math.min(width, x));
         const clampedY = Math.max(0, Math.min(height, y));
-
-        // Map to array index
         const index = Math.floor((clampedX / width) * resolution);
         const safeIndex = Math.min(resolution - 1, index);
-
-        // Map Y to value (-1 to 1)
-        // Adjust for padding used in drawing (0.9 multiplier)
-        let val = (height / 2 - clampedY) / ((height / 2) * 0.9);
-        val = Math.max(-1, Math.min(1, val)); // Clamp strictly to -1 to 1
-
+        // Map Y to 0-1 (1 = top, 0 = bottom)
+        const val = 1 - (clampedY / height);
         setLocalShape(prev => {
             const next = [...prev];
             next[safeIndex] = val;
-
-            // Smoothing/Interpolation could go here if moving cursor fast,
-            // but for simplicity we just update the point.
-
             return next;
         });
     };
 
     const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
         setIsDrawing(true);
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
         updatePoint(e);
     };
 
@@ -130,17 +109,15 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = ({
     };
 
     const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-        if (!isDrawing) return;
         setIsDrawing(false);
-        e.currentTarget.releasePointerCapture(e.pointerId);
-        // Only trigger onChange when done drawing to save performance
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
         onChange(localShape);
     };
 
-    const resetToSine = () => {
-        const sine = Array.from({ length: resolution }, (_, i) => Math.sin((i / resolution) * Math.PI * 2));
-        setLocalShape(sine);
-        onChange(sine);
+    const resetToFlat = () => {
+        const flat = Array.from({ length: resolution }, () => 0.5);
+        setLocalShape(flat);
+        onChange(flat);
     };
 
     return (
@@ -148,9 +125,9 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = ({
             <div className="flex justify-between w-full items-center px-1">
                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{label}</span>
                 <button
-                    onClick={resetToSine}
-                    className="text-[9px] text-gray-500 hover:text-indigo-400 transition-colors"
-                    title="Reset to Sine Wave"
+                    onClick={resetToFlat}
+                    className="text-[9px] text-gray-500 hover:text-green-400 transition-colors"
+                    title="Reset to Flat"
                     type="button"
                 >
                     RESET
@@ -165,7 +142,7 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = ({
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
-                title="Draw custom LFO waveform"
+                title="Draw custom LFO shape"
             />
         </div>
     );

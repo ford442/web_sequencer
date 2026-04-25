@@ -36,47 +36,55 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
       <div className="flex justify-between items-start">
         <h2 className={`font-orbitron text-xl font-bold ${accentClasses[accentColor].text}`}>{title}</h2>
         <button
+          aria-label={isFrozen ? "Unfreeze Track" : "Mixdown Track"}
           onClick={isFrozen ? onUnfreeze : onMixdown}
           disabled={isRendering}
           aria-busy={isRendering}
-          className={`px-3 py-1 text-xs font-bold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${accentClasses[accentColor].ring} ${
+          title={isRendering ? 'Rendering audio to track, please wait...' : isFrozen ? 'Unfreeze to edit track parameters (uses more CPU)' : 'Mixdown to freeze track (saves CPU)'}
+          className={`px-3 py-1 text-xs font-bold rounded-md transition-colors duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${accentClasses[accentColor].ring} ${
             isRendering ? 'bg-gray-600 text-gray-400 cursor-wait' :
             isFrozen ? 'bg-yellow-500 hover:bg-yellow-600 text-gray-900' :
             'bg-indigo-500 hover:bg-indigo-600 text-white'
           }`}
         >
+          {isRendering && (
+            <svg className="animate-spin h-3.5 w-3.5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          )}
           {isRendering ? 'Rendering...' : isFrozen ? 'Unfreeze' : 'Mixdown'}
         </button>
       </div>
       
       <div className={`relative transition-opacity duration-300 ${isDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-          <div className="space-y-2">
-            <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Oscillator</h3>
+          <fieldset className="space-y-2 border border-gray-800 rounded p-1">
+            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Oscillator</legend>
             <WaveformSelector selected={params.waveform} onChange={(val) => handleParamChange('waveform', val)} accentColor={accentColor} />
             <Knob label="Pitch" value={params.pitch} onChange={(val) => handleParamChange('pitch', val)} min={-24} max={24} step={1} color={accentClasses[accentColor].knob} unit="st" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Filter</h3>
+          </fieldset>
+          <fieldset className="space-y-2 border border-gray-800 rounded p-1">
+            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Filter</legend>
             <Knob label="Cutoff" value={params.filterCutoff} onChange={(val) => handleParamChange('filterCutoff', val)} min={20} max={15000} color={accentClasses[accentColor].knob} unit="Hz" logarithmic />
             <Knob label="Resonance" value={params.filterResonance} onChange={(val) => handleParamChange('filterResonance', val)} min={0.1} max={30} color={accentClasses[accentColor].knob} unit="Q" />
             <Knob label="Mode" value={filterModeValue} onChange={(val) => handleParamChange('filterMode', val >= FILTER_MODE_24_DB ? 1 : 0)} min={FILTER_MODE_18_DB} max={FILTER_MODE_24_DB} step={FILTER_MODE_STEP_DB} color={accentClasses[accentColor].knob} unit="dB" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Envelope</h3>
+          </fieldset>
+          <fieldset className="space-y-2 border border-gray-800 rounded p-1">
+            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Envelope</legend>
             <Knob label="Attack" value={params.attack} onChange={(val) => handleParamChange('attack', val)} min={0.005} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
             <Knob label="Decay" value={params.decay} onChange={(val) => handleParamChange('decay', val)} min={0.01} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Output</h3>
+          </fieldset>
+          <fieldset className="space-y-2 border border-gray-800 rounded p-1">
+            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Output</legend>
             <Knob label="Volume" value={params.volume} onChange={(val) => handleParamChange('volume', val)} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-center text-sm uppercase tracking-wider text-gray-400">Delay</h3>
+          </fieldset>
+          <fieldset className="space-y-2 border border-gray-800 rounded p-1">
+            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Delay</legend>
             <Knob label="Time" value={params.delayTime} onChange={(val) => handleParamChange('delayTime', val)} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} unit="s" />
             <Knob label="Feedback" value={params.delayFeedback} onChange={(val) => handleParamChange('delayFeedback', val)} min={0} max={0.95} step={0.01} color={accentClasses[accentColor].knob} />
             <Knob label="Mix" value={params.delayMix} onChange={(val) => handleParamChange('delayMix', val)} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} />
-          </div>
+          </fieldset>
         </div>
       </div>
       {isFrozen && (

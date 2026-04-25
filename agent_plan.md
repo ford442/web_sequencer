@@ -17,6 +17,7 @@
 - [x] **Polyphonic Singing:** Implement `SingingVoiceManager` to allow polyphonic playback (chords) for the TTS engine, supporting multiple simultaneous phoneme streams.
 
 ### Domain B: Editor Workflow (The "Cubase" Feel)
+- [x] **Per-Step Delay Send:** Allow sequence steps to override the global delay send amount.
 - [x] **Step-Sequenced Vibrato:** Allow individual sequencer steps to override the global Vibrato Depth, enabling natural vocal phrasing without affecting short rhythmic syllables.
 - [x] **Vocal Envelope Shaper:** Upgraded the `ExpressiveVoiceProcessor` to use a full ADSR (Attack, Decay, Sustain, Release) envelope, exposing Decay and Sustain knobs to the `SamplerPanel` to allow granular shaping of TTS syllables into sharp plucks or smooth pads.
 - [x] **Dynamic Tremolo (AM) Effect:** Expose the Tremolo effect from `ExpressiveVoiceProcessor` to the UI (Rate and Depth knobs) and map it to `SingingVoice` and `SamplerPanel` to make TTS playback more rhythmic.
@@ -40,9 +41,16 @@
 - [x] **Glissando/Portamento Curves:** Allow users to draw custom pitch curves or select between Linear and Exponential glide types between steps. (Implemented Exponential Glide in `SingingVoice.ts`!)
 - [x] **Per-Step Breath Intensity:** Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented in `useAudioEngine.ts`!)
 - [x] **Custom Sample Slicing UI:** Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
+- [x] **Voice Layering / Chorus per Voice:** Allow a detune spread parameter per step for instant vocal thickening.
 
 - [ ] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 - [x] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented in FormantShifter and SamplerPanel using DrawableLFO and PeriodicWave via DFT!)
+- [x] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
+- [x] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation.
+
+- [x] **Vocal Formant Envelope:** Add a dedicated Attack/Decay envelope specifically for formants to create plucky or sweeping vocal filter effects on every note.
+- [ ] **Step-Sequenced Reverb Types:** Allow sequence steps to override the global reverb type (e.g., switch from a small room to a massive hall on a specific snare or vocal slice).
+- [x] **Per-Step Delay Send:** Allow sequence steps to override the global delay send amount to create rhythmic echoes for TTS or synth sequences.
 
 ### Domain C: Accessibility & Mobile
 - [x] **Touch Targets:** Audit `Sequencer.tsx` click listeners to ensure mobile drag-to-create works smoothly.
@@ -57,6 +65,7 @@
 * [x] **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
 *These are concepts to be fleshed out by the agent during "Architect Mode".*
 
+* [x] **Idea:** "Voice Layering / Chorus per Voice" - Allow a detune spread parameter per step for instant vocal thickening. (Implemented per-step choir in NoteSelector/useAudioEngine!)
 * [x] **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes. (Implemented via global Lyric Track lane and `sliceIndex` auto-mapping!)
 * [x] **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
 * **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
@@ -73,21 +82,31 @@
 * [x] **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented in FormantShifter and SamplerPanel using DrawableLFO and PeriodicWave via DFT!)
 * **Idea:** "LFO Rate Sync to Tempo" - Allow LFO rates (like Formant LFO or Freeze LFO) to sync to the sequencer tempo.
 * **Idea:** "Microtonal Scale Mapping" - Allow specifying custom microtonal scales rather than the standard 12-TET for Synth and Sampler parts.
+* [x] **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented via DrawableLFO and FormantShifter Fourier Transform!)
 * [x] **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide. (Implemented!)
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope overrides in `SingingVoice.ts`!)
 * [x] **Idea:** "Spectral Morphing" - Implement functionality to morph spectrally between two different TTS phonemes or samples over a sequence of steps. (Implemented via FormantShifter Voice Character Morphing and step-sequenced automation!)
 * [x] **Idea:** "Dynamic Reverb" - Allow users to draw automation curves for reverb send per step. (Implemented!)
 * [x] **Idea:** "Global Saturation / Tape Warmth" - Add a master channel saturation unit to glue the mix together. (Implemented via WaveShaperNode!)
 * [x] **Idea:** "Auto-Slice by Transients" - Use energy-based analysis to automatically detect and place slice markers at drum hits or clear transients when a custom sample is loaded. (Implemented via `AUTO-SLICE` button logic in `WaveformDisplay` and `SamplerPanel`!)
+* [x] **Idea:** "Per-Step Delay Send" - Allow sequence steps to override the global delay send amount to create rhythmic echoes for TTS or synth sequences. (Implemented!)
+* [x] **Idea:** "Vocal Formant Envelope" - Add a dedicated Attack/Decay envelope specifically for formants to create plucky or sweeping vocal filter effects on every note. (Implemented in FormantShifter and SamplerPanel!)
+* **Idea:** "Step-Sequenced Reverb Types" - Allow sequence steps to override the global reverb type (e.g., switch from a small room to a massive hall on a specific snare or vocal slice).
 * **Idea:** "AI Auto-Mix Assistant" - Automatically adjusts levels, panning, and EQ based on track content to maintain a balanced mix.
 * [x] **Idea:** "Real-time Convolution Reverb for Vocal Spaces" - Enhance the dynamic reverb by allowing users to select impulse response types. (Implemented!)
 * [x] **Idea:** "Per-Step Breath Intensity" - Allow sequence steps to override global breathiness for rhythmic breathing and whisper effects. (Implemented!)
 * [x] **Idea:** "Advanced Slice Tuning" - Allow users to fine-tune slice sensitivity and adjust the threshold parameters for Auto-Slice. (Implemented in `SamplerPanel` and `WaveformDisplay`!)
 
+* [x] **Idea:** "Per-Step Delay Send" - Allow sequence steps to override the global delay send amount. (Implemented!)
+* **Idea:** "Master Bus Compressor" - Add a `DynamicsCompressorNode` to the master output for gluing the mix together.
 ---
 
 ## 📜 Changelog
 * [Date] - Implemented Custom Waveform LFO: Added `DrawableLFO` component to allow users to draw custom LFO shapes for formant modulation. Integrated with `FormantShifter.ts` to convert the drawn array into a `PeriodicWave` using a Discrete Fourier Transform (DFT), passing `formantLfoShape` from the `SamplerPanel` through `SingingVoice` and `useAudioEngine`. Added new ideas: "LFO Rate Sync to Tempo" and "Microtonal Scale Mapping".
+* [2026-06-27] - Implemented Vocal Formant Envelope: Added Formant Envelope parameters to `SamplerBankParams` and `Note` interfaces, allowing users to modulate formant detune amounts via an attack/decay envelope on `ConstantSourceNode` and `GainNode`. Added global and per-step controls to `SamplerPanel` and `NoteSelector`.
+* [2026-06-27] - Verified Gesture Controls: Confirmed pinch-to-zoom is fully implemented in `MainSequencer.tsx` and marked as complete.
+* [2026-06-27] - Implemented Per-Step Delay Send: Added `delaySend` parameter to `Note` interface and updated `NoteSelector` UI to include a slider. Plumbed the parameter through `App.tsx` and updated `useAudioEngine.ts` to allow both Sampler (`playSamplerVoice`) and Synth (`VoiceManager`) engines to override the global delay send bus per-step. Fulfills the "Per-Step Delay Send" Innovation Lab idea.
+* [2026-06-26] - Implemented Custom Waveform LFO: Added a new `DrawableLFO` canvas component to `SamplerPanel` allowing users to draw an arbitrary LFO shape. Added a Discrete Fourier Transform (DFT) engine inside `FormantShifter.ts` to convert the normalized shape into a `PeriodicWave` used by the internal Web Audio `OscillatorNode`.
 * [2026-06-25] - Implemented Step-Sequenced Formant Shifts: Added `formantShift` parameter to `Note` interface and `NoteSelector` UI. Wired it through `useAudioEngine` and `useStepHandler` to allow per-step overrides of the global Formant Shift parameter, fulfilling the "Step-Sequenced Formant Shifts" Innovation Lab idea.
 * [2026-06-24] - Implemented Real-time Convolution Reverb for Vocal Spaces: Added `ReverbType` ('room', 'plate', 'hall') to `types.ts` and updated `useAudioEngine.ts` to dynamically generate and swap the convolution impulse response based on the selected type using `createReverbImpulseResponse`. Added a dropdown selector to `App.tsx` next to the Master Saturation control to allow global reverb type switching.
 * [2026-06-23] - Implemented Advanced Slice Tuning: Added an auto-slice sensitivity slider to the `WaveformDisplay` component. Plumbed the sensitivity state through `SamplerPanel` down to `PhonemeAligner.detectSegmentBoundaries` via a new `thresholdMultiplier` parameter, allowing users to fine-tune transient detection for different sample types.

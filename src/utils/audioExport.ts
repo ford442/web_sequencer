@@ -5,6 +5,7 @@
 // conversion when available, falls back to JS on error or if WASM not loaded.
 
 import initAudioExport from '../wasm/audioExport.wasm?init';
+import { engineTelemetry } from './engineTelemetry';
 
 // WASM Module Loader
 interface WasmExports {
@@ -38,7 +39,9 @@ const loadWasm = async () => {
             }
         });
         wasmInstance = instance.exports as unknown as WasmExports;
+        try { engineTelemetry.registerResolution('audioExport','wasm','loaded'); } catch (e) { /* noop */ }
     } catch (e) {
+        try { engineTelemetry.registerResolution('audioExport','js','failed to load wasm: ' + String(e)); } catch (err) { /* noop */ }
         console.warn("Failed to load audioExport.wasm, using JS fallback", e);
     }
 };

@@ -9,6 +9,7 @@
 
 // Import the WASM module with Vite's ?init query
 import initFFT from '../wasm/fft.wasm?init';
+import { engineTelemetry } from './engineTelemetry';
 
 let wasmInstance: WebAssembly.Instance | null = null;
 let wasmMemory: WebAssembly.Memory | null = null;
@@ -39,10 +40,12 @@ export async function loadFFTModule(): Promise<WebAssembly.Instance> {
         wasmInstance = instance;
         wasmMemory = instance.exports.memory as WebAssembly.Memory;
         isLoading = false;
+        try { engineTelemetry.registerResolution('fft', 'wasm', 'loaded'); } catch (e) { /* noop */ }
         return instance;
     }).catch((error: Error) => {
         isLoading = false;
         loadPromise = null;
+        try { engineTelemetry.registerResolution('fft', 'js', 'failed to load wasm: ' + String(error)); } catch (e) { /* noop */ }
         console.error('FFT WASM module initialization failed:', error);
         throw error;
     });

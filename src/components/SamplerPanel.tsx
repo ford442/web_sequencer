@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect, memo, useCallback, useMemo } from 'react';
-import type { SamplerParams, AudioEngine } from '../types'; // Note: This is now SamplerBankParams[]
+import type { SamplerBankParams, SamplerParams, AudioEngine } from '../types';
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
 import { WaveformDisplay } from './WaveformDisplay';
+import { DrawableLFO } from './DrawableLFO';
 import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
 import { DrawableLFO } from './DrawableLFO';
 import { PhonemeAligner } from '../engines/rubberband/PhonemeAligner';
@@ -134,7 +135,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     };
 
     // Helpers to access current bank's params safely
-    const currentParams = params[activeBankIdx] || {
+    const currentParams = useMemo(() => params[activeBankIdx] || {
         sampleName: `bank_${activeBankIdx}`,
         playbackSpeed: 1.0,
         volume: 1.0,
@@ -154,6 +155,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         freeze: 0,
         formantLfoRate: 0,
         formantLfoDepth: 0,
+        formantEnvAttack: 0.1,
+        formantEnvDecay: 0.5,
+        formantEnvAmount: 0,
         characterMorph: 0,
         morphTarget: 'female' as 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright',
         attack: 0.05,
@@ -171,7 +175,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         rbQuality: 'Standard' as 'Fast' | 'Standard' | 'Elastic',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
         autoFollow: false
-    };
+    }, [params, activeBankIdx]);
 
     // Update single param for active bank
     const updateParam = (key: keyof typeof currentParams, value: number | string) => {
@@ -216,6 +220,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
     const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
     const handleFormantLfoShapeChange = paramHandlers.formantLfoShape;
+    const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
+    const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
+    const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
     const handleCharacterMorphChange = paramHandlers.characterMorph;
     const handleAttackChange = paramHandlers.attack;
     const handleDecayChange = paramHandlers.decay;
@@ -995,6 +1002,24 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Frz LFO Depth" value={currentParams.freezeLfoDepth ?? 0} onChange={handleFreezeLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
+                            <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+
+                            {/* Custom LFO Shape */}
+                            <div className="flex flex-col items-center justify-start gap-1 col-span-2">
+                                <div className="text-[9px] text-indigo-300 font-bold mb-0.5">CUSTOM LFO SHAPE</div>
+                                <DrawableLFO
+                                    resolution={64}
+                                    value={currentParams.customLfoShape || Array(64).fill(0.5)}
+                                    onChange={(newValue: number[]) => {
+                                        if (onParamChange) onParamChange(activeBankIdx, 'customLfoShape', newValue as any);
+                                        else updateParamRef.current('customLfoShape' as any, newValue as any);
+                                    }}
+                                    width={120}
+                                    height={40}
+                                />
+                            </div>
 
                             <div className="flex flex-col justify-end">
                                 <DrawableLFO

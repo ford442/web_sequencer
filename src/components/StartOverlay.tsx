@@ -18,15 +18,23 @@ export const StartOverlay: React.FC<StartOverlayProps> = ({ onStart, isReady }) 
                     <div className="flex justify-between"><span>CORE (PYODIDE):</span>{isReady ? <span className="text-green-400">LOADED</span> : <span className="text-yellow-400 animate-pulse">LOADING...</span>}</div>
                 </div>
                 <button 
+                    aria-label="Initialize System"
                     onClick={onStart} 
                     disabled={!isReady} 
                     aria-busy={!isReady} 
-                    className={`w-full py-4 rounded-xl font-orbitron text-xl font-bold tracking-widest transition-all duration-300 ${
+                    title={isReady ? 'Start Application' : 'Please wait, loading system resources...'}
+                    className={`w-full py-4 rounded-xl font-orbitron text-xl font-bold tracking-widest transition-all duration-300 flex items-center justify-center gap-3 ${
                         isReady 
                             ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.6)] hover:shadow-[0_0_30px_rgba(6,182,212,0.8)] border border-cyan-400 cursor-pointer transform hover:scale-[1.02]' 
                             : 'bg-gray-700 text-gray-500 cursor-wait border border-gray-600'
                     }`}
                 >
+                    {!isReady && (
+                        <svg className="animate-spin h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    )}
                     {isReady ? 'INITIALIZE SYSTEM' : 'LOADING RESOURCES...'}
                 </button>
             </div>
