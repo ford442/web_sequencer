@@ -414,7 +414,7 @@ export const useAudioEngine = (pyodide: unknown) => {
 
                             // Setup Reverb Send
                             const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                            const currentReverbType = noteParams?.reverbType || reverbTypeRef.current;
+                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
                             const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
                             if (reverbSendAmount > 0 && targetReverbNode) {
                                 const reverbGain = context.createGain();

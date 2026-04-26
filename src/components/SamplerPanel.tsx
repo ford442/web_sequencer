@@ -412,7 +412,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
         }
     };
 
-    const loadAudioFile = async (file: File) => {
+    const loadAudioFile = useCallback(async (file: File) => {
         setStatus('Loading...');
         try {
             const arrayBuffer = await file.arrayBuffer();
@@ -422,7 +422,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             setStatus('Load Error');
             setLocalProgress(null);
         }
-    };
+    }, [loadBufferToBank, audioContext]);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
