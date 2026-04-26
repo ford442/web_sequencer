@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import type { SynthParams } from '../types';
 import { Knob } from './Knob';
 import { WaveformSelector } from './WaveformSelector';
@@ -19,10 +19,16 @@ interface SynthPartProps {
   onUnfreeze: () => void;
 }
 
-export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params, onParamsChange, isFrozen, isRendering, onMixdown, onUnfreeze }) => {
-  const handleParamChange = <K extends keyof SynthParams>(param: K, value: SynthParams[K]) => {
-    onParamsChange({ ...params, [param]: value });
-  };
+export const SynthPart: React.FC<SynthPartProps> = React.memo(({ title, accentColor, params, onParamsChange, isFrozen, isRendering, onMixdown, onUnfreeze }) => {
+  const paramsRef = React.useRef(params);
+  React.useEffect(() => {
+    paramsRef.current = params;
+  }, [params]);
+
+  const handleParamChange = useCallback(<K extends keyof SynthParams>(param: K, value: SynthParams[K]) => {
+    onParamsChange({ ...paramsRef.current, [param]: value });
+  }, [onParamsChange]);
+
   const filterModeValue = (params.filterMode ?? 0) > 0 ? FILTER_MODE_24_DB : FILTER_MODE_18_DB;
 
   const accentClasses = {
@@ -30,6 +36,22 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
     pink: { border: 'border-pink-500', text: 'text-pink-400', knob: 'pink' as const, ring: 'focus:ring-pink-400' },
   };
   const isDisabled = isFrozen || isRendering;
+
+  const handlers = useMemo(() => {
+    return {
+      waveform: (val: any) => handleParamChange('waveform', val as any),
+      pitch: (val: number) => handleParamChange('pitch', val),
+      filterCutoff: (val: number) => handleParamChange('filterCutoff', val),
+      filterResonance: (val: number) => handleParamChange('filterResonance', val),
+      filterMode: (val: number) => handleParamChange('filterMode', val >= FILTER_MODE_24_DB ? 1 : 0),
+      attack: (val: number) => handleParamChange('attack', val),
+      decay: (val: number) => handleParamChange('decay', val),
+      volume: (val: number) => handleParamChange('volume', val),
+      delayTime: (val: number) => handleParamChange('delayTime', val),
+      delayFeedback: (val: number) => handleParamChange('delayFeedback', val),
+      delayMix: (val: number) => handleParamChange('delayMix', val),
+    };
+  }, [handleParamChange]);
 
   return (
     <div className={`relative bg-gray-900/50 p-4 rounded-lg border-2 ${accentClasses[accentColor].border} space-y-4`}>
@@ -61,29 +83,29 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
             <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Oscillator</legend>
-            <WaveformSelector selected={params.waveform} onChange={(val) => handleParamChange('waveform', val)} accentColor={accentColor} />
-            <Knob label="Pitch" value={params.pitch} onChange={(val) => handleParamChange('pitch', val)} min={-24} max={24} step={1} color={accentClasses[accentColor].knob} unit="st" />
+            <WaveformSelector selected={params.waveform} onChange={handlers.waveform} accentColor={accentColor} />
+            <Knob label="Pitch" value={params.pitch} onChange={handlers.pitch} min={-24} max={24} step={1} color={accentClasses[accentColor].knob} unit="st" />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
             <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Filter</legend>
-            <Knob label="Cutoff" value={params.filterCutoff} onChange={(val) => handleParamChange('filterCutoff', val)} min={20} max={15000} color={accentClasses[accentColor].knob} unit="Hz" logarithmic />
-            <Knob label="Resonance" value={params.filterResonance} onChange={(val) => handleParamChange('filterResonance', val)} min={0.1} max={30} color={accentClasses[accentColor].knob} unit="Q" />
-            <Knob label="Mode" value={filterModeValue} onChange={(val) => handleParamChange('filterMode', val >= FILTER_MODE_24_DB ? 1 : 0)} min={FILTER_MODE_18_DB} max={FILTER_MODE_24_DB} step={FILTER_MODE_STEP_DB} color={accentClasses[accentColor].knob} unit="dB" />
+            <Knob label="Cutoff" value={params.filterCutoff} onChange={handlers.filterCutoff} min={20} max={15000} color={accentClasses[accentColor].knob} unit="Hz" logarithmic />
+            <Knob label="Resonance" value={params.filterResonance} onChange={handlers.filterResonance} min={0.1} max={30} color={accentClasses[accentColor].knob} unit="Q" />
+            <Knob label="Mode" value={filterModeValue} onChange={handlers.filterMode} min={FILTER_MODE_18_DB} max={FILTER_MODE_24_DB} step={FILTER_MODE_STEP_DB} color={accentClasses[accentColor].knob} unit="dB" />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
             <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Envelope</legend>
-            <Knob label="Attack" value={params.attack} onChange={(val) => handleParamChange('attack', val)} min={0.005} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
-            <Knob label="Decay" value={params.decay} onChange={(val) => handleParamChange('decay', val)} min={0.01} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
+            <Knob label="Attack" value={params.attack} onChange={handlers.attack} min={0.005} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
+            <Knob label="Decay" value={params.decay} onChange={handlers.decay} min={0.01} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
             <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Output</legend>
-            <Knob label="Volume" value={params.volume} onChange={(val) => handleParamChange('volume', val)} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} />
+            <Knob label="Volume" value={params.volume} onChange={handlers.volume} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
             <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Delay</legend>
-            <Knob label="Time" value={params.delayTime} onChange={(val) => handleParamChange('delayTime', val)} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} unit="s" />
-            <Knob label="Feedback" value={params.delayFeedback} onChange={(val) => handleParamChange('delayFeedback', val)} min={0} max={0.95} step={0.01} color={accentClasses[accentColor].knob} />
-            <Knob label="Mix" value={params.delayMix} onChange={(val) => handleParamChange('delayMix', val)} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} />
+            <Knob label="Time" value={params.delayTime} onChange={handlers.delayTime} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} unit="s" />
+            <Knob label="Feedback" value={params.delayFeedback} onChange={handlers.delayFeedback} min={0} max={0.95} step={0.01} color={accentClasses[accentColor].knob} />
+            <Knob label="Mix" value={params.delayMix} onChange={handlers.delayMix} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} />
           </fieldset>
         </div>
       </div>
@@ -94,4 +116,4 @@ export const SynthPart: React.FC<SynthPartProps> = ({ title, accentColor, params
       )}
     </div>
   );
-};
+});
