@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { NOTES, noteToMidi, midiToNote, getScaleNotes, isMidiInScale, nextScaleNote } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { getNoteColor } from '../utils/noteColors';
@@ -115,7 +115,21 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
     }, []);
 
     // --- Flyout ---
-    const closeFlyout = useCallback(() => setFlyoutOpen(false), []);
+    const closeFlyout = useCallback(() => {
+        setFlyoutOpen(false);
+        buttonRef.current?.focus();
+    }, []);
+
+    useEffect(() => {
+        if (!flyoutOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                closeFlyout();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [flyoutOpen, closeFlyout]);
 
     const handleFlyoutSelect = useCallback((note: string) => {
         onChange(note);
