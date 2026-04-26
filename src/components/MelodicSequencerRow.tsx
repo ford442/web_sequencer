@@ -208,7 +208,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           phonemes={phonemes}
           length={length}
           isSlide={!!stepData?.slide}
-          isCurrent={i === lastActiveIndexRef.current}
+          isCurrent={false} /* Handled by ref manipulation below */
           rowLabel={label}
           rowKey={rowKey}
           onToggle={onToggle}

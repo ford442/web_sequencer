@@ -23,14 +23,16 @@ export interface SynthNoteParams {
     retrigger?: number;
     filterCutoff?: number;
     filterResonance?: number;
+    reverbSend?: number;
+    reverbType?: 'room' | 'plate' | 'hall';
     envMod?: number;
     delaySend?: number;
-    reverbSend?: number;
-    reverbType?: import("../../types").ReverbType;
 }
 
 export interface DrumNoteParams {
     retrigger?: number;
+    reverbSend?: number;
+    reverbType?: 'room' | 'plate' | 'hall';
 }
 
 export type PlaySynthFn = (
@@ -202,8 +204,8 @@ export function createPlaySynth(
                 // Currently setReverbSend assumes global reverb on the Voice object.
                 // We'll need to use setReverbSend if it exists, or handle custom routing if Voice supports it.
                 // For now, let's just use the voice.setReverbSend interface which the AudioEngine expects.
-                if (typeof voice.setReverbSend === 'function') {
-                    voice.setReverbSend(reverbSendAmount, noteTime);
+                if (typeof (voice as any).setReverbSend === 'function') {
+                    (voice as any).setReverbSend(reverbSendAmount, noteTime);
                 }
             }
         }

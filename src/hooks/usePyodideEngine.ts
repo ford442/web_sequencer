@@ -4,7 +4,6 @@ import { engineTelemetry } from '../utils/engineTelemetry';
 // This hook encapsulates the "Spectral Puppet" engine
 export const usePyodideEngine = () => {
     // Check global state initially
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [pyodide, setPyodide] = useState<any>(globalThis.hyphonPyodide || null);
     const [isPyodideReady, setIsPyodideReady] = useState(!!globalThis.hyphonPyodideReady);
     const [pyodideStatus, setPyodideStatus] = useState(

@@ -49,14 +49,12 @@ export const SvgStep = memo(({
                 const startX = e.clientX;
                 const startLength = length;
                 const sensitivity = 20;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const handlePointerMove = (ev: any) => {
                     const delta = ev.clientX - startX;
                     const stepsToAdd = Math.floor(delta / sensitivity);
                     const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
                     if (newLength !== length) { onEditLength(rowKey, stepIndex, newLength); }
                 };
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const handlePointerUp = (ev: any) => {
                     target.removeEventListener('pointermove', handlePointerMove);
                     target.removeEventListener('pointerup', handlePointerUp);
