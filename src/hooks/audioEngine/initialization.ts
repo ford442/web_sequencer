@@ -8,29 +8,39 @@ export function initializeMasterOutput(
     masterGainRef: MutableRefObject<GainNode | null>,
     masterPannerRef: MutableRefObject<StereoPannerNode | null>,
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>,
-): GainNode {
-    const masterGain = context.createGain();
-    masterGain.gain.setValueAtTime(0.8, 0);
-    masterGainRef.current = masterGain;
-
+    masterCompressorRef: MutableRefObject<DynamicsCompressorNode | null>,
+): WaveShaperNode {
     const masterSaturation = context.createWaveShaper();
     masterSaturation.curve = makeDistortionCurve(0);
     masterSaturation.oversample = '4x';
     masterSaturationRef.current = masterSaturation;
 
-    masterGain.connect(masterSaturation);
+    const masterCompressor = context.createDynamicsCompressor();
+    masterCompressor.threshold.setValueAtTime(-15, context.currentTime);
+    masterCompressor.knee.setValueAtTime(30, context.currentTime);
+    masterCompressor.ratio.setValueAtTime(4, context.currentTime);
+    masterCompressor.attack.setValueAtTime(0.03, context.currentTime);
+    masterCompressor.release.setValueAtTime(0.25, context.currentTime);
+    masterCompressorRef.current = masterCompressor;
+
+    const masterGain = context.createGain();
+    masterGain.gain.setValueAtTime(0.8, 0);
+    masterGainRef.current = masterGain;
+
+    masterSaturation.connect(masterCompressor);
+    masterCompressor.connect(masterGain);
 
     if (context.createStereoPanner) {
         const masterPanner = context.createStereoPanner();
         masterPanner.pan.setValueAtTime(0, 0);
         masterPannerRef.current = masterPanner;
-        masterSaturation.connect(masterPanner);
+        masterGain.connect(masterPanner);
         masterPanner.connect(context.destination);
     } else {
-        masterSaturation.connect(context.destination);
+        masterGain.connect(context.destination);
     }
 
-    return masterGain;
+    return masterSaturation;
 }
 
 export async function loadWavBuffer(context: AudioContext, url: string): Promise<AudioBuffer | null> {

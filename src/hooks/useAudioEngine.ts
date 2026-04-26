@@ -88,6 +88,7 @@ export const useAudioEngine = (pyodide: unknown) => {
     // Master Volume & Pan
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
+    const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});
     const reverbNodeRef = useRef<ConvolverNode | null>(null); // Keep for backwards compatibility if needed temporarily
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
@@ -113,6 +114,7 @@ export const useAudioEngine = (pyodide: unknown) => {
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
         masterSaturationRef,
+        masterCompressorRef,
         reverbNodesRef,
         reverbTypeRef,
         delayNodeRef,
@@ -155,21 +157,21 @@ export const useAudioEngine = (pyodide: unknown) => {
                 console.log("AudioContext resumed");
             }
 
-            const masterGain = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef);
+            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef);
 
             // Initialize Reverb Node
             // Initialize Reverb Nodes (Room, Plate, Hall)
             const roomNode = context.createConvolver();
             roomNode.buffer = createReverbImpulseResponse(context, 0.5, 1.0);
-            roomNode.connect(masterGain);
+            roomNode.connect(masterBusInput);
 
             const plateNode = context.createConvolver();
             plateNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0);
-            plateNode.connect(masterGain);
+            plateNode.connect(masterBusInput);
 
             const hallNode = context.createConvolver();
             hallNode.buffer = createReverbImpulseResponse(context, 3.5, 3.0);
-            hallNode.connect(masterGain);
+            hallNode.connect(masterBusInput);
 
             reverbNodesRef.current = { room: roomNode, plate: plateNode, hall: hallNode };
             reverbNodeRef.current = plateNode; // Fallback
@@ -181,7 +183,7 @@ export const useAudioEngine = (pyodide: unknown) => {
             delayFeedback.gain.value = 0.4;
             delayNode.connect(delayFeedback);
             delayFeedback.connect(delayNode);
-            delayNode.connect(masterGain);
+            delayNode.connect(masterBusInput);
             delayNodeRef.current = delayNode;
             delayFeedbackRef.current = delayFeedback;
 
@@ -206,7 +208,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 });
                 
                 if (open303Ready) {
-                    open303Manager.connect(masterGain);
+                    open303Manager.connect(masterBusInput);
                     open303ManagerRef.current = open303Manager;
                     console.log('[useAudioEngine] Open303Manager Ready');
                     try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
@@ -242,10 +244,10 @@ export const useAudioEngine = (pyodide: unknown) => {
             }
 
             // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterGainRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
-            voiceManagerBRef.current = new VoiceManager(context, masterGainRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+            voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+            voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
 
-            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
+            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterSaturationRef);
 
             // --- Singing Voice Manager Init ---
             try {
@@ -272,7 +274,7 @@ export const useAudioEngine = (pyodide: unknown) => {
 
                 initializeChoirBuses(
                     context,
-                    masterGainRef,
+                    masterSaturationRef,
                     choirLeftGainRef,
                     choirRightGainRef,
                     choirLeftPannerRef,
@@ -280,7 +282,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 );
 
                 manager.getAllVoices().forEach(voice => {
-                    voice.connectOutput(masterGainRef.current!);
+                    voice.connectOutput(masterSaturationRef.current!);
                 });
 
                 if (pyodideRef.current) {
@@ -349,7 +351,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 const buffer = multisampleBank?.baseBuffer || legacyBuffer;
                 
-                if (!buffer || !masterGainRef.current) return;
+                if (!buffer || !masterSaturationRef.current) return;
 
                 // Apply Microtiming
                 const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
@@ -380,7 +382,7 @@ export const useAudioEngine = (pyodide: unknown) => {
 
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
-                            let finalDest = destination || masterGainRef.current!;
+                            let finalDest = destination || masterSaturationRef.current!;
 
                             // Apply Drive/Distortion if present
                             const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
@@ -672,11 +674,11 @@ export const useAudioEngine = (pyodide: unknown) => {
                         shaper.curve = null;
                     }
 
-                    let finalDestination: AudioNode = masterGainRef.current!;
+                    let finalDestination: AudioNode = masterSaturationRef.current!;
                     if (params.pan !== undefined && params.pan !== 0) {
                         const panner = context.createStereoPanner();
                         panner.pan.value = params.pan;
-                        panner.connect(masterGainRef.current!);
+                        panner.connect(masterSaturationRef.current!);
                         finalDestination = panner;
                     }
 
@@ -781,7 +783,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 const buffer = multisampleBank?.baseBuffer || legacyBuffer;
                 
-                if (!buffer || !masterGainRef.current) return null;
+                if (!buffer || !masterSaturationRef.current) return null;
 
                 const rootNote = params.rootNote ?? 60;
                 const coarseTune = params.coarseTune ?? params.coarse ?? 0;
@@ -810,7 +812,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 gain.gain.value = params.volume;
 
                 source.connect(gain);
-                gain.connect(masterGainRef.current);
+                gain.connect(masterSaturationRef.current);
                 source.start(now);
 
                 const id = nextSamplerNoteId.current++;
@@ -840,7 +842,7 @@ export const useAudioEngine = (pyodide: unknown) => {
             const playBufferedPart = (buffer: AudioBuffer, time: number) => {
                 const src = context.createBufferSource();
                 src.buffer = buffer;
-                src.connect(masterGainRef.current!);
+                src.connect(masterSaturationRef.current!);
                 src.start(time);
             };
             const { playAmbiance, stopAmbiance, setAmbianceVolume } = createAmbianceControls(context, playbackRefs);
