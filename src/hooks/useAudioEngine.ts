@@ -247,7 +247,7 @@ export const useAudioEngine = (pyodide: unknown) => {
             voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
             voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
 
-            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
+            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterSaturationRef);
 
             // --- Singing Voice Manager Init ---
             try {
@@ -274,7 +274,7 @@ export const useAudioEngine = (pyodide: unknown) => {
 
                 initializeChoirBuses(
                     context,
-                    masterGainRef,
+                    masterSaturationRef,
                     choirLeftGainRef,
                     choirRightGainRef,
                     choirLeftPannerRef,
