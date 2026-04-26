@@ -28,3 +28,7 @@
 ## 2026-04-24 - Safe String Replacements for Accessibility
 **Learning:** When applying automated or bulk accessibility fixes (like adding `aria-label`s) across a large React codebase, using aggressive regex replacements often leads to corrupted JSX, duplicated props, and broken builds. React components are too complex for simple regex patterns.
 **Action:** Always favor targeted, exact string matching or AST-based transformations (like jscodeshift) when injecting props. If manual string replacement is necessary, use highly specific search blocks that include surrounding context to ensure safety and prevent unintended side effects.
+
+## 2026-04-26 - Add keyboard accessibility for custom flyout components
+**Learning:** Custom dropdown or flyout components (like `AdvancedNoteSelector`) often use a full-screen transparent backdrop `div` with an `onClick` handler to close them. However, they must also support standard keyboard interactions, specifically allowing users to close them by pressing the `Escape` key, to ensure accessibility for keyboard and screen reader users. Additionally, focus should be restored to the trigger element when the flyout is closed.
+**Action:** When implementing custom flyouts with a backdrop, always add a global `keydown` event listener in a `useEffect` hook to handle the `Escape` key and close the flyout, and ensure focus is returned to the trigger button using a `ref`.
