@@ -38,6 +38,7 @@ describe('SamplerPanel Memoization', () => {
         audioContext: mockAudioContext,
         activeBankIdx: 0,
         onBankChange: vi.fn(),
+        isVoiceEditorOpen: false,
         ttsPhrases: Array(8).fill("Hello World"),
         onTtsPhraseChange: vi.fn()
     };
