@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useState } from 'react';
+import React, { useMemo, memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useState } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { noteToMidi } from '../utils/musicTheory';
 import { GridIndicators } from './GridIndicators';
@@ -522,6 +522,8 @@ export interface MainSequencerProps {
     children?: React.ReactNode;
 }
 
+const noopPitchChange = () => {};
+
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
     const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
         melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer } = props;
@@ -594,10 +596,17 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     }));
 
     // Handle Alt+Click on sampler steps to open Phoneme Painter
+    // PERFORMANCE: Use a ref to store the latest pattern.sampler to avoid re-creating this callback
+    // and causing all SequencerRows (256 steps) to re-render whenever any sampler note changes.
+    const patternSamplerRef = useRef(pattern.sampler);
+    useLayoutEffect(() => {
+        patternSamplerRef.current = pattern.sampler;
+    }, [pattern.sampler]);
+
     const handleStepPointerDown = useCallback((rowKey: TrackKey, stepIndex: number, e: React.PointerEvent) => {
         // Check for Alt+Click (or Option+Click on Mac)
         if (rowKey === 'sampler' && e.altKey && onPhonemeUpdate) {
-            const stepData = pattern.sampler[activeSamplerBank].steps[stepIndex];
+            const stepData = patternSamplerRef.current[activeSamplerBank].steps[stepIndex];
             if (stepData) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -611,7 +620,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
         }
         // Otherwise pass to normal toggle handler
         onToggle(rowKey, stepIndex, e);
-    }, [onToggle, onPhonemeUpdate, pattern.sampler, activeSamplerBank]);
+    }, [onToggle, onPhonemeUpdate, activeSamplerBank]);
 
     // Handle save from Phoneme Painter
     const handlePhonemeSave = useCallback((stepIndex: number, phonemes: PhonemeData[] | undefined) => {
@@ -624,6 +633,12 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     const handleClosePhonemePainter = useCallback(() => {
         setPhonemePainterState(prev => ({ ...prev, isOpen: false }));
     }, []);
+
+    // PERFORMANCE: Memoize selection range map to prevent object recreation and unnecessary row re-renders
+    const selectionRangeMap = useMemo(() => {
+        if (!selection) return null;
+        return { [selection.trackKey]: { start: selection.startStep, end: selection.endStep } };
+    }, [selection]);
 
 
     const baseWidth = 1050;
@@ -674,7 +689,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
                                     onToggle={handleStepPointerDown}
-                                    onPitchChange={onPitchChange || (() => {})}
+                                    onPitchChange={onPitchChange || noopPitchChange}
                                     onEditLength={onEditLength}
                                     onSelectRow={onSelectRow}
                                     onSelectSlot={onSelectSlot}
@@ -694,7 +709,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
                                 onToggle={handleStepPointerDown} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectRow={onSelectRow} onSelectSlot={onSelectSlot}
                                 onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter}
-                                selectionRange={selection && selection.trackKey === row.key ? { start: selection.startStep, end: selection.endStep } : null}
+                                selectionRange={selectionRangeMap?.[row.key] || null}
                                 onDrawEnter={onDrawEnter} isDrawing={isDrawing}
                                 viewMode={viewMode}
                                 automationParam={automationParam}
