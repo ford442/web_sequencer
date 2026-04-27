@@ -99,10 +99,12 @@
 * [x] **Idea:** "Advanced Slice Tuning" - Allow users to fine-tune slice sensitivity and adjust the threshold parameters for Auto-Slice. (Implemented in `SamplerPanel` and `WaveformDisplay`!)
 
 * [x] **Idea:** "Per-Step Delay Send" - Allow sequence steps to override the global delay send amount. (Implemented!)
-* **Idea:** "Master Bus Compressor" - Add a `DynamicsCompressorNode` to the master output for gluing the mix together.
+* [x] **Idea:** "Master Bus Compressor" - Add a `DynamicsCompressorNode` to the master output for gluing the mix together. (Implemented via a fixed "Glue Compressor" block before the Master Gain!)
+* **Idea:** "Sidechain Compression" - Allow routing the kick drum to the master compressor's sidechain input or a dedicated sidechain bus to dynamically duck the bass/synths.
 ---
 
 ## 📜 Changelog
+* [2026-06-27] - Implemented Master Bus Compressor: Inserted a default `DynamicsCompressorNode` configured as a gentle "Glue Compressor" (Threshold: -15dB, Ratio: 4:1, Attack: 30ms, Release: 250ms) into the master audio chain (`masterSaturation` -> `masterCompressor` -> `masterGain` -> `masterPanner`). Updated `useAudioEngine.ts` to reflect the new master bus input point and updated `PlaybackRefs`.
 * [Date] - Implemented Custom Waveform LFO: Added `DrawableLFO` component to allow users to draw custom LFO shapes for formant modulation. Integrated with `FormantShifter.ts` to convert the drawn array into a `PeriodicWave` using a Discrete Fourier Transform (DFT), passing `formantLfoShape` from the `SamplerPanel` through `SingingVoice` and `useAudioEngine`. Added new ideas: "LFO Rate Sync to Tempo" and "Microtonal Scale Mapping".
 * [2026-06-27] - Implemented Vocal Formant Envelope: Added Formant Envelope parameters to `SamplerBankParams` and `Note` interfaces, allowing users to modulate formant detune amounts via an attack/decay envelope on `ConstantSourceNode` and `GainNode`. Added global and per-step controls to `SamplerPanel` and `NoteSelector`.
 * [2026-06-27] - Verified Gesture Controls: Confirmed pinch-to-zoom is fully implemented in `MainSequencer.tsx` and marked as complete.
