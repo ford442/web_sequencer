@@ -90,6 +90,8 @@ export class SupertonicService {
     private textProcessor: UnicodeProcessor | null = null;
     private cfgs: TTSConfig | null = null;
     private currentStyle: Style | null = null;
+    private preloadManifest: boolean[] = new Array(8).fill(false);
+    private isPreloading = false;
 
     private constructor() { }
 
@@ -184,6 +186,44 @@ export class SupertonicService {
 
     isServiceReady(): boolean {
         return this.isReady;
+    }
+
+    async preload(): Promise<void> {
+        if (!this.isReady || this.isPreloading) return;
+        this.isPreloading = true;
+        try {
+            console.log("Supertonic: Warming ONNX session with dummy inference...");
+            // Minimal dummy inference to warm GPU kernels for all banks
+            await this.generate("a", 1, 1.0);
+            this.preloadManifest.fill(true);
+            console.log("Supertonic: ONNX session warmed.");
+        } catch (e) {
+            console.warn("Supertonic: Preload dummy inference failed (non-critical):", e);
+        } finally {
+            this.isPreloading = false;
+        }
+    }
+
+    purgeCache(): void {
+        console.log("Supertonic: Purging ONNX session cache...");
+        (Object.keys(this.models) as (keyof Models)[]).forEach((key) => {
+            const session = this.models[key];
+            if (session && typeof session.release === 'function') {
+                try {
+                    session.release();
+                } catch (e) {
+                    console.warn(`Supertonic: Failed to release ${key}:`, e);
+                }
+            }
+        });
+        this.models = {};
+        this.isReady = false;
+        this.preloadManifest.fill(false);
+        console.log("Supertonic: ONNX cache purged. isReady=false");
+    }
+
+    getPreloadManifest(): boolean[] {
+        return [...this.preloadManifest];
     }
 
     async generate(text: string, steps: number = 5, speed: number = 1.0): Promise<Float32Array> {

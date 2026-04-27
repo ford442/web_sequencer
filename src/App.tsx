@@ -6,6 +6,7 @@ import { useStepHandler } from './hooks/useStepHandler'
 import { useGamepad } from './hooks/useGamepad';
 import { useStableKnobConfig } from './hooks/useStableKnobConfig';
 import { useSongStorage } from './hooks/useSongStorage';
+import { useTTSPreloader } from './hooks/useTTSPreloader';
 import { GamepadDebugger } from './components/GamepadDebugger';
 import { HardwareModule } from './components/HardwareModule';
 import { SamplerVoicePanel } from './components/SamplerVoicePanel';
@@ -93,6 +94,9 @@ export const App: React.FC = () => {
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
     const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
+
+    // Background TTS ONNX session preload (idle-scheduled, non-blocking)
+    useTTSPreloader()
 
     // NEW: Automation View State
     const [viewMode, setViewMode] = useState<'notes' | 'automation'>('notes');

@@ -42,6 +42,23 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
         initDesigner();
     }, []);
 
+    // Dev-only: expose purge action on window.__devtools
+    useEffect(() => {
+        if (import.meta.env.DEV) {
+            const service = SupertonicService.getInstance();
+            (window as any).__devtools = (window as any).__devtools || {};
+            (window as any).__devtools.purgeTTSCache = () => {
+                service.purgeCache();
+            };
+        }
+    }, []);
+
+    const handlePurgeCache = () => {
+        const service = SupertonicService.getInstance();
+        service.purgeCache();
+        setStatus("ONNX cache purged");
+    };
+
     const handleOp = async (op: keyof VoiceDesigner) => {
         const d = designerRef.current;
         if (d && typeof d[op] === 'function') {
@@ -142,6 +159,22 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
                         ) : "APPLY TO ENGINE"}
                     </button>
                 </div>
+
+                {import.meta.env.DEV && (
+                    <div className="mt-4 pt-4 border-t border-red-900/30">
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs text-red-400/70 font-mono">Dev Tools</span>
+                            <button
+                                onClick={handlePurgeCache}
+                                className="px-4 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-300 border border-red-900/40 rounded font-mono text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 transition-colors"
+                                aria-label="Purge ONNX TTS cache"
+                                title="Purge ONNX TTS cache"
+                            >
+                                Purge ONNX Cache (Dev)
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
