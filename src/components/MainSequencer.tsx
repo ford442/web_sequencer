@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useState } from 'react';
+import React, { useMemo, memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useState } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { noteToMidi } from '../utils/musicTheory';
 import { GridIndicators } from './GridIndicators';
