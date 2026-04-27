@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: true
           # Phase 1 only: no WASM build, no submodule source needed.
           # Phase 2 will add submodules: true with fetch-depth: 1.
 
