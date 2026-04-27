@@ -975,19 +975,21 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                 {/* 5. Controls Wrapper - Use flex-wrap to prevent cut-off */}
                 <div className="flex flex-wrap gap-4 mt-1 pb-4">
                     {/* Basic Params Group */}
-                    <div className="flex-1 min-w-[140px] bg-gray-800/30 p-2 rounded">
-                        <div className="text-[9px] text-gray-500 font-bold mb-1 border-b border-gray-700 pb-0.5">BASIC</div>
+                    <fieldset className="flex-1 min-w-[140px] bg-gray-800/30 p-2 rounded border-0 m-0">
+                        <legend className="sr-only">Basic Parameters</legend>
+                        <div className="text-[9px] text-gray-500 font-bold mb-1 border-b border-gray-700 pb-0.5" aria-hidden="true">BASIC</div>
                         <div className="grid grid-cols-2 gap-2">
                             <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" unit="x" />
                             <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
                             <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic unit="Hz" />
                             <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />
                         </div>
-                    </div>
+                    </fieldset>
 
                     {/* Rubberband/Granular Params Group */}
-                    <div className="flex-[2] min-w-[200px] bg-indigo-900/50 p-2 rounded">
-                        <div className="text-[9px] text-indigo-300 font-bold mb-1 border-b border-indigo-800 pb-0.5">ENGINE</div>
+                    <fieldset className="flex-[2] min-w-[200px] bg-indigo-900/50 p-2 rounded border-0 m-0">
+                        <legend className="sr-only">Engine Parameters</legend>
+                        <div className="text-[9px] text-indigo-300 font-bold mb-1 border-b border-indigo-800 pb-0.5" aria-hidden="true">ENGINE</div>
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2">
                             <Knob label="Time" value={currentParams.timeRatio ?? 1} onChange={handleTimeRatioChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
                             <Knob label="Pitch" value={currentParams.pitchScale ?? 1} onChange={handlePitchScaleChange} min={0.5} max={2.0} step={0.01} color="indigo" unit="x" />
@@ -1053,7 +1055,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Sustain" value={currentParams.sustain ?? 1.0} onChange={handleSustainChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Release" value={currentParams.release ?? 0.1} onChange={handleReleaseChange} min={0.001} max={5.0} step={0.01} color="indigo" unit="s" />
                         </div>
-                    </div>
+                    </fieldset>
                 </div>
             </div>
         </div>
