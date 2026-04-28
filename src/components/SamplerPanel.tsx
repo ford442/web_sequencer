@@ -193,7 +193,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoRate', 'freezeLfoDepth', 'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
+            'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
             'sustain', 'release', 'choir', 'glitchChance'
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
@@ -214,8 +214,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
     const handleTremoloDepthChange = paramHandlers.tremoloDepth;
     const handleBreathIntensityChange = paramHandlers.breathIntensity;
     const handleFreezeChange = paramHandlers.freeze;
+    const handleFreezeLfoSyncChange = paramHandlers.freezeLfoSync;
     const handleFreezeLfoRateChange = paramHandlers.freezeLfoRate;
     const handleFreezeLfoDepthChange = paramHandlers.freezeLfoDepth;
+    const handleFormantLfoSyncChange = paramHandlers.formantLfoSync;
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
     const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
     const handleFormantLfoShapeChange = paramHandlers.formantLfoShape;
@@ -997,9 +999,73 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <Knob label="Trem Rate" value={currentParams.tremoloRate ?? 0.1} onChange={handleTremoloRateChange} min={0.1} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Frz LFO Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
+
+                            <div className="flex flex-col items-center gap-1">
+                                {currentParams.freezeLfoSync ? (
+                                    <div className="flex flex-col items-center min-w-[3rem]">
+                                        <span className="text-xs text-gray-400 uppercase tracking-wider mb-1">Frz Rate</span>
+                                        <select
+                                            value={currentParams.freezeLfoRate ?? 0}
+                                            onChange={(e) => handleFreezeLfoRateChange(parseFloat(e.target.value))}
+                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                            aria-label="Freeze LFO Rate Subdivision"
+                                        >
+                                            <option value={2}>2 Bars</option>
+                                            <option value={1}>1 Bar</option>
+                                            <option value={0.5}>1/2</option>
+                                            <option value={0.25}>1/4</option>
+                                            <option value={0.125}>1/8</option>
+                                            <option value={0.0625}>1/16</option>
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <Knob label="Frz Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
+                                )}
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={currentParams.freezeLfoSync}
+                                    onClick={() => handleFreezeLfoSyncChange(!currentParams.freezeLfoSync)}
+                                    className={`px-2 py-0.5 mt-1 rounded text-[10px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${currentParams.freezeLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                >
+                                    SYNC
+                                </button>
+                            </div>
+
                             <Knob label="Frz LFO Depth" value={currentParams.freezeLfoDepth ?? 0} onChange={handleFreezeLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
+
+                            <div className="flex flex-col items-center gap-1">
+                                {currentParams.formantLfoSync ? (
+                                    <div className="flex flex-col items-center min-w-[3rem]">
+                                        <span className="text-xs text-gray-400 uppercase tracking-wider mb-1">Fmt Rate</span>
+                                        <select
+                                            value={currentParams.formantLfoRate ?? 0}
+                                            onChange={(e) => handleFormantLfoRateChange(parseFloat(e.target.value))}
+                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                            aria-label="Formant LFO Rate Subdivision"
+                                        >
+                                            <option value={2}>2 Bars</option>
+                                            <option value={1}>1 Bar</option>
+                                            <option value={0.5}>1/2</option>
+                                            <option value={0.25}>1/4</option>
+                                            <option value={0.125}>1/8</option>
+                                            <option value={0.0625}>1/16</option>
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <Knob label="Fmt Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
+                                )}
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={currentParams.formantLfoSync}
+                                    onClick={() => handleFormantLfoSyncChange(!currentParams.formantLfoSync)}
+                                    className={`px-2 py-0.5 mt-1 rounded text-[10px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${currentParams.formantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                >
+                                    SYNC
+                                </button>
+                            </div>
+
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
                             <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
