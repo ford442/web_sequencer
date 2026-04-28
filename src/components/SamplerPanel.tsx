@@ -16,6 +16,7 @@ interface SamplerPanelProps {
     activeBankIdx: number;           // Controlled by Parent
     onBankChange: (i: number) => void; // Controlled by Parent
     onOpenEditor?: () => void;
+    isVoiceEditorOpen?: boolean;
     ttsPhrases: string[];            // Array of 8 TTS phrases
     onTtsPhraseChange: (phrases: string[]) => void; // Update TTS phrases
     onGenerateTTS?: (text: string) => Promise<void>; // Delegate generation to parent
@@ -46,7 +47,7 @@ const grainSizeToMs = (size: number) => Math.round(size / 441 * 10);
 const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100);
 
 const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
-    params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor,
+    params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor, isVoiceEditorOpen,
     ttsPhrases, onTtsPhraseChange, onGenerateTTS,
     onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef,
     melodicMode = false, onMelodicModeChange,
@@ -778,6 +779,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                         {onOpenEditor && (
                             <button
                                 onClick={onOpenEditor}
+                                aria-haspopup="dialog"
+                                aria-expanded={isVoiceEditorOpen}
                                 className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                                 aria-label="Open Voice Editor for Text-to-Speech"
                             >
@@ -801,6 +804,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
                             <option value="octave">Octave</option>
                             <option value="stack">Power Stack</option>
                         </select>
+                        <div className="sr-only" aria-live="polite" aria-atomic="true">
+                            {isProcessingHarmonize ? "Applying harmonization, please wait..." : ""}
+                        </div>
                         <button
                             onClick={handleHarmonizeClick}
                             disabled={isProcessingHarmonize || !onHarmonize}
