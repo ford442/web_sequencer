@@ -6,6 +6,9 @@ interface TTSPreloaderState {
     isPreloading: boolean;
 }
 
+/**
+ * Custom hook to schedule TTS preload tasks asynchronously via requestIdleCallback, ensuring UI responsiveness.
+ */
 export const useTTSPreloader = (): TTSPreloaderState => {
     const [state, setState] = useState<TTSPreloaderState>({
         manifest: null,
@@ -26,7 +29,7 @@ export const useTTSPreloader = (): TTSPreloaderState => {
             try {
                 await service.preload();
             } catch (e) {
-                console.warn('useTTSPreloader: preload failed (non-critical):', e);
+                if (import.meta.env.DEV) { console.warn('useTTSPreloader: preload failed (non-critical):', e); }
             } finally {
                 setState({
                     manifest: service.getPreloadManifest(),
