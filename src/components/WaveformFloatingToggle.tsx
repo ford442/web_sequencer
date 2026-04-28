@@ -9,7 +9,8 @@ interface WaveformFloatingToggleProps {
   disabled?: boolean;
 }
 
-export const WaveformFloatingToggle: React.FC<WaveformFloatingToggleProps> = ({ selected, onChange, accentColor, disabled }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const WaveformFloatingToggle: React.FC<WaveformFloatingToggleProps> = React.memo(({ selected, onChange, accentColor, disabled }) => {
   const [open, setOpen] = useState(false);
 
   return (
@@ -32,7 +33,7 @@ export const WaveformFloatingToggle: React.FC<WaveformFloatingToggleProps> = ({ 
       )}
     </div>
   );
-};
+});
 
 export default WaveformFloatingToggle;
 

@@ -7,7 +7,8 @@ interface VoiceEditorProps {
     onClose: () => void;
 }
 
-export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const VoiceEditor: React.FC<VoiceEditorProps> = React.memo(({ onClose }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const designerRef = useRef<VoiceDesigner | null>(null);
     const [status, setStatus] = useState("Ready");
@@ -178,4 +179,4 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = ({ onClose }) => {
             </div>
         </div>
     );
-};
+});

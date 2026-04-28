@@ -5,7 +5,8 @@ interface StartOverlayProps {
     isReady: boolean;
 }
 
-export const StartOverlay: React.FC<StartOverlayProps> = ({ onStart, isReady }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const StartOverlay: React.FC<StartOverlayProps> = React.memo(({ onStart, isReady }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="start-overlay-title">
             <div className="text-center p-8 bg-[#1f2937] border-2 border-cyan-500 rounded-2xl shadow-2xl max-w-lg w-full">
@@ -40,4 +41,4 @@ export const StartOverlay: React.FC<StartOverlayProps> = ({ onStart, isReady }) 
             </div>
         </div>
     );
-};
+});
