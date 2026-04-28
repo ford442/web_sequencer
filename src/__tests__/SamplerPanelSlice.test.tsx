@@ -40,6 +40,7 @@ describe('SamplerPanel Slice Mode', () => {
     audioContext: mockAudioContext,
     activeBankIdx: 0,
     onBankChange: vi.fn(),
+    isVoiceEditorOpen: false,
     ttsPhrases: Array(8).fill("Hello World"),
     onTtsPhraseChange: vi.fn(),
     onParamChange: vi.fn() // Important for testing Slice Mode toggle
