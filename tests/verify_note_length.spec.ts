@@ -3,6 +3,12 @@ import { test, expect } from '@playwright/test';
 test('verify note length controls and auto-delete', async ({ page }) => {
     // 1. Load Page
     await page.goto('/');
+  // Dismiss StartOverlay
+  const startBtn = page.getByRole('button', { name: 'INITIALIZE SYSTEM' });
+  await startBtn.waitFor({ state: 'visible', timeout: 90000 });
+  await expect(startBtn).toBeEnabled({ timeout: 90000 });
+  await startBtn.click({ force: true });
+  await startBtn.waitFor({ state: 'hidden', timeout: 30000 });
     await expect(page.getByText('HYPHON').first()).toBeVisible();
 
     // 2. Setup: Create notes on Step 0 and Step 2

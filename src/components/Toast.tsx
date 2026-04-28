@@ -6,7 +6,8 @@ interface ToastProps {
   onClose: () => void;
 }
 
-export const Toast: React.FC<ToastProps> = ({ message, type, onClose }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const Toast: React.FC<ToastProps> = React.memo(({ message, type, onClose }) => {
   useEffect(() => {
     const timer = setTimeout(onClose, 3000);
     return () => clearTimeout(timer);
@@ -20,4 +21,4 @@ export const Toast: React.FC<ToastProps> = ({ message, type, onClose }) => {
       <span className="font-mono text-sm">{message}</span>
     </div>
   );
-};
+});

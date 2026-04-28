@@ -5,7 +5,8 @@ interface ShortcutsHelpProps {
     onClose: () => void;
 }
 
-export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = ({ onClose }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = React.memo(({ onClose }) => {
     const modalRef = useFocusTrap(true, onClose);
 
     const sections = [
@@ -114,4 +115,4 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = ({ onClose }) => {
             </div>
         </div>
     );
-};
+});

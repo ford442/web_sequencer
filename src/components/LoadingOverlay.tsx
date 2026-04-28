@@ -27,7 +27,8 @@ const STATUS_COLORS = {
   error: 'bg-red-500',
 };
 
-export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onComplete }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVisible, onComplete }) => {
   const { isLoading, totalProgress, currentStep, steps, errors } = useLoadingProgress();
   const [showDetails, setShowDetails] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -201,4 +202,4 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onCom
       </div>
     </div>
   );
-};
+});

@@ -9,7 +9,8 @@ interface OscilloscopeProps {
     initDelay?: number; // Delay in ms before initializing WebGPU
 }
 
-export const Oscilloscope: React.FC<OscilloscopeProps> = ({ params, accentColor, initDelay = 0 }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const Oscilloscope: React.FC<OscilloscopeProps> = React.memo(({ params, accentColor, initDelay = 0 }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
     // Initialize the WebGPU bridge with staggered delay
@@ -32,4 +33,4 @@ export const Oscilloscope: React.FC<OscilloscopeProps> = ({ params, accentColor,
             <div className="absolute inset-0 border-l border-r border-gray-800/50 pointer-events-none" style={{ left: '50%', width: '1px' }}></div>
         </div>
     );
-};
+});
