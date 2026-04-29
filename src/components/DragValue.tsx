@@ -10,7 +10,8 @@ interface DragValueProps {
   className?: string;
 }
 
-export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, max = 100, step = 1, label, className }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange, min = 0, max = 100, step = 1, label, className }) => {
   const [isDragging, setIsDragging] = useState(false);
   const startY = useRef(0);
   const startValue = useRef(value);
@@ -205,6 +206,6 @@ export const DragValue: React.FC<DragValueProps> = ({ value, onChange, min = 0, 
       </div>
     </div>
   );
-};
+});
 
 export default DragValue;

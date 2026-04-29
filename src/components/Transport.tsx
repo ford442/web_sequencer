@@ -8,7 +8,8 @@ interface TransportProps {
   onTempoChange: (tempo: number) => void;
 }
 
-export const Transport: React.FC<TransportProps> = ({ isPlaying, onPlayClick, tempo, onTempoChange }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const Transport: React.FC<TransportProps> = React.memo(({ isPlaying, onPlayClick, tempo, onTempoChange }) => {
   return (
     <div className="flex items-center space-x-4 bg-gray-900 p-2 rounded-lg border border-gray-700">
       <button
@@ -44,4 +45,4 @@ export const Transport: React.FC<TransportProps> = ({ isPlaying, onPlayClick, te
       </div>
     </div>
   );
-};
+});

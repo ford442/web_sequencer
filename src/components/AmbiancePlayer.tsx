@@ -10,7 +10,8 @@ interface AmbiancePlayerProps {
   onVolumeChange: (volume: number) => void;
 }
 
-export const AmbiancePlayer: React.FC<AmbiancePlayerProps> = ({ tracks, selectedUrl, onSelect, volume, onVolumeChange }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const AmbiancePlayer: React.FC<AmbiancePlayerProps> = React.memo(({ tracks, selectedUrl, onSelect, volume, onVolumeChange }) => {
   return (
     <div className="flex items-center space-x-3 bg-gray-900 p-2 rounded-lg border border-gray-700">
       <label htmlFor="ambiance-select" className="text-xs text-gray-400 uppercase tracking-wider">Ambiance</label>
@@ -43,4 +44,4 @@ export const AmbiancePlayer: React.FC<AmbiancePlayerProps> = ({ tracks, selected
       </div>
     </div>
   );
-};
+});

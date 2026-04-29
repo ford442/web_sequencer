@@ -89,6 +89,7 @@ export const useAudioEngine = (pyodide: unknown) => {
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
+    const sidechainBusRef = useRef<GainNode | null>(null);
     const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});
     const reverbNodeRef = useRef<ConvolverNode | null>(null); // Keep for backwards compatibility if needed temporarily
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
@@ -115,6 +116,7 @@ export const useAudioEngine = (pyodide: unknown) => {
         masterGainRef,
         masterSaturationRef,
         masterCompressorRef,
+        sidechainBusRef,
         reverbNodesRef,
         reverbTypeRef,
         delayNodeRef,
@@ -157,7 +159,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 console.log("AudioContext resumed");
             }
 
-            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef);
+            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainBusRef);
 
             // Initialize Reverb Node
             // Initialize Reverb Nodes (Room, Plate, Hall)

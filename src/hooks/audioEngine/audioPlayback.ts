@@ -66,6 +66,7 @@ export interface PlaybackRefs {
     masterGainRef: MutableRefObject<GainNode | null>;
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>;
     masterCompressorRef: MutableRefObject<DynamicsCompressorNode | null>;
+    sidechainBusRef: MutableRefObject<GainNode | null>;
     reverbNodesRef: MutableRefObject<Record<string, ConvolverNode>>;
     reverbTypeRef: MutableRefObject<'room' | 'plate' | 'hall'>;
     delayNodeRef: MutableRefObject<DelayNode | null>;
