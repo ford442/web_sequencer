@@ -55,7 +55,7 @@ fs.writeFileSync(file2, `import { test, expect } from '@playwright/test';
 test('verify note length controls and auto-delete', async ({ page }) => {
     // 1. Load Page
     await page.goto('/');
-    
+
     // Dismiss StartOverlay
     const startBtnOverlay = page.getByRole('button', { name: 'INITIALIZE SYSTEM' });
     if (await startBtnOverlay.isVisible()) {
@@ -63,7 +63,7 @@ test('verify note length controls and auto-delete', async ({ page }) => {
         await startBtnOverlay.dispatchEvent('click');
         await expect(startBtnOverlay).toBeHidden({ timeout: 30000 });
     }
-    
+
     await expect(page.getByText('HYPHON').first()).toBeVisible();
 
     // Give it a moment for the sequencer to render completely and overlay to disappear

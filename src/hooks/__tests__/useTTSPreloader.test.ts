@@ -12,7 +12,7 @@ describe('useTTSPreloader Hook', () => {
         (service as any).isReady = true;
         vi.useFakeTimers();
         vi.restoreAllMocks();
-        
+
         // Mock cancelIdleCallback since it might not be in the jsdom environment
         if (typeof window !== 'undefined') {
             (window as any).cancelIdleCallback = vi.fn();
@@ -32,11 +32,11 @@ describe('useTTSPreloader Hook', () => {
         (window as any).requestIdleCallback = mockRequestIdleCallback;
 
         const generateSpy = vi.spyOn(service, 'generate').mockResolvedValue(new Float32Array(10));
-        
+
         const { result } = renderHook(() => useTTSPreloader());
 
         expect(result.current.isPreloading).toBe(true);
-        
+
         // Let the timeout inside the mockRequestIdleCallback run
         await act(async () => {
             await vi.runAllTimersAsync();
@@ -54,11 +54,11 @@ describe('useTTSPreloader Hook', () => {
         (window as any).requestIdleCallback = undefined;
 
         const generateSpy = vi.spyOn(service, 'generate').mockResolvedValue(new Float32Array(10));
-        
+
         const { result } = renderHook(() => useTTSPreloader());
 
         expect(result.current.isPreloading).toBe(true);
-        
+
         // Advance the 200ms timeout
         await act(async () => {
             await vi.runAllTimersAsync();
@@ -80,11 +80,11 @@ describe('useTTSPreloader Hook', () => {
         (window as any).requestIdleCallback = mockRequestIdleCallback;
 
         vi.spyOn(service, 'generate').mockRejectedValue(new Error('Preload failure'));
-        
+
         const { result } = renderHook(() => useTTSPreloader());
 
         expect(result.current.isPreloading).toBe(true);
-        
+
         await act(async () => {
             await vi.runAllTimersAsync();
         });
@@ -96,13 +96,13 @@ describe('useTTSPreloader Hook', () => {
 
     it('should not preload if service is not ready', async () => {
         (service as any).isReady = false;
-        
+
         const generateSpy = vi.spyOn(service, 'generate');
         const { result } = renderHook(() => useTTSPreloader());
 
         expect(result.current.isPreloading).toBe(false);
         expect(result.current.manifest).toBeNull();
-        
+
         await act(async () => {
             await vi.runAllTimersAsync();
         });

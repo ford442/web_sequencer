@@ -14,7 +14,7 @@ content = content.replace(
     '''const sidechainBus = context.createGain();
     sidechainBus.gain.setValueAtTime(1, 0); // Default open
     sidechainBusRef.current = sidechainBus;
-    
+
     sidechainBus.connect(masterSaturation);
     masterSaturation.connect(masterCompressor);'''
 )

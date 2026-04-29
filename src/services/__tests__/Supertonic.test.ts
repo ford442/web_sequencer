@@ -15,7 +15,7 @@ describe('SupertonicService Preload & Purge', () => {
 
     it('should successfully preload and set the manifest to true', async () => {
         const generateSpy = vi.spyOn(service, 'generate').mockResolvedValue(new Float32Array(10));
-        
+
         await service.preload();
 
         expect(generateSpy).toHaveBeenCalledWith("a", 1, 1.0);
@@ -26,7 +26,7 @@ describe('SupertonicService Preload & Purge', () => {
 
     it('should handle preload errors gracefully and reset isPreloading state', async () => {
         const generateSpy = vi.spyOn(service, 'generate').mockRejectedValue(new Error('Dummy inference failed'));
-        
+
         await service.preload();
 
         expect(generateSpy).toHaveBeenCalledWith("a", 1, 1.0);
