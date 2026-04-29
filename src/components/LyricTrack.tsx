@@ -8,7 +8,8 @@ interface LyricTrackProps {
     onClose: () => void;
 }
 
-export const LyricTrack: React.FC<LyricTrackProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const LyricTrack: React.FC<LyricTrackProps> = React.memo(({
     isVisible,
     initialText,
     isGenerating,
@@ -58,4 +59,4 @@ export const LyricTrack: React.FC<LyricTrackProps> = ({
             </button>
         </div>
     );
-};
+});

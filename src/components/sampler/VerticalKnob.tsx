@@ -7,7 +7,8 @@ export interface VerticalKnobProps {
     colorHex: [number, number, number];
 }
 
-export const VerticalKnob: React.FC<VerticalKnobProps> = ({ label, value, onChange, colorHex }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const VerticalKnob: React.FC<VerticalKnobProps> = React.memo(({ label, value, onChange, colorHex }) => {
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         const startY = e.clientY;
@@ -107,4 +108,4 @@ export const VerticalKnob: React.FC<VerticalKnobProps> = ({ label, value, onChan
             <span className="text-[8px] font-mono text-cyan-400/60">{Math.round(value * 100)}%</span>
         </div>
     );
-};
+});

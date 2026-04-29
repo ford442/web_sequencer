@@ -10,7 +10,8 @@ export interface HarmonizerPopoverProps {
     colorHex: [number, number, number];
 }
 
-export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = ({ isOpen, onClose, config, isActive, onApply, colorHex }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({ isOpen, onClose, config, isActive, onApply, colorHex }) => {
     const [localConfig, setLocalConfig] = useState<HarmonizerConfig>(config);
     const [localActive, setLocalActive] = useState(isActive);
 
@@ -276,4 +277,4 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = ({ isOpen, on
             </div>
         </>
     );
-};
+});

@@ -47,7 +47,8 @@ const SkeletonRow = () => (
     </div>
 );
 
-export const CloudLibrary: React.FC<CloudLibraryProps> = ({ 
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
     isOpen, onClose, onLoadData, onShowToast, getSongData, getBankData, getPatternData
 }) => {
     const [activeTab, setActiveTab] = useState<'browse' | 'upload'>('browse');
@@ -418,4 +419,4 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = ({
             </div>
         </div>
     );
-};
+});

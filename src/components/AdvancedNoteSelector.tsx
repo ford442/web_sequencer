@@ -31,7 +31,8 @@ interface AdvancedNoteSelectorProps {
 
 const DRAG_THRESHOLD = 4; // pixels before drag starts
 
-export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.memo(({
     value,
     onChange,
     trackKey,
@@ -242,4 +243,4 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
             )}
         </div>
     );
-};
+});

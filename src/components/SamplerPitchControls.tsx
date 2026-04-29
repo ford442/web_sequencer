@@ -116,7 +116,8 @@ const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = ({ selected, onSel
   );
 };
 
-export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.memo(({
   bankId,
   values,
   onChange,
@@ -313,6 +314,6 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default SamplerPitchControls;
