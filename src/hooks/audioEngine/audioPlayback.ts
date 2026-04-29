@@ -83,6 +83,7 @@ export interface PlaybackRefs {
     loadedAmbianceBuffersRef: MutableRefObject<Map<string, AudioBuffer>>;
     singingVoiceManagerRef: MutableRefObject<SingingVoiceManager | null>;
     harmonizerRef: MutableRefObject<Harmonizer | null>;
+    sidechainGainRef: MutableRefObject<GainNode | null>;
 }
 
 export function createPlaySynth(
@@ -213,9 +214,32 @@ export function createPlaySynth(
     };
 }
 
+export const triggerSidechainDuck = (
+    audioCtx: AudioContext,
+    sidechainGainNode: GainNode,
+    time: number,
+    depth: number = 0.15, // How quiet it gets (0.0 to 1.0)
+    releaseTime: number = 0.25 // How long it takes to recover (in seconds)
+) => {
+    const gain = sidechainGainNode.gain;
+
+    // 1. Cancel any previous automations overlapping this new trigger
+    gain.cancelScheduledValues(time);
+
+    // 2. Anchor the value right before the drop
+    gain.setValueAtTime(gain.value, time);
+
+    // 3. The Attack: Drop the volume instantly (10ms to prevent clicking)
+    gain.linearRampToValueAtTime(depth, time + 0.01);
+
+    // 4. The Release: Ramp exponentially back to 1.0
+    // Exponential ramps sound much more musical and natural than linear for volume!
+    gain.exponentialRampToValueAtTime(1.0, time + releaseTime);
+};
+
 export function createPlayDrum(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef'>,
+    refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef'>,
 ): AudioEngine['playDrum'] {
     return (sound, params, time, noteParams, stepTime = 0.125) => {
         if (!refs.masterGainRef.current) {
@@ -229,6 +253,10 @@ export function createPlayDrum(
             const now = time + (i * subStep);
 
             if (sound === 'kick') {
+                if (refs.sidechainGainRef.current) {
+                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+                }
+
                 const kickParams = params as KickParams;
                 const osc = context.createOscillator();
                 const gain = context.createGain();
