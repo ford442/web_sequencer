@@ -1654,13 +1654,13 @@ export const App: React.FC = () => {
                     <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 overflow-hidden">
                         <button
                             onClick={() => setViewMode('notes')}
-                            className={`px-2.5 py-1 text-[10px] font-bold transition-all ${viewMode === 'notes' ? 'bg-cyan-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                            className={`px-2.5 py-1 text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500 ${viewMode === 'notes' ? 'bg-cyan-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
                         >
                             NOTES
                         </button>
                         <button
                             onClick={() => setViewMode('automation')}
-                            className={`px-2.5 py-1 text-[10px] font-bold transition-all ${viewMode === 'automation' ? 'bg-pink-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                            className={`px-2.5 py-1 text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:ring-pink-500 ${viewMode === 'automation' ? 'bg-pink-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
                         >
                             AUTO
                         </button>
@@ -1670,7 +1670,7 @@ export const App: React.FC = () => {
                         <select
                             value={automationParam}
                             onChange={(e) => setAutomationParam(e.target.value)}
-                            className="bg-zinc-950 text-[10px] text-gray-300 border border-zinc-800 rounded px-1.5 py-1 outline-none focus:border-cyan-500"
+                            className="bg-zinc-950 text-[10px] text-gray-300 border border-zinc-800 rounded px-1.5 py-1 outline-none focus:border-cyan-500 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
                         >
                             <option value="formantShift">Formant</option>
                             <option value="vibratoDepth">Vibrato</option>
@@ -1685,7 +1685,7 @@ export const App: React.FC = () => {
                         onClick={() => setIsLyricTrackVisible(!isLyricTrackVisible)}
                         aria-pressed={isLyricTrackVisible}
                         aria-label="Toggle Global Lyric Track"
-                        className={`h-6 px-2.5 rounded-md font-orbitron text-[10px] font-bold tracking-wide transition-all ${isLyricTrackVisible ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'bg-zinc-800 text-cyan-400 border border-zinc-700 hover:bg-zinc-700'}`}
+                        className={`h-6 px-2.5 rounded-md font-orbitron text-[10px] font-bold tracking-wide transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] focus-visible:ring-cyan-500 ${isLyricTrackVisible ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'bg-zinc-800 text-cyan-400 border border-zinc-700 hover:bg-zinc-700'}`}
                     >
                         LYRICS
                     </button>
@@ -1696,7 +1696,8 @@ export const App: React.FC = () => {
                     <button 
                         onClick={exportSongToFile} 
                         disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30'}`} 
+                        aria-label="Save project to JSON"
+                        className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] focus-visible:ring-green-500 ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30'}`}
                         title="Save to JSON"
                     >
                         💾 SAVE
@@ -1704,7 +1705,8 @@ export const App: React.FC = () => {
                     <button 
                         onClick={importSongFromFile} 
                         disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30'}`} 
+                        aria-label="Load project from JSON"
+                        className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] focus-visible:ring-blue-500 ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30'}`}
                         title="Load from JSON"
                     >
                         📂 LOAD
@@ -1712,7 +1714,8 @@ export const App: React.FC = () => {
                     <button 
                         onClick={() => setIsRbsImportModalOpen(true)}
                         disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30'}`} 
+                        aria-label="Import ReBirth RB-338 .rbs file"
+                        className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] focus-visible:ring-amber-500 ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30'}`}
                         title="Import ReBirth RB-338 file"
                     >
                         🎹 Import .rbs File...
