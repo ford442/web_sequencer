@@ -34,7 +34,8 @@ export interface PhonemePainterProps {
   alignment?: AlignmentResult | null;
 }
 
-export const PhonemePainter: React.FC<PhonemePainterProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
   isOpen,
   onClose,
   stepIndex,
@@ -844,6 +845,6 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default PhonemePainter;

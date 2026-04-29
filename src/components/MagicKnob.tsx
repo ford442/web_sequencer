@@ -10,7 +10,8 @@ interface MagicKnobProps {
     onChange?: (val: number) => void;
 }
 
-export const MagicKnob: React.FC<MagicKnobProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const MagicKnob: React.FC<MagicKnobProps> = React.memo(({
                                                         value,
                                                         min = 0,
                                                         max = 100,
@@ -341,4 +342,4 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
             </span>
         </div>
     );
-};
+});
