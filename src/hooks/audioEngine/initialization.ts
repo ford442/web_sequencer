@@ -9,6 +9,7 @@ export function initializeMasterOutput(
     masterPannerRef: MutableRefObject<StereoPannerNode | null>,
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>,
     masterCompressorRef: MutableRefObject<DynamicsCompressorNode | null>,
+    sidechainGainRef: MutableRefObject<GainNode | null>,
 ): WaveShaperNode {
     const masterSaturation = context.createWaveShaper();
     masterSaturation.curve = makeDistortionCurve(0);
@@ -27,7 +28,12 @@ export function initializeMasterOutput(
     masterGain.gain.setValueAtTime(0.8, 0);
     masterGainRef.current = masterGain;
 
-    masterSaturation.connect(masterCompressor);
+    const sidechainBus = context.createGain();
+    sidechainBus.gain.setValueAtTime(1.0, context.currentTime);
+    sidechainGainRef.current = sidechainBus;
+
+    masterSaturation.connect(sidechainBus);
+    sidechainBus.connect(masterCompressor);
     masterCompressor.connect(masterGain);
 
     if (context.createStereoPanner) {

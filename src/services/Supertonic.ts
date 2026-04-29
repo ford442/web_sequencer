@@ -188,24 +188,33 @@ export class SupertonicService {
         return this.isReady;
     }
 
+    /**
+     * Warms up the ONNX session with a dummy inference to avoid cold-start lag during initial playback.
+     */
     async preload(): Promise<void> {
         if (!this.isReady || this.isPreloading) return;
         this.isPreloading = true;
         try {
-            console.log("Supertonic: Warming ONNX session with dummy inference...");
+            if (import.meta.env.DEV) { console.log("Supertonic: Warming ONNX session with dummy inference..."); }
             // Minimal dummy inference to warm GPU kernels for all banks
             await this.generate("a", 1, 1.0);
             this.preloadManifest.fill(true);
-            console.log("Supertonic: ONNX session warmed.");
+            if (import.meta.env.DEV) { console.log("Supertonic: ONNX session warmed."); }
         } catch (e) {
-            console.warn("Supertonic: Preload dummy inference failed (non-critical):", e);
+            if (import.meta.env.DEV) { console.warn("Supertonic: Preload dummy inference failed (non-critical):", e); }
         } finally {
             this.isPreloading = false;
         }
     }
 
+    /**
+     * Devtool helper: Releases all InferenceSessions and resets service readiness to test cache misses.
+     * @example
+     * // Dev mode only
+     * window.__devtools.purgeTTSCache()
+     */
     purgeCache(): void {
-        console.log("Supertonic: Purging ONNX session cache...");
+        if (import.meta.env.DEV) { console.log("Supertonic: Purging ONNX session cache..."); }
         (Object.keys(this.models) as (keyof Models)[]).forEach((key) => {
             const session = this.models[key];
             if (session && typeof session.release === 'function') {
@@ -219,9 +228,12 @@ export class SupertonicService {
         this.models = {};
         this.isReady = false;
         this.preloadManifest.fill(false);
-        console.log("Supertonic: ONNX cache purged. isReady=false");
+        if (import.meta.env.DEV) { console.log("Supertonic: ONNX cache purged. isReady=false"); }
     }
 
+    /**
+     * Returns an array mapping which TTS banks are currently warmed up in the ONNX cache.
+     */
     getPreloadManifest(): boolean[] {
         return [...this.preloadManifest];
     }

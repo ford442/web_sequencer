@@ -100,13 +100,14 @@
 
 * [x] **Idea:** "Per-Step Delay Send" - Allow sequence steps to override the global delay send amount. (Implemented!)
 * [x] **Idea:** "Master Bus Compressor" - Add a `DynamicsCompressorNode` to the master output for gluing the mix together. (Implemented via a fixed "Glue Compressor" block before the Master Gain!)
-* **Idea:** "Sidechain Compression" - Allow routing the kick drum to the master compressor's sidechain input or a dedicated sidechain bus to dynamically duck the bass/synths.
+* [x] **Idea:** "Sidechain Compression" - Allow routing the kick drum to a dedicated sidechain bus to dynamically duck the bass/synths. (Implemented via scheduled GainNode automation on kick hits!)
 ---
 
 * **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
 ---
 
 ## 📜 Changelog
+* [2026-06-29] - Implemented Sidechain Compression: Added `sidechainBus` between the master saturation and master compressor to duck Synths/Basses when the kick drum triggers. Implemented `triggerSidechainDuck` in `audioPlayback.ts` to use deterministic native browser parameter scheduling (`linearRampToValueAtTime` / `exponentialRampToValueAtTime`) on the new sidechain gain node to avoid CPU overhead and achieve a classic EDM pump. Fulfills the "Sidechain Compression" Innovation Lab idea.
 * [2026-06-28] - Implemented LFO Rate Sync to Tempo: Added toggles and subdivision dropdowns to `SamplerPanel` and `NoteSelector` for `freezeLfoRate` and `formantLfoRate`. Updated `useAudioEngine.ts` to calculate real-time Hz values from BPM and note subdivisions when sync mode is enabled. Fulfills the "LFO Rate Sync to Tempo" Innovation Lab idea. Added new idea: "Granular Envelope Follower".
 * [2026-06-27] - Implemented Master Bus Compressor: Inserted a default `DynamicsCompressorNode` configured as a gentle "Glue Compressor" (Threshold: -15dB, Ratio: 4:1, Attack: 30ms, Release: 250ms) into the master audio chain (`masterSaturation` -> `masterCompressor` -> `masterGain` -> `masterPanner`). Updated `useAudioEngine.ts` to reflect the new master bus input point and updated `PlaybackRefs`.
 * [Date] - Implemented Custom Waveform LFO: Added `DrawableLFO` component to allow users to draw custom LFO shapes for formant modulation. Integrated with `FormantShifter.ts` to convert the drawn array into a `PeriodicWave` using a Discrete Fourier Transform (DFT), passing `formantLfoShape` from the `SamplerPanel` through `SingingVoice` and `useAudioEngine`. Added new ideas: "LFO Rate Sync to Tempo" and "Microtonal Scale Mapping".
