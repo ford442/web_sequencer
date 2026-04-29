@@ -3,7 +3,8 @@ import { API_BASE_URL, CloudStatusManager } from '../services/CloudStorage';
 
 type StatusState = 'SLEEPING' | 'WAKING' | 'ONLINE' | 'ERROR' | 'UPLOADING' | 'COMPLETE';
 
-export const CloudStatus: React.FC = () => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const CloudStatus: React.FC = React.memo(() => {
     const [connectionStatus, setConnectionStatus] = useState<StatusState>('SLEEPING');
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'complete' | 'error'>('idle');
 
@@ -103,4 +104,4 @@ export const CloudStatus: React.FC = () => {
             {content}
         </div>
     );
-};
+});

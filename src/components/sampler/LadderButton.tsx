@@ -7,7 +7,8 @@ export interface LadderButtonProps {
     buttonRef?: React.Ref<HTMLButtonElement>;
 }
 
-export const LadderButton: React.FC<LadderButtonProps> = ({ note, isActive, onClick, buttonRef }) => (
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const LadderButton: React.FC<LadderButtonProps> = React.memo(({ note, isActive, onClick, buttonRef }) => (
     <button
         ref={buttonRef}
         onClick={onClick}
@@ -28,4 +29,4 @@ export const LadderButton: React.FC<LadderButtonProps> = ({ note, isActive, onCl
         )}
         <span className={isActive ? 'pl-1.5' : ''}>{note}</span>
     </button>
-);
+));

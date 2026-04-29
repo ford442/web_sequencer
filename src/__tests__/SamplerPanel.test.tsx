@@ -39,6 +39,7 @@ describe('SamplerPanel TTS per-bank functionality', () => {
     audioContext: mockAudioContext,
     activeBankIdx: 0,
     onBankChange: vi.fn(),
+    isVoiceEditorOpen: false,
     ttsPhrases: Array(8).fill("Hello World"),
     onTtsPhraseChange: vi.fn()
   };
@@ -249,5 +250,38 @@ describe('SamplerPanel TTS per-bank functionality', () => {
 
     // Check Harm button label
     expect(screen.getByLabelText('Apply Harmonization')).toBeInTheDocument();
+  });
+
+  it('uses fieldset/legend for BASIC and ENGINE parameter groups', () => {
+    render(<SamplerPanel {...defaultProps} />);
+
+    // Both groups should be rendered as <fieldset> elements
+    const fieldsets = document.querySelectorAll('fieldset');
+    expect(fieldsets.length).toBeGreaterThanOrEqual(2);
+
+    // Find fieldset with sr-only legend "Basic Parameters"
+    const basicFieldset = Array.from(fieldsets).find(fs => {
+      const legend = fs.querySelector('legend');
+      return legend?.textContent?.trim() === 'Basic Parameters';
+    });
+    expect(basicFieldset).toBeInTheDocument();
+
+    // Find fieldset with sr-only legend "Engine Parameters"
+    const engineFieldset = Array.from(fieldsets).find(fs => {
+      const legend = fs.querySelector('legend');
+      return legend?.textContent?.trim() === 'Engine Parameters';
+    });
+    expect(engineFieldset).toBeInTheDocument();
+
+    // Legends should have sr-only class
+    const basicLegend = basicFieldset?.querySelector('legend');
+    expect(basicLegend).toHaveClass('sr-only');
+
+    const engineLegend = engineFieldset?.querySelector('legend');
+    expect(engineLegend).toHaveClass('sr-only');
+
+    // Fieldsets should have border-0 to reset browser defaults
+    expect(basicFieldset).toHaveClass('border-0');
+    expect(engineFieldset).toHaveClass('border-0');
   });
 });

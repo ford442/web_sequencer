@@ -8,7 +8,8 @@ export interface HSliderProps {
     colorHex: [number, number, number];
 }
 
-export const HSlider: React.FC<HSliderProps> = ({ label, value, displayValue, onChange, colorHex }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const HSlider: React.FC<HSliderProps> = React.memo(({ label, value, displayValue, onChange, colorHex }) => {
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         const rect = (e.target as HTMLElement).parentElement?.getBoundingClientRect();
@@ -117,4 +118,4 @@ export const HSlider: React.FC<HSliderProps> = ({ label, value, displayValue, on
             </div>
         </div>
     );
-};
+});

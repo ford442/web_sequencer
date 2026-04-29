@@ -5,19 +5,13 @@ import { test, expect } from '@playwright/test';
 test.skip('verify note length controls and auto-delete', async ({ page }) => {
     // 1. Load Page
     await page.goto('/');
-    
-    // Dismiss StartOverlay
-    const startBtnOverlay = page.getByRole('button', { name: 'INITIALIZE SYSTEM' });
-    if (await startBtnOverlay.isVisible()) {
-        await expect(startBtnOverlay).toBeEnabled({ timeout: 90000 });
-        await startBtnOverlay.dispatchEvent('click');
-        await expect(startBtnOverlay).toBeHidden({ timeout: 30000 });
-    }
-    
+  // Dismiss StartOverlay
+  const startBtn = page.getByRole('button', { name: 'INITIALIZE SYSTEM' });
+  await startBtn.waitFor({ state: 'visible', timeout: 90000 });
+  await expect(startBtn).toBeEnabled({ timeout: 90000 });
+  await startBtn.click({ force: true });
+  await startBtn.waitFor({ state: 'hidden', timeout: 30000 });
     await expect(page.getByText('HYPHON').first()).toBeVisible();
-
-    // Give it a moment for the sequencer to render completely and overlay to disappear
-    await page.waitForTimeout(3000);
 
     // 2. Setup: Create notes on Step 0 and Step 2
     // Use exact match to avoid matching "Lead step 10", "11", etc.
@@ -27,18 +21,15 @@ test.skip('verify note length controls and auto-delete', async ({ page }) => {
     // Wait for hydration/rendering
     await step0.waitFor();
 
-    await step0.dispatchEvent('click');
-    await page.waitForTimeout(500);
-    await step2.dispatchEvent('click');
-    await page.waitForTimeout(500);
+    await step0.click();
+    await step2.click();
 
     // Verify both are active
     await expect(step0.locator('.step-glow')).toBeVisible();
     await expect(step2.locator('.step-glow')).toBeVisible();
 
     // 3. Open Context Menu on Step 0
-    await step0.dispatchEvent('contextmenu');
-    await page.waitForTimeout(1000);
+    await step0.click({ button: 'right' });
 
     // Verify Menu Open
     const dialog = page.getByRole('dialog');
@@ -52,7 +43,6 @@ test.skip('verify note length controls and auto-delete', async ({ page }) => {
     // Also dispatch input/change to ensure React state updates
     await slider.dispatchEvent('input');
     await slider.dispatchEvent('change');
-    await page.waitForTimeout(500);
 
     // 5. Verify Step 0 expanded text updates
     await expect(page.getByText('4 Steps')).toBeVisible();

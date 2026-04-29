@@ -10,7 +10,8 @@ interface DrawableLFOProps {
     label?: string;
 }
 
-export const DrawableLFO: React.FC<DrawableLFOProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const DrawableLFO: React.FC<DrawableLFOProps> = React.memo(({
     value,
     onChange,
     width = 120,
@@ -146,4 +147,4 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = ({
             />
         </div>
     );
-};
+});
