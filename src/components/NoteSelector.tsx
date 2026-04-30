@@ -39,8 +39,7 @@ interface NoteSelectorProps {
     onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'choir', value: number | boolean | string) => void;
 }
 
-export const NoteSelector: React.FC<NoteSelectorProps> = // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
-React.memo(({
+export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
     currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0,  currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentReverbType, currentDelaySend, currentChoir, onPropertyChange
 }) => {
@@ -58,6 +57,7 @@ React.memo(({
                 onClick={onClose}
                 aria-hidden="true"
             />
+
             <div
                 ref={dialogRef}
                 role="dialog"
@@ -178,7 +178,7 @@ React.memo(({
 
                         {/* Freeze (Spectral Smear) Control */}
                         {trackType === 'synth' && ( // Only show for sampler/synth, but we can assume 'synth' type includes sampler here
-                            (<div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1">
                                 <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                                     <label htmlFor="note-freeze">Freeze</label>
                                     <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{Math.round((currentFreeze + 0.0001) * 100)}%</span>
@@ -195,7 +195,7 @@ React.memo(({
                                     aria-valuetext={`${Math.round((currentFreeze + 0.0001) * 100)}%`}
                                     aria-label="Freeze"
                                 />
-                            </div>)
+                            </div>
                         )}
 
                         {/* Delay Send Control */}
@@ -547,4 +547,4 @@ React.memo(({
             </div>
         </>
     );
-});
+};

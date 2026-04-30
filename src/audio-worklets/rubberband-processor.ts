@@ -64,7 +64,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'release', defaultValue: 0.1, minValue: 0.001, maxValue: 5.0 },
       { name: 'freeze', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'freezeLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
-      { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -237,6 +239,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const currentTime = typeof globalThis.currentTime === 'number' ? globalThis.currentTime : 0;
     this.expressiveProcessor.setCurrentTime(currentTime);
 
+    const envelopeValue = this.expressiveProcessor.getCurrentEnvelopeValue();
+
     const pitch = parameters.pitchScale[0];
     const defaultTimeRatio = parameters.timeRatio[0];
     const vibDepth = parameters.vibratoDepth[0];
@@ -276,6 +280,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const freezeBase = parameters.freeze ? parameters.freeze[0] : 0.0;
         const freezeLfoRate = parameters.freezeLfoRate ? parameters.freezeLfoRate[0] : 0.0;
         const freezeLfoDepth = parameters.freezeLfoDepth ? parameters.freezeLfoDepth[0] : 0.0;
+        const freezeEnvDepth = parameters.freezeEnvDepth ? parameters.freezeEnvDepth[0] : 0.0;
+        const grainEnvDepth = parameters.grainEnvDepth ? parameters.grainEnvDepth[0] : 0.0;
 
         // Advance LFO phase (we can do this per block/process call rather than per sample since block is 128 samples (~2.9ms at 44.1kHz),
         // which is fast enough for low-frequency LFOs up to 20Hz. We'll add the increment based on the block size).
@@ -293,7 +299,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const lfoValue = Math.sin(this.freezeLfoPhase);
         // Map sine from [-1, 1] to [0, 1] for unipolar modulation, or keep it bipolar?
         // Let's use bipolar modulation: freezeBase + freezeLfoDepth * sin
-        let freezeAmt = freezeBase + (freezeLfoDepth * lfoValue);
+        // Add envelope follower modulation
+        let freezeAmt = freezeBase + (freezeLfoDepth * lfoValue) + (freezeEnvDepth * envelopeValue);
         freezeAmt = Math.max(0.0, Math.min(1.0, freezeAmt));
 
         const isFrozen = freezeAmt > 0.5;
@@ -313,7 +320,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             // Using globalThis.sampleRate safely, fallback to 44100
             // @ts-ignore
             const sRate = typeof globalThis.sampleRate === 'number' ? globalThis.sampleRate : 44100;
-            const grainSizeSamples = Math.floor(sRate * 0.1);
+            const baseGrainSize = Math.floor(sRate * 0.1);
+            // Modulate grain size with envelope: louder = smaller grains for more texture
+            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * (1.0 - grainEnvDepth * envelopeValue)));
             const grainStart = Math.max(0, this.currentSamplePtr - Math.floor(grainSizeSamples / 2));
             const grainEnd = Math.min(buf.length, grainStart + grainSizeSamples);
             const actualGrainSize = grainEnd - grainStart;

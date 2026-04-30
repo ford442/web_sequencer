@@ -377,6 +377,14 @@ export class ExpressiveVoiceProcessor {
     }
     
     /**
+     * Get the current amplitude envelope value (0-1).
+     * Useful for envelope followers that want to modulate other parameters.
+     */
+    getCurrentEnvelopeValue(): number {
+        return this.envelopeValue;
+    }
+
+    /**
      * Reset internal state (phases, etc.)
      */
     reset(): void {

@@ -477,6 +477,10 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setFreeze(params.freeze, triggerTime);
                             }
 
+                            // Apply Envelope Follower depths (global only)
+                            if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+
                             // Apply Formant LFO
                             if (noteParams?.formantLfoRate !== undefined) {
                                 voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);

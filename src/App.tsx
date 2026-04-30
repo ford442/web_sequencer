@@ -1651,15 +1651,17 @@ export const App: React.FC = () => {
                 {/* Left: View Controls */}
                 <div className="flex items-center gap-2">
                     {/* Notes/Automation Toggle */}
-                    <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 overflow-hidden">
+                    <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 overflow-hidden" role="group" aria-label="Sequencer view mode">
                         <button
                             onClick={() => setViewMode('notes')}
+                            aria-pressed={viewMode === 'notes'}
                             className={`px-2.5 py-1 text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500 ${viewMode === 'notes' ? 'bg-cyan-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
                         >
                             NOTES
                         </button>
                         <button
                             onClick={() => setViewMode('automation')}
+                            aria-pressed={viewMode === 'automation'}
                             className={`px-2.5 py-1 text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:ring-pink-500 ${viewMode === 'automation' ? 'bg-pink-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
                         >
                             AUTO
@@ -1749,11 +1751,12 @@ export const App: React.FC = () => {
                             <span>🤖 Import AI Song</span>
                         )}
                     </button>
-                    <button 
-                        onClick={() => setIsCloudLibraryOpen(true)} 
+                    <button
+                        onClick={() => setIsCloudLibraryOpen(true)}
                         disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold text-purple-400 bg-zinc-900 border border-purple-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-950/30'}`} 
+                        className={`h-6 px-2 text-[10px] font-bold text-purple-400 bg-zinc-900 border border-purple-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-950/30'}`}
                         title="Cloud Library"
+                        aria-label="Open Cloud Library"
                     >
                         ☁️ CLOUD
                     </button>
@@ -1767,6 +1770,7 @@ export const App: React.FC = () => {
                             onClick={handleAutoMix}
                             className="bg-zinc-800 text-xs text-yellow-400 font-bold font-orbitron rounded px-2 py-0.5 border border-yellow-500/50 hover:bg-yellow-900/50 hover:border-yellow-400 active:scale-95 transition-all shadow-[0_0_5px_rgba(250,204,21,0.2)]"
                             title="Auto-Mix Assistant (AI Panning & Leveling)"
+                            aria-label="Auto-Mix Assistant"
                         >
                             ✨ AUTO-MIX
                         </button>
@@ -1834,13 +1838,15 @@ export const App: React.FC = () => {
                             localStorage.setItem('forceScriptProcessorFallback', String(newValue));
                             showToast(
                                 newValue
-                                    ? "ScriptProcessor fallback enabled. Refresh to apply." 
+                                    ? "ScriptProcessor fallback enabled. Refresh to apply."
                                     : "AudioWorklet mode enabled. Refresh to apply.",
                                 'success'
                             );
                         }}
                         className={`h-6 px-2 rounded text-[10px] font-mono border transition-all ${forceScriptProcessorFallback ? 'bg-yellow-900/30 text-yellow-400 border-yellow-900/50' : 'bg-zinc-800 text-gray-500 border-zinc-700'}`}
                         title={forceScriptProcessorFallback ? "Using ScriptProcessor fallback" : "Using AudioWorklet"}
+                        aria-pressed={forceScriptProcessorFallback}
+                        aria-label={forceScriptProcessorFallback ? "Disable ScriptProcessor fallback" : "Enable ScriptProcessor fallback"}
                     >
                         {forceScriptProcessorFallback ? '⚠️ AW' : '🔊 AW'}
                     </button>
