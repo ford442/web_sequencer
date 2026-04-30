@@ -84,7 +84,6 @@ export interface PlaybackRefs {
     loadedAmbianceBuffersRef: MutableRefObject<Map<string, AudioBuffer>>;
     singingVoiceManagerRef: MutableRefObject<SingingVoiceManager | null>;
     harmonizerRef: MutableRefObject<Harmonizer | null>;
-    sidechainGainRef: MutableRefObject<GainNode | null>;
 }
 
 export function createPlaySynth(
