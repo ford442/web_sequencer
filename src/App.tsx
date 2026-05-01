@@ -894,7 +894,29 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
-    const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern: Pattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, bass2: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })), }; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
+    const handleClearPattern = useCallback(() => {
+        if (window.confirm("Clear current pattern?")) {
+            const emptyPattern: Pattern = {
+                partA: { steps: Array(32).fill(null) },
+                partB: { steps: Array(32).fill(null) },
+                bass2: { steps: Array(32).fill(null) },
+                kick: { steps: Array(32).fill(null) },
+                snare: { steps: Array(32).fill(null) },
+                closedHat: { steps: Array(32).fill(null) },
+                openHat: { steps: Array(32).fill(null) },
+                sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })),
+            };
+            setPattern(emptyPattern);
+            setTrackStorage(prevStorage => {
+                const storageCopy = { ...prevStorage };
+                (Object.keys(storageCopy) as TrackKey[]).forEach(key => {
+                    storageCopy[key] = [...storageCopy[key]];
+                    storageCopy[key][activeTrackSlotsRef.current[key]] = emptyPattern[key];
+                });
+                return storageCopy;
+            });
+        }
+    }, []);
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => { handlePatternChange(k, i, undefined, { length: len }); }, [handlePatternChange]);
