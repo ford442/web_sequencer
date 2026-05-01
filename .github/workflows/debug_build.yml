@@ -35,6 +35,11 @@ jobs:
         node-version: '22'
         cache: 'pnpm' # pnpm is now properly available
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
     # 4. SETUP EMSCRIPTEN
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
