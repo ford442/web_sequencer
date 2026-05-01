@@ -41,6 +41,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+
+      - name: Build WASM artifacts
+        run: pnpm run build:wasm
+
       - name: Lint (ESLint)
         # eslint.config.js globalIgnores is expanded in this PR to exclude emsdk/,
         # assembly/, emscripten/, jc303_wasm/, rubberband/, and public/. Keeping

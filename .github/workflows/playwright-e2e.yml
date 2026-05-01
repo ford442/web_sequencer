@@ -23,6 +23,8 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
       - name: Build
         run: pnpm run build
       - name: Install Playwright browsers
