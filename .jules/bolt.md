@@ -4,3 +4,6 @@
 ## 2026-04-28 - [React.memo Optimization for Static/Simple Components]
 **Learning:** Wrapping basic functional UI components that don't depend on deeply nested or rapidly changing contextual states with `React.memo()` prevents unnecessary React reconciliation overhead whenever the top-level app state changes. However, when doing bulk syntax migrations (like automating the insertion of `React.memo`), AST-based tools like `jscodeshift` are vastly superior to naive regex matching, which is prone to missing closing braces or breaking standard imports.
 **Action:** Use AST codemods (like `jscodeshift`) rather than Regex for bulk component refactors. Add `React.memo()` directly to exported functional components (`React.FC`) that are visually heavy or state-agnostic (like Canvas wrappers) to improve rendering performance.
+## 2026-05-01 - [FastAPI GZip Middleware Optimization]
+**Learning:** Returning large, uncompressed JSON payloads (like songs/patterns) from a FastAPI backend wastes bandwidth and increases load times. FastAPI includes a built-in `GZipMiddleware` that can be added in one line to compress these payloads efficiently.
+**Action:** When building backend APIs that return large JSON datasets, always add `GZipMiddleware(minimum_size=...)` near the top of the middleware stack (before CORS) to reduce payload size without manual compression logic.

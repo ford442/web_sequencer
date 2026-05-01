@@ -11,6 +11,7 @@ from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from aiocache import Cache
@@ -149,6 +150,9 @@ async def lifespan(app: FastAPI):
     io_executor.shutdown()
 
 app = FastAPI(lifespan=lifespan)
+
+# ⚡ Bolt: Added GZipMiddleware to compress large JSON responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # --- CORS ---
 app.add_middleware(
