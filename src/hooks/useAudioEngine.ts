@@ -89,6 +89,7 @@ export const useAudioEngine = (pyodide: unknown) => {
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const sidechainGainRef = useRef<GainNode | null>(null);
+    const sidechainBusRef = useRef<GainNode | null>(null);
     const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});
     const reverbNodeRef = useRef<ConvolverNode | null>(null); // Keep for backwards compatibility if needed temporarily
@@ -134,6 +135,7 @@ export const useAudioEngine = (pyodide: unknown) => {
         singingVoiceManagerRef,
         harmonizerRef,
         sidechainGainRef,
+        sidechainBusRef,
     }), []);
 
     useEffect(() => {
