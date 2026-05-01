@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -32,6 +34,8 @@ jobs:
           no-cache: false
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
       - name: Build
         run: pnpm run build
       - name: Install Playwright browsers
