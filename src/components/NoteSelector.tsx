@@ -23,8 +23,6 @@ interface NoteSelectorProps {
     currentReverse?: boolean;
     currentRetrigger?: number;
     currentFreeze?: number;
-    currentFreezeEnvDepth?: number;
-    currentGrainEnvDepth?: number;
     currentFormantShift?: number;
     currentFilterCutoff?: number;
     currentFilterResonance?: number;
@@ -38,12 +36,12 @@ interface NoteSelectorProps {
     currentReverbType?: import('../types').ReverbType;
     currentDelaySend?: number;
     currentChoir?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'freezeEnvDepth' | 'grainEnvDepth' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'choir', value: number | boolean | string) => void;
+    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'choir', value: number | boolean | string) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = ({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFreezeEnvDepth = 0, currentGrainEnvDepth = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0,  currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentReverbType, currentDelaySend, currentChoir, onPropertyChange
+    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0,  currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentReverbType, currentDelaySend, currentChoir, onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -180,62 +178,24 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
 
                         {/* Freeze (Spectral Smear) Control */}
                         {trackType === 'synth' && ( // Only show for sampler/synth, but we can assume 'synth' type includes sampler here
-                            <>
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                                        <label htmlFor="note-freeze">Freeze</label>
-                                        <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{Math.round((currentFreeze + 0.0001) * 100)}%</span>
-                                    </div>
-                                    <input
-                                        id="note-freeze"
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.01"
-                                        value={currentFreeze}
-                                        onChange={(e) => onPropertyChange('freeze', parseFloat(e.target.value))}
-                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-                                        aria-valuetext={`${Math.round((currentFreeze + 0.0001) * 100)}%`}
-                                        aria-label="Freeze"
-                                    />
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                    <label htmlFor="note-freeze">Freeze</label>
+                                    <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{Math.round((currentFreeze + 0.0001) * 100)}%</span>
                                 </div>
-                                <div className="flex flex-col gap-1 mt-1">
-                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                                        <label htmlFor="note-freeze-env-depth">Env → Freeze</label>
-                                        <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{Math.round((currentFreezeEnvDepth + 0.0001) * 100)}%</span>
-                                    </div>
-                                    <input
-                                        id="note-freeze-env-depth"
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.01"
-                                        value={currentFreezeEnvDepth}
-                                        onChange={(e) => onPropertyChange('freezeEnvDepth', parseFloat(e.target.value))}
-                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-                                        aria-valuetext={`${Math.round((currentFreezeEnvDepth + 0.0001) * 100)}%`}
-                                        aria-label="Envelope to Freeze Depth"
-                                    />
-                                </div>
-                                <div className="flex flex-col gap-1 mt-1">
-                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                                        <label htmlFor="note-grain-env-depth">Env → Grain</label>
-                                        <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{Math.round((currentGrainEnvDepth + 0.0001) * 100)}%</span>
-                                    </div>
-                                    <input
-                                        id="note-grain-env-depth"
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.01"
-                                        value={currentGrainEnvDepth}
-                                        onChange={(e) => onPropertyChange('grainEnvDepth', parseFloat(e.target.value))}
-                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-                                        aria-valuetext={`${Math.round((currentGrainEnvDepth + 0.0001) * 100)}%`}
-                                        aria-label="Envelope to Grain Depth"
-                                    />
-                                </div>
-                            </>
+                                <input
+                                    id="note-freeze"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={currentFreeze}
+                                    onChange={(e) => onPropertyChange('freeze', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                    aria-valuetext={`${Math.round((currentFreeze + 0.0001) * 100)}%`}
+                                    aria-label="Freeze"
+                                />
+                            </div>
                         )}
 
                         {/* Delay Send Control */}

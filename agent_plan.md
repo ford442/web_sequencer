@@ -103,12 +103,10 @@
 * [x] **Idea:** "Sidechain Compression" - Allow routing the kick drum to a dedicated sidechain bus to dynamically duck the bass/synths. (Implemented via scheduled GainNode automation on kick hits!)
 ---
 
-* [x] **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount. (Implemented globally and per-step!)
-* **Idea:** "MIDI Learn" - Allow right-clicking any UI parameter to map it to external MIDI CC controllers dynamically.
+* **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
 ---
 
 ## 📜 Changelog
-* [2026-05-01] - Implemented Step-Sequenced Granular Envelope Follower: Added `freezeEnvDepth` and `grainEnvDepth` to `NoteSelector` and updated `useAudioEngine.ts` to allow mapping the internal amplitude envelope of the `ExpressiveVoiceProcessor` to dynamically modulate Freeze and Grain Size on a per-step basis. Fulfills the "Granular Envelope Follower" Innovation Lab idea. Added new idea: "MIDI Learn".
 * [2026-06-29] - Implemented Sidechain Compression: Added `sidechainBus` between the master saturation and master compressor to duck Synths/Basses when the kick drum triggers. Implemented `triggerSidechainDuck` in `audioPlayback.ts` to use deterministic native browser parameter scheduling (`linearRampToValueAtTime` / `exponentialRampToValueAtTime`) on the new sidechain gain node to avoid CPU overhead and achieve a classic EDM pump. Fulfills the "Sidechain Compression" Innovation Lab idea.
 * [2026-06-28] - Implemented LFO Rate Sync to Tempo: Added toggles and subdivision dropdowns to `SamplerPanel` and `NoteSelector` for `freezeLfoRate` and `formantLfoRate`. Updated `useAudioEngine.ts` to calculate real-time Hz values from BPM and note subdivisions when sync mode is enabled. Fulfills the "LFO Rate Sync to Tempo" Innovation Lab idea. Added new idea: "Granular Envelope Follower".
 * [2026-06-27] - Implemented Master Bus Compressor: Inserted a default `DynamicsCompressorNode` configured as a gentle "Glue Compressor" (Threshold: -15dB, Ratio: 4:1, Attack: 30ms, Release: 250ms) into the master audio chain (`masterSaturation` -> `masterCompressor` -> `masterGain` -> `masterPanner`). Updated `useAudioEngine.ts` to reflect the new master bus input point and updated `PlaybackRefs`.

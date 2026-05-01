@@ -479,18 +479,9 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setFreeze(params.freeze, triggerTime);
                             }
 
-                            // Apply Envelope Follower depths
-                            if (noteParams?.freezeEnvDepth !== undefined) {
-                                voice.setFreezeEnvDepth(noteParams.freezeEnvDepth, triggerTime);
-                            } else if (params.freezeEnvDepth !== undefined) {
-                                voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
-                            }
-
-                            if (noteParams?.grainEnvDepth !== undefined) {
-                                voice.setGrainEnvDepth(noteParams.grainEnvDepth, triggerTime);
-                            } else if (params.grainEnvDepth !== undefined) {
-                                voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
-                            }
+                            // Apply Envelope Follower depths (global only)
+                            if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
 
                             // Apply Formant LFO
                             if (noteParams?.formantLfoRate !== undefined) {
