@@ -909,6 +909,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set envelope follower depth for freeze amount modulation.
+     * @param depth Depth (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setFreezeEnvDepth(depth: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('freezeEnvDepth')?.setValueAtTime(depth, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set envelope follower depth for grain size modulation.
+     * @param depth Depth (0-1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setGrainEnvDepth(depth: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('grainEnvDepth')?.setValueAtTime(depth, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set amplitude envelope attack time.
      * @param attack Attack time in seconds
      * @param time Optional time to apply the change (default: now)

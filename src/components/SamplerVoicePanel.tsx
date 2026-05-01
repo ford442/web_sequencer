@@ -756,6 +756,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
                                     aria-haspopup="dialog"
                                     aria-expanded={isHarmonizerOpen}
+                                    aria-controls="harmonizer-dialog"
                                     aria-label="Harmonizer Settings"
                                     className={`px-4 py-1.5 rounded-lg text-[10px] font-bold font-orbitron tracking-wider transition-all border relative overflow-hidden ${
                                         isHarmonizeActive

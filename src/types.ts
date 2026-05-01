@@ -82,6 +82,8 @@ export interface SamplerBankParams {
   portamentoType?: 'linear' | 'exponential'; // Glide curve shape
   freezeLfoRate?: number;  // Freeze LFO rate (Hz)
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
+  freezeEnvDepth?: number; // Envelope follower depth for freeze modulation (0-1)
+  grainEnvDepth?: number;  // Envelope follower depth for grain size modulation (0-1)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
   formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)

@@ -172,11 +172,22 @@ const PianoKey = memo(({
     const glowColor = isActive ? activeColor : noteColor;
     const pressOffset = isActive ? 3 : 0;
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onMouseDown(note);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onStopMouse();
+        }
+    };
+
     return (
         <g
             transform={`translate(${x}, ${y})`}
             role="button"
             aria-label={`Play ${note}`}
+            aria-pressed={isActive}
             tabIndex={0}
             onMouseDown={(e) => { if (e.button === 0) onMouseDown(note); }}
             onMouseEnter={(e) => { if (e.buttons === 1) onMouseEnter(note); else onStopMouse(); }}
@@ -184,6 +195,7 @@ const PianoKey = memo(({
             onMouseLeave={onStopMouse}
             onTouchStart={(e) => { e.preventDefault(); onMouseDown(note); }}
             onTouchEnd={(e) => { e.preventDefault(); onStopMouse(); }}
+            onKeyDown={handleKeyDown}
             cursor="pointer"
             className="focus:outline-none"
         >
