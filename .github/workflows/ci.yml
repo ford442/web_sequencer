@@ -60,6 +60,9 @@ jobs:
         run: pnpm lint
         continue-on-error: true
 
+      - name: Build WASM
+        run: pnpm run build:wasm
+
       - name: Test (Vitest)
         # WASM artifacts are gitignored and intentionally not built in Phase 1.
         # Vitest tests degrade gracefully via fs.existsSync guards in WASM tests.
