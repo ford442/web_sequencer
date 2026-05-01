@@ -114,3 +114,49 @@ if (typeof window !== 'undefined') {
     })) as any;
 }
 
+
+// Global mocks for WASM imports
+vi.mock('../wasm/oscillators.wasm?init', () => ({
+    default: vi.fn().mockResolvedValue({
+        exports: { memory: new WebAssembly.Memory({ initial: 1 }) }
+    })
+}));
+vi.mock('../wasm/audioExport.wasm?init', () => ({
+    default: vi.fn().mockResolvedValue({
+        exports: { memory: new WebAssembly.Memory({ initial: 1 }) }
+    })
+}));
+vi.mock('../wasm/trackFreezer.wasm?init', () => ({
+    default: vi.fn().mockResolvedValue({
+        exports: { memory: new WebAssembly.Memory({ initial: 1 }) }
+    })
+}));
+vi.mock('../wasm/fft.wasm?init', () => ({
+    default: vi.fn().mockResolvedValue({
+        exports: { memory: new WebAssembly.Memory({ initial: 1 }) }
+    })
+}));
+
+// Mock IndexedDB
+if (typeof window !== 'undefined' && typeof window.indexedDB === 'undefined') {
+    window.indexedDB = {
+        open: vi.fn().mockReturnValue({
+            onupgradeneeded: null,
+            onsuccess: null,
+            onerror: null,
+            result: {
+                createObjectStore: vi.fn(),
+                transaction: vi.fn().mockReturnValue({
+                    objectStore: vi.fn().mockReturnValue({
+                        put: vi.fn().mockReturnValue({ onsuccess: null, onerror: null }),
+                        get: vi.fn().mockReturnValue({ onsuccess: null, onerror: null }),
+                        getAll: vi.fn().mockReturnValue({ onsuccess: null, onerror: null }),
+                        delete: vi.fn().mockReturnValue({ onsuccess: null, onerror: null }),
+                    }),
+                    oncomplete: null,
+                    onerror: null,
+                })
+            }
+        })
+    } as any;
+}
