@@ -43,7 +43,7 @@
 - [x] **Custom Sample Slicing UI:** Add a waveform view to `SamplerPanel` that allows users to manually add, move, and remove transient markers for slicing a custom WAV file instead of just auto-slicing by phoneme.
 - [x] **Voice Layering / Chorus per Voice:** Allow a detune spread parameter per step for instant vocal thickening.
 
-- [ ] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
+- [x] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 - [x] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented in FormantShifter and SamplerPanel using DrawableLFO and PeriodicWave via DFT!)
 - [x] **Gesture Controls:** Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 - [x] **Custom Waveform LFO:** Allow users to draw custom LFO shapes for formant and freeze modulation.
@@ -69,7 +69,7 @@
 * [x] **Idea:** "Voice Layering / Chorus per Voice" - Allow a detune spread parameter per step for instant vocal thickening. (Implemented per-step choir in NoteSelector/useAudioEngine!)
 * [x] **Idea:** "Lyric Track" - A global text input that automatically distributes syllables across selected MIDI notes. (Implemented via global Lyric Track lane and `sliceIndex` auto-mapping!)
 * [x] **Idea:** "Choir Stack" - Using Polyphony to detune the TTS voice slightly on 3 channels to create a chorus effect. (Implemented via Polyphonic Singing update!)
-* **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
+* [x] **Idea:** "Gesture Controls" - Implement pinch-to-zoom for the sequencer timeline to handle longer patterns or finer steps.
 * [x] **Idea:** "Per-Step Reverse" - Allow reversing the TTS sample on a per-step basis for creative rhythmic effects. (Implemented in Sampler phoneme slicing!)
 * [x] **Idea:** "Dynamic Phoneme Pitch Bends" - Allow drawing pitch bend automation within a single phoneme slice (e.g. going up a fifth on a single vowel). (Implemented as Slide/Glide property!)
 * [x] **Idea:** "Text-to-Drumkit" - Auto-generate a drum kit from a TTS phrase by mapping short transient consonants (t, k, p) to hats/snares and vowels to kicks/toms.
@@ -103,10 +103,10 @@
 * [x] **Idea:** "Sidechain Compression" - Allow routing the kick drum to a dedicated sidechain bus to dynamically duck the bass/synths. (Implemented via scheduled GainNode automation on kick hits!)
 ---
 
-* **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
 ---
 
 ## 📜 Changelog
+* [2026-06-30] - Implemented Granular Envelope Follower per-step: Added `freezeEnvDepth` and `grainEnvDepth` to `Note` interface and `NoteSelector` UI, routing them through `useAudioEngine.ts` to allow step-sequenced envelope modulation of the granular parameters. Fulfills the "Granular Envelope Follower" idea.
 * [2026-06-29] - Implemented Sidechain Compression: Added `sidechainBus` between the master saturation and master compressor to duck Synths/Basses when the kick drum triggers. Implemented `triggerSidechainDuck` in `audioPlayback.ts` to use deterministic native browser parameter scheduling (`linearRampToValueAtTime` / `exponentialRampToValueAtTime`) on the new sidechain gain node to avoid CPU overhead and achieve a classic EDM pump. Fulfills the "Sidechain Compression" Innovation Lab idea.
 * [2026-06-28] - Implemented LFO Rate Sync to Tempo: Added toggles and subdivision dropdowns to `SamplerPanel` and `NoteSelector` for `freezeLfoRate` and `formantLfoRate`. Updated `useAudioEngine.ts` to calculate real-time Hz values from BPM and note subdivisions when sync mode is enabled. Fulfills the "LFO Rate Sync to Tempo" Innovation Lab idea. Added new idea: "Granular Envelope Follower".
 * [2026-06-27] - Implemented Master Bus Compressor: Inserted a default `DynamicsCompressorNode` configured as a gentle "Glue Compressor" (Threshold: -15dB, Ratio: 4:1, Attack: 30ms, Release: 250ms) into the master audio chain (`masterSaturation` -> `masterCompressor` -> `masterGain` -> `masterPanner`). Updated `useAudioEngine.ts` to reflect the new master bus input point and updated `PlaybackRefs`.
@@ -164,3 +164,6 @@
 * [2026-05-29] - Implemented Melodic Lyric Mode: Added `sliceIndex` to Note data, allowing independent pitch control and slice triggering for "Singing" TTS. Updated LyricMapper to preserve pitch.
 * [2026-05-30] - Refactored Sequencer UI: Extracted `Sequencer`, `SequencerRow`, `SvgStep` into dedicated components, removed legacy code, and centralized sequencer constants.
 ## 2026-06-26 - Implemented AI Auto-Mix Assistant: Added a deterministic heuristic system triggered via the '✨ AUTO-MIX' button in the master utilities UI. The assistant automatically sets levels and spreads panning across Synth A, Synth B, TB-303 Bass, Drum Kits, and 8-channel Sampler tracks. Connected StereoPannerNodes natively into Open303Manager, VoiceManager, and AudioPlayback to process 'pan' properly on the audio thread.
+
+* **Idea:** "Tape Stop Effect" - Add a global performance effect that smoothly slows down playback rate to zero, simulating a turntable or tape machine stopping.
+* **Idea:** "Granular Pitch Quantization" - Add a parameter to the granular engine that forces grains to snap to specific pitch intervals (e.g. perfect fifths or octaves) as they smear, creating crystalline robotic effects.

@@ -172,6 +172,8 @@ export interface Note {
   reverse?: boolean; // Play sample in reverse (Sampler only)
   sliceIndex?: number; // Specific phoneme/slice index to trigger (Sampler only)
   freeze?: number; // Spectral freeze/smear amount (0-1) (Sampler only)
+  freezeEnvDepth?: number; // Envelope follower depth for freeze modulation (0-1) (Sampler only)
+  grainEnvDepth?: number; // Envelope follower depth for grain size modulation (0-1) (Sampler only)
   formantShift?: number; // Formant shift override (-12 to +12)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
