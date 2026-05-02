@@ -41,7 +41,7 @@ interface VerticalMiniLadderProps {
   onSelect: (note: number) => void;
 }
 
-const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = ({ selected, onSelect }) => {
+const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = React.memo(({ selected, onSelect }) => {
   // Show 12 notes centered around selected
   const startNote = Math.max(36, Math.min(selected - 6, 96));
   const notes = Array.from({ length: 12 }, (_, i) => startNote + i);
@@ -114,7 +114,7 @@ const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = ({ selected, onSel
       })}
     </div>
   );
-};
+});
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.memo(({

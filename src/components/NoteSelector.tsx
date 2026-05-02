@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { NOTES, getScaleNotes } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -39,7 +39,7 @@ interface NoteSelectorProps {
     onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'choir', value: number | boolean | string) => void;
 }
 
-export const NoteSelector: React.FC<NoteSelectorProps> = ({
+export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
     currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0,  currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentReverbType, currentDelaySend, currentChoir, onPropertyChange
 }) => {
@@ -547,4 +547,4 @@ export const NoteSelector: React.FC<NoteSelectorProps> = ({
             </div>
         </>
     );
-};
+});
