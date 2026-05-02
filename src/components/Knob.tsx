@@ -10,9 +10,10 @@ interface KnobProps {
   color?: 'cyan' | 'pink' | 'yellow' | 'purple' | 'red' | 'green' | 'indigo';
   unit?: string;
   logarithmic?: boolean;
+  defaultValue?: number;
 }
 
-export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, max, step = 1, color = 'cyan', unit = '', logarithmic = false }) => {
+export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, max, step = 1, color = 'cyan', unit = '', logarithmic = false, defaultValue }) => {
   const knobRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
@@ -202,6 +203,7 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
         aria-valuenow={value}
         aria-valuetext={formatValue(value)}
         aria-orientation="vertical"
+        onDoubleClick={() => onChange(defaultValue ?? min)}
       >
         <div
           className="w-12 h-12 bg-gray-800 rounded-full relative shadow-inner"

@@ -8,10 +8,11 @@ interface DragValueProps {
   step?: number;
   label?: string;
   className?: string;
+  defaultValue?: number;
 }
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
-export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange, min = 0, max = 100, step = 1, label, className }) => {
+export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange, min = 0, max = 100, step = 1, label, className, defaultValue }) => {
   const [isDragging, setIsDragging] = useState(false);
   const startY = useRef(0);
   const startValue = useRef(value);
@@ -186,6 +187,7 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
           aria-valuetext={label ? `${display(value)} ${label}` : display(value)}
           aria-label={label}
           title={label ? `Drag up/down to adjust ${label}` : 'Drag up/down to adjust'}
+          onDoubleClick={() => onChange(defaultValue ?? min)}
         >
           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[2px] opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-yellow-500/50 pointer-events-none">▲</div>
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[2px] opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-yellow-500/50 pointer-events-none">▼</div>
