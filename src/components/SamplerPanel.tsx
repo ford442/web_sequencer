@@ -46,7 +46,7 @@ const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
 const grainSizeToMs = (size: number) => Math.round(size / 441 * 10);
 const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100);
 
-const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
+const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor, isVoiceEditorOpen,
     ttsPhrases, onTtsPhraseChange, onGenerateTTS,
     onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef,
@@ -1071,7 +1071,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = ({
             </div>
         </div>
     );
-};
+});
 
 // Custom comparison for memoization to prevent re-renders when other banks update
 export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {

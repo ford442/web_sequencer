@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, memo } from 'react';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 
 interface WaveformDisplayProps {
@@ -11,7 +11,7 @@ interface WaveformDisplayProps {
     onAutoSliceSensitivityChange?: (val: number) => void;
 }
 
-export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice, autoSliceSensitivity = 50, onAutoSliceSensitivityChange }) => {
+export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice, autoSliceSensitivity = 50, onAutoSliceSensitivityChange }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const activeSliceRef = useRef<number>(-1);
@@ -689,4 +689,4 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ buffer, alignm
             )}
         </div>
     );
-};
+});
