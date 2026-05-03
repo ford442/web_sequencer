@@ -40,8 +40,10 @@ describe('App', () => {
     expect(screen.getAllByText('SONG')[0]).toBeInTheDocument();
   });
 
-  it('renders tape stop button', () => {
+  it('renders Tape Stop button', () => {
     render(<App />);
-    expect(screen.getByTitle('Tape Stop Effect')).toBeInTheDocument();
+    const tapeStopButton = screen.getByRole('button', { name: /Trigger Tape Stop Effect/i });
+    expect(tapeStopButton).toBeInTheDocument();
+    expect(tapeStopButton).toHaveTextContent(/Tape Stop/i);
   });
 });

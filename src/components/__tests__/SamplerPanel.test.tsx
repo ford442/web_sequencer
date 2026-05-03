@@ -78,4 +78,13 @@ describe('SamplerPanel', () => {
         expect(slider).toBeInTheDocument();
         expect(slider).toHaveAttribute('aria-valuetext', '100ms');
     });
+
+    it('renders Grain Quantization knob', () => {
+        const params = Array(8).fill({ ...defaultBankParams, grainPitchQuantize: 0 });
+        render(<SamplerPanel {...defaultProps} params={params} activeBankIdx={0} />);
+
+        const knob = screen.getByLabelText('Grain Quant');
+        expect(knob).toBeInTheDocument();
+        expect(knob).toHaveAttribute('tabIndex', '0');
+    });
 });

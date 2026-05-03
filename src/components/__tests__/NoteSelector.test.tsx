@@ -59,6 +59,16 @@ describe('NoteSelector', () => {
         expect(screen.getByLabelText('Expression')).toBeInTheDocument();
     });
 
+    it('renders granular pitch quantization control for synth tracks', () => {
+        render(<NoteSelector {...defaultProps} trackType="synth" currentGrainPitchQuantize={7} />);
+        const quantSlider = screen.getByLabelText('Granular Pitch Quantization');
+        expect(quantSlider).toBeInTheDocument();
+        expect(quantSlider).toHaveValue('7');
+
+        fireEvent.change(quantSlider, { target: { value: '12' } });
+        expect(mockOnPropertyChange).toHaveBeenCalledWith('grainPitchQuantize', 12);
+    });
+
     it('traps focus inside the dialog', () => {
         render(<NoteSelector {...defaultProps} />);
         const dialog = screen.getByRole('dialog');

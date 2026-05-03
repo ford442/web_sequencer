@@ -331,30 +331,24 @@ export const useAudioEngine = (pyodide: unknown) => {
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    slideType?: 'linear'|'exponential',
+                    slideType?: 'linear' | 'exponential',
                     phonemes?: PhonemeData[],
                     freeze?: number,
-                    freezeEnvDepth?: number,
-                    grainEnvDepth?: number,
-                    grainPitchQuantize?: number,
-                    formantShift?: number,
+                    filterCutoff?: number,
+                    filterResonance?: number,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     formantLfoShape?: number[],
-                    formantEnvAttack?: number,
-                    formantEnvDecay?: number,
-                    formantEnvAmount?: number,
                     customLfoShape?: number[],
-                    characterMorph?: number,
-                    filterCutoff?: number,
-                    filterResonance?: number,
                     vibratoDepth?: number,
-                    drive?: number,
                     reverbSend?: number,
-                    reverbType?: import('../types').ReverbType,
                     delaySend?: number,
                     choir?: number,
-                    breathIntensity?: number
+                    drive?: number,
+                    characterMorph?: number,
+                    breathIntensity?: number,
+                    formantShift?: number,
+                    grainPitchQuantize?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -489,7 +483,6 @@ export const useAudioEngine = (pyodide: unknown) => {
                             // Apply Envelope Follower depths (global only)
                             if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
                             if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
-
                             if (noteParams?.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
                             } else if (params.grainPitchQuantize !== undefined) {
@@ -748,29 +741,21 @@ export const useAudioEngine = (pyodide: unknown) => {
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    slideType?: 'linear'|'exponential',
+                    slideType?: 'linear' | 'exponential',
+                    phonemes?: PhonemeData[],
                     freeze?: number,
-                    freezeEnvDepth?: number,
-                    grainEnvDepth?: number,
-                    grainPitchQuantize?: number,
-                    formantShift?: number,
-                    formantLfoRate?: number,
-                    formantLfoDepth?: number,
-                    formantLfoShape?: number[],
-                    formantEnvAttack?: number,
-                    formantEnvDecay?: number,
-                    formantEnvAmount?: number,
-                    customLfoShape?: number[],
-                    characterMorph?: number,
                     filterCutoff?: number,
                     filterResonance?: number,
+                    customLfoShape?: number[],
                     vibratoDepth?: number,
-                    drive?: number,
                     reverbSend?: number,
-                    reverbType?: import('../types').ReverbType,
                     delaySend?: number,
                     choir?: number,
-                    breathIntensity?: number
+                    drive?: number,
+                    characterMorph?: number,
+                    breathIntensity?: number,
+                    formantShift?: number,
+                    grainPitchQuantize?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
@@ -884,6 +869,24 @@ export const useAudioEngine = (pyodide: unknown) => {
                 reverbTypeRef.current = type;
             };
 
+            const triggerTapeStop = (duration: number = 2.0) => {
+                if (!masterGainRef.current) return;
+                const now = context.currentTime;
+                const gain = masterGainRef.current.gain;
+                const currentVol = gain.value;
+                gain.cancelScheduledValues(now);
+                gain.setValueAtTime(currentVol, now);
+                gain.exponentialRampToValueAtTime(0.0001, now + duration);
+            };
+
+            const resetTapeStop = () => {
+                if (!masterGainRef.current) return;
+                const now = context.currentTime;
+                const gain = masterGainRef.current.gain;
+                gain.cancelScheduledValues(now);
+                gain.setValueAtTime(1.0, now);
+            };
+
             const detectSamplePitch = async (_b: AudioBuffer) => null;
             const processSinging = async (_sampleName: string, _note: string, _steps: number, _tempo: number) => null;
             const processSpoon = async (_sampleName: string, _note: string) => null;
@@ -898,23 +901,6 @@ export const useAudioEngine = (pyodide: unknown) => {
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303ManagerRef.current as any,
-                triggerTapeStop: () => {
-                    const now = context.currentTime || 0;
-                    const stopTime = 1.5; // Tape stop duration
-
-                    if (playbackRefs.masterGainRef.current) {
-                        playbackRefs.masterGainRef.current.gain.cancelScheduledValues(now);
-                        playbackRefs.masterGainRef.current.gain.setValueAtTime(playbackRefs.masterGainRef.current.gain.value, now);
-                        playbackRefs.masterGainRef.current.gain.exponentialRampToValueAtTime(0.001, now + stopTime);
-                    }
-                },
-                resetTapeStop: () => {
-                    const now = context.currentTime || 0;
-                    if (playbackRefs.masterGainRef.current) {
-                        playbackRefs.masterGainRef.current.gain.cancelScheduledValues(now);
-                        playbackRefs.masterGainRef.current.gain.setValueAtTime(1.0, now);
-                    }
-                },
                 singingVoice: undefined,
                 playSynth,
                 playDrum,
@@ -945,7 +931,9 @@ export const useAudioEngine = (pyodide: unknown) => {
                 getMultisampleBank,
                 isMultisampleReady,
                 setHarmonizerConfig,
-                updateSamplerVoiceParams
+                updateSamplerVoiceParams,
+                triggerTapeStop,
+                resetTapeStop
             });
 
             setIsReady(true);

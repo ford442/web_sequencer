@@ -238,6 +238,25 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     aria-label="Envelope to Grain Size Depth"
                                 />
                             </div>
+
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                    <label htmlFor="note-grain-quant">Grain Quant</label>
+                                    <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentGrainPitchQuantize} st</span>
+                                </div>
+                                <input
+                                    id="note-grain-quant"
+                                    type="range"
+                                    min="0"
+                                    max="12"
+                                    step="1"
+                                    value={currentGrainPitchQuantize}
+                                    onChange={(e) => onPropertyChange?.("grainPitchQuantize", parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                    aria-valuetext={`${currentGrainPitchQuantize} semitones`}
+                                    aria-label="Granular Pitch Quantization"
+                                />
+                            </div>
                             </>
                         )}
 

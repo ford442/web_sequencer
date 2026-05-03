@@ -931,15 +931,18 @@ export class SingingVoice {
     }
 
     /**
-     * Set pitch quantization for granular smearing.
-     * @param quantize Interval in semitones (0 = off)
+     * Set granular pitch quantization interval in semitones.
+     * 0 = off, 1 = chromatic, 3 = minor third, 4 = major third,
+     * 5 = fourth, 7 = fifth, 12 = octave.
+     * @param semitones Interval size in semitones (0-12)
      * @param time Optional time to apply the change (default: now)
      */
-    setGrainPitchQuantize(quantize: number, time?: number): void {
+    setGrainPitchQuantize(semitones: number, time?: number): void {
         if (this.workletNode) {
-            this.workletNode.parameters.get('grainPitchQuantize')?.setValueAtTime(quantize, time || this.audioContext.currentTime);
+            this.workletNode.parameters.get('grainPitchQuantize')?.setValueAtTime(semitones, time || this.audioContext.currentTime);
         }
     }
+
     /**
      * Set amplitude envelope attack time.
      * @param attack Attack time in seconds

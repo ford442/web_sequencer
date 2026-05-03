@@ -153,6 +153,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         tremoloRate: 0.1,
         breathIntensity: 0,
         freeze: 0,
+        grainPitchQuantize: 0,
         formantLfoRate: 0,
         formantLfoDepth: 0,
         formantEnvAttack: 0.1,
@@ -1080,7 +1081,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
                             <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth ?? 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Env → Grain" value={currentParams.grainEnvDepth ?? 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Grain Quantize" value={currentParams.grainPitchQuantize ?? 0} onChange={handleGrainPitchQuantizeChange} min={0} max={24} step={1} color="indigo" unit="st" />
+                            <Knob label="Grain Quant" value={currentParams.grainPitchQuantize ?? 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
