@@ -39,7 +39,7 @@ import { Tooltip } from './ai-song/Tooltip';
 // MAIN COMPONENT
 // ============================================================================
 
-export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps): React.ReactElement | null {
+export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps): React.ReactElement | null {
   const [jsonInput, setJsonInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
@@ -638,7 +638,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
     return trackStats ? Object.entries(trackStats.noteCounts) : [];
   }, [trackStats]);
 
-  const trackStatisticsRows = noteCountEntries.map(([track, count]) => (
+  const trackStatisticsRows = useMemo(() => noteCountEntries.map(([track, count]) => (
     <div key={String(track)} className="flex items-center gap-2 text-xs">
       <span className="w-16 sm:w-20 text-gray-500 shrink-0">{String(track)}:</span>
       <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -649,7 +649,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       </div>
       <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(count)}</span>
     </div>
-  )) as React.ReactElement[];
+  )) as React.ReactElement[], [noteCountEntries]);
 
   return (
     <div 
@@ -1400,6 +1400,6 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       </div>
     </div>
   );
-}
+});
 
 export default AISongModal;
