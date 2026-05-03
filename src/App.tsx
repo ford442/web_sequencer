@@ -426,8 +426,9 @@ export const App: React.FC = () => {
 
     const handlePlayToggle = useCallback(async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
+        audioEngine?.resetTapeStop();
         setSchedPlaying(prev => !prev)
-    }, [isInitialized, initializeAudio, setSchedPlaying]);
+    }, [isInitialized, initializeAudio, setSchedPlaying, audioEngine]);
 
     // Global Key Handler for Play/Pause (Spacebar)
     useEffect(() => {
@@ -437,6 +438,12 @@ export const App: React.FC = () => {
                 if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
                 e.preventDefault();
                 handlePlayToggle();
+            }
+            // Tape Stop Effect (Escape Key)
+            if (e.code === 'Escape') {
+                e.preventDefault();
+                audioEngine?.triggerTapeStop();
+                setSchedPlaying(false);
             }
         };
         window.addEventListener('keydown', handleGlobalKeyDown);
@@ -864,7 +871,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
-    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'freezeEnvDepth' | 'grainEnvDepth' | 'choir', value: number | boolean | string) => {
+    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'freezeEnvDepth' | 'grainEnvDepth' | 'grainPitchQuantize' | 'choir', value: number | boolean | string) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -1247,6 +1254,16 @@ export const App: React.FC = () => {
                 >
                     REC
                 </button>
+                <button
+                    onClick={() => {
+                        audioEngine?.triggerTapeStop();
+                        setSchedPlaying(false);
+                    }}
+                    className="h-8 px-3 rounded-md font-orbitron text-xs font-bold transition-all shadow-md bg-purple-900/40 text-purple-400 hover:bg-purple-900/60 border border-purple-800/50 hover:border-purple-500/50 active:scale-95"
+                    title="Tape Stop Effect"
+                >
+                    ⏏ TAPE STOP
+                </button>
 
                 {/* Divider */}
                 <div className="w-px h-5 bg-gray-700 mx-1" />
@@ -1422,6 +1439,9 @@ export const App: React.FC = () => {
                             currentReverbSend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbSend : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbSend : undefined)}
                             currentReverbType={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbType : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbType : undefined)}
                             currentDelaySend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.delaySend : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.delaySend : undefined)}
+                            currentFreezeEnvDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.freezeEnvDepth : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.freezeEnvDepth : undefined)}
+                            currentGrainEnvDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.grainEnvDepth : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.grainEnvDepth : undefined)}
+                            currentGrainPitchQuantize={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.grainPitchQuantize : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.grainPitchQuantize : undefined)}
                             currentChoir={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.choir : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.choir : undefined)}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}

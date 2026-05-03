@@ -931,6 +931,16 @@ export class SingingVoice {
     }
 
     /**
+     * Set pitch quantization for granular smearing.
+     * @param quantize Interval in semitones (0 = off)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setGrainPitchQuantize(quantize: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('grainPitchQuantize')?.setValueAtTime(quantize, time || this.audioContext.currentTime);
+        }
+    }
+    /**
      * Set amplitude envelope attack time.
      * @param attack Attack time in seconds
      * @param time Optional time to apply the change (default: now)

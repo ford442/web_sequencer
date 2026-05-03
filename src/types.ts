@@ -84,6 +84,7 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   freezeEnvDepth?: number; // Envelope follower depth for freeze modulation (0-1)
   grainEnvDepth?: number;  // Envelope follower depth for grain size modulation (0-1)
+  grainPitchQuantize?: number; // Snap smeared grains to intervals (0 = off, semitones)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
   formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)
@@ -174,6 +175,7 @@ export interface Note {
   freeze?: number; // Spectral freeze/smear amount (0-1) (Sampler only)
   freezeEnvDepth?: number; // Envelope follower depth for freeze modulation (0-1) (Sampler only)
   grainEnvDepth?: number; // Envelope follower depth for grain size modulation (0-1) (Sampler only)
+  grainPitchQuantize?: number; // Snap smeared grains to intervals (0 = off, semitones)
   formantShift?: number; // Formant shift override (-12 to +12)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
@@ -232,7 +234,7 @@ export interface AudioEngine {
     open303Engine?: Open303Oscillator | Open303Manager | null;
     playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number, filterCutoff?: number, filterResonance?: number, envMod?: number, reverbSend?: number, reverbType?: ReverbType }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number, reverbSend?: number, reverbType?: ReverbType }, stepTime?: number) => void;
-    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: ReverbType }) => void;
+    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: ReverbType, grainPitchQuantize?: number, slideFromMidi?: number, slideType?: 'linear' | 'exponential', freezeEnvDepth?: number, grainEnvDepth?: number, formantShift?: number, formantLfoRate?: number, formantLfoDepth?: number, formantLfoShape?: number[], formantEnvAttack?: number, formantEnvDecay?: number, formantEnvAmount?: number, customLfoShape?: number[], characterMorph?: number, filterCutoff?: number, filterResonance?: number, delaySend?: number, choir?: number, breathIntensity?: number }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
@@ -248,6 +250,8 @@ export interface AudioEngine {
     setMasterSaturation: (amount: number) => void;
     setGlobalPan: (pan: number) => void;
     setReverbType: (type: ReverbType) => void;
+    triggerTapeStop: () => void;
+    resetTapeStop: () => void;
     detectSamplePitch?: (buffer: AudioBuffer) => Promise<unknown>;
     processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
     processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
