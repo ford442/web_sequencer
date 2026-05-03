@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLoadingProgress, type LoadingStep } from '../stores/loadingProgressStore';
 
 interface LoadingOverlayProps {
@@ -54,7 +54,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
 
   const currentStepInfo = currentStep ? steps[currentStep] : null;
   const hasErrors = errors.length > 0;
-  const stepList = Object.values(steps).filter((s) => s.id !== 'complete');
+  const stepList = useMemo(() => Object.values(steps).filter((s) => s.id !== 'complete'), [steps]);
 
   return (
     <div

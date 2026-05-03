@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense, memo } from 'react'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { usePyodideEngine } from './hooks/usePyodideEngine'
 import { useScheduler } from './hooks/useScheduler'
@@ -62,6 +62,46 @@ import {
     getClosedHatControls, getOpenHatControls, getSamplerControls,
 } from './utils/knobConfigs'
 import { StartOverlay } from './components/StartOverlay'
+
+// ---------------------------------------------------------------------------
+// Rack Container — memoized with custom comparison so that control changes
+// on a hidden track do not force the entire rack subtree to re-render.
+// ---------------------------------------------------------------------------
+interface RackProps {
+    is3DMode: boolean;
+    selectedTrack: TrackKey;
+    onSelectTrack: (track: TrackKey) => void;
+    modules: Record<TrackKey, React.ReactNode>;
+}
+
+const Rack = memo(({ is3DMode, selectedTrack, onSelectTrack, modules }: RackProps) => {
+    return (
+        <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
+            <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
+            {is3DMode && (
+                <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
+                    {ROWS.map((row: any) => (
+                        <button
+                            key={row.key}
+                            onClick={() => onSelectTrack(row.key as TrackKey)}
+                            className={`px-4 py-2 rounded text-xs font-bold font-orbitron border transition-all ${selectedTrack === row.key ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500 shadow-[0_0_10px_cyan]' : 'bg-gray-800 text-gray-500 border-gray-700 hover:bg-gray-700 hover:text-gray-300'}`}
+                        >
+                            {row.label.toUpperCase()}
+                        </button>
+                    ))}
+                </div>
+            )}
+            <div className="flex-1 relative overflow-hidden">
+                {modules[selectedTrack]}
+            </div>
+        </div>
+    );
+}, (prev, next) => {
+    if (prev.is3DMode !== next.is3DMode) return false;
+    if (prev.selectedTrack !== next.selectedTrack) return false;
+    if (prev.onSelectTrack !== next.onSelectTrack) return false;
+    return prev.modules[prev.selectedTrack] === next.modules[next.selectedTrack];
+});
 
 export const App: React.FC = () => {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
@@ -1392,49 +1432,57 @@ export const App: React.FC = () => {
                 onPitchChange={handlePitchChange}
                 onPhonemeUpdate={handlePhonemeUpdate}
                 samplerAudioBuffer={sampleBuffers[activeSamplerBank]}
-            >
-                {contextMenu && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
-                        <NoteSelector
-                            x={contextMenu.x} y={contextMenu.y} trackType={(contextMenu.track.startsWith('part') || contextMenu.track === 'sampler') ? 'synth' : 'drum'}
-                            currentNote={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.note ?? '' : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.note ?? ''}
-                            currentLength={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.length ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.length ?? 1}
-                            currentTimbre={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.timbre ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.timbre ?? 0}
-                            currentVelocity={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.velocity ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.velocity ?? 1}
-                            currentProbability={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.probability ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.probability ?? 1}
-                            currentMicrotiming={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.microtiming ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.microtiming ?? 0}
-                            currentRetrigger={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.retrigger ?? 1 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.retrigger ?? 1}
-                            currentReverse={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverse ?? false : false}
-                            currentFreeze={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.freeze ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.freeze ?? 0}
-                            currentFormantShift={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.formantShift : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.formantShift}
-                            currentFilterCutoff={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.filterCutoff : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.filterCutoff}
-                            currentFilterResonance={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.filterResonance : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.filterResonance}
-                            currentEnvMod={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.envMod : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.envMod}
-                            currentFormantLfoRate={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.formantLfoRate ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.formantLfoRate ?? 0}
-                            currentFormantLfoDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.formantLfoDepth ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.formantLfoDepth ?? 0}
-
-
-
-
-                            currentVibratoDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.vibratoDepth ?? 0 : pattern?.[contextMenu.track]?.steps?.[contextMenu.step]?.vibratoDepth ?? 0}
-                            currentDrive={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.drive : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.drive : undefined)}
-                            currentCharacterMorph={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.characterMorph : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.characterMorph : undefined)}
-                            currentReverbSend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbSend : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbSend : undefined)}
-                            currentReverbType={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbType : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbType : undefined)}
-                            currentDelaySend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.delaySend : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.delaySend : undefined)}
-                            currentChoir={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.choir : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.choir : undefined)}
-                            onSelect={handleNoteSelect}
-                            onLengthChange={handleNoteLengthChange}
-                            onPropertyChange={handleNotePropertyChange}
-                            onClose={() => setContextMenu(null)}
-                            getNoteColor={getNoteColor}
-                            currentScale={currentScale}
-                        />
-                    </div>
-                )}
-            </MainSequencer>
+            />
         );
-    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, contextMenu, selection, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleNoteSelect, handleNoteLengthChange, handleSelectionStart, handleSelectionEnter, handleAutomationChange, handleDrawEnter, handleNotePropertyChange, handlePhonemeUpdate, handlePitchChange, activeAlignment, automationParam, currentScale, isDrawing, melodicMode, sampleBuffers, viewMode]);
+    }, [isSongModeOpen, is3DMode, songStructure, currentSongMeasure, backgroundImage, isSongModeActive, pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, handleSongModeToggle, handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure, handleExportXM, setIsSongModeActive, setBackgroundImage, handleStepToggle, handleRightMouseDown, handleEditLength, handleSelectRow, handleTrackSlotClick, handleSelectionStart, handleSelectionEnter, handleAutomationChange, handleDrawEnter, handlePhonemeUpdate, handlePitchChange, activeAlignment, automationParam, isDrawing, melodicMode, sampleBuffers, viewMode]);
+
+    // Extract context menu overlay so that right-click interactions do not
+    // invalidate the entire sequencerNode useMemo subtree.
+    const contextMenuNode = useMemo(() => {
+        if (!contextMenu) return null;
+        const track = contextMenu.track;
+        const step = contextMenu.step;
+        const sequence = track === 'sampler' ? pattern.sampler[activeSamplerBank] : (pattern as any)[track];
+        const stepData = sequence?.steps[step] || null;
+
+        return (
+            <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
+                <NoteSelector
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    trackType={(track.startsWith('part') || track === 'sampler') ? 'synth' : 'drum'}
+                    currentNote={stepData?.note ?? ''}
+                    currentLength={stepData?.length ?? 1}
+                    currentTimbre={stepData?.timbre ?? 0}
+                    currentVelocity={stepData?.velocity ?? 1}
+                    currentProbability={stepData?.probability ?? 1}
+                    currentMicrotiming={stepData?.microtiming ?? 0}
+                    currentRetrigger={stepData?.retrigger ?? 1}
+                    currentReverse={stepData?.reverse ?? false}
+                    currentFreeze={stepData?.freeze ?? 0}
+                    currentFormantShift={stepData?.formantShift}
+                    currentFilterCutoff={stepData?.filterCutoff}
+                    currentFilterResonance={stepData?.filterResonance}
+                    currentEnvMod={stepData?.envMod}
+                    currentFormantLfoRate={stepData?.formantLfoRate ?? 0}
+                    currentFormantLfoDepth={stepData?.formantLfoDepth ?? 0}
+                    currentVibratoDepth={stepData?.vibratoDepth ?? 0}
+                    currentDrive={stepData?.drive}
+                    currentCharacterMorph={stepData?.characterMorph}
+                    currentReverbSend={stepData?.reverbSend}
+                    currentReverbType={stepData?.reverbType}
+                    currentDelaySend={stepData?.delaySend}
+                    currentChoir={stepData?.choir}
+                    onSelect={handleNoteSelect}
+                    onLengthChange={handleNoteLengthChange}
+                    onPropertyChange={handleNotePropertyChange}
+                    onClose={() => setContextMenu(null)}
+                    getNoteColor={getNoteColor}
+                    currentScale={currentScale}
+                />
+            </div>
+        );
+    }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu]);
 
     const keyboardNode = useMemo(() => (
         <div className="w-full bg-[#0d1015] border-2 border-gray-700/50 rounded-xl overflow-hidden shadow-2xl p-2">
@@ -1442,60 +1490,44 @@ export const App: React.FC = () => {
         </div>
     ), [selectedTrack, handleKeyboardPlay, handleKeyboardStop]);
 
-    const rackNode = useMemo(() => {
-        // PERFORMANCE: Inline conditional rendering to avoid dependency on unstable function reference.
-        // This ensures the Rack only re-renders when relevant props/state change.
-        let modulePanel = null;
-        if (selectedTrack === 'partA') modulePanel = <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange} is3D={is3DMode}>{synthAChild}</HardwareModule>;
-        else if (selectedTrack === 'partB') modulePanel = <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange} is3D={is3DMode}>{synthBChild}</HardwareModule>;
-        else if (selectedTrack === 'bass2') modulePanel = <HardwareModule title="BASS 2 // TB-303" colorHex={COLOR_BASS2} controls={bass2Controls} onParamChange={onBass2ParamChange} is3D={is3DMode}>{bass2Child}</HardwareModule>;
-        else if (selectedTrack === 'kick') modulePanel = <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} is3D={is3DMode} />;
-        else if (selectedTrack === 'snare') modulePanel = <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} is3D={is3DMode} />;
-        else if (selectedTrack === 'closedHat') modulePanel = <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} is3D={is3DMode} />;
-        else if (selectedTrack === 'openHat') modulePanel = <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} is3D={is3DMode} />;
-        else if (selectedTrack === 'sampler') { 
-            modulePanel = (
-                <SamplerVoicePanel 
-                    title={`SAMPLER // BANK ${activeSamplerBank + 1}`} 
-                    colorHex={COLOR_SAMPLER} 
-                    controls={samplerControls} 
-                    onParamChange={handleSamplerChange}
-                    is3D={is3DMode}
-                    {...samplerVoiceParams}
-                    onSamplerParamChange={handleSamplerVoiceChange}
-                    harmonizerConfig={harmonizerConfig}
-                    onHarmonizerConfigChange={handleHarmonizerConfigChange}
-                    isHarmonizeActive={isHarmonizeActive}
-                >
-                    {samplerChild}
-                </SamplerVoicePanel>
-            ); 
-        }
+    // Memoize each rack module independently so hidden track control changes
+    // do not force the Rack container to re-render.
+    const rackModulePartA = useMemo(() => <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange} is3D={is3DMode}>{synthAChild}</HardwareModule>, [synthAControls, onSynthAParamChange, is3DMode, synthAChild]);
+    const rackModulePartB = useMemo(() => <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange} is3D={is3DMode}>{synthBChild}</HardwareModule>, [synthBControls, onSynthBParamChange, is3DMode, synthBChild]);
+    const rackModuleBass2 = useMemo(() => <HardwareModule title="BASS 2 // TB-303" colorHex={COLOR_BASS2} controls={bass2Controls} onParamChange={onBass2ParamChange} is3D={is3DMode}>{bass2Child}</HardwareModule>, [bass2Controls, onBass2ParamChange, is3DMode, bass2Child]);
+    const rackModuleKick = useMemo(() => <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} is3D={is3DMode} />, [kickControls, handleKickChange, is3DMode]);
+    const rackModuleSnare = useMemo(() => <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} is3D={is3DMode} />, [snareControls, handleSnareChange, is3DMode]);
+    const rackModuleClosedHat = useMemo(() => <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} is3D={is3DMode} />, [closedHatControls, handleClosedHatChange, is3DMode]);
+    const rackModuleOpenHat = useMemo(() => <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} is3D={is3DMode} />, [openHatControls, handleOpenHatChange, is3DMode]);
+    const rackModuleSampler = useMemo(() => (
+        <SamplerVoicePanel
+            title={`SAMPLER // BANK ${activeSamplerBank + 1}`}
+            colorHex={COLOR_SAMPLER}
+            controls={samplerControls}
+            onParamChange={handleSamplerChange}
+            is3D={is3DMode}
+            {...samplerVoiceParams}
+            onSamplerParamChange={handleSamplerVoiceChange}
+            harmonizerConfig={harmonizerConfig}
+            onHarmonizerConfigChange={handleHarmonizerConfigChange}
+            isHarmonizeActive={isHarmonizeActive}
+        >
+            {samplerChild}
+        </SamplerVoicePanel>
+    ), [activeSamplerBank, samplerControls, handleSamplerChange, is3DMode, samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig, handleHarmonizerConfigChange, isHarmonizeActive, samplerChild]);
 
-        return (
-            <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
-                <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
+    const rackModules = useMemo(() => ({
+        partA: rackModulePartA,
+        partB: rackModulePartB,
+        bass2: rackModuleBass2,
+        kick: rackModuleKick,
+        snare: rackModuleSnare,
+        closedHat: rackModuleClosedHat,
+        openHat: rackModuleOpenHat,
+        sampler: rackModuleSampler,
+    }), [rackModulePartA, rackModulePartB, rackModuleBass2, rackModuleKick, rackModuleSnare, rackModuleClosedHat, rackModuleOpenHat, rackModuleSampler]);
 
-                {is3DMode && (
-                    <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
-                        {ROWS.map((row: any) => (
-                            <button
-                                key={row.key}
-                                onClick={() => setSelectedTrack(row.key as any)}
-                                className={`px-4 py-2 rounded text-xs font-bold font-orbitron border transition-all ${selectedTrack === row.key ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500 shadow-[0_0_10px_cyan]' : 'bg-gray-800 text-gray-500 border-gray-700 hover:bg-gray-700 hover:text-gray-300'}`}
-                            >
-                                {row.label.toUpperCase()}
-                            </button>
-                        ))}
-                    </div>
-                )}
-
-                <div className="flex-1 relative overflow-hidden">
-                    {modulePanel}
-                </div>
-            </div>
-        );
-    }, [is3DMode, selectedTrack, activeSamplerBank, synthAControls, synthBControls, bass2Controls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, onBass2ParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, bass2Child, samplerChild, samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig, isHarmonizeActive, handleHarmonizerConfigChange]);
+    const rackNode = <Rack is3DMode={is3DMode} selectedTrack={selectedTrack} onSelectTrack={setSelectedTrack} modules={rackModules} />;
 
     // --- MAIN RENDER ---
     if (is3DMode) {
@@ -1654,6 +1686,7 @@ export const App: React.FC = () => {
                 <div className="w-full max-w-[1000px] mx-auto h-[440px] shrink-0 pt-6">
                     {sequencerNode}
                 </div>
+                {contextMenuNode}
 
                 {/* Knobs / Hardware Module — PROMINENT middle section */}
                 <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-4">

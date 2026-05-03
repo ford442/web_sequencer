@@ -1,5 +1,5 @@
 // src/components/CloudLibrary.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CloudStorage } from '../services/CloudStorage';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { CloudSongMeta, CloudItemType } from '../services/CloudStorage';
@@ -181,7 +181,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
         setTimeout(() => document.getElementById(`tab-${nextTab.id}`)?.focus(), 0);
     };
 
-    const filteredSongs = songs.filter(s => filterType === 'all' || s.type === filterType);
+    const filteredSongs = useMemo(() => songs.filter(s => filterType === 'all' || s.type === filterType), [songs, filterType]);
 
     const modalRef = useFocusTrap(isOpen, onClose);
 
