@@ -347,7 +347,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     drive?: number,
                     characterMorph?: number,
                     breathIntensity?: number,
-                    formantShift?: number
+                    formantShift?: number,
+                    grainPitchQuantize?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -482,6 +483,11 @@ export const useAudioEngine = (pyodide: unknown) => {
                             // Apply Envelope Follower depths (global only)
                             if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
                             if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+                            if (noteParams?.grainPitchQuantize !== undefined) {
+                                voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
+                            } else if (params.grainPitchQuantize !== undefined) {
+                                voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
+                            }
 
                             // Apply Formant LFO
                             if (noteParams?.formantLfoRate !== undefined) {
@@ -748,7 +754,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     drive?: number,
                     characterMorph?: number,
                     breathIntensity?: number,
-                    formantShift?: number
+                    formantShift?: number,
+                    grainPitchQuantize?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
@@ -862,6 +869,24 @@ export const useAudioEngine = (pyodide: unknown) => {
                 reverbTypeRef.current = type;
             };
 
+            const triggerTapeStop = (duration: number = 2.0) => {
+                if (!masterGainRef.current) return;
+                const now = context.currentTime;
+                const gain = masterGainRef.current.gain;
+                const currentVol = gain.value;
+                gain.cancelScheduledValues(now);
+                gain.setValueAtTime(currentVol, now);
+                gain.exponentialRampToValueAtTime(0.0001, now + duration);
+            };
+
+            const resetTapeStop = () => {
+                if (!masterGainRef.current) return;
+                const now = context.currentTime;
+                const gain = masterGainRef.current.gain;
+                gain.cancelScheduledValues(now);
+                gain.setValueAtTime(1.0, now);
+            };
+
             const detectSamplePitch = async (_b: AudioBuffer) => null;
             const processSinging = async (_sampleName: string, _note: string, _steps: number, _tempo: number) => null;
             const processSpoon = async (_sampleName: string, _note: string) => null;
@@ -906,7 +931,9 @@ export const useAudioEngine = (pyodide: unknown) => {
                 getMultisampleBank,
                 isMultisampleReady,
                 setHarmonizerConfig,
-                updateSamplerVoiceParams
+                updateSamplerVoiceParams,
+                triggerTapeStop,
+                resetTapeStop
             });
 
             setIsReady(true);

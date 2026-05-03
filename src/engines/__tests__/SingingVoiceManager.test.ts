@@ -11,6 +11,7 @@ vi.mock('../SingingVoice', () => {
             setFormantShift: vi.fn(),
             setVibratoDepth: vi.fn(),
             setBreathIntensity: vi.fn(),
+            setGrainPitchQuantize: vi.fn(),
             loadBuffer: vi.fn(),
             play: vi.fn(),
             setTimeRatio: vi.fn(),

@@ -66,7 +66,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
       { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 }
     ];
   }
 
@@ -261,8 +262,17 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     });
 
     // Combine note pitch with parameter modulation
-    const currentBasePitch = this.isPlaying ? this.basePitch : 1.0;
-    this.rubberBand.setPitchScale(currentBasePitch * pitch);
+    let finalPitch = this.isPlaying ? this.basePitch * pitch : pitch;
+
+    // Granular Pitch Quantization: snap pitch to intervals when active
+    const grainPitchQuantize = parameters.grainPitchQuantize ? parameters.grainPitchQuantize[0] : 0.0;
+    if (grainPitchQuantize > 0.0 && finalPitch > 0.0) {
+      const semitones = 12.0 * Math.log2(finalPitch);
+      const quantizedSemitones = Math.round(semitones / grainPitchQuantize) * grainPitchQuantize;
+      finalPitch = Math.pow(2.0, quantizedSemitones / 12.0);
+    }
+
+    this.rubberBand.setPitchScale(finalPitch);
 
     try {
       // STREAMING INPUT LOGIC

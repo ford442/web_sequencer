@@ -853,6 +853,12 @@ export const App: React.FC = () => {
                 });
                 setSelection(null);
             }
+
+            // Tape Stop Effect on Escape key
+            if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                audioEngine?.triggerTapeStop?.(2.0);
+            }
         };
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('mouseup', handleSelectionEnd);
@@ -904,7 +910,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
-    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'freezeEnvDepth' | 'grainEnvDepth' | 'choir', value: number | boolean | string) => {
+    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'freezeEnvDepth' | 'grainEnvDepth' | 'grainPitchQuantize' | 'choir', value: number | boolean | string) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -1872,6 +1878,18 @@ export const App: React.FC = () => {
                             aria-valuetext={`${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% Left' : Math.round(globalPan * 100) + '% Right'}`}
                         />
                     </div>
+
+                    <div className="w-px h-4 bg-gray-700 mx-1" />
+
+                    {/* Tape Stop Button */}
+                    <button
+                        onClick={() => audioEngine?.triggerTapeStop?.(2.0)}
+                        className="h-6 px-2 rounded bg-amber-900/80 hover:bg-amber-800 text-amber-200 hover:text-amber-100 transition-all border border-amber-700 text-[10px] font-bold uppercase tracking-wider"
+                        title="Tape Stop (Escape)"
+                        aria-label="Trigger Tape Stop Effect"
+                    >
+                        Tape Stop
+                    </button>
 
                     <div className="w-px h-4 bg-gray-700 mx-1" />
 

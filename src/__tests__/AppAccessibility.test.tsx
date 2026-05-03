@@ -3,12 +3,15 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { App } from '../App';
 
+const mockTriggerTapeStop = vi.fn();
+
 // Mock the AudioEngine hook to avoid actual audio context issues
 vi.mock('../hooks/useAudioEngine', () => ({
   useAudioEngine: () => ({
     audioEngine: {
       setMasterVolume: vi.fn(),
       setGlobalPan: vi.fn(),
+      triggerTapeStop: mockTriggerTapeStop,
       context: { currentTime: 0 }
     },
     isReady: true,
@@ -64,5 +67,13 @@ describe('App Accessibility', () => {
     // Press Backspace
     fireEvent.keyDown(panSlider, { key: 'Backspace' });
     expect(panSlider).toHaveValue('0');
+  });
+
+  it('triggers tape stop on Escape key press', () => {
+    render(<App />);
+    mockTriggerTapeStop.mockClear();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(mockTriggerTapeStop).toHaveBeenCalledWith(2.0);
   });
 });

@@ -39,4 +39,11 @@ describe('App', () => {
     // Check visible text
     expect(screen.getAllByText('SONG')[0]).toBeInTheDocument();
   });
+
+  it('renders Tape Stop button', () => {
+    render(<App />);
+    const tapeStopButton = screen.getByRole('button', { name: /Trigger Tape Stop Effect/i });
+    expect(tapeStopButton).toBeInTheDocument();
+    expect(tapeStopButton).toHaveTextContent(/Tape Stop/i);
+  });
 });

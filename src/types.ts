@@ -84,6 +84,7 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   freezeEnvDepth?: number; // Envelope follower depth for freeze modulation (0-1)
   grainEnvDepth?: number;  // Envelope follower depth for grain size modulation (0-1)
+  grainPitchQuantize?: number; // Granular pitch quantization interval in semitones (0-12)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
   formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)
@@ -174,6 +175,7 @@ export interface Note {
   freeze?: number; // Spectral freeze/smear amount (0-1) (Sampler only)
   freezeEnvDepth?: number; // Envelope follower depth for freeze modulation (0-1) (Sampler only)
   grainEnvDepth?: number; // Envelope follower depth for grain size modulation (0-1) (Sampler only)
+  grainPitchQuantize?: number; // Granular pitch quantization interval in semitones (0-12) (Sampler only)
   formantShift?: number; // Formant shift override (-12 to +12)
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
@@ -265,9 +267,13 @@ export interface AudioEngine {
     
     // Sampler Voice Panel controls - real-time parameter updates
     updateSamplerVoiceParams?: (bankIndex: number, param: string, value: number | string | boolean) => void;
-    
+
     // Harmonizer configuration
     setHarmonizerConfig?: (config: import('./engines/Harmonizer').HarmonizerConfig, isActive: boolean) => void;
+
+    // Tape Stop Effect
+    triggerTapeStop?: (duration?: number) => void;
+    resetTapeStop?: () => void;
 }
 
 // Automation recording types
