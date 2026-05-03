@@ -31,7 +31,8 @@ interface AdvancedNoteSelectorProps {
 
 const DRAG_THRESHOLD = 4; // pixels before drag starts
 
-export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.memo(({
     value,
     onChange,
     trackKey,
@@ -166,6 +167,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
                 aria-label={label ?? `Note ${value}`}
                 aria-haspopup="true"
                 aria-expanded={flyoutOpen}
+                aria-controls="advanced-note-selector-listbox"
                 title="Drag up/down to change pitch, click to open piano"
             >
                 {value}
@@ -182,6 +184,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
                     />
 
                     <div
+                        id="advanced-note-selector-listbox"
                         role="listbox"
                         aria-label="Note picker"
                         className="absolute z-50 left-full top-0 ml-1 bg-gray-900/95 backdrop-blur-sm border border-cyan-900/50 rounded-lg shadow-[0_0_16px_rgba(6,182,212,0.15)] p-1.5 flex gap-1 animate-in fade-in zoom-in-95 duration-100"
@@ -204,9 +207,10 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
                                             role="option"
                                             aria-selected={isSelected}
                                             aria-disabled={!isInScale}
+                                            disabled={!isInScale}
                                             onClick={() => isInScale && handleFlyoutSelect(fullNote)}
-                                            className={`w-8 h-5 text-[9px] font-mono rounded flex items-center justify-center transition-all ${
-                                                isInScale ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed'
+                                            className={`w-8 h-5 text-[9px] font-mono rounded flex items-center justify-center transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${
+                                                isInScale ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed disabled:opacity-35'
                                             }`}
                                             style={{
                                                 backgroundColor: isSelected
@@ -222,7 +226,6 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
                                                             ? '#ddd'
                                                             : '#000',
                                                 border: isSelected ? `2px solid ${noteColor}` : 'none',
-                                                opacity: isInScale ? 1 : 0.35,
                                                 boxShadow: isSelected ? '0 0 6px rgba(255,255,255,0.5)' : 'none',
                                             }}
                                         >
@@ -240,4 +243,4 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = ({
             )}
         </div>
     );
-};
+});

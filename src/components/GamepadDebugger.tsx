@@ -4,7 +4,8 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 // A visual debugger for the gamepad states
 // Ports the logic from the standalone HTML tester
 
-export const GamepadDebugger: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ onClose }) => {
   const [gamepads, setGamepads] = useState<Gamepad[]>([]);
   const modalRef = useFocusTrap<HTMLDivElement>(true, onClose);
   const reqRef = useRef<number | null>(null);
@@ -60,9 +61,10 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = ({ onClose }) 
       </div>
     </div>
   );
-};
+});
 
-const GamepadCard: React.FC<{ gamepad: Gamepad }> = ({ gamepad }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+const GamepadCard: React.FC<{ gamepad: Gamepad }> = React.memo(({ gamepad }) => {
   const isGhost = gamepad.buttons.length === 0;
 
   return (
@@ -122,4 +124,4 @@ const GamepadCard: React.FC<{ gamepad: Gamepad }> = ({ gamepad }) => {
       </div>
     </div>
   );
-};
+});

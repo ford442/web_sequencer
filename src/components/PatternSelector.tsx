@@ -18,7 +18,8 @@ const getPatternColor = (slotIndex: number): string => {
     return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
 };
 
-export const PatternSelector: React.FC<PatternSelectorProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const PatternSelector: React.FC<PatternSelectorProps> = React.memo(({
     x, y, currentPattern, onSelect, onClose
 }) => {
     const dialogRef = useFocusTrap(true, onClose);
@@ -113,4 +114,4 @@ export const PatternSelector: React.FC<PatternSelectorProps> = ({
             </div>
         </>
     );
-};
+});

@@ -11,6 +11,7 @@ from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from aiocache import Cache
@@ -149,6 +150,9 @@ async def lifespan(app: FastAPI):
     io_executor.shutdown()
 
 app = FastAPI(lifespan=lifespan)
+
+# ⚡ Bolt: Added GZipMiddleware to compress large JSON responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # --- CORS ---
 app.add_middleware(
@@ -404,16 +408,16 @@ async def upload_item(payload: ItemPayload):
                 except Exception as e:
                     sftp.chdir(root)
                     raise e
-    
+
             await run_sftp(_perform_write)
             # Calculate size from the JSON data
             json_bytes = json.dumps(payload.data).encode('utf-8')
             size = len(json_bytes)
-            
+
             # Invalidate cache
             await cache.delete(f"library:{item_type}")
             await cache.delete("library:all")
-            
+
             return StorageResult(
                 success=True,
                 id=item_id,
@@ -442,7 +446,7 @@ async def delete_item(item_id: str, type: Optional[str] = Query(None)):
         sftp, transport = await sftp_pool.acquire()
         try:
             root = await run_sftp(sftp.getcwd)
-            
+
             for t in search_types:
                 config = get_config(t)
 
@@ -463,7 +467,7 @@ async def delete_item(item_id: str, type: Optional[str] = Query(None)):
                             sftp.chdir(root)
                         except:
                             pass
-                
+
                 deleted = await run_sftp(_check_and_delete)
 
                 # For samples/music that store original filename in index
@@ -475,15 +479,15 @@ async def delete_item(item_id: str, type: Optional[str] = Query(None)):
                                 current = json.load(f)
                         except:
                             current = []
-                        
+
                         entry = next((item for item in current if item.get("id") == item_id), None)
-                        
+
                         # Remove from index
                         if isinstance(current, list):
                             new_index = [item for item in current if item.get("id") != item_id]
                             with sftp.open(config["index"], 'wb') as f:
                                 f.write(json.dumps(new_index).encode('utf-8'))
-                        
+
                         sftp.chdir(root)
                         return entry
                     except Exception as e:
@@ -493,9 +497,9 @@ async def delete_item(item_id: str, type: Optional[str] = Query(None)):
                         except:
                             pass
                         return None
-                
+
                 entry = await run_sftp(_remove_from_index)
-                
+
                 # Delete by filename if entry has one
                 if entry and "filename" in entry:
                     def _delete_by_filename():
@@ -514,7 +518,7 @@ async def delete_item(item_id: str, type: Optional[str] = Query(None)):
                     # Clear cache
                     await cache.delete(f"library:{t}")
                     await cache.delete("library:all")
-                    
+
                     return StorageResult(
                         success=True,
                         id=item_id,
@@ -581,7 +585,7 @@ async def upload_sample(file: UploadFile = File(...), author: str = Form(...), d
             # Prepare path in main thread logic, execute in thread
             root = await run_sftp(sftp.getcwd)
             await ensure_folder(sftp, config["folder"])
-    
+
             try:
                 # Open file handle in thread
                 f_remote = await run_sftp(sftp.open, storage_filename, 'wb')
@@ -594,7 +598,7 @@ async def upload_sample(file: UploadFile = File(...), author: str = Form(...), d
                     await run_sftp(f_remote.write, chunk)
 
                 await run_sftp(f_remote.close)
-    
+
                 # Update Index
                 def _update_idx():
                     try:
@@ -614,7 +618,7 @@ async def upload_sample(file: UploadFile = File(...), author: str = Form(...), d
                 # Invalidate cache
                 await cache.delete("library:sample")
                 return {"success": True, "id": sample_id}
-    
+
             except Exception as e:
                 await run_sftp(sftp.chdir, root)
                 raise e

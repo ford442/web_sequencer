@@ -34,7 +34,8 @@ export interface PhonemePainterProps {
   alignment?: AlignmentResult | null;
 }
 
-export const PhonemePainter: React.FC<PhonemePainterProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
   isOpen,
   onClose,
   stepIndex,
@@ -750,6 +751,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend - 10)}
                       className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       aria-label="Decrease pitch bend"
+                      title="Decrease pitch bend"
                     >
                       -
                     </button>
@@ -757,6 +759,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend + 10)}
                       className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       aria-label="Increase pitch bend"
+                      title="Increase pitch bend"
                     >
                       +
                     </button>
@@ -844,6 +847,6 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default PhonemePainter;

@@ -1,34 +1,6 @@
-## 2025-04-13 - Add aria-busy to processing buttons
-**Learning:** Buttons that represent an asynchronous or intensive background process (such as rendering/mixdown or AI processing) should be explicitly marked with `aria-busy` to let screen reader users know that the system is doing work.
-**Action:** When a button handles "Rendering..." or similar delayed states, ensure `aria-busy={isRendering}` or equivalent is added alongside `disabled={isRendering}`.
-
-## 2025-04-13 - Add role="tabpanel" to custom tabbed interfaces
-**Learning:** When implementing custom tabbed interfaces using `role="tablist"` and `role="tab"`, the corresponding content container must have `role="tabpanel"`, a unique `id` that matches the `aria-controls` attribute of the active tab, and an `aria-labelledby` attribute pointing to the active tab's `id`. This ensures screen reader users understand the relationship between the tabs and the content.
-**Action:** Always verify that every `role="tablist"` has an associated `role="tabpanel"` wrapping the displayed content.
-
-## 2025-04-17 - Add keyboard navigation to custom ARIA radio groups
-**Learning:** When implementing custom radio button groups using `role="radiogroup"` and `role="radio"`, it is not enough to just add the ARIA attributes and a click handler. Screen reader users expect standard radio group keyboard behavior: the arrow keys should move focus and instantly select the adjacent radio button in the group. Additionally, the roving `tabIndex` pattern must be used where only the currently selected radio has `tabIndex={0}` and the others have `tabIndex={-1}`.
-**Action:** When building or modifying custom radio groups (like the Retrigger selector in NoteSelector or Voice Count in Harmonizer), always add an `onKeyDown` handler to support `ArrowRight`/`ArrowDown` (next) and `ArrowLeft`/`ArrowUp` (previous) navigation, prevent the default scrolling behavior, update the selected state, and programmatically move focus to the new element.
-
-## 2025-04-18 - Fix orphaned aria-describedby references
-**Learning:** When using `aria-describedby` on a modal dialog (or any element), the `id` it points to must actually exist in the DOM. If the ID is missing (orphaned), screen readers will silently fail to read the crucial contextual information intended for the user (e.g., loading states, instructions).
-**Action:** Always verify that the string provided to `aria-describedby` perfectly matches an `id` attribute on the element containing the descriptive text.
-
-## 2025-04-19 - Replace native checkboxes with ARIA switches for toggle actions
-**Learning:** Native `<input type="checkbox">` elements, when used for immediate state toggles (like "Lock to Seq" or import configuration options), can feel clunky and lack the visual affordance of a modern switch. More importantly, when visually hidden or improperly styled, they can lose native keyboard focus indicators, impairing accessibility.
-**Action:** Always implement custom UI toggle switches using `<button type="button" role="switch" aria-checked={state}>` accompanied by explicit Tailwind `focus-visible` classes (e.g., `focus-visible:ring-2`) and clear `aria-labelledby` linking to their labels. This provides both a polished look and robust screen reader/keyboard support.
-## $(date +%Y-%m-%d) - Added Title and ARIA labels to Sampler/Harmonizer action buttons
-**Learning:** Icon-only buttons or text-heavy components inside complex modal structures (like Voice Editor and Sampler Panel) often rely on visual context but fail to provide screen-reader accessibility or tooltips for hover interactions, degrading usability.
-**Action:** Always add `aria-label` alongside a matching `title` attribute for icon-only action buttons and quick-presets to ensure both visual hover affordances and screen reader context are available, preventing empty accessibility tree nodes.
-
-## 2025-05-18 - Semantic Groupings for Audio Controls
-**Learning:** Complex audio interfaces often group multiple related controls (like Oscillators, Filters, Kick Drum settings, Snare settings) visually. However, screen readers don't inherently convey these groupings if they are just nested `<div>`s with `<h3>` headings. Wrapping related audio controls in `<fieldset>` with an embedded `<legend>` explicitly links the controls together for assistive technologies without changing the visual layout.
-**Action:** When working on complex synthesizer or drum machine components, identify logical groups of controls and replace their wrapper `<div>` and title heading with `<fieldset>` and `<legend className="sr-only">` (or styled appropriately).
-
-## 2026-04-24 - Safe String Replacements for Accessibility
-**Learning:** When applying automated or bulk accessibility fixes (like adding `aria-label`s) across a large React codebase, using aggressive regex replacements often leads to corrupted JSX, duplicated props, and broken builds. React components are too complex for simple regex patterns.
-**Action:** Always favor targeted, exact string matching or AST-based transformations (like jscodeshift) when injecting props. If manual string replacement is necessary, use highly specific search blocks that include surrounding context to ensure safety and prevent unintended side effects.
-
-## 2026-04-26 - Add keyboard accessibility for custom flyout components
-**Learning:** Custom dropdown or flyout components (like `AdvancedNoteSelector`) often use a full-screen transparent backdrop `div` with an `onClick` handler to close them. However, they must also support standard keyboard interactions, specifically allowing users to close them by pressing the `Escape` key, to ensure accessibility for keyboard and screen reader users. Additionally, focus should be restored to the trigger element when the flyout is closed.
-**Action:** When implementing custom flyouts with a backdrop, always add a global `keydown` event listener in a `useEffect` hook to handle the `Escape` key and close the flyout, and ensure focus is returned to the trigger button using a `ref`.
+## 2024-04-28 - App Action Bar Accessibility
+**Learning:** Primary interaction buttons in the bottom action bar lacked WCAG 2.4.7 focus visibility indicators, making them difficult for keyboard users.
+**Action:** Added `focus-visible:ring-2` with color-matched rings and descriptive `aria-label` attributes to the NOTES, AUTO, SAVE, LOAD, and Import buttons in `App.tsx`.
+## 2024-05-02 - Song Mode Button Focus Accessibility
+**Learning:** The Song Mode interface buttons (add/remove bar, toggle mode, clear background) lacked explicit focus states, making keyboard navigation difficult.
+**Action:** Added `focus-visible:ring-2` and appropriate `focus-visible:ring-{color}-500` classes with `focus:outline-none` to all interactive buttons in `SongMode.tsx`.

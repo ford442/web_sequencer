@@ -9,7 +9,8 @@ interface WaveformSelectorProps {
   accentColor: 'cyan' | 'pink';
 }
 
-const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
   switch (type) {
     case 'sawtooth':
       return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M0 18 L12 6 L12 18 L24 6 L24 18" /></svg>;
@@ -72,7 +73,7 @@ const WaveformIcon: React.FC<{ type: Waveform }> = ({ type }) => {
     default:
       return null;
   }
-};
+});
 
 const GROUPS = [
   { label: 'BASIC', items: ['sawtooth', 'square', 'triangle', 'sine'] as Waveform[] },
@@ -95,7 +96,8 @@ const getNextWaveform = (current: Waveform): Waveform => {
   return BASIC_WAVEFORMS[nextIndex];
 };
 
-export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, onChange, accentColor }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ selected, onChange, accentColor }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredWaveform, setHoveredWaveform] = useState<Waveform | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -213,4 +215,4 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = ({ selected, on
       )}
     </div>
   );
-};
+});

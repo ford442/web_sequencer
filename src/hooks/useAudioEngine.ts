@@ -88,6 +88,8 @@ export const useAudioEngine = (pyodide: unknown) => {
     // Master Volume & Pan
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
+    const sidechainGainRef = useRef<GainNode | null>(null);
+    const sidechainBusRef = useRef<GainNode | null>(null);
     const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});
     const reverbNodeRef = useRef<ConvolverNode | null>(null); // Keep for backwards compatibility if needed temporarily
@@ -132,6 +134,8 @@ export const useAudioEngine = (pyodide: unknown) => {
         loadedAmbianceBuffersRef,
         singingVoiceManagerRef,
         harmonizerRef,
+        sidechainGainRef,
+        sidechainBusRef,
     }), []);
 
     useEffect(() => {
@@ -157,7 +161,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 console.log("AudioContext resumed");
             }
 
-            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef);
+            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef);
 
             // Initialize Reverb Node
             // Initialize Reverb Nodes (Room, Plate, Hall)
@@ -327,23 +331,30 @@ export const useAudioEngine = (pyodide: unknown) => {
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    slideType?: 'linear' | 'exponential',
+                    slideType?: 'linear'|'exponential',
                     phonemes?: PhonemeData[],
                     freeze?: number,
-                    filterCutoff?: number,
-                    filterResonance?: number,
+                    freezeEnvDepth?: number,
+                    grainEnvDepth?: number,
+                    grainPitchQuantize?: number,
+                    formantShift?: number,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     formantLfoShape?: number[],
+                    formantEnvAttack?: number,
+                    formantEnvDecay?: number,
+                    formantEnvAmount?: number,
                     customLfoShape?: number[],
+                    characterMorph?: number,
+                    filterCutoff?: number,
+                    filterResonance?: number,
                     vibratoDepth?: number,
+                    drive?: number,
                     reverbSend?: number,
+                    reverbType?: import('../types').ReverbType,
                     delaySend?: number,
                     choir?: number,
-                    drive?: number,
-                    characterMorph?: number,
-                    breathIntensity?: number,
-                    formantShift?: number
+                    breathIntensity?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -473,6 +484,16 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setFreeze(noteParams.freeze, triggerTime);
                             } else if (params.freeze !== undefined) {
                                 voice.setFreeze(params.freeze, triggerTime);
+                            }
+
+                            // Apply Envelope Follower depths (global only)
+                            if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+
+                            if (noteParams?.grainPitchQuantize !== undefined) {
+                                voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
+                            } else if (params.grainPitchQuantize !== undefined) {
+                                voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
                             }
 
                             // Apply Formant LFO
@@ -727,20 +748,29 @@ export const useAudioEngine = (pyodide: unknown) => {
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    slideType?: 'linear' | 'exponential',
-                    phonemes?: PhonemeData[],
+                    slideType?: 'linear'|'exponential',
                     freeze?: number,
+                    freezeEnvDepth?: number,
+                    grainEnvDepth?: number,
+                    grainPitchQuantize?: number,
+                    formantShift?: number,
+                    formantLfoRate?: number,
+                    formantLfoDepth?: number,
+                    formantLfoShape?: number[],
+                    formantEnvAttack?: number,
+                    formantEnvDecay?: number,
+                    formantEnvAmount?: number,
+                    customLfoShape?: number[],
+                    characterMorph?: number,
                     filterCutoff?: number,
                     filterResonance?: number,
-                    customLfoShape?: number[],
                     vibratoDepth?: number,
+                    drive?: number,
                     reverbSend?: number,
+                    reverbType?: import('../types').ReverbType,
                     delaySend?: number,
                     choir?: number,
-                    drive?: number,
-                    characterMorph?: number,
-                    breathIntensity?: number,
-                    formantShift?: number
+                    breathIntensity?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
@@ -868,6 +898,23 @@ export const useAudioEngine = (pyodide: unknown) => {
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303ManagerRef.current as any,
+                triggerTapeStop: () => {
+                    const now = context.currentTime || 0;
+                    const stopTime = 1.5; // Tape stop duration
+
+                    if (playbackRefs.masterGainRef.current) {
+                        playbackRefs.masterGainRef.current.gain.cancelScheduledValues(now);
+                        playbackRefs.masterGainRef.current.gain.setValueAtTime(playbackRefs.masterGainRef.current.gain.value, now);
+                        playbackRefs.masterGainRef.current.gain.exponentialRampToValueAtTime(0.001, now + stopTime);
+                    }
+                },
+                resetTapeStop: () => {
+                    const now = context.currentTime || 0;
+                    if (playbackRefs.masterGainRef.current) {
+                        playbackRefs.masterGainRef.current.gain.cancelScheduledValues(now);
+                        playbackRefs.masterGainRef.current.gain.setValueAtTime(1.0, now);
+                    }
+                },
                 singingVoice: undefined,
                 playSynth,
                 playDrum,

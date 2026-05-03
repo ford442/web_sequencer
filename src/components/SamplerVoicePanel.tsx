@@ -454,7 +454,8 @@ const HarmonizerPopover: React.FC<{
     );
 };
 
-export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     title,
     colorHex,
     controls,
@@ -755,6 +756,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
                                     aria-haspopup="dialog"
                                     aria-expanded={isHarmonizerOpen}
+                                    aria-controls="harmonizer-dialog"
                                     aria-label="Harmonizer Settings"
                                     className={`px-4 py-1.5 rounded-lg text-[10px] font-bold font-orbitron tracking-wider transition-all border relative overflow-hidden ${
                                         isHarmonizeActive
@@ -794,4 +796,4 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = ({
             </div>
         </div>
     );
-};
+});

@@ -10,7 +10,8 @@ interface MagicKnobProps {
     onChange?: (val: number) => void;
 }
 
-export const MagicKnob: React.FC<MagicKnobProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const MagicKnob: React.FC<MagicKnobProps> = React.memo(({
                                                         value,
                                                         min = 0,
                                                         max = 100,
@@ -281,8 +282,20 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
         return () => cancelAnimationFrame(animationId);
     }, [min, max]); // Re-init if range changes
 
+    const displayValue = Math.round(value * 100) / 100;
+
     return (
-        <div className="flex flex-col items-center select-none" style={{ cursor: 'pointer' }} tabIndex={0}
+        <div
+            className="flex flex-col items-center select-none"
+            style={{ cursor: 'pointer' }}
+            tabIndex={0}
+            role="slider"
+            aria-label={label}
+            aria-orientation="vertical"
+            aria-valuemin={min}
+            aria-valuemax={max}
+            aria-valuenow={displayValue}
+            aria-valuetext={`${displayValue}`}
             onKeyDown={(e) => {
                 if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
                     const range = max - min;
@@ -341,4 +354,4 @@ export const MagicKnob: React.FC<MagicKnobProps> = ({
             </span>
         </div>
     );
-};
+});

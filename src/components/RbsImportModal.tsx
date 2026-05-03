@@ -53,7 +53,7 @@ interface RbsImportModalProps {
 // COMPONENT
 // ============================================================================
 
-export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsImportModalProps) {
+export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsImportModalProps) {
   // File state
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -613,12 +613,12 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
 
                   {/* Drums */}
                   <div className="space-y-1">
-                    {[
+                    {useMemo(() => [
                       { name: 'Kick', pattern: patternVisualization.drums.kick, color: 'bg-orange-500' },
                       { name: 'Snare', pattern: patternVisualization.drums.snare, color: 'bg-green-500' },
                       { name: 'Closed Hat', pattern: patternVisualization.drums.closedHat, color: 'bg-yellow-500' },
                       { name: 'Open Hat', pattern: patternVisualization.drums.openHat, color: 'bg-yellow-600' }
-                    ].map(drum => (
+                    ], [patternVisualization.drums.kick, patternVisualization.drums.snare, patternVisualization.drums.closedHat, patternVisualization.drums.openHat]).map(drum => (
                       <div key={drum.name} className="flex items-center gap-2">
                         <span className="w-20 text-xs text-gray-500 text-right">{drum.name}</span>
                         <div className="flex gap-0.5">
@@ -924,6 +924,6 @@ export function RbsImportModal({ isOpen, onClose, onImport, onShowToast }: RbsIm
       </div>
     </div>
   );
-}
+});
 
 export default RbsImportModal;

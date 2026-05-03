@@ -45,6 +45,7 @@ describe('SamplerPanel', () => {
         audioEngine: undefined,
         activeBankIdx: 0,
         onBankChange: vi.fn(),
+        isVoiceEditorOpen: false,
         ttsPhrases: Array(8).fill(""),
         onTtsPhraseChange: vi.fn(),
     };

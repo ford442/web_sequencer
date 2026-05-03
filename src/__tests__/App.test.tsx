@@ -2,6 +2,15 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import App from '../App';
+import { vi } from 'vitest';
+
+vi.mock('../services/AISongStorage', () => ({
+    AISongStorage: {
+        saveSong: vi.fn(),
+        loadSong: vi.fn()
+    }
+}));
+
 
 describe('App', () => {
   it('renders HYPHON heading', () => {
@@ -29,5 +38,10 @@ describe('App', () => {
 
     // Check visible text
     expect(screen.getAllByText('SONG')[0]).toBeInTheDocument();
+  });
+
+  it('renders tape stop button', () => {
+    render(<App />);
+    expect(screen.getByTitle('Tape Stop Effect')).toBeInTheDocument();
   });
 });

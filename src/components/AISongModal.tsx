@@ -39,7 +39,7 @@ import { Tooltip } from './ai-song/Tooltip';
 // MAIN COMPONENT
 // ============================================================================
 
-export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps): React.ReactElement | null {
+export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngine }: AISongModalProps): React.ReactElement | null {
   const [jsonInput, setJsonInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
@@ -638,7 +638,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
     return trackStats ? Object.entries(trackStats.noteCounts) : [];
   }, [trackStats]);
 
-  const trackStatisticsRows = noteCountEntries.map(([track, count]) => (
+  const trackStatisticsRows = useMemo(() => noteCountEntries.map(([track, count]) => (
     <div key={String(track)} className="flex items-center gap-2 text-xs">
       <span className="w-16 sm:w-20 text-gray-500 shrink-0">{String(track)}:</span>
       <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -649,7 +649,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       </div>
       <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(count)}</span>
     </div>
-  )) as React.ReactElement[];
+  )) as React.ReactElement[], [noteCountEntries]);
 
   return (
     <div 
@@ -707,15 +707,17 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
           <div className="px-4 py-2 bg-yellow-950/50 border-b border-yellow-900/50 flex items-center justify-between animate-in slide-in-from-top-2">
             <span className="text-xs text-yellow-400">You have unsaved changes. Close anyway?</span>
             <div className="flex gap-2">
-              <button 
+              <button
                 onClick={() => setShowCloseConfirm(false)}
                 className="px-2 py-1 text-xs text-gray-400 hover:text-white transition-colors"
+                aria-label="Cancel closing modal"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={confirmClose}
                 className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                aria-label="Confirm close modal"
               >
                 Close
               </button>
@@ -724,33 +726,45 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
         )}
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-800 overflow-x-auto">
+        <div className="flex border-b border-gray-800 overflow-x-auto" role="tablist" aria-label="Import method">
           <button
+            id="ai-modal-tab-paste"
+            role="tab"
+            aria-selected={activeTab === 'paste'}
+            aria-controls="ai-modal-panel-paste"
             onClick={() => setActiveTab('paste')}
             className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'paste' 
-                ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5' 
+              activeTab === 'paste'
+                ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
             }`}
           >
             <span className="hidden sm:inline">📋 </span>Paste JSON
           </button>
           <button
+            id="ai-modal-tab-template"
+            role="tab"
+            aria-selected={activeTab === 'template'}
+            aria-controls="ai-modal-panel-template"
             onClick={() => setActiveTab('template')}
             className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'template' 
-                ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5' 
+              activeTab === 'template'
+                ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
             }`}
           >
             <span className="hidden sm:inline">📝 </span>Template
           </button>
           <button
+            id="ai-modal-tab-preview"
+            role="tab"
+            aria-selected={activeTab === 'preview'}
+            aria-controls="ai-modal-panel-preview"
             onClick={() => isValid && setActiveTab('preview')}
             disabled={!isValid}
             className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'preview' 
-                ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5' 
+              activeTab === 'preview'
+                ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : !isValid
                   ? 'text-gray-600 cursor-not-allowed'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
@@ -764,7 +778,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
         {/* Content */}
         <div className="flex-1 overflow-auto p-3 sm:p-4">
           {activeTab === 'paste' ? (
-            <div className="space-y-4">
+            <div id="ai-modal-panel-paste" role="tabpanel" aria-labelledby="ai-modal-tab-paste" className="space-y-4">
               {/* Example Buttons */}
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
                 <span className="text-xs text-gray-500 py-1 sm:py-2">Try with example:</span>
@@ -1036,7 +1050,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
               )}
             </div>
           ) : activeTab === 'template' ? (
-            <div className="space-y-4">
+            <div id="ai-modal-panel-template" role="tabpanel" aria-labelledby="ai-modal-tab-template" className="space-y-4">
               <div className="p-4 bg-gray-900/50 rounded-lg">
                 <p className="text-sm text-gray-300 mb-4">
                   Copy this prompt template and paste it into your AI assistant (Claude, Gemini, Jules, Copilot, etc.).
@@ -1069,7 +1083,7 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
             </div>
           ) : (
             /* Preview Tab */
-            <div className="space-y-4">
+            <div id="ai-modal-panel-preview" role="tabpanel" aria-labelledby="ai-modal-tab-preview" className="space-y-4">
               {isPreviewLoading ? (
                 <PreviewSkeleton />
               ) : parsedData && trackStats && patternGrid ? (
@@ -1386,6 +1400,6 @@ export function AISongModal({ isOpen, onClose, onImport, onShowToast, audioEngin
       </div>
     </div>
   );
-}
+});
 
 export default AISongModal;

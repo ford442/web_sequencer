@@ -6,7 +6,7 @@ export interface TooltipProps {
   position?: 'top' | 'bottom' | 'left' | 'right';
 }
 
-export function Tooltip({ children, text, position = 'top' }: TooltipProps) {
+export const Tooltip = React.memo(function Tooltip({ children, text, position = 'top' }: TooltipProps) {
   const positionClasses = {
     top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
     bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
@@ -30,4 +30,4 @@ export function Tooltip({ children, text, position = 'top' }: TooltipProps) {
       </div>
     </div>
   );
-}
+});

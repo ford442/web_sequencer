@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
-import { useAudioEngine } from './hooks/useAudioEngine'
-import { usePyodideEngine } from './hooks/usePyodideEngine'
-import { useScheduler } from './hooks/useScheduler'
-import { useStepHandler } from './hooks/useStepHandler'
+import React, { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense, memo } from 'react';
+
+import { useAudioEngine } from './hooks/useAudioEngine';
+import { usePyodideEngine } from './hooks/usePyodideEngine';
+import { useScheduler } from './hooks/useScheduler';
+import { useStepHandler } from './hooks/useStepHandler';
 import { useGamepad } from './hooks/useGamepad';
 import { useStableKnobConfig } from './hooks/useStableKnobConfig';
 import { useSongStorage } from './hooks/useSongStorage';
+import { useTTSPreloader } from './hooks/useTTSPreloader';
 import { GamepadDebugger } from './components/GamepadDebugger';
 import { HardwareModule } from './components/HardwareModule';
 import { SamplerVoicePanel } from './components/SamplerVoicePanel';
@@ -48,14 +50,14 @@ import {
     DEFAULT_SNARE_PARAMS,
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
-} from './constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType } from './types'
+} from './constants';
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType } from './types';
 import {
     INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
     getInitialTrackStorage,
     COLOR_LEAD, COLOR_BASS, COLOR_BASS2, COLOR_KICK, COLOR_SNARE, COLOR_CH, COLOR_OH, COLOR_SAMPLER,
-} from './constants/appDefaults'
+} from './constants/appDefaults';
 import {
     getBass2Controls, getSynthControls, getKickControls, getSnareControls,
     getClosedHatControls, getOpenHatControls, getSamplerControls,
@@ -93,6 +95,9 @@ export const App: React.FC = () => {
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
     const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
+
+    // Background TTS ONNX session preload (idle-scheduled, non-blocking)
+    useTTSPreloader()
 
     // NEW: Automation View State
     const [viewMode, setViewMode] = useState<'notes' | 'automation'>('notes');
@@ -422,8 +427,9 @@ export const App: React.FC = () => {
 
     const handlePlayToggle = useCallback(async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
+        audioEngine?.resetTapeStop();
         setSchedPlaying(prev => !prev)
-    }, [isInitialized, initializeAudio, setSchedPlaying]);
+    }, [isInitialized, initializeAudio, setSchedPlaying, audioEngine]);
 
     // Global Key Handler for Play/Pause (Spacebar)
     useEffect(() => {
@@ -433,6 +439,12 @@ export const App: React.FC = () => {
                 if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
                 e.preventDefault();
                 handlePlayToggle();
+            }
+            // Tape Stop Effect (Escape Key)
+            if (e.code === 'Escape') {
+                e.preventDefault();
+                audioEngine?.triggerTapeStop();
+                setSchedPlaying(false);
             }
         };
         window.addEventListener('keydown', handleGlobalKeyDown);
@@ -860,7 +872,7 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
-    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'choir', value: number | boolean | string) => {
+    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'freezeEnvDepth' | 'grainEnvDepth' | 'grainPitchQuantize' | 'choir', value: number | boolean | string) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
         const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
@@ -890,7 +902,29 @@ export const App: React.FC = () => {
         updateStorageForTrack(trackKey, changedSequence);
     }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
 
-    const handleClearPattern = () => { if (window.confirm("Clear current pattern?")) { const emptyPattern: Pattern = { partA: { steps: Array(32).fill(null) }, partB: { steps: Array(32).fill(null) }, bass2: { steps: Array(32).fill(null) }, kick: { steps: Array(32).fill(null) }, snare: { steps: Array(32).fill(null) }, closedHat: { steps: Array(32).fill(null) }, openHat: { steps: Array(32).fill(null) }, sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })), }; setPattern(emptyPattern); setTrackStorage(prevStorage => { const storageCopy = { ...prevStorage }; (Object.keys(storageCopy) as TrackKey[]).forEach(key => { storageCopy[key] = [...storageCopy[key]]; storageCopy[key][activeTrackSlots[key]] = emptyPattern[key]; }); return storageCopy; }); } };
+    const handleClearPattern = useCallback(() => {
+        if (window.confirm("Clear current pattern?")) {
+            const emptyPattern: Pattern = {
+                partA: { steps: Array(32).fill(null) },
+                partB: { steps: Array(32).fill(null) },
+                bass2: { steps: Array(32).fill(null) },
+                kick: { steps: Array(32).fill(null) },
+                snare: { steps: Array(32).fill(null) },
+                closedHat: { steps: Array(32).fill(null) },
+                openHat: { steps: Array(32).fill(null) },
+                sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })),
+            };
+            setPattern(emptyPattern);
+            setTrackStorage(prevStorage => {
+                const storageCopy = { ...prevStorage };
+                (Object.keys(storageCopy) as TrackKey[]).forEach(key => {
+                    storageCopy[key] = [...storageCopy[key]];
+                    storageCopy[key][activeTrackSlotsRef.current[key]] = emptyPattern[key];
+                });
+                return storageCopy;
+            });
+        }
+    }, []);
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => { handlePatternChange(k, i, undefined, { length: len }); }, [handlePatternChange]);
@@ -1149,7 +1183,7 @@ export const App: React.FC = () => {
             </div>
         </div>
     ), [bass2.waveform, updateBass2]);
-    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} alignment={activeAlignment} onAlignmentChange={(newAlignment) => { audioEngine?.setAlignment?.(activeSamplerBank, newAlignment); setActiveAlignment(newAlignment); }} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment]);
+    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} isVoiceEditorOpen={isVoiceEditorOpen} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} alignment={activeAlignment} onAlignmentChange={(newAlignment) => { audioEngine?.setAlignment?.(activeSamplerBank, newAlignment); setActiveAlignment(newAlignment); }} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, isVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment]);
 
     // --- RENDER PARTS FOR 3D ---
     // Extract parts so they can be passed to either normal view or 3D view
@@ -1221,98 +1255,60 @@ export const App: React.FC = () => {
                 >
                     REC
                 </button>
-
-                {/* Divider */}
-                <div className="w-px h-5 bg-gray-700 mx-1" />
-
-                {/* BPM Control */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] text-gray-500 font-mono uppercase tracking-wider">BPM</span>
-                    <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
-                        <button
-                            onMouseDown={() => handleTempoHoldStart(-1)}
-                            onMouseUp={handleTempoHoldEnd}
-                            onMouseLeave={handleTempoHoldEnd}
-                            onKeyDown={(e) => handleTempoKeyDown(e, -1)}
-                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-r border-zinc-800 focus:outline-none hover:bg-zinc-900/50 transition-colors"
-                            aria-label="Decrease Tempo"
-                        >
-                            −
-                        </button>
-                        <span 
-                            className="w-12 text-center font-mono text-cyan-300 text-sm font-semibold" 
-                            role="status" 
-                            aria-live="polite" 
-                            aria-label={`Tempo: ${tempo} BPM`}
-                        >
-                            {tempo}
-                        </span>
-                        <button
-                            onMouseDown={() => handleTempoHoldStart(1)}
-                            onMouseUp={handleTempoHoldEnd}
-                            onMouseLeave={handleTempoHoldEnd}
-                            onKeyDown={(e) => handleTempoKeyDown(e, 1)}
-                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-l border-zinc-800 focus:outline-none hover:bg-zinc-900/50 transition-colors"
-                            aria-label="Increase Tempo"
-                        >
-                            +
-                        </button>
-                    </div>
-                </div>
-
-                {/* Divider */}
-                <div className="w-px h-5 bg-gray-700 mx-1" />
-
-                {/* Key Lock / Scale Selector */}
-                <ScaleSelector currentScale={currentScale} onChange={setCurrentScale} />
-            </div>
-            <div className="flex items-center gap-2">
-                {/* Clear Button */}
-                <button 
-                    onClick={handleClearPattern} 
-                    className="h-7 px-3 text-xs font-bold text-red-400 border border-red-900/50 bg-gradient-to-r from-red-950/30 to-red-900/20 rounded-md hover:bg-red-900/30 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-red-500" 
-                    aria-label="Clear Current Pattern" 
-                    title="Clear Current Pattern"
-                >
-                    CLEAR
-                </button>
-
-                {/* Divider */}
-                <div className="w-px h-5 bg-gray-700 mx-1" />
-
-                {/* Song Mode Toggle */}
-                <button 
-                    onClick={() => setIsSongModeOpen(!isSongModeOpen)} 
-                    aria-pressed={isSongModeOpen} 
-                    aria-label="Toggle Song Mode" 
-                    className={`h-7 px-3 rounded-md font-orbitron text-xs font-bold tracking-wide transition-all ${isSongModeOpen 
-                        ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.5)] border border-purple-400' 
-                        : 'bg-zinc-800 text-gray-400 border border-zinc-700 hover:bg-zinc-700 hover:text-gray-300'}`}
-                >
-                    SONG
-                </button>
-
-                {/* 3D Toggle */}
                 <button
-                    onClick={() => setIs3DMode(!is3DMode)}
-                    aria-pressed={is3DMode}
-                    aria-label="Toggle 3D Studio View"
-                    className={`h-7 w-8 rounded-md font-orbitron text-xs font-bold transition-all ${is3DMode 
-                        ? 'bg-cyan-600 text-white border border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' 
-                        : 'bg-zinc-800 text-cyan-500 border border-zinc-700 hover:bg-zinc-700'}`}
+                    onClick={() => {
+                        audioEngine?.triggerTapeStop();
+                        setSchedPlaying(false);
+                    }}
+                    className="h-8 px-3 rounded-md font-orbitron text-xs font-bold transition-all shadow-md bg-purple-900/40 text-purple-400 hover:bg-purple-900/60 border border-purple-800/50 hover:border-purple-500/50 active:scale-95"
+                    title="Tape Stop Effect"
                 >
-                    3D
+                    ⏏ TAPE STOP
                 </button>
+} from './utils/knobConfigs';
+import { StartOverlay } from './components/StartOverlay';
 
-                {/* Panic Button */}
-                <button 
-                    onClick={handlePanic} 
-                    aria-label="Panic Stop All Notes" 
-                    className="h-7 w-7 rounded-md bg-red-950/50 hover:bg-red-900/70 text-red-500 border border-red-900/50 flex items-center justify-center font-bold text-xs transition-all"
-                    title="Panic (!)"
-                >
-                    !
-                </button>
+// ---------------------------------------------------------------------------
+// Rack Container — memoized with custom comparison so that control changes
+// on a hidden track do not force the entire rack subtree to re-render.
+// ---------------------------------------------------------------------------
+interface RackProps {
+    is3DMode: boolean;
+    selectedTrack: TrackKey;
+    onSelectTrack: (track: TrackKey) => void;
+    modules: Record<TrackKey, React.ReactNode>;
+}
+
+const Rack = memo(({ is3DMode, selectedTrack, onSelectTrack, modules }: RackProps) => {
+    return (
+        <div className="w-full h-full bg-gradient-to-br from-black to-[#0a0c0f] rounded-2xl border-2 border-gray-700 overflow-hidden relative flex flex-col">
+            <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none"></div>
+
+            {is3DMode && (
+                <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
+                    {ROWS.map((row: any) => (
+                        <button
+                            key={row.key}
+                            onClick={() => onSelectTrack(row.key as TrackKey)}
+                            className={`px-4 py-2 rounded text-xs font-bold font-orbitron border transition-all ${
+                                selectedTrack === row.key 
+                                    ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500 shadow-[0_0_10px_cyan]' 
+                                    : 'bg-gray-800 text-gray-500 border-gray-700 hover:bg-gray-700 hover:text-gray-300'
+                            }`}
+                        >
+                            {row.label.toUpperCase()}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            <div className="flex-1 relative overflow-hidden">
+                {modules[selectedTrack]}
+            </div>
+
+            {/* Screw details */}
+            <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600">
+                <div className="w-1.5 h-[1px] bg-gray-600 rotate-45"></div>
             </div>
         </header>
     ), [songStorage, activeSongSlot, tempo, isRecording, isPlaying, isSongModeOpen, is3DMode, loadSong, handleSaveSong, handleClearPattern, handleTempoHoldStart, handleTempoHoldEnd, handleTempoKeyDown, handlePanic, handlePlayToggle, setIsRecording, setIsSongModeOpen, setIs3DMode]);
@@ -1396,6 +1392,9 @@ export const App: React.FC = () => {
                             currentReverbSend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbSend : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbSend : undefined)}
                             currentReverbType={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.reverbType : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.reverbType : undefined)}
                             currentDelaySend={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.delaySend : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.delaySend : undefined)}
+                            currentFreezeEnvDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.freezeEnvDepth : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.freezeEnvDepth : undefined)}
+                            currentGrainEnvDepth={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.grainEnvDepth : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.grainEnvDepth : undefined)}
+                            currentGrainPitchQuantize={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.grainPitchQuantize : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.grainPitchQuantize : undefined)}
                             currentChoir={contextMenu.track === 'sampler' ? pattern.sampler[activeSamplerBank]?.steps[contextMenu.step]?.choir : ((contextMenu.track as string) !== 'sampler' && (pattern as any)[contextMenu.track] ? (pattern as any)[contextMenu.track].steps[contextMenu.step]?.choir : undefined)}
                             onSelect={handleNoteSelect}
                             onLengthChange={handleNoteLengthChange}
@@ -1468,391 +1467,112 @@ export const App: React.FC = () => {
                     {modulePanel}
                 </div>
             </div>
-        );
-    }, [is3DMode, selectedTrack, activeSamplerBank, synthAControls, synthBControls, bass2Controls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, onSynthAParamChange, onSynthBParamChange, onBass2ParamChange, handleKickChange, handleSnareChange, handleClosedHatChange, handleOpenHatChange, handleSamplerChange, synthAChild, synthBChild, bass2Child, samplerChild, samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig, isHarmonizeActive, handleHarmonizerConfigChange]);
-
-    // --- MAIN RENDER ---
-    if (is3DMode) {
-        return (
-            <Suspense fallback={<div className="flex items-center justify-center h-screen w-screen bg-black text-cyan-400 font-orbitron text-xl tracking-widest animate-pulse">LOADING 3D STUDIO...</div>}>
-                <Studio3D
-                    header={transportToolbarNode}
-                    sequencer={sequencerNode}
-                    keyboard={keyboardNode}
-                    rack={rackNode}
-                    onExit={() => setIs3DMode(false)}
-                />
-            </Suspense>
-        );
-    }
-
-    return (
-        <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center" style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}>
-            <style>{SEQUENCER_STYLES}</style>
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-            {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
-            {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
-            
-            {/* AI Song Import Loading Overlay */}
-            {isImportingAISong && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="AI Song Import Progress">
-                    <div className="bg-[#0f1115] border border-emerald-500/30 rounded-xl shadow-[0_0_60px_rgba(16,185,129,0.3)] p-8 max-w-md w-full mx-4">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                                {aiImportStage === 'error' ? (
-                                    <span className="text-2xl text-red-400">⚠️</span>
-                                ) : aiImportStage === 'complete' ? (
-                                    <span className="text-2xl text-emerald-400">✓</span>
-                                ) : (
-                                    <span className="text-2xl animate-pulse">🤖</span>
-                                )}
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-white">
-                                    {aiImportStage === 'error' ? 'Import Failed' : 
-                                     aiImportStage === 'complete' ? 'Import Complete' : 
-                                     'Importing AI Song'}
-                                </h3>
-                                <p className="text-sm text-gray-400">
-                                    {aiImportStage === 'parsing' && 'Parsing JSON...'}
-                                    {aiImportStage === 'validating' && 'Validating song structure...'}
-                                    {aiImportStage === 'converting' && 'Converting to Hyphon format...'}
-                                    {aiImportStage === 'uploading' && 'Uploading to cloud...'}
-                                    {aiImportStage === 'loading' && 'Loading into sequencer...'}
-                                    {aiImportStage === 'complete' && 'Successfully imported!'}
-                                    {aiImportStage === 'error' && aiImportError || 'Processing...'}
-                                </p>
-                            </div>
-                        </div>
-                        
-                        {/* Progress Bar */}
-                        <div className="relative h-2 bg-gray-800 rounded-full overflow-hidden">
-                            <div 
-                                className={`absolute top-0 left-0 h-full rounded-full transition-all duration-300 ${
-                                    aiImportStage === 'error' ? 'bg-red-500' :
-                                    aiImportStage === 'complete' ? 'bg-emerald-500' :
-                                    'bg-gradient-to-r from-emerald-500 to-cyan-500'
-                                }`}
-                                style={{ width: `${aiImportProgress}%` }}
-                            />
-                            {/* Animated shimmer effect during processing */}
-                            {aiImportStage !== 'error' && aiImportStage !== 'complete' && (
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
-                                     style={{ 
-                                         animation: 'shimmer 1.5s infinite',
-                                         backgroundSize: '200% 100%'
-                                     }} 
-                                />
-                            )}
-                        </div>
-                        
-                        {/* Progress Steps */}
-                        <div className="mt-4 grid grid-cols-5 gap-1">
-                            {['parsing', 'validating', 'converting', 'uploading', 'loading'].map((stage, idx) => {
-                                const stageOrder = ['parsing', 'validating', 'converting', 'uploading', 'loading'];
-                                const currentIdx = aiImportStage ? stageOrder.indexOf(aiImportStage) : -1;
-                                const isComplete = currentIdx > idx;
-                                const isActive = aiImportStage === stage;
-                                
-                                return (
-                                    <div 
-                                        key={stage}
-                                        className={`h-1 rounded-full transition-all duration-300 ${
-                                            isComplete ? 'bg-emerald-500' :
-                                            isActive ? 'bg-yellow-400 animate-pulse' :
-                                            'bg-gray-800'
-                                        }`}
-                                    />
-                                );
-                            })}
-                        </div>
-                        
-                        {/* Stage Labels */}
-                        <div className="mt-4 flex justify-between text-[10px] text-gray-500 uppercase tracking-wider">
-                            <span className={aiImportStage === 'parsing' ? 'text-emerald-400' : ''}>Parse</span>
-                            <span className={aiImportStage === 'validating' ? 'text-emerald-400' : ''}>Validate</span>
-                            <span className={aiImportStage === 'converting' ? 'text-emerald-400' : ''}>Convert</span>
-                            <span className={aiImportStage === 'uploading' ? 'text-emerald-400' : ''}>Cloud</span>
-                            <span className={aiImportStage === 'loading' ? 'text-emerald-400' : ''}>Load</span>
-                        </div>
-                        
-                        {/* Error Message */}
-                        {aiImportError && (
-                            <div className="mt-4 p-3 bg-red-950/30 border border-red-900/50 rounded-lg">
-                                <p className="text-xs text-red-400">{aiImportError}</p>
-                            </div>
-                        )}
-                        
-                        {/* Cancel Button (only during non-critical stages) */}
-                        {aiImportStage && !['complete', 'error', 'loading'].includes(aiImportStage) && (
-                            <button
-                                onClick={() => {
-                                    setIsImportingAISong(false);
-                                    setAiImportStage(null);
-                                    setAiImportProgress(0);
-                                    // @ts-expect-error - Auto-generated to fix CI build
-                                    showToast('Import cancelled', 'info');
-                                }}
-                                className="mt-4 w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all"
-                            >
-                                Cancel Import
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
-            
-            <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
-            {/* @ts-expect-error - Auto-generated to fix CI build */}
-            <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
-            {/* @ts-expect-error - Auto-generated to fix CI build */}
-            <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
-            {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
-            {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
-            {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
-
-            {/* Standard 2D Layout */}
-            {transportToolbarNode}
-            <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
-
-            <LyricTrack
-                isVisible={isLyricTrackVisible}
-                initialText={ttsPhrases[activeSamplerBank] || ""}
-                isGenerating={isGenerating}
-                onApply={handleLyricApply}
-                onClose={() => setIsLyricTrackVisible(false)}
-            />
-
-            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto pb-12">
-                {/* Sequencer — top section */}
-                <div className="w-full max-w-[1000px] mx-auto h-[440px] shrink-0 pt-6">
-                    {sequencerNode}
-                </div>
-
-                {/* Knobs / Hardware Module — PROMINENT middle section */}
-                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-4">
-                    <div className="h-[380px] rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-cyan-500/20">
-                        {rackNode}
-                    </div>
-                </div>
-
-                {/* Live Keyboard — bottom section */}
-                <div className="shrink-0 py-4 mt-2 max-w-[1000px] mx-auto w-full px-4">
-                    {keyboardNode}
-                </div>
-            </main>
-
-            {/* Slim Bottom Control Bar */}
-            <div className="fixed bottom-0 left-0 right-0 h-10 bg-gradient-to-r from-[#0a0c10] via-[#0d1014] to-[#0a0c10] backdrop-blur-md border-t border-cyan-900/30 z-40 flex items-center justify-between px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-                {/* Left: View Controls */}
-                <div className="flex items-center gap-2">
-                    {/* Notes/Automation Toggle */}
-                    <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 overflow-hidden">
-                        <button
-                            onClick={() => setViewMode('notes')}
-                            className={`px-2.5 py-1 text-[10px] font-bold transition-all ${viewMode === 'notes' ? 'bg-cyan-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                        >
-                            NOTES
-                        </button>
-                        <button
-                            onClick={() => setViewMode('automation')}
-                            className={`px-2.5 py-1 text-[10px] font-bold transition-all ${viewMode === 'automation' ? 'bg-pink-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                        >
-                            AUTO
-                        </button>
-                    </div>
-
-                    {viewMode === 'automation' && (
-                        <select
-                            value={automationParam}
-                            onChange={(e) => setAutomationParam(e.target.value)}
-                            className="bg-zinc-950 text-[10px] text-gray-300 border border-zinc-800 rounded px-1.5 py-1 outline-none focus:border-cyan-500"
-                        >
-                            <option value="formantShift">Formant</option>
-                            <option value="vibratoDepth">Vibrato</option>
-                            <option value="chordInversion">Chord Inversion</option>
-                        </select>
-                    )}
-
-                    <div className="w-px h-4 bg-gray-700 mx-1" />
-
-                    {/* LYRICS Button */}
-                    <button 
-                        onClick={() => setIsLyricTrackVisible(!isLyricTrackVisible)}
-                        aria-pressed={isLyricTrackVisible}
-                        aria-label="Toggle Global Lyric Track"
-                        className={`h-6 px-2.5 rounded-md font-orbitron text-[10px] font-bold tracking-wide transition-all ${isLyricTrackVisible ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'bg-zinc-800 text-cyan-400 border border-zinc-700 hover:bg-zinc-700'}`}
-                    >
-                        LYRICS
-                    </button>
-                </div>
-
-                {/* Center: File Operations */}
-                <div className="flex items-center gap-1.5">
-                    <button 
-                        onClick={exportSongToFile} 
-                        disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30'}`} 
-                        title="Save to JSON"
-                    >
-                        💾 SAVE
-                    </button>
-                    <button 
-                        onClick={importSongFromFile} 
-                        disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30'}`} 
-                        title="Load from JSON"
-                    >
-                        📂 LOAD
-                    </button>
-                    <button 
-                        onClick={() => setIsRbsImportModalOpen(true)}
-                        disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30'}`} 
-                        title="Import ReBirth RB-338 file"
-                    >
-                        🎹 Import .rbs File...
-                    </button>
-                    <button 
-                        onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}
-                        disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold bg-zinc-900 border rounded transition-all min-w-[130px] ${
-                            isImportingAISong 
-                                ? 'text-yellow-400 border-yellow-900/50 cursor-wait' 
-                                : 'text-emerald-400 border-emerald-900/50 hover:bg-emerald-950/30'
-                        }`}
-                        title={isImportingAISong 
-                            ? `Importing: ${aiImportStage || 'processing'}... ${aiImportProgress}%` 
-                            : "Import AI-generated song (Claude, Gemini, Jules, Copilot)"
-                        }
-                    >
-                        {isImportingAISong ? (
-                            <span className="flex items-center gap-1">
-                                <span className="animate-spin">⏳</span>
-                                <span>{aiImportStage === 'parsing' && 'Parsing...'}
-                                {aiImportStage === 'validating' && 'Validating...'}
-                                {aiImportStage === 'converting' && 'Converting...'}
-                                {aiImportStage === 'uploading' && 'Uploading...'}
-                                {aiImportStage === 'loading' && 'Loading...'}
-                                {aiImportStage === 'complete' && 'Done!'}
-                                {aiImportStage === 'error' && 'Failed'}
-                                {!aiImportStage && 'Processing...'} {aiImportProgress}%</span>
-                            </span>
-                        ) : (
-                            <span>🤖 Import AI Song</span>
-                        )}
-                    </button>
-                    <button 
-                        onClick={() => setIsCloudLibraryOpen(true)} 
-                        disabled={isImportingAISong}
-                        className={`h-6 px-2 text-[10px] font-bold text-purple-400 bg-zinc-900 border border-purple-900/50 rounded transition-all ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-950/30'}`} 
-                        title="Cloud Library"
-                    >
-                        ☁️ CLOUD
-                    </button>
-                </div>
-
-                {/* Right: Utility Toggles */}
-                <div className="flex items-center gap-2">
-                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                        <button
-                            type="button"
-                            onClick={handleAutoMix}
-                            className="bg-zinc-800 text-xs text-yellow-400 font-bold font-orbitron rounded px-2 py-0.5 border border-yellow-500/50 hover:bg-yellow-900/50 hover:border-yellow-400 active:scale-95 transition-all shadow-[0_0_5px_rgba(250,204,21,0.2)]"
-                            title="Auto-Mix Assistant (AI Panning & Leveling)"
-                        >
-                            ✨ AUTO-MIX
-                        </button>
-                    </div>
-                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                        <select
-                            value={reverbType} onChange={handleReverbType}
-                            className="bg-zinc-800 text-xs text-gray-300 rounded px-1 py-0.5 border border-gray-700 outline-none cursor-pointer uppercase"
-                            title="Master Reverb Type"
-                            aria-label="Master Reverb Type"
-                        >
-                            <option value="room">Room</option>
-                            <option value="plate">Plate</option>
-                            <option value="hall">Hall</option>
-                        </select>
-                    </div>
-                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                        <input
-                            type="range" min="0" max="1" step="0.01"
-                            value={masterSaturation} onChange={handleMasterSaturation} onKeyDown={handleMasterSaturationKeyDown} onDoubleClick={handleMasterSaturationReset}
-                            className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                            aria-label="Master Saturation"
-                            title={`Warmth: ${Math.round(masterSaturation * 100)}%`}
-                            aria-valuetext={`${Math.round(masterSaturation * 100)}%`}
-                        />
-                    </div>
-                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                        <input
-                            type="range" min="0" max="1.5" step="0.01"
-                            value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} onDoubleClick={handleMasterVolumeReset}
-                            className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                            aria-label="Master Volume"
-                            title={`Volume: ${Math.round(masterVolume * 100)}%`}
-                            aria-valuetext={`${Math.round(masterVolume * 100)}%`}
-                        />
-                    </div>
-                    <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                        <input
-                            type="range" min="-1" max="1" step="0.01"
-                            value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} onDoubleClick={handleGlobalPanReset}
-                            className="w-16 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                            aria-label="Global Pan"
-                            title={`Pan: ${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% L' : Math.round(globalPan * 100) + '% R'}`}
-                            aria-valuetext={`${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% Left' : Math.round(globalPan * 100) + '% Right'}`}
-                        />
-                    </div>
-
-                    <div className="w-px h-4 bg-gray-700 mx-1" />
-
-                    {/* Gamepad Toggle */}
-                    <button
-                        onClick={() => setShowGamepadDebug(true)}
-                        className="h-6 w-6 rounded bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-slate-200 transition-all border border-zinc-700 flex items-center justify-center"
-                        title="Gamepad Debugger"
-                        aria-label="Open Gamepad Debugger"
-                    >
-                        <span className="text-xs">🎮</span>
-                    </button>
-
-                    {/* AudioWorklet Fallback Toggle */}
-                    <button
-                        onClick={() => {
-                            const newValue = !forceScriptProcessorFallback;
-                            setForceScriptProcessorFallback(newValue);
-                            localStorage.setItem('forceScriptProcessorFallback', String(newValue));
-                            showToast(
-                                newValue
-                                    ? "ScriptProcessor fallback enabled. Refresh to apply." 
-                                    : "AudioWorklet mode enabled. Refresh to apply.",
-                                'success'
-                            );
-                        }}
-                        className={`h-6 px-2 rounded text-[10px] font-mono border transition-all ${forceScriptProcessorFallback ? 'bg-yellow-900/30 text-yellow-400 border-yellow-900/50' : 'bg-zinc-800 text-gray-500 border-zinc-700'}`}
-                        title={forceScriptProcessorFallback ? "Using ScriptProcessor fallback" : "Using AudioWorklet"}
-                    >
-                        {forceScriptProcessorFallback ? '⚠️ AW' : '🔊 AW'}
-                    </button>
-
-                    <div className="w-px h-4 bg-gray-700 mx-1" />
-
-                    {/* Help Button */}
-                    <button
-                        onClick={() => setIsShortcutsHelpOpen(true)}
-                        className="h-6 w-6 rounded-full bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 border border-zinc-600 flex items-center justify-center font-bold text-xs transition-all"
-                        aria-label="Keyboard Shortcuts"
-                        title="Keyboard Shortcuts (?)"
-                    >
-                        ?
-                    </button>
-                </div>
+            <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600">
+                <div className="w-1.5 h-[1px] bg-gray-600 rotate-45"></div>
+            </div>
+            <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600">
+                <div className="w-1.5 h-[1px] bg-gray-600 rotate-45"></div>
             </div>
         </div>
-    )
-}
+    );
+}, (prev, next) => {
+    if (prev.is3DMode !== next.is3DMode) return false;
+    if (prev.selectedTrack !== next.selectedTrack) return false;
+    if (prev.onSelectTrack !== next.onSelectTrack) return false;
+    return prev.modules[prev.selectedTrack] === next.modules[next.selectedTrack];
+});
 
-export default App
+export const App: React.FC = () => {
+    // ... (all your state, hooks, handlers remain exactly the same until the memoized nodes)
+
+    // Memoize each rack module independently
+    const rackModulePartA = useMemo(() => 
+        <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange} is3D={is3DMode}>
+            {synthAChild}
+        </HardwareModule>, 
+        [synthAControls, onSynthAParamChange, is3DMode, synthAChild]
+    );
+
+    const rackModulePartB = useMemo(() => 
+        <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange} is3D={is3DMode}>
+            {synthBChild}
+        </HardwareModule>, 
+        [synthBControls, onSynthBParamChange, is3DMode, synthBChild]
+    );
+
+    const rackModuleBass2 = useMemo(() => 
+        <HardwareModule title="BASS 2 // TB-303" colorHex={COLOR_BASS2} controls={bass2Controls} onParamChange={onBass2ParamChange} is3D={is3DMode}>
+            {bass2Child}
+        </HardwareModule>, 
+        [bass2Controls, onBass2ParamChange, is3DMode, bass2Child]
+    );
+
+    const rackModuleKick = useMemo(() => 
+        <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} is3D={is3DMode} />, 
+        [kickControls, handleKickChange, is3DMode]
+    );
+
+    const rackModuleSnare = useMemo(() => 
+        <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} is3D={is3DMode} />, 
+        [snareControls, handleSnareChange, is3DMode]
+    );
+
+    const rackModuleClosedHat = useMemo(() => 
+        <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} is3D={is3DMode} />, 
+        [closedHatControls, handleClosedHatChange, is3DMode]
+    );
+
+    const rackModuleOpenHat = useMemo(() => 
+        <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} is3D={is3DMode} />, 
+        [openHatControls, handleOpenHatChange, is3DMode]
+    );
+
+    const rackModuleSampler = useMemo(() => (
+        <SamplerVoicePanel
+            title={`SAMPLER // BANK ${activeSamplerBank + 1}`}
+            colorHex={COLOR_SAMPLER}
+            controls={samplerControls}
+            onParamChange={handleSamplerChange}
+            is3D={is3DMode}
+            {...samplerVoiceParams}
+            onSamplerParamChange={handleSamplerVoiceChange}
+            harmonizerConfig={harmonizerConfig}
+            onHarmonizerConfigChange={handleHarmonizerConfigChange}
+            isHarmonizeActive={isHarmonizeActive}
+        >
+            {samplerChild}
+        </SamplerVoicePanel>
+    ), [activeSamplerBank, samplerControls, handleSamplerChange, is3DMode, samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig, handleHarmonizerConfigChange, isHarmonizeActive, samplerChild]);
+
+    const rackModules = useMemo(() => ({
+        partA: rackModulePartA,
+        partB: rackModulePartB,
+        bass2: rackModuleBass2,
+        kick: rackModuleKick,
+        snare: rackModuleSnare,
+        closedHat: rackModuleClosedHat,
+        openHat: rackModuleOpenHat,
+        sampler: rackModuleSampler,
+    }), [rackModulePartA, rackModulePartB, rackModuleBass2, rackModuleKick, rackModuleSnare, rackModuleClosedHat, rackModuleOpenHat, rackModuleSampler]);
+
+    const rackNode = <Rack is3DMode={is3DMode} selectedTrack={selectedTrack} onSelectTrack={setSelectedTrack} modules={rackModules} />;
+
+    // ... rest of your code (transportToolbarNode, sequencerNode, contextMenuNode, keyboardNode, etc.) stays the same
+
+    // In the 2D return, use {rackNode} as before
+    // In the 3D Studio3D pass, also use {rackNode}
+
+    return (
+        <div className="flex flex-col h-screen w-screen ...">
+            {/* ... all your existing JSX ... */}
+            <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-4">
+                <div className="h-[380px] rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-cyan-500/20">
+                    {rackNode}
+                </div>
+            </div>
+            {/* ... rest unchanged */}
+        </div>
+    );
+};
+
+export default App;

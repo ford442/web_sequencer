@@ -286,13 +286,13 @@ export const SongMode = memo(({
                 <div className="h-14 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 flex items-center justify-between px-6 shrink-0 relative">
                      <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest">SONG ARRANGER</h2>
                      <div className="flex gap-3 items-center">
-                        <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg border border-gray-600">- BAR</button>
-                        <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50">+ BAR</button>
+                        <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg border border-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
+                        <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">+ BAR</button>
                         <button
                             onClick={() => onSetIsSongModeActive(!isSongModeActive)}
                             aria-pressed={isSongModeActive}
                             aria-label={isSongModeActive ? 'Loop Song Mode Active' : 'Loop Pattern Mode Active'}
-                            className={`px-3 py-1.5 text-xs rounded-lg border font-bold ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
+                            className={`px-3 py-1.5 text-xs rounded-lg border font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
                         >
                             {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
                         </button>
@@ -382,20 +382,20 @@ export const SongMode = memo(({
                         {backgroundImage && (
                             <button
                                 onClick={() => onSetBackgroundImage('')}
-                                className="text-gray-500 hover:text-white px-1 text-xs"
+                                className="text-gray-500 hover:text-white px-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
                                 aria-label="Clear Background Image"
                             >
                                 ✕
                             </button>
                         )}
                     </div>
-                    <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all">- BAR</button>
-                    <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all">+ BAR</button>
+                    <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
+                    <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">+ BAR</button>
                     <button
                         onClick={() => onSetIsSongModeActive(!isSongModeActive)}
                         aria-pressed={isSongModeActive}
                         aria-label={isSongModeActive ? 'Loop Song Mode Active' : 'Loop Pattern Mode Active'}
-                        className={`px-3 py-1.5 text-xs rounded-lg border font-bold transition-all ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
+                        className={`px-3 py-1.5 text-xs rounded-lg border font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
                     >
                         {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
                     </button>
@@ -411,7 +411,7 @@ export const SongMode = memo(({
                         }}
                         disabled={isExporting}
                         aria-label="Export as XM file"
-                        className={`ml-2 px-4 py-1.5 flex items-center justify-center min-w-[100px] bg-gradient-to-r text-cyan-400 text-xs font-bold border border-cyan-700/50 rounded-lg shadow-lg transition-all ${
+                        className={`ml-2 px-4 py-1.5 flex items-center justify-center min-w-[100px] bg-gradient-to-r text-cyan-400 text-xs font-bold border border-cyan-700/50 rounded-lg shadow-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
                             isExporting
                             ? 'from-cyan-900/20 to-cyan-800/20 opacity-70 cursor-wait'
                             : 'from-cyan-900/40 to-cyan-800/40 hover:from-cyan-800/60 hover:to-cyan-700/60'
@@ -428,7 +428,7 @@ export const SongMode = memo(({
                             </span>
                         ) : 'EXPORT XM'}
                     </button>
-                    <button onClick={onToggle} aria-label="Close Song Mode" title="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors">✕</button>
+                    <button onClick={onToggle} aria-label="Close Song Mode" title="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">✕</button>
                 </div>
             </div>
 

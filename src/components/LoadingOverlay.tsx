@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLoadingProgress, type LoadingStep } from '../stores/loadingProgressStore';
 
 interface LoadingOverlayProps {
@@ -27,7 +27,8 @@ const STATUS_COLORS = {
   error: 'bg-red-500',
 };
 
-export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onComplete }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVisible, onComplete }) => {
   const { isLoading, totalProgress, currentStep, steps, errors } = useLoadingProgress();
   const [showDetails, setShowDetails] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -53,7 +54,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onCom
 
   const currentStepInfo = currentStep ? steps[currentStep] : null;
   const hasErrors = errors.length > 0;
-  const stepList = Object.values(steps).filter((s) => s.id !== 'complete');
+  const stepList = useMemo(() => Object.values(steps).filter((s) => s.id !== 'complete'), [steps]);
 
   return (
     <div
@@ -201,4 +202,4 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, onCom
       </div>
     </div>
   );
-};
+});

@@ -108,7 +108,8 @@ const Panel = ({ children, position, rotation, scale = 1 }: any) => {
   );
 };
 
-export const Studio3D: React.FC<Studio3DProps> = ({ header, sequencer, keyboard, rack, onExit }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const Studio3D: React.FC<Studio3DProps> = React.memo(({ header, sequencer, keyboard, rack, onExit }) => {
   return (
     <div className="w-full h-screen bg-black">
       <Canvas camera={{ position: [0, 5, 18], fov: 50 }}>
@@ -176,4 +177,4 @@ export const Studio3D: React.FC<Studio3DProps> = ({ header, sequencer, keyboard,
       </div>
     </div>
   );
-};
+});
