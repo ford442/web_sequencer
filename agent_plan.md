@@ -105,6 +105,9 @@
 
 ---
 
+* **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
+---
+
 ## 📜 Changelog
 * [2026-07-01] - Implemented Granular Pitch Quantization and Tape Stop Effect: Added `grainPitchQuantize` parameter to `rubberband-processor.ts` to snap smeared grains to specific pitch intervals (perfect fifths, octaves, etc.), controlled via `NoteSelector` and `SamplerPanel`. Implemented `triggerTapeStop` in `useAudioEngine.ts` and wired it to the UI and 'Escape' key in `App.tsx` for a global performance effect that fades out master gain.
 * [2026-06-30] - Implemented Granular Envelope Follower per-step: Added `freezeEnvDepth` and `grainEnvDepth` to `Note` interface and `NoteSelector` UI, routing them through `useAudioEngine.ts` to allow step-sequenced envelope modulation of the granular parameters. Fulfills the "Granular Envelope Follower" idea.
