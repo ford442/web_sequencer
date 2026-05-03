@@ -110,7 +110,7 @@ export interface SamplerBankParams {
   pitchAttack?: number;        // Pitch envelope attack (0-2000ms)
   pitchDecay?: number;         // Pitch envelope decay (0-2000ms)
   rbQuality?: 'Fast' | 'Standard' | 'Elastic';  // RubberBand quality mode
-  stretchMode?: 'Time' | 'Pitch' | 'Formant';   // Stretch processing mode
+  stretchMode?: 'Time' | 'Pitch' | 'Formant' | 'precise' | 'elastic' | 'hybrid';   // Stretch processing mode
   autoFollow?: boolean;        // Lock pitch to sequencer notes
   
   // SamplerVoicePanel unified params (mapped from panel controls)
@@ -232,12 +232,12 @@ export interface AudioEngine {
     webGpuEngine?: WebGpuOscillator | null;
     wasmEngine?: WasmOscillator | null;
     open303Engine?: Open303Oscillator | Open303Manager | null;
-    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number, filterCutoff?: number, filterResonance?: number, envMod?: number, reverbSend?: number, reverbType?: ReverbType }) => void;
+    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number, filterCutoff?: number, filterResonance?: number, envMod?: number, reverbSend?: number, reverbType?: ReverbType }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number, reverbSend?: number, reverbType?: ReverbType }, stepTime?: number) => void;
     playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: ReverbType }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
-    noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
+    noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB' | 'bass2') => Promise<number | null> | number | null;
     noteOffSynth?: (id: number) => void;
     stopAllNotes?: () => void;
     loadSampleToEngine: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void> | void;

@@ -60,8 +60,8 @@ export function useAppState() {
 
     const [is3DMode, setIs3DMode] = useState(false);
 
-    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
-    const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
+    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
         setToast({ message, type });
     }, []);
 
