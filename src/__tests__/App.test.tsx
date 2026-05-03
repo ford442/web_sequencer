@@ -39,4 +39,9 @@ describe('App', () => {
     // Check visible text
     expect(screen.getAllByText('SONG')[0]).toBeInTheDocument();
   });
+
+  it('renders tape stop button', () => {
+    render(<App />);
+    expect(screen.getByTitle('Tape Stop Effect')).toBeInTheDocument();
+  });
 });

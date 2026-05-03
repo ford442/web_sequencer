@@ -66,7 +66,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
       { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 24.0 }
     ];
   }
 
@@ -262,7 +263,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     // Combine note pitch with parameter modulation
     const currentBasePitch = this.isPlaying ? this.basePitch : 1.0;
-    this.rubberBand.setPitchScale(currentBasePitch * pitch);
+    let finalPitchScale = currentBasePitch * pitch;
 
     try {
       // STREAMING INPUT LOGIC
@@ -282,6 +283,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const freezeLfoDepth = parameters.freezeLfoDepth ? parameters.freezeLfoDepth[0] : 0.0;
         const freezeEnvDepth = parameters.freezeEnvDepth ? parameters.freezeEnvDepth[0] : 0.0;
         const grainEnvDepth = parameters.grainEnvDepth ? parameters.grainEnvDepth[0] : 0.0;
+        const grainPitchQuantize = parameters.grainPitchQuantize ? parameters.grainPitchQuantize[0] : 0.0;
 
         // Advance LFO phase (we can do this per block/process call rather than per sample since block is 128 samples (~2.9ms at 44.1kHz),
         // which is fast enough for low-frequency LFOs up to 20Hz. We'll add the increment based on the block size).
@@ -304,6 +306,15 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         freezeAmt = Math.max(0.0, Math.min(1.0, freezeAmt));
 
         const isFrozen = freezeAmt > 0.5;
+
+        if (isFrozen && grainPitchQuantize > 0) {
+            const numSteps = 5;
+            const lfoNorm = (lfoValue + 1) / 2;
+            const stepIdx = Math.min(Math.floor(lfoNorm * numSteps), numSteps - 1) - Math.floor(numSteps / 2);
+            const semitoneShift = stepIdx * Math.round(grainPitchQuantize);
+            finalPitchScale *= Math.pow(2, semitoneShift / 12);
+        }
+        this.rubberBand.setPitchScale(finalPitchScale);
 
         if (isFrozen) {
           // FREEZE STREAMING (Spectral Granulator)
@@ -345,6 +356,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             }
           }
         } else {
+          this.rubberBand.setPitchScale(finalPitchScale); // ensure it's set normally
           this.freezePhase = 0; // Reset phase when unfreezing
 
           if (this.isReverse) {
