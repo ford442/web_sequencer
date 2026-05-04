@@ -46,7 +46,7 @@ interface RbsImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (song: HyphonSong) => void;
-  onShowToast: (message: string, type: 'success' | 'error' | 'info') => void;
+  onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 // ============================================================================

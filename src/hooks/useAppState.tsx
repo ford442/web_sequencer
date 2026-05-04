@@ -228,7 +228,7 @@ export function useAppState() {
         pitchAttack: 0,
         pitchDecay: 0.5,
         quality: 'good' as 'preview' | 'good' | 'better' | 'best',
-        stretchMode: 'elastic' as 'precise' | 'elastic' | 'hybrid',
+        stretchMode: 'elastic' as 'Time' | 'Pitch' | 'Formant' | 'precise' | 'elastic' | 'hybrid',
         lockToSequencer: false
     });
     const [samplerVoiceParams, setSamplerVoiceParams] = useState(samplerVoiceParamsRef.current);
