@@ -51,7 +51,7 @@ describe('SamplerPanel Memoization', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
         // Initial render: 16 knobs (4 basic + 9 engine + 5 pitch controls + 3 adsr) = 21 -> Now 23 (Added Decay and Sustain) -> Now 25 (Added Tremolo Depth and Rate) -> Now 27 (Added Formant LFO) -> Now 34 (Added Grain Quant and others)
-        expect(Knob).toHaveBeenCalledTimes(34);
+        expect(Knob).toHaveBeenCalledTimes(35);
         vi.clearAllMocks();
 
         // Update params for ACTIVE bank (0)
@@ -61,15 +61,15 @@ describe('SamplerPanel Memoization', () => {
 
         rerender(<SamplerPanel {...defaultProps} params={newParams} />);
 
-        // Should re-render (34 knobs now)
-        expect(Knob).toHaveBeenCalledTimes(34);
+        // Should re-render (35 knobs now)
+        expect(Knob).toHaveBeenCalledTimes(35);
     });
 
     it('does NOT re-render children when inactive bank params change', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
-        // Initial render: 16 knobs + Grain Quant = 34
-        expect(Knob).toHaveBeenCalledTimes(34);
+        // Initial render: 16 knobs + Grain Quant = 35
+        expect(Knob).toHaveBeenCalledTimes(35);
         vi.clearAllMocks();
 
         // Update params for INACTIVE bank (1)
@@ -89,7 +89,7 @@ describe('SamplerPanel Memoization', () => {
 
         rerender(<SamplerPanel {...defaultProps} activeBankIdx={1} />);
 
-        // Should re-render (34 knobs now)
-        expect(Knob).toHaveBeenCalledTimes(34);
+        // Should re-render (35 knobs now)
+        expect(Knob).toHaveBeenCalledTimes(35);
     });
 });
