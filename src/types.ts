@@ -85,6 +85,8 @@ export interface SamplerBankParams {
   freezeEnvDepth?: number; // Envelope follower depth for freeze modulation (0-1)
   grainEnvDepth?: number;  // Envelope follower depth for grain size modulation (0-1)
   grainPitchQuantize?: number; // Granular pitch quantization interval in semitones (0-12)
+  freezeLfoSync?: boolean; // Whether Freeze LFO syncs to tempo
+  formantLfoSync?: boolean; // Whether Formant LFO syncs to tempo
   formantLfoRate?: number; // Formant LFO rate (Hz)
   formantLfoDepth?: number; // Formant LFO depth (0-1)
   formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)
@@ -237,7 +239,7 @@ export interface AudioEngine {
     playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: ReverbType }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
-    noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB') => Promise<number | null> | number | null;
+    noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB' | 'bass2') => Promise<number | null> | number | null;
     noteOffSynth?: (id: number) => void;
     stopAllNotes?: () => void;
     loadSampleToEngine: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void> | void;

@@ -35,7 +35,7 @@ interface BottomBarProps {
     audioEngine: any
     forceScriptProcessorFallback: boolean
     setForceScriptProcessorFallback: React.Dispatch<React.SetStateAction<boolean>>
-    showToast: (message: string, type?: 'success' | 'error') => void
+    showToast: (message: string, type?: 'success' | 'error' | 'info') => void
     setShowGamepadDebug: React.Dispatch<React.SetStateAction<boolean>>
     setIsShortcutsHelpOpen: React.Dispatch<React.SetStateAction<boolean>>
 }

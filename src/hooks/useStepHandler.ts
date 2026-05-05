@@ -51,7 +51,7 @@ export interface UseStepHandlerOptions {
         pitchAttack: number;
         pitchDecay: number;
         quality: 'preview' | 'good' | 'better' | 'best';
-        stretchMode: 'precise' | 'elastic' | 'hybrid';
+        stretchMode: 'Time' | 'Pitch' | 'Formant';
         lockToSequencer: boolean;
     }>;
     activeSamplerBankRef: React.MutableRefObject<number>;
@@ -258,7 +258,6 @@ export const useStepHandler = ({
                     }
                 }
 
-                // @ts-expect-error - Auto-generated to fix CI build
                 audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, noteParams);
             }
         });

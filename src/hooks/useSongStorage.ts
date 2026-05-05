@@ -62,7 +62,7 @@ export interface SongStorageDeps {
     audioEngine: any;
 
     // Toast helper
-    showToast: (message: string, type: 'success' | 'error') => void;
+    showToast: (message: string, type: 'success' | 'error' | 'info') => void;
 
     // Modal setters referenced by import functions
     setIsAISongModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -371,7 +371,6 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             } catch (cloudError) {
                 // Cloud upload failed but we'll continue with local import
                 console.warn('Cloud upload failed:', cloudError);
-                // @ts-expect-error - Auto-generated to fix CI build
                 showToast('Song imported locally (cloud upload failed)', 'info');
                 setAiImportProgress(80);
             }
