@@ -60,8 +60,8 @@ export function useAppState() {
 
     const [is3DMode, setIs3DMode] = useState(false);
 
-    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
-    const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
+    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
         setToast({ message, type });
     }, []);
 
@@ -228,7 +228,7 @@ export function useAppState() {
         pitchAttack: 0,
         pitchDecay: 0.5,
         quality: 'good' as 'preview' | 'good' | 'better' | 'best',
-        stretchMode: 'elastic' as 'precise' | 'elastic' | 'hybrid',
+        stretchMode: 'Time' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
     });
     const [samplerVoiceParams, setSamplerVoiceParams] = useState(samplerVoiceParamsRef.current);

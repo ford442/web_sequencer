@@ -19,7 +19,7 @@ interface SamplerVoicePanelProps {
     pitchAttack?: number; // 0-1
     pitchDecay?: number; // 0-1
     quality?: 'preview' | 'good' | 'better' | 'best';
-    stretchMode?: 'precise' | 'elastic' | 'hybrid';
+    stretchMode?: 'Time' | 'Pitch' | 'Formant';
     lockToSequencer?: boolean;
     onSamplerParamChange?: (param: string, value: number | string | boolean) => void;
     // Harmonizer props
@@ -470,7 +470,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     pitchAttack = 0,
     pitchDecay = 0.5,
     quality = 'good',
-    stretchMode = 'elastic',
+    stretchMode = 'Time',
     lockToSequencer = false,
     onSamplerParamChange,
     harmonizerConfig,
@@ -695,9 +695,9 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                     aria-label="RubberBand Stretch Mode"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
-                                    <option value="precise">Precise</option>
-                                    <option value="elastic">Elastic</option>
-                                    <option value="hybrid">Hybrid</option>
+                                    <option value="Time">Time</option>
+                                    <option value="Pitch">Pitch</option>
+                                    <option value="Formant">Formant</option>
                                 </select>
                                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-cyan-500 text-[8px]">▼</div>
                             </div>
