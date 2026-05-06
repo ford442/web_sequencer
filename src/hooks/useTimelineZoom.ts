@@ -7,6 +7,9 @@ interface UseTimelineZoomOptions {
     setZoom: (updater: number | ((prev: number) => number)) => void;
 }
 
+/** Clamp z to [MIN_ZOOM, MAX_ZOOM] and round to nearest 0.1. */
+const clampZoom = (z: number) => Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z)) * 10) / 10;
+
 /**
  * Attaches pinch-to-zoom (via PointerEvents) and Ctrl+scroll zoom to a
  * timeline container element.  Double-click or double-tap on the container
@@ -21,10 +24,10 @@ export function useTimelineZoom({ containerRef, zoom, setZoom }: UseTimelineZoom
     const zoomRef = useRef(zoom);
     useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
-    // Clamp + round to nearest 0.1
-    const clampZoom = (z: number) => Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z)) * 10) / 10;
-
     // ── Ctrl+Wheel zoom ──────────────────────────────────────────────────────
+    // clampZoom is a module-level constant, so it's safe to omit from deps.
+    // setZoom from useState is guaranteed stable; containerRef.current may change
+    // but only on ref assignment, which triggers a fresh render → new effect run.
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
@@ -38,9 +41,12 @@ export function useTimelineZoom({ containerRef, zoom, setZoom }: UseTimelineZoom
 
         el.addEventListener('wheel', handleWheel, { passive: false });
         return () => el.removeEventListener('wheel', handleWheel);
-    }, [containerRef, setZoom]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [containerRef, setZoom]);
 
     // ── PointerEvent pinch-to-zoom ───────────────────────────────────────────
+    // zoomRef is a stable ref updated each render; setZoom is a stable setter.
+    // The entire gesture state (activePointers, initialPinchDist, initialPinchZoom)
+    // lives inside the effect closure and is reset on re-registration.
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
@@ -94,7 +100,7 @@ export function useTimelineZoom({ containerRef, zoom, setZoom }: UseTimelineZoom
             el.removeEventListener('pointerup', handlePointerUp);
             el.removeEventListener('pointercancel', handlePointerUp);
         };
-    }, [containerRef, setZoom]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [containerRef, setZoom, zoomRef]);
 
     // ── Double-click / double-tap reset ──────────────────────────────────────
     const lastTapRef = useRef<number>(0);
@@ -124,3 +130,4 @@ export function useTimelineZoom({ containerRef, zoom, setZoom }: UseTimelineZoom
 
     return { handleDoubleClick };
 }
+
