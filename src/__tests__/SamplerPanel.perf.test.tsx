@@ -50,7 +50,7 @@ describe('SamplerPanel Memoization', () => {
     it('re-renders children when active bank params change', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
-        // Initial render: 16 knobs (4 basic + 9 engine + 5 pitch controls + 3 adsr) = 21 -> Now 23 (Added Decay and Sustain) -> Now 25 (Added Tremolo Depth and Rate) -> Now 27 (Added Formant LFO) -> Now 34 (Added Grain Quant and others)
+        // Initial render: 16 knobs (4 basic + 9 engine + 5 pitch controls + 3 adsr) = 21 -> Now 23 (Added Decay and Sustain) -> Now 25 (Added Tremolo Depth and Rate) -> Now 27 (Added Formant LFO) -> Now 34 (Added Grain Quant and others) -> Now 35
         expect(Knob).toHaveBeenCalledTimes(35);
         vi.clearAllMocks();
 

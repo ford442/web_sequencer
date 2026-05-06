@@ -107,6 +107,7 @@ export const BottomBar = memo(function BottomBar({
                         onChange={(e) => setAutomationParam(e.target.value)}
                         aria-label="Automation Parameter"
                         className="bg-zinc-950 text-[10px] text-gray-300 border border-zinc-800 rounded px-1.5 py-1 outline-none focus:border-cyan-500 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
+                        aria-label="Automation Parameter"
                     >
                         <option value="formantShift">Formant</option>
                         <option value="vibratoDepth">Vibrato</option>
