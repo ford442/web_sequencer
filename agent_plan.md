@@ -82,7 +82,7 @@
 * [x] **Idea:** "Step-Sequenced Formant LFO" - Allow individual steps to override the global Formant LFO rate and depth for highly articulated rhythmic sequences.
 * [x] **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented in FormantShifter and SamplerPanel using DrawableLFO and PeriodicWave via DFT!)
 * [x] **Idea:** "LFO Rate Sync to Tempo" - Allow LFO rates (like Formant LFO or Freeze LFO) to sync to the sequencer tempo. (Implemented in NoteSelector, SamplerPanel, and useAudioEngine!)
-* **Idea:** "Microtonal Scale Mapping" - Allow specifying custom microtonal scales rather than the standard 12-TET for Synth and Sampler parts.
+* [x] **Idea:** "Microtonal Scale Mapping" - Allow specifying custom microtonal scales rather than the standard 12-TET for Synth and Sampler parts.
 * [x] **Idea:** "Custom Waveform LFO" - Allow users to draw custom LFO shapes for formant and freeze modulation. (Implemented via DrawableLFO and FormantShifter Fourier Transform!)
 * [x] **Idea:** "Glissando/Portamento Curve Drawing" - Allow users to draw custom pitch curves between steps, rather than just a linear glide. (Implemented!)
 * [x] **Idea:** "Phoneme-Aware Velocity" - Automatically adjust the amplitude envelope attack/decay based on the phoneme type (e.g., plosives get faster attack, vowels get smoother attack). (Implemented via dynamic envelope overrides in `SingingVoice.ts`!)
@@ -172,3 +172,4 @@
 
 * [x] **Idea:** "Tape Stop Effect" - Add a global performance effect that smoothly slows down playback rate to zero, simulating a turntable or tape machine stopping. (Implemented in `useAudioEngine.ts` with `triggerTapeStop` using `exponentialRampToValueAtTime` on master gain, wired to Escape key and a dedicated UI button in `App.tsx`!)
 * [x] **Idea:** "Granular Pitch Quantization" - Add a parameter to the granular engine that forces grains to snap to specific pitch intervals (e.g. perfect fifths or octaves) as they smear, creating crystalline robotic effects. (Implemented in `rubberband-processor.ts` with `grainPitchQuantize` parameter, wired through `SingingVoice.ts`, `useAudioEngine.ts`, `SamplerPanel.tsx`, and `NoteSelector.tsx`!)
+* [2026-07-01] - Implemented Microtonal Scale Mapping: Added `TuningSystem` types (12-TET, 24-TET, Just Intonation, Pythagorean, Bohlen-Pierce) to `musicTheory.ts` and `ScaleSelector`. Pushed tuning state through `NoteParams` down to `VoiceManager`, `synthPlayback`, `samplerPlayback` and Web Worker for correct tuning rendering offline.

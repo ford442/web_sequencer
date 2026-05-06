@@ -41,9 +41,13 @@ export const SCALE_INTERVALS: Record<string, number[]> = {
 
 export const SCALE_NAMES = Object.keys(SCALE_INTERVALS);
 
+export type TuningSystem = '12-TET' | '24-TET' | 'Just Intonation' | 'Pythagorean' | 'Bohlen-Pierce';
+export const TUNING_SYSTEMS: TuningSystem[] = ['12-TET', '24-TET', 'Just Intonation', 'Pythagorean', 'Bohlen-Pierce'];
+
 export interface ScaleDefinition {
     root: string;   // e.g., 'C', 'G#'
     scale: string;  // e.g., 'Minor', 'Dorian'
+    tuningSystem?: TuningSystem;
 }
 
 /**
@@ -85,4 +89,43 @@ export const nextScaleNote = (midi: number, direction: 1 | -1, definition: Scale
         next += direction;
     }
     return midi + direction; // fallback
+};
+
+export const getTunedFrequency = (note: string, tuning: TuningSystem = '12-TET', rootNote: string = 'C'): number => {
+    if (!note) return 0;
+    const midi = noteToMidi(note);
+
+    if (tuning === '12-TET') {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    if (tuning === '24-TET') {
+        return 440 * Math.pow(2, (midi - 69) / 24);
+    }
+
+    // Common root calculation for other tuning systems
+    const baseRootNote = rootNote.replace(/\d+$/, '');
+    const rootMidi = noteToMidi(baseRootNote + '4'); // Use octave 4 for root reference
+    const rootFreq = 440 * Math.pow(2, (rootMidi - 69) / 12);
+    const distance = midi - rootMidi;
+
+    if (tuning === 'Bohlen-Pierce') {
+        // Bohlen-Pierce is based on a tritave (ratio 3) divided into 13 steps
+        return rootFreq * Math.pow(3, distance / 13);
+    }
+
+    const octave = Math.floor(distance / 12);
+    const semitone = ((distance % 12) + 12) % 12; // ensure positive
+
+    if (tuning === 'Just Intonation') {
+        const ratios = [1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8];
+        return rootFreq * ratios[semitone] * Math.pow(2, octave);
+    }
+
+    if (tuning === 'Pythagorean') {
+        const ratios = [1/1, 256/243, 9/8, 32/27, 81/64, 4/3, 729/512, 3/2, 128/81, 27/16, 16/9, 243/128];
+        return rootFreq * ratios[semitone] * Math.pow(2, octave);
+    }
+
+    return 440 * Math.pow(2, (midi - 69) / 12); // fallback
 };

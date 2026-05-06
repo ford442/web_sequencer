@@ -1,5 +1,6 @@
 import { type SynthParams } from '../types';
 import { noteToFrequency } from '../constants';
+import { getTunedFrequency, type TuningSystem } from '../utils/musicTheory';
 
 export class Voice {
     context: AudioContext;
@@ -72,7 +73,7 @@ export class Voice {
     }
 
     // New method for starting a note (Attack + Sustain) without scheduling release
-    startNote(params: SynthParams, note: string, time: number, slideFromFreq?: number) {
+    startNote(params: SynthParams, note: string, time: number, slideFromFreq?: number, noteParams?: { timbre?: number, tuningSystem?: string, rootNote?: string }) {
         if (params.pan !== undefined) {
             this.panner.pan.setValueAtTime(params.pan, time);
         }
@@ -83,7 +84,7 @@ export class Voice {
         }
 
         const now = time;
-        const freq = noteToFrequency(note);
+        const freq = getTunedFrequency(note, (noteParams?.tuningSystem || '12-TET') as TuningSystem, noteParams?.rootNote || 'C');
         const waveform = params.waveform;
         const isWav = waveform.startsWith('wav-');
 
@@ -250,7 +251,7 @@ export class VoiceManager {
         return this.voices[0];
     }
 
-    playNote(params: SynthParams, notes: string | string[], time: number, duration: number, slideFromFreq?: number): Voice | null {
+    playNote(params: SynthParams, notes: string | string[], time: number, duration: number, slideFromFreq?: number, noteParams?: { timbre?: number, tuningSystem?: string, rootNote?: string }): Voice | null {
         const noteArray = Array.isArray(notes) ? notes : [notes];
 
         if (this.isMonophonic) {
@@ -292,11 +293,11 @@ export class VoiceManager {
                 voice = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr, this.globalDelayNode);
                 this.voices.push(voice);
             }
-            voice.startNote(params, note, time);
+            voice.startNote(params, note, time, slideFromFreq, noteParams);
             return voice;
         } else {
             const voice = this.getVoice(note);
-            voice.startNote(params, note, time);
+            voice.startNote(params, note, time, slideFromFreq, noteParams);
 
             const vIdx = this.voices.indexOf(voice);
             if (vIdx > -1) {

@@ -335,6 +335,9 @@ export function useAppState() {
     const sequencerRef = useRef<MainSequencerHandle>(null);
     const currentStepRef = useRef(-1);
 
+    const currentScaleRef = useRef(currentScale);
+    useEffect(() => { currentScaleRef.current = currentScale; }, [currentScale]);
+
     const { onStep } = useStepHandler({
         audioEngine,
         tempo,
@@ -356,6 +359,7 @@ export function useAppState() {
         activeSamplerBankRef,
         sliceHighlightRef,
         isSongModeActiveRef,
+        currentScaleRef,
         songStructureRef,
         songMeasureRef,
         isFirstStepRef,
@@ -1239,6 +1243,7 @@ export function useAppState() {
         patternRef,
         songStructureRef,
         isSongModeActiveRef,
+        currentScaleRef,
         trackStorageRef,
         songMeasureRef,
         isFirstStepRef,

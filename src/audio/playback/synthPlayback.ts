@@ -9,6 +9,7 @@
 
 import type { SynthParams } from '../../types';
 import { noteToFrequency } from '../../constants';
+import { getTunedFrequency, type TuningSystem } from '../../utils/musicTheory';
 import { noteToMidi } from '../../utils/musicTheory';
 import type { Open303Oscillator } from '../../engines/Open303Oscillator';
 
@@ -50,7 +51,8 @@ export function playSynth(
     note: string,
     time: number,
     durationSteps: number = 1,
-    stepTime: number = 0.2
+    stepTime: number = 0.2,
+    noteParams?: { filterCutoff?: number, filterResonance?: number, envMod?: number, tuningSystem?: string, rootNote?: string }
 ): void {
     const { context, masterGain, open303Engine, wavSawBuffer, wavSqrBuffer } = ctx;
     
@@ -78,7 +80,7 @@ export function playSynth(
         }
     }
 
-    const freq = noteToFrequency(note);
+    const freq = getTunedFrequency(note, (noteParams?.tuningSystem || '12-TET') as TuningSystem, noteParams?.rootNote || 'C');
     const gain = context.createGain();
     const filter = context.createBiquadFilter();
     filter.type = 'lowpass';

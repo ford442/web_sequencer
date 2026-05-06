@@ -3,6 +3,7 @@ import type { Pattern, SynthParams, Bass2Params, SamplerParams, AudioEngine, Par
 import type { MainSequencerHandle } from '../components/MainSequencer'
 import type { TrackKey } from '../constants/appDefaults'
 import { noteToFrequency } from '../constants'
+import { getTunedFrequency } from '../utils/musicTheory'
 import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults'
 
@@ -80,6 +81,7 @@ export const useStepHandler = ({
     snareRef,
     closedHatRef,
     openHatRef,
+    currentScaleRef,
     samplerRef,
     samplerVoiceParamsRef,
     activeSamplerBankRef,
@@ -136,7 +138,7 @@ export const useStepHandler = ({
                 // Probability Check
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
-                const currentBaseFreq = noteToFrequency(stepData.note) * Math.pow(2, params.pitch / 12);
+                const currentBaseFreq = getTunedFrequency(stepData.note, currentScaleRef?.current?.tuningSystem || '12-TET', currentScaleRef?.current?.root || 'C') * Math.pow(2, params.pitch / 12);
                 let slideFrom: number | undefined = undefined;
                 if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
 
@@ -144,7 +146,7 @@ export const useStepHandler = ({
                 const invVal = activePattern[trackKey].automation?.['chordInversion']?.[step] ?? 0;
                 const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger, tuningSystem: currentScaleRef?.current?.tuningSystem || '12-TET', rootNote: currentScaleRef?.current?.root || 'C' };
                 audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams);
                 lastFreqRef.current[trackKey] = currentBaseFreq;
             }
@@ -160,7 +162,7 @@ export const useStepHandler = ({
                 const invVal = activePattern.bass2.automation?.['chordInversion']?.[step] ?? 0;
                 const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger, tuningSystem: currentScaleRef?.current?.tuningSystem || '12-TET', rootNote: currentScaleRef?.current?.root || 'C' };
 
                 // Create SynthParams-like object for bass2
                 const bass2Params: SynthParams = {
@@ -202,7 +204,7 @@ export const useStepHandler = ({
             const stepData = p[trackKey].steps[step];
             if (stepData) {
                  if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
-                 const noteParams = { retrigger: stepData.retrigger };
+                 const noteParams = { retrigger: stepData.retrigger, tuningSystem: currentScaleRef?.current?.tuningSystem || '12-TET', rootNote: currentScaleRef?.current?.root || 'C' };
                  audioEngine.playDrum(sound, params, time, noteParams, stepTime);
             }
         };
@@ -221,7 +223,7 @@ export const useStepHandler = ({
                 if (stepData.slide && lastSamplerMidiRef.current[bankIdx] !== undefined) {
                     slideFromMidi = lastSamplerMidiRef.current[bankIdx];
                 }
-                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes, freeze: stepData.freeze };
+                const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, reverse: stepData.reverse, sliceIndex: stepData.sliceIndex, retrigger: stepData.retrigger, phonemes: stepData.phonemes, freeze: stepData.freeze, tuningSystem: currentScaleRef?.current?.tuningSystem || '12-TET', rootNote: currentScaleRef?.current?.root || 'C' };
                 // Combine note and chord for polyphonic playback
                 const notes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
                 lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);

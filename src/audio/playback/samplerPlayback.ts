@@ -10,7 +10,7 @@
  */
 
 import type { SamplerBankParams } from '../../types';
-import { noteToMidi } from '../../utils/musicTheory';
+import { noteToMidi, getTunedFrequency, type TuningSystem } from '../../utils/musicTheory';
 import type { SingingVoice } from '../../engines/SingingVoice';
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
 import type { MultisampleBank } from '../../engines/MultisampleGenerator';
@@ -70,7 +70,8 @@ export function playSampler(
     note: string,
     time: number,
     durationSteps: number = 1,
-    stepTime: number = 0.2
+    stepTime: number = 0.2,
+    noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: import('../../types').ReverbType, tuningSystem?: string, rootNote?: string }
 ): void {
     const { context, masterGain, singingVoice } = ctx;
     
@@ -144,7 +145,9 @@ export function playSampler(
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
         const speed = params.playbackSpeed;
-        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+        const targetFreq = getTunedFrequency(note, (noteParams?.tuningSystem || '12-TET') as TuningSystem, noteParams?.rootNote || 'C');
+        const baseFreq = getTunedFrequency('C4', '12-TET', 'C'); // Default base freq (midi 60)
+        pitchRatio = speed * (targetFreq / baseFreq) * Math.pow(2, (60 - rootMidi) / 12);
     }
     
     source.buffer = playbackBuffer;
@@ -212,7 +215,9 @@ export function noteOnSampler(
         // Fallback: use base buffer with calculated pitch ratio
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
-        pitchRatio = params.playbackSpeed * Math.pow(2, (targetMidi - rootMidi) / 12);
+        const targetFreq = getTunedFrequency(note, (noteParams?.tuningSystem || '12-TET') as TuningSystem, noteParams?.rootNote || 'C');
+        const baseFreq = getTunedFrequency('C4', '12-TET', 'C');
+        pitchRatio = params.playbackSpeed * (targetFreq / baseFreq) * Math.pow(2, (60 - rootMidi) / 12);
     }
     
     source.buffer = playbackBuffer;

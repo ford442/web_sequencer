@@ -193,6 +193,8 @@ export interface Note {
   vibratoDepth?: number; // 0-100%, vibrato depth override (Sampler only)
   reverbSend?: number; // 0-1, amount sent to reverb bus
   reverbType?: ReverbType; // Override global reverb type
+  tuningSystem?: string; // Optional custom microtonal tuning
+  rootNote?: string; // Root note for the tuning system
   delaySend?: number; // 0-1, amount sent to delay bus
   choir?: number; // 0-1, override choir detune spread (Sampler only)
   drive?: number; // 0-1, distortion/drive amount override (Sampler only)
@@ -234,9 +236,9 @@ export interface AudioEngine {
     webGpuEngine?: WebGpuOscillator | null;
     wasmEngine?: WasmOscillator | null;
     open303Engine?: Open303Oscillator | Open303Manager | null;
-    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number, filterCutoff?: number, filterResonance?: number, envMod?: number, reverbSend?: number, reverbType?: ReverbType }) => void;
+    playSynth: (params: SynthParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: { timbre?: number, microtiming?: number, retrigger?: number, filterCutoff?: number, filterResonance?: number, envMod?: number, reverbSend?: number, reverbType?: ReverbType, tuningSystem?: string, rootNote?: string }) => void;
     playDrum: (sound: DrumSound, params: KickParams | SnareParams | HatParams, time: number, noteParams?: { retrigger?: number, reverbSend?: number, reverbType?: ReverbType }, stepTime?: number) => void;
-    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: ReverbType }) => void;
+    playSampler: (params: SamplerBankParams, note: string | string[], time: number, durationSteps?: number, stepTime?: number, noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: ReverbType, tuningSystem?: string, rootNote?: string }) => void;
     noteOnSampler?: (params: SamplerBankParams, note: string, time?: number) => number | null;
     noteOffSampler?: (id: number) => void;
     noteOnSynth?: (params: SynthParams, note: string, time?: number, track?: 'partA' | 'partB' | 'bass2') => Promise<number | null> | number | null;
