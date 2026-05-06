@@ -489,6 +489,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [isHarmonizerOpen, setIsHarmonizerOpen] = useState(false);
 
     const ladderButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+    const harmonizeTriggerRef = useRef<HTMLButtonElement>(null);
 
     const handleRootNoteChange = (midi: number) => {
         setLocalRootNote(midi);
@@ -753,6 +754,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             {/* HARMONIZE Button - Hardware style */}
                             <div className="relative">
                                 <button
+                                    ref={harmonizeTriggerRef}
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
                                     aria-haspopup="dialog"
                                     aria-expanded={isHarmonizerOpen}
@@ -782,7 +784,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                 {/* Harmonizer Popover */}
                                 <HarmonizerPopover
                                     isOpen={isHarmonizerOpen}
-                                    onClose={() => setIsHarmonizerOpen(false)}
+                                    onClose={() => {
+                                        setIsHarmonizerOpen(false);
+                                        harmonizeTriggerRef.current?.focus();
+                                    }}
                                     config={harmonizerConfig || defaultConfig}
                                     isActive={isHarmonizeActive}
                                     onApply={onHarmonizerConfigChange || (() => {})}

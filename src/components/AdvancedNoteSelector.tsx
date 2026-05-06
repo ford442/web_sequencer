@@ -151,6 +151,30 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.m
     const color = getNoteColor(value, trackKey);
     const currentNoteName = extractNoteName(value);
 
+    const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            let targetMidi = clamp(currentMidi + 1);
+            if (currentScale && !isMidiInScale(targetMidi, currentScale)) {
+                targetMidi = nextScaleNote(currentMidi, 1, currentScale);
+                targetMidi = clamp(targetMidi);
+            }
+            if (targetMidi !== currentMidi) {
+                onChange(midiToNote(targetMidi));
+            }
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            let targetMidi = clamp(currentMidi - 1);
+            if (currentScale && !isMidiInScale(targetMidi, currentScale)) {
+                targetMidi = nextScaleNote(currentMidi, -1, currentScale);
+                targetMidi = clamp(targetMidi);
+            }
+            if (targetMidi !== currentMidi) {
+                onChange(midiToNote(targetMidi));
+            }
+        }
+    }, [currentMidi, clamp, currentScale, onChange]);
+
     return (
         <div className="relative inline-block">
             {/* Main button: displays current note, supports drag */}
@@ -164,6 +188,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.m
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
+                onKeyDown={handleKeyDown}
                 aria-label={label ?? `Note ${value}`}
                 aria-haspopup="true"
                 aria-expanded={flyoutOpen}
