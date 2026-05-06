@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import bezelImg from './assets/knob-bezel.png';
+import { engineTelemetry } from '../utils/engineTelemetry';
 
 interface MagicKnobProps {
     value: number; // 0.0 to 1.0
@@ -254,6 +255,7 @@ export const MagicKnob: React.FC<MagicKnobProps> = React.memo(({
         const render = () => {
             if (!context || !device || !pipeline || !uniformBuffer || !bindGroup) return;
 
+            const frameStart = performance.now();
             const now = performance.now() / 1000;
             const normalizedValue = (valueRef.current - min) / (max - min);
             const uniforms = new Float32Array([now, normalizedValue, canvas.width, canvas.height]);
@@ -275,6 +277,7 @@ export const MagicKnob: React.FC<MagicKnobProps> = React.memo(({
             pass.end();
 
             device.queue.submit([encoder.finish()]);
+            engineTelemetry.recordLatency('knob-raf', performance.now() - frameStart);
             animationId = requestAnimationFrame(render);
         };
 
