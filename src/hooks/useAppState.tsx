@@ -137,6 +137,8 @@ export function useAppState() {
     const [isDrawing, setIsDrawing] = useState(false);
     const [drawMode, setDrawMode] = useState<'add' | 'remove' | null>(null);
 
+    const [zoomLevel, setZoomLevel] = useState(1);
+
     const handleSelectionStart = useCallback((trackKey: TrackKey, stepIndex: number) => {
         setSelection({ trackKey, startStep: stepIndex, endStep: stepIndex });
         setIsSelecting(true);
@@ -1099,6 +1101,7 @@ export function useAppState() {
         clipboard, setClipboard,
         isDrawing, setIsDrawing,
         drawMode, setDrawMode,
+        zoomLevel, setZoomLevel,
         trackStorage, setTrackStorage,
         activeTrackSlots, setActiveTrackSlots,
         activeTrackSlotsRef,
