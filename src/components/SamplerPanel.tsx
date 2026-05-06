@@ -707,7 +707,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                     {/* Row A: Load / Record */}
                     <div className="flex justify-between items-center gap-2">
                         <div className="flex gap-1" role="toolbar" aria-label="Sample Management">
-                            <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                            <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" aria-label="Load Sample File" />
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold text-gray-300"
@@ -879,6 +879,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     value={currentParams.grainSize || 4410}
                                     onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
                                     className="flex-1 h-1.5 bg-gray-700 rounded appearance-none cursor-pointer"
+                                    aria-label="Grain Size"
                                     style={{
                                         background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
                                     }}
@@ -1038,6 +1039,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     type="button"
                                     role="switch"
                                     aria-checked={currentParams.freezeLfoSync}
+                                    aria-label="Sync Freeze LFO Rate to BPM"
                                     onClick={() => handleFreezeLfoSyncChange(!currentParams.freezeLfoSync)}
                                     className={`px-2 py-0.5 mt-1 rounded text-[10px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${currentParams.freezeLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                 >
@@ -1072,6 +1074,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     type="button"
                                     role="switch"
                                     aria-checked={currentParams.formantLfoSync}
+                                    aria-label="Sync Formant LFO Rate to BPM"
                                     onClick={() => handleFormantLfoSyncChange(!currentParams.formantLfoSync)}
                                     className={`px-2 py-0.5 mt-1 rounded text-[10px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${currentParams.formantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                 >
