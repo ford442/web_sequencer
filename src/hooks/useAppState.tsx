@@ -60,8 +60,8 @@ export function useAppState() {
 
     const [is3DMode, setIs3DMode] = useState(false);
 
-    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
-    const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
+    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
         setToast({ message, type });
     }, []);
 
@@ -136,6 +136,8 @@ export function useAppState() {
     const [clipboard, setClipboard] = useState<(Note | null)[] | null>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [drawMode, setDrawMode] = useState<'add' | 'remove' | null>(null);
+
+    const [zoomLevel, setZoomLevel] = useState(1);
 
     const handleSelectionStart = useCallback((trackKey: TrackKey, stepIndex: number) => {
         setSelection({ trackKey, startStep: stepIndex, endStep: stepIndex });
@@ -228,7 +230,7 @@ export function useAppState() {
         pitchAttack: 0,
         pitchDecay: 0.5,
         quality: 'good' as 'preview' | 'good' | 'better' | 'best',
-        stretchMode: 'elastic' as 'precise' | 'elastic' | 'hybrid',
+        stretchMode: 'Time' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
     });
     const [samplerVoiceParams, setSamplerVoiceParams] = useState(samplerVoiceParamsRef.current);
@@ -1099,6 +1101,7 @@ export function useAppState() {
         clipboard, setClipboard,
         isDrawing, setIsDrawing,
         drawMode, setDrawMode,
+        zoomLevel, setZoomLevel,
         trackStorage, setTrackStorage,
         activeTrackSlots, setActiveTrackSlots,
         activeTrackSlotsRef,

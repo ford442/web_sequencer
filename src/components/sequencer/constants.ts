@@ -1,5 +1,11 @@
 import { getNoteColor } from '../../utils/noteColors';
 
+// --- ZOOM CONSTANTS ---
+export const MIN_ZOOM = 0.5;
+export const MAX_ZOOM = 4.0;
+export const DEFAULT_ZOOM = 1.0;
+export const ZOOM_STEP = 0.1;
+
 // --- PERFORMANCE STYLES ---
 export const SEQUENCER_STYLES = `
     .svg-step.is-current .step-glow { fill: rgba(255, 255, 255, 0.3) !important; }

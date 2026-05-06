@@ -9,7 +9,7 @@ interface AISongImportOverlayProps {
     setIsImportingAISong: React.Dispatch<React.SetStateAction<boolean>>
     setAiImportStage: React.Dispatch<React.SetStateAction<AiImportStage>>
     setAiImportProgress: React.Dispatch<React.SetStateAction<number>>
-    showToast: (message: string, type?: 'success' | 'error') => void
+    showToast: (message: string, type?: 'success' | 'error' | 'info') => void
 }
 
 export const AISongImportOverlay = memo(function AISongImportOverlay({
