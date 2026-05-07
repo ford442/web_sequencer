@@ -42,6 +42,8 @@ export const SequencerNode: React.FC = () => {
     handlePitchChange,
     handlePhonemeUpdate,
     sampleBuffers,
+    zoomLevel,
+    setZoomLevel,
   } = state
 
   return useMemo(() => {
@@ -94,6 +96,8 @@ export const SequencerNode: React.FC = () => {
         onPitchChange={handlePitchChange}
         onPhonemeUpdate={handlePhonemeUpdate}
         samplerAudioBuffer={sampleBuffers[activeSamplerBank]}
+        zoomLevel={zoomLevel}
+        onZoomChange={setZoomLevel}
       />
     )
   }, [
@@ -133,6 +137,8 @@ export const SequencerNode: React.FC = () => {
     melodicMode,
     sampleBuffers,
     viewMode,
+    zoomLevel,
+    setZoomLevel,
     state.sequencerRef,
   ])
 }

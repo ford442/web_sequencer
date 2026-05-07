@@ -1,31 +1,33 @@
 # web_sequencer — Weekly Plan
 
 ## Today's focus
-**TTS per-bank cold-start preload + onnxruntime-web cache purge devtool** — Add a deterministic preload manifest that warms the ONNX session for each TTS bank at app init (or on a background idle tick), eliminating per-bank cold-start stutter. Pair it with a devtools action that can wipe the ONNX session cache on demand for debugging bank-switch quality regressions.
-**2026-04-27 (Sun) — User Idea mode.** Picked from Ideas section: "TTS per-bank cold-start preload + onnxruntime-web cache purge devtool." Half-day scope, aligns with active TTS per-bank focus area, decoupled from holographic knob and WASM pipeline work.
+**Holographic knob renderer perf audit** — Profile `MagicKnob.tsx`'s WebGPU `requestAnimationFrame` loop across all simultaneous knob instances; identify GPU resource sharing gaps, RAF contention, and layout reflow from the `Knob.tsx` CSS path; produce a concrete bottleneck report and a ranked fix list.
+**2026-05-04 (Sun) — User Idea mode.** Picked from Ideas section: "Holographic knob renderer perf audit." Multi-day scope; selected as prerequisite before WGSL render pass unification. No broken foundation — last week's TTS + HUD work fully landed.
 
 ## Ideas
 - [done — 2026-04-27] **Verify bug-report.md staleness** — confirmed stale: `useAudioEngine.ts` is 938 lines; the try/catch at line 1393 no longer exists. `bug-report.md` can be deleted.
-- [ ] **Holographic knob renderer perf audit** — profile WebGPU/R3F knob rendering with many simultaneous knobs; identify bottlenecks; optimize. Multi-day.
-- [ ] Holographic knob WGSL render pass unification — single compute-driven render path so every knob shares lighting/material, kill drift between the 2D fallback and the 3D R3F path. (multi-day, per HOLOGRAPHIC_*.md)
-- [in progress — 2026-04-27] TTS per-bank cold-start preload + onnxruntime-web cache purge devtool — preload manifest per bank + a devtools action to wipe the ONNX session cache when switching banks. (half-day)
+- [in progress — 2026-05-04] **Holographic knob renderer perf audit** — profile WebGPU/canvas knob rendering with many simultaneous knobs; identify bottlenecks; optimize. Multi-day.
+- [ ] Holographic knob WGSL render pass unification — single compute-driven render path so every knob shares lighting/material, kill drift between the 2D fallback and the WebGPU canvas path. (multi-day; depends on perf audit findings)
 
 ## Backlog
-- [ ] **Palette: SamplerPanel `<fieldset>` conversion** — Convert `BASIC` and `ENGINE` grouping `div` elements in `src/components/SamplerPanel.tsx` to accessible `<fieldset>`/`<legend className="sr-only">` structures to match `DrumMachine.tsx` and `SynthPart.tsx`.
-- [ ] **PR #479 "feat(audio): Master Bus Compressor"** — open draft (Jules, Apr 26), needs review/merge or feedback.
-- [ ] **PR #480 "⚡ Bolt: Optimize MainSequencer re-renders"** — open draft (Bolt, Apr 27), needs review/merge or feedback.
-- [ ] **Open issue #330** Live Keyboard UI arrangement — CSS-grid piano-shape layout; Jules-labeled, still unimplemented. Plan draft in `live-kbd-plan.md`.
+- [ ] **PR #506** "Fix: Resolve TypeScript errors related to Note interface" — open (Jules, May 3), needs review/merge or feedback.
+- [ ] **PR #507** "Palette: Fix orphaned aria-describedby in GamepadDebugger" — open (Jules, May 3), needs review/merge or feedback.
+- [ ] **Open issue #330** Live Keyboard UI arrangement — CSS-grid piano-shape layout; Jules-labeled, still unimplemented. Plan draft referenced but `live-kbd-plan.md` not found at root — verify.
 - [ ] **Issue #465** Docs consolidation — Phase 1 (DOCS.md root index, zero-move) is the immediate deliverable; Phase 2 (physical migration to `docs/`) deferred. Phase 1 spec fully written in the issue.
-- [ ] **Hybrid Audio Engine Fallback HUD** — runtime dashboard showing which backend (WebGPU / WASM / Pyodide / Native) each subsystem resolved to, with latency + error counts. Last week's focus; not yet started. Medium scope (full day).
 - [ ] **Gesture Controls** — pinch-to-zoom on sequencer timeline (from `agent_plan.md` Domain B).
 - [ ] **Repo hygiene** — 30+ `*.md` files at repo root; Phase 1 resolved by issue #465 DOCS.md index.
 - [ ] Rubberband phoneme-aware time-stretch + `ExpressiveVoiceProcessor.ts` pending per `RUBBERBAND_ENHANCEMENT_PLAN.md`.
 - [ ] Dozens of one-off `fix*.py` / `patch*.py` / `update_*.py` scripts at repo root — candidate for archival into `tools/`.
 
 ## Done
+- 2026-05-04 — TTS per-bank cold-start preload + onnxruntime-web cache purge devtool: `useTTSPreloader.ts` hook (idle-scheduled), `SupertonicService.purgeCache()` + `window.__devtools.purgeTTSCache()` devtools action, full test coverage landed (Jules, commit 52117f0, Apr 28).
+- 2026-05-04 — SamplerPanel `<fieldset>` conversion: BASIC and ENGINE grouping divs converted to `<fieldset>`/`<legend className="sr-only">` (PR #483 merged, followed by Palette a11y passes PR #486/487).
+- 2026-05-04 — PR #479 "feat(audio): Master Bus Compressor" — merged.
+- 2026-05-04 — PR #480 "⚡ Bolt: Optimize MainSequencer re-renders" — merged.
+- 2026-05-04 — Hybrid Audio Engine Fallback HUD: `EngineHUD.tsx` DOM overlay + `engineTelemetry` instrumentation for WebGPU/WASM/JS/WAV/Open303 backends with p50/p95 latency and error counts; Ctrl+Shift+E toggle + `?hud=1` URL param (commits d90609f + 4300794).
 - 2026-04-27 — PR #457 "feat: Custom Waveform LFO" confirmed merged (commit ed7a44b / PR #461).
 - 2026-04-27 — PR #458 / PR #475 "Palette: aria-label + title on icon-only buttons" confirmed merged.
-- 2026-04-27 — `bug-report.md` staleness confirmed: `useAudioEngine.ts` is 938 lines; referenced line 1393 does not exist. File can be deleted.
+- 2026-04-27 — `bug-report.md` staleness confirmed: `useAudioEngine.ts` is 938 lines; referenced line 1393 does not exist. File deleted.
 - 2026-04-27 — SamplerPanel `useMemo` syntax error (`(174,6)`) confirmed resolved in current code; tsc passes cleanly.
 - 2026-04-27 — PR #476 Step-Sequenced Reverb Types — type errors fixed and merged.
 - 2026-04-27 — PR #477 AdvancedNoteSelector Escape key support merged.
@@ -43,7 +45,7 @@
 - 2026-04-12 — AdvancedNoteSelector + ScaleSelector (PR #443).
 
 ## Last run
-Date: 2026-04-27
+Date: 2026-05-04
 Mode: User Idea
-Focus: TTS per-bank cold-start preload + onnxruntime-web cache purge devtool
+Focus: Holographic knob renderer perf audit
 Outcome: (to be filled at end-of-day)
