@@ -1,6 +1,6 @@
 /**
  * Sampler Playback Functions
- * 
+ *
  * Handles playback of sampled sounds:
  * - One-shot and looped playback
  * - Time-stretching with SingingVoice
@@ -74,13 +74,13 @@ export function playSampler(
     noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: import('../../types').ReverbType, tuningSystem?: string, rootNote?: string }
 ): void {
     const { context, masterGain, singingVoice } = ctx;
-    
+
     // Check for multisample bank first (new system)
     const multisampleBank = state.loadedSampleBanks.get(params.sampleName);
     // Fall back to legacy buffer
     const legacyBuffer = state.loadedSampleBuffers.get(params.sampleName);
     const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-    
+
     if (!buffer || !masterGain) return;
 
     if (params.mode === 'stretch' && singingVoice) {
@@ -129,11 +129,11 @@ export function playSampler(
 
     // Standard Loop / One-shot with Multisample Support
     const source = context.createBufferSource();
-    
+
     const targetMidi = noteToMidi(note);
     let playbackBuffer: AudioBuffer;
     let pitchRatio: number;
-    
+
     // Check if we have a pre-rendered multisample for this pitch
     if (multisampleBank?.pitchBank.has(targetMidi)) {
         // Use pre-rendered high-quality multisample
@@ -149,7 +149,7 @@ export function playSampler(
         const baseFreq = getTunedFrequency('C4', '12-TET', 'C'); // Default base freq (midi 60)
         pitchRatio = speed * (targetFreq / baseFreq) * Math.pow(2, (60 - rootMidi) / 12);
     }
-    
+
     source.buffer = playbackBuffer;
     source.playbackRate.value = pitchRatio;
 
@@ -190,22 +190,22 @@ export function noteOnSampler(
 ): number | null {
     const { context, masterGain } = ctx;
     const now = time || context.currentTime;
-    
+
     // Check for multisample bank first (new system)
     const multisampleBank = state.loadedSampleBanks.get(params.sampleName);
     // Fall back to legacy buffer
     const legacyBuffer = state.loadedSampleBuffers.get(params.sampleName);
     const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-    
+
     if (!buffer || !masterGain) return null;
 
     const targetMidi = noteToMidi(note);
     const source = context.createBufferSource();
-    
+
     // Check if we have a pre-rendered multisample for this pitch
     let playbackBuffer: AudioBuffer;
     let pitchRatio: number;
-    
+
     if (multisampleBank?.pitchBank.has(targetMidi)) {
         // Use pre-rendered high-quality multisample
         playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
@@ -215,11 +215,11 @@ export function noteOnSampler(
         // Fallback: use base buffer with calculated pitch ratio
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
-        // `noteOnSampler` doesn't currently get `noteParams` or tuning info passed to it
-        // We fall back to 12-TET for standard keyboard playback, or you could pass currentScale here too.
-        pitchRatio = params.playbackSpeed * Math.pow(2, (targetMidi - rootMidi) / 12);
+        const targetFreq = getTunedFrequency(note, (noteParams?.tuningSystem || '12-TET') as TuningSystem, noteParams?.rootNote || 'C');
+        const baseFreq = getTunedFrequency('C4', '12-TET', 'C');
+        pitchRatio = params.playbackSpeed * (targetFreq / baseFreq) * Math.pow(2, (60 - rootMidi) / 12);
     }
-    
+
     source.buffer = playbackBuffer;
     source.playbackRate.value = pitchRatio;
 
@@ -274,7 +274,7 @@ export function loadSampleToEngine(
     buffer: AudioBuffer
 ): void {
     state.loadedSampleBuffers.set(name, buffer);
-    
+
     // Also create a basic multisample bank
     const bank: MultisampleBank = {
         baseBuffer: buffer,

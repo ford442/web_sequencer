@@ -264,7 +264,7 @@ export class VoiceManager {
                 voice = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr, this.globalDelayNode);
                 this.voices.push(voice);
             }
-            voice.play(params, note, time, duration, slideFromFreq, noteParams);
+            voice.play(params, note, time, duration, slideFromFreq);
             return voice;
         } else {
             // Poly: Trigger voice for each note
@@ -272,7 +272,7 @@ export class VoiceManager {
             noteArray.forEach((note, idx) => {
                 const slide = idx === 0 ? slideFromFreq : undefined;
                 const voice = this.getVoice(note);
-                voice.play(params, note, time, duration, slide, noteParams);
+                voice.play(params, note, time, duration, slide);
                 lastVoice = voice;
 
                 // Rotate used voice to end of list (LRU approximation)
@@ -293,11 +293,11 @@ export class VoiceManager {
                 voice = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr, this.globalDelayNode);
                 this.voices.push(voice);
             }
-            voice.startNote(params, note, time);
+            voice.startNote(params, note, time, slideFromFreq, noteParams);
             return voice;
         } else {
             const voice = this.getVoice(note);
-            voice.startNote(params, note, time);
+            voice.startNote(params, note, time, slideFromFreq, noteParams);
 
             const vIdx = this.voices.indexOf(voice);
             if (vIdx > -1) {
