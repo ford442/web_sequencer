@@ -81,6 +81,7 @@ export interface SamplerBankParams {
   freeze?: number;         // Freeze/smear amount (0-1)
   portamentoType?: 'linear' | 'exponential'; // Glide curve shape
   freezeLfoRate?: number;  // Freeze LFO rate (Hz)
+  freezeLfoSync?: boolean; // Sync Freeze LFO to tempo
   freezeLfoDepth?: number; // Freeze LFO depth (0-1)
   freezeEnvDepth?: number; // Envelope follower depth for freeze modulation (0-1)
   grainEnvDepth?: number;  // Envelope follower depth for grain size modulation (0-1)
@@ -88,6 +89,7 @@ export interface SamplerBankParams {
   freezeLfoSync?: boolean; // Whether Freeze LFO syncs to tempo
   formantLfoSync?: boolean; // Whether Formant LFO syncs to tempo
   formantLfoRate?: number; // Formant LFO rate (Hz)
+  formantLfoSync?: boolean; // Sync Formant LFO to tempo
   formantLfoDepth?: number; // Formant LFO depth (0-1)
   formantLfoShape?: number[]; // Custom drawn LFO shape (array of values -1 to 1)
   formantEnvAttack?: number; // Formant Envelope Attack time in seconds
