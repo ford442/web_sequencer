@@ -759,7 +759,6 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                           e.stopPropagation();
                           updateOption('expandTo32Steps', !importOptions.expandTo32Steps);
                         }}
-                        aria-labelledby="expand-label"
                         className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
                           importOptions.expandTo32Steps ? 'bg-amber-600' : 'bg-gray-800'
                         }`}
@@ -789,7 +788,6 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                           e.stopPropagation();
                           updateOption('importSwing', !importOptions.importSwing);
                         }}
-                        aria-labelledby="swing-label"
                         className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
                           importOptions.importSwing ? 'bg-amber-600' : 'bg-gray-800'
                         }`}
@@ -819,7 +817,6 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                           e.stopPropagation();
                           updateOption('convertPcfToAutomation', !importOptions.convertPcfToAutomation);
                         }}
-                        aria-labelledby="pcf-label"
                         className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
                           importOptions.convertPcfToAutomation ? 'bg-amber-600' : 'bg-gray-800'
                         }`}

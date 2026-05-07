@@ -883,7 +883,6 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     style={{
                                         background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
                                     }}
-                                    aria-label="Grain Size"
                                     aria-valuetext={grainSizeToMs(currentParams.grainSize || 4410) + 'ms'}
                                 />
                                 <span className="text-[9px] text-gray-500 w-8 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
