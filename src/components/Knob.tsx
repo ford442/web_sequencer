@@ -19,6 +19,12 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
   const [dragStartY, setDragStartY] = useState(0);
   const [dragStartValue, setDragStartValue] = useState(0);
 
+  // Use a ref to store the latest props to avoid redefining callbacks and re-attaching event listeners
+  const propsRef = useRef({ onChange, min, max, step, logarithmic });
+  useEffect(() => {
+    propsRef.current = { onChange, min, max, step, logarithmic };
+  }, [onChange, min, max, step, logarithmic]);
+
   const valueToRotation = useCallback((val: number) => {
     let percentage;
     if (logarithmic) {
@@ -37,6 +43,7 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     const dy = dragStartY - e.clientY;
+    const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep, logarithmic: currentLogarithmic } = propsRef.current;
 
     // Modifiers: Shift=Coarse(10x), Alt/Ctrl=Fine(0.1x)
     const isCoarse = e.shiftKey;
@@ -45,10 +52,10 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
 
     let newValue;
 
-    if (logarithmic) {
-      const effectiveMin = min <= 0 ? 0.001 : min;
+    if (currentLogarithmic) {
+      const effectiveMin = currentMin <= 0 ? 0.001 : currentMin;
       const logMin = Math.log(effectiveMin);
-      const logMax = Math.log(max);
+      const logMax = Math.log(currentMax);
       // Ensure dragStartValue is valid for log
       const safeStart = dragStartValue <= 0 ? effectiveMin : dragStartValue;
       const logStart = Math.log(safeStart);
@@ -60,16 +67,16 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
       const newLogValue = logStart + (dy * sensitivity * modifier);
       newValue = Math.exp(newLogValue);
     } else {
-      const range = max - min;
+      const range = currentMax - currentMin;
       const sensitivity = range / 200; // 200px drag for full range
       newValue = dragStartValue + (dy * sensitivity * modifier);
     }
     
-    newValue = Math.round(newValue / step) * step;
-    newValue = Math.max(min, Math.min(max, newValue));
+    newValue = Math.round(newValue / currentStep) * currentStep;
+    newValue = Math.max(currentMin, Math.min(currentMax, newValue));
     
-    onChange(newValue);
-  }, [isDragging, dragStartY, dragStartValue, min, max, step, onChange, logarithmic]);
+    currentOnChange(newValue);
+  }, [isDragging, dragStartY, dragStartValue]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -104,16 +111,17 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const direction = e.deltaY > 0 ? -1 : 1; // normalize: up increases
+    const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep } = propsRef.current;
 
     const isCoarse = e.shiftKey;
     const isFine = e.altKey || e.ctrlKey || e.metaKey;
     const modifier = isCoarse ? 10 : (isFine ? 0.1 : 1);
 
-    let newValue = value + direction * step * modifier;
-    newValue = Math.round(newValue / step) * step;
-    newValue = Math.max(min, Math.min(max, newValue));
-    onChange(newValue);
-  }, [step, value, min, max, onChange]);
+    let newValue = value + direction * currentStep * modifier;
+    newValue = Math.round(newValue / currentStep) * currentStep;
+    newValue = Math.max(currentMin, Math.min(currentMax, newValue));
+    currentOnChange(newValue);
+  }, [value]);
 
   const formatValue = (val: number) => {
     // Special case: milliseconds
@@ -203,7 +211,10 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
         aria-valuenow={value}
         aria-valuetext={formatValue(value)}
         aria-orientation="vertical"
-        onDoubleClick={() => onChange(defaultValue ?? min)}
+        onDoubleClick={() => {
+            const { onChange: currentOnChange, min: currentMin } = propsRef.current;
+            currentOnChange(defaultValue ?? currentMin);
+        }}
       >
         <div
           className="w-12 h-12 bg-gray-800 rounded-full relative shadow-inner"

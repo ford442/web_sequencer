@@ -51,7 +51,7 @@ export interface UseStepHandlerOptions {
         pitchAttack: number;
         pitchDecay: number;
         quality: 'preview' | 'good' | 'better' | 'best';
-        stretchMode: 'precise' | 'elastic' | 'hybrid';
+        stretchMode: 'Time' | 'Pitch' | 'Formant';
         lockToSequencer: boolean;
     }>;
     activeSamplerBankRef: React.MutableRefObject<number>;

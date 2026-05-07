@@ -6,6 +6,8 @@ import { MelodicSequencerRow, type MelodicSequencerRowHandle } from './MelodicSe
 import { PhonemePainter } from './PhonemePainter';
 import type { Pattern, PartSequence, TrackKey, PhonemeData } from '../types';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
+import { useTimelineZoom } from '../hooks/useTimelineZoom';
+import { DEFAULT_ZOOM } from './sequencer/constants';
 
 // --- PERFORMANCE STYLES ---
 const SEQUENCER_STYLES = `
@@ -518,6 +520,9 @@ export interface MainSequencerProps {
     // Phase 3: Phoneme Painter
     onPhonemeUpdate?: (trackKey: TrackKey, bankIndex: number, step: number, phonemes: PhonemeData[] | undefined) => void;
     samplerAudioBuffer?: AudioBuffer | null;
+    // Zoom: controlled via props (persisted in app state), with gestures handled locally
+    zoomLevel?: number;
+    onZoomChange?: (z: number) => void;
     // Children are rendered after SVG (e.g. NoteSelector)
     children?: React.ReactNode;
 }
@@ -526,58 +531,41 @@ const noopPitchChange = () => {};
 
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
     const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
-        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer } = props;
+        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer,
+        zoomLevel = DEFAULT_ZOOM, onZoomChange } = props;
 
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
     const melodicRowRef = useRef<MelodicSequencerRowHandle | null>(null);
 
-    // Gesture Controls (Pinch to zoom)
-    const [zoom, setZoom] = useState(1);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const initialPinchDist = useRef<number | null>(null);
+    // Zoom state: driven by prop (for persistence), updated via gesture/wheel events.
+    const [zoom, setZoom] = useState(zoomLevel);
 
-    const handleWheel = useCallback((e: WheelEvent) => {
-        if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            // zoom in/out based on scroll direction
-            setZoom(z => Math.max(0.5, Math.min(3.0, z - e.deltaY * 0.01)));
-        }
-    }, []);
-
+    // Sync external zoomLevel prop → local state (e.g. when app state loads a saved value).
+    const prevZoomLevelRef = useRef(zoomLevel);
     useLayoutEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        el.addEventListener('wheel', handleWheel, { passive: false });
-        return () => el.removeEventListener('wheel', handleWheel);
-    }, [handleWheel]);
-
-    const handleTouchStart = useCallback((e: React.TouchEvent) => {
-        if (e.touches.length === 2) {
-            const dist = Math.hypot(
-                e.touches[0].clientX - e.touches[1].clientX,
-                e.touches[0].clientY - e.touches[1].clientY
-            );
-            initialPinchDist.current = dist;
+        if (zoomLevel !== prevZoomLevelRef.current) {
+            prevZoomLevelRef.current = zoomLevel;
+            setZoom(zoomLevel);
         }
-    }, []);
+    }, [zoomLevel]);
 
-    const handleTouchMove = useCallback((e: React.TouchEvent) => {
-        if (e.touches.length === 2 && initialPinchDist.current !== null) {
-            // Prevent default behavior only if we are actually zooming
-            if (e.cancelable) e.preventDefault();
-            const dist = Math.hypot(
-                e.touches[0].clientX - e.touches[1].clientX,
-                e.touches[0].clientY - e.touches[1].clientY
-            );
-            const delta = dist / initialPinchDist.current;
-            setZoom(z => Math.max(0.5, Math.min(3.0, z * delta)));
-            initialPinchDist.current = dist;
-        }
-    }, []);
+    // Wrap setZoom to also notify parent (persist to app state).
+    const handleSetZoom = useCallback((updater: number | ((prev: number) => number)) => {
+        setZoom(prev => {
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            onZoomChange?.(next);
+            return next;
+        });
+    }, [onZoomChange]);
 
-    const handleTouchEnd = useCallback(() => {
-        initialPinchDist.current = null;
-    }, []);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Attach Ctrl+wheel and pointer-based pinch-to-zoom.
+    const { handleDoubleClick } = useTimelineZoom({
+        containerRef: containerRef as React.RefObject<HTMLElement | null>,
+        zoom,
+        setZoom: handleSetZoom,
+    });
 
 
 
@@ -650,9 +638,8 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
         <div
             className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-x-auto overflow-y-hidden scrollbar-thin"
             ref={containerRef}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            onDoubleClick={handleDoubleClick}
+            style={{ '--step-cell-width': `${18 * zoom}px` } as React.CSSProperties}
         >
             <style>{SEQUENCER_STYLES}</style>
             <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>

@@ -137,7 +137,8 @@ export const Studio3D: React.FC<Studio3DProps> = React.memo(({ header, sequencer
                 <div className="absolute top-2 right-2">
                     <button 
                         onClick={onExit}
-                        className="px-4 py-2 bg-red-900/50 border border-red-500 text-red-200 rounded font-orbitron text-xs hover:bg-red-800 transition-colors"
+                        aria-label="Exit 3D View"
+                        className="px-4 py-2 bg-red-900/50 border border-red-500 text-red-200 rounded font-orbitron text-xs hover:bg-red-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:ring-red-500"
                     >
                         EXIT 3D VIEW
                     </button>
