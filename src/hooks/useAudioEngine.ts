@@ -88,7 +88,7 @@ export const useAudioEngine = (pyodide: unknown) => {
     // Master Volume & Pan
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
-    const sidechainGainRef = useRef<GainNode | null>(null);
+    const sidechainGainRef = useRef<BiquadFilterNode | null>(null);
     const sidechainBusRef = useRef<GainNode | null>(null);
     const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});

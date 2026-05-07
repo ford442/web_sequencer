@@ -9,7 +9,7 @@ export function initializeMasterOutput(
     masterPannerRef: MutableRefObject<StereoPannerNode | null>,
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>,
     masterCompressorRef: MutableRefObject<DynamicsCompressorNode | null>,
-    sidechainGainRef: MutableRefObject<GainNode | null>,
+    sidechainGainRef: MutableRefObject<BiquadFilterNode | null>,
 ): WaveShaperNode {
     const masterSaturation = context.createWaveShaper();
     masterSaturation.curve = makeDistortionCurve(0);
@@ -28,8 +28,12 @@ export function initializeMasterOutput(
     masterGain.gain.setValueAtTime(0.8, 0);
     masterGainRef.current = masterGain;
 
-    const sidechainBus = context.createGain();
-    sidechainBus.gain.setValueAtTime(1.0, context.currentTime);
+    // Use a low-shelf filter for sidechaining instead of a broadband gain duck.
+    // This ducks only the low frequencies, leaving the highs intact (Spectral Sidechaining).
+    const sidechainBus = context.createBiquadFilter();
+    sidechainBus.type = 'lowshelf';
+    sidechainBus.frequency.setValueAtTime(250, context.currentTime);
+    sidechainBus.gain.setValueAtTime(0.0, context.currentTime); // 0 dB initially
     sidechainGainRef.current = sidechainBus;
 
     masterSaturation.connect(sidechainBus);
