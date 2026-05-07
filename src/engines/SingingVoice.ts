@@ -1,3 +1,4 @@
+import { ScaleDefinition, applyMicrotonalTuning } from '../utils/musicTheory';
 import processorUrl from '../audio-worklets/rubberband-processor.ts?worker&url';
 import { PhonemeAligner, type AlignmentResult } from './rubberband/PhonemeAligner';
 import { FormantShifter, type VoiceCharacter } from './rubberband/FormantShifter';
@@ -304,12 +305,16 @@ export class SingingVoice {
     /**
      * Linearly ramp the pitch from current value to the target MIDI note.
      */
-    linearRampPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number): void {
+    linearRampPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number, tuning?: ScaleDefinition | null): void {
+
         const effectiveBaseNote = baseMidiNote ?? this.rootNote;
         const effectiveCoarse = coarseTune ?? this.coarseTune;
         const effectiveFine = fineTune ?? this.fineTune;
 
+        targetMidiNote = applyMicrotonalTuning(targetMidiNote, tuning);
+
         const totalSemitoneOffset = effectiveCoarse + (effectiveFine / 100);
+
         const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
 
         const targetFreq = midiToFreq(adjustedTargetMidi);
@@ -324,12 +329,16 @@ export class SingingVoice {
     /**
      * Exponentially ramp the pitch from current value to the target MIDI note.
      */
-    exponentialRampPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number): void {
+    exponentialRampPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number, tuning?: ScaleDefinition | null): void {
+
         const effectiveBaseNote = baseMidiNote ?? this.rootNote;
         const effectiveCoarse = coarseTune ?? this.coarseTune;
         const effectiveFine = fineTune ?? this.fineTune;
 
+        targetMidiNote = applyMicrotonalTuning(targetMidiNote, tuning);
+
         const totalSemitoneOffset = effectiveCoarse + (effectiveFine / 100);
+
         const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
 
         const targetFreq = midiToFreq(adjustedTargetMidi);
@@ -351,11 +360,13 @@ export class SingingVoice {
      * @param coarseTune Optional coarse tuning override (-24 to +24), uses stored if not provided
      * @param fineTune Optional fine tuning override (-50 to +50), uses stored if not provided
      */
-    setPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number): void {
+    setPitchFromMidi(targetMidiNote: number, baseMidiNote?: number, time?: number, coarseTune?: number, fineTune?: number, tuning?: ScaleDefinition | null): void {
         // Use stored values as defaults
         const effectiveBaseNote = baseMidiNote ?? this.rootNote;
         const effectiveCoarse = coarseTune ?? this.coarseTune;
         const effectiveFine = fineTune ?? this.fineTune;
+
+        targetMidiNote = applyMicrotonalTuning(targetMidiNote, tuning);
 
         // Apply coarse and fine tuning offsets
         const totalSemitoneOffset = effectiveCoarse + (effectiveFine / 100);
@@ -393,7 +404,8 @@ export class SingingVoice {
      * * @param targetMidiNote Target MIDI note number
      * @returns The cache key ('low', 'mid', or 'high') for the nearest base pitch
      */
-    getNearestBasePitch(targetMidiNote: number): keyof PitchCache {
+    getNearestBasePitch(targetMidiNote: number, tuning?: ScaleDefinition | null): keyof PitchCache {
+        targetMidiNote = applyMicrotonalTuning(targetMidiNote, tuning);
         const freq = midiToFreq(targetMidiNote);
         if (freq < 200) return 'low';
         if (freq < 400) return 'mid';
@@ -434,7 +446,8 @@ export class SingingVoice {
      * * @param targetMidiNote Target MIDI note for pitch shifting
      * @returns true if processing succeeded, false if no cached audio available
      */
-    processWithOptimalPitch(targetMidiNote: number): boolean {
+    processWithOptimalPitch(targetMidiNote: number, tuning?: ScaleDefinition | null): boolean {
+        targetMidiNote = applyMicrotonalTuning(targetMidiNote, tuning);
         const cacheLevel = this.getNearestBasePitch(targetMidiNote);
         const cachedAudio = this.pitchCache[cacheLevel];
 
@@ -1105,7 +1118,8 @@ export class SingingVoice {
      * @param targetMidiNote The target MIDI note being played
      * @returns Total semitone offset from the base pitch
      */
-    calculatePitchOffset(targetMidiNote: number): number {
+    calculatePitchOffset(targetMidiNote: number, tuning?: ScaleDefinition | null): number {
+        targetMidiNote = applyMicrotonalTuning(targetMidiNote, tuning);
         // Calculate: (target - root) + coarse + fine/100
         const baseOffset = targetMidiNote - this.rootNote;
         const tuningOffset = this.coarseTune + (this.fineTune / 100);

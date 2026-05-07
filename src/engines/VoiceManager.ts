@@ -1,5 +1,6 @@
 import { type SynthParams } from '../types';
-import { noteToFrequency } from '../constants';
+import { tunedNoteToFrequency } from '../constants';
+import type { ScaleDefinition } from '../utils/musicTheory';
 
 export class Voice {
     context: AudioContext;
@@ -83,7 +84,7 @@ export class Voice {
         }
 
         const now = time;
-        const freq = noteToFrequency(note);
+        const freq = tunedNoteToFrequency(note, tuning);
         const waveform = params.waveform;
         const isWav = waveform.startsWith('wav-');
 

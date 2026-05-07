@@ -8,7 +8,8 @@
  */
 
 import type { SynthParams } from '../../types';
-import { noteToFrequency } from '../../constants';
+import { tunedNoteToFrequency } from '../../constants';
+import type { ScaleDefinition } from '../../utils/musicTheory';
 import { noteToMidi } from '../../utils/musicTheory';
 import type { Open303Oscillator } from '../../engines/Open303Oscillator';
 
@@ -78,7 +79,7 @@ export function playSynth(
         }
     }
 
-    const freq = noteToFrequency(note);
+    const freq = tunedNoteToFrequency(note, tuning);
     const gain = context.createGain();
     const filter = context.createBiquadFilter();
     filter.type = 'lowpass';

@@ -10,7 +10,7 @@
  */
 
 import type { SamplerBankParams } from '../../types';
-import { noteToMidi } from '../../utils/musicTheory';
+import { noteToMidi, applyMicrotonalTuning, type ScaleDefinition } from '../../utils/musicTheory';
 import type { SingingVoice } from '../../engines/SingingVoice';
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
 import type { MultisampleBank } from '../../engines/MultisampleGenerator';
@@ -70,7 +70,8 @@ export function playSampler(
     note: string,
     time: number,
     durationSteps: number = 1,
-    stepTime: number = 0.2
+    stepTime: number = 0.2,
+    tuning?: ScaleDefinition | null
 ): void {
     const { context, masterGain, singingVoice } = ctx;
     
@@ -109,7 +110,8 @@ export function playSampler(
 
         // 2. Pitch Shift
         // Assuming base note C4 (60) for the sample
-        const targetMidi = noteToMidi(note);
+        let targetMidi = noteToMidi(note);
+        targetMidi = applyMicrotonalTuning(targetMidi, tuning);
         voice.setPitchFromMidi(targetMidi, 60);
 
         // 3. Phoneme Awareness
@@ -129,7 +131,8 @@ export function playSampler(
     // Standard Loop / One-shot with Multisample Support
     const source = context.createBufferSource();
     
-    const targetMidi = noteToMidi(note);
+    let targetMidi = noteToMidi(note);
+    targetMidi = applyMicrotonalTuning(targetMidi, tuning);
     let playbackBuffer: AudioBuffer;
     let pitchRatio: number;
     
@@ -144,7 +147,9 @@ export function playSampler(
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
         const speed = params.playbackSpeed;
-        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+        const targetFreq = 440 * Math.pow(2, (targetMidi - 69) / 12);
+        const rootFreq = 440 * Math.pow(2, (rootMidi - 69) / 12);
+        pitchRatio = speed * (targetFreq / rootFreq);
     }
     
     source.buffer = playbackBuffer;
@@ -183,7 +188,8 @@ export function noteOnSampler(
     state: SamplerState,
     params: SamplerBankParams,
     note: string,
-    time?: number
+    time?: number,
+    tuning?: ScaleDefinition | null
 ): number | null {
     const { context, masterGain } = ctx;
     const now = time || context.currentTime;
@@ -196,7 +202,8 @@ export function noteOnSampler(
     
     if (!buffer || !masterGain) return null;
 
-    const targetMidi = noteToMidi(note);
+    let targetMidi = noteToMidi(note);
+    targetMidi = applyMicrotonalTuning(targetMidi, tuning);
     const source = context.createBufferSource();
     
     // Check if we have a pre-rendered multisample for this pitch
@@ -212,7 +219,9 @@ export function noteOnSampler(
         // Fallback: use base buffer with calculated pitch ratio
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
-        pitchRatio = params.playbackSpeed * Math.pow(2, (targetMidi - rootMidi) / 12);
+        const targetFreq = 440 * Math.pow(2, (targetMidi - 69) / 12);
+        const rootFreq = 440 * Math.pow(2, (rootMidi - 69) / 12);
+        pitchRatio = params.playbackSpeed * (targetFreq / rootFreq);
     }
     
     source.buffer = playbackBuffer;
