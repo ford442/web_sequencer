@@ -18,16 +18,23 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
   const startValue = useRef(value);
   const sliderRef = useRef<HTMLDivElement>(null);
 
+  // Use a ref to store the latest props to avoid redefining callbacks and re-attaching event listeners
+  const propsRef = useRef({ onChange, min, max, step });
+  useEffect(() => {
+    propsRef.current = { onChange, min, max, step };
+  }, [onChange, min, max, step]);
+
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!isDragging) return;
       const dy = startY.current - e.clientY;
-      const range = Math.max(1, max - min);
+      const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep } = propsRef.current;
+      const range = Math.max(1, currentMax - currentMin);
       const sensitivity = range / 200; // 200px for full range
       let newVal = startValue.current + dy * sensitivity;
-      if (step > 0) newVal = Math.round(newVal / step) * step;
-      newVal = Math.max(min, Math.min(max, newVal));
-      onChange(newVal);
+      if (currentStep > 0) newVal = Math.round(newVal / currentStep) * currentStep;
+      newVal = Math.max(currentMin, Math.min(currentMax, newVal));
+      currentOnChange(newVal);
     };
 
     const onUp = () => {
@@ -45,15 +52,16 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [isDragging, max, min, onChange, step]);
+  }, [isDragging]);
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const dir = e.deltaY > 0 ? -1 : 1;
-    let newVal = value + dir * (step || 1);
-    newVal = Math.round(newVal / step) * step;
-    newVal = Math.max(min, Math.min(max, newVal));
-    onChange(newVal);
+    const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep } = propsRef.current;
+    let newVal = value + dir * (currentStep || 1);
+    newVal = Math.round(newVal / currentStep) * currentStep;
+    newVal = Math.max(currentMin, Math.min(currentMax, newVal));
+    currentOnChange(newVal);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -92,16 +100,18 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
 
   const startRepeat = (direction: 1 | -1) => {
     // Immediately apply once
-    let newVal = valueRef.current + direction * step;
-    newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
-    onChange(newVal);
+    const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep } = propsRef.current;
+    let newVal = valueRef.current + direction * currentStep;
+    newVal = Math.max(currentMin, Math.min(currentMax, Math.round(newVal / currentStep) * currentStep));
+    currentOnChange(newVal);
 
     // After initial delay, start repeating
     timeoutRef.current = setTimeout(() => {
       intervalRef.current = setInterval(() => {
-        let next = valueRef.current + direction * step;
-        next = Math.max(min, Math.min(max, Math.round(next / step) * step));
-        onChange(next);
+        const { onChange: activeOnChange, min: activeMin, max: activeMax, step: activeStep } = propsRef.current;
+        let next = valueRef.current + direction * activeStep;
+        next = Math.max(activeMin, Math.min(activeMax, Math.round(next / activeStep) * activeStep));
+        activeOnChange(next);
       }, 80);
     }, 300);
   };
@@ -115,9 +125,10 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
     // Only handle keyboard activation (Enter/Space) where detail is 0
     // Mouse clicks (detail > 0) are handled by onMouseDown for repeat behavior
     if (e.detail === 0) {
-      let newVal = valueRef.current + direction * step;
-      newVal = Math.max(min, Math.min(max, Math.round(newVal / step) * step));
-      onChange(newVal);
+      const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep } = propsRef.current;
+      let newVal = valueRef.current + direction * currentStep;
+      newVal = Math.max(currentMin, Math.min(currentMax, Math.round(newVal / currentStep) * currentStep));
+      currentOnChange(newVal);
     }
   };
 
@@ -146,11 +157,12 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
           onKeyDown={(e) => {
             let newVal = value;
             let handled = false;
+            const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStepProp } = propsRef.current;
 
             // Modifier multipliers
             const isShift = e.shiftKey;
             const multiplier = isShift ? 10 : 1;
-            const currentStep = step * multiplier;
+            const currentStep = currentStepProp * multiplier;
 
             if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
               newVal += currentStep;
@@ -159,25 +171,25 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
               newVal -= currentStep;
               handled = true;
             } else if (e.key === 'PageUp') {
-              newVal += step * 5;
+              newVal += currentStepProp * 5;
               handled = true;
             } else if (e.key === 'PageDown') {
-              newVal -= step * 5;
+              newVal -= currentStepProp * 5;
               handled = true;
             } else if (e.key === 'Home') {
-              newVal = min;
+              newVal = currentMin;
               handled = true;
             } else if (e.key === 'End') {
-              newVal = max;
+              newVal = currentMax;
               handled = true;
             }
 
             if (handled) {
               e.preventDefault();
               // Apply stepping logic
-              newVal = Math.round(newVal / step) * step;
-              newVal = Math.max(min, Math.min(max, newVal));
-              onChange(newVal);
+              newVal = Math.round(newVal / currentStepProp) * currentStepProp;
+              newVal = Math.max(currentMin, Math.min(currentMax, newVal));
+              currentOnChange(newVal);
             }
           }}
           role="slider"
@@ -187,7 +199,10 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
           aria-valuetext={label ? `${display(value)} ${label}` : display(value)}
           aria-label={label}
           title={label ? `Drag up/down to adjust ${label}` : 'Drag up/down to adjust'}
-          onDoubleClick={() => onChange(defaultValue ?? min)}
+          onDoubleClick={() => {
+            const { onChange: currentOnChange, min: currentMin } = propsRef.current;
+            currentOnChange(defaultValue ?? currentMin);
+          }}
         >
           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[2px] opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-yellow-500/50 pointer-events-none">▲</div>
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[2px] opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-yellow-500/50 pointer-events-none">▼</div>

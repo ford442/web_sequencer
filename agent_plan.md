@@ -61,6 +61,7 @@
 
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
 ## 🧠 Innovation Lab (The "Dream" Log)
+* **Idea:** "Spectral Sidechaining" - Duck specific frequencies (like low-end) instead of broadband gain when the kick drum hits, avoiding pumping artifacts on the highs.
 * [x] **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time. (Implemented in Sampler and RubberBandProcessor via a 100ms looping Hann window!)
 * [x] **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A. (Implemented via automation track logic in `useStepHandler.ts` and `App.tsx`!)
 * [x] **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
@@ -109,6 +110,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-07-01] - Implemented Microtonal Scale Mapping: Added multiple microtonal tuning systems (e.g., 24-TET, Just Intonation, Bohlen-Pierce) to `musicTheory.ts` with `applyMicrotonalTuning` logic. Added a new tuning dropdown to the `ScaleSelector` UI. Wired `tunedNoteToFrequency` logic through `constants.ts`, `SingingVoice.ts`, and `VoiceManager.ts` to allow both Synthesizers and Sampler to play in custom tunings dynamically.
 * [2026-05-03] - Implemented Granular Pitch Quantization: Added `grainPitchQuantize` parameter to `RubberBandProcessor` parameter descriptors to snap frozen grain pitch to quantized semitone intervals (e.g. 5=fourths, 7=fifths, 12=octaves). Wired the parameter through `SingingVoice.ts`, `useAudioEngine.ts`, `SamplerPanel.tsx`, and `NoteSelector.tsx` for both global and per-step control. Added comprehensive tests. Fulfills the "Granular Pitch Quantization" Innovation Lab idea.
 * [2026-05-03] - Implemented Tape Stop Effect: Added `triggerTapeStop(duration)` and `resetTapeStop()` to the `AudioEngine` in `useAudioEngine.ts`, using `exponentialRampToValueAtTime` on the master gain node for a smooth fade-out. Wired the Escape key in `App.tsx` and added a dedicated "TAPE STOP" button to the master utilities UI. Added tests for button rendering and Escape key behavior. Fulfills the "Tape Stop Effect" Innovation Lab idea.
 * [2026-06-30] - Implemented Granular Envelope Follower per-step: Added `freezeEnvDepth` and `grainEnvDepth` to `Note` interface and `NoteSelector` UI, routing them through `useAudioEngine.ts` to allow step-sequenced envelope modulation of the granular parameters. Fulfills the "Granular Envelope Follower" idea.

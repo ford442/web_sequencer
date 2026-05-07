@@ -1,28 +1,23 @@
 /**
  * Sampler Playback Functions
- * 
- * Handles playback of sampled sounds:
- * - One-shot and looped playback
- * - Time-stretching with SingingVoice
- * - Phoneme slicing
- * - Interactive note on/off
- * - Multisample bank support (pre-rendered pitch variations)
+ *
+ * Handles playback of sampled sounds with full microtonal support.
  */
-
 import type { SamplerBankParams } from '../../types';
-import { noteToMidi, getTunedFrequency, type TuningSystem } from '../../utils/musicTheory';
+import { noteToMidi, applyMicrotonalTuning, type ScaleDefinition } from '../../utils/musicTheory';
 import type { SingingVoice } from '../../engines/SingingVoice';
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
 import type { MultisampleBank } from '../../engines/MultisampleGenerator';
 
-// Helper for distortion
-const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
-
-function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
-    const k_raw = typeof amount === 'number' ? amount : 50;
-    const k = Math.round(k_raw * 10) / 10;
+// Helper for distortion (cached)
+const distortionCurveCache = new Map<number, Float32Array>();
+function makeDistortionCurve(amount: number): Float32Array {
+    const k = Math.round((typeof amount === 'number' ? amount : 50) * 10) / 10;
     if (distortionCurveCache.has(k)) return distortionCurveCache.get(k)!;
-    const n_samples = 8192, curve = new Float32Array(n_samples), deg = Math.PI / 180;
+
+    const n_samples = 8192;
+    const curve = new Float32Array(n_samples);
+    const deg = Math.PI / 180;
     for (let i = 0; i < n_samples; ++i) {
         const x = (i * 2) / n_samples - 1;
         curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
@@ -38,18 +33,13 @@ export interface SamplerPlaybackContext {
 }
 
 export interface SamplerState {
-    /** Legacy buffer storage for backwards compatibility */
-    loadedSampleBuffers: Map<string, AudioBuffer>;
-    /** New multisample bank storage with pre-rendered pitch variations */
+    loadedSampleBuffers: Map<string, AudioBuffer>;   // legacy
     loadedSampleBanks: Map<string, MultisampleBank>;
     vocalAlignments: Map<string, AlignmentResult>;
     nextNoteId: number;
     activeNotes: Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>;
 }
 
-/**
- * Create initial sampler state
- */
 export function createSamplerState(): SamplerState {
     return {
         loadedSampleBuffers: new Map(),
@@ -60,9 +50,7 @@ export function createSamplerState(): SamplerState {
     };
 }
 
-/**
- * Play a sampler sound with multisample support
- */
+/** Core playback with multisample + microtonal support */
 export function playSampler(
     ctx: SamplerPlaybackContext,
     state: SamplerState,
@@ -71,32 +59,26 @@ export function playSampler(
     time: number,
     durationSteps: number = 1,
     stepTime: number = 0.2,
-    noteParams?: { timbre?: number, microtiming?: number, reverse?: boolean, sliceIndex?: number, retrigger?: number, freeze?: number, vibratoDepth?: number, drive?: number, reverbSend?: number, reverbType?: import('../../types').ReverbType, tuningSystem?: string, rootNote?: string }
+    tuning: ScaleDefinition | null = null
 ): void {
     const { context, masterGain, singingVoice } = ctx;
-    
-    // Check for multisample bank first (new system)
+
     const multisampleBank = state.loadedSampleBanks.get(params.sampleName);
-    // Fall back to legacy buffer
     const legacyBuffer = state.loadedSampleBuffers.get(params.sampleName);
     const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-    
+
     if (!buffer || !masterGain) return;
 
+    // === Singing Voice / Phoneme Stretch Mode ===
     if (params.mode === 'stretch' && singingVoice) {
-        // PHONEME ELASTICITY & SINGING VOICE MODE
         const voice = singingVoice;
         const targetDuration = durationSteps * stepTime;
-        const originalDuration = buffer.duration;
 
-        // CHECK FOR SLICE TRIGGER MODE
         if (params.sliceMode === 'phoneme') {
             const alignment = state.vocalAlignments.get(params.sampleName);
             if (alignment) {
                 const targetMidi = noteToMidi(note);
-                // Map MIDI C3 (60) to slice 0
                 const sliceIndex = targetMidi - 60;
-
                 if (sliceIndex >= 0) {
                     voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment);
                     return;
@@ -104,70 +86,59 @@ export function playSampler(
             }
         }
 
-        // 1. Calculate Time Ratio
-        const timeRatio = targetDuration / originalDuration;
+        const timeRatio = targetDuration / buffer.duration;
         voice.setTimeRatio(timeRatio);
 
-        // 2. Pitch Shift
-        // Assuming base note C4 (60) for the sample
-        const targetMidi = noteToMidi(note);
-        voice.setPitchFromMidi(targetMidi, 60);
+        let targetMidi = noteToMidi(note);
+        targetMidi = applyMicrotonalTuning(targetMidi, tuning);
+        voice.setPitchFromMidi(targetMidi, 60); // base = C4
 
-        // 3. Phoneme Awareness
         const alignment = state.vocalAlignments.get(params.sampleName);
-
         if (alignment) {
-            // Explicitly set the alignment for this voice operation
             voice.setAlignment(alignment);
             voice.sendPhonemeDataToWorklet(targetDuration);
         }
 
-        // 4. Process
         voice.process(buffer.getChannelData(0));
         return;
     }
 
-    // Standard Loop / One-shot with Multisample Support
+    // === Standard One-shot / Loop with Pitch ===
     const source = context.createBufferSource();
-    
-    const targetMidi = noteToMidi(note);
+    let targetMidi = noteToMidi(note);
+    targetMidi = applyMicrotonalTuning(targetMidi, tuning);
+
     let playbackBuffer: AudioBuffer;
     let pitchRatio: number;
-    
-    // Check if we have a pre-rendered multisample for this pitch
+
     if (multisampleBank?.pitchBank.has(targetMidi)) {
-        // Use pre-rendered high-quality multisample
+        // High-quality pre-rendered multisample
         playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
-        // playbackSpeed knob only affects speed (can be used for effect)
-        pitchRatio = params.playbackSpeed;
+        pitchRatio = params.playbackSpeed ?? 1;
     } else {
-        // Fallback: use base buffer with calculated pitch ratio
+        // Fallback pitch shift
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
-        const speed = params.playbackSpeed;
-        const targetFreq = getTunedFrequency(note, (noteParams?.tuningSystem || '12-TET') as TuningSystem, noteParams?.rootNote || 'C');
-        const baseFreq = getTunedFrequency('C4', '12-TET', 'C'); // Default base freq (midi 60)
-        pitchRatio = speed * (targetFreq / baseFreq) * Math.pow(2, (60 - rootMidi) / 12);
+
+        const targetFreq = 440 * Math.pow(2, (targetMidi - 69) / 12);
+        const rootFreq = 440 * Math.pow(2, (rootMidi - 69) / 12);
+        pitchRatio = (params.playbackSpeed ?? 1) * (targetFreq / rootFreq);
     }
-    
+
     source.buffer = playbackBuffer;
     source.playbackRate.value = pitchRatio;
 
+    // Audio graph
     const gain = context.createGain();
     gain.gain.value = params.volume;
 
     const filter = context.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = params.filterCutoff;
-    filter.Q.value = params.filterResonance;
+    filter.frequency.value = params.filterCutoff ?? 20000;
+    filter.Q.value = params.filterResonance ?? 1;
 
-    // Distortion (Simple waveshaper)
     const shaper = context.createWaveShaper();
-    if (params.drive > 0) {
-        shaper.curve = makeDistortionCurve(params.drive * 100);
-    } else {
-        shaper.curve = null; // Bypass
-    }
+    shaper.curve = params.drive > 0 ? makeDistortionCurve(params.drive * 100) : null;
 
     source.connect(filter);
     filter.connect(shaper);
@@ -177,49 +148,44 @@ export function playSampler(
     source.start(time);
 }
 
-/**
- * Trigger a sampler note on (for interactive play / live keyboard)
- * Returns note ID for noteOff
- */
+/** Interactive keyboard note on */
 export function noteOnSampler(
     ctx: SamplerPlaybackContext,
     state: SamplerState,
     params: SamplerBankParams,
     note: string,
-    time?: number
+    time?: number,
+    tuning: ScaleDefinition | null = null
 ): number | null {
     const { context, masterGain } = ctx;
-    const now = time || context.currentTime;
-    
-    // Check for multisample bank first (new system)
+    const now = time ?? context.currentTime;
+
     const multisampleBank = state.loadedSampleBanks.get(params.sampleName);
-    // Fall back to legacy buffer
     const legacyBuffer = state.loadedSampleBuffers.get(params.sampleName);
     const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-    
+
     if (!buffer || !masterGain) return null;
 
-    const targetMidi = noteToMidi(note);
+    let targetMidi = noteToMidi(note);
+    targetMidi = applyMicrotonalTuning(targetMidi, tuning);
+
     const source = context.createBufferSource();
-    
-    // Check if we have a pre-rendered multisample for this pitch
+
     let playbackBuffer: AudioBuffer;
     let pitchRatio: number;
-    
+
     if (multisampleBank?.pitchBank.has(targetMidi)) {
-        // Use pre-rendered high-quality multisample
         playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
-        // playbackSpeed knob only affects speed (can be used for effect)
-        pitchRatio = params.playbackSpeed;
+        pitchRatio = params.playbackSpeed ?? 1;
     } else {
-        // Fallback: use base buffer with calculated pitch ratio
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = params.rootNote ?? multisampleBank?.rootNote ?? 60;
-        // `noteOnSampler` doesn't currently get `noteParams` or tuning info passed to it
-        // We fall back to 12-TET for standard keyboard playback, or you could pass currentScale here too.
-        pitchRatio = params.playbackSpeed * Math.pow(2, (targetMidi - rootMidi) / 12);
+
+        const targetFreq = 440 * Math.pow(2, (targetMidi - 69) / 12);
+        const rootFreq = 440 * Math.pow(2, (rootMidi - 69) / 12);
+        pitchRatio = (params.playbackSpeed ?? 1) * (targetFreq / rootFreq);
     }
-    
+
     source.buffer = playbackBuffer;
     source.playbackRate.value = pitchRatio;
 
@@ -235,28 +201,17 @@ export function noteOnSampler(
     return id;
 }
 
-/**
- * Release a sampler note
- */
-export function noteOffSampler(
-    ctx: SamplerPlaybackContext,
-    state: SamplerState,
-    id: number
-): void {
-    const { context } = ctx;
+export function noteOffSampler(ctx: SamplerPlaybackContext, state: SamplerState, id: number): void {
     const note = state.activeNotes.get(id);
-    if (note) {
-        const now = context.currentTime;
-        note.envGain.gain.cancelScheduledValues(now);
-        note.envGain.gain.linearRampToValueAtTime(0, now + 0.1);
-        note.source.stop(now + 0.1);
-        state.activeNotes.delete(id);
-    }
+    if (!note) return;
+
+    const now = ctx.context.currentTime;
+    note.envGain.gain.cancelScheduledValues(now);
+    note.envGain.gain.linearRampToValueAtTime(0, now + 0.1);
+    note.source.stop(now + 0.1);
+    state.activeNotes.delete(id);
 }
 
-/**
- * Stop all active sampler notes
- */
 export function stopAllSamplerNotes(state: SamplerState): void {
     state.activeNotes.forEach(n => {
         try { n.source.stop(); } catch {}
@@ -264,18 +219,10 @@ export function stopAllSamplerNotes(state: SamplerState): void {
     state.activeNotes.clear();
 }
 
-/**
- * Load a sample into the sampler (legacy sync version)
- * For async with progress, use the engine's loadSampleToEngine
- */
-export function loadSampleToEngine(
-    state: SamplerState,
-    name: string,
-    buffer: AudioBuffer
-): void {
+// Load helpers (unchanged except type safety)
+export function loadSampleToEngine(state: SamplerState, name: string, buffer: AudioBuffer): void {
     state.loadedSampleBuffers.set(name, buffer);
-    
-    // Also create a basic multisample bank
+
     const bank: MultisampleBank = {
         baseBuffer: buffer,
         pitchBank: new Map([[60, buffer]]),
@@ -286,41 +233,19 @@ export function loadSampleToEngine(
     state.loadedSampleBanks.set(name, bank);
 }
 
-/**
- * Update a multisample bank in the state
- */
-export function updateMultisampleBank(
-    state: SamplerState,
-    name: string,
-    bank: MultisampleBank
-): void {
+export function updateMultisampleBank(state: SamplerState, name: string, bank: MultisampleBank): void {
     state.loadedSampleBanks.set(name, bank);
 }
 
-/**
- * Get a multisample bank
- */
-export function getMultisampleBank(
-    state: SamplerState,
-    name: string
-): MultisampleBank | null {
-    return state.loadedSampleBanks.get(name) || null;
+export function getMultisampleBank(state: SamplerState, name: string): MultisampleBank | null {
+    return state.loadedSampleBanks.get(name) ?? null;
 }
 
-/**
- * Check if a multisample bank is ready (not processing)
- */
-export function isMultisampleReady(
-    state: SamplerState,
-    name: string
-): boolean {
+export function isMultisampleReady(state: SamplerState, name: string): boolean {
     const bank = state.loadedSampleBanks.get(name);
     return bank ? !bank.isProcessing : false;
 }
 
-/**
- * Prepare vocal alignment for a bank
- */
 export async function prepareVocal(
     state: SamplerState,
     singingVoice: SingingVoice | null,
@@ -332,12 +257,9 @@ export async function prepareVocal(
     const buffer = state.loadedSampleBuffers.get(bankName);
     if (!buffer) return;
 
-    const audio = buffer.getChannelData(0);
     try {
-        const alignment = await singingVoice.alignPhonemes(audio, text);
-        if (alignment) {
-            state.vocalAlignments.set(bankName, alignment);
-        }
+        const alignment = await singingVoice.alignPhonemes(buffer.getChannelData(0), text);
+        if (alignment) state.vocalAlignments.set(bankName, alignment);
     } catch (e) {
         console.warn('Phoneme alignment failed:', e);
     }

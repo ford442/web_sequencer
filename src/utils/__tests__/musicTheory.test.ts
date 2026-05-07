@@ -8,6 +8,7 @@ import {
     getScaleNotes,
     isMidiInScale,
     nextScaleNote,
+    applyMicrotonalTuning,
 } from '../../utils/musicTheory';
 
 describe('musicTheory - Scale utilities', () => {
@@ -96,6 +97,16 @@ describe('musicTheory - Scale utilities', () => {
         it('works across octave boundaries', () => {
             // B4 = MIDI 71, next up in C Major = C5 = 72
             expect(nextScaleNote(71, 1, cMajor)).toBe(72);
+        });
+    });
+
+    describe('applyMicrotonalTuning', () => {
+        it('returns standard midi for 12-TET', () => {
+            expect(applyMicrotonalTuning(60, { root: 'C', scale: 'Major', tuning: '12-TET' })).toBe(60);
+        });
+        it('returns correct tuning for 24-TET around center', () => {
+            expect(applyMicrotonalTuning(60, { root: 'C', scale: 'Major', tuning: '24-TET (Quarter)' })).toBe(60.0);
+            expect(applyMicrotonalTuning(61, { root: 'C', scale: 'Major', tuning: '24-TET (Quarter)' })).toBe(60.5);
         });
     });
 

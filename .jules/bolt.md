@@ -7,3 +7,9 @@
 ## 2026-05-01 - [FastAPI GZip Middleware Optimization]
 **Learning:** Returning large, uncompressed JSON payloads (like songs/patterns) from a FastAPI backend wastes bandwidth and increases load times. FastAPI includes a built-in `GZipMiddleware` that can be added in one line to compress these payloads efficiently.
 **Action:** When building backend APIs that return large JSON datasets, always add `GZipMiddleware(minimum_size=...)` near the top of the middleware stack (before CORS) to reduce payload size without manual compression logic.
+## 2026-05-06 - [Avoid Pure Rendering Violations with useRef]
+**Learning:** Using the `useRef` + `useEffect` pattern to store frequently changing properties (like event handlers or configurations) to optimize `useCallback` dependency arrays works well, but reading `ref.current` *during the React render phase* violates pure rendering rules. It results in stale closures (lagging one render behind) and breaks the component's visual state.
+**Action:** Restrict reading `propsRef.current` strictly to event handlers (like `onClick`, `onMouseMove`) or side effects (like `useEffect`). Never access it inside functions that return JSX or calculate rendering state outside an effect.
+## 2026-05-06 - [Avoid Layout Thrashing with ResizeObserver]
+**Learning:** Calling \`getBoundingClientRect()\` inside a \`requestAnimationFrame\` loop or a high-frequency \`mousemove\` handler causes "Forced Synchronous Layout" (Layout Thrashing), severely degrading performance.
+**Action:** Instead of reading \`getBoundingClientRect()\` directly during interactions, use a \`useRef\` to store a cached \`DOMRect\` and keep it updated using a \`ResizeObserver\` attached to the element. This ensures the layout is only calculated when the element actually resizes, completely eliminating overhead during dragging and animation.
