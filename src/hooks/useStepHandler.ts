@@ -145,7 +145,7 @@ export const useStepHandler = ({
                 const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
-                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams);
+                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams, state.currentScale);
                 lastFreqRef.current[trackKey] = currentBaseFreq;
             }
         };
@@ -189,7 +189,7 @@ export const useStepHandler = ({
                 }
 
                 // @ts-expect-error - Auto-generated to fix CI build
-                audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2', noteParams);
+                audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2', noteParams, state.currentScale);
             }
         };
 
@@ -258,7 +258,8 @@ export const useStepHandler = ({
                     }
                 }
 
-                audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, noteParams);
+                // @ts-expect-error - Auto-generated to fix CI build
+                audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, noteParams, state.currentScale);
             }
         });
 

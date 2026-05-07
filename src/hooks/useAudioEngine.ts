@@ -302,7 +302,9 @@ export const useAudioEngine = (pyodide: unknown) => {
             multisampleGeneratorRef.current = new MultisampleGenerator(context);
 
             // --- Playback Functions Extraction ---
-            const playSynth = createPlaySynth(context, playbackRefs) as any;
+            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: any, tuning?: any) => {
+                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track, noteParams, tuning);
+            };
             const playDrum = createPlayDrum(context, playbackRefs) as any;
             const {
                 loadSampleToEngine,
@@ -556,17 +558,17 @@ export const useAudioEngine = (pyodide: unknown) => {
                             const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
                             if (noteParams?.slideFromMidi !== undefined) {
                                 const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
-                                voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime);
+                                voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
                                 // Glide over half the target duration or a minimum of 0.15s, bounded by actual duration
                                 const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
 
                                 if (noteParams?.slideType === 'exponential' || params.portamentoType === 'exponential') {
-                                    voice.exponentialRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration);
+                                    voice.exponentialRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, tuning);
                                 } else {
-                                    voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration);
+                                    voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, tuning);
                                 }
                             } else {
-                                voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime);
+                                voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
                             }
 
                             // 3. Phoneme Awareness (from Jules branch)
@@ -764,7 +766,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     const voices = harmonizer.generateVoices();
                     
                     // Play base voice (index 0) - the original note
-                    playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0);
+                    playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
                     
                     // Play each harmony voice (skip index 0 which is base)
                     voices.forEach((voice) => {
@@ -782,16 +784,16 @@ export const useAudioEngine = (pyodide: unknown) => {
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5; // 5ms stagger per voice
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, noteParams, voice.pitchOffset);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, noteParams, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;
                 }
 
-                playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0);
+                playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
             };
 
-            const noteOnSampler = (params: SamplerBankParams, note: string, time?: number): number | null => {
+            const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any): number | null => {
                 const now = time || context.currentTime;
                 
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);

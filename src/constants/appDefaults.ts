@@ -32,6 +32,7 @@ export type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedH
 export type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
+    currentScale?: ScaleDefinition | null;
     ambianceUrl: string;
     backgroundImage: string;
     params: {

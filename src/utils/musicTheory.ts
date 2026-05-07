@@ -44,6 +44,7 @@ export const SCALE_NAMES = Object.keys(SCALE_INTERVALS);
 export interface ScaleDefinition {
     root: string;   // e.g., 'C', 'G#'
     scale: string;  // e.g., 'Minor', 'Dorian'
+    tuning?: string; // Custom microtonal scale tuning
 }
 
 /**
@@ -85,4 +86,62 @@ export const nextScaleNote = (midi: number, direction: 1 | -1, definition: Scale
         next += direction;
     }
     return midi + direction; // fallback
+};
+
+
+// Microtonal Tuning Systems (interval maps in semitones, can be non-integer for microtonal)
+export const TUNING_SYSTEMS: Record<string, number[]> = {
+    '12-TET': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    '24-TET (Quarter)': [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5],
+    'Just Intonation': [0, 1.117, 2.039, 3.156, 3.863, 4.980, 5.902, 7.020, 8.137, 8.844, 10.176, 10.883],
+    'Pythagorean': [0, 0.902, 2.039, 2.941, 4.078, 4.980, 6.117, 7.020, 7.922, 9.059, 9.961, 11.098],
+    'Bohlen-Pierce': [0, 1.463, 2.926, 4.389, 5.852, 7.315, 8.778, 10.241, 11.704, 13.167, 14.630, 16.093, 17.556], // 13 steps per tritave
+    'Slendro (approx)': [0, 2.4, 4.8, 7.2, 9.6],
+    'Pelog (approx)': [0, 1.2, 3.2, 7.2, 8.4]
+};
+
+export const TUNING_NAMES = Object.keys(TUNING_SYSTEMS);
+
+/**
+ * Apply microtonal tuning to a standard MIDI note.
+ * Standard MIDI notes assume 12-TET (integers). This function maps an integer 12-TET MIDI note
+ * to a fractional MIDI note based on the tuning system, preserving octaves for standard octave-repeating scales.
+ */
+export const applyMicrotonalTuning = (midiNote: number, definition?: ScaleDefinition | null): number => {
+    if (!definition || !definition.tuning || definition.tuning === '12-TET') {
+        return midiNote; // Default 12-TET
+    }
+
+    const intervals = TUNING_SYSTEMS[definition.tuning];
+    if (!intervals || intervals.length === 0) {
+        return midiNote;
+    }
+
+    // Root MIDI is assumed to be C (midi % 12 == 0) unless shifted.
+    // For simplicity, we apply tuning relative to C as note index 0.
+    const rootOffset = NOTES.indexOf(definition.root);
+    const rootIndex = rootOffset === -1 ? 0 : rootOffset;
+
+    // The scale index relative to the root (0 to 11)
+    // Actually, mapping 12 standard piano keys to the tuning system:
+    // If tuning has 12 notes (like Just, Pythagorean), map 1-to-1.
+    // If tuning has more/fewer, we map based on chromatic steps.
+    const relativeMidi = midiNote - rootIndex;
+    let period = intervals.length > 0 ? intervals.length : 12;
+    let tunedPeriod = 12;
+
+    if (definition.tuning === 'Bohlen-Pierce') {
+        period = 13;
+        tunedPeriod = 19.01955;
+    }
+
+    // Center around MIDI 60 (C4) so middle notes stay in the same register
+    const centerMidi = 60;
+    const centeredRelative = midiNote - centerMidi - rootIndex;
+
+    const cycle = Math.floor(centeredRelative / period);
+    const stepInCycle = ((centeredRelative % period) + period) % period;
+    const tunedStep = intervals[stepInCycle] || 0;
+
+    return centerMidi + rootIndex + (cycle * tunedPeriod) + tunedStep;
 };
