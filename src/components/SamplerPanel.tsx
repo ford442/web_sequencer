@@ -884,7 +884,6 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     }}
                                     aria-label="Grain Size"
                                     aria-valuetext={grainSizeToMs(currentParams.grainSize || 4410) + 'ms'}
-                                    title="Grain Size"
                                 />
                                 <span className="text-[9px] text-gray-500 w-8 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
                             </div>
