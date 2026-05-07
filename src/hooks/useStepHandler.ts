@@ -43,6 +43,7 @@ export interface UseStepHandlerOptions {
     snareRef: React.MutableRefObject<any>;
     closedHatRef: React.MutableRefObject<any>;
     openHatRef: React.MutableRefObject<any>;
+    currentScaleRef: React.MutableRefObject<any>;
     samplerRef: React.MutableRefObject<SamplerParams>;
     samplerVoiceParamsRef: React.MutableRefObject<{
         rootNote: number;
@@ -81,13 +82,13 @@ export const useStepHandler = ({
     snareRef,
     closedHatRef,
     openHatRef,
-    currentScaleRef,
     samplerRef,
     samplerVoiceParamsRef,
     activeSamplerBankRef,
     sliceHighlightRef,
     isSongModeActiveRef,
     songStructureRef,
+    currentScaleRef,
     songMeasureRef,
     isFirstStepRef,
     trackStorageRef,

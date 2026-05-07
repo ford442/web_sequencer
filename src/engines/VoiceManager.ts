@@ -165,8 +165,8 @@ export class Voice {
         this.scheduleRelease(params, time);
     }
 
-    play(params: SynthParams, note: string, time: number, duration: number, slideFromFreq?: number) {
-        this.startNote(params, note, time, slideFromFreq);
+    play(params: SynthParams, note: string, time: number, duration: number, slideFromFreq?: number, noteParams?: { timbre?: number, tuningSystem?: string, rootNote?: string }) {
+        this.startNote(params, note, time, slideFromFreq, noteParams);
         this.stopNote(time + duration, params);
     }
 
@@ -286,18 +286,18 @@ export class VoiceManager {
         }
     }
 
-    noteOn(params: SynthParams, note: string, time: number): Voice | null {
+    noteOn(params: SynthParams, note: string, time: number, slideFromFreq?: number, noteParams?: { timbre?: number, tuningSystem?: string, rootNote?: string }): Voice | null {
         if (this.isMonophonic) {
             let voice = this.voices[0];
             if (!voice) {
                 voice = new Voice(this.context, this.destination, this.wavSaw, this.wavSqr, this.globalDelayNode);
                 this.voices.push(voice);
             }
-            voice.startNote(params, note, time);
+            voice.startNote(params, note, time, slideFromFreq, noteParams);
             return voice;
         } else {
             const voice = this.getVoice(note);
-            voice.startNote(params, note, time);
+            voice.startNote(params, note, time, slideFromFreq, noteParams);
 
             const vIdx = this.voices.indexOf(voice);
             if (vIdx > -1) {
