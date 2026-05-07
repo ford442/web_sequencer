@@ -458,6 +458,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 accept=".rbs"
                 onChange={handleFileSelect}
                 className="hidden"
+                aria-label="Upload .rbs file"
               />
             </div>
           )}
@@ -753,6 +754,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                         type="button"
                         role="switch"
                         aria-checked={importOptions.expandTo32Steps}
+                        aria-labelledby="expand-label"
                         onClick={(e) => {
                           e.stopPropagation();
                           updateOption('expandTo32Steps', !importOptions.expandTo32Steps);
@@ -782,6 +784,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                         type="button"
                         role="switch"
                         aria-checked={importOptions.importSwing}
+                        aria-labelledby="swing-label"
                         onClick={(e) => {
                           e.stopPropagation();
                           updateOption('importSwing', !importOptions.importSwing);
@@ -811,6 +814,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                         type="button"
                         role="switch"
                         aria-checked={importOptions.convertPcfToAutomation}
+                        aria-labelledby="pcf-label"
                         onClick={(e) => {
                           e.stopPropagation();
                           updateOption('convertPcfToAutomation', !importOptions.convertPcfToAutomation);
@@ -837,6 +841,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                         value={importOptions.drumKitMapping}
                         onChange={(e) => updateOption('drumKitMapping', e.target.value as RbsImportOptions['drumKitMapping'])}
                         className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
+                        aria-label="Drum kit mapping"
                       >
                         <option value="auto">Auto</option>
                         <option value="808">808</option>
@@ -851,6 +856,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                         value={importOptions.tb303ATarget}
                         onChange={(e) => updateOption('tb303ATarget', e.target.value as RbsImportOptions['tb303ATarget'])}
                         className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
+                        aria-label="TB-303 A target"
                       >
                         <option value="partA">Part A</option>
                         <option value="partB">Part B</option>
@@ -865,6 +871,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                         value={importOptions.tb303BTarget}
                         onChange={(e) => updateOption('tb303BTarget', e.target.value as RbsImportOptions['tb303BTarget'])}
                         className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
+                        aria-label="TB-303 B target"
                       >
                         <option value="partB">Part B</option>
                         <option value="partA">Part A</option>

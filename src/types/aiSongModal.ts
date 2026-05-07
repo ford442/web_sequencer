@@ -45,7 +45,8 @@ export interface DroppedFile {
 export interface AISongModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (song: SavedSongData, aiData: AISongData) => void;
-  onShowToast: (message: string, type: 'success' | 'error' | 'info') => void;
+  onImport: (song: SavedSongData, aiData: AISongData) => Promise<void> | void;
+  onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   audioEngine?: any;
+  isImporting?: boolean;
 }

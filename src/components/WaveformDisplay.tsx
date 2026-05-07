@@ -14,6 +14,9 @@ interface WaveformDisplayProps {
 export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice, autoSliceSensitivity = 50, onAutoSliceSensitivityChange }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    // ⚡ Bolt: Cache DOMRect to prevent forced synchronous layout
+    const cachedCanvasRectRef = useRef<DOMRect | null>(null);
+    const cachedContainerRectRef = useRef<DOMRect | null>(null);
     const activeSliceRef = useRef<number>(-1);
 
     // Custom Slicing State
@@ -23,6 +26,27 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
     // State for drag interactions
     const isDraggingRef = useRef(false);
     const draggedMarkerIndexRef = useRef<number>(-1);
+
+    // Setup ResizeObserver to maintain cached rects
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const container = containerRef.current;
+        if (!canvas || !container) return;
+
+        cachedCanvasRectRef.current = canvas.getBoundingClientRect();
+        cachedContainerRectRef.current = container.getBoundingClientRect();
+
+        const observer = new ResizeObserver(() => {
+            cachedCanvasRectRef.current = canvas.getBoundingClientRect();
+            cachedContainerRectRef.current = container.getBoundingClientRect();
+        });
+
+        observer.observe(canvas);
+        observer.observe(container);
+
+        return () => observer.disconnect();
+    }, []);
+
 
     // Keep latest props in ref to access them inside the imperative callback without stale closures
     const propsRef = useRef<{ buffer: AudioBuffer | null, alignment: AlignmentResult | null, onAlignmentChange?: (alignment: AlignmentResult) => void, focusedSliceIndex: number }>({ buffer, alignment, onAlignmentChange, focusedSliceIndex });
@@ -42,7 +66,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
 
             // Handle High DPI
             const dpr = window.devicePixelRatio || 1;
-            const rect = container.getBoundingClientRect();
+            const rect = cachedContainerRectRef.current || container.getBoundingClientRect();
 
             // Only resize if dimensions changed to avoid clearing canvas unnecessarily
             if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
@@ -194,7 +218,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
         const canvas = canvasRef.current;
         if (!canvas || !buffer) return null;
 
-        const rect = canvas.getBoundingClientRect();
+        const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         return (x / rect.width) * buffer.duration;
     };
@@ -475,7 +499,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
             const { buffer } = propsRef.current;
             if (!buffer) return null;
 
-            const rect = canvas.getBoundingClientRect();
+            const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
             const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
             return (x / rect.width) * buffer.duration;
         };
@@ -504,7 +528,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
             const time = getMouseTime(e);
             if (time === null) return;
 
-            const rect = canvas.getBoundingClientRect();
+            const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
             const threshold = (5 / rect.width) * propsRef.current.buffer.duration; // 5px threshold
 
             const markerIdx = getMarkerIndexNearTime(time, threshold);
@@ -571,7 +595,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
                 });
             } else {
                 // Update cursor
-                const rect = canvas.getBoundingClientRect();
+                const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
                 const threshold = (5 / rect.width) * propsRef.current.buffer.duration;
                 const markerIdx = getMarkerIndexNearTime(time, threshold);
 
@@ -594,7 +618,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
             const time = getMouseTime(e);
             if (time === null) return;
 
-            const rect = canvas.getBoundingClientRect();
+            const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
             const threshold = (5 / rect.width) * propsRef.current.buffer.duration;
             const markerIdx = getMarkerIndexNearTime(time, threshold);
 

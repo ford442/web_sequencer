@@ -20,6 +20,7 @@ export const AmbiancePlayer: React.FC<AmbiancePlayerProps> = React.memo(({ track
         value={selectedUrl}
         onChange={(e) => onSelect(e.target.value)}
         className="bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-md text-sm focus:border-indigo-400 focus:ring-0 focus:outline-none"
+        aria-label="Ambiance select"
       >
         {tracks.map(track => (
           <option key={track.name} value={track.url}>{track.name}</option>
