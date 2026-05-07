@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { NOTES, noteToMidi, midiToNote, getScaleNotes, isMidiInScale, nextScaleNote } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { getNoteColor } from '../utils/noteColors';
@@ -138,18 +138,21 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.m
     }, [onChange]);
 
     // Determine octave range from minMidi/maxMidi
-    const minOctave = Math.floor(minMidi / 12) - 1;
-    const maxOctave = Math.floor(maxMidi / 12) - 1;
-    const octaves: number[] = [];
-    for (let o = minOctave; o <= maxOctave; o++) {
-        octaves.push(o);
-    }
+    const octaves = useMemo(() => {
+        const minOctave = Math.floor(minMidi / 12) - 1;
+        const maxOctave = Math.floor(maxMidi / 12) - 1;
+        const octs: number[] = [];
+        for (let o = minOctave; o <= maxOctave; o++) {
+            octs.push(o);
+        }
+        return octs;
+    }, [minMidi, maxMidi]);
 
     // Scale note set for filtering
-    const scaleNotes = currentScale ? getScaleNotes(currentScale) : null;
+    const scaleNotes = useMemo(() => currentScale ? getScaleNotes(currentScale) : null, [currentScale]);
 
-    const color = getNoteColor(value, trackKey);
-    const currentNoteName = extractNoteName(value);
+    const color = useMemo(() => getNoteColor(value, trackKey), [value, trackKey]);
+    const currentNoteName = useMemo(() => extractNoteName(value), [value]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
         if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {

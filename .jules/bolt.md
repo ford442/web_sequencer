@@ -13,3 +13,6 @@
 ## 2026-05-06 - [Avoid Layout Thrashing with ResizeObserver]
 **Learning:** Calling \`getBoundingClientRect()\` inside a \`requestAnimationFrame\` loop or a high-frequency \`mousemove\` handler causes "Forced Synchronous Layout" (Layout Thrashing), severely degrading performance.
 **Action:** Instead of reading \`getBoundingClientRect()\` directly during interactions, use a \`useRef\` to store a cached \`DOMRect\` and keep it updated using a \`ResizeObserver\` attached to the element. This ensures the layout is only calculated when the element actually resizes, completely eliminating overhead during dragging and animation.
+## 2026-05-07 - [Memoize Expensive Inline Array/Object Creation in Frequently Rendered Components]
+**Learning:** Components that handle gestural inputs (like dragging) trigger many re-renders. If they generate arrays or perform string/color lookups inline during the render cycle (like iterating octaves or generating a Set of scale notes), it degrades performance.
+**Action:** Always wrap these inline calculations in a `useMemo` hook with correct dependencies so they are only recalculated when their specific inputs (like min/max bounds or current scale) change, rather than on every single pixel dragged.
