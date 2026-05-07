@@ -66,7 +66,7 @@ export interface PlaybackRefs {
     masterGainRef: MutableRefObject<GainNode | null>;
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>;
     masterCompressorRef: MutableRefObject<DynamicsCompressorNode | null>;
-    sidechainGainRef: MutableRefObject<GainNode | null>;
+    sidechainGainRef: MutableRefObject<BiquadFilterNode | null>;
     reverbNodesRef: MutableRefObject<Record<string, ConvolverNode>>;
     reverbTypeRef: MutableRefObject<'room' | 'plate' | 'hall'>;
     delayNodeRef: MutableRefObject<DelayNode | null>;
@@ -216,9 +216,9 @@ export function createPlaySynth(
 
 export const triggerSidechainDuck = (
     audioCtx: AudioContext,
-    sidechainGainNode: GainNode,
+    sidechainGainNode: BiquadFilterNode,
     time: number,
-    depth: number = 0.15, // How quiet it gets (0.0 to 1.0)
+    depth: number = -24, // How quiet it gets in dB
     releaseTime: number = 0.25 // How long it takes to recover (in seconds)
 ) => {
     const gain = sidechainGainNode.gain;
@@ -229,12 +229,14 @@ export const triggerSidechainDuck = (
     // 2. Anchor the value right before the drop
     gain.setValueAtTime(gain.value, time);
 
-    // 3. The Attack: Drop the volume instantly (10ms to prevent clicking)
+    // 3. The Attack: Drop the gain instantly (10ms to prevent clicking)
     gain.linearRampToValueAtTime(depth, time + 0.01);
 
-    // 4. The Release: Ramp exponentially back to 1.0
-    // Exponential ramps sound much more musical and natural than linear for volume!
-    gain.exponentialRampToValueAtTime(1.0, time + releaseTime);
+    // 4. The Release: Return to 0 dB
+    // We cannot use exponentialRampToValueAtTime with 0.0, and since we are using dB
+    // for a BiquadFilterNode, we can just use setTargetAtTime or linearRampToValueAtTime.
+    // setTargetAtTime creates a nice exponential-style decay back to 0.
+    gain.setTargetAtTime(0.0, time + 0.01, releaseTime / 3);
 };
 
 export function createPlayDrum(
