@@ -19,6 +19,7 @@ export const Rack = memo(({ is3DMode, selectedTrack, onSelectTrack, modules }: R
                         <button
                             key={row.key}
                             onClick={() => onSelectTrack(row.key as TrackKey)}
+                            aria-label={`Select ${row.label} track`}
                             className={`px-4 py-2 rounded text-xs font-bold font-orbitron border transition-all ${selectedTrack === row.key ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500 shadow-[0_0_10px_cyan]' : 'bg-gray-800 text-gray-500 border-gray-700 hover:bg-gray-700 hover:text-gray-300'}`}
                         >
                             {row.label.toUpperCase()}
