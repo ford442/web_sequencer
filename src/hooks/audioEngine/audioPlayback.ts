@@ -88,7 +88,7 @@ export interface PlaybackRefs {
 
 export function createPlaySynth(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'reverbNodesRef' | 'reverbTypeRef'>,
+    refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'bassSidechainEQBusRef'>,
 ): PlaySynthFn {
     return (params, note, time, durationSteps = 1, stepTime = 0.2, slideFromFreq, track, noteParams) => {
         if (!refs.masterGainRef.current) {
@@ -135,6 +135,8 @@ export function createPlaySynth(
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
 
+                    triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, noteTime, noteDuration);
+
                     setTimeout(() => {
                         const t0 = performance.now();
                         refs.open303ManagerRef.current?.noteOnBass2(midi, 100);
@@ -168,6 +170,8 @@ export function createPlaySynth(
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
 
+                    triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, noteTime, noteDuration);
+
                     setTimeout(() => {
                         const t0 = performance.now();
                         refs.open303ManagerRef.current?.noteOnBass1(midi, 100);
@@ -194,6 +198,7 @@ export function createPlaySynth(
             let voice: Voice | null = null;
             if (track === 'partB' && refs.voiceManagerBRef.current) {
                 voice = refs.voiceManagerBRef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, noteTime, noteDuration);
             } else if (refs.voiceManagerARef.current) {
                 voice = refs.voiceManagerARef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
             }
@@ -237,6 +242,33 @@ export const triggerSidechainDuck = (
     // for a BiquadFilterNode, we can just use setTargetAtTime or linearRampToValueAtTime.
     // setTargetAtTime creates a nice exponential-style decay back to 0.
     gain.setTargetAtTime(0.0, time + 0.01, releaseTime / 3);
+};
+
+export const triggerBassEQDuck = (
+    audioCtx: AudioContext,
+    eqNode: BiquadFilterNode | null,
+    time: number,
+    duration: number,
+    depthDb: number = -6
+) => {
+    if (!eqNode) return;
+
+    const gain = eqNode.gain;
+
+    // 1. Cancel any previous automations
+    gain.cancelScheduledValues(time);
+
+    // 2. Anchor the value
+    gain.setValueAtTime(gain.value, time);
+
+    // 3. The Attack: Drop the gain instantly (10ms to prevent clicking)
+    gain.linearRampToValueAtTime(depthDb, time + 0.01);
+
+    // 4. Hold the duck for the duration of the note
+    gain.setValueAtTime(depthDb, time + duration);
+
+    // 5. Release back to 0 dB
+    gain.linearRampToValueAtTime(0.0, time + duration + 0.1);
 };
 
 export function createPlayDrum(
@@ -359,7 +391,7 @@ export function createPlayDrum(
 
 export function createNoteOnSynth(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'nextSynthNoteId' | 'activeSynthNotes'>,
+    refs: Pick<PlaybackRefs, 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'nextSynthNoteId' | 'activeSynthNotes' | 'bassSidechainEQBusRef'>,
 ): NoteOnSynthFn {
     return (params, note, time, track) => {
         const now = time || context.currentTime;
@@ -367,6 +399,7 @@ export function createNoteOnSynth(
         if (track === 'bass2') {
             if (refs.open303ManagerRef.current?.isBass2Ready()) {
                 const midi = noteToMidi(note);
+                triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, now, 0.25); // Approximate duration for interactive play
                 const t0 = performance.now();
                 refs.open303ManagerRef.current.noteOnBass2(midi, 100);
                 const t1 = performance.now();
@@ -382,6 +415,7 @@ export function createNoteOnSynth(
             if (refs.open303ManagerRef.current?.isBass1Ready()) {
                 refs.open303ManagerRef.current.applyBass1Params(params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
                 const midi = noteToMidi(note);
+                triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, now, 0.25); // Approximate duration
                 const t0 = performance.now();
                 refs.open303ManagerRef.current.noteOnBass1(midi, 100);
                 const t1 = performance.now();
