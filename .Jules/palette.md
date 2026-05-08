@@ -4,6 +4,3 @@
 ## 2024-05-02 - Song Mode Button Focus Accessibility
 **Learning:** The Song Mode interface buttons (add/remove bar, toggle mode, clear background) lacked explicit focus states, making keyboard navigation difficult.
 **Action:** Added `focus-visible:ring-2` and appropriate `focus-visible:ring-{color}-500` classes with `focus:outline-none` to all interactive buttons in `SongMode.tsx`.
-## 2024-05-18 - Added ARIA Labels to Missing Icons
-**Learning:** Found several generic visual indicators or icons missing context for screen readers. Ensure SVG or generic div controls inside buttons use `aria-label` attributes consistently.
-**Action:** Always add descriptive `aria-label` attributes to button elements lacking explicit readable text, particularly in interactive visual elements like canvases or specialized components like `DrawableLFO.tsx` and `Rack.tsx`.
