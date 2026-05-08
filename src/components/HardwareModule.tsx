@@ -147,6 +147,7 @@ export const HardwareModule = React.memo(
     }: HardwareModuleProps) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
+        const cachedRectRef = useRef<DOMRect | null>(null);
         const controlsRef = useRef(controls);
         // Ref to track previous controls for optimized diffing
         const prevControlsRef = useRef<KnobConfig[]>([]);
@@ -226,8 +227,15 @@ export const HardwareModule = React.memo(
             const canvas = canvasRef.current;
             if (!canvas) return;
 
+            cachedRectRef.current = canvas.getBoundingClientRect();
+
+            const observer = new ResizeObserver(() => {
+                cachedRectRef.current = canvas.getBoundingClientRect();
+            });
+            observer.observe(canvas);
+
             const handleMouseDown = (e: MouseEvent) => {
-                const rect = canvas.getBoundingClientRect();
+                const rect = cachedRectRef.current || canvas.getBoundingClientRect();
                 const mouseX = (e.clientX - rect.left) / rect.width;
                 const mouseY = (e.clientY - rect.top) / rect.height;
 
@@ -268,6 +276,7 @@ export const HardwareModule = React.memo(
             window.addEventListener('mouseup', handleMouseUp);
 
             return () => {
+                observer.disconnect();
                 canvas.removeEventListener('mousedown', handleMouseDown);
                 window.removeEventListener('mousemove', handleMouseMove);
                 window.removeEventListener('mouseup', handleMouseUp);

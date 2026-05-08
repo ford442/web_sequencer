@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 
 export interface HSliderProps {
     label: string;
@@ -10,9 +10,26 @@ export interface HSliderProps {
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 export const HSlider: React.FC<HSliderProps> = React.memo(({ label, value, displayValue, onChange, colorHex }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const cachedRectRef = useRef<DOMRect | null>(null);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        cachedRectRef.current = container.getBoundingClientRect();
+
+        const observer = new ResizeObserver(() => {
+            cachedRectRef.current = container.getBoundingClientRect();
+        });
+
+        observer.observe(container);
+        return () => observer.disconnect();
+    }, []);
+
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
-        const rect = (e.target as HTMLElement).parentElement?.getBoundingClientRect();
+        const rect = cachedRectRef.current || containerRef.current?.getBoundingClientRect();
         if (!rect) return;
 
         const handleMouseMove = (e: MouseEvent) => {
@@ -78,6 +95,7 @@ export const HSlider: React.FC<HSliderProps> = React.memo(({ label, value, displ
                 <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950/50 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}60` }}>{displayValue}</span>
             </div>
             <div
+                ref={containerRef}
                 className="h-5 bg-zinc-900 rounded-md border border-zinc-700 cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)] focus:outline-none focus:ring-2 focus:ring-purple-400"
                 onMouseDown={handleMouseDown}
                 onKeyDown={handleKeyDown}

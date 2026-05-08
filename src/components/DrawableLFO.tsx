@@ -21,7 +21,22 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = React.memo(({
     label = 'Custom LFO'
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const cachedRectRef = useRef<DOMRect | null>(null);
     const [isDrawing, setIsDrawing] = useState(false);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        cachedRectRef.current = canvas.getBoundingClientRect();
+
+        const observer = new ResizeObserver(() => {
+            cachedRectRef.current = canvas.getBoundingClientRect();
+        });
+
+        observer.observe(canvas);
+        return () => observer.disconnect();
+    }, []);
 
     // Local state for smooth drawing
     const [localShape, setLocalShape] = useState<number[]>(() => {
@@ -82,7 +97,7 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = React.memo(({
     const updatePoint = (e: React.PointerEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const rect = canvas.getBoundingClientRect();
+        const rect = cachedRectRef.current || canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         const clampedX = Math.max(0, Math.min(width, x));

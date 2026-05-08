@@ -77,6 +77,22 @@ export const AutomationStep = memo(({
     onChange: (k: TrackKey, i: number, val: number) => void,
     refsArray: React.MutableRefObject<(SVGGElement | null)[]>
 }) => {
+    const cachedRectRef = useRef<DOMRect | null>(null);
+
+    useLayoutEffect(() => {
+        const el = refsArray.current[stepIndex];
+        if (!el) return;
+
+        cachedRectRef.current = el.getBoundingClientRect();
+
+        const observer = new ResizeObserver(() => {
+            cachedRectRef.current = el.getBoundingClientRect();
+        });
+        observer.observe(el);
+
+        return () => observer.disconnect();
+    }, [stepIndex, refsArray]);
+
     const baseWidth = 18;
     const gap = 4;
     const height = 50;
@@ -127,7 +143,7 @@ export const AutomationStep = memo(({
         target.setPointerCapture(e.pointerId);
 
         // We need bounding client rect to calculate relative Y
-        const rect = target.getBoundingClientRect();
+        const rect = cachedRectRef.current || target.getBoundingClientRect();
 
         const updateValue = (clientY: number) => {
             const relativeY = clientY - rect.top;
