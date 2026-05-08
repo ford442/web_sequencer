@@ -128,6 +128,7 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = React.memo(({
                 <button
                     onClick={resetToFlat}
                     className="text-[9px] text-gray-500 hover:text-green-400 transition-colors"
+                    aria-label="Reset to Flat"
                     title="Reset to Flat"
                     type="button"
                 >
