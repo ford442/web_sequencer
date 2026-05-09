@@ -112,7 +112,7 @@ export interface SamplerBankParams {
   pitchAttack?: number;        // Pitch envelope attack (0-2000ms)
   pitchDecay?: number;         // Pitch envelope decay (0-2000ms)
   rbQuality?: 'Fast' | 'Standard' | 'Elastic';  // RubberBand quality mode
-  stretchMode?: 'Time' | 'Pitch' | 'Formant' | 'precise' | 'elastic' | 'hybrid';   // Stretch processing mode
+  stretchMode?: 'Time' | 'Pitch' | 'Formant';   // Stretch processing mode
   autoFollow?: boolean;        // Lock pitch to sequencer notes
   
   // SamplerVoicePanel unified params (mapped from panel controls)

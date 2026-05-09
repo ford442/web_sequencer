@@ -51,7 +51,7 @@ export interface UseStepHandlerOptions {
         pitchAttack: number;
         pitchDecay: number;
         quality: 'preview' | 'good' | 'better' | 'best';
-        stretchMode: 'Time' | 'Pitch' | 'Formant' | 'precise' | 'elastic' | 'hybrid';
+        stretchMode: 'precise' | 'elastic' | 'hybrid';
         lockToSequencer: boolean;
     }>;
     activeSamplerBankRef: React.MutableRefObject<number>;
@@ -188,7 +188,6 @@ export const useStepHandler = ({
                     }
                 }
 
-                // @ts-expect-error - Auto-generated to fix CI build
                 audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2', noteParams);
             }
         };
@@ -237,7 +236,6 @@ export const useStepHandler = ({
                     pitchAttack: voiceParams.pitchAttack,
                     pitchDecay: voiceParams.pitchDecay,
                     quality: voiceParams.quality,
-                    stretchMode: voiceParams.stretchMode,
                     lockToSequencer: voiceParams.lockToSequencer
                 };
 
@@ -258,7 +256,6 @@ export const useStepHandler = ({
                     }
                 }
 
-                // @ts-expect-error - Auto-generated to fix CI build
                 audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, noteParams);
             }
         });

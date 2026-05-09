@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 
 interface ToastProps {
   message: string;
-  type: 'success' | 'error';
+  type: 'success' | 'error' | 'info';
   onClose: () => void;
 }
 
@@ -15,9 +15,9 @@ export const Toast: React.FC<ToastProps> = React.memo(({ message, type, onClose 
 
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded shadow-lg border animate-in slide-in-from-top-2 fade-in duration-300 flex items-center gap-2 ${
-      type === 'success' ? 'bg-green-900/90 border-green-500 text-green-100' : 'bg-red-900/90 border-red-500 text-red-100'
+      type === 'success' ? 'bg-green-900/90 border-green-500 text-green-100' : type === 'info' ? 'bg-blue-900/90 border-blue-500 text-blue-100' : 'bg-red-900/90 border-red-500 text-red-100'
     }`} role="alert">
-      <span>{type === 'success' ? '✓' : '⚠'}</span>
+      <span>{type === 'success' ? '✓' : type === 'info' ? 'ℹ' : '⚠'}</span>
       <span className="font-mono text-sm">{message}</span>
     </div>
   );
