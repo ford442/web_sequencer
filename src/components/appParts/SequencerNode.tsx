@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, memo } from 'react';
 import { useAppState } from '../../hooks/useAppState.tsx'
 import { SongMode } from '../SongMode'
 import { MainSequencer } from '../MainSequencer'
 
-export const SequencerNode: React.FC = () => {
+export const SequencerNode = React.memo(() => {
   const state = useAppState()
   const {
     isSongModeOpen,
@@ -141,6 +141,6 @@ export const SequencerNode: React.FC = () => {
     setZoomLevel,
     state.sequencerRef,
   ])
-}
+})
 
 export default SequencerNode
