@@ -2,7 +2,7 @@ import React from 'react'
 import { useAppState } from '../../hooks/useAppState.tsx'
 import { LiveKeyboard } from '../LiveKeyboard'
 
-export const KeyboardNode: React.FC = () => {
+export const KeyboardNode = React.memo(() => {
   const { selectedTrack, handleKeyboardPlay, handleKeyboardStop } = useAppState()
 
   const activeTrackColor = selectedTrack.startsWith('part')
@@ -14,6 +14,6 @@ export const KeyboardNode: React.FC = () => {
       <LiveKeyboard onPlayNote={handleKeyboardPlay} onStopNote={handleKeyboardStop} activeTrackColor={activeTrackColor} />
     </div>
   )
-}
+})
 
 export default KeyboardNode

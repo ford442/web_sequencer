@@ -2,7 +2,7 @@ import React from 'react'
 import { useAppState } from '../../hooks/useAppState.tsx'
 import { TransportToolbar } from '../TransportToolbar'
 
-export const TransportHeader: React.FC = () => {
+export const TransportHeader = React.memo(() => {
   const {
     songStorage,
     activeSongSlot,
@@ -50,6 +50,6 @@ export const TransportHeader: React.FC = () => {
       setCurrentScale={setCurrentScale}
     />
   )
-}
+})
 
 export default TransportHeader

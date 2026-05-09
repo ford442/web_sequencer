@@ -3,7 +3,7 @@ import { useAppState } from '../../hooks/useAppState.tsx'
 import { NoteSelector } from '../NoteSelector'
 import { getNoteColor } from '../../utils/noteColors'
 
-export const ContextMenuNode: React.FC = () => {
+export const ContextMenuNode = React.memo(() => {
   const state = useAppState()
   const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu } = state
 
@@ -52,6 +52,6 @@ export const ContextMenuNode: React.FC = () => {
       </div>
     )
   }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu])
-}
+})
 
 export default ContextMenuNode

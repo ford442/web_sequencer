@@ -16,3 +16,7 @@
 ## 2026-05-07 - [Memoize Expensive Inline Array/Object Creation in Frequently Rendered Components]
 **Learning:** Components that handle gestural inputs (like dragging) trigger many re-renders. If they generate arrays or perform string/color lookups inline during the render cycle (like iterating octaves or generating a Set of scale notes), it degrades performance.
 **Action:** Always wrap these inline calculations in a `useMemo` hook with correct dependencies so they are only recalculated when their specific inputs (like min/max bounds or current scale) change, rather than on every single pixel dragged.
+
+## 2025-05-18 - [React.memo Optimization for appParts Components]
+**Learning:** Top-level UI structural components like `KeyboardNode`, `SequencerNode`, `RackNode`, `TransportHeader`, and `ContextMenuNode` were defined as `React.FC` but were missing `React.memo()`. While some of these connect deeply via `useAppState()`, wrapping them in `React.memo()` is a best practice to avoid unnecessary render evaluation cycles when the parent `App` or surrounding contexts re-render with stable props.
+**Action:** Consistently apply `React.memo()` when defining large structural `React.FC` blocks, and continue using AST codemods (like jscodeshift) over regex for safer global refactors.
