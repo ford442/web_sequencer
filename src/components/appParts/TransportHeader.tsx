@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react';
 import { useAppState } from '../../hooks/useAppState.tsx'
 import { TransportToolbar } from '../TransportToolbar'
 

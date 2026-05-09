@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, memo } from 'react';
 import { useAppState } from '../../hooks/useAppState.tsx'
 import { SongMode } from '../SongMode'
 import { MainSequencer } from '../MainSequencer'
