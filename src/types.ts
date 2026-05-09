@@ -110,7 +110,14 @@ export interface SamplerBankParams {
   coarseTune?: number;
   fineTune?: number;
   quality?: 'preview' | 'good' | 'better' | 'best';
+  coarse?: number;
+  fine?: number;
+  formant?: number;
+  pitchAttack?: number;
+  pitchDecay?: number;
+  rbQuality?: 'Fast' | 'Standard' | 'Elastic';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
+  autoFollow?: boolean;
   lockToSequencer?: boolean;
 }
 
@@ -322,4 +329,9 @@ export interface SavedSongData {
   backgroundImage?: string;
   embeddedSamples?: { [bankIndex: number]: string };
   ttsPhrases?: string[];
+}
+export interface AmbianceTrack {
+  id?: string;
+  url: string;
+  name: string;
 }
