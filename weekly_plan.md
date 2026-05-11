@@ -1,12 +1,12 @@
 # web_sequencer — Weekly Plan
 
 ## Today's focus
-**Holographic knob renderer perf audit** — Profile `MagicKnob.tsx`'s WebGPU `requestAnimationFrame` loop across all simultaneous knob instances; identify GPU resource sharing gaps, RAF contention, and layout reflow from the `Knob.tsx` CSS path; produce a concrete bottleneck report and a ranked fix list.
-**2026-05-04 (Sun) — User Idea mode.** Picked from Ideas section: "Holographic knob renderer perf audit." Multi-day scope; selected as prerequisite before WGSL render pass unification. No broken foundation — last week's TTS + HUD work fully landed.
+**Holographic knob GPU context unification** — Implement `KnobGPUContext.ts` singleton (one `GPUDevice`, one `GPURenderPipeline`, one RAF loop); refactor `MagicKnob.tsx` to register/unregister instances and use per-knob uniform buffer slots rather than per-instance device init. Kill the N-RAF, N-device anti-pattern.
+**2026-05-11 (Sun) — User Idea mode.** Picked idea "Holographic knob renderer perf audit" is continuing into implementation phase — audit findings are clear from code inspection: per-instance `GPUDevice` + per-instance RAF loop. No broken foundation.
 
 ## Ideas
 - [done — 2026-04-27] **Verify bug-report.md staleness** — confirmed stale: `useAudioEngine.ts` is 938 lines; the try/catch at line 1393 no longer exists. `bug-report.md` can be deleted.
-- [in progress — 2026-05-04] **Holographic knob renderer perf audit** — profile WebGPU/canvas knob rendering with many simultaneous knobs; identify bottlenecks; optimize. Multi-day.
+- [in progress — 2026-05-11] **Holographic knob GPU context unification** — audit findings confirmed (per-instance GPUDevice + RAF); implementing `KnobGPUContext.ts` singleton with shared pipeline and batched draw loop. Multi-day.
 - [ ] Holographic knob WGSL render pass unification — single compute-driven render path so every knob shares lighting/material, kill drift between the 2D fallback and the WebGPU canvas path. (multi-day; depends on perf audit findings)
 
 ## Backlog
@@ -14,12 +14,13 @@
 - [ ] **PR #507** "Palette: Fix orphaned aria-describedby in GamepadDebugger" — open (Jules, May 3), needs review/merge or feedback.
 - [ ] **Open issue #330** Live Keyboard UI arrangement — CSS-grid piano-shape layout; Jules-labeled, still unimplemented. Plan draft referenced but `live-kbd-plan.md` not found at root — verify.
 - [ ] **Issue #465** Docs consolidation — Phase 1 (DOCS.md root index, zero-move) is the immediate deliverable; Phase 2 (physical migration to `docs/`) deferred. Phase 1 spec fully written in the issue.
-- [ ] **Gesture Controls** — pinch-to-zoom on sequencer timeline (from `agent_plan.md` Domain B).
 - [ ] **Repo hygiene** — 30+ `*.md` files at repo root; Phase 1 resolved by issue #465 DOCS.md index.
 - [ ] Rubberband phoneme-aware time-stretch + `ExpressiveVoiceProcessor.ts` pending per `RUBBERBAND_ENHANCEMENT_PLAN.md`.
 - [ ] Dozens of one-off `fix*.py` / `patch*.py` / `update_*.py` scripts at repo root — candidate for archival into `tools/`.
 
 ## Done
+- 2026-05-11 — Gesture Controls: pinch-to-zoom + scroll-wheel zoom on sequencer timeline (PR #513, Copilot).
+- 2026-05-11 — BottomBar Accessibility Enhancements (PR #511, Jules).
 - 2026-05-04 — TTS per-bank cold-start preload + onnxruntime-web cache purge devtool: `useTTSPreloader.ts` hook (idle-scheduled), `SupertonicService.purgeCache()` + `window.__devtools.purgeTTSCache()` devtools action, full test coverage landed (Jules, commit 52117f0, Apr 28).
 - 2026-05-04 — SamplerPanel `<fieldset>` conversion: BASIC and ENGINE grouping divs converted to `<fieldset>`/`<legend className="sr-only">` (PR #483 merged, followed by Palette a11y passes PR #486/487).
 - 2026-05-04 — PR #479 "feat(audio): Master Bus Compressor" — merged.
@@ -45,7 +46,7 @@
 - 2026-04-12 — AdvancedNoteSelector + ScaleSelector (PR #443).
 
 ## Last run
-Date: 2026-05-04
-Mode: User Idea
-Focus: Holographic knob renderer perf audit
+Date: 2026-05-11
+Mode: User Idea (continuing)
+Focus: Holographic knob GPU context unification — implement KnobGPUContext.ts singleton
 Outcome: (to be filled at end-of-day)
