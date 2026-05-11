@@ -97,11 +97,12 @@ export class PhonemeBufferPool {
      * Retrieve the pre-stretched AudioBuffer whose duration is nearest to
      * `targetMs` for the given phoneme.
      *
-     * Performs a linear scan (grid is small — ≤ 10 entries) and updates the
-     * LRU order for eviction purposes.
+     * Creates a sorted copy of the duration keys on each call (O(n log n) where
+     * n ≤ 10 grid entries — effectively O(1) in practice) and updates the LRU
+     * order for eviction purposes.
      *
      * @returns The closest AudioBuffer, or `null` if the phoneme has not been
-     *          warmed yet (caller should fall back to unmodified playback).
+     *          warmed yet (caller should fall back to unmodified phoneme playback).
      */
     getNearest(phonemeId: string, targetMs: number): AudioBuffer | null {
         const phonemePool = this.pool.get(phonemeId);

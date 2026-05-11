@@ -159,9 +159,10 @@ self.onmessage = (event: MessageEvent): void => {
         const isLast = di === targetDurations.length - 1;
         const transfers = stretchedChannels.map(c => c.buffer);
 
+        // @ts-expect-error — lib.dom.d.ts types self.postMessage without the Transferable list
+        // overload; the runtime call is correct per the Web Worker spec.
         self.postMessage(
             { phonemeId, targetMs, channels: stretchedChannels, sampleRate, done: isLast },
-            // @ts-ignore — TypeScript does not expose the second arg on self.postMessage in all lib targets
             { transfer: transfers }
         );
     }
