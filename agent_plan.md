@@ -64,7 +64,7 @@
 * [x] **Idea:** "Spectral Sidechaining" - Duck specific frequencies (like low-end) instead of broadband gain when the kick drum hits, avoiding pumping artifacts on the highs. (Implemented via BiquadFilterNode lowshelf modulation!)
 * [x] **Idea:** "AI Auto-EQ Assistant" - Automatically analyze the frequency spectrum of all tracks and subtly EQ conflicting frequencies to prevent masking (e.g., dipping 200Hz on Synths when the Bass plays).
 * **Idea:** "Vocal Overdrive Worklet" - Add a custom AudioWorklet for nonlinear vocal tube distortion.
-* **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals.
+* [x] **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals. (Implemented via square LFO parameter in RubberBandProcessor!)
 * [x] **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time. (Implemented in Sampler and RubberBandProcessor via a 100ms looping Hann window!)
 * [x] **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A. (Implemented via automation track logic in `useStepHandler.ts` and `App.tsx`!)
 * [x] **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
@@ -110,6 +110,8 @@
 ---
 
 * **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
+* **Idea:** "Vocal Harmony Parallel Bus" - Implement a dedicated bus to process all harmony vocal tracks together (e.g., glue compression, joint EQ) independently from the main lead vocal track.
+* **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
 ---
 
 ## 📜 Changelog
@@ -178,5 +180,6 @@
 
 * [x] **Idea:** "Tape Stop Effect" - Add a global performance effect that smoothly slows down playback rate to zero, simulating a turntable or tape machine stopping. (Implemented in `useAudioEngine.ts` with `triggerTapeStop` using `exponentialRampToValueAtTime` on master gain, wired to Escape key and a dedicated UI button in `App.tsx`!)
 * [x] **Idea:** "Granular Pitch Quantization" - Add a parameter to the granular engine that forces grains to snap to specific pitch intervals (e.g. perfect fifths or octaves) as they smear, creating crystalline robotic effects. (Implemented in `rubberband-processor.ts` with `grainPitchQuantize` parameter, wired through `SingingVoice.ts`, `useAudioEngine.ts`, `SamplerPanel.tsx`, and `NoteSelector.tsx`!)
+* [2026-07-02] - Implemented Rhythmic Gating: Added step-sequenced trance gate effect for vocals. Added `tranceGate` parameter to `Note` interface and UI. Implemented square LFO amplitude modulation synchronized in `rubberband-processor.ts`. Fulfills "Rhythmic Gating" Innovation Lab idea. Added new ideas: "Vocal Harmony Parallel Bus" and "Multiband Distortion for TTS".
 * [2026-07-01] - Implemented Microtonal Scale Mapping: Added `TuningSystem` types (12-TET, 24-TET, Just Intonation, Pythagorean, Bohlen-Pierce) to `musicTheory.ts` and `ScaleSelector`. Pushed tuning state through `NoteParams` down to `VoiceManager`, `synthPlayback`, `samplerPlayback` and Web Worker for correct tuning rendering offline.
 * [2026-05-08] - Implemented AI Auto-EQ Assistant: Added a `bassSidechainEQBus` (peaking filter at 250Hz) to `initializeMasterOutput`. Implemented `triggerBassEQDuck` to dynamically duck this EQ band on the master synth bus whenever a Bass note (303 or synth bass) triggers, preventing low-mid frequency masking and fulfilling the AI Auto-EQ Assistant Innovation Lab idea. Added new ideas: "Vocal Overdrive Worklet" and "Rhythmic Gating".

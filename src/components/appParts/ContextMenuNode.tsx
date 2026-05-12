@@ -42,6 +42,7 @@ export const ContextMenuNode: React.FC = () => {
           currentReverbType={stepData?.reverbType}
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
+          currentTranceGate={stepData?.tranceGate}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
           onPropertyChange={handleNotePropertyChange}
