@@ -1,0 +1,279 @@
+import { engineTelemetry } from '../utils/engineTelemetry';
+
+interface KnobEntry {
+    canvas: HTMLCanvasElement;
+    context: GPUCanvasContext;
+    uniformBuffer: GPUBuffer;
+    bindGroup: GPUBindGroup;
+    getValue: () => number;
+}
+
+let adapter: GPUAdapter | undefined;
+let device: GPUDevice | undefined;
+let pipeline: GPURenderPipeline | undefined;
+let format: GPUTextureFormat | undefined;
+const entries = new Set<KnobEntry>();
+let animationId: number | undefined;
+let initialized = false;
+
+// --- HOLOGRAPHIC SHADER ---
+// Features: Scanlines, Rim Glow, Data Ring, "Projected" floating feel
+const shaderCode = `
+    struct Uniforms {
+      time: f32,
+      value: f32,
+      resolution: vec2f,
+    };
+    @group(0) @binding(0) var<uniform> u: Uniforms;
+
+    struct VertexOutput {
+      @builtin(position) position: vec4f,
+      @location(0) uv: vec2f,
+    };
+
+    @vertex
+    fn vs_main(@builtin(vertex_index) vIdx: u32) -> VertexOutput {
+      // Full screen triangle
+      var pos = array<vec2f, 3>(
+        vec2f(-1.0, -1.0),
+        vec2f(3.0, -1.0),
+        vec2f(-1.0, 3.0)
+      );
+      var output: VertexOutput;
+      output.position = vec4f(pos[vIdx], 0.0, 1.0);
+      output.uv = pos[vIdx]; // UVs are -1 to 1 effectively for the quad
+      return output;
+    }
+
+    // Helper: Circle SDF
+    fn sdCircle(p: vec2f, r: f32) -> f32 {
+        return length(p) - r;
+    }
+    
+    // Helper: Rotation Matrix
+    fn rotate(angle: f32) -> mat2x2f {
+        let c = cos(angle);
+        let s = sin(angle);
+        return mat2x2f(c, -s, s, c);
+    }
+
+    @fragment
+    fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+      var uv = in.uv;
+      // Center UVs properly assuming canvas is square-ish
+      // Standardize coordinate system to -1.0 to 1.0
+      
+      let len = length(uv);
+      let angle = atan2(uv.y, uv.x);
+      
+      // Base Color (Cyan/Teal Hologram)
+      var color = vec3f(0.0, 0.9, 1.0);
+      var alpha = 0.0;
+
+      // 1. Outer Data Ring
+      // Rotating dashed ring
+      let rot_uv = rotate(u.time * 0.2) * uv;
+      let ring_dist = abs(length(rot_uv) - 0.55);
+      let dash = sin(atan2(rot_uv.y, rot_uv.x) * 20.0);
+      if (ring_dist < 0.02 && dash > 0.5) {
+          alpha += 0.6 * smoothstep(0.02, 0.0, ring_dist);
+      }
+
+      // 2. Value Arc (The "Level" Indicator)
+      // Map value 0..1 to angle range [-max_angle, +max_angle]
+      // Knob starts at bottom-left, sweeps clockwise to bottom-right.
+      let max_angle = 2.4;
+      let val_mapped = mix(-max_angle, max_angle, u.value);
+
+      // Needle direction: rotate standard "up" (+Y) by val_mapped
+      let needle_vec = vec2f(sin(val_mapped), cos(val_mapped));
+
+      // Value arc: light the inner ring where the pixel angle <= val_mapped
+      // atan2 gives [-π, π]; we shift so 0 = straight up (matches needle_vec above)
+      let pixel_angle = atan2(uv.x, uv.y); // note: swapped args for "up = 0" convention
+      let arc_radius = 0.42;
+      let arc_dist = abs(length(uv) - arc_radius);
+      // Only draw arc within the ±max_angle sweep and up to the current value
+      if (arc_dist < 0.03 && pixel_angle >= -max_angle && pixel_angle <= val_mapped) {
+          let arc_brightness = smoothstep(0.03, 0.0, arc_dist);
+          // Color shifts from teal at min to bright cyan at current value
+          let arc_t = (pixel_angle + max_angle) / (val_mapped + max_angle + 0.001);
+          color = mix(vec3f(0.0, 0.6, 0.5), vec3f(0.2, 1.0, 0.8), arc_t);
+          alpha += arc_brightness * 0.85;
+      }
+
+      // 3. Holographic Scanlines
+      let scanline = sin(uv.y * 150.0 + u.time * 10.0) * 0.5 + 0.5;
+
+      // 4. Central Glow / "Projector" beam
+      let beam = smoothstep(0.6, 0.0, len);
+
+      // Compose the "Ghost" Knob
+      var final_c = vec3f(0.0);
+
+      // Main Circle Body
+      let circle_edge = 1.0 - smoothstep(0.48, 0.5, len);
+      let inner_glow = smoothstep(0.0, 0.5, len);
+      alpha += circle_edge * 0.2 * scanline; // Background body
+
+      // The Needle
+      let proj = dot(uv, needle_vec);
+      let perp = length(uv - needle_vec * proj);
+      // Guard against perp ≈ 0 to avoid Inf bloom
+      if (proj > 0.0 && proj < 0.5 && perp < 0.02 && perp > 0.0005) {
+          alpha += min(1.0 / (perp * 100.0), 8.0); // Bloom needle, clamped
+          color = vec3f(1.0, 1.0, 1.0); // White hot center
+      }
+
+      // 5. Fresnel / Glitch Effect
+      let glitch = step(0.98, sin(u.time * 20.0 + uv.y * 10.0));
+      if (glitch > 0.5) {
+          uv.x += 0.05;
+          alpha += 0.2;
+      }
+
+      // Vignette / Falloff at edges of canvas
+      alpha *= smoothstep(0.8, 0.6, len);
+
+      return vec4f(color * alpha * 1.5, alpha);
+    }
+`;
+
+async function initGPU(): Promise<boolean> {
+    if (initialized) return !!device;
+    initialized = true;
+
+    if (!navigator.gpu) return false;
+    adapter = await navigator.gpu.requestAdapter() ?? undefined;
+    if (!adapter) return false;
+    device = await adapter.requestDevice();
+    if (!device) return false;
+
+    format = navigator.gpu.getPreferredCanvasFormat();
+
+    const module = device.createShaderModule({ code: shaderCode });
+    pipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module, entryPoint: 'vs_main' },
+        fragment: { module, entryPoint: 'fs_main', targets: [{ format }] },
+        primitive: { topology: 'triangle-list' }
+    });
+
+    return true;
+}
+
+function renderFrame() {
+    if (!device || !pipeline) {
+        animationId = undefined;
+        return;
+    }
+
+    const frameStart = performance.now();
+    const now = performance.now() / 1000;
+
+    for (const entry of entries) {
+        const { canvas, context, uniformBuffer, bindGroup, getValue } = entry;
+        const normalizedValue = getValue();
+        const uniforms = new Float32Array([now, normalizedValue, canvas.width, canvas.height]);
+        device.queue.writeBuffer(uniformBuffer, 0, uniforms);
+
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginRenderPass({
+            colorAttachments: [{
+                view: context.getCurrentTexture().createView(),
+                loadOp: 'clear',
+                clearValue: { r: 0, g: 0, b: 0, a: 0 },
+                storeOp: 'store'
+            }]
+        });
+
+        pass.setPipeline(pipeline);
+        pass.setBindGroup(0, bindGroup);
+        pass.draw(3);
+        pass.end();
+
+        device.queue.submit([encoder.finish()]);
+    }
+
+    engineTelemetry.recordLatency('knob-raf', performance.now() - frameStart);
+    animationId = requestAnimationFrame(renderFrame);
+}
+
+function startRAF() {
+    if (animationId === undefined) {
+        animationId = requestAnimationFrame(renderFrame);
+    }
+}
+
+function stopRAF() {
+    if (animationId !== undefined) {
+        cancelAnimationFrame(animationId);
+        animationId = undefined;
+    }
+}
+
+export function registerKnob(canvas: HTMLCanvasElement, getValue: () => number): () => void {
+    // Graceful no-op if WebGPU is unavailable
+    if (!navigator.gpu) {
+        return () => {};
+    }
+
+    const setup = async (): Promise<(() => void) | undefined> => {
+        const ok = await initGPU();
+        if (!ok || !device || !pipeline || !format) {
+            return () => {};
+        }
+
+        const context = canvas.getContext('webgpu') as GPUCanvasContext;
+        context.configure({ device, format, alphaMode: 'premultiplied' });
+
+        const uniformBuffer = device.createBuffer({
+            size: 32,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+        const bindGroup = device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+        });
+
+        const entry: KnobEntry = { canvas, context, uniformBuffer, bindGroup, getValue };
+        entries.add(entry);
+        startRAF();
+
+        return () => {
+            entries.delete(entry);
+            uniformBuffer.destroy();
+            if (entries.size === 0) {
+                stopRAF();
+                if (device) {
+                    device.destroy();
+                    device = undefined;
+                    adapter = undefined;
+                    pipeline = undefined;
+                    format = undefined;
+                    initialized = false;
+                }
+            }
+        };
+    };
+
+    let cleanupFn: (() => void) | undefined;
+    let cleanedUp = false;
+
+    setup().then((fn) => {
+        if (cleanedUp && fn) {
+            fn();
+        } else {
+            cleanupFn = fn;
+        }
+    });
+
+    return () => {
+        if (cleanupFn) {
+            cleanupFn();
+        } else {
+            cleanedUp = true;
+        }
+    };
+}
