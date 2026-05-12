@@ -211,6 +211,7 @@ export interface Note {
 export interface PartSequence {
   steps: (Note | null)[];
   automation?: { [param: string]: (number | null)[] };
+  activeLength?: number; // number of steps actually used; defaults to NUM_STEPS if absent
 }
 
 export interface Pattern {
@@ -250,6 +251,7 @@ export interface AudioEngine {
     setAmbianceVolume: (volume: number) => void;
     setMasterVolume: (volume: number) => void;
     setMasterSaturation: (amount: number) => void;
+    setMasterLimiter?: (threshold: number | null) => void;
     setGlobalPan: (pan: number) => void;
     setReverbType: (type: ReverbType) => void;
     detectSamplePitch?: (buffer: AudioBuffer) => Promise<unknown>;

@@ -1,6 +1,8 @@
 import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, AmbianceTrack, SamplerBankParams, SamplerParams } from './types';
 
 export const NUM_STEPS = 32;
+export const MIN_TRACK_STEPS = 1;
+export const MAX_TRACK_STEPS = NUM_STEPS;
 export const DEFAULT_TEMPO = 120;
 
 export const DEFAULT_SYNTH_PARAMS_A: SynthParams = {

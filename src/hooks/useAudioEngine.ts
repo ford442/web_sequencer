@@ -25,7 +25,8 @@ import {
     setMasterSaturation as setMasterGainSaturation,
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
-import { makeDistortionCurve } from './audioEngine/distortion';
+import { registerLimiterApi } from '../components/EngineHUD';
+import { makeDistortionCurve, makeLimiterCurve } from './audioEngine/distortion';
 import {
     applySamplerVoiceParamUpdate,
     applyVoiceParamUpdate,
@@ -97,6 +98,7 @@ export const useAudioEngine = (pyodide: unknown) => {
     const delayNodeRef = useRef<DelayNode | null>(null);
     const delayFeedbackRef = useRef<GainNode | null>(null);
     const masterPannerRef = useRef<StereoPannerNode | null>(null);
+    const masterLimiterRef = useRef<WaveShaperNode | null>(null);
 
     const pyodideRef = useRef(pyodide);
 
@@ -161,7 +163,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 console.log("AudioContext resumed");
             }
 
-            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef);
+            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, masterLimiterRef);
 
             // Initialize Reverb Node
             // Initialize Reverb Nodes (Room, Plate, Hall)
@@ -863,6 +865,15 @@ export const useAudioEngine = (pyodide: unknown) => {
             const { playAmbiance, stopAmbiance, setAmbianceVolume } = createAmbianceControls(context, playbackRefs);
             const setMasterVolume = (value: number) => setMasterGainVolume(masterGainRef, value);
             const setMasterSaturation = (amount: number) => setMasterGainSaturation(masterSaturationRef, amount);
+            const setMasterLimiter = (threshold: number | null) => {
+                if (!masterLimiterRef.current) return;
+                if (threshold === null) {
+                    masterLimiterRef.current.curve = null;
+                } else {
+                    const clamped = Math.max(0.5, Math.min(1.0, threshold));
+                    masterLimiterRef.current.curve = makeLimiterCurve(clamped);
+                }
+            };
             const setGlobalPan = (value: number) => setMasterPan(masterPannerRef, value);
 
             const setReverbType = (type: 'room' | 'plate' | 'hall') => {
@@ -918,6 +929,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                 setAmbianceVolume,
                 setMasterVolume,
                 setMasterSaturation,
+                setMasterLimiter,
                 setGlobalPan,
                 setReverbType,
                 detectSamplePitch,
@@ -935,6 +947,13 @@ export const useAudioEngine = (pyodide: unknown) => {
                 triggerTapeStop,
                 resetTapeStop
             });
+
+            // Register limiter API with HUD (always) and devtools (dev only)
+            registerLimiterApi(setMasterLimiter);
+            if (import.meta.env.DEV) {
+                (window as any).__devtools = (window as any).__devtools || {};
+                (window as any).__devtools.setLimiter = setMasterLimiter;
+            }
 
             setIsReady(true);
             isInitializing.current = false;

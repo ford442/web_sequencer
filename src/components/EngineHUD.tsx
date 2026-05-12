@@ -1,6 +1,19 @@
 // Side-effecting HUD mount. Lightweight DOM overlay that polls engineTelemetry.
 import { engineTelemetry } from '../utils/engineTelemetry';
 
+let limiterEnabled = true;
+let limiterThreshold = 0.95;
+let limiterSetter: ((threshold: number | null) => void) | undefined;
+
+export function registerLimiterApi(setter: (threshold: number | null) => void) {
+  limiterSetter = setter;
+}
+
+function applyLimiter() {
+  if (!limiterSetter) return;
+  limiterSetter(limiterEnabled ? limiterThreshold : null);
+}
+
 const CONTAINER_ID = 'engine-hud-root';
 if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   const container = document.createElement('div');
@@ -18,12 +31,55 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .backend-js { background:#6b7280; }
   #${CONTAINER_ID} .backend-wav { background:#f59e0b; color:#000 }
   #${CONTAINER_ID} .backend-open303 { background:#7c3aed }
+  #${CONTAINER_ID} .limiter-btn { background:#7c3aed; border:none; color:#fff; padding:2px 8px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:11px; }
+  #${CONTAINER_ID} .limiter-btn.off { background:#6b7280; }
+  #${CONTAINER_ID} input[type=range] { flex:1; cursor:pointer; }
   `;
   document.head.appendChild(style);
 
   let visible = new URLSearchParams(location.search).get('hud') === '1';
 
-  function render() {
+  // Build persistent structure
+  const headerEl = document.createElement('div');
+  headerEl.className = 'header';
+  headerEl.textContent = 'Engine HUD';
+  container.appendChild(headerEl);
+
+  // Limiter controls (persistent so focus/input state survives telemetry refreshes)
+  const limiterRow = document.createElement('div');
+  limiterRow.className = 'row';
+  limiterRow.style.borderBottom = '1px solid rgba(255,255,255,0.12)';
+  limiterRow.innerHTML = `
+    <div style="font-weight:700;width:64px">LIMITER</div>
+    <button class="limiter-btn ${limiterEnabled ? '' : 'off'}" id="hud-limiter-toggle">${limiterEnabled ? 'ON' : 'OFF'}</button>
+    <input type="range" id="hud-limiter-threshold" min="0.5" max="1.0" step="0.01" value="${limiterThreshold}">
+    <div id="hud-limiter-value" style="min-width:40px;text-align:right">${limiterThreshold.toFixed(2)}</div>
+  `;
+  container.appendChild(limiterRow);
+
+  const telemetryEl = document.createElement('div');
+  telemetryEl.id = 'engine-hud-telemetry';
+  container.appendChild(telemetryEl);
+
+  // Event delegation for limiter controls
+  const toggleBtn = limiterRow.querySelector<HTMLButtonElement>('#hud-limiter-toggle')!;
+  const thresholdInput = limiterRow.querySelector<HTMLInputElement>('#hud-limiter-threshold')!;
+  const valueDisplay = limiterRow.querySelector<HTMLDivElement>('#hud-limiter-value')!;
+
+  toggleBtn.addEventListener('click', () => {
+    limiterEnabled = !limiterEnabled;
+    toggleBtn.textContent = limiterEnabled ? 'ON' : 'OFF';
+    toggleBtn.className = `limiter-btn ${limiterEnabled ? '' : 'off'}`;
+    applyLimiter();
+  });
+
+  thresholdInput.addEventListener('input', () => {
+    limiterThreshold = parseFloat(thresholdInput.value);
+    valueDisplay.textContent = limiterThreshold.toFixed(2);
+    applyLimiter();
+  });
+
+  const render = () => {
     if (!visible) { container.style.display = 'none'; return; }
     container.style.display = 'block';
     const data = engineTelemetry.snapshot();
@@ -37,8 +93,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       return `<div class="row"><div class="badge backend-${backend}">${backend}</div><div style="flex:1">${k}</div><div style="min-width:90px;text-align:right">${p50}/${p95} ms</div><div style="width:64px;text-align:right">${err}</div></div>`;
     }).join('');
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${rows}`;
-  }
+    telemetryEl.innerHTML = rows;
+  };
 
   render();
   const timer = setInterval(render, 500);

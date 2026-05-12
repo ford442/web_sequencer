@@ -6,6 +6,8 @@ import { noteToFrequency } from '../constants'
 import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults'
 
+export const getTrackStep = (seq: PartSequence, globalStep: number) => globalStep % (seq.activeLength ?? seq.steps.length);
+
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const notesArray = Array.isArray(notes) ? notes : [notes];
     if (notesArray.length <= 1) return notes; // No inversions for single notes
@@ -131,7 +133,9 @@ export const useStepHandler = ({
         const stepTime = 60 / tempo / 4;
 
         const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
-            const stepData = p[trackKey].steps[step];
+            const seq = p[trackKey];
+            const trackStep = getTrackStep(seq, step);
+            const stepData = seq.steps[trackStep];
             if (stepData) {
                 // Probability Check
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
@@ -141,7 +145,7 @@ export const useStepHandler = ({
                 if (stepData.slide && lastFreqRef.current[trackKey] > 0) { slideFrom = lastFreqRef.current[trackKey]; }
 
                 const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
-                const invVal = activePattern[trackKey].automation?.['chordInversion']?.[step] ?? 0;
+                const invVal = seq.automation?.['chordInversion']?.[trackStep] ?? 0;
                 const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
@@ -152,12 +156,14 @@ export const useStepHandler = ({
 
         // Trigger BASS 2 (TB-303) - Uses independent bass2 params
         const triggerBass2 = () => {
-            const stepData = p.bass2.steps[step];
+            const bassSeq = p.bass2;
+            const trackStep = getTrackStep(bassSeq, step);
+            const stepData = bassSeq.steps[trackStep];
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
                 const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
-                const invVal = activePattern.bass2.automation?.['chordInversion']?.[step] ?? 0;
+                const invVal = bassSeq.automation?.['chordInversion']?.[trackStep] ?? 0;
                 const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
                 const noteParams = { timbre: stepData.timbre, microtiming: stepData.microtiming, retrigger: stepData.retrigger };
@@ -198,7 +204,9 @@ export const useStepHandler = ({
 
         // Drums (Basic probability check)
         const playDrumIfActive = (trackKey: 'kick' | 'snare' | 'closedHat' | 'openHat', sound: any, params: any) => {
-            const stepData = p[trackKey].steps[step];
+            const seq = p[trackKey];
+            const trackStep = getTrackStep(seq, step);
+            const stepData = seq.steps[trackStep];
             if (stepData) {
                  if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
                  const noteParams = { retrigger: stepData.retrigger };
@@ -209,10 +217,12 @@ export const useStepHandler = ({
         playDrumIfActive('kick', 'kick', kickRef.current);
         playDrumIfActive('snare', 'snare', snareRef.current);
         playDrumIfActive('openHat', 'openHat', openHatRef.current);
-        if (!p.openHat.steps[step]) playDrumIfActive('closedHat', 'closedHat', closedHatRef.current); // Only closed if open not playing
+        const openHatStep = getTrackStep(p.openHat, step);
+        if (!p.openHat.steps[openHatStep]) playDrumIfActive('closedHat', 'closedHat', closedHatRef.current); // Only closed if open not playing
 
         p.sampler.forEach((seq, bankIdx) => {
-            const stepData = seq.steps[step];
+            const trackStep = getTrackStep(seq, step);
+            const stepData = seq.steps[trackStep];
             if (stepData) {
                 if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
@@ -245,7 +255,7 @@ export const useStepHandler = ({
                     const activeSteps = seq.steps.map((s, i) => s ? i : -1).filter(i => i !== -1);
                     if (activeSteps.length > 0) {
                         // Find nearest active step to quantize to
-                        const currentStepIndex = activeSteps.findIndex(s => s >= step) || 0;
+                        const currentStepIndex = activeSteps.findIndex(s => s >= trackStep) || 0;
                         const targetStep = activeSteps[currentStepIndex] ?? activeSteps[0];
                         const targetStepData = seq.steps[targetStep];
                         if (targetStepData?.note) {
@@ -292,10 +302,11 @@ export const useStepHandler = ({
             const bankIdx = activeSamplerBankRef.current;
             const bankSeq = p.sampler[bankIdx];
             if (bankSeq && bankSeq.automation) {
+                const bankStep = getTrackStep(bankSeq, step);
                 const stepDuration = 60 / tempo / 4; // Length of a 16th note in seconds
 
                 // Formant Shift
-                const formantVal = bankSeq.automation['formantShift']?.[step];
+                const formantVal = bankSeq.automation['formantShift']?.[bankStep];
                 if (formantVal !== undefined && formantVal !== null) {
                      // Map 0-1 to -12 to +12
                      const mapped = (formantVal * 24) - 12;
@@ -303,7 +314,7 @@ export const useStepHandler = ({
                 }
 
                 // Vibrato Depth
-                const vibVal = bankSeq.automation['vibratoDepth']?.[step];
+                const vibVal = bankSeq.automation['vibratoDepth']?.[bankStep];
                 if (vibVal !== undefined && vibVal !== null) {
                      onParamChange(bankIdx, 'vibratoDepth', vibVal * 100);
                 }

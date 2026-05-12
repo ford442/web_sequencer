@@ -1,5 +1,18 @@
 const distortionCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
 
+export function makeLimiterCurve(threshold = 0.95): Float32Array<ArrayBuffer> {
+    const sampleCount = 8192;
+    const curve = new Float32Array(sampleCount);
+
+    for (let i = 0; i < sampleCount; ++i) {
+        const x = (i * 2) / sampleCount - 1;
+        const clamped = x < -threshold ? -threshold : x > threshold ? threshold : x;
+        curve[i] = clamped / threshold;
+    }
+
+    return curve;
+}
+
 export function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
     const rawAmount = typeof amount === 'number' ? amount : 50;
     const normalizedAmount = Math.round(rawAmount * 10) / 10;

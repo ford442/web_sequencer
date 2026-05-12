@@ -21,6 +21,8 @@ import { SamplerPanel } from '../components/SamplerPanel'
 
 import {
     NUM_STEPS,
+    MIN_TRACK_STEPS,
+    MAX_TRACK_STEPS,
     DEFAULT_TEMPO,
     DEFAULT_SYNTH_PARAMS_A,
     DEFAULT_SYNTH_PARAMS_B,
@@ -40,6 +42,29 @@ import {
     getBass2Controls, getSynthControls, getKickControls, getSnareControls,
     getClosedHatControls, getOpenHatControls, getSamplerControls,
 } from '../utils/knobConfigs'
+
+/**
+ * Pure reducer for changing a track's activeLength.
+ * Exported for unit testing.
+ */
+export function applyTrackLength(
+    pattern: Pattern,
+    track: TrackKey | { sampler: number },
+    length: number
+): Pattern {
+    const clamped = Math.max(MIN_TRACK_STEPS, Math.min(MAX_TRACK_STEPS, length));
+    const next = JSON.parse(JSON.stringify(pattern)) as Pattern;
+    if (typeof track === 'string') {
+        if (track === 'sampler') {
+            next.sampler.forEach(bank => { bank.activeLength = clamped; });
+        } else {
+            (next[track] as PartSequence).activeLength = clamped;
+        }
+    } else {
+        next.sampler[track.sampler].activeLength = clamped;
+    }
+    return next;
+}
 
 export function useAppState() {
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
@@ -823,6 +848,22 @@ export function useAppState() {
     const handleTrackSlotClick = useCallback((track: TrackKey, slotIndex: number) => { const currentTrackPattern = track === 'sampler' ? patternRef.current.sampler : patternRef.current[track]; const storedPattern = trackStorageRef.current[track][slotIndex]; if (storedPattern) { setPattern(prev => ({ ...prev, [track]: storedPattern })); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } else { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...prev[track]]; copy[track][slotIndex] = currentTrackPattern; return copy; }); setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex })); } }, []);
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => { handlePatternChange(k, i, undefined, { length: len }); }, [handlePatternChange]);
+
+    const setTrackLength = useCallback((track: TrackKey | { sampler: number }, length: number) => {
+        setPattern(prev => {
+            const next = applyTrackLength(prev, track, length);
+            if (typeof track === 'string') {
+                if (track === 'sampler') {
+                    updateStorageForTrack('sampler', next.sampler);
+                } else {
+                    updateStorageForTrack(track, next[track]);
+                }
+            } else {
+                updateStorageForTrack('sampler', next.sampler);
+            }
+            return next;
+        });
+    }, [updateStorageForTrack]);
     const handleSongModeToggle = useCallback(() => setIsSongModeOpen(prev => !prev), []);
     const handleSongStructureUpdate = useCallback((idx: number, key: TrackKey, val: number | null) => { setSongStructure(prev => { const copy = [...prev]; copy[idx] = { ...copy[idx], [key]: val }; return copy; }); }, []);
     const handleAddMeasure = useCallback(() => setSongStructure(prev => [...prev, { partA: null, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }]), []);
@@ -1180,6 +1221,7 @@ export function useAppState() {
         handleTrackSlotClick,
         handleSelectRow,
         handleEditLength,
+        setTrackLength,
         handleSongModeToggle,
         handleSongStructureUpdate,
         handleAddMeasure,

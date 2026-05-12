@@ -191,7 +191,8 @@ export const AutomationStep = memo(({
 
 const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
-    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing, phonemeLabel, retrigger, reverse
+    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing, phonemeLabel, retrigger, reverse,
+    isBeyondLength
 }: {
     stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
@@ -204,7 +205,8 @@ const SvgStep = memo(({
     isDrawing?: boolean,
     phonemeLabel?: string,
     retrigger?: number,
-    reverse?: boolean
+    reverse?: boolean,
+    isBeyondLength?: boolean
 }) => {
     const baseWidth = 18;
     const gap = 4;
@@ -219,6 +221,7 @@ const SvgStep = memo(({
     const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
     const handlePointerDown = (e: React.PointerEvent) => {
+        if (isBeyondLength) return;
         if (e.button === 2) { e.preventDefault(); onRightMouseDown(rowKey, stepIndex, e); return; }
         if (e.shiftKey) {
             e.preventDefault(); e.stopPropagation();
@@ -256,7 +259,7 @@ const SvgStep = memo(({
 
 
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
+        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className={`svg-step ${isBeyondLength ? 'opacity-25 pointer-events-none' : ''}`} role="button" tabIndex={isBeyondLength ? -1 : 0} aria-label={`${rowLabel} step ${stepIndex + 1}`} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (!isBeyondLength && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor={isBeyondLength ? 'default' : 'pointer'} style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
             {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
@@ -314,10 +317,12 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     automationParam?: string,
     onAutomationChange?: (k: TrackKey, i: number, val: number) => void,
     alignment?: AlignmentResult | null,
-    zoom?: number
+    zoom?: number,
+    activeLength?: number,
+    onSetLength?: (len: number) => void,
 }>((props, ref) => {
     const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing,
-        automation, viewMode, automationParam, onAutomationChange, alignment, zoom = 1 } = props;
+        automation, viewMode, automationParam, onAutomationChange, alignment, zoom = 1, activeLength, onSetLength } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
@@ -364,6 +369,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         if (lastStepRef.current !== -1) { updateClasses(lastStepRef.current); } else { lastActiveIndexRef.current = currentActive; }
     }, [updateClasses]);
 
+    const effectiveLength = activeLength ?? 32;
     const renderedSteps = [];
 
     // Check if we should render automation
@@ -371,6 +377,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
          const values = automation?.[automationParam] || Array(32).fill(null);
 
          for (let i = 0; i < 32; i++) {
+             const isBeyondLength = i >= effectiveLength;
              const val = values[i] ?? 0.5; // Default to center (no shift)
              renderedSteps.push(
                 <AutomationStep
@@ -396,7 +403,8 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             if (skipCount > 0) { skipCount--; continue; }
             const stepData = steps[i];
             const length = stepData?.length || 1;
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} onDrawEnter={onDrawEnter} isDrawing={isDrawing} reverse={stepData?.reverse} />);
+            const isBeyondLength = i >= effectiveLength;
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} onDrawEnter={onDrawEnter} isDrawing={isDrawing} reverse={stepData?.reverse} isBeyondLength={isBeyondLength} />);
             if (stepData && length > 1) { skipCount = length - 1; }
         }
     } else {
@@ -406,6 +414,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             if (skipCount > 0) { skipCount--; continue; }
             const stepData = steps[i];
             const length = stepData?.length || 1;
+            const isBeyondLength = i >= effectiveLength;
 
             let isRangeSelected = false;
             if (selectionRange) {
@@ -429,7 +438,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 }
             }
 
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} />);
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} isBeyondLength={isBeyondLength} />);
             if (stepData && length > 1) { skipCount = length - 1; }
         }
     }
@@ -475,6 +484,17 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                     <line x1={-65} y1={36} x2={-20} y2={36} stroke={isSelected ? '#ff0066' : '#4b5563'} strokeWidth={1} opacity={isSelected ? 0.5 : 0.3} />
                 )}
             </g>
+            {onSetLength && (
+                <foreignObject x={-85} y={10} width={65} height={30}>
+                    <div className="flex items-center justify-center h-full" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[10px] text-cyan-600 flex items-center gap-0.5 select-none">
+                            <button className="px-1 py-0.5 rounded hover:bg-cyan-900/30 text-cyan-400" onClick={() => onSetLength(effectiveLength - 1)}>−</button>
+                            <span className="text-cyan-300 font-mono min-w-[1rem] text-center">{effectiveLength}</span>
+                            <button className="px-1 py-0.5 rounded hover:bg-cyan-900/30 text-cyan-400" onClick={() => onSetLength(effectiveLength + 1)}>+</button>
+                        </span>
+                    </div>
+                </foreignObject>
+            )}
             <g transform="translate(30, 16)">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))}
             </g>
@@ -518,6 +538,7 @@ export interface MainSequencerProps {
     // Phase 3: Phoneme Painter
     onPhonemeUpdate?: (trackKey: TrackKey, bankIndex: number, step: number, phonemes: PhonemeData[] | undefined) => void;
     samplerAudioBuffer?: AudioBuffer | null;
+    onSetTrackLength?: (track: TrackKey | { sampler: number }, length: number) => void;
     // Children are rendered after SVG (e.g. NoteSelector)
     children?: React.ReactNode;
 }
@@ -526,7 +547,16 @@ const noopPitchChange = () => {};
 
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
     const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
-        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer } = props;
+        melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer, onSetTrackLength } = props;
+
+    const handleActiveLengthChange = useCallback((rowKey: TrackKey, length: number) => {
+        if (!onSetTrackLength) return;
+        if (rowKey === 'sampler') {
+            onSetTrackLength({ sampler: activeSamplerBank }, length);
+        } else {
+            onSetTrackLength(rowKey, length);
+        }
+    }, [onSetTrackLength, activeSamplerBank]);
 
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
     const melodicRowRef = useRef<MelodicSequencerRowHandle | null>(null);
@@ -694,6 +724,8 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     onSelectRow={onSelectRow}
                                     onSelectSlot={onSelectSlot}
                                     zoom={zoom}
+                                    activeLength={pattern.sampler[activeSamplerBank].activeLength}
+                                    onSetLength={(len) => handleActiveLengthChange(row.key, len)}
                                 />
                             );
                         }
@@ -716,6 +748,8 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 onAutomationChange={onAutomationChange}
                                 alignment={row.key === 'sampler' ? alignment : null}
                                 zoom={zoom}
+                                activeLength={row.key === 'sampler' ? pattern.sampler[activeSamplerBank].activeLength : (pattern as any)[row.key].activeLength}
+                                onSetLength={(len) => handleActiveLengthChange(row.key, len)}
                             />
                         );
                     })}

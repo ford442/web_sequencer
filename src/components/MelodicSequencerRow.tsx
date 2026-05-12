@@ -93,6 +93,8 @@ interface MelodicSequencerRowProps {
   onSelectRow: (k: TrackKey) => void;
   onSelectSlot: (k: TrackKey, slot: number) => void;
   zoom?: number;
+  activeLength?: number;
+  onSetLength?: (len: number) => void;
 }
 
 export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, MelodicSequencerRowProps>(
@@ -110,7 +112,9 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       onEditLength,
       onSelectRow,
       onSelectSlot,
-      zoom = 1
+      zoom = 1,
+      activeLength,
+      onSetLength
     } = props;
 
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
@@ -175,6 +179,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
     const renderedSteps = [];
     let skipCount = 0;
 
+    const effectiveLength = activeLength ?? 32;
     for (let i = 0; i < 32; i++) {
       if (skipCount > 0) {
         skipCount--;
@@ -184,6 +189,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       const stepData = steps[i];
       const length = stepData?.length || 1;
       const isActive = !!stepData;
+      const isBeyondLength = i >= effectiveLength;
 
       // Default pitch for new notes is C4 (60)
       // If note string exists but pitch doesn't, convert
@@ -215,6 +221,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           onPitchChange={onPitchChange}
           onEditLength={onEditLength}
           reverse={stepData?.reverse}
+          isBeyondLength={isBeyondLength}
         />
       );
 
@@ -256,6 +263,17 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
             {label.toUpperCase()}
           </text>
         </g>
+        {onSetLength && (
+          <foreignObject x={-85} y={10} width={65} height={30}>
+            <div className="flex items-center justify-center h-full" onClick={(e) => e.stopPropagation()}>
+              <span className="text-[10px] text-cyan-600 flex items-center gap-0.5 select-none">
+                <button className="px-1 py-0.5 rounded hover:bg-cyan-900/30 text-cyan-400" onClick={() => onSetLength(effectiveLength - 1)}>−</button>
+                <span className="text-cyan-300 font-mono min-w-[1rem] text-center">{effectiveLength}</span>
+                <button className="px-1 py-0.5 rounded hover:bg-cyan-900/30 text-cyan-400" onClick={() => onSetLength(effectiveLength + 1)}>+</button>
+              </span>
+            </div>
+          </foreignObject>
+        )}
 
         {/* Pattern slots */}
         <g transform="translate(30, 16)">

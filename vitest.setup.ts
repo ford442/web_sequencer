@@ -32,11 +32,11 @@ if (typeof window !== 'undefined') {
     }),
     createDynamicsCompressor: vi.fn().mockReturnValue({
       connect: vi.fn(),
-      threshold: { value: 0 },
-      knee: { value: 0 },
-      ratio: { value: 0 },
-      attack: { value: 0 },
-      release: { value: 0 },
+      threshold: { value: 0, setValueAtTime: vi.fn() },
+      knee: { value: 0, setValueAtTime: vi.fn() },
+      ratio: { value: 0, setValueAtTime: vi.fn() },
+      attack: { value: 0, setValueAtTime: vi.fn() },
+      release: { value: 0, setValueAtTime: vi.fn() },
     }),
     createBiquadFilter: vi.fn().mockReturnValue({
         connect: vi.fn(),

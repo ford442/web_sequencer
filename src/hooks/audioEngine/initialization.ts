@@ -1,7 +1,7 @@
 import type { MutableRefObject } from 'react';
 import { Harmonizer } from '../../engines/Harmonizer';
 
-import { makeDistortionCurve } from './distortion';
+import { makeDistortionCurve, makeLimiterCurve } from './distortion';
 
 export function initializeMasterOutput(
     context: AudioContext,
@@ -10,6 +10,7 @@ export function initializeMasterOutput(
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>,
     masterCompressorRef: MutableRefObject<DynamicsCompressorNode | null>,
     sidechainGainRef: MutableRefObject<GainNode | null>,
+    masterLimiterRef: MutableRefObject<WaveShaperNode | null>,
 ): WaveShaperNode {
     const masterSaturation = context.createWaveShaper();
     masterSaturation.curve = makeDistortionCurve(0);
@@ -36,15 +37,21 @@ export function initializeMasterOutput(
     sidechainBus.connect(masterCompressor);
     masterCompressor.connect(masterGain);
 
+    const masterLimiter = context.createWaveShaper();
+    masterLimiter.curve = makeLimiterCurve(0.95);
+    masterLimiter.oversample = '4x';
+    masterLimiterRef.current = masterLimiter;
+
     if (context.createStereoPanner) {
         const masterPanner = context.createStereoPanner();
         masterPanner.pan.setValueAtTime(0, 0);
         masterPannerRef.current = masterPanner;
         masterGain.connect(masterPanner);
-        masterPanner.connect(context.destination);
+        masterPanner.connect(masterLimiter);
     } else {
-        masterGain.connect(context.destination);
+        masterGain.connect(masterLimiter);
     }
+    masterLimiter.connect(context.destination);
 
     return masterSaturation;
 }

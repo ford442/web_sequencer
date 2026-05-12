@@ -42,6 +42,7 @@ export const SequencerNode: React.FC = () => {
     handlePitchChange,
     handlePhonemeUpdate,
     sampleBuffers,
+    setTrackLength,
   } = state
 
   return useMemo(() => {
@@ -94,6 +95,7 @@ export const SequencerNode: React.FC = () => {
         onPitchChange={handlePitchChange}
         onPhonemeUpdate={handlePhonemeUpdate}
         samplerAudioBuffer={sampleBuffers[activeSamplerBank]}
+        onSetTrackLength={setTrackLength}
       />
     )
   }, [
@@ -127,6 +129,7 @@ export const SequencerNode: React.FC = () => {
     handleDrawEnter,
     handlePhonemeUpdate,
     handlePitchChange,
+    setTrackLength,
     activeAlignment,
     automationParam,
     isDrawing,

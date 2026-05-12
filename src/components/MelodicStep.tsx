@@ -56,6 +56,7 @@ interface MelodicStepProps {
   gap?: number;
   x?: number;
   reverse?: boolean;
+  isBeyondLength?: boolean;
 }
 
 export const MelodicStep = memo(({
@@ -77,7 +78,8 @@ export const MelodicStep = memo(({
   baseWidth = 18,
   gap = 4,
   x: propX,
-  reverse
+  reverse,
+  isBeyondLength
 }: MelodicStepProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartY = useRef(0);
@@ -251,15 +253,15 @@ export const MelodicStep = memo(({
     <g
       ref={elementRef}
       transform={`translate(${x}, ${y})`}
-      className={`svg-step melodic-step ${isCurrent ? 'is-current' : ''} ${isDragging ? 'is-dragging' : ''}`}
+      className={`svg-step melodic-step ${isCurrent ? 'is-current' : ''} ${isDragging ? 'is-dragging' : ''} ${isBeyondLength ? 'opacity-25 pointer-events-none' : ''}`}
       role="button"
-      tabIndex={0}
+      tabIndex={isBeyondLength ? -1 : 0}
       aria-label={`${rowLabel} step ${stepIndex + 1}, pitch ${midiToNoteName(pitch)}`}
       aria-pressed={active}
-      onPointerDown={handlePointerDown}
-      onKeyDown={handleKeyDown}
+      onPointerDown={isBeyondLength ? undefined : handlePointerDown}
+      onKeyDown={isBeyondLength ? undefined : handleKeyDown}
       onContextMenu={(e) => e.preventDefault()}
-      cursor={isDragging ? 'ns-resize' : 'pointer'}
+      cursor={isBeyondLength ? 'default' : (isDragging ? 'ns-resize' : 'pointer')}
       style={{ 
         transition: isDragging ? 'none' : 'all 0.15s ease-out',
         touchAction: 'none',
