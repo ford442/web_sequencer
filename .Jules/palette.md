@@ -7,3 +7,6 @@
 ## 2024-05-18 - Added ARIA Labels to Missing Icons
 **Learning:** Found several generic visual indicators or icons missing context for screen readers. Ensure SVG or generic div controls inside buttons use `aria-label` attributes consistently.
 **Action:** Always add descriptive `aria-label` attributes to button elements lacking explicit readable text, particularly in interactive visual elements like canvases or specialized components like `DrawableLFO.tsx` and `Rack.tsx`.
+## 2024-05-12 - Added Focus Visible to LiveKeyboard Close Button
+**Learning:** For floating modals and guides with absolute positioned close buttons (like LiveKeyboard), the `focus-visible:ring-2` class is necessary for keyboard navigation since standard hover effects don't apply when tabbing.
+**Action:** When adding close buttons (`✕`) to popovers or guides, always include `focus:outline-none focus-visible:ring-2 focus-visible:ring-[color] rounded`.
