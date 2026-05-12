@@ -438,6 +438,19 @@ export const MelodicStep = memo(({
       )}
     </g>
   );
+}, (prev, next) => {
+  return (
+    prev.stepIndex === next.stepIndex &&
+    prev.active === next.active &&
+    prev.note === next.note &&
+    prev.pitch === next.pitch &&
+    prev.phonemeIndex === next.phonemeIndex &&
+    prev.length === next.length &&
+    prev.isSlide === next.isSlide &&
+    prev.isCurrent === next.isCurrent &&
+    prev.reverse === next.reverse &&
+    JSON.stringify(prev.phonemes) === JSON.stringify(next.phonemes)
+  );
 });
 
 export default MelodicStep;
