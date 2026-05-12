@@ -878,6 +878,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set rhythmic gate rate in Hz.
+     * @param rate Gate rate in Hz
+     * @param time Optional time to apply the change (default: now)
+     */
+    setGateRate(rate: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('gateRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set rhythmic gate depth percentage.
+     * @param percent Gate depth (0-100)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setGateDepth(percent: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('gateDepth')?.setValueAtTime(percent / 100, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set breath intensity.
      * @param intensity Breath intensity (0-1)
      * @param time Optional time to apply the change (default: now)
