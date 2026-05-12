@@ -403,7 +403,9 @@ export const useAudioEngine = (pyodide: unknown) => {
                     characterMorph?: number,
                     breathIntensity?: number,
                     formantShift?: number,
-                    grainPitchQuantize?: number
+                    grainPitchQuantize?: number,
+                    gateRate?: number,
+                    gateDepth?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -518,6 +520,19 @@ export const useAudioEngine = (pyodide: unknown) => {
                             }
                             if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
                             if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
+
+                            if (noteParams?.gateDepth !== undefined) {
+                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
+                            } else if (params.gateDepth !== undefined) {
+                                voice.setGateDepth(params.gateDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateRate !== undefined) {
+                                voice.setGateRate(noteParams.gateRate, triggerTime);
+                            } else if (params.gateRate !== undefined) {
+                                voice.setGateRate(params.gateRate, triggerTime);
+                            }
+
                             if (noteParams?.breathIntensity !== undefined) {
                                 voice.setBreathIntensity(noteParams.breathIntensity, triggerTime);
                             } else if (params.breathIntensity !== undefined) {
