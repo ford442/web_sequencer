@@ -57,23 +57,12 @@ export interface EnvelopeConfig {
     release: number;
 }
 
-/** Configuration for rhythmic gate effect */
-export interface GateConfig {
-    /** Gate rate in Hz */
-    rate: number;
-    /** Gate depth as a factor (0.0 - 1.0) */
-    depth: number;
-    /** Whether gate is enabled */
-    enabled: boolean;
-}
-
 /** Full configuration for expressive voice processing */
 export interface ExpressiveConfig {
     vibrato: VibratoConfig;
     tremolo: TremoloConfig;
     breath: BreathConfig;
     envelope: EnvelopeConfig;
-    gate: GateConfig;
     /** Sample rate for processing */
     sampleRate: number;
 }
@@ -102,11 +91,6 @@ export const DEFAULT_EXPRESSIVE_CONFIG: ExpressiveConfig = {
         decay: 0.1,
         sustain: 1.0,
         release: 0.1
-    },
-    gate: {
-        rate: 4.0,
-        depth: 0.0,
-        enabled: false
     },
     sampleRate: 44100
 };
@@ -165,7 +149,6 @@ export class ExpressiveVoiceProcessor {
     // LFO States
     private vibratoPhase: number = 0;
     private tremoloPhase: number = 0;
-    private gatePhase: number = 0;
 
     // Noise Generation
     private noiseBuffer: Float32Array;
@@ -220,13 +203,11 @@ export class ExpressiveVoiceProcessor {
         const trem = this.config.tremolo;
         const breath = this.config.breath;
         const env = this.config.envelope;
-        const gate = this.config.gate;
         
         // Constants for this block
         const dt = 1.0 / sampleRate;
         const vibIncrement = vib.rate * dt * 2 * Math.PI;
         const tremIncrement = trem.rate * dt * 2 * Math.PI;
-        const gateIncrement = gate.rate * dt * 2 * Math.PI;
         
         // Max delay for vibrato calculation (10ms typical)
         const maxVibDelayMs = 10;
@@ -291,22 +272,6 @@ export class ExpressiveVoiceProcessor {
                 const tremLfo = Math.sin(this.tremoloPhase);
                 // standard tremolo: 1 - depth/2 * (1 + sin)
                 const mod = 1.0 - (trem.depth * 0.5 * (1.0 + tremLfo));
-                sample *= mod;
-            }
-
-            // 2b. Rhythmic Gating (Square wave AM)
-            if (gate.enabled && gate.depth > 0) {
-                this.gatePhase += gateIncrement;
-                if (this.gatePhase > 2 * Math.PI) this.gatePhase -= 2 * Math.PI;
-
-                // Create a smooth square wave (or pulse) using sin as base to avoid aliasing clicks
-                // if sin > 0 -> 1, else 0. To prevent hard clicks, we can use a smoothed step.
-                // A fast sigmoid or simply clamping a scaled sine works well.
-                const sinVal = Math.sin(this.gatePhase);
-                const smoothedSquare = Math.max(0, Math.min(1, sinVal * 10.0 + 0.5));
-
-                // When smoothedSquare is 0, we duck the signal by gate.depth.
-                const mod = 1.0 - (gate.depth * (1.0 - smoothedSquare));
                 sample *= mod;
             }
 
@@ -406,9 +371,6 @@ export class ExpressiveVoiceProcessor {
         if (newConfig.envelope) {
             this.config.envelope = { ...this.config.envelope, ...newConfig.envelope };
         }
-        if (newConfig.gate) {
-            this.config.gate = { ...this.config.gate, ...newConfig.gate };
-        }
         if (newConfig.sampleRate) {
             this.config.sampleRate = newConfig.sampleRate;
         }
@@ -428,7 +390,6 @@ export class ExpressiveVoiceProcessor {
     reset(): void {
         this.vibratoPhase = 0;
         this.tremoloPhase = 0;
-        this.gatePhase = 0;
         this.noiseIndex = 0;
         this.sampleIndex = 0;
         this.delayLine.clear();

@@ -57,8 +57,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'vibratoRate', defaultValue: 5.0, minValue: 0.1, maxValue: 20.0 },
       { name: 'tremoloDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'tremoloRate', defaultValue: 0.1, minValue: 0.1, maxValue: 20.0 },
-      { name: 'gateDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'gateRate', defaultValue: 4.0, minValue: 0.1, maxValue: 50.0 },
       { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'attack', defaultValue: 0.05, minValue: 0.001, maxValue: 2.0 },
       { name: 'decay', defaultValue: 0.1, minValue: 0.001, maxValue: 2.0 },
@@ -250,8 +248,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const vibRate = parameters.vibratoRate[0];
     const tremDepth = parameters.tremoloDepth[0];
     const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
-    const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0;
-    const gateRate = parameters.gateRate ? parameters.gateRate[0] : 4.0;
     const breath = parameters.breathIntensity[0];
     const attack = parameters.attack ? parameters.attack[0] : 0.05;
     const decay = parameters.decay ? parameters.decay[0] : 0.1;
@@ -261,7 +257,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     this.expressiveProcessor.updateConfig({
       vibrato: { depth: vibDepth, rate: vibRate, enabled: vibDepth > 0 },
       tremolo: { depth: tremDepth, rate: tremRate, enabled: tremDepth > 0 },
-      gate: { depth: gateDepth, rate: gateRate, enabled: gateDepth > 0 },
       breath: { amount: breath, enabled: breath > 0, filterCutoff: 2000 },
       envelope: { attack, decay, sustain, release }
     });
