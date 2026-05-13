@@ -66,11 +66,8 @@ export const TransportToolbar = memo(function TransportToolbar({
                                 key={slot} 
                                 onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }} 
                                 onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }} 
-                                className={`w-7 h-6 text-xs font-mono rounded transition-all ${isActive 
-                                    ? 'bg-cyan-500 text-black font-bold shadow-[0_0_10px_rgba(6,182,212,0.6)]' 
-                                    : (isSaved 
-                                        ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 hover:bg-cyan-800/50' 
-                                        : 'bg-zinc-900 text-zinc-600 border border-zinc-800 hover:border-zinc-700')}`} 
+                                title={`Song Slot ${slot + 1}`}
+                                className={`w-7 h-6 text-xs font-mono transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95 ${isActive ? 'bg-cyan-500 text-black font-bold shadow-[0_0_10px_rgba(6,182,212,0.6)]' : (isSaved ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 hover:bg-cyan-800/50' : 'bg-zinc-900 text-zinc-600 border border-zinc-800 hover:border-zinc-700')}`}
                                 aria-label={`Song Slot ${slot + 1}`} 
                                 aria-pressed={isActive}
                             >
@@ -94,9 +91,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                     aria-pressed={isPlaying}
                     aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
                     title={isPlaying ? "Stop Playback (Space)" : "Start Playback (Space)"}
-                    className={`h-8 px-5 rounded-md font-orbitron text-sm font-bold tracking-wider transition-all shadow-lg ${isPlaying 
-                        ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-400' 
-                        : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border border-green-400'}`}
+                    className={`h-8 px-5 font-orbitron text-sm font-bold tracking-wider transition-all duration-150 shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95 ${isPlaying ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-400' : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border border-green-400'}`}
                 >
                     {isPlaying ? '■ STOP' : '▶ PLAY'}
                 </button>
@@ -106,9 +101,8 @@ export const TransportToolbar = memo(function TransportToolbar({
                     onClick={() => setIsRecording(!isRecording)} 
                     aria-pressed={isRecording} 
                     aria-label="Toggle Recording" 
-                    className={`h-8 w-10 rounded-md font-orbitron text-xs font-bold tracking-wide transition-all ${isRecording 
-                        ? 'bg-red-600 text-white animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.6)] border border-red-400' 
-                        : 'bg-zinc-800 hover:bg-zinc-700 text-red-500 border border-zinc-700 hover:border-red-900/50'}`}
+                    title={isRecording ? "Stop Recording" : "Toggle Recording"}
+                    className={`h-8 w-10 font-orbitron text-xs font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95 ${isRecording ? 'bg-red-600 text-white animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.6)] border border-red-400' : 'bg-zinc-800 hover:bg-zinc-700 text-red-500 border border-zinc-700 hover:border-red-900/50'}`}
                 >
                     REC
                 </button>
@@ -125,7 +119,8 @@ export const TransportToolbar = memo(function TransportToolbar({
                             onMouseUp={handleTempoHoldEnd}
                             onMouseLeave={handleTempoHoldEnd}
                             onKeyDown={(e) => handleTempoKeyDown(e, -1)}
-                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-r border-zinc-800 focus:outline-none hover:bg-zinc-900/50 transition-colors"
+                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-r border-zinc-800 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-l-md hover:bg-zinc-900/50 hover:scale-105 active:scale-95"
+                            title="Decrease Tempo"
                             aria-label="Decrease Tempo"
                         >
                             −
@@ -143,7 +138,8 @@ export const TransportToolbar = memo(function TransportToolbar({
                             onMouseUp={handleTempoHoldEnd}
                             onMouseLeave={handleTempoHoldEnd}
                             onKeyDown={(e) => handleTempoKeyDown(e, 1)}
-                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-l border-zinc-800 focus:outline-none hover:bg-zinc-900/50 transition-colors"
+                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-l border-zinc-800 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-r-md hover:bg-zinc-900/50 hover:scale-105 active:scale-95"
+                            title="Increase Tempo"
                             aria-label="Increase Tempo"
                         >
                             +
@@ -161,7 +157,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 {/* Clear Button */}
                 <button 
                     onClick={handleClearPattern} 
-                    className="h-7 px-3 text-xs font-bold text-red-400 border border-red-900/50 bg-gradient-to-r from-red-950/30 to-red-900/20 rounded-md hover:bg-red-900/30 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-red-500" 
+                    className="h-7 px-3 text-xs font-bold text-red-400 border border-red-900/50 bg-gradient-to-r from-red-950/30 to-red-900/20 hover:bg-red-900/30 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95"
                     aria-label="Clear Current Pattern" 
                     title="Clear Current Pattern"
                 >
@@ -176,9 +172,8 @@ export const TransportToolbar = memo(function TransportToolbar({
                     onClick={() => setIsSongModeOpen(!isSongModeOpen)} 
                     aria-pressed={isSongModeOpen} 
                     aria-label="Toggle Song Mode" 
-                    className={`h-7 px-3 rounded-md font-orbitron text-xs font-bold tracking-wide transition-all ${isSongModeOpen 
-                        ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.5)] border border-purple-400' 
-                        : 'bg-zinc-800 text-gray-400 border border-zinc-700 hover:bg-zinc-700 hover:text-gray-300'}`}
+                    title={isSongModeOpen ? "Close Song Mode" : "Open Song Mode"}
+                    className={`h-7 px-3 font-orbitron text-xs font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95 ${isSongModeOpen ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.5)] border border-purple-400' : 'bg-zinc-800 text-gray-400 border border-zinc-700 hover:bg-zinc-700 hover:text-gray-300'}`}
                 >
                     SONG
                 </button>
@@ -188,9 +183,8 @@ export const TransportToolbar = memo(function TransportToolbar({
                     onClick={() => setIs3DMode(!is3DMode)}
                     aria-pressed={is3DMode}
                     aria-label="Toggle 3D Studio View"
-                    className={`h-7 w-8 rounded-md font-orbitron text-xs font-bold transition-all ${is3DMode 
-                        ? 'bg-cyan-600 text-white border border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' 
-                        : 'bg-zinc-800 text-cyan-500 border border-zinc-700 hover:bg-zinc-700'}`}
+                    title={is3DMode ? "Exit 3D Studio" : "Enter 3D Studio"}
+                    className={`h-7 w-8 font-orbitron text-xs font-bold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95 ${is3DMode ? 'bg-cyan-600 text-white border border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 'bg-zinc-800 text-cyan-500 border border-zinc-700 hover:bg-zinc-700'}`}
                 >
                     3D
                 </button>
@@ -199,7 +193,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 <button 
                     onClick={handlePanic} 
                     aria-label="Panic Stop All Notes" 
-                    className="h-7 w-7 rounded-md bg-red-950/50 hover:bg-red-900/70 text-red-500 border border-red-900/50 flex items-center justify-center font-bold text-xs transition-all"
+                    className="h-7 w-7 bg-red-950/50 hover:bg-red-900/70 text-red-500 border border-red-900/50 flex items-center justify-center font-bold text-xs transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95"
                     title="Panic (!)"
                 >
                     !

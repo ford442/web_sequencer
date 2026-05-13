@@ -75,6 +75,8 @@ export interface SamplerBankParams {
   vibratoDepth?: number;
   tremoloDepth?: number;
   tremoloRate?: number;
+  gateDepth?: number;
+  gateRate?: number;
   breathIntensity?: number;
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
@@ -112,6 +114,8 @@ export interface SamplerBankParams {
   quality?: 'preview' | 'good' | 'better' | 'best';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
+  gateDepth?: number;
+  gateRate?: number;
 }
 
 export type SamplerParams = SamplerBankParams[];
@@ -169,7 +173,12 @@ export interface Note {
   delaySend?: number;
   choir?: number;
   drive?: number;
+  tranceGate?: number;
+  gateRate?: number;
+  gateDepth?: number;
   phonemes?: PhonemeData[];
+  gateDepth?: number;
+  gateRate?: number;
   // ... other fields as needed
 }
 

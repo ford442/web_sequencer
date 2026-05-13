@@ -12,6 +12,7 @@ import { VoiceManager } from '../engines/VoiceManager';
 import { noteToMidi } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
+import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
 import {
     createAmbianceControls,
     createNoteOnSynth,
@@ -51,13 +52,16 @@ type AudioWindow = Window & typeof globalThis & {
     audioContext?: AudioContext;
 };
 
-export const useAudioEngine = (pyodide: unknown) => {
+export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
 
     // Polyphonic TTS Manager
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
+
+    // Pre-stretched phoneme buffer pool (phoneme-aware time stretching)
+    const phonemeBufferPoolRef = useRef<PhonemeBufferPool | null>(null);
     
     // Harmonizer for layered vocals
     const harmonizerRef = useRef<Harmonizer | null>(null);
@@ -291,6 +295,12 @@ export const useAudioEngine = (pyodide: unknown) => {
                     voice.connectOutput(masterSaturationRef.current!);
                 });
 
+                // Initialise the phoneme buffer pool and wire it to every voice
+                const pool = new PhonemeBufferPool();
+                pool.init(context);
+                phonemeBufferPoolRef.current = pool;
+                manager.getAllVoices().forEach(voice => voice.setPool(pool));
+
                 if (pyodideRef.current) {
                     // Pre-cache logic
                 }
@@ -303,6 +313,22 @@ export const useAudioEngine = (pyodide: unknown) => {
             noiseBufferRef.current = createNoiseBuffer(context);
             multisampleGeneratorRef.current = new MultisampleGenerator(context);
 
+            // --- Helper: warm the phoneme pool for all phonemes in a bank ---
+            const warmPoolForBank = (sampleName: string, alignment: AlignmentResult, audioBuffer: AudioBuffer): void => {
+                const pool = phonemeBufferPoolRef.current;
+                if (!pool) return;
+                const monoAudio = audioBuffer.getChannelData(0);
+                const sr = audioBuffer.sampleRate;
+                for (let i = 0; i < alignment.phonemes.length; i++) {
+                    const ph = alignment.phonemes[i];
+                    const startSample = Math.floor(ph.start * sr);
+                    const endSample = Math.floor(ph.end * sr);
+                    if (endSample <= startSample) continue;
+                    const slice = monoAudio.slice(startSample, endSample);
+                    pool.warmPhoneme(`${sampleName}_${i}`, [slice], sr);
+                }
+            };
+
             // --- Playback Functions Extraction ---
             const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: any, tuning?: any) => {
                 createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track, noteParams, tuning);
@@ -312,16 +338,41 @@ export const useAudioEngine = (pyodide: unknown) => {
                 loadSampleToEngine,
                 getMultisampleBank,
                 isMultisampleReady,
-                prepareVocal,
+                prepareVocal: prepareVocalBase,
                 getAlignment,
-                setAlignment
+                setAlignment: setAlignmentBase
             } = createSampleLibraryControls({
                 loadedSampleBuffersRef,
                 multisampleBanksRef,
                 multisampleGeneratorRef,
                 vocalAlignmentsRef,
                 singingVoiceManagerRef,
-            });            // Internal function to play a single sampler voice (supports pitch offset for harmonizer)
+            });
+
+            // Wrap prepareVocal to warm the pool once alignment is computed
+            const prepareVocal = async (bankIndex: number, text: string): Promise<void> => {
+                await prepareVocalBase(bankIndex, text);
+                const sampleName = `bank_${bankIndex}`;
+                const alignment = vocalAlignmentsRef.current.get(sampleName);
+                const audioBuffer = (multisampleBanksRef.current.get(sampleName)?.baseBuffer)
+                    ?? loadedSampleBuffersRef.current.get(sampleName);
+                if (alignment && audioBuffer) {
+                    warmPoolForBank(sampleName, alignment, audioBuffer);
+                }
+            };
+
+            // Wrap setAlignment to warm the pool when alignment is set externally
+            const setAlignment = (bankIndex: number, alignment: AlignmentResult | null): void => {
+                setAlignmentBase(bankIndex, alignment);
+                if (alignment) {
+                    const sampleName = `bank_${bankIndex}`;
+                    const audioBuffer = (multisampleBanksRef.current.get(sampleName)?.baseBuffer)
+                        ?? loadedSampleBuffersRef.current.get(sampleName);
+                    if (audioBuffer) {
+                        warmPoolForBank(sampleName, alignment, audioBuffer);
+                    }
+                }
+            };
             const playSamplerVoice = (
                 params: SamplerBankParams, 
                 note: string | string[], 
@@ -352,7 +403,10 @@ export const useAudioEngine = (pyodide: unknown) => {
                     characterMorph?: number,
                     breathIntensity?: number,
                     formantShift?: number,
-                    grainPitchQuantize?: number
+                    grainPitchQuantize?: number,
+                    tranceGate?: number
+                    gateRate?: number,
+                    gateDepth?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -465,8 +519,35 @@ export const useAudioEngine = (pyodide: unknown) => {
                             } else if (params.vibratoDepth !== undefined) {
                                 voice.setVibratoDepth(params.vibratoDepth, triggerTime);
                             }
+
+                            if (noteParams?.gateDepth !== undefined) {
+                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
+                            } else if (params.gateDepth !== undefined) {
+                                voice.setGateDepth(params.gateDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateRate !== undefined) {
+                                const rateHz = (tempo / 60) * (noteParams.gateRate / 4);
+                                voice.setGateRate(rateHz, triggerTime);
+                            } else if (params.gateRate !== undefined) {
+                                const rateHz = (tempo / 60) * (params.gateRate / 4);
+                                voice.setGateRate(rateHz, triggerTime);
+                            }
                             if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
                             if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
+
+                            if (noteParams?.gateDepth !== undefined) {
+                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
+                            } else if (params.gateDepth !== undefined) {
+                                voice.setGateDepth(params.gateDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateRate !== undefined) {
+                                voice.setGateRate(noteParams.gateRate, triggerTime);
+                            } else if (params.gateRate !== undefined) {
+                                voice.setGateRate(params.gateRate, triggerTime);
+                            }
+
                             if (noteParams?.breathIntensity !== undefined) {
                                 voice.setBreathIntensity(noteParams.breathIntensity, triggerTime);
                             } else if (params.breathIntensity !== undefined) {
@@ -491,6 +572,10 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
                             } else if (params.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
+                            }
+
+                            if (noteParams?.tranceGate !== undefined) {
+                                voice.setTranceGate(noteParams.tranceGate, triggerTime);
                             }
 
                             // Apply Formant LFO
@@ -547,7 +632,17 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 }
 
                                 if (sliceIndex >= 0) {
-                                    voice.triggerSlice(buffer.getChannelData(0), sliceIndex, alignment, pitchRatio, noteParams?.reverse);
+                                    const phonemeId = `${params.sampleName}_${sliceIndex}`;
+                                    voice.triggerSlice(
+                                        buffer.getChannelData(0),
+                                        sliceIndex,
+                                        alignment,
+                                        pitchRatio,
+                                        noteParams?.reverse,
+                                        targetDuration,
+                                        triggerTime,
+                                        phonemeId,
+                                    );
                                     return;
                                 }
                             }
@@ -759,7 +854,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     characterMorph?: number,
                     breathIntensity?: number,
                     formantShift?: number,
-                    grainPitchQuantize?: number
+                    grainPitchQuantize?: number,
+                    tranceGate?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
