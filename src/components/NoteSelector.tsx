@@ -2,20 +2,19 @@ import React, { memo } from 'react';
 import { NOTES, getScaleNotes } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { useFocusTrap } from '../hooks/useFocusTrap';
-
 interface NoteSelectorProps {
     x: number;
     y: number;
     trackType: 'synth' | 'drum';
     currentNote: string;
-    currentLength: number; // NEW: Receive current length
+    currentLength: number;
     onSelect: (note: string) => void;
-    onLengthChange: (length: number) => void; // NEW: Handle length changes
+    onLengthChange: (length: number) => void;
     onClose: () => void;
     getNoteColor: (note: string) => string;
-    /** Active scale definition for Key Lock — greys out non-scale keys */
     currentScale?: ScaleDefinition | null;
-    // NEW: Per-step parameters
+
+    // Per-step parameters
     currentTimbre?: number;
     currentVelocity?: number;
     currentProbability?: number;
@@ -30,6 +29,8 @@ interface NoteSelectorProps {
     currentFormantLfoRate?: number;
     currentFormantLfoDepth?: number;
     currentVibratoDepth?: number;
+    currentGateDepth?: number;      // from main
+    currentGateRate?: number;       // from main
     currentDrive?: number;
     currentCharacterMorph?: number;
     currentReverbSend?: number;
@@ -40,12 +41,69 @@ interface NoteSelectorProps {
     currentTranceGate?: number;
     currentDelaySend?: number;
     currentChoir?: number;
-    onPropertyChange?: (key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'freezeEnvDepth' | 'grainEnvDepth' | 'grainPitchQuantize' | 'tranceGate' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'choir', value: number | boolean | string) => void;
+
+    onPropertyChange?: (key: 
+        | 'timbre'
+        | 'velocity'
+        | 'probability'
+        | 'microtiming'
+        | 'reverse'
+        | 'retrigger'
+        | 'freeze'
+        | 'freezeEnvDepth'
+        | 'grainEnvDepth'
+        | 'grainPitchQuantize'
+        | 'tranceGate'
+        | 'formantShift'
+        | 'filterCutoff'
+        | 'filterResonance'
+        | 'envMod'
+        | 'formantLfoRate'
+        | 'formantLfoDepth'
+        | 'formantEnvAttack'
+        | 'formantEnvDecay'
+        | 'formantEnvAmount'
+        | 'vibratoDepth'
+        | 'gateDepth'
+        | 'gateRate'
+        | 'drive'
+        | 'characterMorph'
+        | 'reverbSend'
+        | 'reverbType'
+        | 'delaySend'
+        | 'choir'
+    , value: number | boolean | string) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
-    currentTimbre = 0, currentVelocity = 1, currentProbability = 1, currentMicrotiming = 0, currentReverse = false, currentRetrigger = 1, currentFreeze = 0, currentFormantShift, currentFilterCutoff, currentFilterResonance, currentEnvMod, currentFormantLfoRate = 0, currentFormantLfoDepth = 0,  currentVibratoDepth = 0, currentDrive, currentCharacterMorph = 0, currentReverbSend, currentReverbType, currentDelaySend, currentFreezeEnvDepth = 0, currentGrainEnvDepth = 0, currentGrainPitchQuantize = 0, currentTranceGate = 0, currentChoir, onPropertyChange
+    currentTimbre = 0,
+    currentVelocity = 1,
+    currentProbability = 1,
+    currentMicrotiming = 0,
+    currentReverse = false,
+    currentRetrigger = 1,
+    currentFreeze = 0,
+    currentFormantShift,
+    currentFilterCutoff,
+    currentFilterResonance,
+    currentEnvMod,
+    currentFormantLfoRate = 0,
+    currentFormantLfoDepth = 0,
+    currentVibratoDepth = 0,
+    currentGateDepth,      // from main
+    currentGateRate,       // from main
+    currentDrive,
+    currentCharacterMorph = 0,
+    currentReverbSend,
+    currentReverbType,
+    currentDelaySend,
+    currentFreezeEnvDepth = 0,
+    currentGrainEnvDepth = 0,
+    currentGrainPitchQuantize = 0,
+    currentTranceGate = 0, // from jules branch
+    currentChoir,
+    onPropertyChange
 }) => {
     // Determine octave range based on track type
     const octaves = trackType === 'synth' ? [2, 3, 4] : [2];
@@ -299,6 +357,44 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     aria-valuetext={`${currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%`}
                                     aria-label="Delay Send"
                                 />
+                            </div>
+                        )}
+
+                        {/* Rhythmic Gate Parameters */}
+                        {currentGateDepth !== undefined && currentGateRate !== undefined && onPropertyChange && trackType === 'sampler' && (
+                            <div className="flex flex-col gap-2 mb-2 p-1.5 bg-gray-800/50 rounded border border-gray-700/50">
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-gate-depth">Gate Depth</label>
+                                        <span className="text-cyan-400 font-mono text-[10px]">{Math.round((currentGateDepth + 0.0001) * 100)}%</span>
+                                    </div>
+                                    <input
+                                        id="note-gate-depth"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentGateDepth}
+                                        onChange={(e) => onPropertyChange('gateDepth', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-gate-rate">Gate Rate</label>
+                                        <span className="text-cyan-400 font-mono text-[10px]">{currentGateRate.toFixed(1)} Hz</span>
+                                    </div>
+                                    <input
+                                        id="note-gate-rate"
+                                        type="range"
+                                        min="0.1"
+                                        max="50"
+                                        step="0.1"
+                                        value={currentGateRate}
+                                        onChange={(e) => onPropertyChange('gateRate', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                    />
+                                </div>
                             </div>
                         )}
 

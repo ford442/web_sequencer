@@ -75,6 +75,8 @@ export interface SamplerBankParams {
   vibratoDepth?: number;
   tremoloDepth?: number;
   tremoloRate?: number;
+  gateDepth?: number;
+  gateRate?: number;
   breathIntensity?: number;
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
@@ -170,6 +172,8 @@ export interface Note {
   choir?: number;
   drive?: number;
   tranceGate?: number;
+  gateRate?: number;
+  gateDepth?: number;
   phonemes?: PhonemeData[];
   // ... other fields as needed
 }
