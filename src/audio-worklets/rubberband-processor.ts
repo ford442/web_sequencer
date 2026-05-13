@@ -46,7 +46,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private freezePhase: number = 0;
   private freezeLfoPhase: number = 0;
   private gatePhase: number = 0;
-  private currentGateLfo: number = 1.0;
+  private currentGateLfoLfo: number = 1.0;
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -453,9 +453,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           const targetGate = Math.sin(this.gatePhase) > 0 ? 1.0 : 0.0;
 
           // ~4–6 ms one-pole smoothing at 44.1/48 kHz — tight but click-free
-          this.currentGate = this.currentGate * 0.92 + targetGate * 0.08;
+          this.currentGateLfo = this.currentGateLfo * 0.92 + targetGate * 0.08;
 
-          const gateMultiplier = 1.0 - (gateDepth * (1.0 - this.currentGate));
+          const gateMultiplier = 1.0 - (gateDepth * (1.0 - this.currentGateLfo));
           outputChannel[i] *= gateMultiplier;
         }
       }

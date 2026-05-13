@@ -52,12 +52,13 @@ export interface UseStepHandlerOptions {
     currentScaleRef: React.MutableRefObject<ScaleDefinition | null>;
     samplerRef: React.MutableRefObject<SamplerParams>;
     samplerVoiceParamsRef: React.MutableRefObject<{
+        drive: number;
         rootNote: number;
         coarseTune: number;
         fineTune: number;
         formantShift: number;
-        pitchAttack: number;
-        pitchDecay: number;
+        attack: number;
+        decay: number;
         quality: 'preview' | 'good' | 'better' | 'best';
         stretchMode: 'Time' | 'Pitch' | 'Formant';
         lockToSequencer: boolean;
@@ -174,7 +175,7 @@ export const useStepHandler = ({
             );
 
             // Update last frequency for future slides
-            lastFreqRef.current[trackKey] = audioEngine.getFrequencyForNote?.(stepData.note, currentScale) ?? 440;
+            lastFreqRef.current[trackKey] = audioEngine.getTunedFrequency?.(stepData.note, currentScale) ?? 440;
         };
 
         // === Bass 2 (TB-303) ===
@@ -270,12 +271,13 @@ export const useStepHandler = ({
 
             const bankParams: SamplerBankParams = {
                 ...samplerRef.current[bankIdx],
+                drive: voiceParams.drive,
                 rootNote: voiceParams.rootNote,
                 coarseTune: voiceParams.coarseTune,
                 fineTune: voiceParams.fineTune,
                 formantShift: voiceParams.formantShift,
-                pitchAttack: voiceParams.pitchAttack,
-                pitchDecay: voiceParams.pitchDecay,
+                attack: voiceParams.attack,
+                decay: voiceParams.decay,
                 quality: voiceParams.quality,
                 stretchMode: voiceParams.stretchMode,
                 lockToSequencer: voiceParams.lockToSequencer,

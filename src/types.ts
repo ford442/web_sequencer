@@ -22,8 +22,8 @@ export interface SynthParams {
   filterCutoff: number; // Hz
   filterResonance: number; // Q factor
   filterMode?: number; // 0-1 (filter mode toggle)
-  attack: number; // seconds
-  decay: number; // seconds
+  pitchAttack: number; // seconds
+  pitchDecay: number; // seconds
   sustain: number; // 0-1 (level)
   release: number; // seconds
   length: number; // seconds (gate time)
@@ -38,14 +38,14 @@ export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
 
 export interface KickParams {
   pitch: number;
-  decay: number;
+  pitchDecay: number;
   tone: number;
   volume: number;
   pan?: number;
 }
 
 export interface SnareParams {
-  decay: number;
+  pitchDecay: number;
   tone: number;
   noise: number;
   volume: number;
@@ -54,7 +54,7 @@ export interface SnareParams {
 
 export interface HatParams {
   pitch: number;
-  decay: number;
+  pitchDecay: number;
   volume: number;
   pan?: number;
 }
@@ -75,8 +75,6 @@ export interface SamplerBankParams {
   vibratoDepth?: number;
   tremoloDepth?: number;
   tremoloRate?: number;
-  gateDepth?: number;
-  gateRate?: number;
   breathIntensity?: number;
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
@@ -114,8 +112,6 @@ export interface SamplerBankParams {
   quality?: 'preview' | 'good' | 'better' | 'best';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
-  gateDepth?: number;
-  gateRate?: number;
 }
 
 export type SamplerParams = SamplerBankParams[];
@@ -125,7 +121,7 @@ export interface Bass2Params {
   cutoff: number;
   resonance: number;
   filterMode: number;
-  decay: number;
+  pitchDecay: number;
   accent: number;
   envMod: number;
   volume: number;
@@ -177,8 +173,6 @@ export interface Note {
   gateRate?: number;
   gateDepth?: number;
   phonemes?: PhonemeData[];
-  gateDepth?: number;
-  gateRate?: number;
   // ... other fields as needed
 }
 
@@ -331,4 +325,9 @@ export interface SavedSongData {
   backgroundImage?: string;
   embeddedSamples?: { [bankIndex: number]: string };
   ttsPhrases?: string[];
+}
+export interface AmbianceTrack {
+  id: string;
+  name: string;
+  url: string;
 }
