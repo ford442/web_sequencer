@@ -300,6 +300,19 @@ const SvgStep = memo(({
             <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} />
         </g>
     )
+}, (prev: any, next: any) => {
+    return (
+        prev.stepIndex === next.stepIndex &&
+        prev.active === next.active &&
+        prev.note === next.note &&
+        prev.length === next.length &&
+        prev.isSlide === next.isSlide &&
+        prev.isRangeSelected === next.isRangeSelected &&
+        prev.isDrawing === next.isDrawing &&
+        prev.phonemeLabel === next.phonemeLabel &&
+        prev.retrigger === next.retrigger &&
+        prev.reverse === next.reverse
+    );
 })
 
 const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
@@ -502,7 +515,24 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             </g>
         </g>
     )
-}));
+}), (prev: any, next: any) => {
+    return (
+        prev.rowKey === next.rowKey &&
+        prev.label === next.label &&
+        prev.rowIndex === next.rowIndex &&
+        prev.isSelected === next.isSelected &&
+        prev.activeSlot === next.activeSlot &&
+        prev.viewMode === next.viewMode &&
+        prev.automationParam === next.automationParam &&
+        prev.isDrawing === next.isDrawing &&
+        prev.zoom === next.zoom &&
+        JSON.stringify(prev.selectionRange) === JSON.stringify(next.selectionRange) &&
+        JSON.stringify(prev.steps) === JSON.stringify(next.steps) &&
+        JSON.stringify(prev.automation) === JSON.stringify(next.automation) &&
+        JSON.stringify(prev.trackSlots) === JSON.stringify(next.trackSlots) &&
+        JSON.stringify(prev.alignment) === JSON.stringify(next.alignment)
+    );
+});
 
 export interface MainSequencerHandle {
     setHighlight: (step: number) => void;

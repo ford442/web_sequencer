@@ -168,14 +168,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         choir: 0,
         // Phase 1: Vocal Workstation defaults
         rootNote: 60,
-        coarse: 0,
-        fine: 0,
-        formant: 0,
-        pitchAttack: 0,
-        pitchDecay: 0,
-        rbQuality: 'Standard' as 'Fast' | 'Standard' | 'Elastic',
+        coarseTune: 0,
+        fineTune: 0,
+        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
-        autoFollow: false
+        lockToSequencer: false
     }, [params, activeBankIdx]);
 
     // Update single param for active bank
@@ -257,8 +254,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 case 'coarse':
                 case 'fine': {
                     // Calculate combined pitch scale
-                    const coarse = key === 'coarse' ? (value as number) : (currentParams.coarse ?? 0);
-                    const fine = key === 'fine' ? (value as number) : (currentParams.fine ?? 0);
+                    const coarse = key === 'coarseTune' ? (value as number) : (currentParams.coarseTune ?? 0);
+                    const fine = key === 'fineTune' ? (value as number) : (currentParams.fineTune ?? 0);
                     const scale = Math.pow(2, (coarse + fine / 1200) / 12);
                     voice.setPitch(scale);
                     break;
@@ -974,14 +971,15 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                     bankId={activeBankIdx}
                     values={{
                         rootNote: currentParams.rootNote ?? 60,
-                        coarse: currentParams.coarse ?? 0,
-                        fine: currentParams.fine ?? 0,
-                        formant: currentParams.formant ?? 0,
-                        pitchAttack: currentParams.pitchAttack ?? 0,
-                        pitchDecay: currentParams.pitchDecay ?? 0,
-                        rbQuality: currentParams.rbQuality ?? 'Standard',
+                        coarseTune: currentParams.coarseTune ?? 0,
+                        fineTune: currentParams.fineTune ?? 0,
+                        formantShift: currentParams.formantShift ?? 0,
+
+
+
+                        quality: currentParams.quality ?? 'good',
                         stretchMode: currentParams.stretchMode ?? 'Pitch',
-                        autoFollow: currentParams.autoFollow ?? false,
+                        lockToSequencer: currentParams.lockToSequencer ?? false,
                     }}
                     onChange={handlePitchControlChange}
                 />
@@ -1084,9 +1082,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 </button>
                             </div>
 
-                            <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth ?? 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Env → Grain" value={currentParams.grainEnvDepth ?? 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Grain Quant" value={currentParams.grainPitchQuantize ?? 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
+                            <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth || 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />

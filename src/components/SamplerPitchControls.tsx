@@ -10,14 +10,12 @@ import { Knob } from './Knob';
 
 export interface PitchControlValues {
   rootNote: number;
-  coarse: number;
-  fine: number;
-  formant: number;
-  pitchAttack: number;
-  pitchDecay: number;
-  rbQuality: 'Fast' | 'Standard' | 'Elastic';
+  coarseTune: number;
+  fineTune: number;
+  formantShift: number;
+  quality: 'preview' | 'good' | 'better' | 'best';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
-  autoFollow: boolean;
+  lockToSequencer: boolean;
 }
 
 interface SamplerPitchControlsProps {
@@ -164,12 +162,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="COARSE"
-              value={values.coarse}
+              value={values.coarseTune}
               min={-24}
               max={24}
               step={1}
               color="purple"
-              onChange={(v) => onChange('coarse', v)}
+              onChange={(v) => onChange('coarseTune', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">st</span>
           </div>
@@ -177,12 +175,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="FINE"
-              value={values.fine}
+              value={values.fineTune}
               min={-50}
               max={50}
               step={1}
               color="purple"
-              onChange={(v) => onChange('fine', v)}
+              onChange={(v) => onChange('fineTune', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">¢</span>
           </div>
@@ -190,12 +188,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="FORMANT"
-              value={values.formant}
+              value={values.formantShift}
               min={-12}
               max={12}
               step={0.5}
               color="indigo"
-              onChange={(v) => onChange('formant', v)}
+              onChange={(v) => onChange('formantShift', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">st</span>
           </div>
@@ -239,8 +237,8 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <label htmlFor={qualityId} className="text-[9px] text-gray-500">Quality</label>
             <select
               id={qualityId}
-              value={values.rbQuality}
-              onChange={(e) => onChange('rbQuality', e.target.value as 'Fast' | 'Standard' | 'Elastic')}
+              value={values.quality}
+              onChange={(e) => onChange('quality', e.target.value as 'preview' | 'good' | 'better' | 'best')}
               className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
             >
               <option value="Fast">Fast</option>
@@ -272,7 +270,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <button
               type="button"
               role="switch"
-              aria-checked={values.autoFollow}
+              aria-checked={values.lockToSequencer}
               id={autoFollowId}
               onClick={(e) => {
                 e.stopPropagation();

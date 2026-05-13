@@ -1,4 +1,5 @@
 import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Bass2Params } from '../types';
+import type { ScaleDefinition } from '../utils/musicTheory';
 import { INITIAL_PATTERN, NUM_STEPS } from '../constants';
 
 // --- CONSTANTS ---
