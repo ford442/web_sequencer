@@ -139,10 +139,6 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           stepRefs.current[newActiveIndex]?.classList.add('is-current');
         }
         lastActiveIndexRef.current = newActiveIndex;
-      } else {
-        if (newActiveIndex !== -1) {
-          stepRefs.current[newActiveIndex]?.classList.add('is-current');
-        }
       }
     }, [steps]);
 
@@ -224,22 +220,25 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       }
     }
 
+      const handleRowClick = useCallback(() => onSelectRow(rowKey), [onSelectRow, rowKey]);
+      const handleRowKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelectRow(rowKey);
+        }
+      }, [onSelectRow, rowKey]);
+
     return (
       <g transform={`translate(0, ${rowIndex * 80})`}>
         {/* Track label */}
         <g
           className="track-label"
-          onClick={() => onSelectRow(rowKey)}
+            onClick={handleRowClick}
           cursor="pointer"
           role="button"
           tabIndex={0}
           aria-label={`Select ${label} track`}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onSelectRow(rowKey);
-            }
-          }}
+            onKeyDown={handleRowKeyDown}
         >
           {isSelected && (
             <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />

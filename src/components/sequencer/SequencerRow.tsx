@@ -45,8 +45,6 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
             if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
             if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
             lastActiveIndexRef.current = newActiveIndex;
-        } else {
-            if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
         }
     }, [steps]);
 
@@ -87,9 +85,17 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
         if (stepData && length > 1) { skipCount = length - 1; }
     }
 
+    const handleRowClick = useCallback(() => onSelectRow(rowKey), [onSelectRow, rowKey]);
+    const handleRowKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelectRow(rowKey);
+        }
+    }, [onSelectRow, rowKey]);
+
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
-            <g className="track-label" onClick={() => onSelectRow(rowKey)} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRow(rowKey); } }}>
+            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} onKeyDown={handleRowKeyDown}>
                 {isSelected && <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />}
                 <text x={-20} y={30} textAnchor="end" fontFamily="Orbitron, monospace" fontSize={12} fill={isSelected ? '#3fa34d' : '#5a6b60'} fontWeight={isSelected ? 'bold' : 'normal'} style={{ textShadow: isSelected ? '0 0 8px rgba(63,163,77,0.5)' : 'none' }}>{label.toUpperCase()}</text>
             </g>
