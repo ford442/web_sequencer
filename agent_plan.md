@@ -64,7 +64,7 @@
 * [x] **Idea:** "Spectral Sidechaining" - Duck specific frequencies (like low-end) instead of broadband gain when the kick drum hits, avoiding pumping artifacts on the highs. (Implemented via BiquadFilterNode lowshelf modulation!)
 * [x] **Idea:** "AI Auto-EQ Assistant" - Automatically analyze the frequency spectrum of all tracks and subtly EQ conflicting frequencies to prevent masking (e.g., dipping 200Hz on Synths when the Bass plays).
 * **Idea:** "Vocal Overdrive Worklet" - Add a custom AudioWorklet for nonlinear vocal tube distortion.
-* **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals.
+* [x] **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals. (Implemented!)
 * [x] **Idea:** "Spectral Granulator" - Add a granular synthesis mode to the sampler that uses FFT to freeze and smear TTS phonemes over time. (Implemented in Sampler and RubberBandProcessor via a 100ms looping Hann window!)
 * [x] **Idea:** "Chord Evolving" - Allow drawing automation curves for the chord inversions or voicings used by `VoiceManager` in Polyphonic Synth A. (Implemented via automation track logic in `useStepHandler.ts` and `App.tsx`!)
 * [x] **Idea:** "Step-Sequenced Formant Shifts" - Allow users to pitch shift the formants of the TTS engine independently of the fundamental frequency per step.
@@ -113,6 +113,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-07-01] - Implemented Rhythmic Gating: Added `gateDepth` and `gateRate` parameters to the `Note` interface and `SamplerBankParams`. Exposed UI controls in `NoteSelector` and connected them through `useAudioEngine.ts` to the `rubberband-processor.ts` AudioWorklet, creating a smoothed, step-sequenced trance gate effect.
 * [2026-07-01] - Implemented Microtonal Scale Mapping: Added multiple microtonal tuning systems (e.g., 24-TET, Just Intonation, Bohlen-Pierce) to `musicTheory.ts` with `applyMicrotonalTuning` logic. Added a new tuning dropdown to the `ScaleSelector` UI. Wired `tunedNoteToFrequency` logic through `constants.ts`, `SingingVoice.ts`, and `VoiceManager.ts` to allow both Synthesizers and Sampler to play in custom tunings dynamically.
 * [2026-05-03] - Implemented Granular Pitch Quantization: Added `grainPitchQuantize` parameter to `RubberBandProcessor` parameter descriptors to snap frozen grain pitch to quantized semitone intervals (e.g. 5=fourths, 7=fifths, 12=octaves). Wired the parameter through `SingingVoice.ts`, `useAudioEngine.ts`, `SamplerPanel.tsx`, and `NoteSelector.tsx` for both global and per-step control. Added comprehensive tests. Fulfills the "Granular Pitch Quantization" Innovation Lab idea.
 * [2026-05-03] - Implemented Tape Stop Effect: Added `triggerTapeStop(duration)` and `resetTapeStop()` to the `AudioEngine` in `useAudioEngine.ts`, using `exponentialRampToValueAtTime` on the master gain node for a smooth fade-out. Wired the Escape key in `App.tsx` and added a dedicated "TAPE STOP" button to the master utilities UI. Added tests for button rendering and Escape key behavior. Fulfills the "Tape Stop Effect" Innovation Lab idea.

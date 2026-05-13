@@ -51,7 +51,7 @@ type AudioWindow = Window & typeof globalThis & {
     audioContext?: AudioContext;
 };
 
-export const useAudioEngine = (pyodide: unknown) => {
+export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
@@ -352,7 +352,9 @@ export const useAudioEngine = (pyodide: unknown) => {
                     characterMorph?: number,
                     breathIntensity?: number,
                     formantShift?: number,
-                    grainPitchQuantize?: number
+                    grainPitchQuantize?: number,
+                    gateDepth?: number,
+                    gateRate?: number
                 },
                 pitchOffsetSemitones: number = 0
             ) => {
@@ -464,6 +466,20 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
                             } else if (params.vibratoDepth !== undefined) {
                                 voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateDepth !== undefined) {
+                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
+                            } else if (params.gateDepth !== undefined) {
+                                voice.setGateDepth(params.gateDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateRate !== undefined) {
+                                const rateHz = (tempo / 60) * (noteParams.gateRate / 4);
+                                voice.setGateRate(rateHz, triggerTime);
+                            } else if (params.gateRate !== undefined) {
+                                const rateHz = (tempo / 60) * (params.gateRate / 4);
+                                voice.setGateRate(rateHz, triggerTime);
                             }
                             if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
                             if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);

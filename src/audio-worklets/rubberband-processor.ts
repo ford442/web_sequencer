@@ -45,6 +45,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private isReverse = false;
   private freezePhase: number = 0;
   private freezeLfoPhase: number = 0;
+  private gatePhase: number = 0;
+  private currentGate: number = 0;
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -67,7 +69,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 }
+      { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
+      { name: 'gateDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'gateRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 }
     ];
   }
 
@@ -427,6 +431,31 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         outputChannel.set(outputView);
         this.expressiveProcessor.process(outputChannel, outputChannel);
+
+        // Apply Rhythmic Gating
+        const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0.0;
+        const gateRate = parameters.gateRate ? parameters.gateRate[0] : 0.0;
+
+        if (gateDepth > 0 && gateRate > 0) {
+            // @ts-ignore
+            const sRate = typeof globalThis.sampleRate === 'number' ? globalThis.sampleRate : 44100;
+            const phaseIncrement = (2 * Math.PI * gateRate) / sRate;
+
+            for (let i = 0; i < outputChannel.length; i++) {
+                this.gatePhase += phaseIncrement;
+                if (this.gatePhase > 2 * Math.PI) {
+                    this.gatePhase -= 2 * Math.PI;
+                }
+
+                const targetGate = Math.sin(this.gatePhase) > 0 ? 1.0 : 0.0;
+                // 0.92 gives ~4-6ms smoothing at 44.1/48kHz
+                this.currentGate = this.currentGate * 0.92 + targetGate * 0.08;
+
+                const gateMultiplier = 1.0 - (gateDepth * (1.0 - this.currentGate));
+                outputChannel[i] *= gateMultiplier;
+            }
+        }
+
       } else if (this.isPlaying) {
         // Check for completion when no output is available but we're still marked as playing
         if (this.isReverse) {
