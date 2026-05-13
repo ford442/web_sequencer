@@ -153,14 +153,14 @@ export async function renderSynthToBuffer(
 
     // VCA (Envelope)
     const gain = offlineCtx.createGain();
-    const attack = params.attack;
-    const decay = params.decay;
+    const pitchAttack = params.pitchAttack;
+    const pitchDecay = params.pitchDecay;
     const sustain = params.sustain;
     const release = params.release;
 
     gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(1.0, time + attack); // Normalize to 1.0 for sample
-    gain.gain.linearRampToValueAtTime(sustain, time + attack + decay);
+    gain.gain.linearRampToValueAtTime(1.0, time + pitchAttack); // Normalize to 1.0 for sample
+    gain.gain.linearRampToValueAtTime(sustain, time + pitchAttack + pitchDecay);
     // Hold sustain
     gain.gain.setValueAtTime(sustain, duration - release);
     gain.gain.linearRampToValueAtTime(0, duration);
@@ -191,9 +191,9 @@ export async function renderDrumToBuffer(
     // Estimate duration based on params or defaults
     let duration = sound === 'snare' ? 0.5 : (sound === 'kick' ? 0.5 : 0.3);
 
-    // If we have decay param, use it to ensure buffer is long enough
-    if (params.decay) {
-        duration = Math.max(duration, params.decay * (sound === 'snare' ? 1.5 : 1.2));
+    // If we have pitchDecay param, use it to ensure buffer is long enough
+    if (params.pitchDecay) {
+        duration = Math.max(duration, params.pitchDecay * (sound === 'snare' ? 1.5 : 1.2));
     }
 
     // Try Pyodide Generation first
@@ -202,14 +202,14 @@ export async function renderDrumToBuffer(
             let pyProxy;
             if (sound === 'kick') {
                 const p = params as KickParams;
-                pyProxy = pyodide.globals.get('generate_kick')(p.pitch, p.decay, p.tone, p.volume);
+                pyProxy = pyodide.globals.get('generate_kick')(p.pitch, p.pitchDecay, p.tone, p.volume);
             } else if (sound === 'snare') {
                 const p = params as SnareParams;
-                pyProxy = pyodide.globals.get('generate_snare')(p.decay, p.tone, p.noise, p.volume);
+                pyProxy = pyodide.globals.get('generate_snare')(p.pitchDecay, p.tone, p.noise, p.volume);
             } else {
                 // Hats
                 const p = params as HatParams;
-                pyProxy = pyodide.globals.get('generate_hat')(p.pitch, p.decay, p.volume);
+                pyProxy = pyodide.globals.get('generate_hat')(p.pitch, p.pitchDecay, p.volume);
             }
 
             const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
@@ -244,16 +244,16 @@ export async function renderDrumToBuffer(
         const osc = offlineCtx.createOscillator();
         // Use params.pitch if available (KickParams has pitch)
         osc.frequency.setValueAtTime(p.pitch, time);
-        osc.frequency.exponentialRampToValueAtTime(0.01, time + p.decay);
+        osc.frequency.exponentialRampToValueAtTime(0.01, time + p.pitchDecay);
 
         const env = offlineCtx.createGain();
         env.gain.setValueAtTime(p.volume, time);
-        env.gain.exponentialRampToValueAtTime(0.01, time + p.decay);
+        env.gain.exponentialRampToValueAtTime(0.01, time + p.pitchDecay);
 
         osc.connect(env);
         env.connect(gain);
         osc.start(time);
-        osc.stop(time + p.decay);
+        osc.stop(time + p.pitchDecay);
     }
     else if (sound === 'snare') {
         const p = params as SnareParams;
@@ -272,7 +272,7 @@ export async function renderDrumToBuffer(
         const noiseMix = Math.min(1, Math.max(0, (p.noise - 1000) / 7000));
 
         noiseEnv.gain.setValueAtTime(p.volume * noiseMix, time);
-        noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + p.decay);
+        noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + p.pitchDecay);
 
         // Tone
         const osc = offlineCtx.createOscillator();
@@ -283,7 +283,7 @@ export async function renderDrumToBuffer(
         const toneEnv = offlineCtx.createGain();
         // Tone volume inverse to noise? Or independent?
         toneEnv.gain.setValueAtTime(p.volume * (1 - noiseMix * 0.5), time);
-        toneEnv.gain.exponentialRampToValueAtTime(0.01, time + p.decay * 0.5);
+        toneEnv.gain.exponentialRampToValueAtTime(0.01, time + p.pitchDecay * 0.5);
 
         noiseSrc.connect(noiseEnv);
         noiseEnv.connect(gain);
@@ -314,7 +314,7 @@ export async function renderDrumToBuffer(
 
         const env = offlineCtx.createGain();
         env.gain.setValueAtTime(p.volume, time);
-        env.gain.exponentialRampToValueAtTime(0.01, time + p.decay);
+        env.gain.exponentialRampToValueAtTime(0.01, time + p.pitchDecay);
 
         noiseSrc.connect(filter);
         filter.connect(env);

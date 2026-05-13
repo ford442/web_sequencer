@@ -46,7 +46,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private freezePhase: number = 0;
   private freezeLfoPhase: number = 0;
   private gatePhase: number = 0;
-  private currentGateLfoLfo: number = 1.0;
+  private currentGateLfo: number = 1.0;
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;

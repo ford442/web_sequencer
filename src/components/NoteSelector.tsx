@@ -40,7 +40,8 @@ interface NoteSelectorProps {
     currentDelaySend?: number;
     currentChoir?: number;
     currentGateDepth?: number;
-    currentGateRate?: number;    onPropertyChange?: (key:
+    currentGateRate?: number;
+    onPropertyChange?: (key:
         | 'timbre'
         | 'velocity'
         | 'probability'

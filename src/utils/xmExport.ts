@@ -80,7 +80,7 @@ const NORMALIZATION_PEAK_THRESHOLD = 0.5;
 const SAMPLER_LOOP_DURATION_THRESHOLD = 0.5;
 /** Base render duration for synths (in seconds) for steady-state detection */
 const SYNTH_RENDER_BASE_DURATION = 1.0;
-/** Safety multiplier for attack+decay time when calculating synth render duration */
+/** Safety multiplier for pitchAttack+pitchDecay time when calculating synth render duration */
 const SYNTH_RENDER_AD_MULTIPLIER = 2.0;
 
 // Helper to download blob
@@ -339,11 +339,11 @@ const findZeroCrossing = (buffer: Float32Array, position: number, direction: num
  * Improved robustness to ensure loops are found even for complex or short waveforms.
  * @param buffer Audio buffer (can be un-normalized if peakAmplitude is provided)
  * @param sampleRate Sample rate
- * @param attackDecayTime Estimated attack+decay time in seconds
+ * @param pitchAttackDecayTime Estimated pitchAttack+pitchDecay time in seconds
  * @param peakAmplitude Peak amplitude of the buffer (default 1.0) to scale thresholds
  * @returns Object with loopStart and loopEnd in samples
  */
-const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, attackDecayTime: number = 0.3, peakAmplitude: number = 1.0): { loopStart: number, loopEnd: number } => {
+const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, pitchAttackDecayTime: number = 0.3, peakAmplitude: number = 1.0): { loopStart: number, loopEnd: number } => {
     const len = buffer.length;
 
     // Adjust threshold based on peak amplitude if it would have been normalized
@@ -353,7 +353,7 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
     }
 
     // 1. Define Search Region (Steady State)
-    let steadyStateStart = Math.min(Math.floor(attackDecayTime * sampleRate), Math.floor(len * 0.4));
+    let steadyStateStart = Math.min(Math.floor(pitchAttackDecayTime * sampleRate), Math.floor(len * 0.4));
     let steadyStateEnd = Math.floor(len * 0.95);
 
     // Minimum loop: 20ms is enough for a cycle (50Hz)
@@ -510,12 +510,12 @@ export const exportSongToXM = async (
 
     // 2. Render and Add Instruments
     // Synth A
-    const synthADuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthA.attack + params.synthA.decay) * SYNTH_RENDER_AD_MULTIPLIER);
+    const synthADuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthA.pitchAttack + params.synthA.pitchDecay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufA = await renderSynthToBuffer(params.synthA, 'C4', synthADuration, engines);
     const rawDataA = bufA.getChannelData(0);
 
     const peakA = getPeak(rawDataA);
-    const loopPointsA = findSynthLoopPoints(rawDataA, bufA.sampleRate, params.synthA.attack + params.synthA.decay, peakA);
+    const loopPointsA = findSynthLoopPoints(rawDataA, bufA.sampleRate, params.synthA.pitchAttack + params.synthA.pitchDecay, peakA);
     const dataA = normalizeAndConvertTo16Bit(rawDataA, -1, peakA);
 
     const pitchA = calculateXMPitchParams(bufA.sampleRate);
@@ -535,12 +535,12 @@ export const exportSongToXM = async (
     mod.instruments.push(instA);
 
     // Synth B
-    const synthBDuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthB.attack + params.synthB.decay) * SYNTH_RENDER_AD_MULTIPLIER);
+    const synthBDuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthB.pitchAttack + params.synthB.pitchDecay) * SYNTH_RENDER_AD_MULTIPLIER);
     const bufB = await renderSynthToBuffer(params.synthB, 'C4', synthBDuration, engines);
     const rawDataB = bufB.getChannelData(0);
 
     const peakB = getPeak(rawDataB);
-    const loopPointsB = findSynthLoopPoints(rawDataB, bufB.sampleRate, params.synthB.attack + params.synthB.decay, peakB);
+    const loopPointsB = findSynthLoopPoints(rawDataB, bufB.sampleRate, params.synthB.pitchAttack + params.synthB.pitchDecay, peakB);
     const dataB = normalizeAndConvertTo16Bit(rawDataB, -1, peakB);
     
     const pitchB = calculateXMPitchParams(bufB.sampleRate);

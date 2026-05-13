@@ -71,8 +71,8 @@ export const PatchBuilder = {
       filterCutoff: 2000,
       filterResonance: 1,
       filterMode: 0,
-      attack: 0.01,
-      decay: 0.2,
+      pitchAttack: 0.01,
+      pitchDecay: 0.2,
       sustain: 0.5,
       release: 0.5,
       length: 0.5,
@@ -92,8 +92,8 @@ export const PatchBuilder = {
           waveform: '303-sqr',
           filterCutoff: 400,
           filterResonance: 12, // High resonance for acid squelch
-          attack: 0.01,
-          decay: 0.3,
+          pitchAttack: 0.01,
+          pitchDecay: 0.3,
           sustain: 0.0,
           release: 0.1,
           volume: 0.7,
@@ -106,8 +106,8 @@ export const PatchBuilder = {
           pitch: -12, // Down an octave
           filterCutoff: 300,
           filterResonance: 0,
-          attack: 0.05,
-          decay: 0.5,
+          pitchAttack: 0.05,
+          pitchDecay: 0.5,
           sustain: 1.0,
           release: 0.5,
           volume: 0.9
@@ -119,8 +119,8 @@ export const PatchBuilder = {
           waveform: 'square',
           filterCutoff: 1500,
           filterResonance: 2,
-          attack: 0.0,
-          decay: 0.2,
+          pitchAttack: 0.0,
+          pitchDecay: 0.2,
           sustain: 0.0,
           release: 0.2,
           volume: 0.6
@@ -135,8 +135,8 @@ export const PatchBuilder = {
       waveform: type === 'warm' ? 'triangle' : 'sawtooth',
       filterCutoff: type === 'warm' ? 800 : 4000,
       filterResonance: 0.5,
-      attack: 1.0, // Slow attack
-      decay: 2.0,
+      pitchAttack: 1.0, // Slow pitchAttack
+      pitchDecay: 2.0,
       sustain: 0.8,
       release: 2.0, // Long tail
       volume: 0.4,
@@ -153,30 +153,30 @@ export const PatchBuilder = {
   createKick(type: 'punchy' | 'boomy' | 'distorted' = 'punchy'): KickParams {
     switch (type) {
       case 'boomy':
-        return { decay: 0.8, tone: 0.2, pitch: 40, volume: 0.9 };
+        return { pitchDecay: 0.8, tone: 0.2, pitch: 40, volume: 0.9 };
       case 'distorted':
-        return { decay: 0.5, tone: 1.0, pitch: 55, volume: 0.8 };
+        return { pitchDecay: 0.5, tone: 1.0, pitch: 55, volume: 0.8 };
       case 'punchy':
       default:
-        return { decay: 0.3, tone: 0.8, pitch: 50, volume: 0.8 };
+        return { pitchDecay: 0.3, tone: 0.8, pitch: 50, volume: 0.8 };
     }
   },
 
   createSnare(type: 'tight' | 'splashy' = 'tight'): SnareParams {
     switch (type) {
       case 'splashy':
-        return { decay: 0.6, tone: 0.5, noise: 0.8, volume: 0.7 };
+        return { pitchDecay: 0.6, tone: 0.5, noise: 0.8, volume: 0.7 };
       case 'tight':
       default:
-        return { decay: 0.2, tone: 0.8, noise: 0.4, volume: 0.8 };
+        return { pitchDecay: 0.2, tone: 0.8, noise: 0.4, volume: 0.8 };
     }
   },
 
   createHat(type: 'closed' | 'open'): HatParams {
     if (type === 'open') {
-      return { decay: 0.5, pitch: 6000, volume: 0.6 };
+      return { pitchDecay: 0.5, pitch: 6000, volume: 0.6 };
     }
-    return { decay: 0.05, pitch: 8000, volume: 0.7 };
+    return { pitchDecay: 0.05, pitch: 8000, volume: 0.7 };
   },
 
   /**

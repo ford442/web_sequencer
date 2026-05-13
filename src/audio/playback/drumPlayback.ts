@@ -35,16 +35,16 @@ export function playDrum(
         const gain = context.createGain();
 
         osc.frequency.setValueAtTime(150, now);
-        osc.frequency.exponentialRampToValueAtTime(0.01, now + p.decay);
+        osc.frequency.exponentialRampToValueAtTime(0.01, now + p.pitchDecay);
 
         gain.gain.setValueAtTime(p.volume, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + p.pitchDecay);
 
         osc.connect(gain);
         gain.connect(masterGain);
 
         osc.start(now);
-        osc.stop(now + p.decay);
+        osc.stop(now + p.pitchDecay);
     } else if (sound === 'snare') {
         const p = params as SnareParams;
         // Tone
@@ -53,7 +53,7 @@ export function playDrum(
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(250, now);
         oscGain.gain.setValueAtTime(p.tone * p.volume, now);
-        oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay); // Using decay for tone too
+        oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.pitchDecay); // Using pitchDecay for tone too
 
         // Noise
         if (noiseBuffer) {
@@ -64,19 +64,19 @@ export function playDrum(
             noiseFilter.frequency.value = 1000;
             const noiseGain = context.createGain();
             noiseGain.gain.setValueAtTime(p.noise * p.volume, now);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + p.pitchDecay);
 
             noise.connect(noiseFilter);
             noiseFilter.connect(noiseGain);
             noiseGain.connect(masterGain);
             noise.start(now);
-            noise.stop(now + p.decay);
+            noise.stop(now + p.pitchDecay);
         }
 
         osc.connect(oscGain);
         oscGain.connect(masterGain);
         osc.start(now);
-        osc.stop(now + p.decay);
+        osc.stop(now + p.pitchDecay);
 
     } else {
         // Hats (closedHat or openHat)
@@ -89,13 +89,13 @@ export function playDrum(
             filter.frequency.value = 5000; // Metallic
             const gain = context.createGain();
             gain.gain.setValueAtTime(p.volume, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + p.pitchDecay);
 
             src.connect(filter);
             filter.connect(gain);
             gain.connect(masterGain);
             src.start(now);
-            src.stop(now + p.decay);
+            src.stop(now + p.pitchDecay);
         }
     }
 }

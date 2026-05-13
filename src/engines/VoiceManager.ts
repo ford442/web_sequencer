@@ -74,7 +74,7 @@ export class Voice {
     }
 
     /**
-     * Start a note (attack + sustain) — supports legato sliding
+     * Start a note (pitchAttack + sustain) — supports legato sliding
      */
     startNote(
         params: SynthParams,
@@ -153,15 +153,15 @@ export class Voice {
             this.filter.Q.value = params.filterResonance;
 
             // ADSR Attack + Decay
-            const attackEnd = now + params.attack;
-            const decayEnd = attackEnd + params.decay;
+            const pitchAttackEnd = now + params.pitchAttack;
+            const pitchDecayEnd = pitchAttackEnd + params.pitchDecay;
 
             this.gain.gain.cancelScheduledValues(now);
             this.gain.gain.setValueAtTime(0, now);
-            this.gain.gain.linearRampToValueAtTime(params.volume, attackEnd);
+            this.gain.gain.linearRampToValueAtTime(params.volume, pitchAttackEnd);
             this.gain.gain.exponentialRampToValueAtTime(
                 Math.max(0.001, params.volume * params.sustain),
-                decayEnd
+                pitchDecayEnd
             );
         }
 

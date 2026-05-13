@@ -30,7 +30,7 @@ HYPHON SONG FORMAT:
         "waveform": "303-saw",
         "filterCutoff": 3000,
         "filterResonance": 12,
-        "decay": 0.4
+        "pitchDecay": 0.4
       }
     },
     "kick": [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
@@ -58,7 +58,7 @@ RULES:
 AUTOMATION (Optional):
 - Add an "automation" array for parameter changes over time
 - target: synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler, or master
-- parameter: filterCutoff, filterResonance, decay, volume, delayMix, tempo, etc.
+- parameter: filterCutoff, filterResonance, pitchDecay, volume, delayMix, tempo, etc.
 - steps: Array of 16 or 32 values (0-127) or null for no change
 - interpolation: "step", "linear", or "smooth" (default: "step")
 
@@ -95,7 +95,7 @@ export const EXAMPLE_TECHNO: AISongData = {
         waveform: "303-saw",
         filterCutoff: 1500,
         filterResonance: 18,
-        decay: 0.4
+        pitchDecay: 0.4
       }
     },
     kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
@@ -180,7 +180,7 @@ export const EXAMPLE_DNB: AISongData = {
         waveform: "303-saw",
         filterCutoff: 2500,
         filterResonance: 15,
-        decay: 0.3
+        pitchDecay: 0.3
       }
     },
     bass2: {
@@ -232,7 +232,7 @@ export const EXAMPLE_AUTOMATION: AISongData = {
         waveform: "303-saw",
         filterCutoff: 800,
         filterResonance: 20,
-        decay: 0.4
+        pitchDecay: 0.4
       }
     },
     synthB: {

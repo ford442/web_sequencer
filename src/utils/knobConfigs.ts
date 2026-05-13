@@ -8,7 +8,7 @@ export const getBass2Controls = (params: Bass2Params): KnobConfig[] => {
         { id: 'cutoff', label: 'CUTOFF', x: 0.30, y: 0.25, size: 0.12, value: params.cutoff / 8000, valueDisplay: `${Math.round(params.cutoff)}Hz` },
         { id: 'resonance', label: 'RES', x: 0.50, y: 0.25, size: 0.12, value: params.resonance / 20, valueDisplay: `${params.resonance.toFixed(1)}` },
         { id: 'filterMode', label: 'MODE', x: 0.70, y: 0.25, size: 0.08, value: filterModeValue, valueDisplay: filterModeValue > 0 ? '24dB' : '18dB' },
-        { id: 'decay', label: 'DECAY', x: 0.25, y: 0.55, size: 0.11, value: params.decay / 2, valueDisplay: `${params.decay.toFixed(2)}s` },
+        { id: 'pitchDecay', label: 'DECAY', x: 0.25, y: 0.55, size: 0.11, value: (params.pitchDecay ?? 0) / 2, valueDisplay: `${(params.pitchDecay ?? 0).toFixed(2)}s` },
         { id: 'accent', label: 'ACCENT', x: 0.45, y: 0.55, size: 0.11, value: params.accent, valueDisplay: `${Math.round(params.accent * 100)}%` },
         { id: 'envMod', label: 'ENV MOD', x: 0.65, y: 0.55, size: 0.11, value: params.envMod, valueDisplay: `${Math.round(params.envMod * 100)}%` },
         { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.80, size: 0.09, value: (params.pitch + 24) / 48, valueDisplay: `${params.pitch > 0 ? '+' : ''}${params.pitch.toFixed(0)}st` },
@@ -19,8 +19,8 @@ export const getBass2Controls = (params: Bass2Params): KnobConfig[] => {
 export const getSynthControls = (params: SynthParams): KnobConfig[] => {
     const filterModeValue = params.filterMode ?? 0;
     return [
-        { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: params.attack, valueDisplay: `${params.attack.toFixed(2)}s` },
-        { id: 'decay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: params.decay / 2, valueDisplay: `${params.decay.toFixed(2)}s` },
+        { id: 'pitchAttack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: (params.pitchAttack ?? 0), valueDisplay: `${(params.pitchAttack ?? 0).toFixed(2)}s` },
+        { id: 'pitchDecay', label: 'DEC', x: 0.35, y: 0.25, size: 0.08, value: (params.pitchDecay ?? 0) / 2, valueDisplay: `${(params.pitchDecay ?? 0).toFixed(2)}s` },
         { id: 'sustain', label: 'SUS', x: 0.50, y: 0.25, size: 0.08, value: params.sustain, valueDisplay: `${Math.round(params.sustain * 100)}%` },
         { id: 'release', label: 'REL', x: 0.65, y: 0.25, size: 0.08, value: params.release / 2, valueDisplay: `${params.release.toFixed(2)}s` },
         { id: 'filterCutoff', label: 'CUTOFF', x: 0.35, y: 0.60, size: 0.12, value: params.filterCutoff / 8000, valueDisplay: `${Math.round(params.filterCutoff)}Hz` },
@@ -36,7 +36,7 @@ export const getSynthControls = (params: SynthParams): KnobConfig[] => {
 
 export const getKickControls = (params: KickParams): KnobConfig[] => [
     { id: 'pitch', label: 'TUNE', x: 0.2, y: 0.45, size: 0.13, value: (params.pitch - 20) / 130, valueDisplay: `${Math.round(params.pitch)}Hz` },
-    { id: 'decay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: params.decay, valueDisplay: `${params.decay.toFixed(2)}s` },
+    { id: 'pitchDecay', label: 'DECAY', x: 0.5, y: 0.45, size: 0.13, value: (params.pitchDecay ?? 0), valueDisplay: `${(params.pitchDecay ?? 0).toFixed(2)}s` },
     { id: 'tone', label: 'SNAP', x: 0.8, y: 0.45, size: 0.13, value: params.tone, valueDisplay: `${Math.round(params.tone * 100)}%` },
     { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
 ];
@@ -44,18 +44,18 @@ export const getKickControls = (params: KickParams): KnobConfig[] => [
 export const getSnareControls = (params: SnareParams): KnobConfig[] => [
     { id: 'tone', label: 'TUNE', x: 0.25, y: 0.45, size: 0.13, value: (params.tone - 100) / 300, valueDisplay: `${Math.round(params.tone)}Hz` },
     { id: 'noise', label: 'SNAPPY', x: 0.5, y: 0.45, size: 0.13, value: (params.noise - 1000) / 7000, valueDisplay: `${Math.round(params.noise)}Hz` },
-    { id: 'decay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: params.decay * 2, valueDisplay: `${params.decay.toFixed(2)}s` },
+    { id: 'pitchDecay', label: 'DECAY', x: 0.75, y: 0.45, size: 0.11, value: (params.pitchDecay ?? 0) * 2, valueDisplay: `${(params.pitchDecay ?? 0).toFixed(2)}s` },
     { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
 ];
 
 export const getClosedHatControls = (params: any): KnobConfig[] => [
-    { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay, valueDisplay: `${params.decay.toFixed(2)}s` },
+    { id: 'pitchDecay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: (params.pitchDecay ?? 0), valueDisplay: `${(params.pitchDecay ?? 0).toFixed(2)}s` },
     { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000, valueDisplay: `${(params.pitch / 1000).toFixed(1)}kHz` },
     { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
 ];
 
 export const getOpenHatControls = (params: any): KnobConfig[] => [
-    { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: params.decay, valueDisplay: `${params.decay.toFixed(2)}s` },
+    { id: 'pitchDecay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: (params.pitchDecay ?? 0), valueDisplay: `${(params.pitchDecay ?? 0).toFixed(2)}s` },
     { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000, valueDisplay: `${(params.pitch / 1000).toFixed(1)}kHz` },
     { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
 ];

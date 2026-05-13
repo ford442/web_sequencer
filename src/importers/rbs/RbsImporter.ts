@@ -491,7 +491,7 @@ export class RbsImporter {
     mappings: DetailedParameterMapping[]
   ): HyphonSong['params'] {
     // Map TB-303 0-127 range to Hyphon parameters using exponential curves
-    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1 }, sourceName: string): SynthParams => {
+    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; pitchDecay: number; accent: number; waveform: 0 | 1 }, sourceName: string): SynthParams => {
       const waveform: Waveform = tb303.waveform === 0 ? 'sawtooth' : 'square';
       
       // Cutoff: RBS 0-127 → Hyphon 100-8000 Hz (exponential curve)
@@ -502,7 +502,7 @@ export class RbsImporter {
       const resonance = this.convertResonance(tb303.resonance);
       
       // Decay: RBS 0-127 → Hyphon 0.05-2.0s (exponential)
-      const decaySeconds = this.convertDecayToSeconds(tb303.decay);
+      const pitchDecaySeconds = this.convertDecayToSeconds(tb303.pitchDecay);
       
       // Accent: RBS 0-127 → Hyphon velocity boost 0-0.4
       const accentBoost = this.convertAccentToBoost(tb303.accent);
@@ -526,11 +526,11 @@ export class RbsImporter {
         formula: 'resonance / 6.35'
       });
       mappings.push({
-        source: `${sourceName}.decay`,
-        target: 'SynthParams.decay',
-        originalValue: tb303.decay,
-        convertedValue: parseFloat(decaySeconds.toFixed(3)),
-        formula: '0.05 * 40^(decay / 127) seconds'
+        source: `${sourceName}.pitchDecay`,
+        target: 'SynthParams.pitchDecay',
+        originalValue: tb303.pitchDecay,
+        convertedValue: parseFloat(pitchDecaySeconds.toFixed(3)),
+        formula: '0.05 * 40^(pitchDecay / 127) seconds'
       });
       mappings.push({
         source: `${sourceName}.accent`,
@@ -552,10 +552,10 @@ export class RbsImporter {
         filterCutoff: cutoffHz,
         filterResonance: resonance,
         filterMode: tb303.envMod > 64 ? 1 : 0,
-        attack: 0.01, // 303 has fast attack
-        decay: decaySeconds,
+        pitchAttack: 0.01, // 303 has fast pitchAttack
+        pitchDecay: pitchDecaySeconds,
         sustain: 0.5,
-        release: decaySeconds * 0.5, // Release is shorter than decay
+        release: pitchDecaySeconds * 0.5, // Release is shorter than pitchDecay
         length: 0.25,
         volume: volume,
         delayTime: 0.3,
@@ -592,13 +592,13 @@ export class RbsImporter {
    * Convert TB-303 params to Bass2Params (Open303 format)
    */
   private convertToBass2Params(
-    tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1; envMod?: number },
+    tb303: { cutoff: number; resonance: number; pitchDecay: number; accent: number; waveform: 0 | 1; envMod?: number },
     sourceName: string,
     mappings?: DetailedParameterMapping[]
   ): Bass2Params {
     const cutoff = this.convertCutoffToHz(tb303.cutoff);
     const resonance = this.convertResonance(tb303.resonance);
-    const decay = this.convertDecayToSeconds(tb303.decay);
+    const pitchDecay = this.convertDecayToSeconds(tb303.pitchDecay);
     const accent = 0.5 + this.convertAccentToBoost(tb303.accent);
 
     if (mappings) {
@@ -617,7 +617,7 @@ export class RbsImporter {
       cutoff,
       resonance,
       filterMode: 1,
-      decay,
+      pitchDecay,
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
       volume: 0.9
@@ -645,7 +645,7 @@ export class RbsImporter {
     // Kick parameters
     const kick: KickParams = {
       pitch: this.mapRange(drums.tuning?.kick ?? 0, -50, 50, 40, 80),
-      decay: this.mapRange(drums.decay?.kick ?? 64, 0, 127, 0.1, 1.0),
+      pitchDecay: this.mapRange(drums.pitchDecay?.kick ?? 64, 0, 127, 0.1, 1.0),
       tone: kickTone,
       volume: 1.0
     };
@@ -660,7 +660,7 @@ export class RbsImporter {
 
     // Snare parameters
     const snare: SnareParams = {
-      decay: this.mapRange(drums.decay?.snare ?? 48, 0, 127, 0.1, 0.8),
+      pitchDecay: this.mapRange(drums.pitchDecay?.snare ?? 48, 0, 127, 0.1, 0.8),
       tone: snareTone,
       noise: snareNoise,
       volume: 0.9
@@ -684,13 +684,13 @@ export class RbsImporter {
     // Hi-hat parameters
     const closedHat: HatParams = {
       pitch: this.mapRange(drums.tuning?.closedHat ?? 0, -50, 50, 8000, 12000),
-      decay: this.mapRange(drums.decay?.closedHat ?? 32, 0, 127, 0.05, 0.3),
+      pitchDecay: this.mapRange(drums.pitchDecay?.closedHat ?? 32, 0, 127, 0.05, 0.3),
       volume: 0.8
     };
 
     const openHat: HatParams = {
       pitch: this.mapRange(drums.tuning?.openHat ?? 0, -50, 50, 6000, 10000),
-      decay: this.mapRange(drums.decay?.openHat ?? 64, 0, 127, 0.2, 0.8),
+      pitchDecay: this.mapRange(drums.pitchDecay?.openHat ?? 64, 0, 127, 0.2, 0.8),
       volume: 0.8
     };
 
@@ -712,7 +712,7 @@ export class RbsImporter {
     // Map PCF cutoff values (0-127) to Hz
     const baseCutoffHz = this.convertCutoffToHz(pcf.cutoff);
     const pcfResonance = this.convertResonance(pcf.resonance);
-    const pcfDecay = this.convertDecayToSeconds(pcf.decay);
+    const pcfDecay = this.convertDecayToSeconds(pcf.pitchDecay);
 
     // Create automation lane for each PCF target
     if (pcf.target.tb303A) {
@@ -930,7 +930,7 @@ export class RbsImporter {
   }
 
   /**
-   * Convert RBS decay (0-127) to seconds using exponential curve
+   * Convert RBS pitchDecay (0-127) to seconds using exponential curve
    * Formula: 0.05 * 40^(rbsDecay / 127) → range 0.05-2.0s
    */
   private convertDecayToSeconds(rbsDecay: number): number {
@@ -950,7 +950,7 @@ export class RbsImporter {
   /**
    * Extract params object from TB-303 pattern (for metadata preservation)
    */
-  private extractTb303Params(tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1; distortion?: number; delaySend?: number }) {
+  private extractTb303Params(tb303: { cutoff: number; resonance: number; envMod: number; pitchDecay: number; accent: number; waveform: 0 | 1; distortion?: number; delaySend?: number }) {
     const { ...params } = tb303;
     return params;
   }

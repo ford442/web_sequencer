@@ -33,13 +33,13 @@ describe('PatchBuilder', () => {
     expect(acid.filterResonance).toBeGreaterThan(10);
 
     const pad = PatchBuilder.createPad('warm');
-    expect(pad.attack).toBeGreaterThan(0.5);
+    expect(pad.pitchAttack).toBeGreaterThan(0.5);
     expect(pad.release).toBeGreaterThan(1.0);
   });
 
   it('creates drum params', () => {
     const kick = PatchBuilder.createKick('boomy');
-    expect(kick.decay).toBe(0.8);
+    expect(kick.pitchDecay).toBe(0.8);
 
     const snare = PatchBuilder.createSnare('splashy');
     expect(snare.noise).toBe(0.8);

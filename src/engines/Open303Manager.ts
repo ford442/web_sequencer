@@ -141,14 +141,14 @@ export class Open303Manager {
     /**
      * Apply parameters to bass1 (used by partB)
      */
-    applyBass1Params(params: { filterCutoff: number; filterResonance: number; filterMode?: number; decay: number; volume: number; pan?: number }, waveform: 'saw' | 'sqr'): void {
+    applyBass1Params(params: { filterCutoff: number; filterResonance: number; filterMode?: number; pitchDecay: number; volume: number; pan?: number }, waveform: 'saw' | 'sqr'): void {
         if (!this.bass1Ready || !this.bass1) return;
 
         this.bass1.setWaveform(waveform === 'sqr' ? 1.0 : 0.0);
         this.bass1.setCutoff(Math.max(0, Math.min(1, params.filterCutoff / 8000)));
         this.bass1.setResonance(Math.max(0, Math.min(1, params.filterResonance / 20)));
         this.bass1.setFilterMode(Math.max(0, Math.min(1, params.filterMode ?? 0)));
-        this.bass1.setDecay(Math.max(0, Math.min(1, params.decay)));
+        this.bass1.setDecay(Math.max(0, Math.min(1, params.pitchDecay)));
         this.bass1.setVolume(params.volume);
 
         if (params.pan !== undefined) {
@@ -166,7 +166,7 @@ export class Open303Manager {
         this.bass2.setCutoff(Math.max(0, Math.min(1, params.cutoff / 8000)));
         this.bass2.setResonance(Math.max(0, Math.min(1, params.resonance / 20)));
         this.bass2.setFilterMode(Math.max(0, Math.min(1, params.filterMode)));
-        this.bass2.setDecay(Math.max(0, Math.min(1, params.decay)));
+        this.bass2.setDecay(Math.max(0, Math.min(1, params.pitchDecay)));
         this.bass2.setAccent(params.accent);
         this.bass2.setEnvMod(params.envMod);
         this.bass2.setVolume(params.volume);
