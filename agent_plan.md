@@ -63,7 +63,7 @@
 ## 🧠 Innovation Lab (The "Dream" Log)
 * [x] **Idea:** "Spectral Sidechaining" - Duck specific frequencies (like low-end) instead of broadband gain when the kick drum hits, avoiding pumping artifacts on the highs. (Implemented via BiquadFilterNode lowshelf modulation!)
 * [x] **Idea:** "AI Auto-EQ Assistant" - Automatically analyze the frequency spectrum of all tracks and subtly EQ conflicting frequencies to prevent masking (e.g., dipping 200Hz on Synths when the Bass plays).
-* **Idea:** "Vocal Overdrive Worklet" - Add a custom AudioWorklet for nonlinear vocal tube distortion.
+* [x] **Idea:** "Vocal Overdrive Worklet" - Add a custom AudioWorklet for nonlinear vocal tube distortion. (Implemented!)
 * [x] **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals. (Implemented!)
 * [x] **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals. (Implemented via square LFO parameter in RubberBandProcessor!)
 * [x] **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals. (Implemented in `ExpressiveVoiceProcessor` and exposed to `NoteSelector` and `SamplerPanel` for rhythmic amplitude gating!)
@@ -112,11 +112,14 @@
 ---
 
 * **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
+* **Idea:** "Dynamic EQ Sidechain for Vocals" - Analyze vocal track frequencies in real-time and duck conflicting frequencies in the synth submix to ensure vocals always cut through.
 * **Idea:** "Vocal Harmony Parallel Bus" - Implement a dedicated bus to process all harmony vocal tracks together (e.g., glue compression, joint EQ) independently from the main lead vocal track.
 * **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
 ---
 
 ## 📜 Changelog
+* [2026-07-03] - Implemented Vocal Overdrive Worklet: Created a custom AudioWorklet (`vocal-overdrive-processor.ts`) for nonlinear tube distortion using asymmetrical clipping and even harmonics. Dynamically instantiated in `useAudioEngine.ts` when `driveAmount > 0`, with a graceful fallback to the legacy `WaveShaperNode` approach. Fulfills "Vocal Overdrive Worklet" Innovation Lab idea.
+
 * [2026-07-01] - Implemented Rhythmic Gating: Added `gateDepth` and `gateRate` parameters to the `Note` interface and `SamplerBankParams`. Exposed UI controls in `NoteSelector` and connected them through `useAudioEngine.ts` to the `rubberband-processor.ts` AudioWorklet, creating a smoothed, step-sequenced trance gate effect.
 * [2026-07-01] - Implemented Microtonal Scale Mapping: Added multiple microtonal tuning systems (e.g., 24-TET, Just Intonation, Bohlen-Pierce) to `musicTheory.ts` with `applyMicrotonalTuning` logic. Added a new tuning dropdown to the `ScaleSelector` UI. Wired `tunedNoteToFrequency` logic through `constants.ts`, `SingingVoice.ts`, and `VoiceManager.ts` to allow both Synthesizers and Sampler to play in custom tunings dynamically.
 * [2026-05-03] - Implemented Granular Pitch Quantization: Added `grainPitchQuantize` parameter to `RubberBandProcessor` parameter descriptors to snap frozen grain pitch to quantized semitone intervals (e.g. 5=fourths, 7=fifths, 12=octaves). Wired the parameter through `SingingVoice.ts`, `useAudioEngine.ts`, `SamplerPanel.tsx`, and `NoteSelector.tsx` for both global and per-step control. Added comprehensive tests. Fulfills the "Granular Pitch Quantization" Innovation Lab idea.
