@@ -1,5 +1,5 @@
 import { type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../engines/Harmonizer';
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { LadderButton } from './sampler/LadderButton';
 

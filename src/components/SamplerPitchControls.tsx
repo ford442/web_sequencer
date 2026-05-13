@@ -16,6 +16,8 @@ export interface PitchControlValues {
   quality: 'preview' | 'good' | 'better' | 'best';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
+  pitchAttack?: number;
+  pitchDecay?: number;
 }
 
 interface SamplerPitchControlsProps {
@@ -265,7 +267,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           {/* Auto Follow Checkbox */}
           <div
             className="flex items-center gap-2 mt-1 cursor-pointer"
-            onClick={() => onChange('autoFollow', !values.autoFollow)}
+            onClick={() => onChange('lockToSequencer', !values.lockToSequencer)}
           >
             <button
               type="button"
@@ -274,10 +276,10 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
               id={autoFollowId}
               onClick={(e) => {
                 e.stopPropagation();
-                onChange('autoFollow', !values.autoFollow);
+                onChange('lockToSequencer', !values.lockToSequencer);
               }}
               className={`relative inline-flex h-3 w-6 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
-                values.autoFollow ? 'bg-purple-600' : 'bg-gray-800'
+                values.lockToSequencer ? 'bg-purple-600' : 'bg-gray-800'
               }`}
               aria-labelledby={`${autoFollowId}-label`}
             >
@@ -285,7 +287,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
               <span
                 aria-hidden="true"
                 className={`pointer-events-none inline-block h-2 w-2 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  values.autoFollow ? 'translate-x-3' : 'translate-x-0'
+                  values.lockToSequencer ? 'translate-x-3' : 'translate-x-0'
                 }`}
               />
             </button>
@@ -302,12 +304,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div
             className="h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-500 transition-all duration-150"
             style={{
-              width: `${Math.min(100, Math.max(0, ((values.coarse + 24) / 48) * 100))}%`,
+              width: `${Math.min(100, Math.max(0, (((values.coarseTune ?? 0) + 24) / 48) * 100))}%`,
             }}
           />
         </div>
         <span className="text-[10px] font-mono text-gray-400 w-16 text-right">
-          {values.coarse >= 0 ? '+' : ''}{values.coarse}st
+          {(values.coarseTune ?? 0) >= 0 ? '+' : ''}{values.coarseTune ?? 0}st
         </span>
       </div>
     </div>

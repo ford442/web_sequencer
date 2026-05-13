@@ -4,8 +4,9 @@ import type { WebGpuOscillator } from './engines/WebGpuOscillator';
 import type { WasmOscillator } from './engines/WasmOscillator';
 import type { Open303Manager } from './engines/Open303Manager';
 import type { Open303Oscillator } from './engines/Open303Oscillator';
-import type { MultisampleBank } from './engines/MultisampleGenerator';
 import type { ScaleDefinition } from './utils/musicTheory';
+import type { MultisampleBank } from './engines/MultisampleGenerator';
+export type { MultisampleBank } from './engines/MultisampleGenerator';
 
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
@@ -114,8 +115,8 @@ export interface SamplerBankParams {
   quality?: 'preview' | 'good' | 'better' | 'best';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
-  gateDepth?: number;
-  gateRate?: number;
+  pitchAttack?: number;
+  pitchDecay?: number;
 }
 
 export type SamplerParams = SamplerBankParams[];
@@ -141,6 +142,11 @@ export interface AllDrumParams {
 }
 
 export type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
+export interface AmbianceTrack {
+  name: string;
+  url: string;
+}
 
 export type ReverbType = 'room' | 'plate' | 'hall';
 
@@ -177,8 +183,6 @@ export interface Note {
   gateRate?: number;
   gateDepth?: number;
   phonemes?: PhonemeData[];
-  gateDepth?: number;
-  gateRate?: number;
   // ... other fields as needed
 }
 
@@ -213,7 +217,7 @@ export interface AudioEngine {
     durationSteps?: number,
     stepTime?: number,
     slideFromFreq?: number,
-    track?: 'partA' | 'partB',
+    track?: 'partA' | 'partB' | 'bass2',
     tuning?: ScaleDefinition | null
   ) => void;
 
@@ -286,6 +290,7 @@ export interface AudioEngine {
   setHarmonizerConfig?: (config: any, isActive: boolean) => void;
   triggerTapeStop?: (duration?: number) => void;
   resetTapeStop?: () => void;
+  getFrequencyForNote?: (note: string, tuning?: ScaleDefinition | null) => number;
 }
 
 // ... rest of your types (SongStructure, SavedSongData, etc.)

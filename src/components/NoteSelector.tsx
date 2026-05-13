@@ -40,8 +40,7 @@ interface NoteSelectorProps {
     currentGrainPitchQuantize?: number;
     currentTranceGate?: number;
     currentDelaySend?: number;
-    currentChoir?: number;    currentGateDepth?: number;
-    currentGateRate?: number;
+    currentChoir?: number;
     onPropertyChange?: (key:
         | 'timbre'
         | 'velocity'
@@ -72,8 +71,6 @@ interface NoteSelectorProps {
         | 'reverbType'
         | 'delaySend'
         | 'choir'
-        | 'gateDepth'      // ← kept
-        | 'gateRate'       // ← kept
     , value: number | boolean | string) => void;
 }
 
@@ -94,8 +91,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
     currentVibratoDepth = 0,
-    currentGateDepth,      // from main
-    currentGateRate,       // from main
+    currentGateDepth,
+    currentGateRate,
     currentDrive,
     currentCharacterMorph = 0,
     currentReverbSend,
@@ -106,10 +103,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentGrainPitchQuantize = 0,
     currentChoir,
     currentTranceGate = 0, // from jules branch
-
-    // Gate parameters (from feat-rhythmic-gating)
-    currentGateDepth = 0,
-    currentGateRate = 8,
 
     onPropertyChange
 }) => {
@@ -381,7 +374,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                                         <label htmlFor="note-gate-depth">Gate Depth</label>
                                         <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
-                                            {Math.round((currentGateDepth + 0.0001) * 100)}%
+                                            {Math.round(((currentGateDepth ?? 0) + 0.0001) * 100)}%
                                         </span>
                                     </div>
                                     <input
@@ -390,7 +383,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         min="0"
                                         max="1"
                                         step="0.01"
-                                        value={currentGateDepth}
+                                        value={currentGateDepth ?? 0}
                                         onChange={(e) => onPropertyChange('gateDepth', parseFloat(e.target.value))}
                                         className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                         aria-label="Gate Depth"
@@ -402,7 +395,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                                         <label htmlFor="note-gate-rate">Gate Rate</label>
                                         <span className="text-cyan-400 font-mono text-[10px]">
-                                            {currentGateRate.toFixed(1)} Hz
+                                            {(currentGateRate ?? 8).toFixed(1)} Hz
                                         </span>
                                     </div>
                                     <input
@@ -411,7 +404,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         min="0.5"
                                         max="32"
                                         step="0.1"
-                                        value={currentGateRate}
+                                        value={currentGateRate ?? 8}
                                         onChange={(e) => onPropertyChange('gateRate', parseFloat(e.target.value))}
                                         className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                         aria-label="Gate Rate"

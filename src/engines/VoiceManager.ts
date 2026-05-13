@@ -236,3 +236,49 @@ export class Voice {
         this.isActive = false;
     }
 }
+
+export class VoiceManager {
+    private voices: Voice[];
+    private currentIndex: number = 0;
+    private monophonic: boolean;
+
+    constructor(
+        context: AudioContext,
+        destination: AudioNode,
+        polyphony: number,
+        monophonic: boolean,
+        wavSaw?: AudioBuffer,
+        wavSqr?: AudioBuffer,
+        globalDelayNode?: DelayNode
+    ) {
+        this.monophonic = monophonic;
+        this.voices = Array.from({ length: Math.max(1, polyphony) }, () =>
+            new Voice(context, destination, wavSaw, wavSqr, globalDelayNode)
+        );
+    }
+
+    playNote(
+        params: SynthParams,
+        note: string | string[],
+        time: number,
+        duration: number,
+        slideFromFreq?: number
+    ): Voice {
+        const noteStr = Array.isArray(note) ? note[0] ?? 'C4' : note;
+
+        if (this.monophonic) {
+            const voice = this.voices[0]!;
+            voice.play(params, noteStr, time, duration, slideFromFreq);
+            return voice;
+        }
+
+        const voice = this.voices[this.currentIndex]!;
+        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
+        voice.play(params, noteStr, time, duration, slideFromFreq);
+        return voice;
+    }
+
+    stopAll(time: number): void {
+        this.voices.forEach(v => v.stop(time));
+    }
+}

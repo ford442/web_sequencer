@@ -11,7 +11,7 @@ import type {
 import { noteToMidi } from '../../utils/musicTheory';
 import { Harmonizer, type HarmonizerConfig } from '../../engines/Harmonizer';
 import { Open303Manager } from '../../engines/Open303Manager';
-import { VoiceManager, Voice } from '../../engines/VoiceManager';
+import type { VoiceManager, Voice } from '../../engines/VoiceManager';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import { makeDistortionCurve } from './distortion';
 import { engineTelemetry } from '../../utils/engineTelemetry';
@@ -84,6 +84,8 @@ export interface PlaybackRefs {
     loadedAmbianceBuffersRef: MutableRefObject<Map<string, AudioBuffer>>;
     singingVoiceManagerRef: MutableRefObject<SingingVoiceManager | null>;
     harmonizerRef: MutableRefObject<Harmonizer | null>;
+    bassSidechainEQBusRef: MutableRefObject<BiquadFilterNode | null>;
+    sidechainBusRef: MutableRefObject<GainNode | null>;
 }
 
 export function createPlaySynth(
@@ -275,12 +277,12 @@ export function createPlayDrum(
     context: AudioContext,
     refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef'>,
 ): AudioEngine['playDrum'] {
-    return (sound, params, time, noteParams, stepTime = 0.125) => {
+    return (sound, params, time, _tuning, stepTime = 0.125) => {
         if (!refs.masterGainRef.current) {
             return;
         }
 
-        const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
+        const retrigger = 1;
         const subStep = stepTime / retrigger;
 
         for (let i = 0; i < retrigger; i++) {

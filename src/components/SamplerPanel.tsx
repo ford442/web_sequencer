@@ -194,7 +194,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
             'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'grainEnvDepth', 'grainPitchQuantize',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
-            'sustain', 'release', 'choir', 'glitchChance'
+            'sustain', 'release', 'choir', 'glitchChance', 'gateRate', 'gateDepth'
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
             if (onParamChange) onParamChange(activeBankIdx, p, v);
@@ -251,8 +251,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         if (audioEngine?.singingVoice) {
             const voice = audioEngine.singingVoice;
             switch (key) {
-                case 'coarse':
-                case 'fine': {
+                case 'coarseTune':
+                case 'fineTune': {
                     // Calculate combined pitch scale
                     const coarse = key === 'coarseTune' ? (value as number) : (currentParams.coarseTune ?? 0);
                     const fine = key === 'fineTune' ? (value as number) : (currentParams.fineTune ?? 0);
@@ -260,10 +260,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                     voice.setPitch(scale);
                     break;
                 }
-                case 'formant':
+                case 'formantShift':
                     voice.setFormantShift(value as number);
                     break;
-                case 'rbQuality': {
+                case 'quality': {
                     // Map quality to RubberBand options
                     const qualityMap = {
                         'Fast': 1 | 16,      // RealTime | Faster
@@ -280,7 +280,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                     }
                     break;
                 }
-                case 'autoFollow':
+                case 'lockToSequencer':
                     // Enable/disable auto pitch following
                     const node2 = voice.getSourceNode();
                     if (node2 && 'port' in node2) {
