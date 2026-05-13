@@ -114,6 +114,8 @@ export interface SamplerBankParams {
   quality?: 'preview' | 'good' | 'better' | 'best';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
+  gateDepth?: number;
+  gateRate?: number;
 }
 
 export type SamplerParams = SamplerBankParams[];
@@ -175,6 +177,8 @@ export interface Note {
   gateRate?: number;
   gateDepth?: number;
   phonemes?: PhonemeData[];
+  gateDepth?: number;
+  gateRate?: number;
   // ... other fields as needed
 }
 

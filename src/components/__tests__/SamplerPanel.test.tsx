@@ -33,7 +33,28 @@ const defaultBankParams = {
     formantShift: 0,
     vibratoDepth: 0,
     breathIntensity: 0,
-    choir: 0
+    choir: 0,
+    tremoloDepth: 0,
+    tremoloRate: 0.1,
+    freeze: 0,
+    grainPitchQuantize: 0,
+    formantLfoRate: 0,
+    formantLfoDepth: 0,
+    formantEnvAttack: 0.1,
+    formantEnvDecay: 0.5,
+    formantEnvAmount: 0,
+    characterMorph: 0,
+    morphTarget: 'female' as 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright',
+    attack: 0.05,
+    decay: 0.1,
+    sustain: 1.0,
+    release: 0.1,
+    rootNote: 60,
+    coarseTune: 0,
+    fineTune: 0,
+    quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+    stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
+    lockToSequencer: false
 };
 
 describe('SamplerPanel', () => {
