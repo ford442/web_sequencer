@@ -279,7 +279,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       </g>
     );
   }
-), (prev, next) => {
+), (prev: any, next: any) => {
     return (
         prev.rowKey === next.rowKey &&
         prev.label === next.label &&

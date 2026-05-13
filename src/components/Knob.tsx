@@ -124,6 +124,7 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
   }, [value]);
 
   const formatValue = (val: number) => {
+    if (val === undefined || val === null) return '0';
     // Special case: milliseconds
     if (unit === 's' && val < 1) return `${(val * 1000).toFixed(0)}ms`;
 

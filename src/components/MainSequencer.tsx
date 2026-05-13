@@ -300,7 +300,7 @@ const SvgStep = memo(({
             <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} />
         </g>
     )
-}, (prev, next) => {
+}, (prev: any, next: any) => {
     return (
         prev.stepIndex === next.stepIndex &&
         prev.active === next.active &&
@@ -515,7 +515,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             </g>
         </g>
     )
-}), (prev, next) => {
+}), (prev: any, next: any) => {
     return (
         prev.rowKey === next.rowKey &&
         prev.label === next.label &&

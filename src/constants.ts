@@ -1,5 +1,6 @@
-import { ScaleDefinition, noteToMidi, applyMicrotonalTuning } from './utils/musicTheory';
-import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, AmbianceTrack, SamplerBankParams, SamplerParams } from './types';
+import { noteToMidi, applyMicrotonalTuning } from './utils/musicTheory';
+import type { ScaleDefinition } from './utils/musicTheory';
+import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerBankParams, SamplerParams } from './types';
 
 export const NUM_STEPS = 32;
 export const DEFAULT_TEMPO = 120;

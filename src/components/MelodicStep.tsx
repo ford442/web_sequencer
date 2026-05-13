@@ -438,7 +438,7 @@ export const MelodicStep = memo(({
       )}
     </g>
   );
-}, (prev, next) => {
+}, (prev: any, next: any) => {
   return (
     prev.stepIndex === next.stepIndex &&
     prev.active === next.active &&
