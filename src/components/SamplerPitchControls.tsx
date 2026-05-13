@@ -5,14 +5,14 @@ import { Knob } from './Knob';
  * SamplerPitchControls - Holographic pitch control panel for vocal workstation
  * 
  * Phase 1 of the Vocal Workstation implementation.
- * Provides comprehensive pitch, formant, and RubberBand engine controls.
+ * Provides comprehensive pitch, formantShift, and RubberBand engine controls.
  */
 
 export interface PitchControlValues {
   rootNote: number;
-  coarseTune: number;
-  fineTune: number;
-  formantShift: number;
+  coarseTuneTune: number;
+  fineTuneTune: number;
+  formantShiftShift: number;
   quality: 'preview' | 'good' | 'better' | 'best';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
@@ -123,7 +123,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
   // Generate unique IDs for form elements based on bankId
   const qualityId = `rb-quality-${bankId}`;
   const modeId = `rb-mode-${bankId}`;
-  const autoFollowId = `rb-autofollow-${bankId}`;
+  const lockToSequencerId = `rb-autofollow-${bankId}`;
 
   return (
     <div
@@ -162,12 +162,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="COARSE"
-              value={values.coarseTune}
+              value={values.coarseTuneTune}
               min={-24}
               max={24}
               step={1}
               color="purple"
-              onChange={(v) => onChange('coarseTune', v)}
+              onChange={(v) => onChange('coarseTuneTune', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">st</span>
           </div>
@@ -175,12 +175,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="FINE"
-              value={values.fineTune}
+              value={values.fineTuneTune}
               min={-50}
               max={50}
               step={1}
               color="purple"
-              onChange={(v) => onChange('fineTune', v)}
+              onChange={(v) => onChange('fineTuneTune', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">¢</span>
           </div>
@@ -188,12 +188,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="FORMANT"
-              value={values.formantShift}
+              value={values.formantShiftShift}
               min={-12}
               max={12}
               step={0.5}
               color="indigo"
-              onChange={(v) => onChange('formantShift', v)}
+              onChange={(v) => onChange('formantShiftShift', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">st</span>
           </div>
@@ -202,24 +202,24 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <div className="flex flex-col items-center">
               <Knob
                 label="ATTACK"
-                value={values.pitchAttack}
+                value={values.attack}
                 min={0}
                 max={2000}
                 step={10}
                 color="cyan"
-                onChange={(v) => onChange('pitchAttack', v)}
+                onChange={(v) => onChange('attack', v)}
               />
               <span className="text-[9px] text-gray-500">ms</span>
             </div>
             <div className="flex flex-col items-center">
               <Knob
                 label="DECAY"
-                value={values.pitchDecay}
+                value={values.decay}
                 min={0}
                 max={2000}
                 step={10}
                 color="cyan"
-                onChange={(v) => onChange('pitchDecay', v)}
+                onChange={(v) => onChange('decay', v)}
               />
               <span className="text-[9px] text-gray-500">ms</span>
             </div>
@@ -265,31 +265,31 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           {/* Auto Follow Checkbox */}
           <div
             className="flex items-center gap-2 mt-1 cursor-pointer"
-            onClick={() => onChange('autoFollow', !values.autoFollow)}
+            onClick={() => onChange('lockToSequencer', !values.lockToSequencer)}
           >
             <button
               type="button"
               role="switch"
               aria-checked={values.lockToSequencer}
-              id={autoFollowId}
+              id={lockToSequencerId}
               onClick={(e) => {
                 e.stopPropagation();
-                onChange('autoFollow', !values.autoFollow);
+                onChange('lockToSequencer', !values.lockToSequencer);
               }}
               className={`relative inline-flex h-3 w-6 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
-                values.autoFollow ? 'bg-purple-600' : 'bg-gray-800'
+                values.lockToSequencer ? 'bg-purple-600' : 'bg-gray-800'
               }`}
-              aria-labelledby={`${autoFollowId}-label`}
+              aria-labelledby={`${lockToSequencerId}-label`}
             >
               <span className="sr-only">Lock to Sequence</span>
               <span
                 aria-hidden="true"
                 className={`pointer-events-none inline-block h-2 w-2 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  values.autoFollow ? 'translate-x-3' : 'translate-x-0'
+                  values.lockToSequencer ? 'translate-x-3' : 'translate-x-0'
                 }`}
               />
             </button>
-            <span id={`${autoFollowId}-label`} className="text-[10px] text-gray-300 hover:text-white transition-colors leading-none select-none">
+            <span id={`${lockToSequencerId}-label`} className="text-[10px] text-gray-300 hover:text-white transition-colors leading-none select-none">
               Lock to Seq
             </span>
           </div>
@@ -302,12 +302,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div
             className="h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-500 transition-all duration-150"
             style={{
-              width: `${Math.min(100, Math.max(0, ((values.coarse + 24) / 48) * 100))}%`,
+              width: `${Math.min(100, Math.max(0, ((values.coarseTune + 24) / 48) * 100))}%`,
             }}
           />
         </div>
         <span className="text-[10px] font-mono text-gray-400 w-16 text-right">
-          {values.coarse >= 0 ? '+' : ''}{values.coarse}st
+          {values.coarseTune >= 0 ? '+' : ''}{values.coarseTune}st
         </span>
       </div>
     </div>

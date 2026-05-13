@@ -22,8 +22,8 @@ export interface SynthParams {
   filterCutoff: number; // Hz
   filterResonance: number; // Q factor
   filterMode?: number; // 0-1 (filter mode toggle)
-  pitchAttack: number; // seconds
-  pitchDecay: number; // seconds
+  attack: number;
+  decay: number;
   sustain: number; // 0-1 (level)
   release: number; // seconds
   length: number; // seconds (gate time)
@@ -38,14 +38,14 @@ export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
 
 export interface KickParams {
   pitch: number;
-  pitchDecay: number;
+  decay: number;
   tone: number;
   volume: number;
   pan?: number;
 }
 
 export interface SnareParams {
-  pitchDecay: number;
+  decay: number;
   tone: number;
   noise: number;
   volume: number;
@@ -54,7 +54,7 @@ export interface SnareParams {
 
 export interface HatParams {
   pitch: number;
-  pitchDecay: number;
+  decay: number;
   volume: number;
   pan?: number;
 }
@@ -121,7 +121,7 @@ export interface Bass2Params {
   cutoff: number;
   resonance: number;
   filterMode: number;
-  pitchDecay: number;
+  decay: number;
   accent: number;
   envMod: number;
   volume: number;

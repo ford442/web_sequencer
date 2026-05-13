@@ -24,7 +24,7 @@ export function apply303Params(
     // UI Res (0-20) → Engine (0-1)
     engine.setResonance(Math.max(0, Math.min(1, params.filterResonance / 20)));
     engine.setFilterMode(Math.max(0, Math.min(1, params.filterMode ?? 0)));
-    engine.setDecay(params.pitchDecay);
+    engine.setDecay(params.decay);
     engine.setVolume(params.volume);
 }
 
@@ -93,16 +93,16 @@ export function playSynth(
         source.playbackRate.value = freq / 440; // Base = A4
 
         // ADSR Envelope
-        const pitchAttackEnd = time + params.pitchAttack;
-        const pitchDecayEnd = pitchAttackEnd + params.pitchDecay;
+        const attackEnd = time + params.attack;
+        const decayEnd = attackEnd + params.decay;
         const releaseStart = time + (durationSteps * stepTime);
         const releaseEnd = releaseStart + params.release;
 
         gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime(params.volume, pitchAttackEnd);
+        gain.gain.linearRampToValueAtTime(params.volume, attackEnd);
         gain.gain.exponentialRampToValueAtTime(
             Math.max(0.001, params.volume * params.sustain),
-            pitchDecayEnd
+            decayEnd
         );
         gain.gain.setValueAtTime(
             Math.max(0.001, params.volume * params.sustain),
@@ -136,16 +136,16 @@ export function playSynth(
 
     // ADSR Envelope
     const now = time;
-    const pitchAttackEnd = now + params.pitchAttack;
-    const pitchDecayEnd = pitchAttackEnd + params.pitchDecay;
+    const attackEnd = now + params.attack;
+    const decayEnd = attackEnd + params.decay;
     const releaseStart = now + (durationSteps * stepTime);
     const releaseEnd = releaseStart + params.release;
 
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(params.volume, pitchAttackEnd);
+    gain.gain.linearRampToValueAtTime(params.volume, attackEnd);
     gain.gain.exponentialRampToValueAtTime(
         Math.max(0.001, params.volume * params.sustain),
-        pitchDecayEnd
+        decayEnd
     );
     gain.gain.setValueAtTime(
         Math.max(0.001, params.volume * params.sustain),

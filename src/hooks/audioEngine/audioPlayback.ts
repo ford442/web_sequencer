@@ -240,7 +240,7 @@ export const triggerSidechainDuck = (
     // 4. The Release: Return to 0 dB
     // We cannot use exponentialRampToValueAtTime with 0.0, and since we are using dB
     // for a BiquadFilterNode, we can just use setTargetAtTime or linearRampToValueAtTime.
-    // setTargetAtTime creates a nice exponential-style pitchDecay back to 0.
+    // setTargetAtTime creates a nice exponential-style decay back to 0.
     gain.setTargetAtTime(0.0, time + 0.01, releaseTime / 3);
 };
 
@@ -296,10 +296,10 @@ export function createPlayDrum(
                 const gain = context.createGain();
 
                 osc.frequency.setValueAtTime(150, now);
-                osc.frequency.exponentialRampToValueAtTime(0.01, now + kickParams.pitchDecay);
+                osc.frequency.exponentialRampToValueAtTime(0.01, now + kickParams.decay);
 
                 gain.gain.setValueAtTime(kickParams.volume, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + kickParams.pitchDecay);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + kickParams.decay);
 
                 osc.connect(gain);
 
@@ -313,7 +313,7 @@ export function createPlayDrum(
                 finalDest.connect(refs.masterGainRef.current);
 
                 osc.start(now);
-                osc.stop(now + kickParams.pitchDecay);
+                osc.stop(now + kickParams.decay);
             } else if (sound === 'snare') {
                 const snareParams = params as SnareParams;
                 const osc = context.createOscillator();
@@ -321,7 +321,7 @@ export function createPlayDrum(
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(250, now);
                 oscGain.gain.setValueAtTime(snareParams.tone * snareParams.volume, now);
-                oscGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.pitchDecay);
+                oscGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
 
                 let finalDestOsc: AudioNode = oscGain;
                 if (snareParams.pan !== undefined && snareParams.pan !== 0) {
@@ -339,7 +339,7 @@ export function createPlayDrum(
                     noiseFilter.frequency.value = 1000;
                     const noiseGain = context.createGain();
                     noiseGain.gain.setValueAtTime(snareParams.noise * snareParams.volume, now);
-                    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.pitchDecay);
+                    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
 
                     noise.connect(noiseFilter);
                     noiseFilter.connect(noiseGain);
@@ -352,13 +352,13 @@ export function createPlayDrum(
                     }
                     finalDestNoise.connect(refs.masterGainRef.current);
                     noise.start(now);
-                    noise.stop(now + snareParams.pitchDecay);
+                    noise.stop(now + snareParams.decay);
                 }
 
                 osc.connect(oscGain);
                 finalDestOsc.connect(refs.masterGainRef.current);
                 osc.start(now);
-                osc.stop(now + snareParams.pitchDecay);
+                osc.stop(now + snareParams.decay);
             } else {
                 const hatParams = params as HatParams;
                 if (refs.noiseBufferRef.current) {
@@ -369,7 +369,7 @@ export function createPlayDrum(
                     filter.frequency.value = 5000;
                     const gain = context.createGain();
                     gain.gain.setValueAtTime(hatParams.volume, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + hatParams.pitchDecay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + hatParams.decay);
 
                     src.connect(filter);
                     filter.connect(gain);
@@ -382,7 +382,7 @@ export function createPlayDrum(
                     }
                     finalDest.connect(refs.masterGainRef.current);
                     src.start(now);
-                    src.stop(now + hatParams.pitchDecay);
+                    src.stop(now + hatParams.decay);
                 }
             }
         }

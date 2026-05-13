@@ -74,8 +74,8 @@ export const freezeSynthTrack = async (
         waveform: params.waveform,
         filterCutoff: params.filterCutoff,
         filterResonance: params.filterResonance,
-        pitchAttack: params.pitchAttack,
-        pitchDecay: params.pitchDecay,
+        attack: params.attack,
+        decay: params.decay,
         sustain: params.sustain,
         release: params.release,
         volume: params.volume,
@@ -267,7 +267,7 @@ export const findLoopPoints = (
     /* --- OLD LOGIC (PRESERVED / ACTIVE FALLBACK) --- */
     const length = buffer.length;
 
-    // Find a zero-crossing near the start (after ~10ms to avoid pitchAttack transient)
+    // Find a zero-crossing near the start (after ~10ms to avoid attack transient)
     const searchStart = Math.min(441, length - minLoopLength); // 10ms at 44.1kHz
     let loopStart = searchStart;
 

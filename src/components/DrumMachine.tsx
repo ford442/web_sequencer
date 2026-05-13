@@ -24,19 +24,19 @@ export const DrumMachine: React.FC<DrumMachineProps> = React.memo(({ params, onP
     return {
       kick: {
         pitch: (v: number) => handleParamChange('kick', 'pitch', v),
-        pitchDecay: (v: number) => handleParamChange('kick', 'pitchDecay', v),
+        decay: (v: number) => handleParamChange('kick', 'decay', v),
         tone: (v: number) => handleParamChange('kick', 'tone', v),
         volume: (v: number) => handleParamChange('kick', 'volume', v),
       },
       snare: {
-        pitchDecay: (v: number) => handleParamChange('snare', 'pitchDecay', v),
+        decay: (v: number) => handleParamChange('snare', 'decay', v),
         tone: (v: number) => handleParamChange('snare', 'tone', v),
         noise: (v: number) => handleParamChange('snare', 'noise', v),
         volume: (v: number) => handleParamChange('snare', 'volume', v),
       },
       hats: {
-        chDecay: (v: number) => handleParamChange('closedHat', 'pitchDecay', v),
-        ohDecay: (v: number) => handleParamChange('openHat', 'pitchDecay', v),
+        chDecay: (v: number) => handleParamChange('closedHat', 'decay', v),
+        ohDecay: (v: number) => handleParamChange('openHat', 'decay', v),
         pitch: (v: number) => {
           handleParamChange('closedHat', 'pitch', v);
           handleParamChange('openHat', 'pitch', v);
@@ -58,7 +58,7 @@ export const DrumMachine: React.FC<DrumMachineProps> = React.memo(({ params, onP
           <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Kick</legend>
           <div className="flex justify-around flex-wrap">
             <Knob label="Pitch" value={params.kick.pitch} onChange={handlers.kick.pitch} min={20} max={150} color="yellow" unit="Hz" />
-            <Knob label="Decay" value={params.kick.pitchDecay} onChange={handlers.kick.pitchDecay} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
+            <Knob label="Decay" value={params.kick.decay} onChange={handlers.kick.decay} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
             <Knob label="Tone" value={params.kick.tone} onChange={handlers.kick.tone} min={0} max={1} step={0.01} color="yellow" />
             <Knob label="Volume" value={params.kick.volume} onChange={handlers.kick.volume} min={0} max={1.5} step={0.01} color="yellow" />
           </div>
@@ -67,7 +67,7 @@ export const DrumMachine: React.FC<DrumMachineProps> = React.memo(({ params, onP
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
           <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Snare</legend>
           <div className="flex justify-around flex-wrap">
-            <Knob label="Decay" value={params.snare.pitchDecay} onChange={handlers.snare.pitchDecay} min={0.05} max={0.5} step={0.01} color="yellow" unit="s" logarithmic />
+            <Knob label="Decay" value={params.snare.decay} onChange={handlers.snare.decay} min={0.05} max={0.5} step={0.01} color="yellow" unit="s" logarithmic />
             <Knob label="Tone" value={params.snare.tone} onChange={handlers.snare.tone} min={100} max={400} color="yellow" unit="Hz" />
             <Knob label="Noise" value={params.snare.noise} onChange={handlers.snare.noise} min={1000} max={10000} color="yellow" unit="Hz" logarithmic />
             <Knob label="Volume" value={params.snare.volume} onChange={handlers.snare.volume} min={0} max={1.5} step={0.01} color="yellow" />
@@ -77,8 +77,8 @@ export const DrumMachine: React.FC<DrumMachineProps> = React.memo(({ params, onP
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
           <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Hi-Hats</legend>
           <div className="flex justify-around flex-wrap">
-            <Knob label="CH Decay" value={params.closedHat.pitchDecay} onChange={handlers.hats.chDecay} min={0.01} max={0.2} step={0.001} color="yellow" unit="s" logarithmic />
-            <Knob label="OH Decay" value={params.openHat.pitchDecay} onChange={handlers.hats.ohDecay} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
+            <Knob label="CH Decay" value={params.closedHat.decay} onChange={handlers.hats.chDecay} min={0.01} max={0.2} step={0.001} color="yellow" unit="s" logarithmic />
+            <Knob label="OH Decay" value={params.openHat.decay} onChange={handlers.hats.ohDecay} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
             <Knob label="Pitch" value={params.closedHat.pitch} onChange={handlers.hats.pitch} min={3000} max={15000} color="yellow" unit="Hz" logarithmic />
             <Knob label="Volume" value={params.closedHat.volume} onChange={handlers.hats.volume} min={0} max={1.5} step={0.01} color="yellow" />
           </div>

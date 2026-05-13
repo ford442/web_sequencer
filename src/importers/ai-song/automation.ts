@@ -40,13 +40,13 @@ export const VALID_AUTOMATION_TARGETS: readonly AIAutomationTarget[] = [
 
 /** Valid parameters for each target */
 export const VALID_PARAMETERS_BY_TARGET: Readonly<Record<AIAutomationTarget, readonly AITargetedParameter[]>> = {
-  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'pitchDecay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
-  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'pitchDecay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
-  bass2: ['filterCutoff', 'filterResonance', 'filterMode', 'pitchDecay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive'],
-  kick: ['pitch', 'pitchDecay', 'tone', 'volume'],
-  snare: ['pitchDecay', 'tone', 'noise', 'volume'],
-  closedHat: ['pitch', 'pitchDecay', 'volume'],
-  openHat: ['pitch', 'pitchDecay', 'volume'],
+  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
+  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
+  bass2: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive'],
+  kick: ['pitch', 'decay', 'tone', 'volume'],
+  snare: ['decay', 'tone', 'noise', 'volume'],
+  closedHat: ['pitch', 'decay', 'volume'],
+  openHat: ['pitch', 'decay', 'volume'],
   sampler: ['filterCutoff', 'filterResonance', 'drive', 'volume', 'playbackSpeed', 'pitch'],
   master: ['tempo', 'swing', 'masterVolume']
 } as const;
@@ -533,7 +533,7 @@ export const EXAMPLE_WITH_AUTOMATION: AISongData = {
         waveform: "303-saw", 
         filterCutoff: 1500, 
         filterResonance: 18, 
-        pitchDecay: 0.4
+        decay: 0.4
       } 
     },
     kick: [

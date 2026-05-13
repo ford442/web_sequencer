@@ -223,12 +223,13 @@ export function useAppState() {
     const updateSampler = useCallback((u: SamplerParams) => { setSampler(u); samplerRef.current = u; }, []);
 
     const samplerVoiceParamsRef = useRef({
+        drive: 0,
         rootNote: 60,
         coarseTune: 0,
         fineTune: 0,
         formantShift: 0,
-        pitchAttack: 0,
-        pitchDecay: 0.5,
+        attack: 0,
+        decay: 0.5,
         quality: 'good' as 'preview' | 'good' | 'better' | 'best',
         stretchMode: 'Time' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
@@ -594,8 +595,8 @@ export function useAppState() {
                 filterCutoff: bass2Ref.current.cutoff,
                 filterResonance: bass2Ref.current.resonance,
                 filterMode: bass2Ref.current.filterMode,
-                pitchAttack: 0.01,
-                pitchDecay: bass2Ref.current.decay,
+                attack: 0.01,
+                decay: bass2Ref.current.decay,
                 sustain: 0,
                 release: 0.1,
                 length: 0.25,
@@ -619,8 +620,8 @@ export function useAppState() {
                 coarseTune: voiceParams.coarseTune,
                 fineTune: voiceParams.fineTune,
                 formantShift: voiceParams.formantShift,
-                pitchAttack: voiceParams.pitchAttack,
-                pitchDecay: voiceParams.pitchDecay,
+                attack: voiceParams.attack,
+                decay: voiceParams.decay,
                 quality: voiceParams.quality,
                 stretchMode: voiceParams.stretchMode,
                 lockToSequencer: voiceParams.lockToSequencer

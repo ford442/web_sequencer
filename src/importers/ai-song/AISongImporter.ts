@@ -58,7 +58,7 @@ export type AIAutomationTarget =
 export type AITargetedParameter =
   // Synth parameters (per-voice)
   | 'filterCutoff' | 'filterResonance' | 'filterMode'
-  | 'pitchDecay' | 'accent' | 'envMod' | 'waveform'
+  | 'decay' | 'accent' | 'envMod' | 'waveform'
   | 'pitch' | 'volume' | 'drive'
   // Delay parameters
   | 'delayTime' | 'delayFeedback' | 'delayMix'
@@ -190,7 +190,7 @@ export interface AITrackEffects {
 export interface AICompressorSettings {
   threshold: number;  // -60 to 0 dB
   ratio: number;      // 1 to 20
-  pitchAttack: number;     // 0.1 to 100 ms
+  attack: number;     // 0.1 to 100 ms
   release: number;    // 10 to 1000 ms
   makeupGain?: number;
 }
@@ -213,7 +213,7 @@ export interface AIDelaySettings {
 /** Reverb settings */
 export interface AIReverbSettings {
   size: number;       // 0 to 100 (room size)
-  pitchDecay: number;      // 0.1 to 10 seconds
+  decay: number;      // 0.1 to 10 seconds
   mix: number;        // 0 to 100%
   preDelay?: number;  // 0 to 100 ms
 }
@@ -359,14 +359,14 @@ export interface HyphonMasterEffects {
   compressor?: {
     threshold: number;
     ratio: number;
-    pitchAttack: number;
+    attack: number;
     release: number;
     makeupGain: number;
   };
   limiter?: { enabled: boolean };
   reverb?: {
     size: number;
-    pitchDecay: number;
+    decay: number;
     mix: number;
     preDelay: number;
   };
@@ -416,13 +416,13 @@ const VALID_AUTOMATION_TARGETS: AIAutomationTarget[] = [
 
 /** Valid parameters for each target */
 const VALID_PARAMETERS_BY_TARGET: Record<AIAutomationTarget, AITargetedParameter[]> = {
-  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'pitchDecay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
-  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'pitchDecay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
-  bass2: ['filterCutoff', 'filterResonance', 'filterMode', 'pitchDecay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive'],
-  kick: ['pitch', 'pitchDecay', 'tone', 'volume'],
-  snare: ['pitchDecay', 'tone', 'noise', 'volume'],
-  closedHat: ['pitch', 'pitchDecay', 'volume'],
-  openHat: ['pitch', 'pitchDecay', 'volume'],
+  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
+  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
+  bass2: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive'],
+  kick: ['pitch', 'decay', 'tone', 'volume'],
+  snare: ['decay', 'tone', 'noise', 'volume'],
+  closedHat: ['pitch', 'decay', 'volume'],
+  openHat: ['pitch', 'decay', 'volume'],
   sampler: ['filterCutoff', 'filterResonance', 'drive', 'volume', 'playbackSpeed'],
   master: ['tempo', 'swing', 'masterVolume']
 };
@@ -884,8 +884,8 @@ export class AISongImporter {
       filterCutoff: 3000,
       filterResonance: 8,
       filterMode: 1,
-      pitchAttack: 0.01,
-      pitchDecay: 0.3,
+      attack: 0.01,
+      decay: 0.3,
       sustain: 0.5,
       release: 0.3,
       length: 0.25,
@@ -916,7 +916,7 @@ export class AISongImporter {
         cutoff: synth.filterCutoff,
         resonance: synth.filterResonance,
         filterMode: synth.filterMode ?? 1,
-        pitchDecay: synth.pitchDecay,
+        decay: synth.decay,
         accent: 0.7,
         envMod: 0.5,
         volume: synth.volume
@@ -926,10 +926,10 @@ export class AISongImporter {
     return {
       synthA: mapSynthParams(aiSong.tracks.synthA),
       synthB: mapSynthParams(aiSong.tracks.synthB),
-      kick: { pitch: 60, pitchDecay: 0.4, tone: 0.6, volume: 1.0 },
-      snare: { pitchDecay: 0.3, tone: 250, noise: 3000, volume: 0.9 },
-      closedHat: { pitch: 10000, pitchDecay: 0.1, volume: 0.8 },
-      openHat: { pitch: 8000, pitchDecay: 0.4, volume: 0.8 },
+      kick: { pitch: 60, decay: 0.4, tone: 0.6, volume: 1.0 },
+      snare: { decay: 0.3, tone: 250, noise: 3000, volume: 0.9 },
+      closedHat: { pitch: 10000, decay: 0.1, volume: 0.8 },
+      openHat: { pitch: 8000, decay: 0.4, volume: 0.8 },
       sampler: this.convertSamplerTracks(aiSong.tracks.sampler, 32)
     };
   }
@@ -1140,7 +1140,7 @@ export class AISongImporter {
       result.compressor = {
         threshold: this.clamp(master.compressor.threshold, -60, 0),
         ratio: this.clamp(master.compressor.ratio, 1, 20),
-        pitchAttack: this.clamp(master.compressor.pitchAttack, 0.1, 100),
+        attack: this.clamp(master.compressor.attack, 0.1, 100),
         release: this.clamp(master.compressor.release, 10, 1000),
         makeupGain: master.compressor.makeupGain ?? 0
       };
@@ -1153,7 +1153,7 @@ export class AISongImporter {
     if (master.reverb) {
       result.reverb = {
         size: this.clamp(master.reverb.size, 0, 100),
-        pitchDecay: this.clamp(master.reverb.pitchDecay, 0.1, 10),
+        decay: this.clamp(master.reverb.decay, 0.1, 10),
         mix: this.clamp(master.reverb.mix, 0, 100),
         preDelay: this.clamp(master.reverb.preDelay ?? 0, 0, 100)
       };

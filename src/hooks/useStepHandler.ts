@@ -271,7 +271,6 @@ export const useStepHandler = ({
 
             const bankParams: SamplerBankParams = {
                 ...samplerRef.current[bankIdx],
-                drive: voiceParams.drive,
                 rootNote: voiceParams.rootNote,
                 coarseTune: voiceParams.coarseTune,
                 fineTune: voiceParams.fineTune,

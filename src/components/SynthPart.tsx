@@ -44,8 +44,8 @@ export const SynthPart: React.FC<SynthPartProps> = React.memo(({ title, accentCo
       filterCutoff: (val: number) => handleParamChange('filterCutoff', val),
       filterResonance: (val: number) => handleParamChange('filterResonance', val),
       filterMode: (val: number) => handleParamChange('filterMode', val >= FILTER_MODE_24_DB ? 1 : 0),
-      pitchAttack: (val: number) => handleParamChange('pitchAttack', val),
-      pitchDecay: (val: number) => handleParamChange('pitchDecay', val),
+      attack: (val: number) => handleParamChange('attack', val),
+      decay: (val: number) => handleParamChange('decay', val),
       volume: (val: number) => handleParamChange('volume', val),
       delayTime: (val: number) => handleParamChange('delayTime', val),
       delayFeedback: (val: number) => handleParamChange('delayFeedback', val),
@@ -94,8 +94,8 @@ export const SynthPart: React.FC<SynthPartProps> = React.memo(({ title, accentCo
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
             <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Envelope</legend>
-            <Knob label="Attack" value={params.pitchAttack} onChange={handlers.pitchAttack} min={0.005} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
-            <Knob label="Decay" value={params.pitchDecay} onChange={handlers.pitchDecay} min={0.01} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
+            <Knob label="Attack" value={params.attack} onChange={handlers.attack} min={0.005} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
+            <Knob label="Decay" value={params.decay} onChange={handlers.decay} min={0.01} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
             <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Output</legend>
