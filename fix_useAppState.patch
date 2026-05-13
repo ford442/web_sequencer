@@ -1,0 +1,112 @@
+--- src/hooks/useAppState.tsx
++++ src/hooks/useAppState.tsx
+@@ -139,12 +139,26 @@
+
+     const [zoomLevel, setZoomLevel] = useState(1);
+
++    // Stable refs for event handlers to avoid dependency changes
++    const isSelectingRef = useRef(isSelecting);
++    const selectionRef = useRef<typeof selection>(selection);
++
++    useEffect(() => {
++        isSelectingRef.current = isSelecting;
++    }, [isSelecting]);
++
++    useEffect(() => {
++        selectionRef.current = selection;
++    }, [selection]);
++
+     const handleSelectionStart = useCallback((trackKey: TrackKey, stepIndex: number) => {
+         setSelection({ trackKey, startStep: stepIndex, endStep: stepIndex });
+         setIsSelecting(true);
+     }, []);
+
+     const handleSelectionEnter = useCallback((trackKey: TrackKey, stepIndex: number) => {
+-        if (isSelecting && selection && selection.trackKey === trackKey) {
++        const isSelecting = isSelectingRef.current;
++        const selection = selectionRef.current;
++        if (isSelecting && selection && selection.trackKey === trackKey) {
+             setSelection(prev => prev ? { ...prev, endStep: stepIndex } : null);
+         }
+-    }, [isSelecting, selection]);
++    }, []);
+
+     const handleSelectionEnd = useCallback(() => { setIsSelecting(false); }, []);
+@@ -580,7 +594,7 @@
+         setIsDrawing(true);
+         setDrawMode(isActive ? 'remove' : 'add');
+         handlePatternChange(rowKey, index, e);
+-    }, [handlePatternChange, activeSamplerBank]);
++    }, [handlePatternChange]);
+
+     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
+     const handleKeyboardPlay = useCallback((note: string) => {
+@@ -657,7 +671,12 @@
+     const handleKeyboardStop = useCallback((note: string) => { if (!audioEngine) return; const id = activeKeyboardNotesRef.current.get(note); if (!id) return; if (selectedTrack === 'partA' || selectedTrack === 'partB' || selectedTrack === 'bass2') { audioEngine.noteOffSynth?.(id); } else if (selectedTrack === 'sampler') { audioEngine.noteOffSampler?.(id); } activeKeyboardNotesRef.current.delete(note); }, [audioEngine, selectedTrack]);
+     const handleRightMouseDown = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); let stepData = null; if (track === 'sampler') { stepData = patternRef.current.sampler[activeSamplerBankRef.current].steps[step]; } else { stepData = patternRef.current[track].steps[step]; } if (!stepData) return; setIsNoteDragging(true); const startMidi = noteToMidi(stepData.note); noteDragRef.current = { track, step, startY: e.clientY, startMidi, hasMoved: false, lastMidi: startMidi }; document.body.style.cursor = 'ns-resize'; }, []);
++
++    const isNoteDraggingRef = useRef(isNoteDragging);
++    useEffect(() => {
++        isNoteDraggingRef.current = isNoteDragging;
++    }, [isNoteDragging]);
++
+     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+-        if (!isNoteDragging || !noteDragRef.current) return;
++        if (!isNoteDraggingRef.current || !noteDragRef.current) return;
+         const { track, step, startY, startMidi } = noteDragRef.current;
+         const dy = startY - e.clientY;
+@@ -677,12 +696,17 @@
+                 });
+             }
+         }
+-    }, [isNoteDragging, activeSamplerBank]);
++    }, [activeSamplerBank]);
++
++    const isDrawingRef = useRef(isDrawing);
++    useEffect(() => {
++        isDrawingRef.current = isDrawing;
++    }, [isDrawing]);
+     const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+-        if (isDrawing) { setIsDrawing(false); setDrawMode(null); }
+-        if (!isNoteDragging || !noteDragRef.current) return;
++        if (isDrawingRef.current) { setIsDrawing(false); setDrawMode(null); }
++        if (!isNoteDraggingRef.current || !noteDragRef.current) return;
+         if (!noteDragRef.current.hasMoved) { const { track, step } = noteDragRef.current; setContextMenu({ x: e.clientX, y: e.clientY, track, step }); }
+         else if (noteDragRef.current.pendingSequence) { updateStorageForTrack(noteDragRef.current.track, noteDragRef.current.pendingSequence); }
+         setIsNoteDragging(false); noteDragRef.current = null; document.body.style.cursor = 'default';
+-    }, [isNoteDragging, updateStorageForTrack, isDrawing]);
++    }, [updateStorageForTrack]);
+
+     useEffect(() => {
+@@ -692,16 +716,21 @@
+             window.removeEventListener('mousemove', handleGlobalMouseMove); window.removeEventListener('mouseup', handleGlobalMouseUp);
+         };
+     }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
+
++    const drawModeRef = useRef<'add' | 'remove' | null>(null);
++    useEffect(() => {
++        drawModeRef.current = drawMode;
++    }, [drawMode]);
++
+     const handleDrawEnter = useCallback((trackKey: TrackKey, stepIndex: number) => {
+-        if (!isDrawing || !drawMode) return;
++        if (!isDrawingRef.current || !drawModeRef.current) return;
+         const pattern = patternRef.current;
+         let step = null;
+         if (trackKey === 'sampler') {
+             step = pattern.sampler[activeSamplerBankRef.current].steps[stepIndex];
+         } else {
+             step = pattern[trackKey].steps[stepIndex];
+         }
+         const isActive = !!step;
+-        if (drawMode === 'add' && !isActive) {
++        if (drawModeRef.current === 'add' && !isActive) {
+             handlePatternChange(trackKey, stepIndex, undefined);
+-        } else if (drawMode === 'remove' && isActive) {
++        } else if (drawModeRef.current === 'remove' && isActive) {
+             handlePatternChange(trackKey, stepIndex, undefined);
+         }
+-    }, [isDrawing, drawMode, handlePatternChange, activeSamplerBank]);
++    }, [handlePatternChange]);
+
+     const handleAddMeasure = useCallback(() => {
