@@ -40,8 +40,8 @@ interface NoteSelectorProps {
     currentGrainPitchQuantize?: number;
     currentTranceGate?: number;
     currentDelaySend?: number;
-    currentChoir?: number;
-
+    currentChoir?: number;    currentGateDepth?: number;
+    currentGateRate?: number;
     onPropertyChange?: (key:
         | 'timbre'
         | 'velocity'
@@ -72,11 +72,14 @@ interface NoteSelectorProps {
         | 'reverbType'
         | 'delaySend'
         | 'choir'
+        | 'gateDepth'      // ← kept
+        | 'gateRate'       // ← kept
     , value: number | boolean | string) => void;
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
+
     currentTimbre = 0,
     currentVelocity = 1,
     currentProbability = 1,
@@ -101,8 +104,13 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchQuantize = 0,
-    currentTranceGate = 0, // from jules branch
     currentChoir,
+    currentTranceGate = 0, // from jules branch
+
+    // Gate parameters (from feat-rhythmic-gating)
+    currentGateDepth = 0,
+    currentGateRate = 8,
+
     onPropertyChange
 }) => {
     // Determine octave range based on track type
@@ -365,14 +373,16 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 />
                             </fieldset>
                         )}
-
                         {/* Rhythmic Gate Parameters */}
-                        {currentGateDepth !== undefined && currentGateRate !== undefined && onPropertyChange && trackType === 'sampler' && (
+                        {trackType === 'synth' && (   // or 'sampler' if you want both
                             <div className="flex flex-col gap-2 mb-2 p-1.5 bg-gray-800/50 rounded border border-gray-700/50">
+                                {/* Gate Depth */}
                                 <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                                         <label htmlFor="note-gate-depth">Gate Depth</label>
-                                        <span className="text-cyan-400 font-mono text-[10px]">{Math.round((currentGateDepth + 0.0001) * 100)}%</span>
+                                        <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
+                                            {Math.round((currentGateDepth + 0.0001) * 100)}%
+                                        </span>
                                     </div>
                                     <input
                                         id="note-gate-depth"
@@ -383,27 +393,32 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         value={currentGateDepth}
                                         onChange={(e) => onPropertyChange('gateDepth', parseFloat(e.target.value))}
                                         className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                        aria-label="Gate Depth"
                                     />
                                 </div>
+
+                                {/* Gate Rate */}
                                 <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                                         <label htmlFor="note-gate-rate">Gate Rate</label>
-                                        <span className="text-cyan-400 font-mono text-[10px]">{currentGateRate.toFixed(1)} Hz</span>
+                                        <span className="text-cyan-400 font-mono text-[10px]">
+                                            {currentGateRate.toFixed(1)} Hz
+                                        </span>
                                     </div>
                                     <input
                                         id="note-gate-rate"
                                         type="range"
-                                        min="0.1"
-                                        max="50"
+                                        min="0.5"
+                                        max="32"
                                         step="0.1"
                                         value={currentGateRate}
                                         onChange={(e) => onPropertyChange('gateRate', parseFloat(e.target.value))}
                                         className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                        aria-label="Gate Rate"
                                     />
                                 </div>
                             </div>
                         )}
-
                         {/* Reverb Send Control */}
                         {onPropertyChange && (
                             <>

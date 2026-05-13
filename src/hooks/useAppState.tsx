@@ -65,8 +65,9 @@ export function useAppState() {
         setToast({ message, type });
     }, []);
 
+    const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
-    const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide)
+    const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide, tempo)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
     useTTSPreloader()
@@ -103,7 +104,6 @@ export function useAppState() {
     };
 
     const [pattern, setPattern] = useState<Pattern>(UPDATED_INITIAL_PATTERN)
-    const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
     const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
