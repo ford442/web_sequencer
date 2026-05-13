@@ -77,7 +77,7 @@ describe('NoteSelector', () => {
         expect(dialog.contains(document.activeElement)).toBe(true);
 
         // Find focusable elements
-        const closeButton = screen.getByLabelText('Close');
+        const closeButton = screen.getByLabelText('Close note properties');
 
         // Find last element (a note button)
         const noteButtons = screen.getAllByRole('button', { name: /Select/ });
