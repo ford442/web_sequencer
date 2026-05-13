@@ -359,8 +359,6 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
             if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
             lastActiveIndexRef.current = newActiveIndex;
-        } else {
-            if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
         }
     }, [steps, viewMode]);
 
@@ -453,9 +451,17 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     }
 
 
+    const handleRowClick = useCallback(() => onSelectRow(rowKey), [onSelectRow, rowKey]);
+    const handleRowKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelectRow(rowKey);
+        }
+    }, [onSelectRow, rowKey]);
+
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
-            <g className="track-label" onClick={() => onSelectRow(rowKey)} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} aria-pressed={isSelected} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRow(rowKey); } }}>
+            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
                 {isSelected && (
                     <rect 
                         x={-10} 
