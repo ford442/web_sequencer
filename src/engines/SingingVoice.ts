@@ -2,6 +2,7 @@ import { ScaleDefinition, applyMicrotonalTuning } from '../utils/musicTheory';
 import processorUrl from '../audio-worklets/rubberband-processor.ts?worker&url';
 import { PhonemeAligner, type AlignmentResult } from './rubberband/PhonemeAligner';
 import { FormantShifter, type VoiceCharacter } from './rubberband/FormantShifter';
+import type { PhonemeBufferPool } from '../services/PhonemeBufferPool';
 
 /**
  * SingingVoice - High-fidelity vocal synthesis engine
@@ -116,6 +117,16 @@ export class SingingVoice {
 
     /** Last alignment result for current audio */
     private lastAlignment: AlignmentResult | null = null;
+
+    /** Pre-stretched buffer pool for phoneme-aware time stretching */
+    private bufferPool: PhonemeBufferPool | null = null;
+
+    /**
+     * Tracks the AudioNode destinations that the worklet is currently wired to.
+     * Used so AudioBufferSourceNode (pool playback path) can be connected to the
+     * same output chain without re-routing through the Rubber Band worklet.
+     */
+    private outputDestinations: Set<AudioNode> = new Set();
 
     constructor(audioContext: AudioContext, config: SingingVoiceConfig = {}) {
         this.audioContext = audioContext;
@@ -524,12 +535,31 @@ export class SingingVoice {
     /**
      * Trigger a specific phoneme slice based on index.
      *
-     * @param audio Audio buffer
-     * @param sliceIndex Index of the phoneme to play (e.g. from MIDI note)
-     * @param alignment Alignment result containing phoneme timings
-     * @param pitch Optional pitch override (default 1.0)
+     * When `targetDuration`, `scheduledTime`, and `phonemeId` are provided **and**
+     * the pre-stretched buffer pool has a matching buffer, playback goes through an
+     * `AudioBufferSourceNode` scheduled with sample-accurate timing (zero onset
+     * latency).  Otherwise, the existing Rubber Band worklet path is used as a
+     * fall-back.
+     *
+     * @param audio          Full decoded audio buffer (Float32Array, mono)
+     * @param sliceIndex     Index of the phoneme segment in `alignment.phonemes`
+     * @param alignment      Alignment result containing phoneme timing info
+     * @param pitch          Optional pitch ratio override (default 1.0)
+     * @param reverse        Optional reverse playback flag (default false)
+     * @param targetDuration Optional target step duration in seconds (for pool lookup)
+     * @param scheduledTime  Optional Web Audio `currentTime` at which to schedule playback
+     * @param phonemeId      Optional stable ID for pool lookup (e.g. "bank_0_slice_3")
      */
-    async triggerSlice(audio: Float32Array, sliceIndex: number, alignment: AlignmentResult, pitch: number = 1.0, reverse: boolean = false): Promise<void> {
+    async triggerSlice(
+        audio: Float32Array,
+        sliceIndex: number,
+        alignment: AlignmentResult,
+        pitch: number = 1.0,
+        reverse: boolean = false,
+        targetDuration?: number,
+        scheduledTime?: number,
+        phonemeId?: string,
+    ): Promise<void> {
         if (sliceIndex < 0 || sliceIndex >= alignment.phonemes.length) {
             console.warn(`Slice index ${sliceIndex} out of bounds (max ${alignment.phonemes.length - 1})`);
             return;
@@ -539,10 +569,36 @@ export class SingingVoice {
         const startSample = Math.floor(phoneme.start * alignment.sampleRate);
         const endSample = Math.floor(phoneme.end * alignment.sampleRate);
 
+        // ------------------------------------------------------------------
+        // Pool path: sample-accurate AudioBufferSourceNode playback
+        // ------------------------------------------------------------------
+        if (
+            this.bufferPool !== null &&
+            targetDuration !== undefined && targetDuration > 0 &&
+            phonemeId !== undefined
+        ) {
+            const targetMs = Math.round(targetDuration * 1000);
+            const poolBuffer = this.bufferPool.getNearest(phonemeId, targetMs);
+
+            if (poolBuffer !== null && this.outputDestinations.size > 0) {
+                const when = scheduledTime !== undefined ? scheduledTime : this.audioContext.currentTime;
+                const source = this.audioContext.createBufferSource();
+                source.buffer = poolBuffer;
+                // Connect to every output destination the worklet is currently wired to
+                this.outputDestinations.forEach(dest => source.connect(dest));
+                source.start(when);
+                source.stop(when + targetDuration);
+                return;
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Fall-back: existing Rubber Band worklet path
+        // ------------------------------------------------------------------
+
         // Apply Phoneme-Aware Velocity formatting to amplitude envelope
         let scaledAttack = this.currentAttack;
         let scaledDecay = this.currentDecay;
-        const now = this.audioContext.currentTime;
 
         switch (phoneme.category) {
             case 'plosive':
@@ -760,7 +816,10 @@ export class SingingVoice {
         if (!this.workletNode) {
             throw new Error('Voice not initialized. Call initWorklet() first.');
         }
-        
+
+        // Track so the pool playback path can reach the same output chain.
+        this.outputDestinations.add(destination);
+
         if (this.formantShifter && this.config.enableFormantShifting) {
             // Route through formant shifter
             this.formantShifter.connect(this.workletNode, destination);
@@ -780,6 +839,19 @@ export class SingingVoice {
         if (this.formantShifter) {
             this.formantShifter.disconnect();
         }
+        this.outputDestinations.clear();
+    }
+
+    /**
+     * Attach (or detach) the pre-stretched buffer pool.
+     * Call this once after the pool is initialised so that `triggerSlice`
+     * can use sample-accurate `AudioBufferSourceNode` playback when a
+     * pre-stretched buffer is available.
+     *
+     * @param pool Pool instance, or `null` to disable pool playback.
+     */
+    setPool(pool: PhonemeBufferPool | null): void {
+        this.bufferPool = pool;
     }
 
     /**
@@ -900,6 +972,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set rhythmic gate rate in Hz.
+     * @param rate Gate rate in Hz
+     * @param time Optional time to apply the change (default: now)
+     */
+    setGateRate(rate: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('gateRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set rhythmic gate depth percentage.
+     * @param percent Gate depth (0-100)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setGateDepth(percent: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('gateDepth')?.setValueAtTime(percent / 100, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set breath intensity.
      * @param intensity Breath intensity (0-1)
      * @param time Optional time to apply the change (default: now)
@@ -975,6 +1069,17 @@ export class SingingVoice {
     setGrainPitchQuantize(semitones: number, time?: number): void {
         if (this.workletNode) {
             this.workletNode.parameters.get('grainPitchQuantize')?.setValueAtTime(semitones, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set the trance gate depth.
+     * @param amount Gate depth (0.0 - 1.0)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setTranceGate(amount: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('tranceGate')?.setValueAtTime(amount, time || this.audioContext.currentTime);
         }
     }
 

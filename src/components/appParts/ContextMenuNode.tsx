@@ -36,12 +36,15 @@ export const ContextMenuNode = React.memo(() => {
           currentFormantLfoRate={stepData?.formantLfoRate ?? 0}
           currentFormantLfoDepth={stepData?.formantLfoDepth ?? 0}
           currentVibratoDepth={stepData?.vibratoDepth ?? 0}
+          currentGateDepth={stepData?.gateDepth}
+          currentGateRate={stepData?.gateRate}
           currentDrive={stepData?.drive}
           currentCharacterMorph={stepData?.characterMorph}
           currentReverbSend={stepData?.reverbSend}
           currentReverbType={stepData?.reverbType}
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
+          currentTranceGate={stepData?.tranceGate}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
           onPropertyChange={handleNotePropertyChange}
