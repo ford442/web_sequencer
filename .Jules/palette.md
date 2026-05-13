@@ -10,3 +10,6 @@
 ## 2024-05-24 - BottomBar and TransportToolbar Accessibility Polish
 **Learning:** Interactive elements in `BottomBar.tsx` and `TransportToolbar.tsx` (buttons, selects, range inputs) had inconsistent hover states and lacked proper `focus-visible` indicators, `title` tooltips, and some `aria-label`s.
 **Action:** Enforced a consistent UI/UX 'Palette' standard across all controls in these components: added `focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2`, snappy animations (`transition-all duration-150`, `hover:scale-105 active:scale-95`), and ensured `title` tooltips and `aria-label`s exist.
+## 2024-05-12 - Added Focus Visible to LiveKeyboard Close Button
+**Learning:** For floating modals and guides with absolute positioned close buttons (like LiveKeyboard), the `focus-visible:ring-2` class is necessary for keyboard navigation since standard hover effects don't apply when tabbing.
+**Action:** When adding close buttons (`✕`) to popovers or guides, always include `focus:outline-none focus-visible:ring-2 focus-visible:ring-[color] rounded`.

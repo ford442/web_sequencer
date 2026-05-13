@@ -211,6 +211,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           isCurrent={false} /* Handled by ref manipulation below */
           rowLabel={label}
           rowKey={rowKey}
+          refsArray={stepRefs}
           onToggle={onToggle}
           onPitchChange={onPitchChange}
           onEditLength={onEditLength}
