@@ -1051,6 +1051,17 @@ export class SingingVoice {
     }
 
     /**
+     * Set the trance gate depth.
+     * @param amount Gate depth (0.0 - 1.0)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setTranceGate(amount: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('tranceGate')?.setValueAtTime(amount, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set amplitude envelope attack time.
      * @param attack Attack time in seconds
      * @param time Optional time to apply the change (default: now)

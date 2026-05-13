@@ -44,6 +44,7 @@ export const ContextMenuNode = React.memo(() => {
           currentReverbType={stepData?.reverbType}
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
+          currentTranceGate={stepData?.tranceGate}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
           onPropertyChange={handleNotePropertyChange}
