@@ -404,6 +404,7 @@ export const useAudioEngine = (pyodide: unknown) => {
                     breathIntensity?: number,
                     formantShift?: number,
                     grainPitchQuantize?: number,
+                    tranceGate?: number
                     gateRate?: number,
                     gateDepth?: number
                 },
@@ -557,6 +558,10 @@ export const useAudioEngine = (pyodide: unknown) => {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
                             } else if (params.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
+                            }
+
+                            if (noteParams?.tranceGate !== undefined) {
+                                voice.setTranceGate(noteParams.tranceGate, triggerTime);
                             }
 
                             // Apply Formant LFO
@@ -835,7 +840,8 @@ export const useAudioEngine = (pyodide: unknown) => {
                     characterMorph?: number,
                     breathIntensity?: number,
                     formantShift?: number,
-                    grainPitchQuantize?: number
+                    grainPitchQuantize?: number,
+                    tranceGate?: number
                 }
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices

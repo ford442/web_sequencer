@@ -171,6 +171,7 @@ export interface Note {
   delaySend?: number;
   choir?: number;
   drive?: number;
+  tranceGate?: number;
   gateRate?: number;
   gateDepth?: number;
   phonemes?: PhonemeData[];

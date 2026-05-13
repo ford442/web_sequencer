@@ -49,6 +49,7 @@ interface MelodicStepProps {
   isCurrent?: boolean;
   rowLabel: string;
   rowKey: TrackKey;
+  refsArray: React.MutableRefObject<(SVGGElement | null)[]>;
   onToggle: (rowKey: TrackKey, stepIndex: number, e: React.PointerEvent) => void;
   onPitchChange: (rowKey: TrackKey, stepIndex: number, newPitch: number) => void;
   onEditLength?: (rowKey: TrackKey, stepIndex: number, length: number) => void;
@@ -71,6 +72,7 @@ export const MelodicStep = memo(({
   isCurrent,
   rowLabel,
   rowKey,
+  refsArray,
   onToggle,
   onPitchChange,
   onEditLength,
@@ -227,7 +229,13 @@ export const MelodicStep = memo(({
     // Render inactive step (standard look)
     return (
       <g
-        ref={elementRef}
+        ref={(el) => {
+          // @ts-ignore - TS complains about assigning to read-only ref, but this is a common pattern
+          elementRef.current = el;
+          if (refsArray && refsArray.current) {
+            refsArray.current[stepIndex] = el;
+          }
+        }}
         transform={`translate(${x}, 0)`}
         className="svg-step melodic-step"
         role="button"
@@ -249,7 +257,13 @@ export const MelodicStep = memo(({
 
   return (
     <g
-      ref={elementRef}
+      ref={(el) => {
+        // @ts-ignore
+        elementRef.current = el;
+        if (refsArray && refsArray.current) {
+          refsArray.current[stepIndex] = el;
+        }
+      }}
       transform={`translate(${x}, ${y})`}
       className={`svg-step melodic-step ${isCurrent ? 'is-current' : ''} ${isDragging ? 'is-dragging' : ''}`}
       role="button"

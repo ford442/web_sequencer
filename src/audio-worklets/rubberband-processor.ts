@@ -45,6 +45,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private isReverse = false;
   private freezePhase: number = 0;
   private freezeLfoPhase: number = 0;
+  private gatePhase: number = 0;
+  private currentGateLfo: number = 1.0;
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -69,7 +71,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 }
+      { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
+      { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -432,6 +435,26 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         outputChannel.set(outputView);
         this.expressiveProcessor.process(outputChannel, outputChannel);
+
+        // Trance Gate Effect (Square LFO mapped to amplitude, with smoothing)
+        const tranceGateDepth = parameters.tranceGate ? parameters.tranceGate[0] : 0.0;
+        if (tranceGateDepth > 0) {
+            const gateRate = 12.0; // Fixed 12Hz for rhythmic sync (can be upgraded to param later)
+            const framesInBlock = outputChannel.length;
+            const gatePhaseInc = gateRate / this.sampleRate;
+
+            for (let i = 0; i < framesInBlock; i++) {
+                this.gatePhase += gatePhaseInc;
+                if (this.gatePhase > 1.0) this.gatePhase -= 1.0;
+
+                const targetGateLfo = this.gatePhase < 0.5 ? 1.0 : 0.0;
+                // One-pole smoothing to prevent clicks
+                this.currentGateLfo = (this.currentGateLfo * 0.99) + (targetGateLfo * 0.01);
+
+                const gateMultiplier = 1.0 - (tranceGateDepth * (1.0 - this.currentGateLfo));
+                outputChannel[i] *= gateMultiplier;
+            }
+        }
       } else if (this.isPlaying) {
         // Check for completion when no output is available but we're still marked as playing
         if (this.isReverse) {
