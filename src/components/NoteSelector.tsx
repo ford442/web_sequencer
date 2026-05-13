@@ -53,6 +53,7 @@ interface NoteSelectorProps {
         | 'freezeEnvDepth'
         | 'grainEnvDepth'
         | 'grainPitchQuantize'
+        | 'tranceGate'
         | 'formantShift'
         | 'filterCutoff'
         | 'filterResonance'
@@ -63,6 +64,8 @@ interface NoteSelectorProps {
         | 'formantEnvDecay'
         | 'formantEnvAmount'
         | 'vibratoDepth'
+        | 'gateDepth'
+        | 'gateRate'
         | 'drive'
         | 'characterMorph'
         | 'reverbSend'
@@ -91,6 +94,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
     currentVibratoDepth = 0,
+    currentGateDepth,      // from main
+    currentGateRate,       // from main
     currentDrive,
     currentCharacterMorph = 0,
     currentReverbSend,
@@ -100,6 +105,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentGrainEnvDepth = 0,
     currentGrainPitchQuantize = 0,
     currentChoir,
+    currentTranceGate = 0, // from jules branch
 
     // Gate parameters (from feat-rhythmic-gating)
     currentGateDepth = 0,
@@ -136,12 +142,13 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
             >
                 <div className="flex justify-between items-center pb-2 border-b border-cyan-900/30">
                     <span id="note-selector-title" className="text-xs font-bold font-orbitron text-cyan-400 tracking-widest drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]">NOTE PROPERTIES</span>
-                    <button onClick={onClose} aria-label="Close" title="Close" className="text-cyan-600 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 rounded">✕</button>
+                    <button onClick={onClose} aria-label="Close note properties" title="Close note properties (Esc)" className="text-cyan-600 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 rounded">✕</button>
                 </div>
 
                 {/* NEW: Duration Control */}
-                <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                    <legend className="sr-only">Duration Control</legend>
+                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
                         <label htmlFor="note-duration">Duration</label>
                         <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentLength} Steps</span>
                     </div>
@@ -156,13 +163,14 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                         aria-valuetext={`${currentLength} Steps`}
                         aria-label="Duration"
                     />
-                </div>
+                </fieldset>
 
                 {onPropertyChange && (
                     <>
                         {/* Velocity Control */}
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                        <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                            <legend className="sr-only">Velocity Control</legend>
+                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
                                 <label htmlFor="note-velocity">Velocity</label>
                                 <span className="text-emerald-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]">{Math.round((currentVelocity + 0.0001) * 100)}%</span>
                             </div>
@@ -178,11 +186,12 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 aria-valuetext={`${Math.round((currentVelocity + 0.0001) * 100)}%`}
                                 aria-label="Velocity"
                             />
-                        </div>
+                        </fieldset>
 
                         {/* Timbre Control */}
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                        <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                            <legend className="sr-only">Expression Control</legend>
+                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
                                 <label htmlFor="note-timbre">Expression</label>
                                 <span className="text-pink-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(244,114,182,0.5)]">{Math.round((currentTimbre + 0.0001) * 100)}%</span>
                             </div>
@@ -198,11 +207,12 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 aria-valuetext={`${Math.round((currentTimbre + 0.0001) * 100)}%`}
                                 aria-label="Expression"
                             />
-                        </div>
+                        </fieldset>
 
                         {/* Probability Control */}
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                        <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                            <legend className="sr-only">Probability Control</legend>
+                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
                                 <label htmlFor="note-prob">Probability</label>
                                 <span className="text-yellow-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(250,204,21,0.5)]">{Math.round((currentProbability + 0.0001) * 100)}%</span>
                             </div>
@@ -218,11 +228,12 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 aria-valuetext={`${Math.round((currentProbability + 0.0001) * 100)}%`}
                                 aria-label="Probability"
                             />
-                        </div>
+                        </fieldset>
 
                         {/* Microtiming Control */}
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                        <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                            <legend className="sr-only">Microtiming Control</legend>
+                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
                                 <label htmlFor="note-micro">Microtiming</label>
                                 <span className="text-purple-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(192,132,252,0.5)]">{currentMicrotiming > 0 ? '+' : ''}{currentMicrotiming.toFixed(2)}</span>
                             </div>
@@ -238,7 +249,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 aria-valuetext={`${currentMicrotiming > 0 ? '+' : ''}${currentMicrotiming.toFixed(2)} steps`}
                                 aria-label="Microtiming"
                             />
-                        </div>
+                        </fieldset>
 
                         {/* Freeze (Spectral Smear) Control */}
                         {trackType === "synth" && (
@@ -342,8 +353,9 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
 
                         {/* Delay Send Control */}
                         {onPropertyChange && (
-                            <div className="flex flex-col gap-1">
-                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                            <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                                <legend className="sr-only">Delay Send Control</legend>
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
                                     <label htmlFor="note-delay-send">Delay Send</label>
                                     <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%</span>
                                 </div>
@@ -359,7 +371,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     aria-valuetext={`${currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%`}
                                     aria-label="Delay Send"
                                 />
-                            </div>
+                            </fieldset>
                         )}
                         {/* Rhythmic Gate Parameters */}
                         {trackType === 'synth' && (   // or 'sampler' if you want both
@@ -596,8 +608,9 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                         )}
 
                         {/* Filter Cutoff Control */}
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                        <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                            <legend className="sr-only">Filter Cutoff Control</legend>
+                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
                                 <label htmlFor="note-cutoff">Filter Cutoff</label>
                                 <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentFilterCutoff !== undefined ? Math.round(currentFilterCutoff * 100) : 100}%</span>
                             </div>
@@ -613,11 +626,12 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 aria-valuetext={`${currentFilterCutoff !== undefined ? Math.round(currentFilterCutoff * 100) : 100}%`}
                                 aria-label="Filter Cutoff"
                             />
-                        </div>
+                        </fieldset>
 
                         {/* Filter Resonance Control */}
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                        <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                            <legend className="sr-only">Filter Resonance Control</legend>
+                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
                                 <label htmlFor="note-resonance">Filter Res</label>
                                 <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentFilterResonance !== undefined ? Math.round(currentFilterResonance * 100) : 0}%</span>
                             </div>
@@ -633,11 +647,12 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 aria-valuetext={`${currentFilterResonance !== undefined ? Math.round(currentFilterResonance * 100) : 0}%`}
                                 aria-label="Filter Resonance"
                             />
-                        </div>
+                        </fieldset>
 
                         {/* Envelope Mod Control */}
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+                        <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                            <legend className="sr-only">Envelope Modulation Control</legend>
+                            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase" aria-hidden="true">
                                 <label htmlFor="note-envmod">Env Mod</label>
                                 <span className="text-emerald-400">{currentEnvMod !== undefined ? Math.round(currentEnvMod * 100) : 50}%</span>
                             </div>
@@ -653,12 +668,13 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 aria-valuetext={`${currentEnvMod !== undefined ? Math.round(currentEnvMod * 100) : 50}%`}
                                 aria-label="Envelope Modulation"
                             />
-                        </div>
+                        </fieldset>
 
                         {/* Retrigger (Ratchet) Control */}
-                        <div className="flex flex-col gap-1 pb-1">
-                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                                <label id="retrigger-label">Retrigger</label>
+                        <fieldset className="flex flex-col gap-1 pb-1 border-none p-0 m-0">
+                            <legend className="sr-only">Retrigger Control</legend>
+                            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
+                                <span id="retrigger-label">Retrigger</span>
                                 <span className="text-purple-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(192,132,252,0.5)]">{currentRetrigger > 1 ? `${currentRetrigger}x` : 'OFF'}</span>
                             </div>
                             <div
@@ -678,7 +694,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     </button>
                                 ))}
                             </div>
-                        </div>
+                        </fieldset>
 
                         {/* Reverse Control */}
                         <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase py-1">

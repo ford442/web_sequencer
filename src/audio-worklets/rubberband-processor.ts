@@ -46,7 +46,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private freezePhase: number = 0;
   private freezeLfoPhase: number = 0;
   private gatePhase: number = 0;
-  private currentGate: number = 0;
+  private currentGateLfo: number = 1.0;
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -436,8 +436,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         );
 
         outputChannel.set(outputView);
-        this.expressiveProcessor.process(outputChannel, outputChannel);
-      // Apply Rhythmic Gating (Trance Gate)
+        this.expressiveProcessor.process(outputChannel, outputChannel);      // Apply Rhythmic Gating (Trance Gate)
       const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0.0;
       const gateRate = parameters.gateRate ? parameters.gateRate[0] : 0.0;
 
@@ -453,14 +452,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
           const targetGate = Math.sin(this.gatePhase) > 0 ? 1.0 : 0.0;
 
-          // ~4–6 ms one-pole smoothing at 44.1/48 kHz
+          // ~4–6 ms one-pole smoothing at 44.1/48 kHz — tight but click-free
           this.currentGate = this.currentGate * 0.92 + targetGate * 0.08;
 
           const gateMultiplier = 1.0 - (gateDepth * (1.0 - this.currentGate));
           outputChannel[i] *= gateMultiplier;
         }
-
-      } else if (this.isPlaying) {
+      }
         // Check for completion when no output is available but we're still marked as playing
         if (this.isReverse) {
           if (this.currentSamplePtr < this.startSamplePtr) this.isPlaying = false;
