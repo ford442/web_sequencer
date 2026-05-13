@@ -46,7 +46,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private freezePhase: number = 0;
   private freezeLfoPhase: number = 0;
   private gatePhase: number = 0;
-  private currentGateLfo: number = 1.0;
+  private currentGate: number = 0;
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -72,6 +72,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
+      { name: 'gateDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'gateRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 }
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
@@ -435,26 +437,29 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         outputChannel.set(outputView);
         this.expressiveProcessor.process(outputChannel, outputChannel);
+      // Apply Rhythmic Gating (Trance Gate)
+      const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0.0;
+      const gateRate = parameters.gateRate ? parameters.gateRate[0] : 0.0;
 
-        // Trance Gate Effect (Square LFO mapped to amplitude, with smoothing)
-        const tranceGateDepth = parameters.tranceGate ? parameters.tranceGate[0] : 0.0;
-        if (tranceGateDepth > 0) {
-            const gateRate = 12.0; // Fixed 12Hz for rhythmic sync (can be upgraded to param later)
-            const framesInBlock = outputChannel.length;
-            const gatePhaseInc = gateRate / this.sampleRate;
+      if (gateDepth > 0 && gateRate > 0) {
+        const sampleRate = (globalThis as any).sampleRate ?? 44100;
+        const phaseIncrement = (2 * Math.PI * gateRate) / sampleRate;
 
-            for (let i = 0; i < framesInBlock; i++) {
-                this.gatePhase += gatePhaseInc;
-                if (this.gatePhase > 1.0) this.gatePhase -= 1.0;
+        for (let i = 0; i < outputChannel.length; i++) {
+          this.gatePhase += phaseIncrement;
+          if (this.gatePhase > 2 * Math.PI) {
+            this.gatePhase -= 2 * Math.PI;
+          }
 
-                const targetGateLfo = this.gatePhase < 0.5 ? 1.0 : 0.0;
-                // One-pole smoothing to prevent clicks
-                this.currentGateLfo = (this.currentGateLfo * 0.99) + (targetGateLfo * 0.01);
+          const targetGate = Math.sin(this.gatePhase) > 0 ? 1.0 : 0.0;
 
-                const gateMultiplier = 1.0 - (tranceGateDepth * (1.0 - this.currentGateLfo));
-                outputChannel[i] *= gateMultiplier;
-            }
+          // ~4–6 ms one-pole smoothing at 44.1/48 kHz
+          this.currentGate = this.currentGate * 0.92 + targetGate * 0.08;
+
+          const gateMultiplier = 1.0 - (gateDepth * (1.0 - this.currentGate));
+          outputChannel[i] *= gateMultiplier;
         }
+
       } else if (this.isPlaying) {
         // Check for completion when no output is available but we're still marked as playing
         if (this.isReverse) {

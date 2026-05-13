@@ -928,6 +928,28 @@ export class SingingVoice {
     }
 
     /**
+     * Set gate depth for rhythmic gating effect.
+     * @param percent Gate depth (0-100)
+     * @param time Optional time to apply the change
+     */
+    setGateDepth(percent: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('gateDepth')?.setValueAtTime(percent / 100, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set gate LFO rate in Hz.
+     * @param rate Gate rate in Hz
+     * @param time Optional time to apply the change
+     */
+    setGateRate(rate: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('gateRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set tremolo rate in Hz.
      * @param rate Tremolo rate in Hz
      * @param time Optional time to apply the change (default: now)
