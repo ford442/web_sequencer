@@ -108,7 +108,7 @@ export function playSampler(
     let targetMidi = noteToMidi(note);
     targetMidi = applyMicrotonalTuning(targetMidi, tuning);
 
-    let playbackBuffer: AudioBuffer;
+    let playbackBuffer: AudioBuffer | null;
     let pitchRatio: number;
 
     if (multisampleBank?.pitchBank.has(targetMidi)) {
@@ -171,7 +171,7 @@ export function noteOnSampler(
 
     const source = context.createBufferSource();
 
-    let playbackBuffer: AudioBuffer;
+    let playbackBuffer: AudioBuffer | null;
     let pitchRatio: number;
 
     if (multisampleBank?.pitchBank.has(targetMidi)) {

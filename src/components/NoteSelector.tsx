@@ -29,8 +29,6 @@ interface NoteSelectorProps {
     currentFormantLfoRate?: number;
     currentFormantLfoDepth?: number;
     currentVibratoDepth?: number;
-    currentGateDepth?: number;      // from main
-    currentGateRate?: number;       // from main
     currentDrive?: number;
     currentCharacterMorph?: number;
     currentReverbSend?: number;
@@ -41,6 +39,8 @@ interface NoteSelectorProps {
     currentTranceGate?: number;
     currentDelaySend?: number;
     currentChoir?: number;
+    currentGateDepth?: number;
+    currentGateRate?: number;
     onPropertyChange?: (key:
         | 'timbre'
         | 'velocity'
@@ -91,8 +91,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
     currentVibratoDepth = 0,
-    currentGateDepth,
-    currentGateRate,
     currentDrive,
     currentCharacterMorph = 0,
     currentReverbSend,
@@ -104,6 +102,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentChoir,
     currentTranceGate = 0, // from jules branch
 
+    currentGateDepth = 0,
+    currentGateRate = 8,
     onPropertyChange
 }) => {
     // Determine octave range based on track type
