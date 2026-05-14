@@ -434,10 +434,10 @@ export function createNoteOnSynth(
         }
 
         if (manager) {
-            manager.play(params, note, now, 0, undefined, null);
+            const voice = manager.playNote(params, note, now, 0);
             const id = refs.nextSynthNoteId.current++;
             refs.activeSynthNotes.current.set(id, {
-                stop: () => manager?.stopNote(context.currentTime, params),
+                stop: () => voice.stopNote(context.currentTime, params)
             });
             return id;
         }
@@ -472,8 +472,8 @@ export function createStopAllNotes(
         });
         refs.activeSamplerNotes.current.clear();
 
-        refs.voiceManagerARef.current?.stopAll();
-        refs.voiceManagerBRef.current?.stopAll();
+        refs.voiceManagerARef.current?.stopAll(0);
+        refs.voiceManagerBRef.current?.stopAll(0);
         refs.singingVoiceManagerRef.current?.stopAll();
         refs.open303ManagerRef.current?.noteOffBass1(0);
         refs.open303ManagerRef.current?.noteOffBass2(0);
