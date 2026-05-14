@@ -1,0 +1,13 @@
+--- src/hooks/audioEngine/audioPlayback.ts
++++ src/hooks/audioEngine/audioPlayback.ts
+@@ -475,8 +475,8 @@
+         });
+         refs.activeSamplerNotes.current.clear();
+
+-        refs.voiceManagerARef.current?.stopAllNotes();
+-        refs.voiceManagerBRef.current?.stopAllNotes();
++        refs.voiceManagerARef.current?.stopAll();
++        refs.voiceManagerBRef.current?.stopAll();
+         refs.singingVoiceManagerRef.current?.stopAll();
+         refs.open303ManagerRef.current?.noteOffBass1(0);
+         refs.open303ManagerRef.current?.noteOffBass2(0);

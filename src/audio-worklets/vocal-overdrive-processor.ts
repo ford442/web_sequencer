@@ -1,5 +1,5 @@
-
-// src/audio-worklets/vocal-overdrive-processor.ts
+/// <reference lib="dom" />
+/// <reference types="vite/client" />
 class VocalOverdriveProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [

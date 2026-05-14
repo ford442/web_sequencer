@@ -434,7 +434,7 @@ export function createNoteOnSynth(
         }
 
         if (manager) {
-            manager.play(params, note, now, 0, undefined, null);
+            manager.noteOn(params, note, now);
             const id = refs.nextSynthNoteId.current++;
             refs.activeSynthNotes.current.set(id, {
                 stop: () => manager?.stopNote(context.currentTime, params),
