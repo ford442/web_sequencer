@@ -46,6 +46,7 @@ import { engineTelemetry } from '../utils/engineTelemetry';
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
+import vocalOverdriveProcessorUrl from '../audio-worklets/vocal-overdrive-processor.ts?worker&url';
 
 type AudioWindow = Window & typeof globalThis & {
     webkitAudioContext?: typeof AudioContext;
@@ -259,6 +260,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
 
+            try {
+                await context.audioWorklet.addModule(vocalOverdriveProcessorUrl);
+            } catch (error) {
+                console.error('VocalOverdrive AudioWorklet initialization failed:', error);
+            }
+
             // --- Singing Voice Manager Init ---
             try {
                 let wasmBinary: ArrayBuffer | undefined = undefined;
@@ -451,10 +458,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             // Apply Drive/Distortion if present
                             const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
                             if (driveAmount !== undefined && driveAmount > 0) {
-                                const shaper = context.createWaveShaper();
-                                shaper.curve = makeDistortionCurve(driveAmount * 100);
-                                shaper.connect(finalDest);
-                                finalDest = shaper;
+                                try {
+                                    const overdriveNode = new AudioWorkletNode(context, 'vocal-overdrive-processor', {
+                                        parameterData: {
+                                            drive: driveAmount
+                                        }
+                                    });
+                                    overdriveNode.connect(finalDest);
+                                    finalDest = overdriveNode;
+                                } catch (e) {
+                                    const shaper = context.createWaveShaper();
+                                    shaper.curve = makeDistortionCurve(driveAmount * 100);
+                                    shaper.connect(finalDest);
+                                    finalDest = shaper;
+                                }
                             }
 
                             // Apply Per-Step Filter if present, or fallback to global filter settings
@@ -780,12 +797,25 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         : params.filterResonance;
                     filter.Q.value = resonance;
 
-                    const shaper = context.createWaveShaper();
+                    let finalShaperDest: AudioNode | null = null;
                     const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
                     if (driveAmount > 0) {
-                        shaper.curve = makeDistortionCurve(driveAmount * 100);
+                        try {
+                            const overdriveNode = new AudioWorkletNode(context, 'vocal-overdrive-processor', {
+                                parameterData: {
+                                    drive: driveAmount
+                                }
+                            });
+                            finalShaperDest = overdriveNode;
+                        } catch (e) {
+                            const shaper = context.createWaveShaper();
+                            shaper.curve = makeDistortionCurve(driveAmount * 100);
+                            finalShaperDest = shaper;
+                        }
                     } else {
+                        const shaper = context.createWaveShaper();
                         shaper.curve = null;
+                        finalShaperDest = shaper;
                     }
 
                     let finalDestination: AudioNode = masterSaturationRef.current!;
@@ -797,8 +827,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     }
 
                     source.connect(filter);
-                    filter.connect(shaper);
-                    shaper.connect(gain);
+                    if (finalShaperDest) {
+                        filter.connect(finalShaperDest);
+                        finalShaperDest.connect(gain);
+                    } else {
+                        filter.connect(gain);
+                    }
                     gain.connect(finalDestination);
 
                     source.start(startTime);

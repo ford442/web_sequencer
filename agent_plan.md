@@ -63,7 +63,7 @@
 ## 🧠 Innovation Lab (The "Dream" Log)
 * [x] **Idea:** "Spectral Sidechaining" - Duck specific frequencies (like low-end) instead of broadband gain when the kick drum hits, avoiding pumping artifacts on the highs. (Implemented via BiquadFilterNode lowshelf modulation!)
 * [x] **Idea:** "AI Auto-EQ Assistant" - Automatically analyze the frequency spectrum of all tracks and subtly EQ conflicting frequencies to prevent masking (e.g., dipping 200Hz on Synths when the Bass plays).
-* **Idea:** "Vocal Overdrive Worklet" - Add a custom AudioWorklet for nonlinear vocal tube distortion.
+* [x] **Idea:** "Vocal Overdrive Worklet" - Add a custom AudioWorklet for nonlinear vocal tube distortion.
 * [x] **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals. (Implemented!)
 * [x] **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals. (Implemented via square LFO parameter in RubberBandProcessor!)
 * [x] **Idea:** "Rhythmic Gating" - Step-sequenced trance gate effect for vocals. (Implemented in `ExpressiveVoiceProcessor` and exposed to `NoteSelector` and `SamplerPanel` for rhythmic amplitude gating!)
@@ -188,3 +188,6 @@
 * [2026-07-01] - Implemented Microtonal Scale Mapping: Added `TuningSystem` types (12-TET, 24-TET, Just Intonation, Pythagorean, Bohlen-Pierce) to `musicTheory.ts` and `ScaleSelector`. Pushed tuning state through `NoteParams` down to `VoiceManager`, `synthPlayback`, `samplerPlayback` and Web Worker for correct tuning rendering offline.
 * [2026-05-08] - Implemented AI Auto-EQ Assistant: Added a `bassSidechainEQBus` (peaking filter at 250Hz) to `initializeMasterOutput`. Implemented `triggerBassEQDuck` to dynamically duck this EQ band on the master synth bus whenever a Bass note (303 or synth bass) triggers, preventing low-mid frequency masking and fulfilling the AI Auto-EQ Assistant Innovation Lab idea. Added new ideas: "Vocal Overdrive Worklet" and "Rhythmic Gating".
 * [2026-05-12] - Implemented Performance Fixes for CI and TS Types: Cleaned up mismatched properties between `SamplerBankParams` UI and internal type definitions (`coarseTune`, `fineTune`, `formantShift`, `quality`, `lockToSequencer`). Cleaned up custom sequencer optimization patch.
+
+* [2026-07-03] - Implemented Vocal Overdrive Worklet: Created vocal-overdrive-processor.ts for nonlinear tube-like distortion and integrated it in useAudioEngine.ts to apply dynamic asymmetric soft clipping when drive > 0. Fulfills the "Vocal Overdrive Worklet" Innovation Lab idea. Added new idea: "Auto-Gain Compensation for Overdrive".
+* **Idea:** "Auto-Gain Compensation for Overdrive" - Automatically adjust the output gain of the Vocal Overdrive worklet based on the drive amount to maintain consistent loudness.
