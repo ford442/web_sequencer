@@ -16,6 +16,8 @@ export interface PitchControlValues {
   quality: 'preview' | 'good' | 'better' | 'best';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
+  pitchAttack?: number;
+  pitchDecay?: number;
 }
 
 interface SamplerPitchControlsProps {

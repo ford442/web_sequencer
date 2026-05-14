@@ -161,3 +161,10 @@ export const nextScaleNote = (
     }
     return midi + direction; // fallback
 };
+
+export type TuningSystem = keyof typeof TUNING_SYSTEMS;
+
+export const getTunedFrequency = (note: string, tuningSystem: string, root: string): number => {
+    const definition: ScaleDefinition = { root, scale: 'Chromatic', tuning: tuningSystem };
+    return tunedNoteToFrequency(note, definition);
+};

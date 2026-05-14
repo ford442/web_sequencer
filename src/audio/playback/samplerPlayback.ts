@@ -138,7 +138,7 @@ export function playSampler(
     filter.Q.value = params.filterResonance ?? 1;
 
     const shaper = context.createWaveShaper();
-    shaper.curve = params.drive > 0 ? makeDistortionCurve(params.drive * 100) : null;
+    shaper.curve = params.drive > 0 ? makeDistortionCurve(params.drive * 100) as Float32Array<ArrayBuffer> : null;
 
     source.connect(filter);
     filter.connect(shaper);

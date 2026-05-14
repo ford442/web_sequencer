@@ -198,6 +198,7 @@ export const useStepHandler = ({
                 decay: bass2Ref.current.decay,
                 sustain: 0,
                 release: 0.1,
+                length: (stepData.length ?? 1) * stepTime,
                 volume: bass2Ref.current.volume,
                 delayTime: 0,
                 delayFeedback: 0,
@@ -215,7 +216,7 @@ export const useStepHandler = ({
                 stepData.length,
                 stepTime,
                 undefined,
-                'bass2',
+                'bass2' as any,
                 currentScale
             );
         };

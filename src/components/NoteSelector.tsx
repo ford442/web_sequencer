@@ -71,8 +71,6 @@ interface NoteSelectorProps {
         | 'reverbType'
         | 'delaySend'
         | 'choir'
-        | 'gateDepth'      // ← kept
-        | 'gateRate'       // ← kept
     , value: number | boolean | string) => void;
 }
 
@@ -385,7 +383,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         min="0"
                                         max="1"
                                         step="0.01"
-                                        value={currentGateDepth}
+                                        value={currentGateDepth ?? 0}
                                         onChange={(e) => onPropertyChange('gateDepth', parseFloat(e.target.value))}
                                         className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                         aria-label="Gate Depth"
@@ -406,7 +404,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         min="0.5"
                                         max="32"
                                         step="0.1"
-                                        value={currentGateRate}
+                                        value={currentGateRate ?? 8}
                                         onChange={(e) => onPropertyChange('gateRate', parseFloat(e.target.value))}
                                         className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                         aria-label="Gate Rate"

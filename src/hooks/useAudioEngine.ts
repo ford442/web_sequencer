@@ -9,7 +9,7 @@ import { Open303Manager } from '../engines/Open303Manager';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
-import { noteToMidi } from '../utils/musicTheory';
+import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
@@ -408,7 +408,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     gateRate?: number,
                     gateDepth?: number
                 },
-                pitchOffsetSemitones: number = 0
+                pitchOffsetSemitones: number = 0,
+                tuning?: ScaleDefinition | null
             ) => {
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
                 const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
@@ -828,67 +829,44 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             // Main playSampler function with harmonizer support
             const playSampler = (
-                params: SamplerBankParams, 
-                note: string | string[], 
-                time: number, 
-                durationSteps: number = 1, 
-                stepTime: number = 0.2, 
-                noteParams?: { 
-                    timbre?: number, 
-                    microtiming?: number, 
-                    reverse?: boolean, 
-                    sliceIndex?: number, 
-                    retrigger?: number, 
-                    slideFromMidi?: number,
-                    slideType?: 'linear' | 'exponential',
-                    phonemes?: PhonemeData[],
-                    freeze?: number,
-                    filterCutoff?: number,
-                    filterResonance?: number,
-                    customLfoShape?: number[],
-                    vibratoDepth?: number,
-                    reverbSend?: number,
-                    delaySend?: number,
-                    choir?: number,
-                    drive?: number,
-                    characterMorph?: number,
-                    breathIntensity?: number,
-                    formantShift?: number,
-                    grainPitchQuantize?: number,
-                    tranceGate?: number
-                }
+                params: SamplerBankParams,
+                note: string | string[],
+                time: number,
+                durationSteps: number = 1,
+                stepTime: number = 0.2,
+                tuning?: ScaleDefinition | null
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
                 const harmonizer = harmonizerRef.current;
                 if (harmonizer?.getIsActive()) {
                     const voices = harmonizer.generateVoices();
-                    
+
                     // Play base voice (index 0) - the original note
-                    playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
-                    
+                    playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
+
                     // Play each harmony voice (skip index 0 which is base)
                     voices.forEach((voice) => {
                         if (voice.index === 0) return; // Skip base voice, already played above
-                        
+
                         // Create modified params for this harmony voice
                         const voiceParams: SamplerBankParams = {
                             ...params,
                             pan: voice.pan,
-                            volume: params.volume * voice.gain * 0.85, // Slightly reduce harmony volume for blend
+                            volume: params.volume * voice.gain * 0.85,
                             formantShift: (params.formantShift || 0) + voice.formantShift,
                             fineTune: (params.fineTune || 0) + voice.detuneCents
                         };
-                        
+
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
-                        const delayMs = voice.index * 5; // 5ms stagger per voice
+                        const delayMs = voice.index * 5;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, noteParams, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;
                 }
 
-                playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
+                playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
             };
 
             const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any | null): number | null => {
@@ -901,8 +879,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 if (!buffer || !masterSaturationRef.current) return null;
 
                 const rootNote = params.rootNote ?? 60;
-                const coarseTune = params.coarseTune ?? params.coarse ?? 0;
-                const fineTune = params.fineTune ?? params.fine ?? 0;
+                const coarseTune = params.coarseTune ?? 0;
+                const fineTune = params.fineTune ?? 0;
 
                 const targetMidi = noteToMidi(note);
                 const source = context.createBufferSource();

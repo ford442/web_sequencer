@@ -1,4 +1,4 @@
-import { ScaleDefinition, applyMicrotonalTuning } from '../utils/musicTheory';
+import { type ScaleDefinition, applyMicrotonalTuning } from '../utils/musicTheory';
 import processorUrl from '../audio-worklets/rubberband-processor.ts?worker&url';
 import { PhonemeAligner, type AlignmentResult } from './rubberband/PhonemeAligner';
 import { FormantShifter, type VoiceCharacter } from './rubberband/FormantShifter';
@@ -968,28 +968,6 @@ export class SingingVoice {
     setTremoloDepth(percent: number, time?: number): void {
         if (this.workletNode) {
             this.workletNode.parameters.get('tremoloDepth')?.setValueAtTime(percent / 100, time || this.audioContext.currentTime);
-        }
-    }
-
-    /**
-     * Set rhythmic gate rate in Hz.
-     * @param rate Gate rate in Hz
-     * @param time Optional time to apply the change (default: now)
-     */
-    setGateRate(rate: number, time?: number): void {
-        if (this.workletNode) {
-            this.workletNode.parameters.get('gateRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
-        }
-    }
-
-    /**
-     * Set rhythmic gate depth percentage.
-     * @param percent Gate depth (0-100)
-     * @param time Optional time to apply the change (default: now)
-     */
-    setGateDepth(percent: number, time?: number): void {
-        if (this.workletNode) {
-            this.workletNode.parameters.get('gateDepth')?.setValueAtTime(percent / 100, time || this.audioContext.currentTime);
         }
     }
 
