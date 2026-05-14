@@ -204,7 +204,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <div className="flex flex-col items-center">
               <Knob
                 label="ATTACK"
-                value={values.pitchAttack}
+                value={values.pitchAttack ?? 0}
                 min={0}
                 max={2000}
                 step={10}
@@ -216,7 +216,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <div className="flex flex-col items-center">
               <Knob
                 label="DECAY"
-                value={values.pitchDecay}
+                value={values.pitchDecay ?? 0}
                 min={0}
                 max={2000}
                 step={10}

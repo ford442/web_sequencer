@@ -286,6 +286,8 @@ export interface AudioEngine {
   // Real-time voice parameter updates
   updateSamplerVoiceParams?: (bankIndex: number, param: string, value: number | string | boolean) => void;
 
+  processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
+
   // Harmonizer & effects
   setHarmonizerConfig?: (config: any, isActive: boolean) => void;
   triggerTapeStop?: (duration?: number) => void;
