@@ -41,7 +41,53 @@ import {
     getClosedHatControls, getOpenHatControls, getSamplerControls,
 } from '../utils/knobConfigs'
 
+
+// --- STRUCTURAL SHALLOW UPDATE HELPERS ---
+const updateSamplerStep = (prev: Pattern, bankIdx: number, step: number, updater: (s: any) => any): Pattern => ({
+    ...prev,
+    sampler: prev.sampler.map((bank, i) =>
+        i === bankIdx
+            ? { ...bank, steps: bank.steps.map((s, j) => (j === step ? updater(s) : s)) }
+            : bank
+    ),
+});
+
+const updateTrackStep = (prev: Pattern, trackKey: keyof Pattern, step: number, updater: (s: any) => any): Pattern => {
+    if (trackKey === 'sampler') return prev; // handled above
+    const track = prev[trackKey] as any;
+    return {
+        ...prev,
+        [trackKey]: {
+            ...track,
+            steps: track.steps.map((s: any, j: number) => (j === step ? updater(s) : s)),
+        },
+    };
+};
+
+const updateSamplerRange = (prev: Pattern, bankIdx: number, low: number, high: number, updater: (s: any) => any): Pattern => ({
+    ...prev,
+    sampler: prev.sampler.map((bank, i) =>
+        i === bankIdx
+            ? { ...bank, steps: bank.steps.map((s, j) => (j >= low && j <= high ? updater(s) : s)) }
+            : bank
+    ),
+});
+
+const updateTrackRange = (prev: Pattern, trackKey: keyof Pattern, low: number, high: number, updater: (s: any) => any): Pattern => {
+    if (trackKey === 'sampler') return prev; // handled above
+    const track = prev[trackKey] as any;
+    return {
+        ...prev,
+        [trackKey]: {
+            ...track,
+            steps: track.steps.map((s: any, j: number) => (j >= low && j <= high ? updater(s) : s)),
+        },
+    };
+};
+// --- END HELPERS ---
+
 export function useAppState() {
+
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
@@ -644,8 +690,8 @@ export function useAppState() {
             if (id) activeKeyboardNotesRef.current.set(note, id); 
         }
         const step = currentStepRef.current;
-        if (isRecording && isPlaying && step >= 0) { setPattern(prev => { const copy = JSON.parse(JSON.stringify(prev)) as Pattern; if (selectedTrack === 'sampler') { copy.sampler[activeSamplerBank].steps[step] = { note, velocity: 1, length: 1 }; updateStorageForTrack('sampler', copy.sampler); } else { copy[selectedTrack].steps[step] = { note, velocity: 1, length: 1 }; updateStorageForTrack(selectedTrack, copy[selectedTrack]); } return copy; }); }
-    }, [audioEngine, selectedTrack, isRecording, isPlaying, updateStorageForTrack, activeSamplerBank]);
+        if (isRecording && isPlaying && step >= 0) { setPattern(prev => { let copy; if (selectedTrack === 'sampler') { copy = updateSamplerStep(prev, activeSamplerBankRef.current, step, () => ({ note, velocity: 1, length: 1 })); updateStorageForTrack('sampler', copy.sampler); } else { copy = updateTrackStep(prev, selectedTrack, step, () => ({ note, velocity: 1, length: 1 })); updateStorageForTrack(selectedTrack, copy[selectedTrack]); } return copy; }); }
+    }, [audioEngine, selectedTrack, isRecording, isPlaying, updateStorageForTrack]);
 
     const handleKeyboardStop = useCallback((note: string) => { if (!audioEngine) return; const id = activeKeyboardNotesRef.current.get(note); if (!id) return; if (selectedTrack === 'partA' || selectedTrack === 'partB' || selectedTrack === 'bass2') { audioEngine.noteOffSynth?.(id); } else if (selectedTrack === 'sampler') { audioEngine.noteOffSampler?.(id); } activeKeyboardNotesRef.current.delete(note); }, [audioEngine, selectedTrack]);
     const handleRightMouseDown = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); let stepData = null; if (track === 'sampler') { stepData = patternRef.current.sampler[activeSamplerBankRef.current].steps[step]; } else { stepData = patternRef.current[track].steps[step]; } if (!stepData) return; setIsNoteDragging(true); const startMidi = noteToMidi(stepData.note); noteDragRef.current = { track, step, startY: e.clientY, startMidi, hasMoved: false, lastMidi: startMidi }; document.body.style.cursor = 'ns-resize'; }, []);
@@ -720,17 +766,15 @@ export function useAppState() {
                 const low = Math.min(startStep, endStep);
                 const high = Math.max(startStep, endStep);
                 setPattern(prev => {
-                    const copy = JSON.parse(JSON.stringify(prev));
+                    let copy;
                     let changedSequence;
                     if (trackKey === 'sampler') {
                         const bankIdx = activeSamplerBankRef.current;
-                        const bank = copy.sampler[bankIdx];
-                        for (let i = low; i <= high; i++) { bank.steps[i] = null; }
+                        copy = updateSamplerRange(prev, bankIdx, low, high, () => null);
                         changedSequence = copy.sampler;
                     } else {
-                        const track = copy[trackKey] as any;
-                        for (let i = low; i <= high; i++) { track.steps[i] = null; }
-                        changedSequence = track;
+                        copy = updateTrackRange(prev, trackKey, low, high, () => null);
+                        changedSequence = copy[trackKey];
                     }
                     updateStorageForTrack(trackKey, changedSequence);
                     return copy;
@@ -753,71 +797,86 @@ export function useAppState() {
     const handleNoteSelect = useCallback((note: string) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
-        const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+        let copy: Pattern;
         let changedSequence;
-        let trackKey: TrackKey;
-        if (contextMenu.track === 'sampler') {
-            trackKey = 'sampler';
-            const stepData = copy.sampler[activeSamplerBank].steps[contextMenu.step];
-            if (stepData) stepData.note = note;
+        const trackKey: TrackKey = contextMenu.track;
+        if (trackKey === 'sampler') {
+            copy = updateSamplerStep(prev, activeSamplerBankRef.current, contextMenu.step, s => s ? { ...s, note } : s);
             changedSequence = copy.sampler;
         } else {
-            trackKey = contextMenu.track;
-            const stepData = copy[trackKey].steps[contextMenu.step];
-            if (stepData) stepData.note = note;
+            copy = updateTrackStep(prev, trackKey, contextMenu.step, s => s ? { ...s, note } : s);
             changedSequence = copy[trackKey];
         }
         setPattern(copy);
         updateStorageForTrack(trackKey, changedSequence);
         setContextMenu(null);
-    }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
+    }, [contextMenu, updateStorageForTrack]);
 
     const handleNoteLengthChange = useCallback((newLength: number) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
-        const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
         const trackKey = contextMenu.track;
         const stepIndex = contextMenu.step;
         const isSampler = trackKey === 'sampler';
-        let stepsArray;
-        if (isSampler) { stepsArray = copy.sampler[activeSamplerBank].steps; } else { stepsArray = (copy[trackKey] as any).steps; }
-        const stepData = stepsArray[stepIndex];
-        if (stepData) {
-            stepData.length = newLength;
-            for (let i = 1; i < newLength; i++) { const nextStepIdx = stepIndex + i; if (nextStepIdx < stepsArray.length) { stepsArray[nextStepIdx] = null; } }
+        let copy = prev;
+
+        if (isSampler) {
+            const bankIdx = activeSamplerBankRef.current;
+            // Update the length of the step
+            copy = updateSamplerStep(copy, bankIdx, stepIndex, s => s ? { ...s, length: newLength } : s);
+            // Nullify the subsequent steps
+            for (let i = 1; i < newLength; i++) {
+                if (stepIndex + i < 256) {
+                   copy = updateSamplerStep(copy, bankIdx, stepIndex + i, () => null);
+                }
+            }
+        } else {
+            // Update the length of the step
+            copy = updateTrackStep(copy, trackKey, stepIndex, s => s ? { ...s, length: newLength } : s);
+            // Nullify the subsequent steps
+            for (let i = 1; i < newLength; i++) {
+                if (stepIndex + i < 256) {
+                   copy = updateTrackStep(copy, trackKey, stepIndex + i, () => null);
+                }
+            }
         }
+
         let changedSequence;
         if (isSampler) { changedSequence = copy.sampler; } else { changedSequence = copy[trackKey]; }
         setPattern(copy);
         updateStorageForTrack(trackKey, changedSequence);
-    }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
+    }, [contextMenu, updateStorageForTrack]);
 
     const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'freezeEnvDepth' | 'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate', value: number | boolean | string) => {
         if (!contextMenu) return;
         const prev = patternRef.current;
-        const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
         const trackKey = contextMenu.track;
         const stepIndex = contextMenu.step;
         const isSampler = trackKey === 'sampler';
-        let stepsArray;
-        if (isSampler) {
-            stepsArray = copy.sampler[activeSamplerBank].steps;
-        } else {
-            stepsArray = (copy[trackKey] as any).steps;
-        }
-        const stepData = stepsArray[stepIndex];
-        if (stepData) {
+        let copy = prev;
+
+        const updater = (s: any) => {
+            if (!s) return s;
+            const ns = { ...s };
             if (key === 'reverse') {
-                if (typeof value === 'boolean') stepData.reverse = value;
+                if (typeof value === 'boolean') ns.reverse = value;
             } else {
-                if (typeof value === 'number') stepData[key] = value;
+                if (typeof value === 'number') ns[key] = value;
             }
+            return ns;
+        };
+
+        if (isSampler) {
+            copy = updateSamplerStep(prev, activeSamplerBankRef.current, stepIndex, updater);
+        } else {
+            copy = updateTrackStep(prev, trackKey, stepIndex, updater);
         }
+
         let changedSequence;
         if (isSampler) { changedSequence = copy.sampler; } else { changedSequence = copy[trackKey]; }
         setPattern(copy);
         updateStorageForTrack(trackKey, changedSequence);
-    }, [contextMenu, activeSamplerBank, updateStorageForTrack]);
+    }, [contextMenu, updateStorageForTrack]);
 
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {
@@ -996,15 +1055,18 @@ export function useAppState() {
             newPhrases[activeSamplerBankRef.current] = text;
             setTtsPhrases(newPhrases);
             const prev = patternRef.current;
-            const copy = JSON.parse(JSON.stringify(prev)) as Pattern;
+            let copy = prev;
             const bankIdx = activeSamplerBankRef.current;
-            const bank = copy.sampler[bankIdx];
             let noteIndex = 0;
             for (let i = 0; i < 32; i++) {
-                if (bank.steps[i] && bank.steps[i]!.velocity > 0) {
-                     bank.steps[i]!.sliceIndex = noteIndex;
-                     noteIndex++;
-                }
+                copy = updateSamplerStep(copy, bankIdx, i, (s) => {
+                    if (s && s.velocity > 0) {
+                        const newStep = { ...s, sliceIndex: noteIndex };
+                        noteIndex++;
+                        return newStep;
+                    }
+                    return s;
+                });
             }
             setPattern(copy);
             updateStorageForTrack('sampler', copy.sampler);
