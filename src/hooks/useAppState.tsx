@@ -860,9 +860,11 @@ export function useAppState() {
             newBank.steps = [...newBank.steps];
             const stepData = newBank.steps[stepIndex];
             if (stepData) {
-                const newStep = { ...stepData };
+                const newStep = { ...stepData } as any;
                 if (key === 'reverse') {
                     if (typeof value === 'boolean') newStep.reverse = value;
+                } else if (key === 'reverbType') {
+                    if (typeof value === 'string') newStep[key] = value;
                 } else {
                     if (typeof value === 'number') newStep[key] = value;
                 }
@@ -876,9 +878,11 @@ export function useAppState() {
             newTrack.steps = [...newTrack.steps];
             const stepData = newTrack.steps[stepIndex];
             if (stepData) {
-                const newStep = { ...stepData };
+                const newStep = { ...stepData } as any;
                 if (key === 'reverse') {
                     if (typeof value === 'boolean') newStep.reverse = value;
+                } else if (key === 'reverbType') {
+                    if (typeof value === 'string') newStep[key] = value;
                 } else {
                     if (typeof value === 'number') newStep[key] = value;
                 }
