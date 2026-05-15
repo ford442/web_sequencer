@@ -82,7 +82,7 @@ export const App: React.FC = () => {
                 <Studio3D
                     header={<TransportHeader />}
                     sequencer={<SequencerNode />}
-                    keyboard={<KeyboardNode />}
+                    keyboard={<KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} />}
                     rack={<RackNode />}
                     onExit={() => setIs3DMode(false)}
                 />
@@ -140,7 +140,7 @@ export const App: React.FC = () => {
                 </div>
 
                 <div className="shrink-0 py-4 mt-2 max-w-[1000px] mx-auto w-full px-4">
-                    <KeyboardNode />
+                    <KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} />
                 </div>
             </main>
 
