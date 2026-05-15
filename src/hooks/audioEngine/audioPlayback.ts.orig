@@ -410,7 +410,7 @@ export function createNoteOnSynth(
                 refs.activeSynthNotes.current.set(id, { stop: () => refs.open303ManagerRef.current?.noteOffBass2(midi) });
                 return id;
             }
-            // 303 not ready — fall through to VoiceManager fallback below
+            return null;
         }
 
         if (track === 'partB' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
@@ -434,10 +434,10 @@ export function createNoteOnSynth(
         }
 
         if (manager) {
-            const voice = manager.playNote(params, note, now, 0);
+            manager.play(params, note, now, 0, undefined, null);
             const id = refs.nextSynthNoteId.current++;
             refs.activeSynthNotes.current.set(id, {
-                stop: () => voice.stopNote(context.currentTime, params)
+                stop: () => manager?.stopNote(context.currentTime, params),
             });
             return id;
         }
