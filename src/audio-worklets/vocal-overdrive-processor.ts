@@ -1,5 +1,14 @@
 /// <reference lib="dom" />
 /// <reference types="vite/client" />
+
+// Definitions for the AudioWorklet scope
+declare class AudioWorkletProcessor {
+  readonly port: MessagePort;
+  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
+}
+
+declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
+
 class VocalOverdriveProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
