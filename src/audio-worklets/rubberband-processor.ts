@@ -95,7 +95,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     switch (type) {
       case 'INIT_WASM':
         try {
-          const { inputBuffer, outputBuffer, wasmBinary } = event.data;
+          const { inputBuffer, outputBuffer, wasmBinary, baseUrl } = event.data;
 
           this.inputRingBuffer = new RingBuffer(inputBuffer);
           this.outputRingBuffer = new RingBuffer(outputBuffer);
@@ -104,12 +104,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             throw new Error("WASM binary not provided in INIT_WASM message");
           }
 
+          const wasmPath = `${baseUrl || '/'}rubberband.wasm`;
           // Instantiate WASM module with the provided binary
           // @ts-ignore
           const module = await createRubberBandModule({
             wasmBinary: wasmBinary,
             locateFile: (path: string) => {
-              if (path.endsWith('.wasm')) return '/rubberband.wasm';
+              if (path.endsWith('.wasm')) return wasmPath;
               return path;
             }
           });

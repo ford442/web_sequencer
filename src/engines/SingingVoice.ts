@@ -212,50 +212,30 @@ export class SingingVoice {
                 inputBuffer,
                 outputBuffer,
                 wasmBinary: binary,
-                moduleUrl: '/rubberband.js'
+                moduleUrl: '/rubberband.js',
+                baseUrl: import.meta.env.BASE_URL
             });
 
-            // Wait for ready signal
+            // Wait for ready signal.
+            // IMPORTANT: use port.onmessage (not addEventListener) — setting onmessage
+            // automatically calls port.start(), which is required to begin message delivery
+            // on a MessagePort. addEventListener alone does NOT start delivery.
             await new Promise<void>((resolve, reject) => {
-                let timeoutId: any = 0;
+                let timeoutId: ReturnType<typeof setTimeout>;
                 const handler = (event: MessageEvent) => {
-                    try { clearTimeout(timeoutId); } catch (_) {}
+                    clearTimeout(timeoutId);
+                    this.workletNode!.port.onmessage = null;
                     if (event.data.type === 'READY') {
-                        try {
-                            if (typeof (this.workletNode!.port as any).removeEventListener === 'function') {
-                                (this.workletNode!.port as any).removeEventListener('message', handler);
-                            } else {
-                                (this.workletNode!.port as any).onmessage = null;
-                            }
-                        } catch (_) {}
                         resolve();
                     } else if (event.data.type === 'ERROR') {
-                        try {
-                            if (typeof (this.workletNode!.port as any).removeEventListener === 'function') {
-                                (this.workletNode!.port as any).removeEventListener('message', handler);
-                            } else {
-                                (this.workletNode!.port as any).onmessage = null;
-                            }
-                        } catch (_) {}
                         reject(new Error(event.data.error || 'Worklet initialization failed'));
                     }
                 };
-                // Support MessagePort implementations that expose addEventListener or onmessage
-                if (typeof (this.workletNode!.port as any).addEventListener === 'function') {
-                    (this.workletNode!.port as any).addEventListener('message', handler);
-                } else {
-                    (this.workletNode!.port as any).onmessage = handler;
-                }
+                this.workletNode!.port.onmessage = handler;
 
                 // Timeout after 10 seconds
                 timeoutId = setTimeout(() => {
-                    try {
-                        if (typeof (this.workletNode!.port as any).removeEventListener === 'function') {
-                            (this.workletNode!.port as any).removeEventListener('message', handler);
-                        } else {
-                            (this.workletNode!.port as any).onmessage = null;
-                        }
-                    } catch (_) {}
+                    this.workletNode!.port.onmessage = null;
                     reject(new Error('Worklet initialization timeout'));
                 }, 10000);
             });
