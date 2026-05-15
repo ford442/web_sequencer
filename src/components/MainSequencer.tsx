@@ -313,7 +313,7 @@ const SvgStep = memo(({
         prev.retrigger === next.retrigger &&
         prev.reverse === next.reverse
     );
-})
+});
 
 const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
     const patternColor = getPatternColor(index);
@@ -532,11 +532,12 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         prev.automationParam === next.automationParam &&
         prev.isDrawing === next.isDrawing &&
         prev.zoom === next.zoom &&
-        JSON.stringify(prev.selectionRange) === JSON.stringify(next.selectionRange) &&
-        JSON.stringify(prev.steps) === JSON.stringify(next.steps) &&
-        JSON.stringify(prev.automation) === JSON.stringify(next.automation) &&
-        JSON.stringify(prev.trackSlots) === JSON.stringify(next.trackSlots) &&
-        JSON.stringify(prev.alignment) === JSON.stringify(next.alignment)
+        prev.selectionRange?.start === next.selectionRange?.start &&
+        prev.selectionRange?.end === next.selectionRange?.end &&
+        prev.steps === next.steps &&
+        prev.automation === next.automation &&
+        prev.trackSlots === next.trackSlots &&
+        prev.alignment === next.alignment
     );
 });
 

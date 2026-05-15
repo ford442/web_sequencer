@@ -287,8 +287,8 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
         prev.isSelected === next.isSelected &&
         prev.activeSlot === next.activeSlot &&
         prev.zoom === next.zoom &&
-        JSON.stringify(prev.steps) === JSON.stringify(next.steps) &&
-        JSON.stringify(prev.trackSlots) === JSON.stringify(next.trackSlots)
+        prev.steps === next.steps &&
+        prev.trackSlots === next.trackSlots
     );
 });
 
