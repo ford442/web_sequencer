@@ -23,6 +23,8 @@ export interface HarmonizerConfig {
     formantSpread: number;
     /** Custom intervals for 'custom' type (in semitones) */
     customIntervals?: number[];
+    /** Bus gain for harmony voices (0-1) */
+    busGain?: number;
 }
 
 /** Generated voice parameters for a single harmony voice */
@@ -85,7 +87,8 @@ export class Harmonizer {
         voiceCount: 2,
         harmonyType: 'third',
         detuneSpread: 15,
-        formantSpread: 3
+        formantSpread: 3,
+        busGain: 0.85
     }) {
         this.config = { ...config };
     }
@@ -272,7 +275,8 @@ export const HARMONIZE_PRESETS = {
         voiceCount: 2,
         harmonyType: 'octave',
         detuneSpread: 8,
-        formantSpread: 2
+        formantSpread: 2,
+        busGain: 0.85
     }),
     
     /** Classic vocal harmony (major third) */
@@ -280,7 +284,8 @@ export const HARMONIZE_PRESETS = {
         voiceCount: 2,
         harmonyType: 'third',
         detuneSpread: 12,
-        formantSpread: 4
+        formantSpread: 4,
+        busGain: 0.85
     }),
     
     /** Rich choir sound with 4 voices */
@@ -288,7 +293,8 @@ export const HARMONIZE_PRESETS = {
         voiceCount: 4,
         harmonyType: 'cluster',
         detuneSpread: 25,
-        formantSpread: 6
+        formantSpread: 6,
+        busGain: 0.85
     }),
     
     /** Power chord style (root + fifth) */
@@ -296,7 +302,8 @@ export const HARMONIZE_PRESETS = {
         voiceCount: 2,
         harmonyType: 'fifth',
         detuneSpread: 10,
-        formantSpread: 3
+        formantSpread: 3,
+        busGain: 0.85
     }),
     
     /** Wide ambient spread */
@@ -305,7 +312,8 @@ export const HARMONIZE_PRESETS = {
         harmonyType: 'custom',
         detuneSpread: 35,
         formantSpread: 8,
-        customIntervals: [0, 7, 12]
+        customIntervals: [0, 7, 12],
+        busGain: 0.85
     })
 };
 

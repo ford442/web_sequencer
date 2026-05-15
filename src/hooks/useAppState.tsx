@@ -300,7 +300,8 @@ export function useAppState() {
         voiceCount: 2,
         harmonyType: 'third',
         detuneSpread: 15,
-        formantSpread: 3
+        formantSpread: 3,
+        busGain: 0.85
     });
     const [isHarmonizeActive, setIsHarmonizeActive] = useState(false);
     
