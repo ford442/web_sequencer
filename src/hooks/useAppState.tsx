@@ -600,8 +600,8 @@ export function useAppState() {
     const handleKeyboardPlay = useCallback((note: string) => {
         if (!audioEngine) return;
         const time = audioEngine.context.currentTime;
-        if (selectedTrack === 'partA') { const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time, 'partA'); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
-        else if (selectedTrack === 'partB') { const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time, 'partB'); Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); }
+        if (selectedTrack === 'partA') { const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time, 'partA'); Promise.resolve(maybe).then((id) => { if (id !== null && id !== undefined) activeKeyboardNotesRef.current.set(note, id); }); }
+        else if (selectedTrack === 'partB') { const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time, 'partB'); Promise.resolve(maybe).then((id) => { if (id !== null && id !== undefined) activeKeyboardNotesRef.current.set(note, id); }); }
         else if (selectedTrack === 'bass2') { 
             const bass2Params: SynthParams = {
                 waveform: bass2Ref.current.waveform,
@@ -620,7 +620,7 @@ export function useAppState() {
                 delayMix: 0,
             };
             const maybe = audioEngine.noteOnSynth?.(bass2Params, note, time, 'bass2'); 
-            Promise.resolve(maybe).then((id) => { if (id) activeKeyboardNotesRef.current.set(note, id); }); 
+            Promise.resolve(maybe).then((id) => { if (id !== null && id !== undefined) activeKeyboardNotesRef.current.set(note, id); });
         }
         else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
         else if (selectedTrack === 'snare') audioEngine.playDrum('snare', snareRef.current, time);
