@@ -410,7 +410,7 @@ export function createNoteOnSynth(
                 refs.activeSynthNotes.current.set(id, { stop: () => refs.open303ManagerRef.current?.noteOffBass2(midi) });
                 return id;
             }
-            return null;
+            // 303 not ready — fall through to VoiceManager fallback below
         }
 
         if (track === 'partB' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
