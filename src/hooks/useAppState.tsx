@@ -41,7 +41,53 @@ import {
     getClosedHatControls, getOpenHatControls, getSamplerControls,
 } from '../utils/knobConfigs'
 
+
+// --- STRUCTURAL SHALLOW UPDATE HELPERS ---
+const updateSamplerStep = (prev: Pattern, bankIdx: number, step: number, updater: (s: any) => any): Pattern => ({
+    ...prev,
+    sampler: prev.sampler.map((bank, i) =>
+        i === bankIdx
+            ? { ...bank, steps: bank.steps.map((s, j) => (j === step ? updater(s) : s)) }
+            : bank
+    ),
+});
+
+const updateTrackStep = (prev: Pattern, trackKey: keyof Pattern, step: number, updater: (s: any) => any): Pattern => {
+    if (trackKey === 'sampler') return prev; // handled above
+    const track = prev[trackKey] as any;
+    return {
+        ...prev,
+        [trackKey]: {
+            ...track,
+            steps: track.steps.map((s: any, j: number) => (j === step ? updater(s) : s)),
+        },
+    };
+};
+
+const updateSamplerRange = (prev: Pattern, bankIdx: number, low: number, high: number, updater: (s: any) => any): Pattern => ({
+    ...prev,
+    sampler: prev.sampler.map((bank, i) =>
+        i === bankIdx
+            ? { ...bank, steps: bank.steps.map((s, j) => (j >= low && j <= high ? updater(s) : s)) }
+            : bank
+    ),
+});
+
+const updateTrackRange = (prev: Pattern, trackKey: keyof Pattern, low: number, high: number, updater: (s: any) => any): Pattern => {
+    if (trackKey === 'sampler') return prev; // handled above
+    const track = prev[trackKey] as any;
+    return {
+        ...prev,
+        [trackKey]: {
+            ...track,
+            steps: track.steps.map((s: any, j: number) => (j >= low && j <= high ? updater(s) : s)),
+        },
+    };
+};
+// --- END HELPERS ---
+
 export function useAppState() {
+
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
     const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
@@ -597,76 +643,107 @@ export function useAppState() {
     }, [handlePatternChange]);
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
-    const handleKeyboardPlay = useCallback((note: string) => {
-        if (!audioEngine) return;
-        const time = audioEngine.context.currentTime;
-        if (selectedTrack === 'partA') { const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time, 'partA'); Promise.resolve(maybe).then((id) => { if (id !== null && id !== undefined) activeKeyboardNotesRef.current.set(note, id); }); }
-        else if (selectedTrack === 'partB') { const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time, 'partB'); Promise.resolve(maybe).then((id) => { if (id !== null && id !== undefined) activeKeyboardNotesRef.current.set(note, id); }); }
-        else if (selectedTrack === 'bass2') { 
-            const bass2Params: SynthParams = {
-                waveform: bass2Ref.current.waveform,
-                pitch: bass2Ref.current.pitch,
-                filterCutoff: bass2Ref.current.cutoff,
-                filterResonance: bass2Ref.current.resonance,
-                filterMode: bass2Ref.current.filterMode,
-                attack: 0.01,
-                decay: bass2Ref.current.decay,
-                sustain: 0,
-                release: 0.1,
-                length: 0.25,
-                volume: bass2Ref.current.volume,
-                delayTime: 0,
-                delayFeedback: 0,
-                delayMix: 0,
-            };
-            const maybe = audioEngine.noteOnSynth?.(bass2Params, note, time, 'bass2'); 
-            Promise.resolve(maybe).then((id) => { if (id !== null && id !== undefined) activeKeyboardNotesRef.current.set(note, id); });
-        }
-        else if (selectedTrack === 'kick') audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
-        else if (selectedTrack === 'snare') audioEngine.playDrum('snare', snareRef.current, time);
-        else if (selectedTrack === 'closedHat') audioEngine.playDrum('closedHat', closedHatRef.current, time);
-        else if (selectedTrack === 'openHat') audioEngine.playDrum('openHat', openHatRef.current, time);
-        else if (selectedTrack === 'sampler') { 
-            const voiceParams = samplerVoiceParamsRef.current;
-            const bankParams = {
-                ...samplerRef.current[activeSamplerBank],
-                rootNote: voiceParams.rootNote,
-                coarseTune: voiceParams.coarseTune,
-                fineTune: voiceParams.fineTune,
-                formantShift: voiceParams.formantShift,
-                attack: voiceParams.attack,
-                decay: voiceParams.decay,
-                quality: voiceParams.quality,
-                stretchMode: voiceParams.stretchMode,
-                lockToSequencer: voiceParams.lockToSequencer
-            };
-            const id = audioEngine.noteOnSampler?.(bankParams, note, time) ?? null; 
-            if (id) activeKeyboardNotesRef.current.set(note, id); 
-        }
-        const step = currentStepRef.current;
-        if (isRecording && isPlaying && step >= 0) {
-            setPattern(prev => {
-                const copy = { ...prev };
-                if (selectedTrack === 'sampler') {
-                    const bankIdx = activeSamplerBankRef.current;
-                    const nextSampler = [...copy.sampler];
-                    const nextBank = { ...nextSampler[bankIdx] };
-                    nextBank.steps = [...nextBank.steps];
-                    nextBank.steps[step] = { note, velocity: 1, length: 1 };
-                    nextSampler[bankIdx] = nextBank;
-                    copy.sampler = nextSampler;
-                    updateStorageForTrack('sampler', nextSampler);
-                } else {
-                    const nextTrack = { ...(copy[selectedTrack] as any) };
-                    nextTrack.steps = [...nextTrack.steps];
-                    nextTrack.steps[step] = { note, velocity: 1, length: 1 };
-                    copy[selectedTrack] = nextTrack;
-                    updateStorageForTrack(selectedTrack, nextTrack);
-                }
-                return copy;
-            });
-        }
-    }, [audioEngine, selectedTrack, isRecording, isPlaying, updateStorageForTrack]);
+const handleKeyboardPlay = useCallback((note: string) => {
+    if (!audioEngine) return;
+
+    const time = audioEngine.context.currentTime;
+
+    // Play the note
+    if (selectedTrack === 'partA') {
+        const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time, 'partA');
+        Promise.resolve(maybe).then((id) => {
+            if (id != null) activeKeyboardNotesRef.current.set(note, id);
+        });
+    } 
+    else if (selectedTrack === 'partB') {
+        const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time, 'partB');
+        Promise.resolve(maybe).then((id) => {
+            if (id != null) activeKeyboardNotesRef.current.set(note, id);
+        });
+    } 
+    else if (selectedTrack === 'bass2') {
+        const bass2Params: SynthParams = {
+            waveform: bass2Ref.current.waveform,
+            pitch: bass2Ref.current.pitch,
+            filterCutoff: bass2Ref.current.cutoff,
+            filterResonance: bass2Ref.current.resonance,
+            filterMode: bass2Ref.current.filterMode,
+            attack: 0.01,
+            decay: bass2Ref.current.decay,
+            sustain: 0,
+            release: 0.1,
+            length: 0.25,
+            volume: bass2Ref.current.volume,
+            delayTime: 0,
+            delayFeedback: 0,
+            delayMix: 0,
+        };
+        const maybe = audioEngine.noteOnSynth?.(bass2Params, note, time, 'bass2');
+        Promise.resolve(maybe).then((id) => {
+            if (id != null) activeKeyboardNotesRef.current.set(note, id);
+        });
+    } 
+    else if (selectedTrack === 'kick') {
+        audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
+    } 
+    else if (selectedTrack === 'snare') {
+        audioEngine.playDrum('snare', snareRef.current, time);
+    } 
+    else if (selectedTrack === 'closedHat') {
+        audioEngine.playDrum('closedHat', closedHatRef.current, time);
+    } 
+    else if (selectedTrack === 'openHat') {
+        audioEngine.playDrum('openHat', openHatRef.current, time);
+    } 
+    else if (selectedTrack === 'sampler') {
+        const voiceParams = samplerVoiceParamsRef.current;
+        const bankParams = {
+            ...samplerRef.current[activeSamplerBank],
+            rootNote: voiceParams.rootNote,
+            coarseTune: voiceParams.coarseTune,
+            fineTune: voiceParams.fineTune,
+            formantShift: voiceParams.formantShift,
+            attack: voiceParams.attack,
+            decay: voiceParams.decay,
+            quality: voiceParams.quality,
+            stretchMode: voiceParams.stretchMode,
+            lockToSequencer: voiceParams.lockToSequencer,
+        };
+        const id = audioEngine.noteOnSampler?.(bankParams, note, time) ?? null;
+        if (id != null) activeKeyboardNotesRef.current.set(note, id);
+    }
+
+    // Record into pattern if recording + playing
+    const step = currentStepRef.current;
+    if (isRecording && isPlaying && step >= 0) {
+        setPattern(prev => {
+            const copy = { ...prev };
+
+            if (selectedTrack === 'sampler') {
+                const bankIdx = activeSamplerBankRef.current;
+                const nextSampler = [...copy.sampler];
+                const nextBank = { ...nextSampler[bankIdx] };
+
+                nextBank.steps = [...nextBank.steps];
+                nextBank.steps[step] = { note, velocity: 1, length: 1 };
+
+                nextSampler[bankIdx] = nextBank;
+                copy.sampler = nextSampler;
+
+                updateStorageForTrack('sampler', nextSampler);
+            } else {
+                const nextTrack = { ...(copy[selectedTrack] as any) };
+                nextTrack.steps = [...nextTrack.steps];
+                nextTrack.steps[step] = { note, velocity: 1, length: 1 };
+
+                copy[selectedTrack] = nextTrack;
+                updateStorageForTrack(selectedTrack, nextTrack);
+            }
+
+            return copy;
+        });
+    }
+}, [audioEngine, selectedTrack, isRecording, isPlaying, updateStorageForTrack]);
 
     const handleKeyboardStop = useCallback((note: string) => { if (!audioEngine) return; const id = activeKeyboardNotesRef.current.get(note); if (id === undefined) return; if (selectedTrack === 'partA' || selectedTrack === 'partB' || selectedTrack === 'bass2') { audioEngine.noteOffSynth?.(id); } else if (selectedTrack === 'sampler') { audioEngine.noteOffSampler?.(id); } activeKeyboardNotesRef.current.delete(note); }, [audioEngine, selectedTrack]);
     const handleRightMouseDown = useCallback((track: TrackKey, step: number, e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); let stepData = null; if (track === 'sampler') { stepData = patternRef.current.sampler[activeSamplerBankRef.current].steps[step]; } else { stepData = patternRef.current[track].steps[step]; } if (!stepData) return; setIsNoteDragging(true); const startMidi = noteToMidi(stepData.note); noteDragRef.current = { track, step, startY: e.clientY, startMidi, hasMoved: false, lastMidi: startMidi }; document.body.style.cursor = 'ns-resize'; }, []);
@@ -724,178 +801,238 @@ export function useAppState() {
             handlePatternChange(trackKey, stepIndex, undefined);
         }
     }, [isDrawing, drawMode, handlePatternChange]);
+useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-                e.preventDefault();
-                handleCopy();
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-                e.preventDefault();
-                handlePaste();
-            }
-            if ((e.key === 'Delete' || e.key === 'Backspace') && selection) {
-                const { trackKey, startStep, endStep } = selection;
-                const low = Math.min(startStep, endStep);
-                const high = Math.max(startStep, endStep);
-                setPattern(prev => {
-                    const copy = { ...prev };
-                    let changedSequence;
-                    if (trackKey === 'sampler') {
-                        const bankIdx = activeSamplerBankRef.current;
-                        const newSampler = [...copy.sampler];
-                        const newBank = { ...newSampler[bankIdx] };
-                        newBank.steps = [...newBank.steps];
-                        for (let i = low; i <= high; i++) { newBank.steps[i] = null; }
-                        newSampler[bankIdx] = newBank;
-                        copy.sampler = newSampler;
-                        changedSequence = newSampler;
-                    } else {
-                        const newTrack = { ...(copy[trackKey] as any) };
-                        newTrack.steps = [...newTrack.steps];
-                        for (let i = low; i <= high; i++) { newTrack.steps[i] = null; }
-                        copy[trackKey] = newTrack;
-                        changedSequence = newTrack;
+        // Copy
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+            e.preventDefault();
+            handleCopy();
+        }
+
+        // Paste
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+            e.preventDefault();
+            handlePaste();
+        }
+
+        // Delete / Backspace → clear selected range
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selection) {
+            const { trackKey, startStep, endStep } = selection;
+            const low = Math.min(startStep, endStep);
+            const high = Math.max(startStep, endStep);
+
+            setPattern(prev => {
+                const copy = { ...prev };
+
+                if (trackKey === 'sampler') {
+                    const bankIdx = activeSamplerBankRef.current;
+                    const newSampler = [...copy.sampler];
+                    const newBank = { ...newSampler[bankIdx] };
+
+                    newBank.steps = [...newBank.steps];
+                    for (let i = low; i <= high; i++) {
+                        newBank.steps[i] = null;
                     }
-                    updateStorageForTrack(trackKey, changedSequence);
-                    return copy;
-                });
-                setSelection(null);
-            }
-            if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                audioEngine?.triggerTapeStop?.(2.0);
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('mouseup', handleSelectionEnd);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('mouseup', handleSelectionEnd);
-        };
-    }, [selection, handleSelectionEnd, updateStorageForTrack, handleCopy, handlePaste]);
 
-    const handleNoteSelect = useCallback((note: string) => {
-        if (!contextMenu) return;
-        const prev = patternRef.current;
-        const copy = { ...prev };
-        let changedSequence;
-        const trackKey = contextMenu.track;
-        if (trackKey === 'sampler') {
-            const bankIdx = activeSamplerBankRef.current;
-            const newSampler = [...copy.sampler];
-            const newBank = { ...newSampler[bankIdx] };
-            newBank.steps = [...newBank.steps];
-            const stepData = newBank.steps[contextMenu.step];
-            if (stepData) newBank.steps[contextMenu.step] = { ...stepData, note };
-            newSampler[bankIdx] = newBank;
-            copy.sampler = newSampler;
-            changedSequence = newSampler;
-        } else {
-            const newTrack = { ...(copy[trackKey] as any) };
-            newTrack.steps = [...newTrack.steps];
-            const stepData = newTrack.steps[contextMenu.step];
-            if (stepData) newTrack.steps[contextMenu.step] = { ...stepData, note };
-            copy[trackKey] = newTrack;
-            changedSequence = newTrack;
-        }
-        setPattern(copy);
-        updateStorageForTrack(trackKey, changedSequence);
-        setContextMenu(null);
-    }, [contextMenu, updateStorageForTrack]);
+                    newSampler[bankIdx] = newBank;
+                    copy.sampler = newSampler;
 
-    const handleNoteLengthChange = useCallback((newLength: number) => {
-        if (!contextMenu) return;
-        const prev = patternRef.current;
-        const copy = { ...prev };
-        const trackKey = contextMenu.track;
-        const stepIndex = contextMenu.step;
-        let changedSequence;
-        if (trackKey === 'sampler') {
-            const bankIdx = activeSamplerBankRef.current;
-            const newSampler = [...copy.sampler];
-            const newBank = { ...newSampler[bankIdx] };
-            newBank.steps = [...newBank.steps];
-            const stepData = newBank.steps[stepIndex];
-            if (stepData) {
-                newBank.steps[stepIndex] = { ...stepData, length: newLength };
-                for (let i = 1; i < newLength; i++) {
-                    const nextStepIdx = stepIndex + i;
-                    if (nextStepIdx < newBank.steps.length) { newBank.steps[nextStepIdx] = null; }
-                }
-            }
-            newSampler[bankIdx] = newBank;
-            copy.sampler = newSampler;
-            changedSequence = newSampler;
-        } else {
-            const newTrack = { ...(copy[trackKey] as any) };
-            newTrack.steps = [...newTrack.steps];
-            const stepData = newTrack.steps[stepIndex];
-            if (stepData) {
-                newTrack.steps[stepIndex] = { ...stepData, length: newLength };
-                for (let i = 1; i < newLength; i++) {
-                    const nextStepIdx = stepIndex + i;
-                    if (nextStepIdx < newTrack.steps.length) { newTrack.steps[nextStepIdx] = null; }
-                }
-            }
-            copy[trackKey] = newTrack;
-            changedSequence = newTrack;
-        }
-        setPattern(copy);
-        updateStorageForTrack(trackKey, changedSequence);
-    }, [contextMenu, updateStorageForTrack]);
-
-    const handleNotePropertyChange = useCallback((key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'freezeEnvDepth' | 'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate', value: number | boolean | string) => {
-        if (!contextMenu) return;
-        const prev = patternRef.current;
-        const copy = { ...prev };
-        const trackKey = contextMenu.track;
-        const stepIndex = contextMenu.step;
-        let changedSequence;
-        if (trackKey === 'sampler') {
-            const bankIdx = activeSamplerBankRef.current;
-            const newSampler = [...copy.sampler];
-            const newBank = { ...newSampler[bankIdx] };
-            newBank.steps = [...newBank.steps];
-            const stepData = newBank.steps[stepIndex];
-            if (stepData) {
-                const newStep = { ...stepData } as any;
-                if (key === 'reverse') {
-                    if (typeof value === 'boolean') newStep.reverse = value;
-                } else if (key === 'reverbType') {
-                    if (typeof value === 'string') newStep[key] = value;
+                    updateStorageForTrack(trackKey, newSampler);
                 } else {
-                    if (typeof value === 'number') newStep[key] = value;
-                }
-                newBank.steps[stepIndex] = newStep;
-            }
-            newSampler[bankIdx] = newBank;
-            copy.sampler = newSampler;
-            changedSequence = newSampler;
-        } else {
-            const newTrack = { ...(copy[trackKey] as any) };
-            newTrack.steps = [...newTrack.steps];
-            const stepData = newTrack.steps[stepIndex];
-            if (stepData) {
-                const newStep = { ...stepData } as any;
-                if (key === 'reverse') {
-                    if (typeof value === 'boolean') newStep.reverse = value;
-                } else if (key === 'reverbType') {
-                    if (typeof value === 'string') newStep[key] = value;
-                } else {
-                    if (typeof value === 'number') newStep[key] = value;
-                }
-                newTrack.steps[stepIndex] = newStep;
-            }
-            copy[trackKey] = newTrack;
-            changedSequence = newTrack;
-        }
-        setPattern(copy);
-        updateStorageForTrack(trackKey, changedSequence);
-    }, [contextMenu, updateStorageForTrack]);
+                    const newTrack = { ...(copy[trackKey] as any) };
+                    newTrack.steps = [...newTrack.steps];
+                    for (let i = low; i <= high; i++) {
+                        newTrack.steps[i] = null;
+                    }
 
+                    copy[trackKey] = newTrack;
+                    updateStorageForTrack(trackKey, newTrack);
+                }
+
+                return copy;
+            });
+
+            setSelection(null);
+        }
+
+        // Escape → stop tape
+        if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            audioEngine?.triggerTapeStop?.(2.0);
+        }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mouseup', handleSelectionEnd);
+
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('mouseup', handleSelectionEnd);
+    };
+}, [selection, handleSelectionEnd, updateStorageForTrack, handleCopy, handlePaste]);
+const handleNoteSelect = useCallback((note: string) => {
+    if (!contextMenu) return;
+
+    const prev = patternRef.current;
+    const copy = { ...prev };
+    const trackKey = contextMenu.track as TrackKey;
+
+    if (trackKey === 'sampler') {
+        const bankIdx = activeSamplerBankRef.current;
+        const newSampler = [...copy.sampler];
+        const newBank = { ...newSampler[bankIdx] };
+
+        newBank.steps = [...newBank.steps];
+        const stepData = newBank.steps[contextMenu.step];
+        if (stepData) {
+            newBank.steps[contextMenu.step] = { ...stepData, note };
+        }
+
+        newSampler[bankIdx] = newBank;
+        copy.sampler = newSampler;
+
+        setPattern(copy);
+        updateStorageForTrack(trackKey, newSampler);
+    } else {
+        const newTrack = { ...(copy[trackKey] as any) };
+        newTrack.steps = [...newTrack.steps];
+        const stepData = newTrack.steps[contextMenu.step];
+        if (stepData) {
+            newTrack.steps[contextMenu.step] = { ...stepData, note };
+        }
+
+        copy[trackKey] = newTrack;
+
+        setPattern(copy);
+        updateStorageForTrack(trackKey, newTrack);
+    }
+
+    setContextMenu(null);
+}, [contextMenu, updateStorageForTrack]);
+const handleNoteLengthChange = useCallback((newLength: number) => {
+    if (!contextMenu) return;
+
+    const prev = patternRef.current;
+    const copy = { ...prev };
+    const trackKey = contextMenu.track;
+    const stepIndex = contextMenu.step;
+
+    if (trackKey === 'sampler') {
+        const bankIdx = activeSamplerBankRef.current;
+        const newSampler = [...copy.sampler];
+        const newBank = { ...newSampler[bankIdx] };
+        newBank.steps = [...newBank.steps];
+
+        // Update the length of the current step
+        const currentStep = newBank.steps[stepIndex];
+        if (currentStep) {
+            newBank.steps[stepIndex] = { ...currentStep, length: newLength };
+        }
+
+        // Nullify subsequent steps covered by the new length
+        for (let i = 1; i < newLength; i++) {
+            const targetIndex = stepIndex + i;
+            if (targetIndex < 256) {
+                newBank.steps[targetIndex] = null;
+            }
+        }
+
+        newSampler[bankIdx] = newBank;
+        copy.sampler = newSampler;
+
+        setPattern(copy);
+        updateStorageForTrack(trackKey, newSampler);
+    } else {
+        const newTrack = { ...(copy[trackKey] as any) };
+        newTrack.steps = [...newTrack.steps];
+
+        // Update the length of the current step
+        const currentStep = newTrack.steps[stepIndex];
+        if (currentStep) {
+            newTrack.steps[stepIndex] = { ...currentStep, length: newLength };
+        }
+
+        // Nullify subsequent steps covered by the new length
+        for (let i = 1; i < newLength; i++) {
+            const targetIndex = stepIndex + i;
+            if (targetIndex < 256) {
+                newTrack.steps[targetIndex] = null;
+            }
+        }
+
+        copy[trackKey] = newTrack;
+
+        setPattern(copy);
+        updateStorageForTrack(trackKey, newTrack);
+    }
+
+    setContextMenu(null);
+}, [contextMenu, updateStorageForTrack]);
+
+const handleNotePropertyChange = useCallback((
+    key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 
+         'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 
+         'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
+         'characterMorph' | 'reverbSend' | 'reverbType' | 'delaySend' | 'freezeEnvDepth' | 
+         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate',
+    value: number | boolean | string
+) => {
+    if (!contextMenu) return;
+
+    const prev = patternRef.current;
+    const copy = { ...prev };
+    const trackKey = contextMenu.track;
+    const stepIndex = contextMenu.step;
+
+    const updateStep = (stepData: any) => {
+        if (!stepData) return stepData;
+
+        const newStep = { ...stepData };
+
+        if (key === 'reverse') {
+            if (typeof value === 'boolean') newStep.reverse = value;
+        } else if (key === 'reverbType') {
+            if (typeof value === 'string') newStep[key] = value;
+        } else {
+            if (typeof value === 'number') newStep[key] = value;
+        }
+
+        return newStep;
+    };
+
+    if (trackKey === 'sampler') {
+        const bankIdx = activeSamplerBankRef.current;
+        const newSampler = [...copy.sampler];
+        const newBank = { ...newSampler[bankIdx] };
+        newBank.steps = [...newBank.steps];
+
+        const stepData = newBank.steps[stepIndex];
+        if (stepData) {
+            newBank.steps[stepIndex] = updateStep(stepData);
+        }
+
+        newSampler[bankIdx] = newBank;
+        copy.sampler = newSampler;
+
+        setPattern(copy);
+        updateStorageForTrack(trackKey, newSampler);
+    } else {
+        const newTrack = { ...(copy[trackKey] as any) };
+        newTrack.steps = [...newTrack.steps];
+
+        const stepData = newTrack.steps[stepIndex];
+        if (stepData) {
+            newTrack.steps[stepIndex] = updateStep(stepData);
+        }
+
+        copy[trackKey] = newTrack;
+
+        setPattern(copy);
+        updateStorageForTrack(trackKey, newTrack);
+    }
+}, [contextMenu, updateStorageForTrack]);
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {
             const emptyPattern: Pattern = {
@@ -1065,49 +1202,58 @@ export function useAppState() {
             showToast("Failed to generate drums.", "error");
         }
     }, [handleGenerateTTS, audioEngine, updateStorageForTrack, showToast]);
+const handleLyricApply = useCallback(async (text: string) => {
+    try {
+        await handleGenerateTTS(text);
 
-    const handleLyricApply = useCallback(async (text: string) => {
-        try {
-            await handleGenerateTTS(text);
-            const newPhrases = [...ttsPhrases];
-            newPhrases[activeSamplerBankRef.current] = text;
-            setTtsPhrases(newPhrases);
-            const prev = patternRef.current;
-            const copy = { ...prev };
-            const bankIdx = activeSamplerBankRef.current;
-            const newSampler = [...copy.sampler];
-            const newBank = { ...newSampler[bankIdx] };
-            newBank.steps = [...newBank.steps];
-            let noteIndex = 0;
-            for (let i = 0; i < 32; i++) {
-                if (newBank.steps[i] && newBank.steps[i]!.velocity > 0) {
-                     newBank.steps[i] = { ...newBank.steps[i]!, sliceIndex: noteIndex };
-                     noteIndex++;
-                }
+        const newPhrases = [...ttsPhrases];
+        newPhrases[activeSamplerBankRef.current] = text;
+        setTtsPhrases(newPhrases);
+
+        const prev = patternRef.current;
+        const copy = { ...prev };
+        const bankIdx = activeSamplerBankRef.current;
+
+        const newSampler = [...copy.sampler];
+        const newBank = { ...newSampler[bankIdx] };
+        newBank.steps = [...newBank.steps];
+
+        let noteIndex = 0;
+        for (let i = 0; i < 32; i++) {
+            const step = newBank.steps[i];
+            if (step && step.velocity > 0) {
+                newBank.steps[i] = { ...step, sliceIndex: noteIndex };
+                noteIndex++;
             }
-            newSampler[bankIdx] = newBank;
-            copy.sampler = newSampler;
-            setPattern(copy);
-            updateStorageForTrack('sampler', copy.sampler);
-            setSampler(prevParams => {
-                const next = [...prevParams];
-                if (next[bankIdx]) {
-                    next[bankIdx] = { ...next[bankIdx], sliceMode: 'phoneme' };
-                }
-                samplerRef.current = next;
-                return next;
-            });
-            if (noteIndex > 0) {
-                showToast(`Mapped ${noteIndex} syllables across Sampler Bank ${bankIdx + 1}!`, "success");
-            } else {
-                showToast("Generated TTS! (No notes found to map syllables to)", "success");
-            }
-            setIsLyricTrackVisible(false);
-        } catch (e) {
-            console.error(e);
-            showToast("Failed to generate or map lyrics.", "error");
         }
-    }, [handleGenerateTTS, ttsPhrases, updateStorageForTrack, showToast]);
+
+        newSampler[bankIdx] = newBank;
+        copy.sampler = newSampler;
+
+        setPattern(copy);
+        updateStorageForTrack('sampler', newSampler);
+
+        setSampler(prevParams => {
+            const next = [...prevParams];
+            if (next[bankIdx]) {
+                next[bankIdx] = { ...next[bankIdx], sliceMode: 'phoneme' };
+            }
+            samplerRef.current = next;
+            return next;
+        });
+
+        if (noteIndex > 0) {
+            showToast(`Mapped ${noteIndex} syllables across Sampler Bank ${bankIdx + 1}!`, "success");
+        } else {
+            showToast("Generated TTS! (No notes found to map syllables to)", "success");
+        }
+
+        setIsLyricTrackVisible(false);
+    } catch (e) {
+        console.error(e);
+        showToast("Failed to generate or map lyrics.", "error");
+    }
+}, [handleGenerateTTS, ttsPhrases, updateStorageForTrack, showToast]);
 
     const onSynthAParamChange = useCallback((id: string, v: number) => handleSynthChange(true, id, v), [handleSynthChange]);
     const onSynthBParamChange = useCallback((id: string, v: number) => handleSynthChange(false, id, v), [handleSynthChange]);
