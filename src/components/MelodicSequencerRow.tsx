@@ -280,6 +280,16 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
     );
   }
 ), (prev: any, next: any) => {
+    const arraysEqual = (a?: any[], b?: any[]) => {
+        if (a === b) return true;
+        if (!a || !b) return false;
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; ++i) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    };
+
     return (
         prev.rowKey === next.rowKey &&
         prev.label === next.label &&
@@ -287,8 +297,8 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
         prev.isSelected === next.isSelected &&
         prev.activeSlot === next.activeSlot &&
         prev.zoom === next.zoom &&
-        JSON.stringify(prev.steps) === JSON.stringify(next.steps) &&
-        JSON.stringify(prev.trackSlots) === JSON.stringify(next.trackSlots)
+        arraysEqual(prev.steps, next.steps) &&
+        arraysEqual(prev.trackSlots, next.trackSlots)
     );
 });
 

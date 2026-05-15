@@ -123,7 +123,9 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
                             setAiImportProgress(0);
                             showToast('Import cancelled', 'info');
                         }}
-                        className="mt-4 w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all"
+                        aria-label="Cancel AI Song Import"
+                        title="Cancel AI Song Import"
+                        className="mt-4 w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115] hover:scale-105 active:scale-95"
                     >
                         Cancel Import
                     </button>

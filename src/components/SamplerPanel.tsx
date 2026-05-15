@@ -212,8 +212,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleVibratoDepthChange = paramHandlers.vibratoDepth;
     const handleTremoloRateChange = paramHandlers.tremoloRate;
     const handleTremoloDepthChange = paramHandlers.tremoloDepth;
-    const handleGateRateChange = paramHandlers.gateRate;
-    const handleGateDepthChange = paramHandlers.gateDepth;
+
+
     const handleBreathIntensityChange = paramHandlers.breathIntensity;
     const handleFreezeChange = paramHandlers.freeze;
     const handleFreezeLfoSyncChange = paramHandlers.freezeLfoSync;
@@ -991,7 +991,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                         <legend className="sr-only">Basic Parameters</legend>
                         <div className="text-[9px] text-gray-500 font-bold mb-1 border-b border-gray-700 pb-0.5" aria-hidden="true">BASIC</div>
                         <div className="grid grid-cols-2 gap-2">
-                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.5} max={2.0} min={0.1} max={4.0} color="purple" unit="x" />
+                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" unit="x" />
                             <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
                             <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic unit="Hz" />
                             <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />
@@ -1009,8 +1009,6 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Trem Depth" value={currentParams.tremoloDepth ?? 0} onChange={handleTremoloDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Trem Rate" value={currentParams.tremoloRate ?? 0.1} onChange={handleTremoloRateChange} min={0.1} max={20.0} step={0.1} color="indigo" unit="Hz" />
-                            <Knob label="Gate Depth" value={currentParams.gateDepth ?? 0} onChange={handleGateDepthChange} min={0} max={100} color="indigo" unit="%" />
-                            <Knob label="Gate Rate" value={currentParams.gateRate ?? 4.0} onChange={handleGateRateChange} min={0.1} max={50.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
 

@@ -313,7 +313,7 @@ const SvgStep = memo(({
         prev.retrigger === next.retrigger &&
         prev.reverse === next.reverse
     );
-})
+});
 
 const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
     const patternColor = getPatternColor(index);
@@ -522,6 +522,27 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         </g>
     )
 }), (prev: any, next: any) => {
+    const arraysEqual = (a?: any[], b?: any[]) => {
+        if (a === b) return true;
+        if (!a || !b) return false;
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; ++i) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    };
+    const automationEqual = (a?: any, b?: any) => {
+        if (a === b) return true;
+        if (!a || !b) return false;
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+        for (const key of keysA) {
+            if (!arraysEqual(a[key], b[key])) return false;
+        }
+        return true;
+    };
+
     return (
         prev.rowKey === next.rowKey &&
         prev.label === next.label &&
@@ -532,11 +553,12 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         prev.automationParam === next.automationParam &&
         prev.isDrawing === next.isDrawing &&
         prev.zoom === next.zoom &&
-        JSON.stringify(prev.selectionRange) === JSON.stringify(next.selectionRange) &&
-        JSON.stringify(prev.steps) === JSON.stringify(next.steps) &&
-        JSON.stringify(prev.automation) === JSON.stringify(next.automation) &&
-        JSON.stringify(prev.trackSlots) === JSON.stringify(next.trackSlots) &&
-        JSON.stringify(prev.alignment) === JSON.stringify(next.alignment)
+        prev.selectionRange?.start === next.selectionRange?.start &&
+        prev.selectionRange?.end === next.selectionRange?.end &&
+        arraysEqual(prev.steps, next.steps) &&
+        automationEqual(prev.automation, next.automation) &&
+        arraysEqual(prev.trackSlots, next.trackSlots) &&
+        prev.alignment === next.alignment
     );
 });
 

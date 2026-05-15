@@ -175,11 +175,11 @@ export const INITIAL_PATTERN: Pattern = {
 };
 
 export const AMBIANCE_TRACKS: AmbianceTrack[] = [
-  { name: 'None', url: '' },
-  { name: 'Ocean Waves', url: 'https://www.soundjay.com/nature/ocean-wave-1.mp3' },
-  { name: 'Crickets', url: 'https://www.soundjay.com/nature/crickets-1.mp3' },
-  { name: 'Rain', url: 'https://www.soundjay.com/nature/rain-01.mp3' },
-  { name: 'Forest', url: 'https://www.soundjay.com/nature/forest-1.mp3' },
+  { id: 'none', name: 'None', url: '' },
+  { id: 'ocean', name: 'Ocean Waves', url: 'https://www.soundjay.com/nature/ocean-wave-1.mp3' },
+  { id: 'crickets', name: 'Crickets', url: 'https://www.soundjay.com/nature/crickets-1.mp3' },
+  { id: 'rain', name: 'Rain', url: 'https://www.soundjay.com/nature/rain-01.mp3' },
+  { id: 'forest', name: 'Forest', url: 'https://www.soundjay.com/nature/forest-1.mp3' },
 ];
 
 // Note to Frequency mapping

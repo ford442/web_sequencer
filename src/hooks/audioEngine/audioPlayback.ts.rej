@@ -4,8 +4,8 @@
          const now = context.currentTime;
 
          if (manager) {
--            manager.noteOn(params, note, now);
+-            manager.playNote(params, note, now, 0);
 +            manager.play(params, note, now, 0, undefined, null);
              const id = refs.nextSynthNoteId.current++;
              refs.activeSynthNotes.current.set(id, {
-                 stop: () => manager?.stopNote(context.currentTime, params),
+                 stop: () => manager?.stopNote(context.currentTime, params)

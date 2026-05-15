@@ -10,13 +10,15 @@ import { Knob } from './Knob';
 
 export interface PitchControlValues {
   rootNote: number;
-  coarseTuneTune: number;
-  fineTuneTune: number;
-  formantShiftShift: number;
+  coarseTune: number;
+  fineTune: number;
+  formantShift: number;
   quality: 'preview' | 'good' | 'better' | 'best';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
   pitchAttack?: number;
+  attack?: number;
+  decay?: number;
   pitchDecay?: number;
 }
 
@@ -164,12 +166,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="COARSE"
-              value={values.coarseTuneTune}
+              value={values.coarseTune}
               min={-24}
               max={24}
               step={1}
               color="purple"
-              onChange={(v) => onChange('coarseTuneTune', v)}
+              onChange={(v) => onChange('coarseTune', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">st</span>
           </div>
@@ -177,12 +179,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="FINE"
-              value={values.fineTuneTune}
+              value={values.fineTune}
               min={-50}
               max={50}
               step={1}
               color="purple"
-              onChange={(v) => onChange('fineTuneTune', v)}
+              onChange={(v) => onChange('fineTune', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">¢</span>
           </div>
@@ -190,12 +192,12 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
           <div className="flex flex-col items-center">
             <Knob
               label="FORMANT"
-              value={values.formantShiftShift}
+              value={values.formantShift}
               min={-12}
               max={12}
               step={0.5}
               color="indigo"
-              onChange={(v) => onChange('formantShiftShift', v)}
+              onChange={(v) => onChange('formantShift', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">st</span>
           </div>
@@ -204,7 +206,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <div className="flex flex-col items-center">
               <Knob
                 label="ATTACK"
-                value={values.attack}
+                value={values.attack ?? 0}
                 min={0}
                 max={2000}
                 step={10}
@@ -216,7 +218,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <div className="flex flex-col items-center">
               <Knob
                 label="DECAY"
-                value={values.decay}
+                value={values.decay ?? 0}
                 min={0}
                 max={2000}
                 step={10}

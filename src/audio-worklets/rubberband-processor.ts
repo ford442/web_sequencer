@@ -72,8 +72,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
-      { name: 'gateDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'gateRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
@@ -97,7 +95,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     switch (type) {
       case 'INIT_WASM':
         try {
-          const { inputBuffer, outputBuffer, wasmBinary } = event.data;
+          const { inputBuffer, outputBuffer, wasmBinary, baseUrl } = event.data;
 
           this.inputRingBuffer = new RingBuffer(inputBuffer);
           this.outputRingBuffer = new RingBuffer(outputBuffer);
@@ -106,12 +104,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             throw new Error("WASM binary not provided in INIT_WASM message");
           }
 
+          const wasmPath = `${baseUrl || '/'}rubberband.wasm`;
           // Instantiate WASM module with the provided binary
           // @ts-ignore
           const module = await createRubberBandModule({
             wasmBinary: wasmBinary,
             locateFile: (path: string) => {
-              if (path.endsWith('.wasm')) return '/rubberband.wasm';
+              if (path.endsWith('.wasm')) return wasmPath;
               return path;
             }
           });

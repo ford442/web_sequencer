@@ -463,7 +463,7 @@ export const MelodicStep = memo(({
     prev.isSlide === next.isSlide &&
     prev.isCurrent === next.isCurrent &&
     prev.reverse === next.reverse &&
-    JSON.stringify(prev.phonemes) === JSON.stringify(next.phonemes)
+    prev.phonemes === next.phonemes
   );
 });
 
