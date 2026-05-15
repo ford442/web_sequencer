@@ -194,7 +194,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
             'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'grainEnvDepth', 'grainPitchQuantize',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
-            'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate'
+            'sustain', 'release', 'choir', 'glitchChance',
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
             if (onParamChange) onParamChange(activeBankIdx, p, v);
@@ -212,8 +212,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleVibratoDepthChange = paramHandlers.vibratoDepth;
     const handleTremoloRateChange = paramHandlers.tremoloRate;
     const handleTremoloDepthChange = paramHandlers.tremoloDepth;
-    const handleGateRateChange = paramHandlers.gateRate;
-    const handleGateDepthChange = paramHandlers.gateDepth;
+
+
     const handleBreathIntensityChange = paramHandlers.breathIntensity;
     const handleFreezeChange = paramHandlers.freeze;
     const handleFreezeLfoSyncChange = paramHandlers.freezeLfoSync;
@@ -1009,8 +1009,6 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Trem Depth" value={currentParams.tremoloDepth ?? 0} onChange={handleTremoloDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Trem Rate" value={currentParams.tremoloRate ?? 0.1} onChange={handleTremoloRateChange} min={0.1} max={20.0} step={0.1} color="indigo" unit="Hz" />
-                            <Knob label="Gate Depth" value={currentParams.gateDepth ?? 0} onChange={handleGateDepthChange} min={0} max={100} color="indigo" unit="%" />
-                            <Knob label="Gate Rate" value={currentParams.gateRate ?? 4.0} onChange={handleGateRateChange} min={0.1} max={50.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
 
