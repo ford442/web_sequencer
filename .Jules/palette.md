@@ -13,3 +13,6 @@
 ## 2024-05-12 - Added Focus Visible to LiveKeyboard Close Button
 **Learning:** For floating modals and guides with absolute positioned close buttons (like LiveKeyboard), the `focus-visible:ring-2` class is necessary for keyboard navigation since standard hover effects don't apply when tabbing.
 **Action:** When adding close buttons (`✕`) to popovers or guides, always include `focus:outline-none focus-visible:ring-2 focus-visible:ring-[color] rounded`.
+## 2024-05-25 - AI Song Import Overlay Button Accessibility
+**Learning:** Found that the "Cancel Import" button within the `AISongImportOverlay` lacked proper focus and interactive feedback (hover/active scaling) standard for this app, despite being a crucial action point in a modal.
+**Action:** Always ensure that buttons within modals or temporary overlays adhere to the app's standard visual feedback and accessibility patterns (`focus-visible:ring-2`, `hover:scale-105 active:scale-95`, and proper descriptive `aria-label`/`title`), regardless of the component's depth or context.
