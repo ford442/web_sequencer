@@ -278,7 +278,23 @@ export class VoiceManager {
         return voice;
     }
 
-    stopAll(time: number): void {
-        this.voices.forEach(v => v.stop(time));
+    noteOn(params: SynthParams, note: string, time: number, slideFromFreq?: number): Voice {
+        const voice = this.voices[this.currentIndex]!;
+        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
+        voice.startNote(params, note, time, slideFromFreq);
+        return voice;
+    }
+
+    noteOff(note: string, time: number, params: SynthParams): void {
+        for (const voice of this.voices) {
+            if (voice.isActive && voice.currentNote === note) {
+                voice.stopNote(time, params);
+                break;
+            }
+        }
+    }
+
+    stopAll(time?: number): void {
+        this.voices.forEach(v => v.stop(time ?? v.context.currentTime));
     }
 }

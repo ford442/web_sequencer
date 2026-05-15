@@ -23,8 +23,8 @@ export interface SynthParams {
   filterCutoff: number; // Hz
   filterResonance: number; // Q factor
   filterMode?: number; // 0-1 (filter mode toggle)
-  attack: number; // seconds
-  decay: number; // seconds
+  attack: number;
+  decay: number;
   sustain: number; // 0-1 (level)
   release: number; // seconds
   length: number; // seconds (gate time)
@@ -76,8 +76,6 @@ export interface SamplerBankParams {
   vibratoDepth?: number;
   tremoloDepth?: number;
   tremoloRate?: number;
-  gateDepth?: number;
-  gateRate?: number;
   breathIntensity?: number;
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
@@ -286,6 +284,8 @@ export interface AudioEngine {
   // Real-time voice parameter updates
   updateSamplerVoiceParams?: (bankIndex: number, param: string, value: number | string | boolean) => void;
 
+  processSpoon?: (sampleName: string, note: string) => Promise<AudioBuffer | null>;
+
   // Harmonizer & effects
   setHarmonizerConfig?: (config: any, isActive: boolean) => void;
   triggerTapeStop?: (duration?: number) => void;
@@ -336,4 +336,9 @@ export interface SavedSongData {
   backgroundImage?: string;
   embeddedSamples?: { [bankIndex: number]: string };
   ttsPhrases?: string[];
+}
+export interface AmbianceTrack {
+  id: string;
+  name: string;
+  url: string;
 }

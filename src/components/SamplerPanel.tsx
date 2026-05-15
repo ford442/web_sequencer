@@ -194,7 +194,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
             'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'grainEnvDepth', 'grainPitchQuantize',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
-            'sustain', 'release', 'choir', 'glitchChance', 'gateRate', 'gateDepth'
+            'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate'
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
             if (onParamChange) onParamChange(activeBankIdx, p, v);
@@ -991,7 +991,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                         <legend className="sr-only">Basic Parameters</legend>
                         <div className="text-[9px] text-gray-500 font-bold mb-1 border-b border-gray-700 pb-0.5" aria-hidden="true">BASIC</div>
                         <div className="grid grid-cols-2 gap-2">
-                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" unit="x" />
+                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.5} max={2.0} min={0.1} max={4.0} color="purple" unit="x" />
                             <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
                             <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic unit="Hz" />
                             <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />

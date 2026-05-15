@@ -131,11 +131,6 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
           </div>
         )}
 
-        {/* Visually hidden live region for screen readers to announce progress regardless of toggle state */}
-        <div className="sr-only" aria-live="polite" aria-atomic="true">
-           {currentStepInfo ? `Loading: ${currentStepInfo.label}. ${Math.round(totalProgress)}% complete.` : 'Initializing...'}
-        </div>
-
         {/* Step details (collapsible) */}
         <div className="border-t border-gray-700 pt-4">
           <button
@@ -143,23 +138,20 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
             className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded p-1 transition-colors font-mono text-xs w-full"
             aria-expanded={showDetails}
             aria-controls="loading-steps-details"
+            aria-label={`${showDetails ? 'Hide' : 'Show'} initialization steps`}
           >
-            <span className={`transform transition-transform ${showDetails ? 'rotate-90' : ''}`} aria-hidden="true">
+            <span className={`transform transition-transform ${showDetails ? 'rotate-90' : ''}`}>
               ▶
             </span>
             <span>
-              {showDetails ? 'Hide' : 'Show'} Initialization Steps ({stepList.filter((s) => s.status === 'completed').length}/
+              View Initialization Steps ({stepList.filter((s) => s.status === 'completed').length}/
               {stepList.length})
             </span>
           </button>
 
-          <div
-            id="loading-steps-details"
-            className={`mt-3 space-y-2 transition-all duration-200 overflow-hidden ${showDetails ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {showDetails && stepList.map((step) => (
+          {showDetails && (
+            <div id="loading-steps-details" className="mt-3 space-y-2 animate-[fadeIn_0.2s_ease-out]">
+              {stepList.map((step) => (
                 <div key={step.id} className="flex items-center gap-3 p-2 rounded bg-gray-800/50">
                   {/* Status indicator */}
                   <div
@@ -198,7 +190,8 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
                   </span>
                 </div>
               ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Completion message */}

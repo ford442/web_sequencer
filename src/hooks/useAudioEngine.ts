@@ -330,8 +330,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             };
 
             // --- Playback Functions Extraction ---
-            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', noteParams?: any) => {
-                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track as any, noteParams);
+            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: any, tuning?: any | null) => {
+                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track, noteParams, tuning);
             };
             const playDrum = createPlayDrum(context, playbackRefs) as any;
             const {
@@ -869,7 +869,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
             };
 
-            const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any): number | null => {
+            const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any | null): number | null => {
                 const now = time || context.currentTime;
                 
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
