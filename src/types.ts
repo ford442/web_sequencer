@@ -114,6 +114,8 @@ export interface SamplerBankParams {
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
   pitchAttack?: number;
+  gateRate?: number;
+  gateDepth?: number;
   pitchDecay?: number;
 }
 
