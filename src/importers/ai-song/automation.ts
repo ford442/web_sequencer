@@ -533,7 +533,7 @@ export const EXAMPLE_WITH_AUTOMATION: AISongData = {
         waveform: "303-saw", 
         filterCutoff: 1500, 
         filterResonance: 18, 
-        decay: 0.4 
+        decay: 0.4
       } 
     },
     kick: [

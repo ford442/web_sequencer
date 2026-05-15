@@ -1,4 +1,6 @@
-import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, AmbianceTrack, SamplerBankParams, SamplerParams } from './types';
+import { noteToMidi, applyMicrotonalTuning } from './utils/musicTheory';
+import type { ScaleDefinition } from './utils/musicTheory';
+import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerBankParams, SamplerParams, AmbianceTrack } from './types';
 
 export const NUM_STEPS = 32;
 export const DEFAULT_TEMPO = 120;
@@ -190,4 +192,20 @@ const noteFrequencies: { [key: string]: number } = {
 
 export const noteToFrequency = (note: string): number => {
   return noteFrequencies[note] || 440.00; // Default to A4 if not found
+};
+
+
+export const tunedNoteToFrequency = (note: string, tuning: ScaleDefinition | null = null): number => {
+  const baseMidi = noteToMidi(note);
+  if (!baseMidi) return noteToFrequency(note);
+
+  if (!tuning || !tuning.tuning || tuning.tuning === '12-TET') {
+    // Return standard lookup to avoid math precision issues for 12-TET if possible,
+    // or just calculate it directly.
+    return noteToFrequency(note);
+  }
+
+  const tunedMidi = applyMicrotonalTuning(baseMidi, tuning);
+  // midiToFreq logic:
+  return 440.00 * Math.pow(2, (tunedMidi - 69) / 12);
 };

@@ -5,7 +5,7 @@
 // See engines directory for the actual performance-critical implementations.
 
 import type { SynthParams, KickParams, SnareParams, HatParams } from '../types';
-import { noteToFrequency } from '../constants';
+import { tunedNoteToFrequency, type ScaleDefinition } from './musicTheory';
 
 /**
  * Renders a synth sound to an AudioBuffer.
@@ -25,7 +25,7 @@ export async function renderSynthToBuffer(
     const offlineCtx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
 
     const time = 0;
-    const baseFreq = noteToFrequency(note);
+    const baseFreq = tunedNoteToFrequency(note, '12-TET' as ScaleDefinition, 'C'); // default for offline rendering
     // Apply pitch shift from params
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 

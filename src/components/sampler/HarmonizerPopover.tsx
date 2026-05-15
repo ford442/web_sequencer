@@ -96,7 +96,8 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     {/* Toggle switch style ON/OFF button */}
                     <button
                         onClick={() => setLocalActive(!localActive)}
-                        className={`relative px-3 py-1 rounded-full text-[9px] font-bold transition-all border ${
+                        aria-label={localActive ? 'Disable Harmonizer' : 'Enable Harmonizer'}
+                        className={`relative px-3 py-1 rounded-full text-[9px] font-bold transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500 ${
                             localActive
                                 ? 'bg-green-500/20 text-green-400 border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
                                 : 'bg-zinc-800 text-zinc-500 border-zinc-600'
@@ -122,7 +123,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
                                     aria-label={`${count} Voices`}
                                     aria-checked={localConfig.voiceCount === count}
-                                    className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${
+                                    className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500 ${
                                         localConfig.voiceCount === count
                                             ? 'text-black shadow-lg'
                                             : 'text-zinc-500 hover:text-zinc-300'
@@ -149,7 +150,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                     onClick={() => handleHarmonyTypeChange(value)}
                                     aria-label={`${label} Harmony`}
                                     aria-checked={localConfig.harmonyType === value}
-                                    className={`py-1.5 rounded-md text-[9px] font-bold transition-all relative overflow-hidden ${
+                                    className={`py-1.5 rounded-md text-[9px] font-bold transition-all relative overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500 ${
                                         localConfig.harmonyType === value
                                             ? 'text-white'
                                             : 'bg-zinc-800/80 text-zinc-400 border border-zinc-700 hover:bg-zinc-700/80 hover:border-zinc-600'
@@ -239,7 +240,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 <button
                                     key={key}
                                     onClick={() => setLocalConfig(HARMONIZE_PRESETS[key as keyof typeof HARMONIZE_PRESETS]())}
-                                    className="flex-1 py-1.5 rounded-md text-[8px] font-bold bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border border-zinc-700 hover:text-zinc-200 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                                    className="flex-1 py-1.5 rounded-md text-[8px] font-bold bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border border-zinc-700 hover:text-zinc-200 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500"
                                     title={desc}
                                     aria-label={`Apply ${desc} Preset`}
                                 >
@@ -254,7 +255,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                         onClick={handleApply}
                         aria-label="Apply Harmonizer Settings"
                         title="Apply Harmonizer Settings"
-                        className="w-full py-2.5 rounded-lg text-xs font-bold font-orbitron tracking-wider transition-all text-black relative overflow-hidden group"
+                        className="w-full py-2.5 rounded-lg text-xs font-bold font-orbitron tracking-wider transition-all text-black relative overflow-hidden group focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500"
                         style={{
                             background: `linear-gradient(135deg, ${color} 0%, ${color}dd 50%, ${color} 100%)`,
                             boxShadow: `0 4px 20px ${color}50, inset 0 1px 0 rgba(255,255,255,0.2)`

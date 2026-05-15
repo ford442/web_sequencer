@@ -15,6 +15,16 @@ LOCAL_DIRECTORY = "dist"
 # The directory on the server where the files should go (e.g., 'public_html/wasm-game').
 REMOTE_DIRECTORY = "test.1ink.us/hyphon"
 
+# --- WASM Files Configuration ---
+# Remote directory for JC-303 WASM/JS assets
+WASM_REMOTE_DIRECTORY = "wasm.noahcohn.com"
+# Local directories to search for WASM assets
+WASM_SOURCE_DIRS = ["dist", "public"]
+# File patterns to upload (base names without extension)
+WASM_FILE_BASES = ["jc303-single", "jc303-threaded", "jc303"]
+# Extensions to upload for each base
+WASM_FILE_EXTENSIONS = [".js", ".1ijs", ".wasm", ".worker.js"]
+
 def upload_directory(sftp_client, local_path, remote_path):
     """
     Recursively uploads a directory and its contents to the remote server.
@@ -38,6 +48,37 @@ def upload_directory(sftp_client, local_path, remote_path):
             # If it's a directory, recurse into it.
             upload_directory(sftp_client, local_item_path, remote_item_path)
 
+def upload_wasm_files(sftp_client):
+    """
+    Upload JC-303 WASM/JS assets to the dedicated WASM host directory.
+    Searches dist/ and public/ for the files.
+    """
+    print(f"\n📦 Uploading WASM assets to '{WASM_REMOTE_DIRECTORY}'...")
+    try:
+        sftp_client.mkdir(WASM_REMOTE_DIRECTORY)
+    except IOError:
+        print(f"Directory {WASM_REMOTE_DIRECTORY} already exists.")
+
+    uploaded = 0
+    for base in WASM_FILE_BASES:
+        for ext in WASM_FILE_EXTENSIONS:
+            filename = base + ext
+            local_path = None
+            for src_dir in WASM_SOURCE_DIRS:
+                candidate = os.path.join(src_dir, filename)
+                if os.path.isfile(candidate):
+                    local_path = candidate
+                    break
+            if local_path:
+                remote_path = f"{WASM_REMOTE_DIRECTORY}/{filename}"
+                print(f"Uploading WASM asset: {local_path} -> {remote_path}")
+                sftp_client.put(local_path, remote_path)
+                uploaded += 1
+            else:
+                print(f"⚠️  Skipping {filename} (not found in {WASM_SOURCE_DIRS})")
+
+    print(f"✅ Uploaded {uploaded} WASM asset(s)")
+
 def main():
     """
     Main function to connect to the server and start the upload process.
@@ -59,6 +100,9 @@ def main():
 
         # Start the recursive upload
         upload_directory(sftp, LOCAL_DIRECTORY, REMOTE_DIRECTORY)
+
+        # Upload JC-303 WASM/JS assets to wasm.noahcohn.com
+        upload_wasm_files(sftp)
 
         print("\n✅ Deployment complete!")
 

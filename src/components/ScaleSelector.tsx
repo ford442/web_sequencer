@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { NOTES, SCALE_NAMES } from '../utils/musicTheory';
+import { NOTES, SCALE_NAMES, TUNING_NAMES } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 
 interface ScaleSelectorProps {
@@ -16,8 +16,13 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = memo(({ currentScale,
         if (isActive) {
             onChange(null);
         } else {
-            onChange({ root: 'C', scale: 'Minor' });
+            onChange({ root: 'C', scale: 'Minor', tuning: '12-TET' });
         }
+    };
+
+    const handleTuningChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        if (!currentScale) return;
+        onChange({ ...currentScale, tuning: e.target.value });
     };
 
     const handleRootChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -67,6 +72,17 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = memo(({ currentScale,
                     >
                         {SCALE_NAMES.map(name => (
                             <option key={name} value={name}>{name}</option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={currentScale!.tuning || '12-TET'}
+                        onChange={handleTuningChange}
+                        className="bg-gray-800 text-cyan-400 text-[10px] font-mono border border-gray-600 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-cyan-400"
+                        aria-label="Tuning System"
+                    >
+                        {TUNING_NAMES.map(tuning => (
+                            <option key={tuning} value={tuning}>{tuning}</option>
                         ))}
                     </select>
                 </>

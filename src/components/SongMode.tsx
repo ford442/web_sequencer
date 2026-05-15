@@ -1,8 +1,12 @@
-import React, { memo, useRef, useState, useCallback } from 'react';
+import React, { memo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { PatternSelector } from './PatternSelector';
 
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+
+export interface SongModeHandle {
+    setHighlight: (step: number) => void;
+}
 
 // Map pattern slot numbers (0-7) to note colors (C4, D4, E4, F4, G4, A4, B4, C5)
 const PATTERN_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
@@ -42,30 +46,21 @@ const ROW_HEADER_WIDTH = 80;
 const HEADER_HEIGHT = 30;
 
 // Extracted & Memoized Cell Component to prevent massive re-renders during playback
-const SongModeCell = memo(({
-    sIdx,
-    rowKey,
-    rowLabel,
-    val,
-    isPlaying,
-    onMouseDown,
-    onKeyDown
-}: {
+const SongModeCell = memo(forwardRef<HTMLDivElement, {
     sIdx: number;
     rowKey: TrackKey;
     rowLabel: string;
     val: number | null;
-    isPlaying: boolean;
     onMouseDown: (e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => void;
     onKeyDown: (e: React.KeyboardEvent, sIdx: number, track: TrackKey, currentVal: number | null) => void;
-}) => {
+}>(({ sIdx, rowKey, rowLabel, val, onMouseDown, onKeyDown }, ref) => {
     const hasVal = val !== null;
     return (
         <div
+            ref={ref}
             data-testid={`cell-${rowKey}-${sIdx}`}
             style={{ width: CELL_WIDTH }}
-            className={`shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none focus:outline-none focus:ring-1 focus:ring-cyan-500
-                ${isPlaying ? 'bg-white/5' : 'bg-transparent'}
+            className={`song-mode-cell shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none focus:outline-none focus:ring-1 focus:ring-cyan-500 bg-transparent
                 ${hasVal ? '' : 'hover:bg-gray-800/50'}
             `}
             role="button"
@@ -79,17 +74,17 @@ const SongModeCell = memo(({
         >
             {hasVal && (
                 <div
-                    className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black select-none pointer-events-none"
-                    style={{ backgroundColor: getPatternColor(val!), opacity: isPlaying ? 1 : 0.8 }}
+                    className="absolute inset-1 rounded flex items-center justify-center text-[10px] font-bold text-black select-none pointer-events-none song-mode-cell-inner opacity-80"
+                    style={{ backgroundColor: getPatternColor(val!) }}
                 >
                     {val! + 1}
                 </div>
             )}
         </div>
     );
-});
+}));
 
-export const SongMode = memo(({
+export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?: boolean }>(({
     isVisible,
     songStructure,
     currentSongStep,
@@ -103,13 +98,75 @@ export const SongMode = memo(({
     isSongModeActive,
     onSetIsSongModeActive,
     is3D = false
-}: SongModeProps & { is3D?: boolean }) => {
+}, ref) => {
 
     const totalWidth = ROW_HEADER_WIDTH + (songStructure.length * CELL_WIDTH);
 
     // Menu state
     const [menu, setMenu] = useState<{ x: number, y: number, sIdx: number, track: TrackKey, currentVal: number | null } | null>(null);
     const [isExporting, setIsExporting] = useState(false);
+
+    const playheadLineRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const headerCellRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const songModeCellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const lastHighlightedStep = useRef<number>(-1);
+
+    useImperativeHandle(ref, () => ({
+        setHighlight: (step: number) => {
+            if (lastHighlightedStep.current !== -1 && lastHighlightedStep.current !== step) {
+                const prev = lastHighlightedStep.current;
+                const prevHeader = headerCellRefs.current[prev];
+                if (prevHeader) {
+                    prevHeader.classList.remove('bg-cyan-900/20', 'text-cyan-400', 'font-bold');
+                    prevHeader.classList.add('text-gray-600');
+                }
+                playheadLineRefs.current.forEach(line => {
+                    if (line) line.style.left = `${ROW_HEADER_WIDTH + step * CELL_WIDTH}px`;
+                });
+
+                // Remove highlight classes from the column's cells safely via refs
+                ROWS.forEach(row => {
+                    const cellId = `${row.key}-${prev}`;
+                    const cell = songModeCellRefs.current.get(cellId);
+                    if (!cell) return;
+                    cell.classList.remove('bg-white/5');
+                    cell.classList.add('bg-transparent');
+                    const inner = cell.querySelector('.song-mode-cell-inner');
+                    if (inner) {
+                        inner.classList.remove('opacity-100');
+                        inner.classList.add('opacity-80');
+                    }
+                });
+            }
+
+            if (step !== -1) {
+                const currentHeader = headerCellRefs.current[step];
+                if (currentHeader) {
+                    currentHeader.classList.remove('text-gray-600');
+                    currentHeader.classList.add('bg-cyan-900/20', 'text-cyan-400', 'font-bold');
+                }
+                playheadLineRefs.current.forEach(line => {
+                    if (line) line.style.left = `${ROW_HEADER_WIDTH + step * CELL_WIDTH}px`;
+                });
+
+                // Add highlight classes to the column's cells safely via refs
+                ROWS.forEach(row => {
+                    const cellId = `${row.key}-${step}`;
+                    const cell = songModeCellRefs.current.get(cellId);
+                    if (!cell) return;
+                    cell.classList.remove('bg-transparent');
+                    cell.classList.add('bg-white/5');
+                    const inner = cell.querySelector('.song-mode-cell-inner');
+                    if (inner) {
+                        inner.classList.remove('opacity-80');
+                        inner.classList.add('opacity-100');
+                    }
+                });
+            }
+
+            lastHighlightedStep.current = step;
+        }
+    }));
 
     // Double Click State
     const lastRightClickTimeRef = useRef<number>(0);
@@ -306,7 +363,9 @@ export const SongMode = memo(({
                         <div className="absolute left-0 top-0 h-[30px] flex border-b border-gray-800">
                             <div style={{ width: ROW_HEADER_WIDTH }} className="shrink-0 bg-[#0b0d10] z-10 sticky left-0 border-r border-gray-800"></div>
                             {songStructure.map((_, i) => (
-                                <div key={i} style={{ width: CELL_WIDTH }} className={`shrink-0 flex items-center justify-center text-[10px] font-mono border-r border-gray-800/30 ${i === currentSongStep ? 'bg-cyan-900/20 text-cyan-400 font-bold' : 'text-gray-600'}`}>{i + 1}</div>
+                                <div key={i} ref={el => { headerCellRefs.current[i] = el; }} style={{ width: CELL_WIDTH }} className={`shrink-0 flex items-center justify-center text-[10px] font-mono border-r border-gray-800/30 ${i === currentSongStep ? 'bg-cyan-900/20 text-cyan-400 font-bold' : 'text-gray-600'}`}>
+                                    {i + 1}
+                                </div>
                             ))}
                         </div>
                         {/* Tracks */}
@@ -321,11 +380,17 @@ export const SongMode = memo(({
                                         return (
                                             <SongModeCell
                                                 key={`${row.key}-${sIdx}`}
+                                                ref={(node) => {
+                                                    if (node) {
+                                                        songModeCellRefs.current.set(`${row.key}-${sIdx}`, node);
+                                                    } else {
+                                                        songModeCellRefs.current.delete(`${row.key}-${sIdx}`);
+                                                    }
+                                                }}
                                                 sIdx={sIdx}
                                                 rowKey={row.key}
                                                 rowLabel={row.label}
                                                 val={val}
-                                                isPlaying={sIdx === currentSongStep}
                                                 onMouseDown={handleCellMouseDown}
                                                 onKeyDown={handleCellKeyDown}
                                             />
@@ -334,7 +399,7 @@ export const SongMode = memo(({
                                 </div>
                             ))}
                         </div>
-                        <div className="absolute top-0 bottom-0 w-[2px] bg-cyan-500/50 pointer-events-none z-20" style={{ left: ROW_HEADER_WIDTH + currentSongStep * CELL_WIDTH }} />
+                        <div ref={el => { playheadLineRefs.current[0] = el; }} className="absolute top-0 bottom-0 w-[2px] bg-cyan-500/50 pointer-events-none z-20" style={{ left: ROW_HEADER_WIDTH + currentSongStep * CELL_WIDTH }} />
                     </div>
                 </div>
             </div>
@@ -442,6 +507,7 @@ export const SongMode = memo(({
                         {songStructure.map((_, i) => (
                             <div
                                 key={i}
+                                ref={el => { headerCellRefs.current[i] = el; }}
                                 style={{ width: CELL_WIDTH }}
                                 className={`shrink-0 flex items-center justify-center text-[10px] font-mono border-r border-gray-800/30 ${i === currentSongStep ? 'bg-cyan-900/20 text-cyan-400 font-bold' : 'text-gray-600'}`}
                             >
@@ -468,11 +534,17 @@ export const SongMode = memo(({
                                     return (
                                         <SongModeCell
                                             key={`${row.key}-${sIdx}`}
+                                                ref={(node) => {
+                                                    if (node) {
+                                                        songModeCellRefs.current.set(`${row.key}-${sIdx}`, node);
+                                                    } else {
+                                                        songModeCellRefs.current.delete(`${row.key}-${sIdx}`);
+                                                    }
+                                                }}
                                             sIdx={sIdx}
                                             rowKey={row.key}
                                             rowLabel={row.label}
                                             val={val}
-                                            isPlaying={sIdx === currentSongStep}
                                             onMouseDown={handleCellMouseDown}
                                             onKeyDown={handleCellKeyDown}
                                         />
@@ -484,6 +556,7 @@ export const SongMode = memo(({
 
                      {/* Current Playhead Line */}
                      <div
+                        ref={el => { playheadLineRefs.current[1] = el; }}
                         className="absolute top-0 bottom-0 w-[2px] bg-cyan-500/50 pointer-events-none z-20 transition-all duration-100"
                         style={{ left: ROW_HEADER_WIDTH + currentSongStep * CELL_WIDTH }}
                     />
@@ -492,4 +565,4 @@ export const SongMode = memo(({
             </div>
         </div>
     );
-});
+}));

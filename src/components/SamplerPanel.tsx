@@ -168,14 +168,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         choir: 0,
         // Phase 1: Vocal Workstation defaults
         rootNote: 60,
-        coarse: 0,
-        fine: 0,
-        formant: 0,
-        pitchAttack: 0,
-        pitchDecay: 0,
-        rbQuality: 'Standard' as 'Fast' | 'Standard' | 'Elastic',
+        coarseTune: 0,
+        fineTune: 0,
+        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
-        autoFollow: false
+        lockToSequencer: false
     }, [params, activeBankIdx]);
 
     // Update single param for active bank
@@ -197,7 +194,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
             'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'grainEnvDepth', 'grainPitchQuantize',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
-            'sustain', 'release', 'choir', 'glitchChance'
+            'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate'
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
             if (onParamChange) onParamChange(activeBankIdx, p, v);
@@ -215,6 +212,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleVibratoDepthChange = paramHandlers.vibratoDepth;
     const handleTremoloRateChange = paramHandlers.tremoloRate;
     const handleTremoloDepthChange = paramHandlers.tremoloDepth;
+    const handleGateRateChange = paramHandlers.gateRate;
+    const handleGateDepthChange = paramHandlers.gateDepth;
     const handleBreathIntensityChange = paramHandlers.breathIntensity;
     const handleFreezeChange = paramHandlers.freeze;
     const handleFreezeLfoSyncChange = paramHandlers.freezeLfoSync;
@@ -252,19 +251,19 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         if (audioEngine?.singingVoice) {
             const voice = audioEngine.singingVoice;
             switch (key) {
-                case 'coarse':
-                case 'fine': {
+                case 'coarseTune':
+                case 'fineTune': {
                     // Calculate combined pitch scale
-                    const coarse = key === 'coarse' ? (value as number) : (currentParams.coarse ?? 0);
-                    const fine = key === 'fine' ? (value as number) : (currentParams.fine ?? 0);
+                    const coarse = key === 'coarseTune' ? (value as number) : (currentParams.coarseTune ?? 0);
+                    const fine = key === 'fineTune' ? (value as number) : (currentParams.fineTune ?? 0);
                     const scale = Math.pow(2, (coarse + fine / 1200) / 12);
                     voice.setPitch(scale);
                     break;
                 }
-                case 'formant':
+                case 'formantShift':
                     voice.setFormantShift(value as number);
                     break;
-                case 'rbQuality': {
+                case 'quality': {
                     // Map quality to RubberBand options
                     const qualityMap = {
                         'Fast': 1 | 16,      // RealTime | Faster
@@ -281,7 +280,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                     }
                     break;
                 }
-                case 'autoFollow':
+                case 'lockToSequencer':
                     // Enable/disable auto pitch following
                     const node2 = voice.getSourceNode();
                     if (node2 && 'port' in node2) {
@@ -707,7 +706,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                     {/* Row A: Load / Record */}
                     <div className="flex justify-between items-center gap-2">
                         <div className="flex gap-1" role="toolbar" aria-label="Sample Management">
-                            <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                            <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" aria-label="Load Sample File" />
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold text-gray-300"
@@ -879,12 +878,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     value={currentParams.grainSize || 4410}
                                     onChange={(e) => handleGrainSizeChange(Number(e.target.value))}
                                     className="flex-1 h-1.5 bg-gray-700 rounded appearance-none cursor-pointer"
+                                    aria-label="Grain Size"
                                     style={{
                                         background: `linear-gradient(to right, #9333ea 0%, #9333ea ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 ${grainSizeToPercent(currentParams.grainSize || 4410)}%, #374151 100%)`
                                     }}
-                                    aria-label="Grain Size"
                                     aria-valuetext={grainSizeToMs(currentParams.grainSize || 4410) + 'ms'}
-                                    title="Grain Size"
                                 />
                                 <span className="text-[9px] text-gray-500 w-8 text-right">{grainSizeToMs(currentParams.grainSize || 4410)}ms</span>
                             </div>
@@ -973,14 +971,15 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                     bankId={activeBankIdx}
                     values={{
                         rootNote: currentParams.rootNote ?? 60,
-                        coarse: currentParams.coarse ?? 0,
-                        fine: currentParams.fine ?? 0,
-                        formant: currentParams.formant ?? 0,
-                        pitchAttack: currentParams.pitchAttack ?? 0,
-                        pitchDecay: currentParams.pitchDecay ?? 0,
-                        rbQuality: currentParams.rbQuality ?? 'Standard',
+                        coarseTune: currentParams.coarseTune ?? 0,
+                        fineTune: currentParams.fineTune ?? 0,
+                        formantShift: currentParams.formantShift ?? 0,
+
+
+
+                        quality: currentParams.quality ?? 'good',
                         stretchMode: currentParams.stretchMode ?? 'Pitch',
-                        autoFollow: currentParams.autoFollow ?? false,
+                        lockToSequencer: currentParams.lockToSequencer ?? false,
                     }}
                     onChange={handlePitchControlChange}
                 />
@@ -992,7 +991,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                         <legend className="sr-only">Basic Parameters</legend>
                         <div className="text-[9px] text-gray-500 font-bold mb-1 border-b border-gray-700 pb-0.5" aria-hidden="true">BASIC</div>
                         <div className="grid grid-cols-2 gap-2">
-                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.1} max={4.0} color="purple" unit="x" />
+                            <Knob label="Speed" value={currentParams.playbackSpeed || 1} onChange={handleSpeedChange} min={0.5} max={2.0} min={0.1} max={4.0} color="purple" unit="x" />
                             <Knob label="Vol" value={currentParams.volume} onChange={handleVolumeChange} min={0} max={2.0} color="purple" />
                             <Knob label="Filter" value={currentParams.filterCutoff} onChange={handleFilterChange} min={100} max={20000} color="purple" logarithmic unit="Hz" />
                             <Knob label="Drive" value={currentParams.drive} onChange={handleDriveChange} min={0} max={1} color="red" />
@@ -1010,6 +1009,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <Knob label="Vibrato" value={currentParams.vibratoDepth ?? 0} onChange={handleVibratoDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Trem Depth" value={currentParams.tremoloDepth ?? 0} onChange={handleTremoloDepthChange} min={0} max={100} color="indigo" unit="%" />
                             <Knob label="Trem Rate" value={currentParams.tremoloRate ?? 0.1} onChange={handleTremoloRateChange} min={0.1} max={20.0} step={0.1} color="indigo" unit="Hz" />
+                            <Knob label="Gate Depth" value={currentParams.gateDepth ?? 0} onChange={handleGateDepthChange} min={0} max={100} color="indigo" unit="%" />
+                            <Knob label="Gate Rate" value={currentParams.gateRate ?? 4.0} onChange={handleGateRateChange} min={0.1} max={50.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Breath" value={currentParams.breathIntensity ?? 0} onChange={handleBreathIntensityChange} min={0} max={1.0} step={0.01} color="indigo" />
                             <Knob label="Freeze" value={currentParams.freeze ?? 0} onChange={handleFreezeChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
 
@@ -1038,6 +1039,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     type="button"
                                     role="switch"
                                     aria-checked={currentParams.freezeLfoSync}
+                                    aria-label="Sync Freeze LFO Rate to BPM"
                                     onClick={() => handleFreezeLfoSyncChange(!currentParams.freezeLfoSync)}
                                     className={`px-2 py-0.5 mt-1 rounded text-[10px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${currentParams.freezeLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                 >
@@ -1072,6 +1074,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     type="button"
                                     role="switch"
                                     aria-checked={currentParams.formantLfoSync}
+                                    aria-label="Sync Formant LFO Rate to BPM"
                                     onClick={() => handleFormantLfoSyncChange(!currentParams.formantLfoSync)}
                                     className={`px-2 py-0.5 mt-1 rounded text-[10px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${currentParams.formantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                 >
@@ -1079,9 +1082,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 </button>
                             </div>
 
-                            <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth ?? 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Env → Grain" value={currentParams.grainEnvDepth ?? 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Grain Quant" value={currentParams.grainPitchQuantize ?? 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
+                            <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth || 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />

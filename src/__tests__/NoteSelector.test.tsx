@@ -40,7 +40,7 @@ describe('NoteSelector', () => {
         expect(dialog).toHaveAttribute('aria-labelledby', 'note-selector-title');
 
         // Close button should have aria-label
-        const closeButton = screen.getByRole('button', { name: 'Close' });
+        const closeButton = screen.getByRole('button', { name: 'Close note properties' });
         expect(closeButton).toBeInTheDocument();
 
         // Note buttons should have specific aria-labels
@@ -78,7 +78,7 @@ describe('NoteSelector', () => {
 
     it('focuses the close button on mount', async () => {
         render(<NoteSelector {...defaultProps} />);
-        const closeButton = screen.getByRole('button', { name: 'Close' });
+        const closeButton = screen.getByRole('button', { name: 'Close note properties' });
         await waitFor(() => {
             expect(document.activeElement).toBe(closeButton);
         });

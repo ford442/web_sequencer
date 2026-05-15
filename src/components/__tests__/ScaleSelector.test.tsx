@@ -32,7 +32,7 @@ describe('ScaleSelector', () => {
         render(<ScaleSelector currentScale={null} onChange={onChange} />);
         
         fireEvent.click(screen.getByRole('button', { name: 'Key Lock' }));
-        expect(onChange).toHaveBeenCalledWith({ root: 'C', scale: 'Minor' });
+        expect(onChange).toHaveBeenCalledWith({ root: 'C', scale: 'Minor', tuning: '12-TET' });
     });
 
     it('deactivates when KEY button is clicked while active', () => {

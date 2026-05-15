@@ -832,6 +832,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                   onChange={handleFileSelect}
                   multiple
                   className="hidden"
+                  aria-label="Upload JSON file"
                 />
                 
                 {/* Selected Files List */}

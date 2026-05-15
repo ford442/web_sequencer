@@ -3,7 +3,7 @@ import { useAppState } from '../../hooks/useAppState.tsx'
 import { NoteSelector } from '../NoteSelector'
 import { getNoteColor } from '../../utils/noteColors'
 
-export const ContextMenuNode: React.FC = () => {
+export const ContextMenuNode = React.memo(() => {
   const state = useAppState()
   const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu } = state
 
@@ -36,12 +36,15 @@ export const ContextMenuNode: React.FC = () => {
           currentFormantLfoRate={stepData?.formantLfoRate ?? 0}
           currentFormantLfoDepth={stepData?.formantLfoDepth ?? 0}
           currentVibratoDepth={stepData?.vibratoDepth ?? 0}
+          currentGateDepth={stepData?.gateDepth}
+          currentGateRate={stepData?.gateRate}
           currentDrive={stepData?.drive}
           currentCharacterMorph={stepData?.characterMorph}
           currentReverbSend={stepData?.reverbSend}
           currentReverbType={stepData?.reverbType}
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
+          currentTranceGate={stepData?.tranceGate}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
           onPropertyChange={handleNotePropertyChange}
@@ -52,6 +55,6 @@ export const ContextMenuNode: React.FC = () => {
       </div>
     )
   }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu])
-}
+})
 
 export default ContextMenuNode

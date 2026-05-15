@@ -4,6 +4,7 @@ import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, Samp
 import type { CloudItemType } from '../services/CloudStorage';
 import type { AISongData } from '../importers/ai-song';
 import type { TrackKey, SongSnapshot } from '../constants/appDefaults';
+import type { ScaleDefinition } from '../utils/musicTheory';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
 import { audioBufferToWav, blobToBase64 } from '../utils/audioExport';
 

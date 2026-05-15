@@ -1,4 +1,5 @@
 import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Bass2Params } from '../types';
+import type { ScaleDefinition } from '../utils/musicTheory';
 import { INITIAL_PATTERN, NUM_STEPS } from '../constants';
 
 // --- CONSTANTS ---
@@ -32,6 +33,7 @@ export type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedH
 export type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
+    currentScale?: ScaleDefinition | null;
     ambianceUrl: string;
     backgroundImage: string;
     params: {

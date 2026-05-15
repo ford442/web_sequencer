@@ -42,13 +42,32 @@ const noteFrequencies: { [key: string]: number } = {
     'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'D#5': 622.25, 'E5': 659.25, 'F5': 698.46, 'F#5': 739.99, 'G5': 783.99, 'G#5': 830.61, 'A5': 880.00, 'A#5': 932.33, 'B5': 987.77,
 };
 
-const noteToFrequency = (note: string): number => {
-    return noteFrequencies[note] || 440.00;
-};
 
-const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, note: string, time: number) => {
+const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const noteToMidi = (note: string): number => {
+    if (!note) return 0;
+    const match = note.match(/([A-G]#?)(\d+)/);
+    if (!match) return 0;
+    return (parseInt(match[2], 10) + 1) * 12 + NOTES.indexOf(match[1]);
+};
+const getTunedFrequency = (note: string, tuning: string = '12-TET', rootNote: string = 'C'): number => {
+    if (!note) return 0;
+    const midi = noteToMidi(note);
+    if (tuning === '12-TET') return 440 * Math.pow(2, (midi - 69) / 12);
+    if (tuning === '24-TET') return 440 * Math.pow(2, (midi - 69) / 24);
+    const rootMidi = noteToMidi(rootNote.replace(/\d+$/, '') + '4');
+    const rootFreq = 440 * Math.pow(2, (rootMidi - 69) / 12);
+    const distance = midi - rootMidi;
+    if (tuning === 'Bohlen-Pierce') return rootFreq * Math.pow(3, distance / 13);
+    const octave = Math.floor(distance / 12);
+    const semitone = ((distance % 12) + 12) % 12;
+    if (tuning === 'Just Intonation') return rootFreq * [1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8][semitone] * Math.pow(2, octave);
+    if (tuning === 'Pythagorean') return rootFreq * [1/1, 256/243, 9/8, 32/27, 81/64, 4/3, 729/512, 3/2, 128/81, 27/16, 16/9, 243/128][semitone] * Math.pow(2, octave);
+    return 440 * Math.pow(2, (midi - 69) / 12);
+};
+const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, note: string, time: number, tuningSystem?: string, rootNote?: string) => {
     const destination = context.destination;
-    const baseFreq = noteToFrequency(note);
+    const baseFreq = getTunedFrequency(note, tuningSystem, rootNote);
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 
     // ADSR timing - use length as gate time, fallback to attack+decay if not set
@@ -111,8 +130,8 @@ const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, n
     osc.stop(time + totalDuration + 0.05);
 };
 
-self.onmessage = async (event: MessageEvent<{ params: SynthParams, sequence: PartSequence, tempo: number, sampleRate: number, numSteps: number }>) => {
-    const { params, sequence, tempo, sampleRate, numSteps } = event.data;
+self.onmessage = async (event: MessageEvent<{ params: SynthParams, sequence: PartSequence, tempo: number, sampleRate: number, numSteps: number, currentScale?: any }>) => {
+    const { params, sequence, tempo, sampleRate, numSteps, currentScale } = event.data;
 
     const stepDuration = 60 / tempo / 4;
     const totalDuration = numSteps * stepDuration;
@@ -121,7 +140,7 @@ self.onmessage = async (event: MessageEvent<{ params: SynthParams, sequence: Par
     sequence.steps.forEach((note, step) => {
         if (note) {
             const time = step * stepDuration;
-            playSynthForRender(offlineContext, params, note.note, time);
+            playSynthForRender(offlineContext, params, note.note, time, currentScale?.tuningSystem || '12-TET', currentScale?.root || 'C');
         }
     });
 

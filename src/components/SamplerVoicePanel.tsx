@@ -1,5 +1,5 @@
 import { type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../engines/Harmonizer';
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { LadderButton } from './sampler/LadderButton';
 
@@ -113,9 +113,26 @@ const HSlider: React.FC<{
     onChange: (value: number) => void;
     colorHex: [number, number, number];
 }> = ({ label, value, displayValue, onChange, colorHex }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const cachedRectRef = useRef<DOMRect | null>(null);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        cachedRectRef.current = container.getBoundingClientRect();
+
+        const observer = new ResizeObserver(() => {
+            cachedRectRef.current = container.getBoundingClientRect();
+        });
+
+        observer.observe(container);
+        return () => observer.disconnect();
+    }, []);
+
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
-        const rect = (e.target as HTMLElement).parentElement?.getBoundingClientRect();
+        const rect = cachedRectRef.current || containerRef.current?.getBoundingClientRect();
         if (!rect) return;
 
         const handleMouseMove = (e: MouseEvent) => {
@@ -150,6 +167,7 @@ const HSlider: React.FC<{
                 <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950/50 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}60` }}>{displayValue}</span>
             </div>
             <div
+                ref={containerRef}
                 className="h-5 bg-zinc-900 rounded-md border border-zinc-700 cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)]"
                 onMouseDown={handleMouseDown}
             >
@@ -489,6 +507,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [isHarmonizerOpen, setIsHarmonizerOpen] = useState(false);
 
     const ladderButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+    const harmonizeTriggerRef = useRef<HTMLButtonElement>(null);
 
     const handleRootNoteChange = (midi: number) => {
         setLocalRootNote(midi);
@@ -753,6 +772,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             {/* HARMONIZE Button - Hardware style */}
                             <div className="relative">
                                 <button
+                                    ref={harmonizeTriggerRef}
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
                                     aria-haspopup="dialog"
                                     aria-expanded={isHarmonizerOpen}
@@ -782,7 +802,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                 {/* Harmonizer Popover */}
                                 <HarmonizerPopover
                                     isOpen={isHarmonizerOpen}
-                                    onClose={() => setIsHarmonizerOpen(false)}
+                                    onClose={() => {
+                                        setIsHarmonizerOpen(false);
+                                        harmonizeTriggerRef.current?.focus();
+                                    }}
                                     config={harmonizerConfig || defaultConfig}
                                     isActive={isHarmonizeActive}
                                     onApply={onHarmonizerConfigChange || (() => {})}

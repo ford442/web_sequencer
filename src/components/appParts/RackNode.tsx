@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, memo } from 'react';
 import { useAppState } from '../../hooks/useAppState.tsx'
 import { HardwareModule } from '../HardwareModule'
 import { SamplerVoicePanel } from '../SamplerVoicePanel'
 import { Rack } from '../Rack'
 import { COLOR_LEAD, COLOR_BASS, COLOR_BASS2, COLOR_KICK, COLOR_SNARE, COLOR_CH, COLOR_OH, COLOR_SAMPLER } from '../../constants/appDefaults'
 
-export const RackNode: React.FC = () => {
+export const RackNode = React.memo(() => {
   const {
     is3DMode,
     synthAControls,
@@ -74,6 +74,6 @@ export const RackNode: React.FC = () => {
   }), [rackModulePartA, rackModulePartB, rackModuleBass2, rackModuleKick, rackModuleSnare, rackModuleClosedHat, rackModuleOpenHat, rackModuleSampler])
 
   return <Rack is3DMode={is3DMode} selectedTrack={selectedTrack} onSelectTrack={setSelectedTrack} modules={rackModules} />
-}
+})
 
 export default RackNode
