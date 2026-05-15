@@ -72,8 +72,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
-      { name: 'gateDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'gateRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
