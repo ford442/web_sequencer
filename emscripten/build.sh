@@ -36,8 +36,9 @@ cp -r "$REPO_ROOT/rubberband/"* "$RUBBERBAND_SRC/"
 # ---------------------------------------------------------
 # Common flags
 # Removed -mrelaxed-simd and -flto/-flto=thin for CI compatibility (Emscripten 3.1.51)
-# Removed -fopenmp because the system OpenMP library is missing in CI environment
-COMMON_FLAGS="-O3 -msimd128 -ffast-math -funroll-loops -pthread -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
+# Re-enabled -fopenmp: Emscripten 3.1.51 provides its own WASM-compatible OpenMP
+# runtime when linking with -s USE_PTHREADS=1. We do NOT use a host system libomp.
+COMMON_FLAGS="-O3 -msimd128 -ffast-math -funroll-loops -pthread -fopenmp -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
 
 # C Flags
 CFLAGS="$COMMON_FLAGS"
@@ -46,7 +47,6 @@ CFLAGS="$COMMON_FLAGS"
 CXXFLAGS="$COMMON_FLAGS -frtti -DUSE_KISSFFT -DHAVE_KISSFFT -DUSE_PTHREADS -DUSE_SPEEX -std=c++17"
 
 # Linker Flags
-# -lomp is removed because we link against the static libomp.a directly (OR depend on system -fopenmp)
 # Use -O1 to prevent em++ from invoking wasm-opt with incorrect flags
 LINK_FLAGS="-O1 $COMMON_FLAGS -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=512mb -s ASSERTIONS=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --post-js $SCRIPT_DIR/pyodide_bootstrap.js --bind"
 
@@ -212,14 +212,9 @@ echo "Linking..."
 # Collect all object files
 OBJECTS=$(find "$TEMP_DIR" -name "*.o")
 
-# Check if we have the user-provided libomp.a (optional fallback)
-# In CI (Emscripten 3.1.51), the custom libomp.a might be incompatible.
-# We prefer the system-provided OpenMP implementation via -fopenmp and -s USE_PTHREADS=1
-USER_LIBOMP=""
-if [ -f "$SCRIPT_DIR/libomp.a" ]; then
-    echo "Found custom libomp.a, but skipping it to prefer system OpenMP for compatibility..."
-    # USER_LIBOMP="$SCRIPT_DIR/libomp.a"
-fi
+# Note: We rely on Emscripten's built-in OpenMP runtime (enabled via -fopenmp
+# in COMMON_FLAGS and -s USE_PTHREADS=1 in LINK_FLAGS). The custom libomp.a
+# that used to live in this directory is no longer needed.
 
 em++ $OBJECTS -o "$OUTPUT_JS" \
   $LINK_FLAGS \
