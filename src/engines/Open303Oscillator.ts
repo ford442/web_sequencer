@@ -32,8 +32,19 @@ export class Open303Oscillator {
                 // 1. Determine which WASM variant to use
                 // Single-threaded has best compatibility, threaded requires COOP/COEP headers
                 const variant = (!cfg.forceSingleThreaded && cfg.preferThreaded) ? 'threaded' : 'single';
-                // const basePath = import.meta.env.BASE_URL || '/';
-                const wasmUrl = `https://wasm.noahcohn.com/jc303-${variant}.wasm`;
+
+                // ========================================================================
+                // CRITICAL: Resolve WASM relative to the JS bundle via import.meta.url.
+                // This ensures correct loading when the app is deployed under a
+                // subdirectory (e.g. /hyphon/).  Do NOT change this to use
+                // window.location.origin — that strips the path and causes 404s.
+                //
+                // Previous external fallback (kept for reference only):
+                //   https://wasm.noahcohn.com/jc303-single.wasm
+                //   https://wasm.noahcohn.com/jc303-threaded.wasm
+                // ========================================================================
+                const moduleUrl = import.meta.url;
+                const wasmUrl = new URL(`../jc303-${variant}.wasm`, moduleUrl).href;
                 
                 console.log(`[Open303Oscillator] Fetching WASM variant: ${variant} (${wasmUrl})`);
 
@@ -43,7 +54,7 @@ export class Open303Oscillator {
                 // If threaded fails and we were trying threaded, fall back to single
                 if (!wasmResponse.ok && variant === 'threaded') {
                     console.warn(`Failed to fetch ${wasmUrl}: ${wasmResponse.status}, falling back to single-threaded`);
-                    const fallbackUrl = `https://wasm.noahcohn.com/jc303-single.wasm`;
+                    const fallbackUrl = new URL('../jc303-single.wasm', moduleUrl).href;
                     wasmResponse = await fetch(fallbackUrl);
                 }
                 
