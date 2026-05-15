@@ -337,8 +337,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             };
 
             // --- Playback Functions Extraction ---
-            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB', noteParams?: any, tuning?: any | null) => {
-                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track, noteParams, tuning);
+            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', tuning?: any | null) => {
+                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track);
             };
             const playDrum = createPlayDrum(context, playbackRefs) as any;
             const {
@@ -411,7 +411,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     breathIntensity?: number,
                     formantShift?: number,
                     grainPitchQuantize?: number,
-                    tranceGate?: number
+                    tranceGate?: number,
                     gateRate?: number,
                     gateDepth?: number
                 },

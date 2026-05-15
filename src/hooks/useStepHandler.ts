@@ -10,7 +10,7 @@ import type {
 } from '../types';
 import type { MainSequencerHandle } from '../components/MainSequencer';
 import type { TrackKey } from '../constants/appDefaults';
-import { noteToMidi, midiToNote } from '../utils/musicTheory';
+import { noteToMidi, midiToNote, tunedNoteToFrequency } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 
@@ -175,7 +175,7 @@ export const useStepHandler = ({
             );
 
             // Update last frequency for future slides
-            lastFreqRef.current[trackKey] = audioEngine.getTunedFrequency?.(stepData.note, currentScale) ?? 440;
+            lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale);
         };
 
         // === Bass 2 (TB-303) ===
