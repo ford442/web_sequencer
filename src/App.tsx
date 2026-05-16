@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { useAppState } from './hooks/useAppState.tsx'
+import { useAppStateContext } from './contexts/AppStateContext'
 
 import TransportHeader from './components/appParts/TransportHeader'
 import SequencerNode from './components/appParts/SequencerNode'
@@ -25,7 +25,7 @@ import { SongMode } from './components/SongMode'
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
 export const App: React.FC = () => {
-    const state = useAppState();
+    const state = useAppStateContext();
 
     const {
         is3DMode, setIs3DMode, selectedTrack, setSelectedTrack,

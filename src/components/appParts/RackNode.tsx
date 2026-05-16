@@ -1,5 +1,5 @@
 import React, { useMemo, memo } from 'react';
-import { useAppState } from '../../hooks/useAppState.tsx'
+import { useAppStateContext } from '../../contexts/AppStateContext'
 import { HardwareModule } from '../HardwareModule'
 import { SamplerVoicePanel } from '../SamplerVoicePanel'
 import { Rack } from '../Rack'
@@ -36,7 +36,7 @@ export const RackNode = React.memo(() => {
     isHarmonizeActive,
     setSelectedTrack,
     selectedTrack,
-  } = useAppState()
+  } = useAppStateContext()
 
   const rackModulePartA = useMemo(() => <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange} is3D={is3DMode}>{synthAChild}</HardwareModule>, [synthAControls, onSynthAParamChange, is3DMode, synthAChild])
   const rackModulePartB = useMemo(() => <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange} is3D={is3DMode}>{synthBChild}</HardwareModule>, [synthBControls, onSynthBParamChange, is3DMode, synthBChild])

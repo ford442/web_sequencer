@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react'
-import { useAppState } from '../../hooks/useAppState.tsx'
+import { useAppStateContext } from '../../contexts/AppStateContext'
 import { NoteSelector } from '../NoteSelector'
 import { getNoteColor } from '../../utils/noteColors'
 
 export const ContextMenuNode = React.memo(() => {
-  const state = useAppState()
+  const state = useAppStateContext()
   const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu } = state
 
   return useMemo(() => {

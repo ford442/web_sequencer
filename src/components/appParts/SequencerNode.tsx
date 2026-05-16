@@ -1,10 +1,10 @@
 import React, { useMemo, memo } from 'react';
-import { useAppState } from '../../hooks/useAppState.tsx'
+import { useAppStateContext } from '../../contexts/AppStateContext'
 import { SongMode } from '../SongMode'
 import { MainSequencer } from '../MainSequencer'
 
 export const SequencerNode = React.memo(() => {
-  const state = useAppState()
+  const state = useAppStateContext()
   const {
     isSongModeOpen,
     is3DMode,
