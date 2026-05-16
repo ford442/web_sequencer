@@ -12,22 +12,17 @@ interface SynthPartProps {
   title: string;
   accentColor: 'cyan' | 'pink';
   params: SynthParams;
-  onParamsChange: (newParams: SynthParams) => void;
+  onParamChange: (id: string, value: number) => void;
   isFrozen: boolean;
   isRendering: boolean;
   onMixdown: () => void;
   onUnfreeze: () => void;
 }
 
-export const SynthPart: React.FC<SynthPartProps> = React.memo(({ title, accentColor, params, onParamsChange, isFrozen, isRendering, onMixdown, onUnfreeze }) => {
-  const paramsRef = React.useRef(params);
-  React.useEffect(() => {
-    paramsRef.current = params;
-  }, [params]);
-
+export const SynthPart: React.FC<SynthPartProps> = React.memo(({ title, accentColor, params, onParamChange, isFrozen, isRendering, onMixdown, onUnfreeze }) => {
   const handleParamChange = useCallback(<K extends keyof SynthParams>(param: K, value: SynthParams[K]) => {
-    onParamsChange({ ...paramsRef.current, [param]: value });
-  }, [onParamsChange]);
+    onParamChange(param as string, value as number);
+  }, [onParamChange]);
 
   const filterModeValue = (params.filterMode ?? 0) > 0 ? FILTER_MODE_24_DB : FILTER_MODE_18_DB;
 

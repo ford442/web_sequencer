@@ -16,8 +16,13 @@ interface KnobProps {
 export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, max, step = 1, color = 'cyan', unit = '', logarithmic = false, defaultValue }) => {
   const knobRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStartY, setDragStartY] = useState(0);
-  const [dragStartValue, setDragStartValue] = useState(0);
+
+  // Use refs for drag state to avoid stale closure race conditions (Issue 4 fix).
+  // State-based drag coords recreate callbacks on every render cycle, causing the
+  // old listener (isDragging=false) to still be attached when the first mousemove fires.
+  const isDraggingRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const dragStartValueRef = useRef(0);
 
   // Use a ref to store the latest props to avoid redefining callbacks and re-attaching event listeners
   const propsRef = useRef({ onChange, min, max, step, logarithmic });
@@ -40,9 +45,10 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
 
   const rotation = valueToRotation(value);
 
+  // Stable callbacks that read from refs — never need to be recreated
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    const dy = dragStartY - e.clientY;
+    if (!isDraggingRef.current) return;
+    const dy = dragStartYRef.current - e.clientY;
     const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep, logarithmic: currentLogarithmic } = propsRef.current;
 
     // Modifiers: Shift=Coarse(10x), Alt/Ctrl=Fine(0.1x)
@@ -56,8 +62,7 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
       const effectiveMin = currentMin <= 0 ? 0.001 : currentMin;
       const logMin = Math.log(effectiveMin);
       const logMax = Math.log(currentMax);
-      // Ensure dragStartValue is valid for log
-      const safeStart = dragStartValue <= 0 ? effectiveMin : dragStartValue;
+      const safeStart = dragStartValueRef.current <= 0 ? effectiveMin : dragStartValueRef.current;
       const logStart = Math.log(safeStart);
 
       // Full range in 200 pixels (log domain)
@@ -69,42 +74,38 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
     } else {
       const range = currentMax - currentMin;
       const sensitivity = range / 200; // 200px drag for full range
-      newValue = dragStartValue + (dy * sensitivity * modifier);
+      newValue = dragStartValueRef.current + (dy * sensitivity * modifier);
     }
     
     newValue = Math.round(newValue / currentStep) * currentStep;
     newValue = Math.max(currentMin, Math.min(currentMax, newValue));
     
     currentOnChange(newValue);
-  }, [isDragging, dragStartY, dragStartValue]);
+  }, []); // stable — reads all state from refs
 
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
+    isDraggingRef.current = false; // stop move handler immediately (no re-render needed)
+    setIsDragging(false); // update state to re-enable CSS transition on knob rotation
     document.body.style.cursor = 'default';
   }, []);
 
+  // Attach listeners once on mount; they stay stable because they use refs.
   useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'grabbing';
-    } else {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    }
-
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, handleMouseMove, handleMouseUp]);
+  }, [handleMouseMove, handleMouseUp]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     knobRef.current?.focus();
+    isDraggingRef.current = true;
+    dragStartYRef.current = e.clientY;
+    dragStartValueRef.current = value;
     setIsDragging(true);
-    setDragStartY(e.clientY);
-    setDragStartValue(value);
     document.body.style.cursor = 'ns-resize';
   };
 
