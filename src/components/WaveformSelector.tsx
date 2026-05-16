@@ -71,7 +71,8 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
     case '303-sqr':
       return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SQR</div>;
     default:
-      return null;
+      // Always show at least the waveform name so unknown types are visible
+      return <div className="font-bold text-[8px] leading-none text-center break-all">{type}</div>;
   }
 });
 
@@ -82,18 +83,19 @@ const GROUPS = [
   { label: 'GPU/WEB', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin', 'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
 ];
 
-// Basic waveforms that cycle on click
-const BASIC_WAVEFORMS: Waveform[] = ['sawtooth', 'square', 'triangle', 'sine'];
+// Flat list of all waveforms in display order, for cycling
+const ALL_WAVEFORMS: Waveform[] = GROUPS.flatMap(g => g.items);
 
-// Get the next waveform in the cycle
-const getNextWaveform = (current: Waveform): Waveform => {
-  const currentIndex = BASIC_WAVEFORMS.indexOf(current);
-  if (currentIndex === -1) {
-    // If current is not a basic waveform, default to sawtooth
-    return 'sawtooth';
+// Get the next waveform in the cycle (wraps around across all groups)
+const getNextWaveform = (current: Waveform, reverse = false): Waveform => {
+  const idx = ALL_WAVEFORMS.indexOf(current);
+  if (idx === -1) {
+    // Unknown waveform: fall back to the first waveform
+    return ALL_WAVEFORMS[0];
   }
-  const nextIndex = (currentIndex + 1) % BASIC_WAVEFORMS.length;
-  return BASIC_WAVEFORMS[nextIndex];
+  const step = reverse ? -1 : 1;
+  const nextIndex = (idx + step + ALL_WAVEFORMS.length) % ALL_WAVEFORMS.length;
+  return ALL_WAVEFORMS[nextIndex];
 };
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
@@ -114,9 +116,9 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
       pink: 'hover:bg-pink-900/30 text-pink-400'
   };
 
-  // Handle waveform cycling on left click
-  const handleWaveformClick = () => {
-    const nextWaveform = getNextWaveform(selected);
+  // Handle waveform cycling on left click (Shift+click cycles in reverse)
+  const handleWaveformClick = (e: React.MouseEvent) => {
+    const nextWaveform = getNextWaveform(selected, e.shiftKey);
     onChange(nextWaveform);
   };
 
@@ -149,8 +151,8 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
         onClick={handleWaveformClick}
         aria-haspopup="true"
         aria-expanded={isOpen}
-        aria-label={`Current waveform: ${selected}. Click to cycle.`}
-        title={`Current: ${selected}. Click to cycle, arrow for more options.`}
+        aria-label={`Current waveform: ${selected}. Click to cycle, Shift+click to cycle back.`}
+        title={`Current: ${selected}. Click to cycle, Shift+click for reverse, arrow for more options.`}
         className={`w-10 h-10 p-2 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-800 hover:bg-gray-700 flex items-center justify-center ${isOpen ? 'ring-2' : ''} ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'}`}
       >
         <WaveformIcon type={selected} />
