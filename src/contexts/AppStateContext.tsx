@@ -1,9 +1,9 @@
 import React, { createContext, useContext } from 'react';
-import { useAppState } from '../hooks/useAppState.tsx';
+import { useAppState } from '../hooks/useAppState';
 
 type AppState = ReturnType<typeof useAppState>;
 
-const AppStateContext = createContext<AppState | null>(null);
+const AppStateContext = createContext<AppState | undefined>(undefined);
 
 /**
  * Provides the global application state (created once) to the entire tree.
@@ -21,7 +21,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
  */
 export function useAppStateContext(): AppState {
     const ctx = useContext(AppStateContext);
-    if (!ctx) {
+    if (ctx === undefined) {
         throw new Error('useAppStateContext must be used within an AppStateProvider');
     }
     return ctx;

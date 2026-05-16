@@ -72,7 +72,7 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SQR</div>;
     default:
       // Always show at least the waveform name so unknown types are visible
-      return <div className="font-bold text-[8px] leading-none text-center break-all">{type}</div>;
+      return <div className="font-bold text-[10px] leading-none text-center break-all">{type}</div>;
   }
 });
 

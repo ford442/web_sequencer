@@ -606,7 +606,7 @@ export const HardwareModule = React.memo(
                     ))}
 
                 </div>
-                {children && <div className="absolute inset-0 pointer-events-none overflow-visible">{children}</div>}
+                {children && <div className="absolute inset-0 pointer-events-none">{children}</div>}
             </div>
         );
     });
