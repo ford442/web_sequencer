@@ -51,8 +51,6 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
     }
   }, [isLoading, totalProgress, isVisible, onComplete]);
 
-  if (!isVisible) return null;
-
   const currentStepInfo = currentStep ? steps[currentStep] : null;
   const hasErrors = errors.length > 0;
   // Hide zero-weight steps (ambianceBuffers/ttsEngine load after the overlay closes).
@@ -60,6 +58,8 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
     () => Object.values(steps).filter((s) => s.id !== 'complete' && s.weight > 0),
     [steps],
   );
+
+  if (!isVisible) return null;
 
   return (
     <div
