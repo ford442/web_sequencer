@@ -27,13 +27,21 @@ export class SingingVoiceManager {
         };
     }
 
-    async init(wasmBinary?: ArrayBuffer): Promise<void> {
-        // Initialize pool of voices
-        const initPromises = [];
+    async init(
+        wasmBinary?: ArrayBuffer,
+        onVoiceReady?: (done: number, total: number) => void,
+    ): Promise<void> {
+        let done = 0;
+        const initPromises: Promise<void>[] = [];
         for (let i = 0; i < this.maxVoices; i++) {
             const voice = new SingingVoice(this.audioContext, this.config);
             this.voices.push(voice);
-            initPromises.push(voice.initWorklet(false, wasmBinary));
+            initPromises.push(
+                voice.initWorklet(false, wasmBinary).then(() => {
+                    done += 1;
+                    onVoiceReady?.(done, this.maxVoices);
+                })
+            );
         }
 
         await Promise.all(initPromises);

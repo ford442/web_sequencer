@@ -14,6 +14,7 @@ const STEP_ICONS: Record<LoadingStep, string> = {
   wasmEngine: '⚡',
   open303Engine: '🎸',
   wavFiles: '🎵',
+  singingVoice: '🎤',
   ambianceBuffers: '🌊',
   ttsEngine: '🗣️',
   complete: '✨',
@@ -54,7 +55,11 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
 
   const currentStepInfo = currentStep ? steps[currentStep] : null;
   const hasErrors = errors.length > 0;
-  const stepList = useMemo(() => Object.values(steps).filter((s) => s.id !== 'complete'), [steps]);
+  // Hide zero-weight steps (ambianceBuffers/ttsEngine load after the overlay closes).
+  const stepList = useMemo(
+    () => Object.values(steps).filter((s) => s.id !== 'complete' && s.weight > 0),
+    [steps],
+  );
 
   return (
     <div

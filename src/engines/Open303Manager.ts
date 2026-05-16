@@ -55,33 +55,26 @@ export class Open303Manager {
                 this.bass2Gain.connect(this.bass2Panner);
             }
 
-            // Initialize bass1 (for partB)
+            // Initialize bass1 and bass2 in parallel — each does a WASM fetch and
+            // worklet addModule. The browser dedupes the addModule call for the same URL,
+            // so running these concurrently halves the open303 init wall-clock.
             this.bass1 = new Open303Oscillator();
-            this.bass1Ready = await this.bass1.init(audioContext, workletUrl, {
-                ...config,
-                preferWorklet: true,
-                preferThreaded: false,
-                forceSingleThreaded: true
-            });
-
-            if (this.bass1Ready && this.bass1) {
-                // Connect bass1 output to its gain node
-                this.bass1.connect(this.bass1Gain);
-            }
-
-            // Initialize bass2 (independent second bass)
             this.bass2 = new Open303Oscillator();
-            this.bass2Ready = await this.bass2.init(audioContext, workletUrl, {
+            const initConfig = {
                 ...config,
                 preferWorklet: true,
                 preferThreaded: false,
                 forceSingleThreaded: true
-            });
+            };
+            const [bass1Ready, bass2Ready] = await Promise.all([
+                this.bass1.init(audioContext, workletUrl, initConfig),
+                this.bass2.init(audioContext, workletUrl, initConfig),
+            ]);
+            this.bass1Ready = bass1Ready;
+            this.bass2Ready = bass2Ready;
 
-            if (this.bass2Ready && this.bass2) {
-                // Connect bass2 output to its gain node
-                this.bass2.connect(this.bass2Gain);
-            }
+            if (this.bass1Ready) this.bass1.connect(this.bass1Gain);
+            if (this.bass2Ready) this.bass2.connect(this.bass2Gain);
 
             this.isReady = this.bass1Ready || this.bass2Ready;
             

@@ -8,7 +8,6 @@ import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
-import { loadingProgressStore } from '../stores/loadingProgressStore'
 import { exportSongToXM } from '../utils/xmExport'
 import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import type { ScaleDefinition } from '../utils/musicTheory'
@@ -88,15 +87,10 @@ export function useAppState() {
             await initializeAudio();
             setIsInitialized(true);
             console.log("Audio Engine Initialized");
-            loadingProgressStore.startStep('ttsEngine');
-            SupertonicService.getInstance().init().then(() => {
-                loadingProgressStore.completeStep('ttsEngine');
-            }).catch((e: unknown) => {
-                loadingProgressStore.failStep(
-                    'ttsEngine',
-                    e instanceof Error ? e : new Error(String(e)),
-                    true
-                );
+            // Supertonic loads in the background after the loading overlay closes.
+            // It's heavy (~235MB of ONNX models) and the app is fully usable without it.
+            SupertonicService.getInstance().init().catch((e: unknown) => {
+                console.warn('Supertonic TTS failed to init:', e);
             });
         } catch (e) {
             console.error("Failed to start system:", e);
