@@ -406,8 +406,8 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
         <div className="w-full max-w-[820px] mx-auto mt-4 select-none relative">
             {/* PIANO LAYOUT INFO Banner */}
             <div className="absolute -top-7 right-0 flex items-center gap-2 z-40">
-                <button onClick={() => setShowGuide(true)} title="Show Keyboard Layout Guide" className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all">
-                    <span className="text-xs">⌨</span> PIANO LAYOUT INFO
+                <button onClick={() => setShowGuide(true)} aria-label="Show Keyboard Layout Guide" title="Show Keyboard Layout Guide" className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all">
+                    <span className="text-xs" aria-hidden="true">⌨</span> PIANO LAYOUT INFO
                 </button>
             </div>
 
