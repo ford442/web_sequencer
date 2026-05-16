@@ -234,7 +234,7 @@ export class SingingVoice {
                 this.workletNode!.port.onmessage = handler;
 
                 // Timeout after 10 seconds
-                timeoutId = setTimeout(() => { //
+                timeoutId = setTimeout(() => {
                     this.workletNode!.port.onmessage = null;
                     reject(new Error('Worklet initialization timeout'));
                 }, 10000);

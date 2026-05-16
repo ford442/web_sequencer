@@ -38,7 +38,7 @@ cp -r "$REPO_ROOT/rubberband/"* "$RUBBERBAND_SRC/"
 # Removed -mrelaxed-simd and -flto/-flto=thin for CI compatibility (Emscripten 3.1.51)
 # Re-enabled : Emscripten 3.1.51 provides its own WASM-compatible OpenMP
 # runtime when linking with -s USE_PTHREADS=1. We do NOT use a host system libomp.
-COMMON_FLAGS="-O3 -msimd128 -ffast-math -funroll-loops -pthread -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
+COMMON_FLAGS="-O3 -msimd128 -ffast-math -funroll-loops -pthread  -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
 
 # C Flags
 CFLAGS="$COMMON_FLAGS"

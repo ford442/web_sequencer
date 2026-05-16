@@ -118,12 +118,19 @@ build_variant() {
     
     # Set up flags based on variant
     if [ "$ENABLE_THREADING" = "true" ]; then
-        # Threaded variant - relies on Emscripten's built-in OpenMP support
-        # when passing -fopenmp and -s USE_PTHREADS=1
-        echo -e "${GREEN}Building threaded variant using Emscripten's built-in OpenMP${NC}"
-        
-        OMP_FLAGS="-pthread -fopenmp"
-        LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0"
+        # Threaded variant - requires libomp.a
+        LIBOMP_PATH="$REPO_ROOT/emscripten/libomp.a"
+        if [ ! -f "$LIBOMP_PATH" ]; then
+            echo -e "${YELLOW}Warning: libomp.a not found at $LIBOMP_PATH. Falling back to Emscripten built-in OpenMP.${NC}"
+            OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
+            OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
+            LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0"
+        else
+            echo -e "${GREEN}Found libomp.a: $LIBOMP_PATH${NC}"
+            OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
+            OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
+            LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0 ${LIBOMP_PATH}"
+        fi
     else
         # Single-threaded variant - no OpenMP
         echo -e "${YELLOW}Building single-threaded variant (no OpenMP)${NC}"
