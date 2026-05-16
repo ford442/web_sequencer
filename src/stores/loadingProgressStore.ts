@@ -13,6 +13,7 @@ export type LoadingStep =
   | 'wasmEngine'
   | 'open303Engine'
   | 'wavFiles'
+  | 'singingVoice'
   | 'ambianceBuffers'
   | 'ttsEngine'
   | 'complete';
@@ -44,17 +45,21 @@ class LoadingProgressStore {
   private listeners: Set<ProgressListener> = new Set();
   private animationFrame: number | null = null;
 
-  // Step weights - total = 100
+  // Step weights — calibrated to typical wall-clock cost during initializeAudio().
+  // Supertonic (ttsEngine) and ambiance buffers load AFTER the overlay closes, so
+  // they're weighted 0 and only present for backward compatibility.
+  // Total of active weights must = 100.
   private static readonly STEP_WEIGHTS: Record<LoadingStep, number> = {
-    audioContext: 5, // Fast, native API
-    masterChain: 5, // Fast, node creation
-    webGpuEngine: 15, // May fail, GPU detection
-    wasmEngine: 10, // WASM instantiation
-    open303Engine: 20, // Complex worklet + WASM
-    wavFiles: 10, // Network fetch + decode
-    ambianceBuffers: 5, // Optional, lazy loaded
-    ttsEngine: 25, // ONNX models ~235 MB, GPU inference setup
-    complete: 5, // Final state
+    audioContext: 3,        // createContext + resume, ~10ms
+    masterChain: 4,         // gain/saturation/reverb/delay nodes, ~10ms
+    webGpuEngine: 8,        // GPU detection / adapter request, ~100-300ms
+    wasmEngine: 5,          // WASM oscillator init
+    open303Engine: 20,      // WASM fetch + worklet × 2 (now parallel)
+    wavFiles: 5,            // fetch + decodeAudioData for saw/square
+    singingVoice: 50,       // 12 SingingVoice worklets, dominant cost
+    ambianceBuffers: 0,     // lazy-loaded, not part of init
+    ttsEngine: 0,           // Supertonic, loads after overlay closes
+    complete: 5,            // final wiring
   };
 
   private static readonly STEP_LABELS: Record<LoadingStep, string> = {
@@ -64,6 +69,7 @@ class LoadingProgressStore {
     wasmEngine: 'Loading WASM Oscillator',
     open303Engine: 'Loading TB-303 Bass Engine',
     wavFiles: 'Loading Waveform Samples',
+    singingVoice: 'Initializing Singing Voice Pool',
     ambianceBuffers: 'Preparing Ambiance Tracks',
     ttsEngine: 'Loading TTS Voice Engine',
     complete: 'Finalizing Setup',
