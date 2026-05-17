@@ -221,7 +221,7 @@ export class SingingVoice {
             // automatically calls port.start(), which is required to begin message delivery
             // on a MessagePort. addEventListener alone does NOT start delivery.
             await new Promise<void>((resolve, reject) => {
-                const timeoutId: ReturnType<typeof setTimeout> | undefined = undefined;
+                let timeoutId: ReturnType<typeof setTimeout> | undefined = undefined;
                 const handler = (event: MessageEvent) => {
                     clearTimeout(timeoutId);
                     this.workletNode!.port.onmessage = null;
