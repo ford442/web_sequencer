@@ -33,34 +33,30 @@ export class Open303Oscillator {
                 // Single-threaded has best compatibility, threaded requires COOP/COEP headers
                 const variant = (!cfg.forceSingleThreaded && cfg.preferThreaded) ? 'threaded' : 'single';
 
-                // ========================================================================
-                // CRITICAL: Resolve WASM relative to the JS bundle via import.meta.url.
-                // This ensures correct loading when the app is deployed under a
-                // subdirectory (e.g. /hyphon/).  Do NOT change this to use
-                // window.location.origin — that strips the path and causes 404s.
-                //
-                // Previous external fallback (kept for reference only):
-                //   https://wasm.noahcohn.com/jc303-single.wasm
-                //   https://wasm.noahcohn.com/jc303-threaded.wasm
-                // ========================================================================
-                const moduleUrl = import.meta.url;
-                const wasmUrl = new URL(`../jc303-${variant}.wasm`, moduleUrl).href;
-                
+                // Resolve WASM URL relative to the current page (window.location.href).
+                // Using window.location.href (not .origin) correctly handles subdirectory
+                // deployments because it includes the full path prefix. The WASM files
+                // must be placed in public/ so they are served from the app root.
+                const pageBase = window.location.href;
+                const wasmUrl = new URL(`jc303-${variant}.wasm`, pageBase).href;
+
                 console.log(`[Open303Oscillator] Fetching WASM variant: ${variant} (${wasmUrl})`);
 
                 // 2. Fetch the WASM binary manually
                 let wasmResponse = await fetch(wasmUrl);
-                
+
                 // If threaded fails and we were trying threaded, fall back to single
                 if (!wasmResponse.ok && variant === 'threaded') {
                     console.warn(`Failed to fetch ${wasmUrl}: ${wasmResponse.status}, falling back to single-threaded`);
-                    const fallbackUrl = new URL('../jc303-single.wasm', moduleUrl).href;
+                    const fallbackUrl = new URL('jc303-single.wasm', pageBase).href;
                     wasmResponse = await fetch(fallbackUrl);
                 }
                 
                 if (!wasmResponse.ok) {
-                    console.warn(`Failed to fetch jc303 WASM: ${wasmResponse.status}`);
-                    return false;
+                    console.warn(`[Open303] WASM fetch failed (${wasmResponse.status}), activating fallback`);
+                    try { engineTelemetry.registerResolution('jc303', 'fallback', 'wasm-fetch-failed'); } catch (_) {}
+                    this.activateFallback();
+                    return true;
                 }
                 
                 const wasmBytes = await wasmResponse.arrayBuffer();
@@ -112,13 +108,13 @@ export class Open303Oscillator {
                         }
                     };
                     
-                    // Timeout after 10 seconds
+                    // Timeout: 20s to account for large WASM compile on slower devices
                     setTimeout(() => {
                         if (!readyReceived) {
-                            console.error("[Open303] Initialization timeout (10s)");
+                            console.error("[Open303] Initialization timeout (20s)");
                             resolve(false);
                         }
-                    }, 10000);
+                    }, 20000);
                 });
 
                 if (!initSuccess) {
