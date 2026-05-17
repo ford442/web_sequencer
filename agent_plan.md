@@ -60,7 +60,9 @@
 ---
 
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
-## 🧠 Innovation Lab (The "Dream" Log)
+## 🧠 Innovation Lab (The
+* **Idea:** "Dynamic Multi-band Compression" - Allow multi-band compression for fine-tuned vocal dynamic control.
+ "Dream" Log)
 * [x] **Idea:** "Spectral Sidechaining" - Duck specific frequencies (like low-end) instead of broadband gain when the kick drum hits, avoiding pumping artifacts on the highs. (Implemented via BiquadFilterNode lowshelf modulation!)
 * [x] **Idea:** "AI Auto-EQ Assistant" - Automatically analyze the frequency spectrum of all tracks and subtly EQ conflicting frequencies to prevent masking (e.g., dipping 200Hz on Synths when the Bass plays).
 * [x] **Idea:** "Vocal Overdrive Worklet" - Add a custom AudioWorklet for nonlinear vocal tube distortion.
@@ -114,13 +116,14 @@
 * [x] **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
 * **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
 * [x] **Idea:** "Vocal Harmony Parallel Bus" - Implement a dedicated bus to process all harmony vocal tracks together (e.g., glue compression, joint EQ) independently from the main lead vocal track.
-* **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
+* [x] **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
 ---
 
 * **Idea:** "Harmony Bus Parameters + Stereo Widener" - Expose compressor/EQ and optional widening parameters on the Vocal Harmony Parallel Bus to the UI.
 ---
 
 ## 📜 Changelog
+* [2026-05-17] - Implemented Multiband Distortion for TTS: Updated `vocal-overdrive-processor.ts` to use a 1-pole lowpass crossover filter. The overdrive is now only applied to the high-frequency band, keeping the fundamental pitch clean while adding aggressive harmonics to the high end. Fulfills the "Multiband Distortion for TTS" Innovation Lab idea. Added new idea: "Dynamic Multi-band Compression".
 * [2026-07-03] - Implemented Vocal Harmony Parallel Bus: Created a dedicated parallel bus (`harmonyBusGainRef` -> `harmonyCompressorRef` -> `harmonyEQRef`) in `useAudioEngine.ts`. Routed harmony voices (where `isHarmonyVoice` is true) through this bus for independent glue compression and EQ before re-joining the master chain. Fulfills the "Vocal Harmony Parallel Bus" idea.
 * [2026-07-01] - Implemented Rhythmic Gating: Added `gateDepth` and `gateRate` parameters to the `Note` interface and `SamplerBankParams`. Exposed UI controls in `NoteSelector` and connected them through `useAudioEngine.ts` to the `rubberband-processor.ts` AudioWorklet, creating a smoothed, step-sequenced trance gate effect.
 * [2026-07-01] - Implemented Microtonal Scale Mapping: Added multiple microtonal tuning systems (e.g., 24-TET, Just Intonation, Bohlen-Pierce) to `musicTheory.ts` with `applyMicrotonalTuning` logic. Added a new tuning dropdown to the `ScaleSelector` UI. Wired `tunedNoteToFrequency` logic through `constants.ts`, `SingingVoice.ts`, and `VoiceManager.ts` to allow both Synthesizers and Sampler to play in custom tunings dynamically.

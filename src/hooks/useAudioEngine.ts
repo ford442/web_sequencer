@@ -514,7 +514,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 try {
                                     const overdriveNode = new AudioWorkletNode(context, 'vocal-overdrive-processor', {
                                         parameterData: {
-                                            drive: driveAmount
+                                            drive: driveAmount,
+                                            crossoverFrequency: 1000
                                         }
                                     });
                                     overdriveNode.connect(finalDest);
@@ -855,10 +856,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     if (driveAmount > 0) {
                         try {
                             const overdriveNode = new AudioWorkletNode(context, 'vocal-overdrive-processor', {
-                                parameterData: {
-                                    drive: driveAmount
-                                }
-                            });
+                                        parameterData: {
+                                            drive: driveAmount,
+                                            crossoverFrequency: 1000
+                                        }
+                                    });
                             finalShaperDest = overdriveNode;
                         } catch (e) {
                             const shaper = context.createWaveShaper();
