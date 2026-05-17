@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { App } from '../App';
+import { AppStateProvider } from '../contexts/AppStateContext';
 
 const mockTriggerTapeStop = vi.fn();
 
@@ -30,7 +31,11 @@ vi.mock('../hooks/usePyodideEngine', () => ({
 
 describe('App Accessibility', () => {
   it('resets master volume when pressing Delete/Backspace', () => {
-    render(<App />);
+    render(
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
+    );
     const volumeSlider = screen.getByLabelText('Master Volume');
 
     // Simulate changing the value first
@@ -50,7 +55,11 @@ describe('App Accessibility', () => {
   });
 
   it('resets global pan when pressing Delete/Backspace', () => {
-    render(<App />);
+    render(
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
+    );
     const panSlider = screen.getByLabelText('Global Pan');
 
     // Simulate changing the value first
@@ -70,7 +79,11 @@ describe('App Accessibility', () => {
   });
 
   it('triggers tape stop on Escape key press', () => {
-    render(<App />);
+    render(
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
+    );
     mockTriggerTapeStop.mockClear();
 
     fireEvent.keyDown(window, { key: 'Escape' });
