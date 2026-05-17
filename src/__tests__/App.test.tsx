@@ -4,7 +4,6 @@ import { describe, it, expect } from 'vitest';
 import App from '../App';
 import { AppStateProvider } from '../contexts/AppStateContext';
 import { vi } from 'vitest';
-import { AppStateProvider } from '../contexts/AppStateContext';
 
 vi.mock('../services/AISongStorage', () => ({
     AISongStorage: {

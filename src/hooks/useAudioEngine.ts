@@ -77,7 +77,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const choirRightPannerRef = useRef<StereoPannerNode | null>(null);
 
     // Vocal Harmony Parallel Bus
-    const harmonyBusGainRef = useRef<GainNode | null>(null);
     const harmonyCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const harmonyEQRef = useRef<BiquadFilterNode | null>(null);
 
