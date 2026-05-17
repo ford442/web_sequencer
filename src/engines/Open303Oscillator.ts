@@ -2,6 +2,11 @@ import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS, DEFAULT_303_CONFIG } from './Open303Params';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import { engineTelemetry } from '../utils/engineTelemetry';
+// Vite-managed asset: Vite content-hashes this and resolves the URL correctly in
+// both dev and production, including subdirectory deployments. The placeholder at
+// src/wasm/jc303-single.wasm (8-byte stub) is replaced by the real artifact after
+// running: bash tools/build_jc303_omp.sh release single
+import jc303WasmUrl from '../wasm/jc303-single.wasm?url';
 
 export class Open303Oscillator {
     private workletNode: AudioWorkletNode | null = null;
@@ -29,59 +34,36 @@ export class Open303Oscillator {
         // Ensure AudioWorklet is supported and URL is provided
         if (audioContext.audioWorklet && workletUrl) {
             try {
-                // 1. Determine which WASM variant to use
-                // Single-threaded has best compatibility, threaded requires COOP/COEP headers
-                const variant = (!cfg.forceSingleThreaded && cfg.preferThreaded) ? 'threaded' : 'single';
+                // 1. Fetch the WASM binary via Vite-managed URL (content-hashed, dev+prod safe)
+                console.log(`[Open303Oscillator] Fetching WASM from Vite asset: ${jc303WasmUrl}`);
+                const wasmResponse = await fetch(jc303WasmUrl);
 
-                // ========================================================================
-                // CRITICAL: Resolve WASM relative to the JS bundle via import.meta.url.
-                // This ensures correct loading when the app is deployed under a
-                // subdirectory (e.g. /hyphon/).  Do NOT change this to use
-                // window.location.origin — that strips the path and causes 404s.
-                //
-                // Previous external fallback (kept for reference only):
-                //   https://wasm.noahcohn.com/jc303-single.wasm
-                //   https://wasm.noahcohn.com/jc303-threaded.wasm
-                // ========================================================================
-                const moduleUrl = import.meta.url;
-                const wasmUrl = new URL(`../jc303-${variant}.wasm`, moduleUrl).href;
-                
-                console.log(`[Open303Oscillator] Fetching WASM variant: ${variant} (${wasmUrl})`);
-
-                // 2. Fetch the WASM binary manually
-                let wasmResponse = await fetch(wasmUrl);
-                
-                // If threaded fails and we were trying threaded, fall back to single
-                if (!wasmResponse.ok && variant === 'threaded') {
-                    console.warn(`Failed to fetch ${wasmUrl}: ${wasmResponse.status}, falling back to single-threaded`);
-                    const fallbackUrl = new URL('../jc303-single.wasm', moduleUrl).href;
-                    wasmResponse = await fetch(fallbackUrl);
-                }
-                
                 if (!wasmResponse.ok) {
-                    console.warn(`Failed to fetch jc303 WASM: ${wasmResponse.status}`);
-                    return false;
+                    console.warn(`[Open303] WASM fetch failed (${wasmResponse.status}), activating fallback`);
+                    try { engineTelemetry.registerResolution('jc303', 'fallback', 'wasm-fetch-failed'); } catch (_) {}
+                    this.activateFallback();
+                    return true;
                 }
-                
+
                 const wasmBytes = await wasmResponse.arrayBuffer();
                 console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-                // 3. Add the Worklet Module
+                // 2. Add the Worklet Module and create the node
                 await audioContext.audioWorklet.addModule(workletUrl);
 
-                // 4. Create the Node
                 this.workletNode = new AudioWorkletNode(audioContext, 'open303-processor', {
                     outputChannelCount: [2] // Request Stereo
                 });
 
-                // 5. Send WASM to the Worklet
+                // 3. Compile + introspect to detect threading before sending to worklet
                 const module = await WebAssembly.compile(wasmBytes);
                 const imports = WebAssembly.Module.imports(module);
                 const memoryImport = imports.find(i => i.kind === 'memory');
                 const isThreaded = memoryImport !== undefined;
-                
-                console.log(`[Open303Oscillator] WASM imports memory: ${isThreaded} (requested: ${variant})`);
-                
+                const variant = isThreaded ? 'threaded' : 'single';
+
+                console.log(`[Open303Oscillator] WASM variant: ${variant}`);
+
                 this.workletNode.port.postMessage({
                     type: 'init-wasm',
                     data: {
@@ -112,13 +94,13 @@ export class Open303Oscillator {
                         }
                     };
                     
-                    // Timeout after 10 seconds
+                    // Timeout: 20s to account for large WASM compile on slower devices
                     setTimeout(() => {
                         if (!readyReceived) {
-                            console.error("[Open303] Initialization timeout (10s)");
+                            console.error("[Open303] Initialization timeout (20s)");
                             resolve(false);
                         }
-                    }, 10000);
+                    }, 20000);
                 });
 
                 if (!initSuccess) {

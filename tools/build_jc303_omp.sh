@@ -192,7 +192,7 @@ if [ -d "$PUBLIC_DIR" ]; then
     cp -f "${DIST_DIR}"/jc303-*.js "$PUBLIC_DIR/" 2>/dev/null || true
     cp -f "${DIST_DIR}"/jc303-*.wasm "$PUBLIC_DIR/" 2>/dev/null || true
     cp -f "${DIST_DIR}"/jc303-*.worker.js "$PUBLIC_DIR/" 2>/dev/null || true
-    
+
     # Also copy without suffix for backward compatibility (prefer single-threaded if both exist)
     if [ -f "${DIST_DIR}/jc303-single.js" ]; then
         cp -f "${DIST_DIR}/jc303-single.js" "$PUBLIC_DIR/jc303.js" 2>/dev/null || true
@@ -204,6 +204,22 @@ if [ -d "$PUBLIC_DIR" ]; then
         cp -f "${DIST_DIR}/jc303-threaded-worklet.js" "$PUBLIC_DIR/jc303_worklet.js" 2>/dev/null || true
         cp -f "${DIST_DIR}/jc303-threaded.worker.js" "$PUBLIC_DIR/jc303.worker.js" 2>/dev/null || true
     fi
+fi
+
+# Copy single-threaded WASM to src/wasm/ — this is the Vite-managed asset.
+# Open303Oscillator.ts imports it as `../wasm/jc303-single.wasm?url` so Vite
+# content-hashes it and resolves the URL correctly in dev and production.
+# After running this script, commit src/wasm/jc303-single.wasm to git.
+SRC_WASM_DIR="$REPO_ROOT/src/wasm"
+if [ -f "${DIST_DIR}/jc303-single.wasm" ]; then
+    echo -e "${YELLOW}Copying single WASM to src/wasm/ (Vite asset)...${NC}"
+    mkdir -p "$SRC_WASM_DIR"
+    cp -f "${DIST_DIR}/jc303-single.wasm" "$SRC_WASM_DIR/jc303-single.wasm"
+    echo -e "${GREEN}Copied to $SRC_WASM_DIR/jc303-single.wasm${NC}"
+    echo ""
+    echo -e "${YELLOW}IMPORTANT — commit these files to git:${NC}"
+    echo "  git add src/wasm/jc303-single.wasm public/jc303_worklet.js public/jc303-single.wasm"
+    echo "  git commit -m 'chore: update jc303 wasm artifacts'"
 fi
 
 echo -e "${GREEN}========================================${NC}"

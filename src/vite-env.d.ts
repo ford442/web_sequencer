@@ -9,3 +9,8 @@ declare module '*.wasm' {
   const value: any;
   export default value;
 }
+
+declare module '*.wasm?url' {
+  const url: string;
+  export default url;
+}
