@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { useAppState } from '../../hooks/useAppState.tsx'
+import { useAppStateContext } from '../../contexts/AppStateContext'
 import { TransportToolbar } from '../TransportToolbar'
 
 export const TransportHeader = React.memo(() => {
@@ -24,7 +24,7 @@ export const TransportHeader = React.memo(() => {
     setIs3DMode,
     currentScale,
     setCurrentScale,
-  } = useAppState()
+  } = useAppStateContext()
 
   return (
     <TransportToolbar

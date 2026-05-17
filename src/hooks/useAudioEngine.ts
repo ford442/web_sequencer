@@ -43,6 +43,7 @@ import {
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
 import { engineTelemetry } from '../utils/engineTelemetry';
+import { loadingProgressStore } from '../stores/loadingProgressStore';
 
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
@@ -154,8 +155,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const initializeAudio = useCallback(async () => {
         if (audioEngine || isInitializing.current) return;
         isInitializing.current = true;
+        loadingProgressStore.startLoading();
 
         try {
+            loadingProgressStore.startStep('audioContext');
             const audioWindow = window as AudioWindow;
             const AudioContextCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
             if (!AudioContextCtor) {
@@ -169,7 +172,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 await context.resume();
                 console.log("AudioContext resumed");
             }
+            loadingProgressStore.completeStep('audioContext');
 
+            loadingProgressStore.startStep('masterChain');
             const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef);
 
             initializeHarmonyBus(context, masterSaturationRef, harmonyBusGainRef);
@@ -201,17 +206,23 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             delayNode.connect(masterBusInput);
             delayNodeRef.current = delayNode;
             delayFeedbackRef.current = delayFeedback;
+            loadingProgressStore.completeStep('masterChain');
 
             // Initialize Engines
+            loadingProgressStore.startStep('webGpuEngine');
             const gpuEngine = new WebGpuOscillator();
             await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
             gpuEngineRef.current = gpuEngine;
+            loadingProgressStore.completeStep('webGpuEngine');
 
+            loadingProgressStore.startStep('wasmEngine');
             const wasmEngine = new WasmOscillator();
             await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
             wasmEngineRef.current = wasmEngine;
+            loadingProgressStore.completeStep('wasmEngine');
 
             // Initialize Open303 Manager
+            loadingProgressStore.startStep('open303Engine');
             const open303Manager = new Open303Manager();
             let open303Ready = false;
             
@@ -239,13 +250,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             if (!open303Ready) {
                 console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
             }
+            loadingProgressStore.completeStep('open303Engine');
 
+            loadingProgressStore.startStep('wavFiles');
             const [sawBuf, sqrBuf] = await Promise.all([
                 loadWavBuffer(context, './assets/saw.wav'),
                 loadWavBuffer(context, './assets/square.wav')
             ]);
             wavSawBufferRef.current = sawBuf;
             wavSqrBufferRef.current = sqrBuf;
+            loadingProgressStore.completeStep('wavFiles');
 
             // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
             try {
@@ -271,6 +285,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             }
 
             // --- Singing Voice Manager Init ---
+            loadingProgressStore.startStep('singingVoice');
             try {
                 let wasmBinary: ArrayBuffer | undefined = undefined;
                 try {
@@ -289,7 +304,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     enableFormantShifting: true
                 });
 
-                await manager.init(wasmBinary);
+                await manager.init(wasmBinary, (done, total) => {
+                    loadingProgressStore.updateStepProgress('singingVoice', (done / total) * 100);
+                });
                 singingVoiceManagerRef.current = manager;
                 try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
 
@@ -318,8 +335,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             } catch (e) {
                 try { engineTelemetry.registerResolution('singingVoice','js','failed to init: ' + String(e)); } catch (err) { /* noop */ }
                 console.warn('SingingVoiceManager failed to init:', e);
+                loadingProgressStore.failStep('singingVoice', e instanceof Error ? e : new Error(String(e)), true);
             }
+            loadingProgressStore.completeStep('singingVoice');
 
+            loadingProgressStore.startStep('complete');
             initializeHarmonizer(harmonizerRef);
             noiseBufferRef.current = createNoiseBuffer(context);
             multisampleGeneratorRef.current = new MultisampleGenerator(context);
@@ -1057,10 +1077,14 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 resetTapeStop
             });
 
+            loadingProgressStore.completeStep('complete');
+            loadingProgressStore.finishLoading();
             setIsReady(true);
             isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
+            loadingProgressStore.addError(e instanceof Error ? e.message : String(e));
+            loadingProgressStore.finishLoading();
             setIsReady(true);
             isInitializing.current = false;
         }

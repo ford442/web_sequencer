@@ -52,7 +52,7 @@ describe('WaveformSelector', () => {
     render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
 
     // Find the main waveform button and click it
-    const trigger = screen.getByLabelText(/Current waveform: sawtooth\. Click to cycle\./i);
+    const trigger = screen.getByLabelText(/Current waveform: sawtooth\. Click to cycle/i);
     fireEvent.click(trigger);
 
     // Should call onChange with the next waveform (square)

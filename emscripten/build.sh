@@ -128,11 +128,7 @@ echo "Linking..."
 # Collect all object files
 OBJECTS=$(find "$TEMP_DIR" -name "*.o")
 
-# Note: We rely on Emscripten's built-in OpenMP runtime (enabled via
-# in COMMON_FLAGS and -s USE_PTHREADS=1 in LINK_FLAGS). The custom libomp.a
-# that used to live in this directory is no longer needed.
-
-em++ $OBJECTS -o "$OUTPUT_JS" \
+em++ $OBJECTS "$SCRIPT_DIR/libomp.a" -o "$OUTPUT_JS" \
   $LINK_FLAGS \
   -s EXPORTED_FUNCTIONS="$EXPORTS"
 

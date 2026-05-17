@@ -23,7 +23,7 @@ WASM_SOURCE_DIRS = ["dist", "public"]
 # File patterns to upload (base names without extension)
 WASM_FILE_BASES = ["jc303-single", "jc303-threaded", "jc303"]
 # Extensions to upload for each base
-WASM_FILE_EXTENSIONS = [".js", ".1ijs", ".wasm", ".worker.js"]
+WASM_FILE_EXTENSIONS = [".js", ".wasm", ".worker.js"]
 
 def upload_directory(sftp_client, local_path, remote_path):
     """

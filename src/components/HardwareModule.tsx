@@ -222,7 +222,7 @@ export const HardwareModule = React.memo(
             if (!is3D && renderRef.current) renderRef.current();
         }, [controls, colorHex, is3D]);
 
-        // --- INTERACTION LOGIC (Mouse) ---
+        // --- INTERACTION LOGIC (Mouse + Touch + Wheel) ---
         useEffect(() => {
             const canvas = canvasRef.current;
             if (!canvas) return;
@@ -234,27 +234,40 @@ export const HardwareModule = React.memo(
             });
             observer.observe(canvas);
 
-            const handleMouseDown = (e: MouseEvent) => {
+            // Shared hit detection: normalises client coords using the same scale for X and Y
+            // to avoid elliptical hit zones on non-square canvases (Issue 5 fix).
+            const findHitKnob = (clientX: number, clientY: number): number => {
                 const rect = cachedRectRef.current || canvas.getBoundingClientRect();
-                const mouseX = (e.clientX - rect.left) / rect.width;
-                const mouseY = (e.clientY - rect.top) / rect.height;
-
-                const hitIndex = controlsRef.current.findIndex(k => {
-                    const dx = k.x - mouseX;
-                    const dy = k.y - mouseY;
-                    return Math.sqrt(dx * dx + dy * dy) < (k.size * 1.2);
+                const scale = Math.max(rect.width, rect.height);
+                const normX = (clientX - rect.left) / scale;
+                const normY = (clientY - rect.top) / scale;
+                return controlsRef.current.findIndex(k => {
+                    const kNormX = k.x * rect.width / scale;
+                    const kNormY = k.y * rect.height / scale;
+                    const dx = kNormX - normX;
+                    const dy = kNormY - normY;
+                    // Use the same scale for size so hit circles remain circular in pixel space
+                    const kSizeNorm = k.size * Math.min(rect.width, rect.height) / scale;
+                    return Math.sqrt(dx * dx + dy * dy) < (kSizeNorm * 1.2);
                 });
+            };
 
+            const activateKnob = (hitIndex: number, clientY: number) => {
+                activeKnobIndex.current = hitIndex;
+                startY.current = clientY;
+                startVal.current = controlsRef.current[hitIndex].value;
+                // UX IMPROVEMENT: Focus the accessible slider when clicking the visual knob
+                // This allows users to click to select, then use arrow keys for fine-tuning
+                sliderRefs.current[hitIndex]?.focus();
+            };
+
+            // --- Mouse Handlers ---
+            const handleMouseDown = (e: MouseEvent) => {
+                const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex !== -1) {
-                    activeKnobIndex.current = hitIndex;
-                    startY.current = e.clientY;
-                    startVal.current = controlsRef.current[hitIndex].value;
+                    activateKnob(hitIndex, e.clientY);
                     document.body.style.cursor = 'ns-resize';
                     e.preventDefault();
-
-                    // UX IMPROVEMENT: Focus the accessible slider when clicking the visual knob
-                    // This allows users to click to select, then use arrow keys for fine-tuning
-                    sliderRefs.current[hitIndex]?.focus();
                 }
             };
 
@@ -271,15 +284,59 @@ export const HardwareModule = React.memo(
                 document.body.style.cursor = 'default';
             };
 
+            // --- Touch Handlers (Issue 1 fix) ---
+            const handleTouchStart = (e: TouchEvent) => {
+                const touch = e.touches[0];
+                const hitIndex = findHitKnob(touch.clientX, touch.clientY);
+                if (hitIndex !== -1) {
+                    activateKnob(hitIndex, touch.clientY);
+                    e.preventDefault();
+                }
+            };
+
+            const handleTouchMove = (e: TouchEvent) => {
+                if (activeKnobIndex.current === null) return;
+                const touch = e.touches[0];
+                const dy = startY.current - touch.clientY;
+                let newVal = startVal.current + (dy * 0.005);
+                newVal = Math.max(0, Math.min(1, newVal));
+                onParamChange(controlsRef.current[activeKnobIndex.current].id, newVal);
+                e.preventDefault();
+            };
+
+            const handleTouchEnd = () => {
+                activeKnobIndex.current = null;
+            };
+
+            // --- Wheel Handler (Issue 2 fix) ---
+            const handleWheel = (e: WheelEvent) => {
+                const hitIndex = findHitKnob(e.clientX, e.clientY);
+                if (hitIndex === -1) return;
+                e.preventDefault();
+                const direction = e.deltaY > 0 ? -1 : 1;
+                const step = e.shiftKey ? 0.1 : (e.altKey ? 0.001 : 0.01);
+                const knob = controlsRef.current[hitIndex];
+                const newVal = Math.max(0, Math.min(1, knob.value + direction * step));
+                onParamChange(knob.id, newVal);
+            };
+
             canvas.addEventListener('mousedown', handleMouseDown);
             window.addEventListener('mousemove', handleMouseMove);
             window.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            window.addEventListener('touchmove', handleTouchMove, { passive: false });
+            window.addEventListener('touchend', handleTouchEnd);
+            canvas.addEventListener('wheel', handleWheel, { passive: false });
 
             return () => {
                 observer.disconnect();
                 canvas.removeEventListener('mousedown', handleMouseDown);
                 window.removeEventListener('mousemove', handleMouseMove);
                 window.removeEventListener('mouseup', handleMouseUp);
+                canvas.removeEventListener('touchstart', handleTouchStart);
+                window.removeEventListener('touchmove', handleTouchMove);
+                window.removeEventListener('touchend', handleTouchEnd);
+                canvas.removeEventListener('wheel', handleWheel);
             };
         }, [onParamChange]);
 
@@ -580,7 +637,7 @@ export const HardwareModule = React.memo(
         }, [is3D]); // Re-initialize when switching between 2D and 3D mode
 
         return (
-            <div ref={containerRef} className="relative rounded-lg shadow-xl overflow-hidden bg-gray-900 border border-gray-700" style={{ width: '100%', height: '100%', minHeight: '220px' }}>
+            <div ref={containerRef} className={`relative rounded-lg shadow-xl bg-gray-900 border border-gray-700 ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: '220px' }}>
                 <canvas ref={canvasRef} width={800} height={400} className="w-full h-full block" />
                 <div className="absolute inset-0 pointer-events-none">
                     <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">{title.toUpperCase()}</div>

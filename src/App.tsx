@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { useAppState } from './hooks/useAppState.tsx'
+import { useAppStateContext } from './contexts/AppStateContext'
 
 import TransportHeader from './components/appParts/TransportHeader'
 import SequencerNode from './components/appParts/SequencerNode'
@@ -18,13 +18,14 @@ import { GamepadDebugger } from './components/GamepadDebugger'
 import { LyricTrack } from './components/LyricTrack'
 import { Toast } from './components/Toast'
 import { StartOverlay } from './components/StartOverlay'
+import { LoadingOverlay } from './components/LoadingOverlay'
 import { SEQUENCER_STYLES } from './components/sequencer/constants'
 import { SongMode } from './components/SongMode'
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
 export const App: React.FC = () => {
-    const state = useAppState();
+    const state = useAppStateContext();
 
     const {
         is3DMode, setIs3DMode, selectedTrack, setSelectedTrack,
@@ -49,7 +50,7 @@ export const App: React.FC = () => {
         synthAChild, synthBChild, bass2Child, samplerChild,
         samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig,
         handleHarmonizerConfigChange, isHarmonizeActive,
-        toast, setToast, hasStarted, handleStart, isPyodideReady,
+        toast, setToast, hasStarted, handleStart, isPyodideReady, isInitialized,
         isImportingAISong, aiImportStage, aiImportProgress, aiImportError,
         setIsImportingAISong, setAiImportStage, setAiImportProgress, showToast,
         isCloudLibraryOpen, setIsCloudLibraryOpen, loadCloudData,
@@ -96,6 +97,8 @@ export const App: React.FC = () => {
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
+            <LoadingOverlay isVisible={hasStarted && !isInitialized} />
+
 
             <AISongImportOverlay
                 isImportingAISong={isImportingAISong}
