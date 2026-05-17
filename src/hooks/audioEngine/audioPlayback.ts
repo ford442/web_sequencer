@@ -9,6 +9,9 @@ import type {
     SynthParams,
 } from '../../types';
 import { noteToMidi } from '../../utils/musicTheory';
+
+/** Reference MIDI note for drum pitch shifting (C3). A step with note C3 plays at unmodified pitch. */
+const DRUM_REF_MIDI = 48;
 import { Harmonizer, type HarmonizerConfig } from '../../engines/Harmonizer';
 import { Open303Manager } from '../../engines/Open303Manager';
 import type { VoiceManager, Voice } from '../../engines/VoiceManager';
@@ -282,8 +285,7 @@ export function createPlayDrum(
             return;
         }
 
-        // Compute pitch multiplier from note relative to reference C3 (MIDI 48)
-        const DRUM_REF_MIDI = 48; // C3
+        // Compute pitch multiplier from note relative to reference C3
         const pitchRatio = note
             ? Math.pow(2, (noteToMidi(note) - DRUM_REF_MIDI) / 12)
             : 1;
