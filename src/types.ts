@@ -226,7 +226,8 @@ export interface AudioEngine {
     params: KickParams | SnareParams | HatParams,
     time: number,
     tuning?: ScaleDefinition | null,
-    stepTime?: number
+    stepTime?: number,
+    note?: string
   ) => void;
 
   playSampler: (
