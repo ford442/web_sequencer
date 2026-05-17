@@ -38,8 +38,10 @@ public/jc303-single*
 public/jc303-threaded*
 public/jc303-worklet*
 
-# Generated WASM
-src/wasm/
+# Generated WASM (exclude build artifacts, keep committed Vite assets)
+src/wasm/*
+!src/wasm/jc303-single.wasm
+!src/wasm/.gitkeep
 
 # Editor directories and files
 .vscode/*
