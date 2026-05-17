@@ -283,6 +283,20 @@ export class Open303Manager {
         this.setBass2Mute(false);
     }
 
+    // ---- Open303Oscillator-compatible API (delegates to bass1) ----
+    // synthPlayback.ts calls these via the Open303Oscillator interface. Routing
+    // them to bass1 keeps the live-play and sequencer paths consistent.
+    setWaveform(v: number) { this.bass1?.setWaveform(v); }
+    setCutoff(v: number) { this.bass1?.setCutoff(v); }
+    setResonance(v: number) { this.bass1?.setResonance(v); }
+    setFilterMode(v: number) { this.bass1?.setFilterMode(v); }
+    setDecay(v: number) { this.bass1?.setDecay(v); }
+    setEnvMod(v: number) { this.bass1?.setEnvMod(v); }
+    setAccent(v: number) { this.bass1?.setAccent(v); }
+    setVolume(v: number) { this.bass1?.setVolume(v); }
+    noteOn(note: number, velocity: number = 100) { this.noteOnBass1(note, velocity); }
+    noteOff(note: number) { this.noteOffBass1(note); }
+
     /**
      * Get bass1 ready state
      */

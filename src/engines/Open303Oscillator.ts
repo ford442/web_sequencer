@@ -48,6 +48,16 @@ export class Open303Oscillator {
                 const wasmBytes = await wasmResponse.arrayBuffer();
                 console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
+                // Guard against the committed 8-byte build stub. A real jc303 binary
+                // is hundreds of KB; anything under 1 KB means the Colab build hasn't
+                // been run yet. Skip the worklet entirely rather than burning 3 retries.
+                if (wasmBytes.byteLength < 1024) {
+                    console.warn(`[Open303] WASM is a stub (${wasmBytes.byteLength} bytes). Run: bash tools/build_jc303_omp.sh release single`);
+                    try { engineTelemetry.registerResolution('jc303', 'fallback', 'wasm-stub'); } catch (_) {}
+                    this.activateFallback();
+                    return true;
+                }
+
                 // 2. Add the Worklet Module and create the node
                 await audioContext.audioWorklet.addModule(workletUrl);
 
