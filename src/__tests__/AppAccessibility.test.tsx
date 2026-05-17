@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { App } from '../App';
+import { AppStateProvider } from '../contexts/AppStateContext';
 
 const mockTriggerTapeStop = vi.fn();
 
