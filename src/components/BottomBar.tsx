@@ -176,7 +176,7 @@ export const BottomBar = memo(function BottomBar({
                 >
                     {isImportingAISong ? (
                         <span className="flex items-center gap-1">
-                            <span className="animate-spin">⏳</span>
+                            <span className="animate-spin" aria-hidden="true">⏳</span>
                             <span>{aiImportStage === 'parsing' && 'Parsing...'}
                             {aiImportStage === 'validating' && 'Validating...'}
                             {aiImportStage === 'converting' && 'Converting...'}
@@ -187,7 +187,7 @@ export const BottomBar = memo(function BottomBar({
                             {!aiImportStage && 'Processing...'} {aiImportProgress}%</span>
                         </span>
                     ) : (
-                        <span>🤖 Import AI Song</span>
+                        <span><span aria-hidden="true">🤖</span> Import AI Song</span>
                     )}
                 </button>
                 <button
@@ -197,7 +197,7 @@ export const BottomBar = memo(function BottomBar({
                     title={isImportingAISong ? "Importing AI song..." : "Cloud Library"}
                     aria-label="Open Cloud Library"
                 >
-                    ☁️ CLOUD
+                    <span aria-hidden="true">☁️</span> CLOUD
                 </button>
             </div>
 
@@ -211,7 +211,7 @@ export const BottomBar = memo(function BottomBar({
                         title="Auto-Mix Assistant (AI Panning & Leveling)"
                         aria-label="Auto-Mix Assistant"
                     >
-                        ✨ AUTO-MIX
+                        <span aria-hidden="true">✨</span> AUTO-MIX
                     </button>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
@@ -278,7 +278,7 @@ export const BottomBar = memo(function BottomBar({
                     title="Gamepad Debugger"
                     aria-label="Open Gamepad Debugger"
                 >
-                    <span className="text-xs">🎮</span>
+                    <span className="text-xs" aria-hidden="true">🎮</span>
                 </button>
 
                 {/* AudioWorklet Fallback Toggle */}
@@ -299,7 +299,7 @@ export const BottomBar = memo(function BottomBar({
                     aria-pressed={forceScriptProcessorFallback}
                     aria-label={forceScriptProcessorFallback ? "Disable ScriptProcessor fallback" : "Enable ScriptProcessor fallback"}
                 >
-                    {forceScriptProcessorFallback ? '⚠️ AW' : '🔊 AW'}
+                    {forceScriptProcessorFallback ? <><span aria-hidden="true">⚠️</span> AW</> : <><span aria-hidden="true">🔊</span> AW</>}
                 </button>
 
                 <div className="w-px h-4 bg-gray-700 mx-1" />

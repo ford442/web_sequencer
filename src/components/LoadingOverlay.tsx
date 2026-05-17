@@ -145,7 +145,10 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
             aria-controls="loading-steps-details"
             aria-label={`${showDetails ? 'Hide' : 'Show'} initialization steps`}
           >
-            <span className={`transform transition-transform ${showDetails ? 'rotate-90' : ''}`}>
+            <span
+              className={`transform transition-transform ${showDetails ? 'rotate-90' : ''}`}
+              aria-hidden="true"
+            >
               ▶
             </span>
             <span>

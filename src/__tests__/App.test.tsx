@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import App from '../App';
 import { AppStateProvider } from '../contexts/AppStateContext';
 import { vi } from 'vitest';
+import { AppStateProvider } from '../contexts/AppStateContext';
 
 vi.mock('../services/AISongStorage', () => ({
     AISongStorage: {
@@ -15,7 +16,11 @@ vi.mock('../services/AISongStorage', () => ({
 
 describe('App', () => {
   it('renders HYPHON heading', () => {
-    render(<App />);
+    render(
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
+    );
     // There are now multiple HYPHON headings (one in overlay, one in header)
     const headings = screen.getAllByRole('heading', { level: 1, name: /HYPHON/i });
     expect(headings.length).toBeGreaterThan(0);
@@ -23,12 +28,20 @@ describe('App', () => {
   });
 
   it('renders volume control', () => {
-    render(<App />);
+    render(
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
+    );
     expect(screen.getByLabelText(/Master Volume/i)).toBeInTheDocument();
   });
 
   it('renders song controls', () => {
-    render(<App />);
+    render(
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
+    );
     // Check for multiple occurrences of "Song" related UI
     const songElements = screen.getAllByText(/Song/i);
     expect(songElements.length).toBeGreaterThan(0);
@@ -42,7 +55,11 @@ describe('App', () => {
   });
 
   it('renders Tape Stop button', () => {
-    render(<App />);
+    render(
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
+    );
     const tapeStopButton = screen.getByRole('button', { name: /Trigger Tape Stop Effect/i });
     expect(tapeStopButton).toBeInTheDocument();
     expect(tapeStopButton).toHaveTextContent(/Tape Stop/i);
