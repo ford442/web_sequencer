@@ -9,6 +9,9 @@ import type {
     SynthParams,
 } from '../../types';
 import { noteToMidi } from '../../utils/musicTheory';
+
+/** Reference MIDI note for drum pitch shifting (C3). A step with note C3 plays at unmodified pitch. */
+const DRUM_REF_MIDI = 48;
 import { Harmonizer, type HarmonizerConfig } from '../../engines/Harmonizer';
 import { Open303Manager } from '../../engines/Open303Manager';
 import type { VoiceManager, Voice } from '../../engines/VoiceManager';
@@ -277,10 +280,15 @@ export function createPlayDrum(
     context: AudioContext,
     refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef'>,
 ): AudioEngine['playDrum'] {
-    return (sound, params, time, _tuning, stepTime = 0.125) => {
+    return (sound, params, time, _tuning, stepTime = 0.125, note?: string) => {
         if (!refs.masterGainRef.current) {
             return;
         }
+
+        // Compute pitch multiplier from note relative to reference C3
+        const pitchRatio = note
+            ? Math.pow(2, (noteToMidi(note) - DRUM_REF_MIDI) / 12)
+            : 1;
 
         const retrigger = 1;
         const subStep = stepTime / retrigger;
@@ -297,7 +305,7 @@ export function createPlayDrum(
                 const osc = context.createOscillator();
                 const gain = context.createGain();
 
-                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.setValueAtTime(150 * pitchRatio, now);
                 osc.frequency.exponentialRampToValueAtTime(0.01, now + kickParams.decay);
 
                 gain.gain.setValueAtTime(kickParams.volume, now);
@@ -321,7 +329,7 @@ export function createPlayDrum(
                 const osc = context.createOscillator();
                 const oscGain = context.createGain();
                 osc.type = 'triangle';
-                osc.frequency.setValueAtTime(250, now);
+                osc.frequency.setValueAtTime(250 * pitchRatio, now);
                 oscGain.gain.setValueAtTime(snareParams.tone * snareParams.volume, now);
                 oscGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
 

@@ -679,16 +679,16 @@ const handleKeyboardPlay = useCallback((note: string) => {
         });
     } 
     else if (selectedTrack === 'kick') {
-        audioEngine.playDrum('kick', { ...kickRef.current, pitch: 60 }, time);
+        audioEngine.playDrum('kick', kickRef.current, time, null, undefined, note);
     } 
     else if (selectedTrack === 'snare') {
-        audioEngine.playDrum('snare', snareRef.current, time);
+        audioEngine.playDrum('snare', snareRef.current, time, null, undefined, note);
     } 
     else if (selectedTrack === 'closedHat') {
-        audioEngine.playDrum('closedHat', closedHatRef.current, time);
+        audioEngine.playDrum('closedHat', closedHatRef.current, time, null, undefined, note);
     } 
     else if (selectedTrack === 'openHat') {
-        audioEngine.playDrum('openHat', openHatRef.current, time);
+        audioEngine.playDrum('openHat', openHatRef.current, time, null, undefined, note);
     } 
     else if (selectedTrack === 'sampler') {
         const voiceParams = samplerVoiceParamsRef.current;

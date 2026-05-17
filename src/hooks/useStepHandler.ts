@@ -230,7 +230,7 @@ export const useStepHandler = ({
         const playDrumIfActive = (trackKey: 'kick' | 'snare' | 'closedHat' | 'openHat', sound: any, params: any) => {
             const stepData = p[trackKey].steps[step];
             if (stepData && !(stepData.probability !== undefined && Math.random() > stepData.probability)) {
-                audioEngine.playDrum(sound, params, time, currentScale, stepTime);
+                audioEngine.playDrum(sound, params, time, currentScale, stepTime, stepData.note);
             }
         };
 
