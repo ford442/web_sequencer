@@ -36,9 +36,9 @@ cp -r "$REPO_ROOT/rubberband/"* "$RUBBERBAND_SRC/"
 # ---------------------------------------------------------
 # Common flags
 # Removed -mrelaxed-simd and -flto/-flto=thin for CI compatibility (Emscripten 3.1.51)
-# Re-enabled -fopenmp: Emscripten 3.1.51 provides its own WASM-compatible OpenMP
+# Re-enabled : Emscripten 3.1.51 provides its own WASM-compatible OpenMP
 # runtime when linking with -s USE_PTHREADS=1. We do NOT use a host system libomp.
-COMMON_FLAGS="-O3 -msimd128 -ffast-math -funroll-loops -pthread -fopenmp -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
+COMMON_FLAGS="-O3 -msimd128 -ffast-math -funroll-loops -pthread  -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
 
 # C Flags
 CFLAGS="$COMMON_FLAGS"
@@ -100,91 +100,7 @@ if ! grep -q "using std::size_t;" "$RUBBERBAND_SRC/src/common/sysutils.h"; then
 fi
 
 # --- OPENMP PARALLELIZATION PATCHES ---
-echo "  [Patch] Adding OpenMP parallelization to rubberband..."
-
-# Add OpenMP include to main headers
-for file in "$RUBBERBAND_SRC/src/faster/R2Stretcher.cpp" \
-            "$RUBBERBAND_SRC/src/faster/StretcherProcess.cpp" \
-            "$RUBBERBAND_SRC/src/finer/R3Stretcher.cpp" \
-            "$RUBBERBAND_SRC/src/finer/R3LiveShifter.cpp"; do
-    if [ -f "$file" ] && ! grep -q "#include <omp.h>" "$file"; then
-        echo "    Adding OpenMP include to $(basename $file)..."
-        sed -i '1s/^/#ifdef _OPENMP\n#include <omp.h>\n#endif\n/' "$file"
-    fi
-done
-
-# Simple patch: Add OpenMP pragma before channel loops
-# Pattern: for (int c = 0; c < ...channels...; ++c) {
-
-# Patch R2Stretcher.cpp (uses m_channels only)
-file="$RUBBERBAND_SRC/src/faster/R2Stretcher.cpp"
-if [ -f "$file" ]; then
-    if ! grep -q "#pragma omp parallel for" "$file"; then
-        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
-        if [ "$count" -gt 0 ]; then
-            echo "    Patching $count channel loops in R2Stretcher.cpp..."
-            sed -i '/for (int c = 0; c < .*channels/i \
-#ifdef _OPENMP\
-#pragma omp parallel for schedule(static) if(m_channels > 2)\
-#endif' "$file"
-        fi
-    else
-        echo "    Skipping R2Stretcher.cpp (already patched)"
-    fi
-fi
-
-# Patch StretcherProcess.cpp (uses m_channels only)
-file="$RUBBERBAND_SRC/src/faster/StretcherProcess.cpp"
-if [ -f "$file" ]; then
-    if ! grep -q "#pragma omp parallel for" "$file"; then
-        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
-        if [ "$count" -gt 0 ]; then
-            echo "    Patching $count channel loops in StretcherProcess.cpp..."
-            sed -i '/for (int c = 0; c < .*channels/i \
-#ifdef _OPENMP\
-#pragma omp parallel for schedule(static) if(m_channels > 2)\
-#endif' "$file"
-        fi
-    else
-        echo "    Skipping StretcherProcess.cpp (already patched)"
-    fi
-fi
-
-# Patch R3Stretcher.cpp (uses m_parameters.channels)
-file="$RUBBERBAND_SRC/src/finer/R3Stretcher.cpp"
-if [ -f "$file" ]; then
-    if ! grep -q "#pragma omp parallel for" "$file"; then
-        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
-        if [ "$count" -gt 0 ]; then
-            echo "    Patching $count channel loops in R3Stretcher.cpp..."
-            sed -i '/for (int c = 0; c < .*channels/i \
-#ifdef _OPENMP\
-#pragma omp parallel for schedule(static) if(m_parameters.channels > 2)\
-#endif' "$file"
-        fi
-    else
-        echo "    Skipping R3Stretcher.cpp (already patched)"
-    fi
-fi
-
-# Patch R3LiveShifter.cpp (uses m_parameters.channels)
-file="$RUBBERBAND_SRC/src/finer/R3LiveShifter.cpp"
-if [ -f "$file" ]; then
-    if ! grep -q "#pragma omp parallel for" "$file"; then
-        count=$(grep -c "for (int c = 0; c < .*channels" "$file" 2>/dev/null || echo 0)
-        if [ "$count" -gt 0 ]; then
-            echo "    Patching $count channel loops in R3LiveShifter.cpp..."
-            sed -i '/for (int c = 0; c < .*channels/i \
-#ifdef _OPENMP\
-#pragma omp parallel for schedule(static) if(m_parameters.channels > 2)\
-#endif' "$file"
-        fi
-    else
-        echo "    Skipping R3LiveShifter.cpp (already patched)"
-    fi
-fi
-
-echo "  [Patch] OpenMP parallelization complete."
+# Disabled OpenMP parallelization for Rubberband due to missing omp.h
 # --- PATCH END ---
 
 # 1. Compile C sources (KissFFT, Speex)
