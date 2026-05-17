@@ -63,6 +63,43 @@ export function initializeMasterOutput(
     return masterSaturation;
 }
 
+export function initializeHarmonyBus(
+    context: AudioContext,
+    masterSaturationRef: MutableRefObject<WaveShaperNode | null>,
+    harmonyBusGainRef: MutableRefObject<GainNode | null>
+): void {
+    const harmonyBusGain = context.createGain();
+    harmonyBusGain.gain.setValueAtTime(0.85, context.currentTime);
+
+    const harmonyBusCompressor = context.createDynamicsCompressor();
+    harmonyBusCompressor.threshold.setValueAtTime(-20, context.currentTime);
+    harmonyBusCompressor.knee.setValueAtTime(30, context.currentTime);
+    harmonyBusCompressor.ratio.setValueAtTime(2, context.currentTime);
+    harmonyBusCompressor.attack.setValueAtTime(0.05, context.currentTime);
+    harmonyBusCompressor.release.setValueAtTime(0.2, context.currentTime);
+
+    const harmonyBusEqHigh = context.createBiquadFilter();
+    harmonyBusEqHigh.type = 'highshelf';
+    harmonyBusEqHigh.frequency.setValueAtTime(5000, context.currentTime);
+    harmonyBusEqHigh.gain.setValueAtTime(2, context.currentTime);
+
+    const harmonyBusEqLow = context.createBiquadFilter();
+    harmonyBusEqLow.type = 'lowshelf';
+    harmonyBusEqLow.frequency.setValueAtTime(250, context.currentTime);
+    harmonyBusEqLow.gain.setValueAtTime(1.5, context.currentTime);
+
+    harmonyBusGain.connect(harmonyBusCompressor);
+    harmonyBusCompressor.connect(harmonyBusEqLow);
+    harmonyBusEqLow.connect(harmonyBusEqHigh);
+    if (masterSaturationRef.current) {
+        harmonyBusEqHigh.connect(masterSaturationRef.current);
+    } else {
+        harmonyBusEqHigh.connect(context.destination);
+    }
+
+    harmonyBusGainRef.current = harmonyBusGain;
+}
+
 export async function loadWavBuffer(context: AudioContext, url: string): Promise<AudioBuffer | null> {
     try {
         const response = await fetch(url);

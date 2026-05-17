@@ -37,6 +37,7 @@ import {
     initializeHarmonizer,
     initializeChoirBuses,
     initializeMasterOutput,
+    initializeHarmonyBus,
     initializeSustainProcessor,
     loadWavBuffer,
     createReverbImpulseResponse,
@@ -67,6 +68,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     
     // Harmonizer for layered vocals
     const harmonizerRef = useRef<Harmonizer | null>(null);
+    const harmonyBusGainRef = useRef<GainNode | null>(null);
 
     // Left/Right Choir Panning
     const choirLeftGainRef = useRef<GainNode | null>(null);
@@ -174,6 +176,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             loadingProgressStore.startStep('masterChain');
             const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef);
+
+            initializeHarmonyBus(context, masterSaturationRef, harmonyBusGainRef);
 
             // Initialize Reverb Node
             // Initialize Reverb Nodes (Room, Plate, Hall)
@@ -433,7 +437,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     grainPitchQuantize?: number,
                     tranceGate?: number,
                     gateRate?: number,
-                    gateDepth?: number
+                    gateDepth?: number,
+                    isHarmonyVoice?: boolean
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -473,7 +478,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
-                            let finalDest = destination || masterSaturationRef.current!;
+                            let finalDest = destination || (noteParams?.isHarmonyVoice && harmonyBusGainRef.current ? harmonyBusGainRef.current : masterSaturationRef.current!);
 
                             // Apply Drive/Distortion if present
                             const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
@@ -914,7 +919,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;
@@ -1024,7 +1029,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             const processSpoon = async (_sampleName: string, _note: string) => null;
             const setSustainMode = (_mode: 'loop' | 'stretch' | 'wavetable') => {};
             const setSustainGrainSize = (_size: number) => {};
-            const setHarmonizerConfig = (config: HarmonizerConfig, isActive: boolean) => applyHarmonizerConfig(harmonizerRef, config, isActive);
+            const setHarmonizerConfig = (config: HarmonizerConfig, isActive: boolean) => {
+                applyHarmonizerConfig(harmonizerRef, config, isActive);
+                if (harmonyBusGainRef.current) {
+                    harmonyBusGainRef.current.gain.setTargetAtTime(isActive ? (config.busGain ?? 0.85) : 0, context.currentTime, 0.05);
+                }
+            };
             const updateSamplerVoiceParams = (_bankIdx: number, _key: string, _value: number | string | boolean) => {};
 
             // Re-assign to state

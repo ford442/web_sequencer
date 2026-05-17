@@ -112,7 +112,7 @@
 ---
 
 * **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
-* **Idea:** "Vocal Harmony Parallel Bus" - Implement a dedicated bus to process all harmony vocal tracks together (e.g., glue compression, joint EQ) independently from the main lead vocal track.
+* [x] **Idea:** "Vocal Harmony Parallel Bus" - Implement a dedicated bus to process all harmony vocal tracks together (e.g., glue compression, joint EQ) independently from the main lead vocal track.
 * **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
 ---
 
