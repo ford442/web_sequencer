@@ -74,6 +74,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const choirLeftPannerRef = useRef<StereoPannerNode | null>(null);
     const choirRightPannerRef = useRef<StereoPannerNode | null>(null);
 
+    // Vocal Harmony Parallel Bus
+    const harmonyBusGainRef = useRef<GainNode | null>(null);
+    const harmonyCompressorRef = useRef<DynamicsCompressorNode | null>(null);
+    const harmonyEQRef = useRef<BiquadFilterNode | null>(null);
+
     const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
     const ambianceSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
@@ -174,6 +179,29 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             loadingProgressStore.startStep('masterChain');
             const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef);
+
+            // Initialize Vocal Harmony Parallel Bus
+            const harmonyGain = context.createGain();
+            harmonyGain.gain.value = 1.0;
+            harmonyBusGainRef.current = harmonyGain;
+
+            const harmonyCompressor = context.createDynamicsCompressor();
+            harmonyCompressor.threshold.setValueAtTime(-18, context.currentTime);
+            harmonyCompressor.knee.setValueAtTime(6, context.currentTime);
+            harmonyCompressor.ratio.setValueAtTime(4, context.currentTime);
+            harmonyCompressor.attack.setValueAtTime(0.01, context.currentTime);
+            harmonyCompressor.release.setValueAtTime(0.1, context.currentTime);
+            harmonyCompressorRef.current = harmonyCompressor;
+
+            const harmonyEQ = context.createBiquadFilter();
+            harmonyEQ.type = 'lowshelf';
+            harmonyEQ.frequency.setValueAtTime(250, context.currentTime);
+            harmonyEQ.gain.setValueAtTime(-3.0, context.currentTime);
+            harmonyEQRef.current = harmonyEQ;
+
+            harmonyGain.connect(harmonyCompressor);
+            harmonyCompressor.connect(harmonyEQ);
+            harmonyEQ.connect(masterSaturationRef.current!);
 
             // Initialize Reverb Node
             // Initialize Reverb Nodes (Room, Plate, Hall)
@@ -433,7 +461,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     grainPitchQuantize?: number,
                     tranceGate?: number,
                     gateRate?: number,
-                    gateDepth?: number
+                    gateDepth?: number,
+                    isHarmonyVoice?: boolean
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -473,7 +502,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
-                            let finalDest = destination || masterSaturationRef.current!;
+                            let finalDest = destination;
+                            if (!finalDest) {
+                                finalDest = (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) ? harmonyBusGainRef.current : masterSaturationRef.current!;
+                            }
 
                             // Apply Drive/Distortion if present
                             const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
@@ -838,7 +870,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         finalShaperDest = shaper;
                     }
 
-                    let finalDestination: AudioNode = masterSaturationRef.current!;
+                    let finalDestination: AudioNode = (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) ? harmonyBusGainRef.current : masterSaturationRef.current!;
                     if (params.pan !== undefined && params.pan !== 0) {
                         const panner = context.createStereoPanner();
                         panner.pan.value = params.pan;
@@ -914,7 +946,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { isHarmonyVoice: true }, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;
