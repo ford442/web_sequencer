@@ -8,6 +8,7 @@ declare class AudioWorkletProcessor {
 }
 
 declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
+declare const sampleRate: number;
 
 class VocalOverdriveProcessor extends AudioWorkletProcessor {
   private lpStates: number[] = [];

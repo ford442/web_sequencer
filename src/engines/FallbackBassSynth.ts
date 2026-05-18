@@ -29,7 +29,7 @@ export class FallbackBassSynth {
         this.audioContext = audioContext;
         
         // Create filter
-        this.filterNode = audioContext.createBiquadFilter();
+        this.filterNode = typeof audioContext.createBiquadFilter === 'function' ? audioContext.createBiquadFilter() : { type: 'lowpass', frequency: { value: 1000, cancelScheduledValues: () => {}, setValueAtTime: () => {}, setTargetAtTime: () => {} }, Q: { value: 10 }, connect: () => {}, disconnect: () => {} } as any;
         this.filterNode.type = 'lowpass';
         this.filterNode.frequency.value = 1000;
         this.filterNode.Q.value = 10;
@@ -104,12 +104,12 @@ export class FallbackBassSynth {
         
         if (!this.isSlide || !this.currentOscillator) {
             // Create new oscillator
-            const osc = this.audioContext.createOscillator();
+            const osc = typeof this.audioContext.createOscillator === 'function' ? this.audioContext.createOscillator() : { type: 'sawtooth', frequency: { value: 440, setTargetAtTime: () => {} }, start: () => {}, stop: () => {}, connect: () => {}, disconnect: () => {} } as any;
             osc.type = this.params.waveform > 0.5 ? 'square' : 'sawtooth';
             osc.frequency.value = freq;
             
             // Create envelope gain
-            const envGain = this.audioContext.createGain();
+            const envGain = (typeof this.audioContext.createGain === 'function') ? this.audioContext.createGain() : { gain: { value: 0, setTargetAtTime: () => {}, cancelScheduledValues: () => {} }, connect: () => {}, disconnect: () => {} } as any;
             envGain.gain.value = 0;
             
             // Connect
