@@ -19,3 +19,6 @@
 ## 2026-05-15 - Decorative Icons Need Explicit Aria Hiding
 **Learning:** Even when a button has a descriptive `aria-label`, decorative text elements inside it (like the `⌨` emoji inside a `<span>`) can still be read awkwardly by some screen readers if not explicitly hidden.
 **Action:** When adding an `aria-label` to a button containing a decorative text icon, always remember to add `aria-hidden="true"` directly to the decorative element itself to ensure a clean auditory experience.
+## 2024-05-26 - Mouse-Click Focus Rings and focus-visible
+**Learning:** Found that using standard `focus:ring-2` on buttons like the Transport Play/Stop causes an ugly, lingering focus ring after a standard mouse click.
+**Action:** When styling interactive elements for accessibility, always prefer `focus-visible:ring-2` over `focus:ring-2`. This ensures that keyboard navigators get clear focus indicators while mouse users do not see lingering rings after clicking.
