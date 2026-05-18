@@ -498,6 +498,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
             // Allocate the output buffer on the WASM heap (owned by the worklet)
             if (exports._malloc) {
+                // 4 bytes per sample (Float32)
                 this.nativeOutputPtr = exports._malloc(this.nativeBufFrames * 4);
                 if (!this.nativeOutputPtr) {
                     throw new Error('Failed to allocate native output buffer');

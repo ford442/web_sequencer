@@ -90,9 +90,10 @@ static inline float fastTanh(float x)
     return x * (27.0f + x2) / (27.0f + 9.0f * x2);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4-pole Moog-style ladder filter  (trapezoidal integrator, per-sample)
-// ─────────────────────────────────────────────────────────────────────────────
+/** Velocity threshold above which a noteOn triggers the accent path. */
+static constexpr float ACCENT_VELOCITY_THRESHOLD = 100.0f;
+
+
 
 struct MoogFilter {
     float s[4] = {};  // integrator states
@@ -190,7 +191,12 @@ struct Open303Instance {
         bufSize    = (bs > 0) ? bs : 128;
         std::free(outBuf);
         outBuf = static_cast<float*>(std::malloc(static_cast<std::size_t>(bufSize) * sizeof(float)));
-        if (outBuf) std::memset(outBuf, 0, static_cast<std::size_t>(bufSize) * sizeof(float));
+        if (outBuf) {
+            std::memset(outBuf, 0, static_cast<std::size_t>(bufSize) * sizeof(float));
+        } else {
+            // Allocation failed: mark bufSize as 0 so processInternal returns nullptr
+            bufSize = 0;
+        }
         filter.reset();
         updateDecayRate();
     }
@@ -251,7 +257,7 @@ struct Open303Instance {
             slideCoeff  = 1.0f;
         }
 
-        accented  = (velocity > 100.0f);
+        accented  = (velocity > ACCENT_VELOCITY_THRESHOLD);
         gateOpen  = true;
         envLevel  = 1.0f;
         updateDecayRate();
@@ -378,7 +384,8 @@ int open303_init(uintptr_t handle, float sampleRate, int bufferSize)
     Open303Instance* inst = lookupInstance(handle);
     if (!inst) return 0;
     inst->init(sampleRate, bufferSize);
-    return 1;
+    // Report failure if the output buffer could not be allocated
+    return (inst->outBuf != nullptr) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE

@@ -132,8 +132,9 @@ export class Open303Oscillator {
                 }
             });
 
-            // Connect and Listen
-            this.workletNode.connect(this.gainNode!);
+            // Connect and Listen (gainNode is always set before _initWithWasmBytes is reached)
+            if (!this.gainNode) throw new Error('gainNode not initialized');
+            this.workletNode.connect(this.gainNode);
 
             // Wait for worklet to confirm initialization
             const initSuccess = await new Promise<boolean>((resolve) => {
