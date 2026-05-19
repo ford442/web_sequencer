@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> **Quick Navigation:** For an index of all root documentation files and subsystem docs, see [DOCS.md](DOCS.md).
+
 ## Project Overview
 
 **Hyphon** is a browser-based Digital Audio Workstation (DAW) inspired by the Korg Electribe EA-1/ER-1. It features a 32-step sequencer with dual synthesizers, a drum machine, an 8-bank sampler with TTS voice synthesis, a TB-303 clone bass synthesizer, and a hardware-style interface.

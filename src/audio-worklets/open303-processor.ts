@@ -732,9 +732,10 @@ class Open303Processor extends AudioWorkletProcessor {
                     if (channelR) channelR.fill(0);
                 }
 
-                // Free the buffer returned by the legacy API
-                if (exports._free) {
-                    exports._free(ptr);
+                // Free the buffer returned by the legacy API.
+                // The WASM exports `free` (no underscore prefix).
+                if (exports.free) {
+                    exports.free(ptr);
                 }
             }
 
