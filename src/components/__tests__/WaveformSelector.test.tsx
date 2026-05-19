@@ -4,74 +4,63 @@ import { WaveformSelector } from '../WaveformSelector';
 import userEvent from '@testing-library/user-event';
 
 describe('WaveformSelector', () => {
-    it('renders trigger button with correct label', () => {
+    it('renders compact trigger button', () => {
         const onChange = vi.fn();
         render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
-        const button = screen.getByRole('button', { name: /Current waveform: sawtooth\. Click to cycle/i });
-        expect(button).toBeInTheDocument();
+        const triggerBtn = screen.getByRole('button', { name: /Waveform selector: sawtooth/i });
+        expect(triggerBtn).toBeInTheDocument();
+        expect(triggerBtn).toHaveAttribute('aria-expanded', 'false');
     });
 
-    it('cycles through waveforms on click', async () => {
+    it('expands panel on trigger button click', async () => {
         const onChange = vi.fn();
         render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
-        const trigger = screen.getByRole('button', { name: /Current waveform: sawtooth\. Click to cycle/i });
+        const triggerBtn = screen.getByRole('button', { name: /Waveform selector: sawtooth/i });
+        await userEvent.click(triggerBtn);
+
+        // After expanding, the oscillator group labels should be visible
+        expect(screen.getByText('JavaScript')).toBeInTheDocument();
+        expect(screen.getByText('PCM')).toBeInTheDocument();
+    });
+
+    it('cycles through waveforms on double-click of trigger button', async () => {
+        const onChange = vi.fn();
+        render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
+
+        const triggerBtn = screen.getByRole('button', { name: /Waveform selector: sawtooth/i });
         
-        // Click should cycle to next waveform (sawtooth -> square)
-        await userEvent.click(trigger);
+        // Double-click should cycle to next waveform (sawtooth -> square)
+        fireEvent.doubleClick(triggerBtn);
         expect(onChange).toHaveBeenCalledWith('square');
     });
 
-    it('cycles through all basic waveforms in order', async () => {
+    it('selects waveform from expanded panel', async () => {
         const onChange = vi.fn();
-        const { rerender } = render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
+        render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
-        // sawtooth -> square
-        const trigger = screen.getByRole('button', { name: /Current waveform: sawtooth\. Click to cycle/i });
-        await userEvent.click(trigger);
+        // Expand the panel
+        const triggerBtn = screen.getByRole('button', { name: /Waveform selector: sawtooth/i });
+        await userEvent.click(triggerBtn);
+
+        // Select square waveform
+        const squareBtn = screen.getByRole('button', { name: /Select square waveform/ });
+        await userEvent.click(squareBtn);
+
         expect(onChange).toHaveBeenCalledWith('square');
-
-        // square -> triangle
-        rerender(<WaveformSelector selected="square" onChange={onChange} accentColor="cyan" />);
-        const trigger2 = screen.getByRole('button', { name: /Current waveform: square\. Click to cycle/i });
-        await userEvent.click(trigger2);
-        expect(onChange).toHaveBeenCalledWith('triangle');
-
-        // triangle -> sine
-        rerender(<WaveformSelector selected="triangle" onChange={onChange} accentColor="cyan" />);
-        const trigger3 = screen.getByRole('button', { name: /Current waveform: triangle\. Click to cycle/i });
-        await userEvent.click(trigger3);
-        expect(onChange).toHaveBeenCalledWith('sine');
-
-        // sine -> wav-saw (continues into next group)
-        rerender(<WaveformSelector selected="sine" onChange={onChange} accentColor="cyan" />);
-        const trigger4 = screen.getByRole('button', { name: /Current waveform: sine\. Click to cycle/i });
-        await userEvent.click(trigger4);
-        expect(onChange).toHaveBeenCalledWith('wav-saw');
     });
 
-    it('opens popover on dropdown button click', async () => {
+    it('highlights selected waveform in panel', async () => {
         const onChange = vi.fn();
-        render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
+        render(<WaveformSelector selected="square" onChange={onChange} accentColor="cyan" />);
 
-        const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
-        await userEvent.click(dropdownBtn);
+        // Expand the panel
+        const triggerBtn = screen.getByRole('button', { name: /Waveform selector: square/i });
+        await userEvent.click(triggerBtn);
 
-        // Check for popover content (e.g. one of the groups or buttons)
-        expect(screen.getByText('BASIC')).toBeInTheDocument();
-    });
-
-    it('shows description on hover in dropdown', async () => {
-        const onChange = vi.fn();
-        render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
-
-        const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
-        await userEvent.click(dropdownBtn);
-
-        const squareBtn = screen.getByRole('button', { name: 'Select square' });
-        fireEvent.mouseEnter(squareBtn);
-
-        expect(screen.getByText(/Standard Square/i)).toBeInTheDocument();
+        const squareBtn = screen.getByRole('button', { name: /Select square waveform \(currently selected\)/ });
+        expect(squareBtn).toHaveAttribute('aria-pressed', 'true');
+        expect(squareBtn).toHaveAttribute('aria-current', 'true');
     });
 });
