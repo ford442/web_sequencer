@@ -242,6 +242,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <select
               id={qualityId}
               value={values.quality}
+              aria-label="Sample Quality"
               onChange={(e) => onChange('quality', e.target.value as 'preview' | 'good' | 'better' | 'best')}
               className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
             >
@@ -257,6 +258,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             <select
               id={modeId}
               value={values.stretchMode}
+              aria-label="Stretch Mode"
               onChange={(e) => onChange('stretchMode', e.target.value as 'Time' | 'Pitch' | 'Formant')}
               className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
             >

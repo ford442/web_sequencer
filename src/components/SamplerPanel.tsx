@@ -800,8 +800,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                         <select
                             value={chordType}
                             onChange={(e) => setChordType(e.target.value)}
-                            className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-400"
                             aria-label="Harmonization Chord Type"
+                            className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-400"
                         >
                             <option value="major">Major</option>
                             <option value="minor">Minor</option>
@@ -1019,8 +1019,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                         <select
                                             value={currentParams.freezeLfoRate ?? 0}
                                             onChange={(e) => handleFreezeLfoRateChange(parseFloat(e.target.value))}
+                                            aria-label="Freeze LFO Rate"
                                             className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
-                                            aria-label="Freeze LFO Rate Subdivision"
                                         >
                                             <option value={2}>2 Bars</option>
                                             <option value={1}>1 Bar</option>
@@ -1054,8 +1054,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                         <select
                                             value={currentParams.formantLfoRate ?? 0}
                                             onChange={(e) => handleFormantLfoRateChange(parseFloat(e.target.value))}
+                                            aria-label="Formant LFO Rate"
                                             className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
-                                            aria-label="Formant LFO Rate Subdivision"
                                         >
                                             <option value={2}>2 Bars</option>
                                             <option value={1}>1 Bar</option>
@@ -1118,9 +1118,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 <select
                                     value={currentParams.morphTarget ?? 'female'}
                                     onChange={(e) => updateParamRef.current('morphTarget', e.target.value)}
+                                    aria-label="Morph Target Character"
                                     className="w-[50px] bg-indigo-950 text-[8px] text-indigo-300 border border-indigo-700 rounded px-0.5 py-0.5 outline-none focus:border-indigo-400 mt-1"
                                     title="Morph Target Character"
-                                    aria-label="Morph Target Character"
                                 >
                                     <option value="male">Male</option>
                                     <option value="female">Female</option>
