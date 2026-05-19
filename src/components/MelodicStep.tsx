@@ -51,7 +51,7 @@ interface MelodicStepProps {
   rowKey: TrackKey;
   refsArray: React.MutableRefObject<(SVGGElement | null)[]>;
   onToggle: (rowKey: TrackKey, stepIndex: number, e: React.PointerEvent) => void;
-  onPitchChange: (rowKey: TrackKey, stepIndex: number, newPitch: number) => void;
+  onPitchChange?: (rowKey: TrackKey, stepIndex: number, newPitch: number) => void;
   onEditLength?: (rowKey: TrackKey, stepIndex: number, length: number) => void;
   baseWidth?: number;
   gap?: number;
