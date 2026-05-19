@@ -122,7 +122,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
   };
 
   return (
-    <div className="relative inline-flex flex-col gap-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700 max-h-[500px] overflow-y-auto custom-scrollbar" ref={containerRef}>
+    <div className="relative inline-flex flex-col gap-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700 max-h-[500px] overflow-y-auto custom-scrollbar" ref={containerRef} role="region" aria-label="Waveform selection panel">
       {/* Header with title and cycling button */}
       <div className="flex items-center justify-between gap-2 px-2 pb-2 border-b border-gray-700">
         <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Waveforms</span>
@@ -142,7 +142,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
         {OSCILLATOR_GROUPS.map((group) => (
           <div key={group.label} className="flex flex-col gap-1">
             {/* Engine label */}
-            <div className="text-[10px] font-bold text-gray-500 px-2 uppercase tracking-widest">
+            <div className="text-xs font-bold text-gray-500 px-2 uppercase tracking-widest">
               {group.label}
             </div>
             {/* Waveform buttons in a row */}
@@ -155,7 +155,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
                   aria-current={selected === wave ? 'true' : undefined}
                   aria-label={`Select ${wave} waveform`}
                   title={wave}
-                  className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center whitespace-nowrap ${
+                  className={`px-2 py-1 text-xs font-bold rounded-md transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center whitespace-nowrap ${
                     selected === wave
                       ? `${accentClasses[accentColor]} shadow-lg`
                       : `bg-gray-700 ${bgClasses[accentColor]} border border-gray-600 hover:border-gray-500`
