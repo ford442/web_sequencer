@@ -88,7 +88,7 @@ interface MelodicSequencerRowProps {
   activeSlot: number;
   trackSlots: (PartSequence | PartSequence[] | null)[];
   onToggle: (k: TrackKey, i: number, e: React.PointerEvent) => void;
-  onPitchChange: (k: TrackKey, i: number, pitch: number) => void;
+  onPitchChange?: (k: TrackKey, i: number, pitch: number) => void;
   onEditLength: (k: TrackKey, i: number, len: number) => void;
   onSelectRow: (k: TrackKey) => void;
   onSelectSlot: (k: TrackKey, slot: number) => void;

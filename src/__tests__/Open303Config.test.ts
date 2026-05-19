@@ -75,13 +75,6 @@ describe('Open303 Oscillator', () => {
                 start: vi.fn(),
                 stop: vi.fn()
             })),
-            createBiquadFilter: vi.fn(() => ({
-                connect: vi.fn(),
-                disconnect: vi.fn(),
-                type: 'lowpass',
-                frequency: { value: 1000 },
-                Q: { value: 1.0 }
-            })),
             sampleRate: 44100,
             currentTime: 0,
             audioWorklet: {
