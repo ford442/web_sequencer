@@ -92,7 +92,6 @@ interface MelodicSequencerRowProps {
   onEditLength: (k: TrackKey, i: number, len: number) => void;
   onSelectRow: (k: TrackKey) => void;
   onSelectSlot: (k: TrackKey, slot: number) => void;
-  zoom?: number;
 }
 
 export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, MelodicSequencerRowProps>(
@@ -109,8 +108,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       onPitchChange,
       onEditLength,
       onSelectRow,
-      onSelectSlot,
-      zoom = 1
+      onSelectSlot
     } = props;
 
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
@@ -272,7 +270,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
         </g>
 
         {/* Grid indicators and Steps wrapped in zoom scale */}
-        <g transform={`translate(220, 0) scale(${zoom}, 1) translate(-220, 0)`}>
+        <g style={{ transform: 'scaleX(var(--zoom-level))', transformOrigin: 'left' }} transform="translate(220, 0)">
             <GridIndicators />
             {renderedSteps}
         </g>
@@ -286,7 +284,6 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
         prev.rowIndex === next.rowIndex &&
         prev.isSelected === next.isSelected &&
         prev.activeSlot === next.activeSlot &&
-        prev.zoom === next.zoom &&
         // ⚡ Bolt: Relying on reference equality since useAppState performs immutable updates via shallow cloning.
         // This avoids deep arraysEqual checks on 256 items per row per render.
         prev.steps === next.steps &&
