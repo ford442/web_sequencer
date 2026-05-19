@@ -1,5 +1,5 @@
 
-import React, { useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { AllDrumParams, DrumSound, KickParams, SnareParams, HatParams } from '../types';
 import { Knob } from './Knob';
 
@@ -8,10 +8,10 @@ interface DrumMachineProps {
   onParamsChange: (sound: DrumSound, newParams: KickParams | SnareParams | HatParams) => void;
 }
 
-export const DrumMachine: React.FC<DrumMachineProps> = React.memo(({ params, onParamsChange }) => {
+export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange }) => {
   // Use a ref to access latest params inside callbacks without causing them to update
-  const paramsRef = React.useRef(params);
-  React.useEffect(() => {
+  const paramsRef = useRef(params);
+  useEffect(() => {
     paramsRef.current = params;
   }, [params]);
 

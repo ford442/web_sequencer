@@ -1,5 +1,5 @@
 
-import React, { useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import type { SynthParams } from '../types';
 import { Knob } from './Knob';
 import { WaveformSelector } from './WaveformSelector';
@@ -19,7 +19,7 @@ interface SynthPartProps {
   onUnfreeze: () => void;
 }
 
-export const SynthPart: React.FC<SynthPartProps> = React.memo(({ title, accentColor, params, onParamChange, isFrozen, isRendering, onMixdown, onUnfreeze }) => {
+export const SynthPart: React.FC<SynthPartProps> = memo(({ title, accentColor, params, onParamChange, isFrozen, isRendering, onMixdown, onUnfreeze }) => {
   const handleParamChange = useCallback(<K extends keyof SynthParams>(param: K, value: SynthParams[K]) => {
     onParamChange(param as string, value as number);
   }, [onParamChange]);
