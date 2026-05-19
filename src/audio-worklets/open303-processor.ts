@@ -620,9 +620,9 @@ class Open303Processor extends AudioWorkletProcessor {
                 if (channelR) channelR.fill(0);
             }
 
-            // Free the allocated buffer
-            if (exports._free) {
-                exports._free(ptr);
+            // Free the allocated buffer (WASM exports 'free', not '_free')
+            if (exports.free) {
+                exports.free(ptr);
             }
 
             // Stuck note detection
