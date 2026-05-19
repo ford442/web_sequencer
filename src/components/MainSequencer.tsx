@@ -586,7 +586,7 @@ const SequencerRowWrapper = memo(({
     row, rIdx, rowRefs, pattern, activeSamplerBank, selectedTrack, activeTrackSlots,
     trackStorage, handleStepPointerDown, onRightMouseDown, onEditLength, onSelectRow,
     onSelectSlot, onSelectionStart, onSelectionEnter, selectionRangeMap, onDrawEnter,
-    isDrawing, viewMode, automationParam, onAutomationChange, alignment, zoom
+    isDrawing, viewMode, automationParam, onAutomationChange, alignment
 }: any) => {
     // We isolate the ref callback here so it doesn't cause constant re-renders during parent renders
     const setRef = useCallback((el: any) => {
@@ -619,7 +619,6 @@ const SequencerRowWrapper = memo(({
             automationParam={automationParam}
             onAutomationChange={onAutomationChange}
             alignment={row.key === 'sampler' ? alignment : null}
-            zoom={zoom}
         />
     );
 });
@@ -810,7 +809,6 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 automationParam={automationParam}
                                 onAutomationChange={onAutomationChange}
                                 alignment={row.key === 'sampler' ? alignment : null}
-                                zoom={zoom}
                             />
                         );
                     })}
