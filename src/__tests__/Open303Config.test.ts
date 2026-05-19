@@ -75,6 +75,13 @@ describe('Open303 Oscillator', () => {
                 start: vi.fn(),
                 stop: vi.fn()
             })),
+            createBiquadFilter: vi.fn(() => ({
+                connect: vi.fn(),
+                disconnect: vi.fn(),
+                type: 'lowpass',
+                frequency: { value: 1000 },
+                Q: { value: 1.0 }
+            })),
             sampleRate: 44100,
             currentTime: 0,
             audioWorklet: {
@@ -147,7 +154,7 @@ describe('Open303 Oscillator', () => {
     });
 
     it('should handle initialization failure gracefully', async () => {
-        // Mock fetch failure
+        // Mock fetch failure — engine activates FallbackBassSynth and returns true
         (global.fetch as any).mockImplementationOnce(() => Promise.resolve({ ok: false, status: 404 }));
 
         const engine = new Open303Oscillator();

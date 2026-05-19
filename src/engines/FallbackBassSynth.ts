@@ -52,6 +52,9 @@ export class FallbackBassSynth {
 
     setWaveform(value: number): void {
         this.params.waveform = value;
+        if (this.currentOscillator) {
+            this.currentOscillator.type = value > 0.5 ? 'square' : 'sawtooth';
+        }
     }
 
     setCutoff(value: number): void {

@@ -1,8 +1,7 @@
 # web_sequencer — Weekly Plan
 
 ## Today's focus
-**Holographic knob GPU context unification** — Implement `KnobGPUContext.ts` singleton (one `GPUDevice`, one `GPURenderPipeline`, one RAF loop); refactor `MagicKnob.tsx` to register/unregister instances and use per-knob uniform buffer slots rather than per-instance device init. Kill the N-RAF, N-device anti-pattern.
-**2026-05-11 (Sun) — User Idea mode.** Picked idea "Holographic knob renderer perf audit" is continuing into implementation phase — audit findings are clear from code inspection: per-instance `GPUDevice` + per-instance RAF loop. No broken foundation.
+**2026-05-18 (Sun) — User Idea mode.** Continuing `[in progress — 2026-05-11]`: Holographic knob GPU context unification — `KnobGPUContext.ts` singleton was not created last week; `MagicKnob.tsx` still runs per-instance `GPUDevice` + per-instance RAF. Full implementation this week: singleton with shared `GPURenderPipeline` and one RAF loop, per-knob uniform buffer slot + bind group, register/unregister API, retire the N-device anti-pattern.
 
 ## Ideas
 - [done — 2026-04-27] **Verify bug-report.md staleness** — confirmed stale: `useAudioEngine.ts` is 938 lines; the try/catch at line 1393 no longer exists. `bug-report.md` can be deleted.
@@ -19,6 +18,10 @@
 - [ ] Dozens of one-off `fix*.py` / `patch*.py` / `update_*.py` scripts at repo root — candidate for archival into `tools/`.
 
 ## Done
+- 2026-05-18 — jc303/Open303 WASM pipeline stabilized: stub-WASM early detection, `Open303Manager` params wiring, WASM promoted to Vite content-hashed asset (PRs #569 + #572, Claude Code).
+- 2026-05-18 — Live keyboard triggers drum voices with MIDI note pitch shifting (PR #571, Copilot).
+- 2026-05-18 — Vocal Harmony Parallel Bus: dedicated parallel bus + glue compression + EQ for harmony voices; `isHarmonyVoice` routing out of main lead saturation path (PR #568, Jules).
+- 2026-05-18 — Palette: decorative UI elements hidden from screen readers (PR #567).
 - 2026-05-11 — Gesture Controls: pinch-to-zoom + scroll-wheel zoom on sequencer timeline (PR #513, Copilot).
 - 2026-05-11 — BottomBar Accessibility Enhancements (PR #511, Jules).
 - 2026-05-04 — TTS per-bank cold-start preload + onnxruntime-web cache purge devtool: `useTTSPreloader.ts` hook (idle-scheduled), `SupertonicService.purgeCache()` + `window.__devtools.purgeTTSCache()` devtools action, full test coverage landed (Jules, commit 52117f0, Apr 28).
@@ -46,7 +49,7 @@
 - 2026-04-12 — AdvancedNoteSelector + ScaleSelector (PR #443).
 
 ## Last run
-Date: 2026-05-11
+Date: 2026-05-18
 Mode: User Idea (continuing)
-Focus: Holographic knob GPU context unification — implement KnobGPUContext.ts singleton
+Focus: Holographic knob GPU context unification — KnobGPUContext.ts singleton + MagicKnob.tsx refactor
 Outcome: (to be filled at end-of-day)
