@@ -53,7 +53,28 @@ LINK_FLAGS="-O1 $COMMON_FLAGS -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s WASM=1
 EXPORTS="[ \
     '_main', \
     '_malloc', \
-    '_free' \
+    '_free', \
+    '_open303_create', \
+    '_open303_destroy', \
+    '_open303_init', \
+    '_open303_note_on', \
+    '_open303_note_off', \
+    '_open303_all_notes_off', \
+    '_open303_set_param', \
+    '_open303_process', \
+    '_jc303_init', \
+    '_jc303_noteOn', \
+    '_jc303_noteOff', \
+    '_jc303_allNotesOff', \
+    '_jc303_setWaveform', \
+    '_jc303_setCutoff', \
+    '_jc303_setResonance', \
+    '_jc303_setEnvMod', \
+    '_jc303_setDecay', \
+    '_jc303_setAccent', \
+    '_jc303_setVolume', \
+    '_jc303_setFilterMode', \
+    '_jc303_process' \
 ]"
 
 # ---------------------------------------------------------
@@ -119,7 +140,10 @@ for f in $RUBBERBAND_SRC/src/finer/*.cpp; do compile_cpp "$f"; done
 # 3. Compile Audio DSP (OpenMP enabled)
 compile_cpp "$SCRIPT_DIR/audio_dsp.cpp"
 
-# 4. Compile Wrapper & Main
+# 4. Compile Open303 TB-303 synthesizer engine
+compile_cpp "$SCRIPT_DIR/open303_wrapper.cpp"
+
+# 5. Compile Wrapper & Main
 compile_cpp "$SCRIPT_DIR/rubberband_wrapper.cpp"
 compile_cpp "$SCRIPT_DIR/main.cpp"
 
