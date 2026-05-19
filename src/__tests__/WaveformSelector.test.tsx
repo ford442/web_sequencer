@@ -7,44 +7,21 @@ describe('WaveformSelector', () => {
     const onChange = vi.fn();
     render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
 
-    // First find the dropdown button and click it to open the popover
-    const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
-    fireEvent.click(dropdownBtn);
-
-    // Now wait for the buttons to appear in the DOM
+    // Buttons should be visible immediately in the new column layout
     await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Select wav-saw/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /Select wav-sqr/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Select wav-saw waveform/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Select wav-sqr waveform/i })).toBeInTheDocument();
     });
   });
 
-  it('shows description when hovering over a waveform', async () => {
+  it('selects wav-saw when button is clicked', async () => {
     const onChange = vi.fn();
     render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
 
-    // Open popover via dropdown button
-    const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
-    fireEvent.click(dropdownBtn);
+    const wavSawBtn = screen.getByRole('button', { name: /Select wav-saw waveform/i });
+    fireEvent.click(wavSawBtn);
 
-    // Wait for buttons
-    await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Select wav-saw/i })).toBeInTheDocument();
-    });
-
-    // Find a button (e.g., wav-saw)
-    const wavSawBtn = screen.getByRole('button', { name: /Select wav-saw/i });
-
-    // Hover
-    fireEvent.mouseEnter(wavSawBtn);
-
-    // Check if description appears
-    expect(screen.getByText('Sampled Sawtooth. Vintage analog character.')).toBeInTheDocument();
-
-    // Mouse leave
-    fireEvent.mouseLeave(wavSawBtn);
-
-    // Should revert to selected waveform description (sawtooth)
-    expect(screen.getByText('Standard Sawtooth. Rich harmonics, great for leads and basses.')).toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith('wav-saw');
   });
 
   it('cycles through basic waveforms when main button is clicked', async () => {

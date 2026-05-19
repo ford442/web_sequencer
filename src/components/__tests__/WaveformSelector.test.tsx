@@ -4,15 +4,21 @@ import { WaveformSelector } from '../WaveformSelector';
 import userEvent from '@testing-library/user-event';
 
 describe('WaveformSelector', () => {
-    it('renders trigger button with correct label', () => {
+    it('renders all waveform buttons', () => {
         const onChange = vi.fn();
         render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
-        const button = screen.getByRole('button', { name: /Current waveform: sawtooth\. Click to cycle/i });
-        expect(button).toBeInTheDocument();
+        // Check for oscillator group labels
+        expect(screen.getByText('JavaScript')).toBeInTheDocument();
+        expect(screen.getByText('PCM')).toBeInTheDocument();
+        expect(screen.getByText('Open303')).toBeInTheDocument();
+        expect(screen.getByText('Pyodide')).toBeInTheDocument();
+        expect(screen.getByText('Rust')).toBeInTheDocument();
+        expect(screen.getByText('WebGPU')).toBeInTheDocument();
+        expect(screen.getByText('Web Audio Module')).toBeInTheDocument();
     });
 
-    it('cycles through waveforms on click', async () => {
+    it('cycles through waveforms on main button click', async () => {
         const onChange = vi.fn();
         render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
@@ -51,27 +57,22 @@ describe('WaveformSelector', () => {
         expect(onChange).toHaveBeenCalledWith('wav-saw');
     });
 
-    it('opens popover on dropdown button click', async () => {
+    it('selects waveform on button click', async () => {
         const onChange = vi.fn();
         render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
 
-        const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
-        await userEvent.click(dropdownBtn);
+        const squareBtn = screen.getByRole('button', { name: /Select square waveform/i });
+        await userEvent.click(squareBtn);
 
-        // Check for popover content (e.g. one of the groups or buttons)
-        expect(screen.getByText('BASIC')).toBeInTheDocument();
+        expect(onChange).toHaveBeenCalledWith('square');
     });
 
-    it('shows description on hover in dropdown', async () => {
+    it('highlights selected waveform', () => {
         const onChange = vi.fn();
-        render(<WaveformSelector selected="sawtooth" onChange={onChange} accentColor="cyan" />);
+        render(<WaveformSelector selected="square" onChange={onChange} accentColor="cyan" />);
 
-        const dropdownBtn = screen.getByRole('button', { name: /Open waveform selector/i });
-        await userEvent.click(dropdownBtn);
-
-        const squareBtn = screen.getByRole('button', { name: 'Select square' });
-        fireEvent.mouseEnter(squareBtn);
-
-        expect(screen.getByText(/Standard Square/i)).toBeInTheDocument();
+        const squareBtn = screen.getByRole('button', { name: /Select square waveform/i });
+        expect(squareBtn).toHaveAttribute('aria-pressed', 'true');
+        expect(squareBtn).toHaveAttribute('aria-current', 'true');
     });
 });
