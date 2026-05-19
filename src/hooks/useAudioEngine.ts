@@ -49,6 +49,7 @@ import { loadingProgressStore } from '../stores/loadingProgressStore';
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
 import vocalOverdriveProcessorUrl from '../audio-worklets/vocal-overdrive-processor.ts?worker&url';
+import expressiveVoiceProcessorUrl from '../audio-worklets/expressive-voice-processor.ts?worker&url';
 
 type AudioWindow = Window & typeof globalThis & {
     webkitAudioContext?: typeof AudioContext;
@@ -309,6 +310,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 console.error('VocalOverdrive AudioWorklet initialization failed:', error);
             }
 
+            try {
+                await context.audioWorklet.addModule(expressiveVoiceProcessorUrl);
+            } catch (error) {
+                console.error('ExpressiveVoiceProcessor AudioWorklet initialization failed:', error);
+            }
+
             // --- Singing Voice Manager Init ---
             loadingProgressStore.startStep('singingVoice');
             try {
@@ -504,8 +511,28 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
                             let finalDest = destination;
+                            // Track any ExpressiveVoiceProcessor node created for this voice
+                            // so it can be torn down when the voice ends.
+                            let expressiveVoiceNode: AudioWorkletNode | null = null;
                             if (!finalDest) {
-                                finalDest = (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) ? harmonyBusGainRef.current : masterSaturationRef.current!;
+                                if (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) {
+                                    // Insert ExpressiveVoiceProcessor between the effects chain
+                                    // and the harmony bus to correct the formant shift introduced
+                                    // by the pitch transposition (playbackRate / rubberband).
+                                    try {
+                                        const node = new AudioWorkletNode(context, 'expressive-voice-processor', {
+                                            parameterData: { pitchShift: pitchOffsetSemitones }
+                                        });
+                                        node.connect(harmonyBusGainRef.current);
+                                        expressiveVoiceNode = node;
+                                        finalDest = node;
+                                    } catch (_err) {
+                                        // Worklet not yet registered — fall back to direct harmony bus.
+                                        finalDest = harmonyBusGainRef.current;
+                                    }
+                                } else {
+                                    finalDest = masterSaturationRef.current!;
+                                }
                             }
 
                             // Apply Drive/Distortion if present
@@ -753,9 +780,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             if (delayMs > 0) {
                                 setTimeout(() => {
                                     voice.noteOff();
+                                    expressiveVoiceNode?.port.postMessage({ type: 'TEARDOWN' });
                                 }, delayMs);
                             } else {
                                 voice.noteOff();
+                                expressiveVoiceNode?.port.postMessage({ type: 'TEARDOWN' });
                             }
                         };
 
@@ -871,7 +900,27 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         finalShaperDest = shaper;
                     }
 
-                    let finalDestination: AudioNode = (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) ? harmonyBusGainRef.current : masterSaturationRef.current!;
+                    // Insert ExpressiveVoiceProcessor before the harmony bus to correct
+                    // the formant shift introduced by playbackRate-based pitch transposition.
+                    let finalDestination: AudioNode;
+                    if (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) {
+                        try {
+                            const expressiveNode = new AudioWorkletNode(context, 'expressive-voice-processor', {
+                                parameterData: { pitchShift: pitchOffsetSemitones }
+                            });
+                            expressiveNode.connect(harmonyBusGainRef.current);
+                            // Tear down the processor when the source finishes playback.
+                            source.addEventListener('ended', () => {
+                                expressiveNode.port.postMessage({ type: 'TEARDOWN' });
+                            });
+                            finalDestination = expressiveNode;
+                        } catch (_err) {
+                            // Worklet not yet registered — fall back to direct harmony bus.
+                            finalDestination = harmonyBusGainRef.current;
+                        }
+                    } else {
+                        finalDestination = masterSaturationRef.current!;
+                    }
                     if (params.pan !== undefined && params.pan !== 0) {
                         const panner = context.createStereoPanner();
                         panner.pan.value = params.pan;
@@ -895,7 +944,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 };
 
                 notes.forEach(noteStr => {
-                    const midi = noteToMidi(noteStr);
+                    // Include pitchOffsetSemitones so harmony voices transpose correctly
+                    // in buffer-source mode (matches the pitch offset already applied in
+                    // stretch mode via noteToMidi(noteStr) + pitchOffsetSemitones).
+                    const midi = noteToMidi(noteStr) + pitchOffsetSemitones;
 
                     if (shouldGlitch) {
                         const numStutters = Math.floor(Math.random() * 3) + 2;
