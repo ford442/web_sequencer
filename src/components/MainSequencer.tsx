@@ -344,11 +344,10 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     viewMode?: 'notes' | 'automation',
     automationParam?: string,
     onAutomationChange?: (k: TrackKey, i: number, val: number) => void,
-    alignment?: AlignmentResult | null,
-    zoom?: number
+    alignment?: AlignmentResult | null
 }>((props, ref) => {
     const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing,
-        automation, viewMode, automationParam, onAutomationChange, alignment, zoom = 1 } = props;
+        automation, viewMode, automationParam, onAutomationChange, alignment } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
@@ -515,7 +514,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             <g transform="translate(30, 16)">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))}
             </g>
-            <g transform={`translate(220, 0) scale(${zoom}, 1) translate(-220, 0)`}>
+            <g style={{ transform: 'scaleX(var(--zoom-level))', transformOrigin: 'left' }} transform="translate(220, 0)">
                 <GridIndicators />
                 {renderedSteps}
             </g>
@@ -531,7 +530,6 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         prev.viewMode === next.viewMode &&
         prev.automationParam === next.automationParam &&
         prev.isDrawing === next.isDrawing &&
-        prev.zoom === next.zoom &&
         prev.selectionRange?.start === next.selectionRange?.start &&
         prev.selectionRange?.end === next.selectionRange?.end &&
         // ⚡ Bolt: Relying on reference equality since useAppState performs immutable updates via shallow cloning.
@@ -595,31 +593,33 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     // Zoom state: driven by prop (for persistence), updated via gesture/wheel events.
     const [zoom, setZoom] = useState(zoomLevel);
 
+    const containerRef = useRef<HTMLDivElement>(null);
+
     // Sync external zoomLevel prop → local state (e.g. when app state loads a saved value).
     const prevZoomLevelRef = useRef(zoomLevel);
     useLayoutEffect(() => {
         if (zoomLevel !== prevZoomLevelRef.current) {
             prevZoomLevelRef.current = zoomLevel;
             setZoom(zoomLevel);
+            // Also sync the CSS variable immediately if the external prop changes
+            if (containerRef.current) {
+                containerRef.current.style.setProperty('--zoom-level', zoomLevel.toString());
+            }
         }
     }, [zoomLevel]);
 
     // Wrap setZoom to also notify parent (persist to app state).
-    const handleSetZoom = useCallback((updater: number | ((prev: number) => number)) => {
-        setZoom(prev => {
-            const next = typeof updater === 'function' ? updater(prev) : updater;
-            onZoomChange?.(next);
-            return next;
-        });
+    const handleZoomChange = useCallback((newZoom: number) => {
+        setZoom(newZoom);
+        onZoomChange?.(newZoom);
     }, [onZoomChange]);
 
-    const containerRef = useRef<HTMLDivElement>(null);
 
     // Attach Ctrl+wheel and pointer-based pinch-to-zoom.
     const { handleDoubleClick } = useTimelineZoom({
         containerRef: containerRef as React.RefObject<HTMLElement | null>,
         zoom,
-        setZoom: handleSetZoom,
+        onZoomChange: handleZoomChange,
     });
 
 
@@ -691,15 +691,13 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
 
     const baseWidth = 1050;
     const timelineWidth = 830;
-    const requiredWidth = 220 + timelineWidth * zoom;
-    const svgWidthPercent = Math.max(100, (requiredWidth / baseWidth) * 100);
 
     return (
         <div
             className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-x-auto overflow-y-hidden scrollbar-thin"
             ref={containerRef}
             onDoubleClick={handleDoubleClick}
-            style={{ '--step-cell-width': `${18 * zoom}px` } as React.CSSProperties}
+            style={{ '--zoom-level': zoom } as React.CSSProperties}
         >
             <style>{SEQUENCER_STYLES}</style>
             <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
@@ -716,7 +714,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 </div>
             )}
 
-            <svg viewBox={`0 0 ${requiredWidth} 680`} style={{ minWidth: `${svgWidthPercent}%` }} height="100%" preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
+            <svg viewBox="0 0 1050 680" style={{ width: 'calc(220px + 830px * var(--zoom-level))', height: '100%', minWidth: '100%' }} preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
                 <g transform="translate(100, 40)">
                     {ROWS.map((row, rIdx) => {
@@ -740,7 +738,6 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     onEditLength={onEditLength}
                                     onSelectRow={onSelectRow}
                                     onSelectSlot={onSelectSlot}
-                                    zoom={zoom}
                                 />
                             );
                         }
@@ -762,7 +759,6 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 automationParam={automationParam}
                                 onAutomationChange={onAutomationChange}
                                 alignment={row.key === 'sampler' ? alignment : null}
-                                zoom={zoom}
                             />
                         );
                     })}
