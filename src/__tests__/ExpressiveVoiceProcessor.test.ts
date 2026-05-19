@@ -173,7 +173,8 @@ describe('ExpressiveVoiceProcessor — FIFO ring-buffer invariants', () => {
     }
 
     // Write position wrapped: check no stale data leaks.
-    expect(writePos).toBe(5 * 128);   // = 640  > FIFO_SIZE (512)
+    // 5 * 128 = 640, which is > FIFO_SIZE (512), so the buffer has wrapped.
+    expect(writePos).toBe(5 * 128);   // 640 > FIFO_SIZE (512) — wrapped
     expect(readPos).toBe(writePos);   // fully consumed
   });
 

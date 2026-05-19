@@ -519,6 +519,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                     // Insert ExpressiveVoiceProcessor between the effects chain
                                     // and the harmony bus to correct the formant shift introduced
                                     // by the pitch transposition (playbackRate / rubberband).
+                                    // `parameterData` sets the initial AudioParam value per spec
+                                    // (Web Audio API §AudioWorkletNodeOptions.parameterData).
                                     try {
                                         const node = new AudioWorkletNode(context, 'expressive-voice-processor', {
                                             parameterData: { pitchShift: pitchOffsetSemitones }
@@ -902,6 +904,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                     // Insert ExpressiveVoiceProcessor before the harmony bus to correct
                     // the formant shift introduced by playbackRate-based pitch transposition.
+                    // `parameterData` sets the initial AudioParam value per spec
+                    // (Web Audio API §AudioWorkletNodeOptions.parameterData).
                     let finalDestination: AudioNode;
                     if (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) {
                         try {

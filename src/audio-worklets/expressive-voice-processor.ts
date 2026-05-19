@@ -173,7 +173,12 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
       return;
     }
 
-    const sr = (globalThis.sampleRate > 0 ? globalThis.sampleRate : 44100);
+    const sr = globalThis.sampleRate > 0 ? globalThis.sampleRate : (() => {
+      // sampleRate must always be valid in an AudioWorkletGlobalScope.
+      // A fallback here indicates a test/mock environment.
+      console.warn('[ExpressiveVoiceProcessor] globalThis.sampleRate is not set; defaulting to 44100');
+      return 44100;
+    })();
     const ratio = Math.pow(2.0, pitchShiftSemitones / 12.0);
 
     for (let i = 0; i < N_FORMANTS; i++) {
@@ -261,6 +266,8 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
     if (!this.alive) return false;
 
     // k-rate: update filter coefficients at most once per block.
+    // `pitchShift` is a k-rate AudioParam, so parameters.pitchShift always has
+    // exactly one value per block.  The guard handles edge cases in test mocks.
     const pitchShift =
       parameters.pitchShift && parameters.pitchShift.length > 0
         ? parameters.pitchShift[0]
