@@ -696,7 +696,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                 <select
                                     value={localQuality}
                                     onChange={(e) => handleParamChange('quality', e.target.value)}
-                                    aria-label="RubberBand Quality"
+                                    aria-label="Sample Quality"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
                                     <option value="preview">Preview</option>
@@ -711,7 +711,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                 <select
                                     value={localStretch}
                                     onChange={(e) => handleParamChange('stretchMode', e.target.value)}
-                                    aria-label="RubberBand Stretch Mode"
+                                    aria-label="Stretch Mode"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
                                     <option value="Time">Time</option>
