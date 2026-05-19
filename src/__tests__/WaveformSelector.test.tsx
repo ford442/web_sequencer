@@ -3,11 +3,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { WaveformSelector } from '../components/WaveformSelector';
 
 describe('WaveformSelector', () => {
-  it('renders the wav-saw and wav-sqr buttons', async () => {
+  it('renders the wav-saw and wav-sqr buttons when expanded', async () => {
     const onChange = vi.fn();
     render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
 
-    // Buttons should be visible immediately in the new column layout
+    // Expand the panel
+    const triggerBtn = screen.getByRole('button', { name: /Waveform selector: sawtooth/i });
+    fireEvent.click(triggerBtn);
+
+    // Buttons should be visible after expansion
     await waitFor(() => {
         expect(screen.getByRole('button', { name: /Select wav-saw waveform/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Select wav-sqr waveform/i })).toBeInTheDocument();
@@ -18,19 +22,23 @@ describe('WaveformSelector', () => {
     const onChange = vi.fn();
     render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
 
-    const wavSawBtn = screen.getByRole('button', { name: /Select wav-saw waveform/i });
+    // Expand the panel
+    const triggerBtn = screen.getByRole('button', { name: /Waveform selector: sawtooth/i });
+    fireEvent.click(triggerBtn);
+
+    const wavSawBtn = await screen.findByRole('button', { name: /Select wav-saw waveform/i });
     fireEvent.click(wavSawBtn);
 
     expect(onChange).toHaveBeenCalledWith('wav-saw');
   });
 
-  it('cycles through basic waveforms when main button is clicked', async () => {
+  it('cycles through basic waveforms when double-clicking trigger button', async () => {
     const onChange = vi.fn();
     render(<WaveformSelector selected={'sawtooth'} onChange={onChange} accentColor="cyan" />);
 
-    // Find the main waveform button and click it
-    const trigger = screen.getByLabelText(/Current waveform: sawtooth\. Click to cycle/i);
-    fireEvent.click(trigger);
+    // Double-click the trigger button to cycle
+    const trigger = screen.getByRole('button', { name: /Waveform selector: sawtooth/i });
+    fireEvent.doubleClick(trigger);
 
     // Should call onChange with the next waveform (square)
     expect(onChange).toHaveBeenCalledWith('square');

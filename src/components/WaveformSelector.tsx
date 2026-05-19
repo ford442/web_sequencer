@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import type { Waveform } from '../types';
 
 interface WaveformSelectorProps {
@@ -102,6 +102,7 @@ const getNextWaveform = (current: Waveform, reverse = false): Waveform => {
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ selected, onChange, accentColor }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -121,53 +122,112 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
     onChange(nextWaveform);
   };
 
-  return (
-    <div className="relative inline-flex flex-col gap-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700 max-h-[500px] overflow-y-auto custom-scrollbar" ref={containerRef} role="region" aria-label="Waveform selection panel">
-      {/* Header with title and cycling button */}
-      <div className="flex items-center justify-between gap-2 px-2 pb-2 border-b border-gray-700">
-        <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Waveforms</span>
-        <button
-          ref={triggerRef}
-          onClick={handleWaveformClick}
-          aria-label={`Current waveform: ${selected}. Click to cycle, Shift+click to cycle back.`}
-          title={`Current: ${selected}. Click to cycle, Shift+click for reverse.`}
-          className={`w-8 h-8 p-1.5 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'}`}
-        >
-          <WaveformIcon type={selected} />
-        </button>
-      </div>
+  // Close panel on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
 
-      {/* Oscillator groups as vertical column */}
-      <div className="flex flex-col gap-3">
-        {OSCILLATOR_GROUPS.map((group) => (
-          <div key={group.label} className="flex flex-col gap-1">
-            {/* Engine label */}
-            <div className="text-xs font-bold text-gray-500 px-2 uppercase tracking-widest">
-              {group.label}
+    if (isExpanded) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExpanded]);
+
+  return (
+    <div className="relative inline-block" ref={containerRef}>
+      {/* Compact trigger button - always visible */}
+      <button
+        ref={triggerRef}
+        onClick={() => setIsExpanded(!isExpanded)}
+        aria-label={`Waveform selector: ${selected}. Click to ${isExpanded ? 'collapse' : 'expand'} options. Click to cycle, Shift+click for reverse.`}
+        aria-expanded={isExpanded}
+        title={`Current: ${selected}. Click to expand waveforms, or click here to cycle (Shift+click for reverse).`}
+        className={`w-10 h-10 p-2 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'} ${isExpanded ? 'ring-2' : ''}`}
+        onDoubleClick={handleWaveformClick}
+      >
+        <WaveformIcon type={selected} />
+      </button>
+
+      {/* Expandable pop-out panel - animates in from left to right */}
+      {isExpanded && (
+        <div 
+          className="absolute left-0 top-0 z-50 origin-left animate-in fade-in zoom-in-95 duration-300 ease-out"
+          style={{
+            animation: 'popOut 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+          }}
+        >
+          <div className="flex items-start gap-2 p-2 bg-gray-800/95 backdrop-blur-sm rounded-lg border border-gray-700 shadow-2xl" role="region" aria-label="Waveform selection panel" tabIndex={0}>
+            {/* Left side: Current waveform display and cycle button */}
+            <div className="flex flex-col gap-2 border-r border-gray-700 pr-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-gray-400 text-center">Current</div>
+              <button
+                onClick={handleWaveformClick}
+                aria-label={`Current waveform: ${selected}. Click to cycle, Shift+click to cycle back.`}
+                title={`Current: ${selected}. Click to cycle, Shift+click for reverse.`}
+                className={`w-12 h-12 p-2 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'}`}
+              >
+                <WaveformIcon type={selected} />
+              </button>
             </div>
-            {/* Waveform buttons in a row */}
-            <div className="flex flex-wrap gap-1 px-2">
-              {group.items.map((wave) => (
-                <button
-                  key={wave}
-                  onClick={() => { onChange(wave); triggerRef.current?.focus(); }}
-                  aria-pressed={selected === wave}
-                  aria-current={selected === wave ? 'true' : undefined}
-                  aria-label={`Select ${wave} waveform`}
-                  title={wave}
-                  className={`px-2 py-1 text-xs font-bold rounded-md transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center whitespace-nowrap ${
-                    selected === wave
-                      ? `${accentClasses[accentColor]} shadow-lg`
-                      : `bg-gray-700 ${bgClasses[accentColor]} border border-gray-600 hover:border-gray-500`
-                  }`}
-                >
-                  <WaveformIcon type={wave} />
-                </button>
+
+            {/* Right side: Oscillator groups */}
+            <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+              {OSCILLATOR_GROUPS.map((group) => (
+                <div key={group.label} className="flex flex-col gap-1">
+                  {/* Engine label as heading for semantic structure */}
+                  <h3 className="text-xs font-bold text-gray-500 px-2 uppercase tracking-widest">
+                    {group.label}
+                  </h3>
+                  {/* Waveform buttons in a row */}
+                  <div className="flex flex-wrap gap-1 px-2">
+                    {group.items.map((wave) => (
+                      <button
+                        key={wave}
+                        onClick={() => { onChange(wave); }}
+                        aria-pressed={selected === wave}
+                        aria-current={selected === wave ? 'true' : undefined}
+                        aria-label={`Select ${wave} waveform ${selected === wave ? '(currently selected)' : ''}`}
+                        title={wave}
+                        className={`px-2 py-1 text-xs font-bold rounded-md transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center whitespace-nowrap gap-1 ${
+                          selected === wave
+                            ? `${accentClasses[accentColor]} shadow-lg`
+                            : `bg-gray-700 ${bgClasses[accentColor]} border border-gray-600 hover:border-gray-500`
+                        }`}
+                      >
+                        <WaveformIcon type={wave} />
+                        {selected === wave && (
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <path d="M20 6L9 17l-5-5" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* CSS for pop-out animation */}
+      <style>{`
+        @keyframes popOut {
+          from {
+            opacity: 0;
+            transform: scaleX(0) translateX(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: scaleX(1) translateX(0);
+          }
+        }
+      `}</style>
     </div>
   );
 });
