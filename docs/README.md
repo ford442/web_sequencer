@@ -1,5 +1,7 @@
 # Hyphon Documentation Index
 
+> **Entry Point:** See [DOCS.md](../DOCS.md) at root for the full index of root documentation and this subsystem guide.
+
 This directory contains all project documentation organized by topic.
 For a quick-start overview see the root [README.md](../README.md).
 

@@ -51,7 +51,7 @@ interface MelodicStepProps {
   rowKey: TrackKey;
   refsArray: React.MutableRefObject<(SVGGElement | null)[]>;
   onToggle: (rowKey: TrackKey, stepIndex: number, e: React.PointerEvent) => void;
-  onPitchChange: (rowKey: TrackKey, stepIndex: number, newPitch: number) => void;
+  onPitchChange?: (rowKey: TrackKey, stepIndex: number, newPitch: number) => void;
   onEditLength?: (rowKey: TrackKey, stepIndex: number, length: number) => void;
   baseWidth?: number;
   gap?: number;
@@ -168,7 +168,7 @@ export const MelodicStep = memo(({
       const newPitch = Math.max(36, Math.min(96, dragStartPitch.current + semitoneDelta));
       
       if (newPitch !== pitch) {
-        onPitchChange(rowKey, stepIndex, newPitch);
+        onPitchChange?.(rowKey, stepIndex, newPitch);
       }
     };
     
@@ -221,7 +221,7 @@ export const MelodicStep = memo(({
     if (handled) {
       e.preventDefault();
       e.stopPropagation();
-      onPitchChange(rowKey, stepIndex, newPitch);
+      onPitchChange?.(rowKey, stepIndex, newPitch);
     }
   }, [active, pitch, rowKey, stepIndex, onToggle, onPitchChange]);
 
