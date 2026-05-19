@@ -16,7 +16,7 @@ global.fetch = vi.fn((url: string) => {
     if (typeof url === 'string' && (url.includes('jc303-single.wasm') || url.includes('jc303-threaded.wasm'))) {
         return Promise.resolve({
             ok: true,
-            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(2048))
         } as Response);
     }
     return Promise.resolve({
@@ -59,6 +59,13 @@ describe('Open303 Oscillator', () => {
                 connect: vi.fn(),
                 disconnect: vi.fn(),
                 gain: { value: 1.0 }
+            })),
+            createBiquadFilter: vi.fn(() => ({
+                connect: vi.fn(),
+                disconnect: vi.fn(),
+                type: 'lowpass',
+                frequency: { value: 1000 },
+                Q: { value: 1.0 }
             })),
             sampleRate: 44100,
             audioWorklet: {
@@ -131,13 +138,14 @@ describe('Open303 Oscillator', () => {
     });
 
     it('should handle initialization failure gracefully', async () => {
-        // Mock fetch failure
+        // Mock fetch failure — engine activates FallbackBassSynth and returns true
         (global.fetch as any).mockImplementationOnce(() => Promise.resolve({ ok: false, status: 404 }));
 
         const engine = new Open303Oscillator();
         const success = await engine.init(mockAudioContext, 'worklet-url.js');
 
-        expect(success).toBe(false);
-        expect(engine.isReady).toBe(false);
+        expect(success).toBe(true);
+        expect(engine.isReady).toBe(true);
+        expect(engine.isFallback).toBe(true);
     });
 });
