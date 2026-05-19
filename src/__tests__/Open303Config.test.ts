@@ -54,11 +54,26 @@ describe('Open303 Oscillator', () => {
             configurable: true
         });
 
-        mockAudioContext = {
+                                mockAudioContext = {
             createGain: vi.fn(() => ({
                 connect: vi.fn(),
                 disconnect: vi.fn(),
-                gain: { value: 1.0 }
+                gain: { value: 1.0, cancelScheduledValues: vi.fn(), setTargetAtTime: vi.fn() }
+            })),
+            createBiquadFilter: vi.fn(() => ({
+                connect: vi.fn(),
+                disconnect: vi.fn(),
+                type: 'lowpass',
+                frequency: { value: 1000, cancelScheduledValues: vi.fn(), setValueAtTime: vi.fn(), setTargetAtTime: vi.fn() },
+                Q: { value: 10 }
+            })),
+            createOscillator: vi.fn(() => ({
+                connect: vi.fn(),
+                disconnect: vi.fn(),
+                type: 'sawtooth',
+                frequency: { value: 440, setTargetAtTime: vi.fn() },
+                start: vi.fn(),
+                stop: vi.fn()
             })),
             createBiquadFilter: vi.fn(() => ({
                 connect: vi.fn(),
@@ -68,6 +83,7 @@ describe('Open303 Oscillator', () => {
                 Q: { value: 1.0 }
             })),
             sampleRate: 44100,
+            currentTime: 0,
             audioWorklet: {
                 addModule: vi.fn().mockResolvedValue(undefined)
             }
