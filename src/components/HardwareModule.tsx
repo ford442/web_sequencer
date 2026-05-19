@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { memo, useRef, useEffect, useCallback } from 'react';
 
 export interface KnobConfig {
     id: string;
@@ -40,7 +40,7 @@ interface KnobOverlayProps {
     onRegisterRef: (index: number, el: HTMLDivElement | null) => void;
 }
 
-const KnobOverlay = React.memo(({
+const KnobOverlay = memo(({
     id, label, x, y, size, value, valueDisplay, isRecording, colorHex, index, onParamChange, onRecordToggle, onRegisterRef
 }: KnobOverlayProps) => {
     return (
@@ -135,7 +135,7 @@ const KnobOverlay = React.memo(({
     );
 });
 
-export const HardwareModule = React.memo(
+export const HardwareModule = memo(
     ({
         title,
         colorHex,

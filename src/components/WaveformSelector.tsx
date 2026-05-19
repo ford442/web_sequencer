@@ -1,6 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import React, { useRef, useState, useEffect } from 'react';
 import type { Waveform } from '../types';
 
 interface WaveformSelectorProps {
@@ -76,15 +75,18 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
   }
 });
 
-const GROUPS = [
-  { label: 'BASIC', items: ['sawtooth', 'square', 'triangle', 'sine'] as Waveform[] },
-  { label: 'VINTAGE', items: ['wav-saw', 'wav-sqr', '303-saw', '303-sqr'] as Waveform[] },
-  { label: 'WASM/JS', items: ['pyodide-saw', 'pyodide-square', 'pyodide-sine', 'rust-saw', 'rust-sqr'] as Waveform[] },
-  { label: 'GPU/WEB', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin', 'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
+const OSCILLATOR_GROUPS = [
+  { label: 'JavaScript', items: ['sawtooth', 'square', 'triangle', 'sine'] as Waveform[] },
+  { label: 'PCM', items: ['wav-saw', 'wav-sqr'] as Waveform[] },
+  { label: 'Open303', items: ['303-saw', '303-sqr'] as Waveform[] },
+  { label: 'Pyodide', items: ['pyodide-saw', 'pyodide-square', 'pyodide-sine'] as Waveform[] },
+  { label: 'Rust', items: ['rust-saw', 'rust-sqr'] as Waveform[] },
+  { label: 'WebGPU', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'] as Waveform[] },
+  { label: 'Web Audio Module', items: ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
 ];
 
 // Flat list of all waveforms in display order, for cycling
-const ALL_WAVEFORMS: Waveform[] = GROUPS.flatMap(g => g.items);
+const ALL_WAVEFORMS: Waveform[] = OSCILLATOR_GROUPS.flatMap(g => g.items);
 
 // Get the next waveform in the cycle (wraps around across all groups)
 const getNextWaveform = (current: Waveform, reverse = false): Waveform => {
@@ -100,11 +102,9 @@ const getNextWaveform = (current: Waveform, reverse = false): Waveform => {
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ selected, onChange, accentColor }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [hoveredWaveform, setHoveredWaveform] = useState<Waveform | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useFocusTrap(isOpen, () => setIsOpen(false));
 
   const accentClasses = {
     cyan: 'bg-cyan-500 text-gray-900 border-cyan-400 ring-cyan-400',
@@ -122,99 +122,112 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
     onChange(nextWaveform);
   };
 
-  // Handle opening the dropdown
-  const handleOpenDropdown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsOpen(!isOpen);
-  };
-
+  // Close panel on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+        setIsExpanded(false);
       }
     };
 
-    if (isOpen) {
+    if (isExpanded) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen]);
+  }, [isExpanded]);
 
   return (
-    <div className="relative inline-flex items-center gap-1" ref={containerRef}>
-      {/* Main Waveform Button - Cycles on click */}
+    <div className="relative inline-block" ref={containerRef}>
+      {/* Compact trigger button - always visible */}
       <button
         ref={triggerRef}
-        onClick={handleWaveformClick}
-        aria-haspopup="true"
-        aria-expanded={isOpen}
-        aria-label={`Current waveform: ${selected}. Click to cycle, Shift+click to cycle back.`}
-        title={`Current: ${selected}. Click to cycle, Shift+click for reverse, arrow for more options.`}
-        className={`w-10 h-10 p-2 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-800 hover:bg-gray-700 flex items-center justify-center ${isOpen ? 'ring-2' : ''} ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'}`}
+        onClick={() => setIsExpanded(!isExpanded)}
+        aria-label={`Waveform selector: ${selected}. Click to ${isExpanded ? 'collapse' : 'expand'} options. Click to cycle, Shift+click for reverse.`}
+        aria-expanded={isExpanded}
+        title={`Current: ${selected}. Click to expand waveforms, or click here to cycle (Shift+click for reverse).`}
+        className={`w-10 h-10 p-2 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'} ${isExpanded ? 'ring-2' : ''}`}
+        onDoubleClick={handleWaveformClick}
       >
         <WaveformIcon type={selected} />
       </button>
 
-      {/* Dropdown Toggle Button */}
-      <button
-        onClick={handleOpenDropdown}
-        aria-label="Open waveform selector"
-        title="More waveforms"
-        className={`w-4 h-10 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-800 hover:bg-gray-700 flex items-center justify-center ${isOpen ? 'ring-2' : ''} ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400 text-cyan-400' : 'focus:ring-pink-400 ring-pink-400 text-pink-400'}`}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3">
-          <path d={isOpen ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} />
-        </svg>
-      </button>
+      {/* Expandable pop-out panel - animates in from left to right */}
+      {isExpanded && (
+        <div 
+          className="absolute left-0 top-0 z-50 origin-left animate-in fade-in zoom-in-95 duration-300 ease-out"
+          style={{
+            animation: 'popOut 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+          }}
+        >
+          <div className="flex items-start gap-2 p-2 bg-gray-800/95 backdrop-blur-sm rounded-lg border border-gray-700 shadow-2xl" role="region" aria-label="Waveform selection panel" tabIndex={0}>
+            {/* Left side: Current waveform display and cycle button */}
+            <div className="flex flex-col gap-2 border-r border-gray-700 pr-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-gray-400 text-center">Current</div>
+              <button
+                onClick={handleWaveformClick}
+                aria-label={`Current waveform: ${selected}. Click to cycle, Shift+click to cycle back.`}
+                title={`Current: ${selected}. Click to cycle, Shift+click for reverse.`}
+                className={`w-12 h-12 p-2 rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'}`}
+              >
+                <WaveformIcon type={selected} />
+              </button>
+            </div>
 
-      {/* Popover */}
-      {isOpen && (
-        <div ref={popoverRef} role="dialog" aria-modal="true" aria-label="Select Waveform" className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
-          {(hoveredWaveform || selected) && (
-             <div className="absolute -top-12 left-0 right-0 bg-gray-800 text-xs text-gray-300 p-1 text-center rounded border border-gray-600 shadow-md pointer-events-none z-50 whitespace-pre-wrap">
-                 {(hoveredWaveform || selected) === 'sawtooth' ? 'Standard Sawtooth. Rich harmonics, great for leads and basses.' :
-                  (hoveredWaveform || selected) === 'square' ? 'Standard Square' :
-                  (hoveredWaveform || selected) === 'wav-saw' ? 'Sampled Sawtooth. Vintage analog character.' :
-                  (hoveredWaveform || selected)}
-             </div>
-          )}
-          <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
-            {GROUPS.map((group) => (
-              <div key={group.label} className="flex flex-col gap-1">
-                <div className="text-[9px] font-bold text-gray-500 px-1 border-b border-gray-800 pb-0.5 mb-0.5 tracking-wider">
-                  {group.label}
+            {/* Right side: Oscillator groups */}
+            <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+              {OSCILLATOR_GROUPS.map((group) => (
+                <div key={group.label} className="flex flex-col gap-1">
+                  {/* Engine label as heading for semantic structure */}
+                  <h3 className="text-xs font-bold text-gray-500 px-2 uppercase tracking-widest">
+                    {group.label}
+                  </h3>
+                  {/* Waveform buttons in a row */}
+                  <div className="flex flex-wrap gap-1 px-2">
+                    {group.items.map((wave) => (
+                      <button
+                        key={wave}
+                        onClick={() => { onChange(wave); }}
+                        aria-pressed={selected === wave}
+                        aria-current={selected === wave ? 'true' : undefined}
+                        aria-label={`Select ${wave} waveform ${selected === wave ? '(currently selected)' : ''}`}
+                        title={wave}
+                        className={`px-2 py-1 text-xs font-bold rounded-md transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center whitespace-nowrap gap-1 ${
+                          selected === wave
+                            ? `${accentClasses[accentColor]} shadow-lg`
+                            : `bg-gray-700 ${bgClasses[accentColor]} border border-gray-600 hover:border-gray-500`
+                        }`}
+                      >
+                        <WaveformIcon type={wave} />
+                        {selected === wave && (
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <path d="M20 6L9 17l-5-5" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 gap-1">
-                  {group.items.map((wave) => (
-                    <button
-                      key={wave}
-                      onClick={() => { onChange(wave); setIsOpen(false); triggerRef.current?.focus(); }}
-                      onMouseEnter={() => setHoveredWaveform(wave)}
-                      onMouseLeave={() => setHoveredWaveform(null)}
-                      onFocus={() => setHoveredWaveform(wave)}
-                      onBlur={() => setHoveredWaveform(null)}
-                      aria-pressed={selected === wave}
-                      aria-current={selected === wave ? 'true' : undefined}
-                      aria-label={`Select ${wave}`}
-                      title={wave}
-                      className={`w-10 h-10 p-2 rounded transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center ${
-                        selected === wave
-                          ? `${accentClasses[accentColor]} shadow-lg`
-                          : `bg-gray-800/50 ${bgClasses[accentColor]} border border-transparent hover:border-gray-600`
-                      }`}
-                    >
-                      <WaveformIcon type={wave} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}
+
+      {/* CSS for pop-out animation */}
+      <style>{`
+        @keyframes popOut {
+          from {
+            opacity: 0;
+            transform: scaleX(0) translateX(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: scaleX(1) translateX(0);
+          }
+        }
+      `}</style>
     </div>
   );
 });
