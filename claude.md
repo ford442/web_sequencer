@@ -1,5 +1,7 @@
 # Hyphon DAW - Claude Development Guide
 
+> **Quick Navigation:** For an index of all root documentation files and subsystem docs, see [DOCS.md](DOCS.md).
+
 ## Project Overview
 
 Hyphon is a sophisticated **web-based audio workstation** featuring:
