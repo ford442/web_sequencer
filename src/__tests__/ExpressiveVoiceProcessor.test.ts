@@ -7,7 +7,7 @@
 //   • filter coefficient update (passthrough at pitchShift=0, non-trivial at non-zero)
 //   • process() passes audio through when pitchShift=0
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Minimal AudioWorklet global stubs — mirrors vitest.setup.ts style.
@@ -32,7 +32,6 @@ class StubAudioWorkletProcessor {
   constructor() {
     this.port = new StubMessagePort();
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   process(_inputs: Float32Array[][], _outputs: Float32Array[][], _params: Record<string, Float32Array>): boolean {
     return true;
   }
@@ -50,55 +49,6 @@ const registeredProcessors: Map<string, new () => StubAudioWorkletProcessor> = n
 ) => {
   registeredProcessors.set(name, ctor);
 };
-
-// ---------------------------------------------------------------------------
-// Dynamically import and execute the processor module.
-// We evaluate it inline to avoid vite's ?worker&url transform in tests.
-// ---------------------------------------------------------------------------
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as vm from 'node:vm';
-
-function loadProcessorModule(): void {
-  const filePath = path.resolve(
-    __dirname,
-    '../audio-worklets/expressive-voice-processor.ts'
-  );
-  // Read the TypeScript source and strip type annotations with a minimal regex
-  // so it runs as plain JS.  (Vitest would normally transform this via esbuild,
-  // but running it in a vm context keeps test isolation clean.)
-  let src = fs.readFileSync(filePath, 'utf-8');
-  // Remove triple-slash references and TypeScript-only syntax via regex
-  src = src
-    .replace(/\/\/\/ <reference[^>]*>/g, '')
-    .replace(/declare\s+(class|var|function|const|let|type|interface)[^;{]*[;{][^}]*}/gs, '')
-    .replace(/declare\s+(class|var|function|const|let|type|interface)[^;]*;/g, '')
-    .replace(/:\s*\w[\w<>\[\], |&?]*(?=[,=){\n])/g, (m, _o, str) =>
-      // crude: only remove obvious type annotations on function params / vars
-      m.includes('=>') ? m : ''
-    );
-
-  const ctx = vm.createContext({
-    globalThis,
-    AudioWorkletProcessor: StubAudioWorkletProcessor,
-    registerProcessor: (globalThis as Record<string, unknown>).registerProcessor,
-    sampleRate: 44100,
-    Float32Array,
-    Math,
-    console,
-    MessageEvent,
-  });
-
-  try {
-    vm.runInContext(src, ctx);
-  } catch (_e) {
-    // If the vm approach fails (due to TS syntax we can't strip trivially),
-    // fall back to direct class construction for the API contract tests.
-  }
-}
-
-// Attempt to load the module for integration-style tests.
-loadProcessorModule();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -576,10 +526,3 @@ describe('ExpressiveVoiceProcessor — registration name', () => {
     expect(descriptor.automationRate).not.toBe('a-rate');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Utility exports (used by filledArray / inputBlock / outputBlock helpers)
-// ---------------------------------------------------------------------------
-
-// Re-export helpers so they can be referenced without lint errors.
-export { filledArray, inputBlock, outputBlock, kRateParam };

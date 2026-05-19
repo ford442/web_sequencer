@@ -45,11 +45,6 @@ declare class AudioWorkletProcessor {
   ): boolean;
 }
 
-declare var AudioWorkletProcessor: {
-  prototype: AudioWorkletProcessor;
-  new(options?: AudioWorkletNodeOptions): AudioWorkletProcessor;
-};
-
 declare function registerProcessor(
   name: string,
   processorCtor: new (options?: AudioWorkletNodeOptions) => AudioWorkletProcessor
@@ -190,9 +185,10 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
 
       // Choose centre frequency: boost at original position for up-shift;
       // boost at shifted (lower) position for down-shift.
+      // For down-shift: ratio < 1, so origF * ratio < origF (lower frequency).
       const f0 = pitchShiftSemitones > 0
         ? origF               // formants went UP — pull energy back DOWN to origF
-        : origF * ratio;      // ratio < 1 — formants went DOWN — boost there
+        : origF * ratio;      // formants went DOWN — boost at the lower shifted position
 
       const f0Clamped = Math.max(20.0, Math.min(sr * 0.45, f0));
 
