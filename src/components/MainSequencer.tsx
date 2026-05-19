@@ -582,6 +582,48 @@ export interface MainSequencerProps {
 
 const noopPitchChange = () => {};
 
+const SequencerRowWrapper = memo(({
+    row, rIdx, rowRefs, pattern, activeSamplerBank, selectedTrack, activeTrackSlots,
+    trackStorage, handleStepPointerDown, onRightMouseDown, onEditLength, onSelectRow,
+    onSelectSlot, onSelectionStart, onSelectionEnter, selectionRangeMap, onDrawEnter,
+    isDrawing, viewMode, automationParam, onAutomationChange, alignment, zoom
+}: any) => {
+    // We isolate the ref callback here so it doesn't cause constant re-renders during parent renders
+    const setRef = useCallback((el: any) => {
+        if (rowRefs?.current) rowRefs.current[rIdx] = el;
+    }, [rowRefs, rIdx]);
+
+    return (
+        <SequencerRow
+            ref={setRef}
+            rowKey={row.key}
+            label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label}
+            rowIndex={rIdx}
+            steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
+            // Pass Automation Data
+            automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
+            isSelected={selectedTrack === row.key}
+            activeSlot={activeTrackSlots[row.key]}
+            trackSlots={trackStorage[row.key]}
+            onToggle={handleStepPointerDown}
+            onRightMouseDown={onRightMouseDown}
+            onEditLength={onEditLength}
+            onSelectRow={onSelectRow}
+            onSelectSlot={onSelectSlot}
+            onSelectionStart={onSelectionStart}
+            onSelectionEnter={onSelectionEnter}
+            selectionRange={selectionRangeMap?.[row.key] || null}
+            onDrawEnter={onDrawEnter}
+            isDrawing={isDrawing}
+            viewMode={viewMode}
+            automationParam={automationParam}
+            onAutomationChange={onAutomationChange}
+            alignment={row.key === 'sampler' ? alignment : null}
+            zoom={zoom}
+        />
+    );
+});
+
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
     const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
         melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer,
@@ -734,7 +776,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
                                     onToggle={handleStepPointerDown}
-                                    onPitchChange={onPitchChange || noopPitchChange}
+                                    onPitchChange={onPitchChange}
                                     onEditLength={onEditLength}
                                     onSelectRow={onSelectRow}
                                     onSelectSlot={onSelectSlot}
@@ -744,21 +786,31 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                         
 
                         return (
-                            <SequencerRow
-                                key={row.key} ref={(el) => { rowRefs.current[rIdx] = el; }} rowKey={row.key} label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label} rowIndex={rIdx}
-                                steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
-                                // Pass Automation Data
-                                automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
-
-                                isSelected={selectedTrack === row.key} activeSlot={activeTrackSlots[row.key]} trackSlots={trackStorage[row.key]}
-                                onToggle={handleStepPointerDown} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectRow={onSelectRow} onSelectSlot={onSelectSlot}
-                                onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter}
-                                selectionRange={selectionRangeMap?.[row.key] || null}
-                                onDrawEnter={onDrawEnter} isDrawing={isDrawing}
+                            <SequencerRowWrapper
+                                key={row.key}
+                                row={row}
+                                rIdx={rIdx}
+                                rowRefs={rowRefs}
+                                pattern={pattern}
+                                activeSamplerBank={activeSamplerBank}
+                                selectedTrack={selectedTrack}
+                                activeTrackSlots={activeTrackSlots}
+                                trackStorage={trackStorage}
+                                handleStepPointerDown={handleStepPointerDown}
+                                onRightMouseDown={onRightMouseDown}
+                                onEditLength={onEditLength}
+                                onSelectRow={onSelectRow}
+                                onSelectSlot={onSelectSlot}
+                                onSelectionStart={onSelectionStart}
+                                onSelectionEnter={onSelectionEnter}
+                                selectionRangeMap={selectionRangeMap}
+                                onDrawEnter={onDrawEnter}
+                                isDrawing={isDrawing}
                                 viewMode={viewMode}
                                 automationParam={automationParam}
                                 onAutomationChange={onAutomationChange}
                                 alignment={row.key === 'sampler' ? alignment : null}
+                                zoom={zoom}
                             />
                         );
                     })}

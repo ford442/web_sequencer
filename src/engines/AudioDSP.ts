@@ -38,6 +38,18 @@ interface AudioDSPModule {
     ): void;
     getNumThreads(): number;
     setNumThreads(numThreads: number): void;
+
+    // ── Open303 multi-instance API (added via open303_wrapper.cpp) ──────────
+    open303_create(): number;
+    open303_destroy(handle: number): void;
+    open303_init(handle: number, sampleRate: number, bufferSize: number): number;
+    open303_note_on(handle: number, midiNote: number, velocity: number): void;
+    open303_note_off(handle: number, midiNote: number): void;
+    open303_all_notes_off(handle: number): void;
+    /** paramId: see Open303Param enum in open303_wrapper.cpp / Open303Params.ts */
+    open303_set_param(handle: number, paramId: number, value: number): void;
+    /** Write numFrames samples into outputPtr (caller-allocated WASM buffer). */
+    open303_process(handle: number, outputPtr: number, numFrames: number): void;
 }
 
 // Global WASM module reference
@@ -49,6 +61,15 @@ declare global {
             HEAP16: Int16Array;
             _malloc(size: number): number;
             _free(ptr: number): void;
+            // Open303 multi-instance API (exposed when hyphon_native includes open303_wrapper.cpp)
+            open303_create?(): number;
+            open303_destroy?(handle: number): void;
+            open303_init?(handle: number, sampleRate: number, bufferSize: number): number;
+            open303_note_on?(handle: number, midiNote: number, velocity: number): void;
+            open303_note_off?(handle: number, midiNote: number): void;
+            open303_all_notes_off?(handle: number): void;
+            open303_set_param?(handle: number, paramId: number, value: number): void;
+            open303_process?(handle: number, outputPtr: number, numFrames: number): void;
         };
     }
 }
@@ -396,3 +417,96 @@ export class AudioDSP {
 
 // Export singleton instance
 export const audioDSP = new AudioDSP();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Open303 native instance API (uses hyphon_native.wasm / window.Module)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Parameter IDs for Open303Native.setParam() – must match open303_wrapper.cpp.
+ */
+export const Open303ParamId = {
+    WAVEFORM:       0,
+    TUNING:         1,
+    CUTOFF:         2,
+    RESONANCE:      3,
+    ENV_MOD:        4,
+    DECAY:          5,
+    ACCENT:         6,
+    VOLUME:         7,
+    FILTER_MODE:    8,
+    NORMAL_DECAY:   9,
+    ACCENT_DECAY:   10,
+    SLIDE_TIME:     11,
+    SOFT_ATTACK:    12,
+    SQUARE_DRIVER:  13,
+} as const;
+
+/**
+ * Returns true when hyphon_native.wasm exposes the Open303 instance API.
+ * This is the case after a build that includes open303_wrapper.cpp.
+ */
+export function hasOpen303Native(): boolean {
+    return typeof window !== 'undefined'
+        && typeof window.Module?.open303_create === 'function';
+}
+
+/**
+ * Thin TypeScript wrapper around a single Open303 instance living inside
+ * hyphon_native.wasm.  Multiple instances can coexist (e.g. Lead + Bass).
+ *
+ * Usage:
+ *   const inst = new Open303Native(audioContext.sampleRate);
+ *   inst.noteOn(60, 100);
+ *   // (render audio via open303_process in a worklet or ScriptProcessor)
+ *   inst.dispose();
+ */
+export class Open303Native {
+    private handle: number = 0;
+    private mod: NonNullable<Window['Module']> | null = null;
+    public readonly isAvailable: boolean;
+
+    constructor(sampleRate: number, bufferSize = 128) {
+        if (typeof window !== 'undefined' && window.Module?.open303_create) {
+            this.mod = window.Module;
+            this.handle = this.mod.open303_create!();
+            this.mod.open303_init!(this.handle, sampleRate, bufferSize);
+            this.isAvailable = true;
+        } else {
+            this.isAvailable = false;
+        }
+    }
+
+    noteOn(midiNote: number, velocity: number): void {
+        if (this.mod && this.handle) this.mod.open303_note_on!(this.handle, midiNote, velocity);
+    }
+
+    noteOff(midiNote: number): void {
+        if (this.mod && this.handle) this.mod.open303_note_off!(this.handle, midiNote);
+    }
+
+    allNotesOff(): void {
+        if (this.mod && this.handle) this.mod.open303_all_notes_off!(this.handle);
+    }
+
+    setParam(paramId: number, value: number): void {
+        if (this.mod && this.handle) this.mod.open303_set_param!(this.handle, paramId, value);
+    }
+
+    /**
+     * Render @p numFrames samples into a caller-allocated WASM heap buffer.
+     * @param outputPtr WASM heap pointer (obtained via window.Module._malloc)
+     * @param numFrames number of mono samples to generate
+     */
+    process(outputPtr: number, numFrames: number): void {
+        if (this.mod && this.handle) this.mod.open303_process!(this.handle, outputPtr, numFrames);
+    }
+
+    /** Release the underlying C++ instance. */
+    dispose(): void {
+        if (this.mod && this.handle) {
+            this.mod.open303_destroy!(this.handle);
+            this.handle = 0;
+        }
+    }
+}
