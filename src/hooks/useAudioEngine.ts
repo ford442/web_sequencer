@@ -577,14 +577,38 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             voice.connectOutput(finalDest);
 
-                            // Setup Reverb Send
+                            // Setup Reverb Send (Formant-Aware)
                             const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
                             const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
                             const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
                             if (reverbSendAmount > 0 && targetReverbNode) {
                                 const reverbGain = context.createGain();
                                 reverbGain.gain.value = reverbSendAmount;
-                                reverbGain.connect(targetReverbNode);
+
+                                // Calculate Formant Brightness for Reverb EQ
+                                const baseShift = params.formantShift || 0;
+                                const currentShift = noteParams?.formantShift !== undefined ? (baseShift + noteParams.formantShift) : baseShift;
+                                const characterMorph = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+
+                                // High formant shifts or brighter characters -> more high frequencies -> lower cutoff to tame sibilance
+                                // Neutral/Low shifts -> higher cutoff to keep reverb clear
+                                // We map currentShift from roughly -12 to +12
+                                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12; // -1.0 to 1.0
+
+                                // Base cutoff around 6000Hz. If bright (+1), drop to 2000Hz. If dark (-1), raise to 10000Hz.
+                                let reverbEqCutoff = 6000 - (normalizedShift * 4000);
+
+                                // Further adjust by character morph (0 to 1). 1 usually means brighter/female.
+                                reverbEqCutoff -= (characterMorph * 1000);
+                                reverbEqCutoff = Math.max(1000, Math.min(12000, reverbEqCutoff));
+
+                                const formantReverbEq = context.createBiquadFilter();
+                                formantReverbEq.type = 'lowpass';
+                                formantReverbEq.frequency.value = reverbEqCutoff;
+                                formantReverbEq.Q.value = 0.5; // Gentle slope
+
+                                reverbGain.connect(formantReverbEq);
+                                formantReverbEq.connect(targetReverbNode);
                                 voice.connectOutput(reverbGain); // connectOutput appends to existing connections
                             }
 
