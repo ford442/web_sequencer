@@ -236,6 +236,24 @@ const SvgStep = memo(({
     const isAltGroup = groupIndex % 2 === 1;
     const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
+    const beginLengthEdit = (target: Element, pointerId: number, startX: number, startLength: number) => {
+        target.setPointerCapture(pointerId);
+        const sensitivity = 20;
+        const handlePointerMove = (ev: PointerEvent) => {
+            const delta = ev.clientX - startX;
+            const stepsToAdd = Math.floor(delta / sensitivity);
+            const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
+            if (newLength !== length) { onEditLength(rowKey, stepIndex, newLength); }
+        };
+        const handlePointerUp = (ev: PointerEvent) => {
+            target.removeEventListener('pointermove', handlePointerMove as any);
+            target.removeEventListener('pointerup', handlePointerUp as any);
+            target.releasePointerCapture(ev.pointerId);
+        };
+        target.addEventListener('pointermove', handlePointerMove as any);
+        target.addEventListener('pointerup', handlePointerUp as any);
+    };
+
     const handlePointerDown = (e: React.PointerEvent) => {
         if (e.button === 2) { e.preventDefault(); onRightMouseDown(rowKey, stepIndex, e); return; }
         if (e.shiftKey) {
@@ -243,32 +261,22 @@ const SvgStep = memo(({
             if (active) {
                 // Length Editing
                 const target = e.currentTarget as Element;
-                target.setPointerCapture(e.pointerId);
-                const startX = e.clientX;
-                const startLength = length;
-                const sensitivity = 20;
-                const handlePointerMove = (ev: PointerEvent) => {
-                    const delta = ev.clientX - startX;
-                    const stepsToAdd = Math.floor(delta / sensitivity);
-                    const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
-                    if (newLength !== length) { onEditLength(rowKey, stepIndex, newLength); }
-                };
-                const handlePointerUp = (ev: PointerEvent) => {
-                    target.removeEventListener('pointermove', handlePointerMove as any);
-                    target.removeEventListener('pointerup', handlePointerUp as any);
-                    target.releasePointerCapture(ev.pointerId);
-                };
-                target.addEventListener('pointermove', handlePointerMove as any);
-                target.addEventListener('pointerup', handlePointerUp as any);
+                beginLengthEdit(target, e.pointerId, e.clientX, length);
             } else if (onSelectionStart) {
                 // Range Selection
                 onSelectionStart(rowKey, stepIndex);
             }
-        } else { onToggle(rowKey, stepIndex, e); }
+            return;
+        }
+        if (!active && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            onToggle(rowKey, stepIndex, e);
+            beginLengthEdit(e.currentTarget as Element, e.pointerId, e.clientX, 1);
+            return;
+        }
+        onToggle(rowKey, stepIndex, e);
     };
 
     const handlePointerEnter = () => {
-        if (isDrawing && onDrawEnter) onDrawEnter(rowKey, stepIndex);
         if (onSelectionEnter) onSelectionEnter(rowKey, stepIndex);
     };
 
