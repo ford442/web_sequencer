@@ -142,7 +142,7 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
           onMouseDown={() => startRepeat(-1)}
           onMouseUp={stopRepeat}
           onMouseLeave={stopRepeat}
-          className="w-6 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-400 hover:text-white text-lg font-bold select-none"
+          className="w-6 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-400 hover:text-white text-lg font-bold select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900"
           aria-label={label ? `Decrease ${label}` : 'Decrease'}
           title={label ? `Decrease ${label}` : 'Decrease'}
         >
@@ -150,7 +150,7 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
         </button>
         <div
           ref={sliderRef}
-          className="group relative bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none min-w-[60px] text-center focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          className="group relative bg-gray-800 rounded-md border border-gray-700 px-2 py-1 text-2xl font-orbitron text-yellow-400 cursor-ns-resize select-none min-w-[60px] text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
           onMouseDown={handleMouseDown}
           onWheel={handleWheel}
           tabIndex={0}
@@ -214,7 +214,7 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
           onMouseDown={() => startRepeat(1)}
           onMouseUp={stopRepeat}
           onMouseLeave={stopRepeat}
-          className="w-6 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-400 hover:text-white text-lg font-bold select-none"
+          className="w-6 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-400 hover:text-white text-lg font-bold select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900"
           aria-label={label ? `Increase ${label}` : 'Increase'}
           title={label ? `Increase ${label}` : 'Increase'}
         >

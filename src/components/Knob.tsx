@@ -153,13 +153,13 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
   };
 
   const focusBorderClasses = {
-    cyan: 'focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400',
-    pink: 'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
-    yellow: 'focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400',
-    purple: 'focus:border-purple-400 focus:ring-1 focus:ring-purple-400',
-    red: 'focus:border-red-400 focus:ring-1 focus:ring-red-400',
-    green: 'focus:border-green-400 focus:ring-1 focus:ring-green-400',
-    indigo: 'focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400',
+    cyan: 'focus-visible:border-cyan-400 focus-visible:ring-1 focus-visible:ring-cyan-400',
+    pink: 'focus-visible:border-pink-400 focus-visible:ring-1 focus-visible:ring-pink-400',
+    yellow: 'focus-visible:border-yellow-400 focus-visible:ring-1 focus-visible:ring-yellow-400',
+    purple: 'focus-visible:border-purple-400 focus-visible:ring-1 focus-visible:ring-purple-400',
+    red: 'focus-visible:border-red-400 focus-visible:ring-1 focus-visible:ring-red-400',
+    green: 'focus-visible:border-green-400 focus-visible:ring-1 focus-visible:ring-green-400',
+    indigo: 'focus-visible:border-indigo-400 focus-visible:ring-1 focus-visible:ring-indigo-400',
   };
 
   return (
