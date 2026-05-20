@@ -1,5 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { Waveform } from '../types';
 
 interface WaveformSelectorProps {
@@ -103,8 +104,10 @@ const getNextWaveform = (current: Waveform, reverse = false): Waveform => {
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ selected, onChange, accentColor }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   const accentClasses = {
     cyan: 'bg-cyan-500 text-gray-900 border-cyan-400 ring-cyan-400',
@@ -122,10 +125,35 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
     onChange(nextWaveform);
   };
 
+  // Compute popup position from trigger rect when opened
+  useEffect(() => {
+    if (!isExpanded) {
+      setPopupPos(null);
+      return;
+    }
+    const updatePos = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (rect) {
+        setPopupPos({ top: rect.top, left: rect.left });
+      }
+    };
+    updatePos();
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [isExpanded]);
+
   // Close panel on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        popupRef.current && !popupRef.current.contains(target)
+      ) {
         setIsExpanded(false);
       }
     };
@@ -153,15 +181,18 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
         <WaveformIcon type={selected} />
       </button>
 
-      {/* Expandable pop-out panel - animates in from left to right */}
-      {isExpanded && (
-        <div 
-          className="absolute left-0 top-0 z-50 origin-left animate-in fade-in zoom-in-95 duration-300 ease-out"
+      {/* Expandable pop-out panel - rendered via portal to escape stacking contexts */}
+      {isExpanded && popupPos && createPortal(
+        <div
+          ref={popupRef}
+          className="fixed z-[1000] origin-top-left"
           style={{
-            animation: 'popOut 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+            top: popupPos.top,
+            left: popupPos.left,
+            animation: 'popOut 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           }}
         >
-          <div className="flex items-start gap-2 p-2 bg-gray-800/95 backdrop-blur-sm rounded-lg border border-gray-700 shadow-2xl" role="region" aria-label="Waveform selection panel" tabIndex={0}>
+          <div className="flex items-start gap-2 p-2 bg-gray-900 rounded-lg border border-gray-700 shadow-2xl" role="region" aria-label="Waveform selection panel" tabIndex={0}>
             {/* Left side: Current waveform display and cycle button */}
             <div className="flex flex-col gap-2 border-r border-gray-700 pr-2">
               <div className="text-xs font-bold uppercase tracking-wider text-gray-400 text-center">Current</div>
@@ -212,7 +243,8 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* CSS for pop-out animation */}
@@ -220,11 +252,11 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
         @keyframes popOut {
           from {
             opacity: 0;
-            transform: scaleX(0) translateX(-8px);
+            transform: scale(0.95);
           }
           to {
             opacity: 1;
-            transform: scaleX(1) translateX(0);
+            transform: scale(1);
           }
         }
       `}</style>
