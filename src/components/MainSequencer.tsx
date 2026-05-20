@@ -209,7 +209,7 @@ export const AutomationStep = memo(({
 
 const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
-    onSelectionStart, onSelectionEnter, isRangeSelected, onDrawEnter, isDrawing, phonemeLabel, retrigger, reverse
+    onSelectionStart, onSelectionEnter, isRangeSelected, phonemeLabel, retrigger, reverse
 }: {
     stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
@@ -218,8 +218,6 @@ const SvgStep = memo(({
     onSelectionStart?: (k: TrackKey, i: number) => void,
     onSelectionEnter?: (k: TrackKey, i: number) => void,
     isRangeSelected?: boolean,
-    onDrawEnter?: (k: TrackKey, i: number) => void,
-    isDrawing?: boolean,
     phonemeLabel?: string,
     retrigger?: number,
     reverse?: boolean
@@ -316,7 +314,6 @@ const SvgStep = memo(({
         prev.length === next.length &&
         prev.isSlide === next.isSlide &&
         prev.isRangeSelected === next.isRangeSelected &&
-        prev.isDrawing === next.isDrawing &&
         prev.phonemeLabel === next.phonemeLabel &&
         prev.retrigger === next.retrigger &&
         prev.reverse === next.reverse
@@ -345,8 +342,6 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     onSelectionStart?: (k: TrackKey, i: number) => void,
     onSelectionEnter?: (k: TrackKey, i: number) => void,
     selectionRange?: { start: number, end: number } | null,
-    onDrawEnter?: (k: TrackKey, i: number) => void,
-    isDrawing?: boolean,
     // Automation Props
     automation?: { [param: string]: (number | null)[] },
     viewMode?: 'notes' | 'automation',
@@ -354,7 +349,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     onAutomationChange?: (k: TrackKey, i: number, val: number) => void,
     alignment?: AlignmentResult | null
 }>((props, ref) => {
-    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange, onDrawEnter, isDrawing,
+    const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange,
         automation, viewMode, automationParam, onAutomationChange, alignment } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
@@ -432,7 +427,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
             if (skipCount > 0) { skipCount--; continue; }
             const stepData = steps[i];
             const length = stepData?.length || 1;
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} onDrawEnter={onDrawEnter} isDrawing={isDrawing} reverse={stepData?.reverse} />);
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} reverse={stepData?.reverse} />);
             if (stepData && length > 1) { skipCount = length - 1; }
         }
     } else {
@@ -465,7 +460,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 }
             }
 
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} onDrawEnter={onDrawEnter} isDrawing={isDrawing} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} />);
+            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} />);
             if (stepData && length > 1) { skipCount = length - 1; }
         }
     }
@@ -537,7 +532,6 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         prev.activeSlot === next.activeSlot &&
         prev.viewMode === next.viewMode &&
         prev.automationParam === next.automationParam &&
-        prev.isDrawing === next.isDrawing &&
         prev.selectionRange?.start === next.selectionRange?.start &&
         prev.selectionRange?.end === next.selectionRange?.end &&
         // ⚡ Bolt: Relying on reference equality since useAppState performs immutable updates via shallow cloning.
@@ -560,7 +554,6 @@ export interface MainSequencerProps {
     activeTrackSlots: Record<TrackKey, number>;
     trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
     selection: { trackKey: TrackKey; startStep: number; endStep: number; } | null;
-    isDrawing: boolean;
     // Handlers
     onToggle: (rowKey: TrackKey, index: number, e: any) => void;
     onRightMouseDown: (rowKey: TrackKey, index: number, e: React.MouseEvent) => void;
@@ -569,7 +562,6 @@ export interface MainSequencerProps {
     onSelectSlot: (rowKey: TrackKey, slotIndex: number) => void;
     onSelectionStart: (rowKey: TrackKey, index: number) => void;
     onSelectionEnter: (rowKey: TrackKey, index: number) => void;
-    onDrawEnter: (rowKey: TrackKey, index: number) => void;
     // Phase 2: Melodic Lyric Mode
     melodicMode?: boolean; // Enable pitch-per-step visualization for sampler
     onPitchChange?: (trackKey: TrackKey, step: number, pitch: number) => void;
@@ -593,8 +585,8 @@ const noopPitchChange = () => {};
 const SequencerRowWrapper = memo(({
     row, rIdx, rowRefs, pattern, activeSamplerBank, selectedTrack, activeTrackSlots,
     trackStorage, handleStepPointerDown, onRightMouseDown, onEditLength, onSelectRow,
-    onSelectSlot, onSelectionStart, onSelectionEnter, selectionRangeMap, onDrawEnter,
-    isDrawing, viewMode, automationParam, onAutomationChange, alignment
+    onSelectSlot, onSelectionStart, onSelectionEnter, selectionRangeMap,
+    viewMode, automationParam, onAutomationChange, alignment
 }: any) => {
     // We isolate the ref callback here so it doesn't cause constant re-renders during parent renders
     const setRef = useCallback((el: any) => {
@@ -621,8 +613,6 @@ const SequencerRowWrapper = memo(({
             onSelectionStart={onSelectionStart}
             onSelectionEnter={onSelectionEnter}
             selectionRange={selectionRangeMap?.[row.key] || null}
-            onDrawEnter={onDrawEnter}
-            isDrawing={isDrawing}
             viewMode={viewMode}
             automationParam={automationParam}
             onAutomationChange={onAutomationChange}
@@ -632,7 +622,7 @@ const SequencerRowWrapper = memo(({
 });
 
 export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerProps>((props, ref) => {
-    const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, isDrawing, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, onDrawEnter, children,
+    const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, children,
         melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer,
         zoomLevel = DEFAULT_ZOOM, onZoomChange } = props;
 
@@ -811,8 +801,6 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 onSelectionStart={onSelectionStart}
                                 onSelectionEnter={onSelectionEnter}
                                 selectionRangeMap={selectionRangeMap}
-                                onDrawEnter={onDrawEnter}
-                                isDrawing={isDrawing}
                                 viewMode={viewMode}
                                 automationParam={automationParam}
                                 onAutomationChange={onAutomationChange}

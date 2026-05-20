@@ -782,9 +782,7 @@ const handleKeyboardPlay = useCallback((note: string) => {
         };
     }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
 
-    const handleDrawEnter = useCallback((_trackKey: TrackKey, _stepIndex: number) => {
-        return;
-    }, []);
+    const handleDrawEnter = useCallback(() => {}, []);
 useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
