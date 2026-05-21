@@ -492,9 +492,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     tranceGate?: number,
                     gateRate?: number,
                     gateDepth?: number,
-                    isHarmonyVoice?: boolean,
-                    spectralPanRate?: number,
-                    spectralPanDepth?: number
+                    isHarmonyVoice?: boolean
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -599,11 +597,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 finalDest = filter;
                             }
 
-                            const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params.spectralPanDepth || 0);
-
-                            if (spectralPanDepth <= 0) {
-                                voice.connectOutput(finalDest);
-                            }
+                            voice.connectOutput(finalDest);
 
                             // Setup Reverb Send (Formant-Aware)
                             const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
@@ -647,75 +641,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 delayGain.gain.value = delaySendAmount;
                                 delayGain.connect(delayNodeRef.current);
                                 voice.connectOutput(delayGain);
-                            }
-
-                            // Setup Spectral Panning
-                            const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params.spectralPanRate || 0);
-
-                            if (spectralPanDepth > 0) {
-                                const lpf = context.createBiquadFilter();
-                                lpf.type = 'lowpass';
-                                lpf.frequency.value = 500;
-
-                                const bpf = context.createBiquadFilter();
-                                bpf.type = 'bandpass';
-                                bpf.frequency.value = 2500;
-                                bpf.Q.value = 1.0;
-
-                                const hpf = context.createBiquadFilter();
-                                hpf.type = 'highpass';
-                                hpf.frequency.value = 5000;
-
-                                const pannerL = context.createStereoPanner();
-                                const pannerM = context.createStereoPanner();
-                                const pannerH = context.createStereoPanner();
-
-                                lpf.connect(pannerL);
-                                bpf.connect(pannerM);
-                                hpf.connect(pannerH);
-
-                                pannerL.connect(finalDest);
-                                pannerM.connect(finalDest);
-                                pannerH.connect(finalDest);
-
-                                const lfoRateHz = spectralPanRate > 0 ? spectralPanRate : 0.5;
-
-                                const lfoL = context.createOscillator();
-                                lfoL.type = 'sine';
-                                lfoL.frequency.value = lfoRateHz;
-                                const lfoLGain = context.createGain();
-                                lfoLGain.gain.value = spectralPanDepth;
-                                lfoL.connect(lfoLGain);
-                                lfoLGain.connect(pannerL.pan);
-                                lfoL.start(triggerTime);
-                                lfoL.stop(triggerTime + targetDuration + 1.0);
-
-                                const lfoH = context.createOscillator();
-                                lfoH.type = 'sine';
-                                lfoH.frequency.value = lfoRateHz;
-                                const lfoHGain = context.createGain();
-                                // Invert phase roughly by setting negative gain or adjusting phase if possible.
-                                // We'll just use a negative gain amount so it sweeps opposite.
-                                lfoHGain.gain.value = -spectralPanDepth;
-                                lfoH.connect(lfoHGain);
-                                lfoHGain.connect(pannerH.pan);
-                                lfoH.start(triggerTime);
-                                lfoH.stop(triggerTime + targetDuration + 1.0);
-
-                                // Modulate M slightly differently, maybe faster
-                                const lfoM = context.createOscillator();
-                                lfoM.type = 'triangle';
-                                lfoM.frequency.value = lfoRateHz * 1.5;
-                                const lfoMGain = context.createGain();
-                                lfoMGain.gain.value = spectralPanDepth * 0.5;
-                                lfoM.connect(lfoMGain);
-                                lfoMGain.connect(pannerM.pan);
-                                lfoM.start(triggerTime);
-                                lfoM.stop(triggerTime + targetDuration + 1.0);
-
-                                voice.connectOutput(lpf);
-                                voice.connectOutput(bpf);
-                                voice.connectOutput(hpf);
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
