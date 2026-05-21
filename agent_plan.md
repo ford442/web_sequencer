@@ -122,10 +122,11 @@
 
 * [x] **Idea:** "Harmony Bus Parameters + Stereo Widener" - Expose compressor/EQ and optional widening parameters on the Vocal Harmony Parallel Bus to the UI.
 * **Idea:** "Dynamic Reverb Density LFO" - Modulate the density or size of the reverb tail dynamically using an LFO for swirling, breathing spaces.
-* **Idea:** "Spectral Panning" - Split the TTS audio into multiple frequency bands and dynamically pan them across the stereo field based on an LFO to create wide, swirling vocal textures.
+* [x] **Idea:** "Spectral Panning" - Split the TTS audio into multiple frequency bands and dynamically pan them across the stereo field based on an LFO to create wide, swirling vocal textures.
 ---
 
 ## 📜 Changelog
+* [2026-07-07] - Implemented Spectral Panning: Added `spectralPanRate` and `spectralPanDepth` to `Note` and `SamplerBankParams` interfaces. Implemented a 3-band splitter in `useAudioEngine.ts` utilizing `BiquadFilterNode`s and `StereoPannerNode`s, driven by `OscillatorNode` LFOs. Fulfills the "Spectral Panning" Innovation Lab idea. Added new idea: "Dynamic Convolution Reverb Sweeps".
 * [2026-07-06] - Implemented Harmony Bus Parameters + Stereo Widener: Exposed `busCompressorThreshold`, `busEqGain`, and `busWidener` in `HarmonizerConfig` and `HarmonizerPopover`. Implemented Haas effect delay routing on the harmony parallel bus in `useAudioEngine.ts` for wide stereo spread. Fulfills the "Harmony Bus Parameters + Stereo Widener" Innovation Lab idea. Added new ideas: "Dynamic Reverb Density LFO" and "Spectral Panning".
 * [2026-07-05] - Implemented Formant-Aware Reverb: Dynamically adjusted reverb send EQ (lowpass cutoff) based on active `formantShift` parameters in `useAudioEngine.ts` to prevent high-frequency sibilance buildup on bright vowels. Added new idea: Dynamic Reverb Density LFO.
 * [2026-07-04] - Implemented Multiband Distortion for TTS: Updated `vocal-overdrive-processor.ts` to include a 1-pole state variable filter crossover. Applied asymmetric tube clipping specifically to the high-frequency band to prevent fundamental pitch muddying.

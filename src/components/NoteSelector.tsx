@@ -71,6 +71,8 @@ interface NoteSelectorProps {
         | 'reverbType'
         | 'delaySend'
         | 'choir'
+        | 'spectralPanRate'
+        | 'spectralPanDepth'
     , value: number | boolean | string) => void;
 }
 
@@ -104,6 +106,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
 
     currentGateDepth = 0,
     currentGateRate = 8,
+    currentSpectralPanRate = 0.5,
+    currentSpectralPanDepth = 0,
     onPropertyChange
 }) => {
     // Determine octave range based on track type
@@ -510,6 +514,49 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     aria-label="Formant LFO Rate"
                                 />
                             </div>
+                        )}
+
+                        {/* Spectral Pan Controls */}
+                        {trackType === 'synth' && onPropertyChange && (
+                            <fieldset className="flex flex-col gap-1 mt-2 border border-gray-700 p-2 rounded">
+                                <legend className="text-[10px] text-cyan-200/70 font-bold uppercase">Spectral Pan</legend>
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-spectral-pan-depth">Depth</label>
+                                        <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{Math.round((currentSpectralPanDepth + 0.0001) * 100)}%</span>
+                                    </div>
+                                    <input
+                                        id="note-spectral-pan-depth"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentSpectralPanDepth}
+                                        onChange={(e) => onPropertyChange('spectralPanDepth', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                        aria-valuetext={`${Math.round((currentSpectralPanDepth + 0.0001) * 100)}%`}
+                                        aria-label="Spectral Pan Depth"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1 mt-1">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-spectral-pan-rate">Rate</label>
+                                        <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentSpectralPanRate.toFixed(1)}Hz</span>
+                                    </div>
+                                    <input
+                                        id="note-spectral-pan-rate"
+                                        type="range"
+                                        min="0.1"
+                                        max="20"
+                                        step="0.1"
+                                        value={currentSpectralPanRate}
+                                        onChange={(e) => onPropertyChange('spectralPanRate', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                        aria-valuetext={`${currentSpectralPanRate.toFixed(1)}Hz`}
+                                        aria-label="Spectral Pan Rate"
+                                    />
+                                </div>
+                            </fieldset>
                         )}
 
                         {/* Formant LFO Depth Control */}

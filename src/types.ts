@@ -98,6 +98,8 @@ export interface SamplerBankParams {
   customLfoShape?: number[];
   characterMorph?: number;
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright';
+  spectralPanRate?: number;
+  spectralPanDepth?: number;
   attack?: number;
   decay?: number;
   sustain?: number;
@@ -183,6 +185,8 @@ export interface Note {
   gateRate?: number;
   gateDepth?: number;
   phonemes?: PhonemeData[];
+  spectralPanRate?: number;
+  spectralPanDepth?: number;
   // ... other fields as needed
 }
 
