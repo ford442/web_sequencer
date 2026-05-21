@@ -14,6 +14,3 @@
 ## 2024-05-17 - Detach Visual Zoom from React State
 **Learning:** Chasing down useMemo/useCallback dependencies for rapidly changing layout props (like zoom) is often a losing battle. Passing `zoom` as a prop forced 256 SVG steps per row to re-render constantly during scrolling, crushing the main thread.
 **Action:** Bypassed the React render cycle entirely for gestures by imperatively updating a CSS custom property (`--zoom-level`) via `requestAnimationFrame`, and using a debouncer to sync the final zoom value back to React state.
-## 2026-05-20 - Sequencer View Coordinate Double Offsets
-**Learning:** Hardcoding CSS-like positioning values in SVG React components (like adding `220` for X translations) is extremely dangerous when they are wrapped in parent components (like `MainSequencer` or `SequencerRow`) that already apply parent-level group (`<g>`) transformations for scrolling, zooming, or layout flow (`transform="translate(220, 0)"`). This caused visual "double displacement" when the UI attempted to zoom.
-**Action:** Remove hardcoded global offset numbers inside deeply nested SVG step components (`SvgStep`, `MelodicStep`, `GridIndicators`) and let the CSS/SVG transforms of their parent containers manage the absolute positioning block natively.

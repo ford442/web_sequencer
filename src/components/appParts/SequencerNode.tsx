@@ -25,7 +25,6 @@ export const SequencerNode = React.memo(() => {
     activeTrackSlots,
     trackStorage,
     selection,
-    isDrawing,
     handleStepToggle,
     handleRightMouseDown,
     handleEditLength,
@@ -33,7 +32,6 @@ export const SequencerNode = React.memo(() => {
     handleTrackSlotClick,
     handleSelectionStart,
     handleSelectionEnter,
-    handleDrawEnter,
     viewMode,
     automationParam,
     handleAutomationChange,
@@ -79,7 +77,6 @@ export const SequencerNode = React.memo(() => {
         activeTrackSlots={activeTrackSlots}
         trackStorage={trackStorage}
         selection={selection}
-        isDrawing={isDrawing}
         onToggle={handleStepToggle}
         onRightMouseDown={handleRightMouseDown}
         onEditLength={handleEditLength}
@@ -87,7 +84,6 @@ export const SequencerNode = React.memo(() => {
         onSelectSlot={handleTrackSlotClick}
         onSelectionStart={handleSelectionStart}
         onSelectionEnter={handleSelectionEnter}
-        onDrawEnter={handleDrawEnter}
         viewMode={viewMode}
         automationParam={automationParam}
         onAutomationChange={handleAutomationChange}
@@ -128,12 +124,10 @@ export const SequencerNode = React.memo(() => {
     handleSelectionStart,
     handleSelectionEnter,
     handleAutomationChange,
-    handleDrawEnter,
     handlePhonemeUpdate,
     handlePitchChange,
     activeAlignment,
     automationParam,
-    isDrawing,
     melodicMode,
     sampleBuffers,
     viewMode,

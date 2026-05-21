@@ -39,3 +39,6 @@
 ## 2026-05-13 - [NoteSelector Accessibility Improvements]
 **Learning:** Grouping related slider inputs (like Velocity, Duration, Expression) in a complex custom modal component using `<fieldset>` with `sr-only` `<legend>` dramatically improves screen reader navigation and context without affecting the existing visual layout, as long as utility classes like `border-none p-0 m-0` are applied to the fieldset.
 **Action:** Always wrap logical groups of parameter controls in `<fieldset>` tags with descriptive `<legend>` elements instead of generic `div` containers, especially in dense UI sections.
+## 2026-05-20 - Prevent Lingering Mouse-Click Focus Rings
+**Learning:** Using standard `focus:ring-2` on custom slider/button components (like DragValue and Knob) causes an ugly, lingering focus ring after a standard mouse click. Keyboard navigation accessibility must be maintained without penalizing mouse users.
+**Action:** When styling interactive elements for accessibility, always prefer `focus-visible:ring-2` and `focus-visible:border-[color]` over `focus:ring-2`. This ensures that keyboard navigators get clear focus indicators while mouse users do not see lingering rings after clicking.
