@@ -86,7 +86,7 @@ class SustainProcessor extends AudioWorkletProcessor {
                         const module = await createRubberBandModule({
                             wasmBinary: wasmBinary,
                             locateFile: (path: string) => {
-                                if (path.endsWith('.wasm')) return '/rubberband.wasm';
+                                if (path.endsWith('.wasm')) return import.meta.env.BASE_URL + 'rubberband.wasm';
                                 return path;
                             }
                         });
