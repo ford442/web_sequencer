@@ -152,6 +152,7 @@ describe('SingingVoice Slice Triggering', () => {
         await voice.triggerSlice(audio, 0, mockAlignment, 1.0, false, 10.0);
 
         expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[SingingVoice]'));
+        warnSpy.mockRestore();
     });
 
     it('should set pitch when triggering slice', async () => {
@@ -205,17 +206,20 @@ describe('clampStretchRatio', () => {
         const warnSpy = vi.spyOn(console, 'warn');
         clampStretchRatio(0.1);
         expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[SingingVoice]'));
+        warnSpy.mockRestore();
     });
 
     it('emits console.warn when ratio is above MAX', () => {
         const warnSpy = vi.spyOn(console, 'warn');
         clampStretchRatio(10);
         expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[SingingVoice]'));
+        warnSpy.mockRestore();
     });
 
     it('does NOT emit console.warn when ratio is within valid range', () => {
         const warnSpy = vi.spyOn(console, 'warn');
         clampStretchRatio(2.0);
         expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
     });
 });

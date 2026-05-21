@@ -64,13 +64,14 @@ export const STRETCH_RATIO_LIMITS = {
  * @returns Clamped ratio within [STRETCH_RATIO_LIMITS.MIN, STRETCH_RATIO_LIMITS.MAX]
  */
 export function clampStretchRatio(ratio: number): number {
+    const clamped = Math.max(STRETCH_RATIO_LIMITS.MIN, Math.min(STRETCH_RATIO_LIMITS.MAX, ratio));
     if (ratio < STRETCH_RATIO_LIMITS.MIN || ratio > STRETCH_RATIO_LIMITS.MAX) {
         console.warn(
             `[SingingVoice] Stretch ratio ${ratio.toFixed(3)} is outside optimal range ` +
-            `[${STRETCH_RATIO_LIMITS.MIN}, ${STRETCH_RATIO_LIMITS.MAX}]; clamping.`
+            `[${STRETCH_RATIO_LIMITS.MIN}, ${STRETCH_RATIO_LIMITS.MAX}]; clamping to ${clamped.toFixed(3)}.`
         );
     }
-    return Math.max(STRETCH_RATIO_LIMITS.MIN, Math.min(STRETCH_RATIO_LIMITS.MAX, ratio));
+    return clamped;
 }
 
 /** Configuration for SingingVoice initialization */
