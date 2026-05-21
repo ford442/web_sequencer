@@ -1,6 +1,13 @@
 import { type SynthParams } from '../types';
 import { tunedNoteToFrequency } from '../constants';
 import type { ScaleDefinition } from '../utils/musicTheory';
+import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/waveformParser';
+import type { WasmOscillator } from './WasmOscillator';
+
+export interface VoiceEngineDeps {
+    wasmEngine?: WasmOscillator | null;
+    wgslBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
+}
 
 export class Voice {
     context: AudioContext;
@@ -29,18 +36,22 @@ export class Voice {
     private globalDelayNode?: DelayNode;
     private globalDelaySendGain?: GainNode;
 
+    private engineDeps?: VoiceEngineDeps;
+
     constructor(
         context: AudioContext,
         destination: AudioNode,
         wavSaw?: AudioBuffer,
         wavSqr?: AudioBuffer,
-        globalDelayNode?: DelayNode
+        globalDelayNode?: DelayNode,
+        engineDeps?: VoiceEngineDeps,
     ) {
         this.context = context;
         this.destination = destination;
         this.wavSawBuffer = wavSaw;
         this.wavSqrBuffer = wavSqr;
         this.globalDelayNode = globalDelayNode;
+        this.engineDeps = engineDeps;
 
         // Create permanent nodes
         this.filter = context.createBiquadFilter();
@@ -97,7 +108,8 @@ export class Voice {
         const freq = tunedNoteToFrequency(note, tuning);
 
         const waveform = params.waveform;
-        const isWav = waveform.startsWith('wav-');
+        const parsed = parseWaveform(waveform);
+        const isWav = parsed.engine === 'wav';
         const canReuse = this.source &&
                         this.isActive &&
                         slideFromFreq !== undefined &&
@@ -128,20 +140,57 @@ export class Voice {
             // === FULL NEW NOTE ===
             this.stop(now);
 
+            let createdSource: OscillatorNode | AudioBufferSourceNode | null = null;
+
             if (isWav) {
                 const src = this.context.createBufferSource();
-                src.buffer = (waveform === 'wav-sqr' ? this.wavSqrBuffer : this.wavSawBuffer) ?? null;
+                src.buffer = (parsed.shape === 'sqr' ? this.wavSqrBuffer : this.wavSawBuffer) ?? null;
                 src.loop = true;
                 src.playbackRate.value = freq / 261.63; // C4 base
-                this.source = src;
-            } else {
-                const osc = this.context.createOscillator();
-                osc.type = (['sawtooth', 'square', 'triangle', 'sine'] as const).includes(
-                    waveform as any
-                ) ? (waveform as OscillatorType) : 'sawtooth';
-                osc.frequency.value = freq;
-                this.source = osc;
+                createdSource = src;
+            } else if (parsed.engine === 'wasm' && this.engineDeps?.wasmEngine?.isReady) {
+                // Render a ~2s buffer at C4 reference frequency, then retune via playbackRate.
+                const REF_FREQ = 261.63;
+                const float = this.engineDeps.wasmEngine.generate(
+                    REF_FREQ,
+                    2.0,
+                    this.context.sampleRate,
+                    parsed.shape,
+                    Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
+                    Math.max(0.1, params.filterResonance),
+                );
+                if (float && float.length > 0) {
+                    const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
+                    buf.getChannelData(0).set(float);
+                    const src = this.context.createBufferSource();
+                    src.buffer = buf;
+                    src.loop = true;
+                    src.playbackRate.value = freq / REF_FREQ;
+                    createdSource = src;
+                }
+            } else if (parsed.engine === 'wgsl') {
+                const buf = this.engineDeps?.wgslBuffers?.[parsed.shape];
+                if (buf) {
+                    const src = this.context.createBufferSource();
+                    src.buffer = buf;
+                    src.loop = true;
+                    // wgsl buffers are pre-rendered at C4 reference
+                    src.playbackRate.value = freq / 261.63;
+                    createdSource = src;
+                }
             }
+
+            // Fallback: JS oscillator using the parsed base shape so the user at
+            // least hears the right wave family for engines we haven't wired up
+            // (pyodide, wam, rust) or that failed to initialise.
+            if (!createdSource) {
+                const osc = this.context.createOscillator();
+                osc.type = shapeToOscillatorType(parsed.shape);
+                osc.frequency.value = freq;
+                createdSource = osc;
+            }
+
+            this.source = createdSource;
 
             this.currentSourceType = waveform;
             this.source.connect(this.filter);
@@ -249,11 +298,12 @@ export class VoiceManager {
         monophonic: boolean,
         wavSaw?: AudioBuffer,
         wavSqr?: AudioBuffer,
-        globalDelayNode?: DelayNode
+        globalDelayNode?: DelayNode,
+        engineDeps?: VoiceEngineDeps,
     ) {
         this.monophonic = monophonic;
         this.voices = Array.from({ length: Math.max(1, polyphony) }, () =>
-            new Voice(context, destination, wavSaw, wavSqr, globalDelayNode)
+            new Voice(context, destination, wavSaw, wavSqr, globalDelayNode, engineDeps)
         );
     }
 

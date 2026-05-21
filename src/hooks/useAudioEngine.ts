@@ -320,9 +320,32 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 console.warn('Engine telemetry registration failed for oscillators', e);
             }
 
+            // Pre-render WebGPU oscillator cycles at C4 reference so they can be
+            // looped synchronously per-note (gpuEngine.generate is async).
+            const wgslBuffers: Partial<Record<'saw' | 'sqr' | 'tri' | 'sin', AudioBuffer | null>> = {};
+            if ((gpuEngine as any).isSupported) {
+                const REF_FREQ = 261.63;
+                const REF_DUR = 2.0;
+                const shapes: Array<'saw' | 'sqr' | 'tri' | 'sin'> = ['saw', 'sqr', 'tri', 'sin'];
+                await Promise.all(shapes.map(async (shape) => {
+                    try {
+                        const float = await gpuEngine.generate(REF_FREQ, REF_DUR, context.sampleRate, shape);
+                        if (float && float.length > 0) {
+                            const buf = context.createBuffer(1, float.length, context.sampleRate);
+                            buf.getChannelData(0).set(float);
+                            wgslBuffers[shape] = buf;
+                        }
+                    } catch (e) {
+                        console.warn(`WebGPU pre-render for ${shape} failed`, e);
+                    }
+                }));
+            }
+
+            const voiceEngineDeps = { wasmEngine: wasmEngineRef.current, wgslBuffers };
+
             // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
-            voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+            voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
+            voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
 
             await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
 
