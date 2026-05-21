@@ -4,7 +4,7 @@ export const GridIndicators = memo(() => {
     const indicators = [];
     for (let i = 0; i < 32; i += 4) { // Every 4 steps = 1 beat
         const isMeasure = i % 16 === 0; // Every 16 steps = 1 bar/measure
-        const x = 220 + i * (18 + 4) + 9; // Centered on the step
+        const x = i * (18 + 4) + 9; // Centered on the step
 
         indicators.push(
             <g key={`grid-${i}`}>

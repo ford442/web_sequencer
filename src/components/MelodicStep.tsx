@@ -87,7 +87,7 @@ export const MelodicStep = memo(({
   const elementRef = useRef<SVGGElement>(null);
   
   // Calculate position
-  const x = propX ?? 220 + stepIndex * (baseWidth + gap);
+  const x = propX ?? stepIndex * (baseWidth + gap);
   const totalWidth = (baseWidth * length) + (gap * (length - 1));
   
   // Calculate visual height based on pitch
