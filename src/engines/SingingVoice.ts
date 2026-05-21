@@ -45,6 +45,35 @@ export const PITCH_RATIO_LIMITS = {
     MAX: 2.0
 };
 
+/**
+ * Time-stretch ratio limits for phoneme-aware duration stretching.
+ * Rubber Band handles ratios outside this range poorly — clamp and warn.
+ */
+export const STRETCH_RATIO_LIMITS = {
+    /** Minimum stretch ratio (4x speed-up) */
+    MIN: 0.25,
+    /** Maximum stretch ratio (4x slow-down) */
+    MAX: 4.0
+};
+
+/**
+ * Clamp a raw time-stretch ratio to the safe operating range and emit a
+ * console warning (not error) when the unclamped value falls outside it.
+ *
+ * @param ratio Raw computed stretch ratio (targetDuration / nativeDuration)
+ * @returns Clamped ratio within [STRETCH_RATIO_LIMITS.MIN, STRETCH_RATIO_LIMITS.MAX]
+ */
+export function clampStretchRatio(ratio: number): number {
+    const clamped = Math.max(STRETCH_RATIO_LIMITS.MIN, Math.min(STRETCH_RATIO_LIMITS.MAX, ratio));
+    if (ratio < STRETCH_RATIO_LIMITS.MIN || ratio > STRETCH_RATIO_LIMITS.MAX) {
+        console.warn(
+            `[SingingVoice] Stretch ratio ${ratio.toFixed(3)} is outside optimal range ` +
+            `[${STRETCH_RATIO_LIMITS.MIN}, ${STRETCH_RATIO_LIMITS.MAX}]; clamping to ${clamped.toFixed(3)}.`
+        );
+    }
+    return clamped;
+}
+
 /** Configuration for SingingVoice initialization */
 export interface SingingVoiceConfig {
     /** Use high quality (Finer engine) - higher CPU, better quality */
@@ -600,7 +629,21 @@ export class SingingVoice {
         }
 
         this.setPitch(pitch);
-        this.setTimeRatio(1.0); // Reset time stretch for slice playback usually
+
+        // Apply phoneme-aware time-stretch to fill the target step duration.
+        // When targetDuration is supplied, compute the ratio from the phoneme's
+        // natural duration; otherwise reset to 1.0 (no stretch).
+        if (targetDuration !== undefined && targetDuration > 0) {
+            const nativeDuration = phoneme.end - phoneme.start;
+            if (nativeDuration > 0) {
+                const rawRatio = targetDuration / nativeDuration;
+                this.setTimeRatio(clampStretchRatio(rawRatio));
+            } else {
+                this.setTimeRatio(1.0);
+            }
+        } else {
+            this.setTimeRatio(1.0); // Reset time stretch for slice playback
+        }
 
         await this.process(audio, startSample, endSample, reverse);
 

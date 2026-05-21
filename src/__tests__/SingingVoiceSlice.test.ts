@@ -1,6 +1,6 @@
 // src/__tests__/SingingVoiceSlice.test.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { SingingVoice } from '../engines/SingingVoice';
+import { SingingVoice, clampStretchRatio, STRETCH_RATIO_LIMITS } from '../engines/SingingVoice';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 
 // Mock AudioContext and related APIs
@@ -107,11 +107,52 @@ describe('SingingVoice Slice Triggering', () => {
         );
     });
 
-    it('should reset time stretch when triggering slice', async () => {
+    it('should reset time stretch to 1.0 when no targetDuration is provided', async () => {
         const audio = new Float32Array(100);
         await voice.triggerSlice(audio, 0, mockAlignment);
 
         expect(mockWorkletNode.parameters.get('timeRatio').setValueAtTime).toHaveBeenCalledWith(1.0, 0);
+    });
+
+    it('should apply computed stretch ratio when targetDuration is provided', async () => {
+        // sliceIndex=1: phoneme 'EH', start=0.1, end=0.3 => nativeDuration~0.2s
+        // targetDuration=0.4 => rawRatio~2.0 (within [0.25, 4.0], no clamping)
+        const audio = new Float32Array(44100 * 0.6);
+        await voice.triggerSlice(audio, 1, mockAlignment, 1.0, false, 0.4);
+
+        expect(mockWorkletNode.parameters.get('timeRatio').setValueAtTime).toHaveBeenCalledWith(
+            expect.closeTo(2.0, 5), 0
+        );
+    });
+
+    it('should clamp stretch ratio to MAX when targetDuration is very large', async () => {
+        // sliceIndex=0: nativeDuration=0.1s, targetDuration=10s => ratio=100 → clamped to 4.0
+        const audio = new Float32Array(44100 * 0.6);
+        await voice.triggerSlice(audio, 0, mockAlignment, 1.0, false, 10.0);
+
+        expect(mockWorkletNode.parameters.get('timeRatio').setValueAtTime).toHaveBeenCalledWith(
+            STRETCH_RATIO_LIMITS.MAX, 0
+        );
+    });
+
+    it('should clamp stretch ratio to MIN when targetDuration is very small', async () => {
+        // sliceIndex=0: nativeDuration=0.1s, targetDuration=0.001s => ratio=0.01 → clamped to 0.25
+        const audio = new Float32Array(44100 * 0.6);
+        await voice.triggerSlice(audio, 0, mockAlignment, 1.0, false, 0.001);
+
+        expect(mockWorkletNode.parameters.get('timeRatio').setValueAtTime).toHaveBeenCalledWith(
+            STRETCH_RATIO_LIMITS.MIN, 0
+        );
+    });
+
+    it('should emit console.warn when stretch ratio is clamped', async () => {
+        const warnSpy = vi.spyOn(console, 'warn');
+        const audio = new Float32Array(44100 * 0.6);
+        // ratio=100 => out of [0.25, 4.0] => warn
+        await voice.triggerSlice(audio, 0, mockAlignment, 1.0, false, 10.0);
+
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[SingingVoice]'));
+        warnSpy.mockRestore();
     });
 
     it('should set pitch when triggering slice', async () => {
@@ -140,5 +181,45 @@ describe('SingingVoice Slice Triggering', () => {
     it('should set grainPitchQuantize on the worklet parameter', () => {
         voice.setGrainPitchQuantize(7);
         expect(mockWorkletNode.parameters.get('grainPitchQuantize').setValueAtTime).toHaveBeenCalledWith(7, 0);
+    });
+});
+
+describe('clampStretchRatio', () => {
+    it('returns ratio unchanged when within valid range', () => {
+        expect(clampStretchRatio(1.0)).toBe(1.0);
+        expect(clampStretchRatio(0.25)).toBe(0.25);
+        expect(clampStretchRatio(4.0)).toBe(4.0);
+        expect(clampStretchRatio(2.5)).toBe(2.5);
+    });
+
+    it('clamps to MIN when ratio is below range', () => {
+        expect(clampStretchRatio(0.1)).toBe(STRETCH_RATIO_LIMITS.MIN);
+        expect(clampStretchRatio(0.0)).toBe(STRETCH_RATIO_LIMITS.MIN);
+    });
+
+    it('clamps to MAX when ratio is above range', () => {
+        expect(clampStretchRatio(5.0)).toBe(STRETCH_RATIO_LIMITS.MAX);
+        expect(clampStretchRatio(100)).toBe(STRETCH_RATIO_LIMITS.MAX);
+    });
+
+    it('emits console.warn when ratio is below MIN', () => {
+        const warnSpy = vi.spyOn(console, 'warn');
+        clampStretchRatio(0.1);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[SingingVoice]'));
+        warnSpy.mockRestore();
+    });
+
+    it('emits console.warn when ratio is above MAX', () => {
+        const warnSpy = vi.spyOn(console, 'warn');
+        clampStretchRatio(10);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[SingingVoice]'));
+        warnSpy.mockRestore();
+    });
+
+    it('does NOT emit console.warn when ratio is within valid range', () => {
+        const warnSpy = vi.spyOn(console, 'warn');
+        clampStretchRatio(2.0);
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
     });
 });
