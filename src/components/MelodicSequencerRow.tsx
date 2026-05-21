@@ -42,6 +42,7 @@ const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: 
       role="button"
       tabIndex={0}
       aria-label={`Pattern Slot ${index + 1}`}
+      aria-pressed={isActive}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -236,7 +237,8 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           role="button"
           tabIndex={0}
           aria-label={`Select ${label} track`}
-            onKeyDown={handleRowKeyDown}
+          aria-pressed={isSelected}
+          onKeyDown={handleRowKeyDown}
         >
           {isSelected && (
             <rect x={-10} y={8} width={4} height={36} fill="#3fa34d" rx={2} />
