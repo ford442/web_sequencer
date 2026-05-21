@@ -120,10 +120,13 @@
 * [x] **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
 ---
 
-* **Idea:** "Harmony Bus Parameters + Stereo Widener" - Expose compressor/EQ and optional widening parameters on the Vocal Harmony Parallel Bus to the UI.
+* [x] **Idea:** "Harmony Bus Parameters + Stereo Widener" - Expose compressor/EQ and optional widening parameters on the Vocal Harmony Parallel Bus to the UI.
+* **Idea:** "Dynamic Reverb Density LFO" - Modulate the density or size of the reverb tail dynamically using an LFO for swirling, breathing spaces.
+* **Idea:** "Spectral Panning" - Split the TTS audio into multiple frequency bands and dynamically pan them across the stereo field based on an LFO to create wide, swirling vocal textures.
 ---
 
 ## 📜 Changelog
+* [2026-07-06] - Implemented Harmony Bus Parameters + Stereo Widener: Exposed `busCompressorThreshold`, `busEqGain`, and `busWidener` in `HarmonizerConfig` and `HarmonizerPopover`. Implemented Haas effect delay routing on the harmony parallel bus in `useAudioEngine.ts` for wide stereo spread. Fulfills the "Harmony Bus Parameters + Stereo Widener" Innovation Lab idea. Added new ideas: "Dynamic Reverb Density LFO" and "Spectral Panning".
 * [2026-07-05] - Implemented Formant-Aware Reverb: Dynamically adjusted reverb send EQ (lowpass cutoff) based on active `formantShift` parameters in `useAudioEngine.ts` to prevent high-frequency sibilance buildup on bright vowels. Added new idea: Dynamic Reverb Density LFO.
 * [2026-07-04] - Implemented Multiband Distortion for TTS: Updated `vocal-overdrive-processor.ts` to include a 1-pole state variable filter crossover. Applied asymmetric tube clipping specifically to the high-frequency band to prevent fundamental pitch muddying.
 * [2026-07-03] - Implemented Vocal Harmony Parallel Bus: Created a dedicated parallel bus (`harmonyBusGainRef` -> `harmonyCompressorRef` -> `harmonyEQRef`) in `useAudioEngine.ts`. Routed harmony voices (where `isHarmonyVoice` is true) through this bus for independent glue compression and EQ before re-joining the master chain. Fulfills the "Vocal Harmony Parallel Bus" idea.

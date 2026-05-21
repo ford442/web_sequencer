@@ -80,6 +80,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     // Vocal Harmony Parallel Bus
     const harmonyCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const harmonyEQRef = useRef<BiquadFilterNode | null>(null);
+    const harmonyWidenerDelayRef = useRef<DelayNode | null>(null);
+    const harmonyWidenerGainRef = useRef<GainNode | null>(null);
 
     const sustainNodeRef = useRef<AudioWorkletNode | null>(null);
     const noiseBufferRef = useRef<AudioBuffer | null>(null);
@@ -203,7 +205,27 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             harmonyGain.connect(harmonyCompressor);
             harmonyCompressor.connect(harmonyEQ);
-            harmonyEQ.connect(masterSaturationRef.current!);
+
+            // Initialize Haas Effect Stereo Widener
+            // Split into L/R, delay R by up to 30ms, then merge
+            const widenerSplitter = context.createChannelSplitter(2);
+            const widenerMerger = context.createChannelMerger(2);
+            const widenerDelay = context.createDelay(0.05);
+            widenerDelay.delayTime.value = 0.0;
+            harmonyWidenerDelayRef.current = widenerDelay;
+
+            // Connect EQ to splitter
+            harmonyEQ.connect(widenerSplitter);
+
+            // Left channel passes through
+            widenerSplitter.connect(widenerMerger, 0, 0);
+
+            // Right channel is delayed
+            widenerSplitter.connect(widenerDelay, 1);
+            widenerDelay.connect(widenerMerger, 0, 1);
+
+            // Connect widener merger to master
+            widenerMerger.connect(masterSaturationRef.current!);
 
             // Initialize Reverb Node
             // Initialize Reverb Nodes (Room, Plate, Hall)
@@ -1141,6 +1163,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 applyHarmonizerConfig(harmonizerRef, config, isActive);
                 if (harmonyBusGainRef.current) {
                     harmonyBusGainRef.current.gain.setTargetAtTime(isActive ? (config.busGain ?? 0.85) : 0, context.currentTime, 0.05);
+                }
+                if (harmonyCompressorRef.current) {
+                    harmonyCompressorRef.current.threshold.setTargetAtTime(config.busCompressorThreshold ?? -18, context.currentTime, 0.05);
+                }
+                if (harmonyEQRef.current) {
+                    harmonyEQRef.current.gain.setTargetAtTime(config.busEqGain ?? -3.0, context.currentTime, 0.05);
+                }
+                if (harmonyWidenerDelayRef.current) {
+                    // Widener amount 0-1 mapped to 0-30ms delay
+                    harmonyWidenerDelayRef.current.delayTime.setTargetAtTime((config.busWidener ?? 0.0) * 0.03, context.currentTime, 0.05);
                 }
             };
             const updateSamplerVoiceParams = (_bankIdx: number, _key: string, _value: number | string | boolean) => {};
