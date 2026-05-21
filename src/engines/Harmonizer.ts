@@ -25,6 +25,12 @@ export interface HarmonizerConfig {
     customIntervals?: number[];
     /** Bus gain for harmony voices (0-1) */
     busGain?: number;
+    /** Bus compressor threshold in dB (-60 to 0) */
+    busCompressorThreshold?: number;
+    /** Bus EQ lowshelf gain in dB (-24 to +24) */
+    busEqGain?: number;
+    /** Bus stereo widener amount (0-1) */
+    busWidener?: number;
 }
 
 /** Generated voice parameters for a single harmony voice */
@@ -88,7 +94,10 @@ export class Harmonizer {
         harmonyType: 'third',
         detuneSpread: 15,
         formantSpread: 3,
-        busGain: 0.85
+        busGain: 0.85,
+        busCompressorThreshold: -18,
+        busEqGain: -3.0,
+        busWidener: 0.0
     }) {
         this.config = { ...config };
     }
@@ -276,7 +285,10 @@ export const HARMONIZE_PRESETS = {
         harmonyType: 'octave',
         detuneSpread: 8,
         formantSpread: 2,
-        busGain: 0.85
+        busGain: 0.85,
+        busCompressorThreshold: -12,
+        busEqGain: -2.0,
+        busWidener: 0.1
     }),
     
     /** Classic vocal harmony (major third) */
@@ -285,7 +297,10 @@ export const HARMONIZE_PRESETS = {
         harmonyType: 'third',
         detuneSpread: 12,
         formantSpread: 4,
-        busGain: 0.85
+        busGain: 0.85,
+        busCompressorThreshold: -18,
+        busEqGain: -3.0,
+        busWidener: 0.3
     }),
     
     /** Rich choir sound with 4 voices */
@@ -294,7 +309,10 @@ export const HARMONIZE_PRESETS = {
         harmonyType: 'cluster',
         detuneSpread: 25,
         formantSpread: 6,
-        busGain: 0.85
+        busGain: 0.85,
+        busCompressorThreshold: -24,
+        busEqGain: -5.0,
+        busWidener: 0.6
     }),
     
     /** Power chord style (root + fifth) */
@@ -303,7 +321,10 @@ export const HARMONIZE_PRESETS = {
         harmonyType: 'fifth',
         detuneSpread: 10,
         formantSpread: 3,
-        busGain: 0.85
+        busGain: 0.85,
+        busCompressorThreshold: -15,
+        busEqGain: -1.0,
+        busWidener: 0.2
     }),
     
     /** Wide ambient spread */
@@ -313,7 +334,10 @@ export const HARMONIZE_PRESETS = {
         detuneSpread: 35,
         formantSpread: 8,
         customIntervals: [0, 7, 12],
-        busGain: 0.85
+        busGain: 0.85,
+        busCompressorThreshold: -20,
+        busEqGain: -4.0,
+        busWidener: 0.9
     })
 };
 

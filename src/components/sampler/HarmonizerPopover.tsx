@@ -39,6 +39,18 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
         setLocalConfig(prev => ({ ...prev, busGain: value }));
     };
 
+    const handleBusCompressorThresholdChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, busCompressorThreshold: value }));
+    };
+
+    const handleBusEqGainChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, busEqGain: value }));
+    };
+
+    const handleBusWidenerChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, busWidener: value }));
+    };
+
     const handleApply = () => {
         onApply(localConfig, localActive);
         onClose();
@@ -257,6 +269,97 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 aria-label="Harmony Bus Gain"
                                 aria-valuetext={`${Math.round((localConfig.busGain ?? 0.85) * 100)} percent`}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Bus Compressor Threshold - Styled slider */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Comp Thresh</span>
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                {localConfig.busCompressorThreshold ?? -18}dB
+                            </span>
+                        </div>
+                        <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                            <div
+                                className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                style={{
+                                    width: `${((localConfig.busCompressorThreshold ?? -18) + 60) / 60 * 100}%`,
+                                    background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                    boxShadow: `0 0 10px ${color}40`
+                                }}
+                            />
+                            <input
+                                type="range"
+                                min="-60"
+                                max="0"
+                                value={localConfig.busCompressorThreshold ?? -18}
+                                onChange={(e) => handleBusCompressorThresholdChange(parseInt(e.target.value))}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                aria-label="Bus Compressor Threshold"
+                                aria-valuetext={`${localConfig.busCompressorThreshold ?? -18} dB`}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Bus EQ Gain - Styled slider */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">EQ Low Gain</span>
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                {localConfig.busEqGain ?? -3.0}dB
+                            </span>
+                        </div>
+                        <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                            <div
+                                className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                style={{
+                                    width: `${((localConfig.busEqGain ?? -3.0) + 24) / 48 * 100}%`,
+                                    background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                    boxShadow: `0 0 10px ${color}40`
+                                }}
+                            />
+                            <input
+                                type="range"
+                                min="-24"
+                                max="24"
+                                step="0.1"
+                                value={localConfig.busEqGain ?? -3.0}
+                                onChange={(e) => handleBusEqGainChange(parseFloat(e.target.value))}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                aria-label="Bus EQ Low Gain"
+                                aria-valuetext={`${localConfig.busEqGain ?? -3.0} dB`}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Bus Widener - Styled slider */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Stereo Width</span>
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                {Math.round((localConfig.busWidener ?? 0.0) * 100)}%
+                            </span>
+                        </div>
+                        <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                            <div
+                                className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                style={{
+                                    width: `${(localConfig.busWidener ?? 0.0) * 100}%`,
+                                    background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                    boxShadow: `0 0 10px ${color}40`
+                                }}
+                            />
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={Math.round((localConfig.busWidener ?? 0.0) * 100)}
+                                onChange={(e) => handleBusWidenerChange(parseInt(e.target.value) / 100)}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                aria-label="Bus Stereo Width"
+                                aria-valuetext={`${Math.round((localConfig.busWidener ?? 0.0) * 100)} percent`}
                             />
                         </div>
                     </div>
