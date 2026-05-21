@@ -492,7 +492,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     tranceGate?: number,
                     gateRate?: number,
                     gateDepth?: number,
-                    isHarmonyVoice?: boolean
+                    isHarmonyVoice?: boolean,
+                    spectralPanRate?: number,
+                    spectralPanDepth?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
