@@ -454,22 +454,22 @@ export function useAppState() {
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
     }, [handlePlayToggle]);
 
-    const handleMasterVolume = (e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v); };
-    const handleMasterVolumeKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); } };
-    const handleMasterVolumeReset = () => { setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); };
+    const handleMasterVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v); }, [audioEngine]);
+    const handleMasterVolumeKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); } }, [audioEngine]);
+    const handleMasterVolumeReset = useCallback(() => { setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); }, [audioEngine]);
 
-    const handleMasterSaturation = (e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterSaturation(v); audioEngine?.setMasterSaturation(v); };
-    const handleMasterSaturationKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterSaturation(0); audioEngine?.setMasterSaturation(0); } };
-    const handleMasterSaturationReset = () => { setMasterSaturation(0); audioEngine?.setMasterSaturation(0); };
+    const handleMasterSaturation = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterSaturation(v); audioEngine?.setMasterSaturation(v); }, [audioEngine]);
+    const handleMasterSaturationKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterSaturation(0); audioEngine?.setMasterSaturation(0); } }, [audioEngine]);
+    const handleMasterSaturationReset = useCallback(() => { setMasterSaturation(0); audioEngine?.setMasterSaturation(0); }, [audioEngine]);
 
-    const handleGlobalPan = (e: React.ChangeEvent<HTMLInputElement>) => { const p = parseFloat(e.target.value); const val = (p > -0.1 && p < 0.1) ? 0 : p; setGlobalPan(val); audioEngine?.setGlobalPan(val); };
-    const handleGlobalPanKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } };
-    const handleGlobalPanReset = () => { setGlobalPan(0); audioEngine?.setGlobalPan(0); };
-    const handleReverbType = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const handleGlobalPan = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const p = parseFloat(e.target.value); const val = (p > -0.1 && p < 0.1) ? 0 : p; setGlobalPan(val); audioEngine?.setGlobalPan(val); }, [audioEngine]);
+    const handleGlobalPanKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setGlobalPan(0); audioEngine?.setGlobalPan(0); } }, [audioEngine]);
+    const handleGlobalPanReset = useCallback(() => { setGlobalPan(0); audioEngine?.setGlobalPan(0); }, [audioEngine]);
+    const handleReverbType = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
         const t = e.target.value as ReverbType;
         setReverbType(t);
         audioEngine?.setReverbType?.(t);
-    };
+    }, [audioEngine]);
     const updateStorageForTrack = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => { setTrackStorage(prev => { const copy = { ...prev }; copy[track] = [...copy[track]]; copy[track][activeTrackSlotsRef.current[track]] = sequence; return copy; }); }, []);
 
     const handleCopy = useCallback(() => {

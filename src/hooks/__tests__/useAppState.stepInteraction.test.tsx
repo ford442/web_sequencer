@@ -45,7 +45,7 @@ describe('useAppState step interactions', () => {
     expect(result.current.pattern.partA.steps[2]).not.toBeNull();
 
     act(() => {
-      result.current.handleDrawEnter('partA', 3);
+      result.current.handleDrawEnter();
     });
 
     expect(result.current.pattern.partA.steps[3]).toBeNull();

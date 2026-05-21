@@ -1,4 +1,4 @@
-import React, { memo } from 'react'
+import React, { memo, useCallback } from 'react'
 import type { AiImportStage } from '../hooks/useSongStorage'
 import type { ReverbType } from '../types'
 
@@ -77,6 +77,18 @@ export const BottomBar = memo(function BottomBar({
     setShowGamepadDebug,
     setIsShortcutsHelpOpen,
 }: BottomBarProps) {
+    const handleAudioWorkletToggle = useCallback(() => {
+        const newValue = !forceScriptProcessorFallback;
+        setForceScriptProcessorFallback(newValue);
+        localStorage.setItem('forceScriptProcessorFallback', String(newValue));
+        showToast(
+            newValue
+                ? "ScriptProcessor fallback enabled. Refresh to apply."
+                : "AudioWorklet mode enabled. Refresh to apply.",
+            'success'
+        );
+    }, [forceScriptProcessorFallback, setForceScriptProcessorFallback, showToast]);
+
     return (
         <div className="fixed bottom-0 left-0 right-0 h-10 bg-gradient-to-r from-[#0a0c10] via-[#0d1014] to-[#0a0c10] backdrop-blur-md border-t border-cyan-900/30 z-40 flex items-center justify-between px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
             {/* Left: View Controls */}
@@ -283,17 +295,7 @@ export const BottomBar = memo(function BottomBar({
 
                 {/* AudioWorklet Fallback Toggle */}
                 <button
-                    onClick={() => {
-                        const newValue = !forceScriptProcessorFallback;
-                        setForceScriptProcessorFallback(newValue);
-                        localStorage.setItem('forceScriptProcessorFallback', String(newValue));
-                        showToast(
-                            newValue
-                                ? "ScriptProcessor fallback enabled. Refresh to apply."
-                                : "AudioWorklet mode enabled. Refresh to apply.",
-                            'success'
-                        );
-                    }}
+                    onClick={handleAudioWorkletToggle}
                     className={`h-6 px-2 text-[10px] font-mono border transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95 ${forceScriptProcessorFallback ? 'bg-yellow-900/30 text-yellow-400 border-yellow-900/50' : 'bg-zinc-800 text-gray-500 border-zinc-700'}`}
                     title={forceScriptProcessorFallback ? "Using ScriptProcessor fallback" : "Using AudioWorklet"}
                     aria-pressed={forceScriptProcessorFallback}
