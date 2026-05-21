@@ -632,8 +632,10 @@ export function useAppState() {
         if (rowKey === 'sampler') { step = pattern.sampler[activeSamplerBankRef.current].steps[index]; }
         else { step = pattern[rowKey].steps[index]; }
         const isActive = !!step;
-        setIsDrawing(true);
-        setDrawMode(isActive ? 'remove' : 'add');
+        if (isActive) {
+            setSelection({ trackKey: rowKey, startStep: index, endStep: index });
+            return;
+        }
         handlePatternChange(rowKey, index, e);
     }, [handlePatternChange]);
 
@@ -780,22 +782,7 @@ const handleKeyboardPlay = useCallback((note: string) => {
         };
     }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
 
-    const handleDrawEnter = useCallback((trackKey: TrackKey, stepIndex: number) => {
-        if (!isDrawing || !drawMode) return;
-        const pattern = patternRef.current;
-        let step = null;
-        if (trackKey === 'sampler') {
-            step = pattern.sampler[activeSamplerBankRef.current].steps[stepIndex];
-        } else {
-            step = pattern[trackKey].steps[stepIndex];
-        }
-        const isActive = !!step;
-        if (drawMode === 'add' && !isActive) {
-            handlePatternChange(trackKey, stepIndex, undefined);
-        } else if (drawMode === 'remove' && isActive) {
-            handlePatternChange(trackKey, stepIndex, undefined);
-        }
-    }, [isDrawing, drawMode, handlePatternChange]);
+    const handleDrawEnter = useCallback(() => {}, []);
 useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;

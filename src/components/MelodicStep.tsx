@@ -104,6 +104,27 @@ export const MelodicStep = memo(({
   const isAltGroup = groupIndex % 2 === 1;
   const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
+  const beginLengthEdit = useCallback((target: Element, pointerId: number, startX: number, startLength: number) => {
+    if (!onEditLength) return;
+    target.setPointerCapture(pointerId);
+    const sensitivity = 20;
+    const handlePointerMove = (ev: PointerEvent) => {
+      const delta = ev.clientX - startX;
+      const stepsToAdd = Math.floor(delta / sensitivity);
+      const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
+      if (newLength !== length) {
+        onEditLength(rowKey, stepIndex, newLength);
+      }
+    };
+    const handlePointerUp = (ev: PointerEvent) => {
+      target.removeEventListener('pointermove', handlePointerMove as any);
+      target.removeEventListener('pointerup', handlePointerUp as any);
+      target.releasePointerCapture(ev.pointerId);
+    };
+    target.addEventListener('pointermove', handlePointerMove as any);
+    target.addEventListener('pointerup', handlePointerUp as any);
+  }, [length, onEditLength, rowKey, stepIndex]);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // Check for Alt+Click - pass through to onToggle for PhonemePainter
     if (e.altKey && active) {
@@ -116,37 +137,17 @@ export const MelodicStep = memo(({
       // Right click - handle length edit if shift is held
       if (e.shiftKey && onEditLength && active) {
         e.preventDefault();
-        const target = e.currentTarget as Element;
-        target.setPointerCapture(e.pointerId);
-        
-        const startX = e.clientX;
-        const startLength = length;
-        const sensitivity = 20;
-        
-        const handlePointerMove = (ev: PointerEvent) => {
-          const delta = ev.clientX - startX;
-          const stepsToAdd = Math.floor(delta / sensitivity);
-          const newLength = Math.max(1, Math.min(16, startLength + stepsToAdd));
-          if (newLength !== length) {
-            onEditLength(rowKey, stepIndex, newLength);
-          }
-        };
-        
-        const handlePointerUp = (ev: PointerEvent) => {
-          target.removeEventListener('pointermove', handlePointerMove as any);
-          target.removeEventListener('pointerup', handlePointerUp as any);
-          target.releasePointerCapture(ev.pointerId);
-        };
-        
-        target.addEventListener('pointermove', handlePointerMove as any);
-        target.addEventListener('pointerup', handlePointerUp as any);
+        beginLengthEdit(e.currentTarget as Element, e.pointerId, e.clientX, length);
       }
       return;
     }
     
     if (!active) {
-      // Inactive step - just toggle on
+      // Inactive step - toggle on and allow drag-to-stretch
       onToggle(rowKey, stepIndex, e);
+      if (!e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        beginLengthEdit(e.currentTarget as Element, e.pointerId, e.clientX, 1);
+      }
       return;
     }
     
@@ -181,7 +182,7 @@ export const MelodicStep = memo(({
     
     target.addEventListener('pointermove', handlePointerMove as any);
     target.addEventListener('pointerup', handlePointerUp as any);
-  }, [active, pitch, length, rowKey, stepIndex, onToggle, onPitchChange, onEditLength]);
+  }, [active, pitch, length, rowKey, stepIndex, onToggle, onPitchChange, onEditLength, beginLengthEdit]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!active) {
