@@ -135,7 +135,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
             >
                 <div className="flex justify-between items-center pb-2 border-b border-cyan-900/30">
                     <span id="note-selector-title" className="text-xs font-bold font-orbitron text-cyan-400 tracking-widest drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]">NOTE PROPERTIES</span>
-                    <button onClick={onClose} aria-label="Close note properties" title="Close note properties (Esc)" className="text-cyan-600 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 rounded">✕</button>
+                    <button onClick={onClose} aria-label="Close note properties" title="Close note properties (Esc)" className="text-cyan-600 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 rounded"><span aria-hidden="true">✕</span></button>
                 </div>
 
                 {/* NEW: Duration Control */}
