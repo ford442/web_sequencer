@@ -13,7 +13,7 @@ vi.stubGlobal('WebAssembly', {
 
 // Mock fetch for WASM files
 global.fetch = vi.fn((url: string) => {
-    if (typeof url === 'string' && (url.includes('jc303-single.wasm') || url.includes('jc303-threaded.wasm'))) {
+    if (typeof url === 'string' && url.includes('hyphon_native.wasm')) {
         return Promise.resolve({
             ok: true,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(2048))
@@ -93,8 +93,8 @@ describe('Open303 Oscillator', () => {
         expect(success).toBe(true);
         expect(engine.isReady).toBe(true);
 
-        // Verify fetch was called for WASM (defaults to single-threaded)
-        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('jc303-single.wasm'));
+        // Verify fetch was called for the merged hyphon_native WASM
+        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('hyphon_native.wasm'));
 
         // Verify addModule was called
         expect(mockAudioContext.audioWorklet.addModule).toHaveBeenCalledWith('worklet-url.js');
