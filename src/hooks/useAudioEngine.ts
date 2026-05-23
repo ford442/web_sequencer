@@ -515,6 +515,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     tranceGate?: number,
                     gateRate?: number,
                     gateDepth?: number,
+                    reverbLfoRate?: number,
+                    reverbLfoDepth?: number,
                     isHarmonyVoice?: boolean
                 },
                 pitchOffsetSemitones: number = 0,
