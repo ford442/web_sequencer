@@ -253,6 +253,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           role="button"
           tabIndex={0}
           aria-label={`Select ${label} track`}
+          aria-description="Left-click to select row. Right-click for options."
           aria-pressed={isSelected}
           onKeyDown={handleRowKeyDown}
         >

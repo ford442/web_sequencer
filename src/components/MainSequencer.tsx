@@ -463,7 +463,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
 
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
-            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
+            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} aria-description="Left-click to select row. Right-click for options." aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
                 {isSelected && (
                     <rect 
                         x={-10} 
