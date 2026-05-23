@@ -42,3 +42,6 @@
 ## 2026-05-20 - Prevent Lingering Mouse-Click Focus Rings
 **Learning:** Using standard `focus:ring-2` on custom slider/button components (like DragValue and Knob) causes an ugly, lingering focus ring after a standard mouse click. Keyboard navigation accessibility must be maintained without penalizing mouse users.
 **Action:** When styling interactive elements for accessibility, always prefer `focus-visible:ring-2` and `focus-visible:border-[color]` over `focus:ring-2`. This ensures that keyboard navigators get clear focus indicators while mouse users do not see lingering rings after clicking.
+## 2026-05-23 - Reveal Complex Gestural Patterns with Aria-Description
+**Learning:** Found that complex matrix components like `MainSequencer` use dual-interaction models (left-click vs right-click). These gestural actions are opaque to keyboard and screen reader users without proper hints.
+**Action:** Use `aria-description` on complex interactive UI components to explicitly document primary and secondary actions (e.g., "Left-click to select pattern. Right-click to copy/paste/clear.") to improve discoverability without cluttering the visible UI.
