@@ -61,9 +61,9 @@
 
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
 ## 🧠 Innovation Lab (The "Dream" Log)
-* **Idea:** "Dynamic Reverb Density LFO" - Modulate the density or size of the reverb tail dynamically using an LFO for swirling, breathing spaces.
+* [x] **Idea:** "Dynamic Reverb Density LFO" - Modulate the density or size of the reverb tail dynamically using an LFO for swirling, breathing spaces. (Implemented by modulating reverb send gain using a dedicated sine LFO in useAudioEngine!)
 * [x] **Idea:** "Formant-Aware Reverb" - Dynamically adjust the reverb decay and EQ based on the active vowel being sung to prevent high-frequency sibilance buildup. (Implemented in `useAudioEngine.ts` via dynamic lowpass filter before convolution!)
-* **Idea:** "Spectral Panning" - Split the TTS audio into multiple frequency bands and dynamically pan them across the stereo field based on an LFO to create wide, swirling vocal textures.
+* [x] **Idea:** "Spectral Panning" - Split the TTS audio into multiple frequency bands and dynamically pan them across the stereo field based on an LFO to create wide, swirling vocal textures.
 * [x] **Idea:** "Spectral Sidechaining" - Duck specific frequencies (like low-end) instead of broadband gain when the kick drum hits, avoiding pumping artifacts on the highs. (Implemented via BiquadFilterNode lowshelf modulation!)
 * [x] **Idea:** "AI Auto-EQ Assistant" - Automatically analyze the frequency spectrum of all tracks and subtly EQ conflicting frequencies to prevent masking (e.g., dipping 200Hz on Synths when the Bass plays).
 * [x] **Idea:** "Vocal Overdrive Worklet" - Add a custom AudioWorklet for nonlinear vocal tube distortion.
@@ -121,11 +121,12 @@
 ---
 
 * [x] **Idea:** "Harmony Bus Parameters + Stereo Widener" - Expose compressor/EQ and optional widening parameters on the Vocal Harmony Parallel Bus to the UI.
-* **Idea:** "Dynamic Reverb Density LFO" - Modulate the density or size of the reverb tail dynamically using an LFO for swirling, breathing spaces.
-* **Idea:** "Spectral Panning" - Split the TTS audio into multiple frequency bands and dynamically pan them across the stereo field based on an LFO to create wide, swirling vocal textures.
+* [x] **Idea:** "Dynamic Reverb Density LFO" - Modulate the density or size of the reverb tail dynamically using an LFO for swirling, breathing spaces. (Implemented by modulating reverb send gain using a dedicated sine LFO in useAudioEngine!)
+* [x] **Idea:** "Spectral Panning" - Split the TTS audio into multiple frequency bands and dynamically pan them across the stereo field based on an LFO to create wide, swirling vocal textures.
 ---
 
 ## 📜 Changelog
+* [2026-07-07] - Implemented Dynamic Reverb Density LFO: Added `reverbLfoRate` and `reverbLfoDepth` to `SamplerBankParams` and `Note` interfaces. Exposed these parameters in `SamplerPanel` and `NoteSelector` for global and per-step control. Updated `useAudioEngine.ts` to modulate the reverb send gain with a dedicated sine wave `OscillatorNode`, creating rhythmic breathing and swirling spatial effects without introducing convolver artifacts. Fulfills the "Dynamic Reverb Density LFO" Innovation Lab idea.
 * [2026-07-06] - Implemented Harmony Bus Parameters + Stereo Widener: Exposed `busCompressorThreshold`, `busEqGain`, and `busWidener` in `HarmonizerConfig` and `HarmonizerPopover`. Implemented Haas effect delay routing on the harmony parallel bus in `useAudioEngine.ts` for wide stereo spread. Fulfills the "Harmony Bus Parameters + Stereo Widener" Innovation Lab idea. Added new ideas: "Dynamic Reverb Density LFO" and "Spectral Panning".
 * [2026-07-05] - Implemented Formant-Aware Reverb: Dynamically adjusted reverb send EQ (lowpass cutoff) based on active `formantShift` parameters in `useAudioEngine.ts` to prevent high-frequency sibilance buildup on bright vowels. Added new idea: Dynamic Reverb Density LFO.
 * [2026-07-04] - Implemented Multiband Distortion for TTS: Updated `vocal-overdrive-processor.ts` to include a 1-pole state variable filter crossover. Applied asymmetric tube clipping specifically to the high-frequency band to prevent fundamental pitch muddying.

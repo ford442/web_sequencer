@@ -91,6 +91,8 @@ export interface SamplerBankParams {
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
+  reverbLfoRate?: number;
+  reverbLfoDepth?: number;
   formantLfoShape?: number[];
   formantEnvAttack?: number;
   formantEnvDecay?: number;
@@ -176,6 +178,8 @@ export interface Note {
   vibratoDepth?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
+  reverbLfoRate?: number;
+  reverbLfoDepth?: number;
   delaySend?: number;
   choir?: number;
   drive?: number;
