@@ -754,9 +754,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                     className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                             aria-label="Clear Text-to-Speech phrase input"
                             title="Clear Text-to-Speech phrase input"
-                                >
-                                    ✕
-                                </button>
+                                ><span aria-hidden="true">✕</span></button>
                             )}
                         </div>
                         <div

@@ -688,9 +688,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
               className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
               aria-label="Close modal"
               title="Close modal"
-            >
-              ✕
-            </button>
+            ><span aria-hidden="true">✕</span></button>
           </Tooltip>
         </div>
 
@@ -857,9 +855,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                             onClick={() => removeDroppedFile(droppedFile.id)}
                             className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0"
                             aria-label={`Remove ${droppedFile.file.name}`}
-                          >
-                            ✕
-                          </button>
+                          ><span aria-hidden="true">✕</span></button>
                         </Tooltip>
                       </div>
                     ))}
@@ -1367,7 +1363,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                 aria-label="Cancel Import"
               >
                 <span className="hidden sm:inline">Cancel</span>
-                <span className="sm:hidden">✕</span>
+                <span className="sm:hidden" aria-hidden="true">✕</span>
               </button>
             </Tooltip>
             <Tooltip text={parsedData ? "Ctrl+Enter to import" : "Enter valid JSON first"} position="top">
