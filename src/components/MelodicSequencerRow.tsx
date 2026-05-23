@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef, useCallback, useLayoutEffect, memo } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useCallback, useLayoutEffect, memo, useMemo } from 'react';
 import { MelodicStep } from './MelodicStep';
 import { GridIndicators } from './GridIndicators';
 import { noteToMidi } from '../utils/musicTheory';
@@ -167,57 +167,60 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
     }, [updateClasses]);
 
     // Render steps
-    const renderedSteps = [];
-    let skipCount = 0;
+    const renderedSteps = useMemo(() => {
+        const stepsArray = [];
+        let skipCount = 0;
 
-    for (let i = 0; i < 32; i++) {
-      if (skipCount > 0) {
-        skipCount--;
-        continue;
-      }
+        for (let i = 0; i < 32; i++) {
+          if (skipCount > 0) {
+            skipCount--;
+            continue;
+          }
 
-      const stepData = steps[i];
-      const length = stepData?.length || 1;
-      const isActive = !!stepData;
+          const stepData = steps[i];
+          const length = stepData?.length || 1;
+          const isActive = !!stepData;
 
-      // Default pitch for new notes is C4 (60)
-      // If note string exists but pitch doesn't, convert
-      let pitch = 60;
-      if (stepData?.pitch !== undefined) {
-          pitch = stepData.pitch;
-      } else if (stepData?.note) {
-          pitch = noteToMidi(stepData.note);
-      }
+          // Default pitch for new notes is C4 (60)
+          // If note string exists but pitch doesn't, convert
+          let pitch = 60;
+          if (stepData?.pitch !== undefined) {
+              pitch = stepData.pitch;
+          } else if (stepData?.note) {
+              pitch = noteToMidi(stepData.note);
+          }
 
-      const phonemeIndex = stepData?.sliceIndex; // Use sliceIndex as phoneme index
-      const phonemes = stepData?.phonemes; // Pass phoneme data for display
+          const phonemeIndex = stepData?.sliceIndex; // Use sliceIndex as phoneme index
+          const phonemes = stepData?.phonemes; // Pass phoneme data for display
 
-      renderedSteps.push(
-        <MelodicStep
-          key={i}
-          stepIndex={i}
-          active={isActive}
-          note={stepData?.note || null}
-          pitch={pitch}
-          phonemeIndex={phonemeIndex}
-          phonemes={phonemes}
-          length={length}
-          isSlide={!!stepData?.slide}
-          isCurrent={false} /* Handled by ref manipulation below */
-          rowLabel={label}
-          rowKey={rowKey}
-          refsArray={stepRefs}
-          onToggle={onToggle}
-          onPitchChange={onPitchChange}
-          onEditLength={onEditLength}
-          reverse={stepData?.reverse}
-        />
-      );
+          stepsArray.push(
+            <MelodicStep
+              key={i}
+              stepIndex={i}
+              active={isActive}
+              note={stepData?.note || null}
+              pitch={pitch}
+              phonemeIndex={phonemeIndex}
+              phonemes={phonemes}
+              length={length}
+              isSlide={!!stepData?.slide}
+              isCurrent={false} /* Handled by ref manipulation below */
+              rowLabel={label}
+              rowKey={rowKey}
+              refsArray={stepRefs}
+              onToggle={onToggle}
+              onPitchChange={onPitchChange}
+              onEditLength={onEditLength}
+              reverse={stepData?.reverse}
+            />
+          );
 
-      if (stepData && length > 1) {
-        skipCount = length - 1;
-      }
-    }
+          if (stepData && length > 1) {
+            skipCount = length - 1;
+          }
+        }
+        return stepsArray;
+    }, [steps, label, rowKey, onToggle, onPitchChange, onEditLength]);
 
       const handleRowClick = useCallback(() => onSelectRow(rowKey), [onSelectRow, rowKey]);
       const handleRowKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -226,6 +229,19 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           onSelectRow(rowKey);
         }
       }, [onSelectRow, rowKey]);
+
+    const renderedTrackSlots = useMemo(() => (
+      [0, 1, 2, 3, 4, 5, 6, 7].map(slot => (
+        <TrackSlotButton
+          key={slot}
+          index={slot}
+          isActive={activeSlot === slot}
+          hasData={!!trackSlots[slot]}
+          trackKey={rowKey}
+          onSelect={onSelectSlot}
+        />
+      ))
+    ), [activeSlot, trackSlots, rowKey, onSelectSlot]);
 
     return (
       <g transform={`translate(0, ${rowIndex * 80})`}>
@@ -259,16 +275,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
 
         {/* Pattern slots */}
         <g transform="translate(30, 16)">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (
-            <TrackSlotButton
-              key={slot}
-              index={slot}
-              isActive={activeSlot === slot}
-              hasData={!!trackSlots[slot]}
-              trackKey={rowKey}
-              onSelect={onSelectSlot}
-            />
-          ))}
+          {renderedTrackSlots}
         </g>
 
         {/* Grid indicators and Steps wrapped in zoom scale */}
