@@ -28,6 +28,8 @@ interface SamplerVoicePanelProps {
     isHarmonizeActive?: boolean;
 }
 
+const noopHarmonizerConfigChange = () => {};
+
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 const midiToNote = (midi: number) => {
@@ -509,6 +511,11 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const ladderButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
     const harmonizeTriggerRef = useRef<HTMLButtonElement>(null);
 
+    const handleHarmonizerClose = useCallback(() => {
+        setIsHarmonizerOpen(false);
+        harmonizeTriggerRef.current?.focus();
+    }, []);
+
     const handleRootNoteChange = (midi: number) => {
         setLocalRootNote(midi);
         onSamplerParamChange?.('rootNote', midi);
@@ -802,13 +809,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                 {/* Harmonizer Popover */}
                                 <HarmonizerPopover
                                     isOpen={isHarmonizerOpen}
-                                    onClose={() => {
-                                        setIsHarmonizerOpen(false);
-                                        harmonizeTriggerRef.current?.focus();
-                                    }}
+                                    onClose={handleHarmonizerClose}
                                     config={harmonizerConfig || defaultConfig}
                                     isActive={isHarmonizeActive}
-                                    onApply={onHarmonizerConfigChange || (() => {})}
+                                    onApply={onHarmonizerConfigChange || noopHarmonizerConfigChange}
                                     colorHex={colorHex}
                                 />
                             </div>
