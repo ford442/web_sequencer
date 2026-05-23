@@ -33,6 +33,8 @@ interface NoteSelectorProps {
     currentCharacterMorph?: number;
     currentReverbSend?: number;
     currentReverbType?: import('../types').ReverbType;
+    currentReverbLfoRate?: number;
+    currentReverbLfoDepth?: number;
     currentFreezeEnvDepth?: number;
     currentGrainEnvDepth?: number;
     currentGrainPitchQuantize?: number;
@@ -69,6 +71,8 @@ interface NoteSelectorProps {
         | 'characterMorph'
         | 'reverbSend'
         | 'reverbType'
+        | 'reverbLfoRate'
+        | 'reverbLfoDepth'
         | 'delaySend'
         | 'choir'
     , value: number | boolean | string) => void;
@@ -95,6 +99,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentCharacterMorph = 0,
     currentReverbSend,
     currentReverbType,
+    currentReverbLfoRate,
+    currentReverbLfoDepth,
     currentDelaySend,
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
@@ -432,7 +438,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         aria-valuetext={`${currentReverbSend !== undefined ? Math.round(currentReverbSend * 100) : 0}%`}
                                         aria-label="Reverb Send"
                                     />
-                                    <div className="flex justify-between items-center mt-1">
+                                    <div className="flex justify-between items-center mt-1 mb-2">
                                         <span className="text-[9px] text-indigo-200/50 uppercase font-bold">Space</span>
                                         <select
                                             value={currentReverbType || ''}
@@ -446,6 +452,40 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             <option value="hall">Hall</option>
                                         </select>
                                     </div>
+                                    <div className="flex justify-between mb-1">
+                                        <span className="text-[10px] text-indigo-200/70 font-medium">Reverb LFO Rate</span>
+                                        <span className="text-[10px] text-indigo-300/90 tabular-nums">
+                                            {currentReverbLfoRate !== undefined ? currentReverbLfoRate.toFixed(1) : 0} Hz
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="10"
+                                        step="0.1"
+                                        value={currentReverbLfoRate !== undefined ? currentReverbLfoRate : 0}
+                                        onChange={(e) => onPropertyChange?.('reverbLfoRate', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-valuetext={`${currentReverbLfoRate !== undefined ? currentReverbLfoRate.toFixed(1) : 0} Hz`}
+                                        aria-label="Reverb LFO Rate"
+                                    />
+                                    <div className="flex justify-between mt-2 mb-1">
+                                        <span className="text-[10px] text-indigo-200/70 font-medium">Reverb LFO Depth</span>
+                                        <span className="text-[10px] text-indigo-300/90 tabular-nums">
+                                            {currentReverbLfoDepth !== undefined ? Math.round(currentReverbLfoDepth * 100) : 0}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentReverbLfoDepth !== undefined ? currentReverbLfoDepth : 0}
+                                        onChange={(e) => onPropertyChange?.('reverbLfoDepth', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-valuetext={`${currentReverbLfoDepth !== undefined ? Math.round(currentReverbLfoDepth * 100) : 0}%`}
+                                        aria-label="Reverb LFO Depth"
+                                    />
                                 </div>
 
 
