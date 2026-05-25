@@ -1316,8 +1316,53 @@ const handleLyricApply = useCallback(async (text: string) => {
     const samplerControls = useStableKnobConfig(getSamplerControls, sampler[activeSamplerBank]);
 
     const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
-    const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
-    const bass2Child = useMemo(() => (
+    const synthBChild = useMemo(() => {
+        const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
+        const engine = synthB.engine303 ?? 'open303';
+        const handleSynthBEngineChange = (e: 'open303' | 'jc303') => {
+            updateSynthB({ engine303: e });
+            const mgr = audioEngine?.open303Engine;
+            if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(e);
+        };
+        return (
+            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
+                <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
+                {is303 && (
+                    <div className="flex flex-col gap-1 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
+                        <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center">Engine</span>
+                        <button
+                            onClick={() => handleSynthBEngineChange('open303')}
+                            className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
+                                engine === 'open303'
+                                    ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
+                                    : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                            }`}
+                        >
+                            Custom
+                        </button>
+                        <button
+                            onClick={() => handleSynthBEngineChange('jc303')}
+                            className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
+                                engine === 'jc303'
+                                    ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
+                                    : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                            }`}
+                        >
+                            JC303
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    }, [synthB.waveform, synthB.engine303, updateSynthB, audioEngine]);
+    const bass2Child = useMemo(() => {
+        const engine = bass2.engine303 ?? 'open303';
+        const handleBass2EngineChange = (e: 'open303' | 'jc303') => {
+            updateBass2({ engine303: e });
+            const mgr = audioEngine?.open303Engine;
+            if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(e);
+        };
+        return (
         <div className="absolute top-4 right-6 pointer-events-auto">
             <div className="flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
                 <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center">Waveform</span>
@@ -1341,9 +1386,31 @@ const handleLyricApply = useCallback(async (text: string) => {
                 >
                     SQR
                 </button>
+                <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center mt-1">Engine</span>
+                <button
+                    onClick={() => handleBass2EngineChange('open303')}
+                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
+                        engine === 'open303'
+                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
+                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                    }`}
+                >
+                    Custom
+                </button>
+                <button
+                    onClick={() => handleBass2EngineChange('jc303')}
+                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
+                        engine === 'jc303'
+                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
+                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                    }`}
+                >
+                    JC303
+                </button>
             </div>
         </div>
-    ), [bass2.waveform, updateBass2]);
+        );
+    }, [bass2.waveform, bass2.engine303, updateBass2, audioEngine]);
     const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} isVoiceEditorOpen={isVoiceEditorOpen} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} alignment={activeAlignment} onAlignmentChange={(newAlignment) => { audioEngine?.setAlignment?.(activeSamplerBank, newAlignment); setActiveAlignment(newAlignment); }} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, isVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment]);
 
     return {

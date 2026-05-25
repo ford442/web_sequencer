@@ -341,4 +341,24 @@ export class Open303Manager {
         this.bass1Ready = false;
         this.bass2Ready = false;
     }
+
+    /**
+     * Switch the DSP engine for the bass1 (SYNTH B / partB) voice.
+     *
+     * 'open303' — custom synthesizer (default)
+     * 'jc303'   — authentic rosic::Open303
+     */
+    setBass1Engine(engine: 'open303' | 'jc303'): void {
+        this.bass1?.setEngine303(engine);
+    }
+
+    /**
+     * Switch the DSP engine for the bass2 (BASS 2) voice.
+     *
+     * 'open303' — custom synthesizer (default)
+     * 'jc303'   — authentic rosic::Open303
+     */
+    setBass2Engine(engine: 'open303' | 'jc303'): void {
+        this.bass2?.setEngine303(engine);
+    }
 }
