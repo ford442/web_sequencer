@@ -62,6 +62,14 @@ EXPORTS="[ \
     '_open303_all_notes_off', \
     '_open303_set_param', \
     '_open303_process', \
+    '_jc303_create', \
+    '_jc303_destroy', \
+    '_jc303_init_handle', \
+    '_jc303_note_on', \
+    '_jc303_note_off', \
+    '_jc303_all_notes_off', \
+    '_jc303_set_param', \
+    '_jc303_process_handle', \
     '_jc303_init', \
     '_jc303_noteOn', \
     '_jc303_noteOff', \
@@ -87,7 +95,9 @@ INCLUDES="-I $SCRIPT_DIR \
           -I $RUBBERBAND_SRC/rubberband \
           -I $RUBBERBAND_SRC/src \
           -I $RUBBERBAND_SRC/src/ext/kissfft \
-          -I $RUBBERBAND_SRC/src/ext/speex"
+          -I $RUBBERBAND_SRC/src/ext/speex \
+          -I $REPO_ROOT/jc303_wasm/src/dsp/open303 \
+          -I $REPO_ROOT/jc303_wasm/src/dsp"
 
 echo "Compiling Objects..."
 
@@ -140,10 +150,16 @@ for f in $RUBBERBAND_SRC/src/finer/*.cpp; do compile_cpp "$f"; done
 # 3. Compile Audio DSP (OpenMP enabled)
 compile_cpp "$SCRIPT_DIR/audio_dsp.cpp"
 
-# 4. Compile Open303 TB-303 synthesizer engine
+# 4. Compile custom Open303 TB-303 synthesizer engine
 compile_cpp "$SCRIPT_DIR/open303_wrapper.cpp"
 
-# 5. Compile Wrapper & Main
+# 5. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
+for f in $REPO_ROOT/jc303_wasm/src/dsp/open303/*.cpp; do
+    compile_cpp "$f"
+done
+compile_cpp "$SCRIPT_DIR/jc303_wrapper.cpp"
+
+# 6. Compile Wrapper & Main
 compile_cpp "$SCRIPT_DIR/rubberband_wrapper.cpp"
 compile_cpp "$SCRIPT_DIR/main.cpp"
 
