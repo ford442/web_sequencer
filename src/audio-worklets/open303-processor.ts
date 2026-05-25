@@ -119,7 +119,7 @@ class Open303Processor extends AudioWorkletProcessor {
             } else if (type === 'noteOff') {
                 this.handleNoteOff(data.note);
             } else if (type === 'set-engine') {
-                this.handleSetEngine(data.engine as 'open303' | 'jc303', exports);
+                this.handleSetEngine(data.engine as 'open303' | 'jc303');
             } else if (type === 'param') {
                 if (this.isNativeApi) {
                     const paramId = JC303_PARAM_MAP[data.func as string];
@@ -583,7 +583,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
     /** Switch the active DSP engine for this processor instance.
      *  Clears any held notes before switching to avoid stuck notes. */
-    private handleSetEngine(engine: 'open303' | 'jc303', exports: any): void {
+    private handleSetEngine(engine: 'open303' | 'jc303'): void {
         if (engine === this.activeEngine) return;
 
         if (engine === 'jc303' && !this.hasJc303MultiApi) {
@@ -596,7 +596,6 @@ class Open303Processor extends AudioWorkletProcessor {
 
         this.activeEngine = engine;
         console.log(`[Open303] Engine switched to: ${engine}`);
-        void exports; // suppress unused-var lint warning; already used via clearAllNotes
     }
 
     private initializeLegacyApi(exports: any, sampleRate: number): boolean {
