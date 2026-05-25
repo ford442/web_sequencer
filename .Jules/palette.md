@@ -15,3 +15,6 @@
 ## 2026-05-13 - [NoteSelector Accessibility Improvements]
 **Learning:** Grouping related slider inputs (like Velocity, Duration, Expression) in a complex custom modal component using `<fieldset>` with `sr-only` `<legend>` dramatically improves screen reader navigation and context without affecting the existing visual layout, as long as utility classes like `border-none p-0 m-0` are applied to the fieldset.
 **Action:** Always wrap logical groups of parameter controls in `<fieldset>` tags with descriptive `<legend>` elements instead of generic `div` containers, especially in dense UI sections.
+## 2026-05-14 - Aria Labeling in Mode-Switching Components
+**Learning:** Found that custom toggle switches and mutually exclusive selection buttons (like Voice Type and Harmony Type) frequently lack proper ARIA attributes (`aria-label` and `aria-pressed`). These mode-switching controls are critical for screen reader users to understand the state of complex UI features.
+**Action:** Always bind `aria-pressed` or `aria-selected` to the active state of mode-switching components, and ensure descriptive `aria-label`s are applied, especially when visual feedback is purely styling-based.
