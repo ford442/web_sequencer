@@ -68,6 +68,8 @@ const resolveExpressiveness = (params: SamplerBankParams): ResolvedExpressivenes
     const cfg = params.expressiveness;
     const normalizeDepth = (value: number | undefined) => {
         if (value === undefined) return 0;
+        // Backward compatibility: older UI/state stores depths as 0-100 percentages,
+        // while newer expressiveness config stores normalized 0-1 values.
         return value > 1 ? value / 100 : value;
     };
     return {
@@ -77,6 +79,8 @@ const resolveExpressiveness = (params: SamplerBankParams): ResolvedExpressivenes
         breathAmount: cfg?.breathAmount ?? params.breathIntensity ?? 0,
     };
 };
+
+const EXPRESSIVE_STOP_BUFFER_SECONDS = 0.02;
 
 export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
@@ -838,6 +842,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             if (noteParams?.vibratoDepth !== undefined) {
                                 voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
                             } else {
+                                // SingingVoice setters use legacy percentage depth (0-100).
                                 voice.setVibratoDepth(expressiveConfig.vibratoDepth * 100, triggerTime);
                             }
                             voice.setVibratoRate(expressiveConfig.vibratoRate, triggerTime);
@@ -855,6 +860,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 const rateHz = (tempo / 60) * (params.gateRate / 4);
                                 voice.setGateRate(rateHz, triggerTime);
                             }
+                            // SingingVoice setters use legacy percentage depth (0-100).
                             voice.setTremoloDepth(expressiveConfig.tremoloDepth * 100, triggerTime);
                             if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
 
@@ -1284,9 +1290,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                     source.start(startTime);
                     if (duration > 0) {
-                        const release = params.release ?? 0.1;
-                        expressiveNode?.parameters.get('gate')?.setValueAtTime(0, startTime + duration);
-                        source.stop(startTime + duration + release);
+                        const releaseTime = params.release ?? 0.1;
+                        if (expressiveNode) {
+                            expressiveNode.parameters.get('gate')?.setValueAtTime(0, startTime + duration);
+                            source.stop(startTime + duration + releaseTime + EXPRESSIVE_STOP_BUFFER_SECONDS);
+                        } else {
+                            source.stop(startTime + duration);
+                        }
                     }
                 };
 
@@ -1441,7 +1451,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     note.expressiveNode?.parameters.get('gate')?.setValueAtTime(0, now);
                     note.envGain.gain.cancelScheduledValues(now);
                     note.envGain.gain.linearRampToValueAtTime(0, now + releaseTime);
-                    note.source.stop(now + releaseTime + 0.02);
+                    // Keep source alive a tiny bit longer so gate-release tails can render cleanly.
+                    note.source.stop(now + releaseTime + EXPRESSIVE_STOP_BUFFER_SECONDS);
                     note.source.addEventListener('ended', () => {
                         try { note.expressiveNode?.disconnect(); } catch { /* noop */ }
                     }, { once: true });

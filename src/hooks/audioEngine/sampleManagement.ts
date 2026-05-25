@@ -208,12 +208,12 @@ export function applySamplerVoiceParamUpdate({
 
     manager.getAllVoices().forEach((voice) => {
         switch (param) {
-        case 'vibratoRate':
-            voice.setVibratoRate(value as number);
+            case 'vibratoRate':
+                voice.setVibratoRate(value as number);
                 break;
-        case 'rootNote':
-            voice.setRootNote(value as number);
-            break;
+            case 'rootNote':
+                voice.setRootNote(value as number);
+                break;
             case 'coarseTune':
                 voice.setCoarseTune(value as number);
                 break;

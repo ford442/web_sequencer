@@ -23,6 +23,9 @@ declare const globalThis: {
   sampleRate: number;
   currentTime?: number;
 };
+declare const currentFrame: number;
+
+const EPSILON = 1e-3;
 
 class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
   private expressiveProcessor: ExpressiveVoiceProcessor;
@@ -79,8 +82,17 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
     }
     this.lastGate = gate;
 
-    const fullyOpenEnvelope = gate >= 0.999 && attack <= 0 && decay <= 0 && sustain >= 0.999 && release <= 0;
-    const isBypass = vibratoDepth <= 0 && tremoloDepth <= 0 && breathAmount <= 0 && fullyOpenEnvelope;
+    const fullyOpenEnvelope =
+      gate >= 1 - EPSILON &&
+      attack <= EPSILON &&
+      decay <= EPSILON &&
+      sustain >= 1 - EPSILON &&
+      release <= EPSILON;
+    const isBypass =
+      vibratoDepth <= EPSILON &&
+      tremoloDepth <= EPSILON &&
+      breathAmount <= EPSILON &&
+      fullyOpenEnvelope;
 
     const frameCount = output.length;
     const copyCount = Math.min(frameCount, input.length);
@@ -95,7 +107,11 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    this.expressiveProcessor.setCurrentTime(globalThis.currentTime ?? 0);
+    const now =
+      typeof globalThis.currentTime === 'number'
+        ? globalThis.currentTime
+        : (typeof currentFrame === 'number' ? currentFrame / (globalThis.sampleRate || 44100) : 0);
+    this.expressiveProcessor.setCurrentTime(now);
     this.expressiveProcessor.updateConfig({
       vibrato: { rate: vibratoRate, depth: vibratoDepth, enabled: vibratoDepth > 0 },
       tremolo: { rate: tremoloRate, depth: tremoloDepth, enabled: tremoloDepth > 0 },

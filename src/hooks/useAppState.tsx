@@ -327,6 +327,7 @@ export function useAppState() {
             };
 
             if (param === 'breathAmount') {
+                // Backward-compat for existing playback paths that still read flat breathIntensity.
                 nextBank.breathIntensity = value as number;
             }
             if (param === 'vibratoRate' || param === 'vibratoDepth' || param === 'tremoloDepth' || param === 'breathAmount') {
