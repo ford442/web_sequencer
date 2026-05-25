@@ -49,6 +49,7 @@ export const DEFAULT_BASS2_PARAMS = {
   accent: 0.7,
   envMod: 0.5,
   volume: 0.45,
+  engine303: 'open303' as const,
 };
 
 export const DEFAULT_KICK_PARAMS: KickParams = { pitch: 60, decay: 0.4, tone: 0.9, volume: 1 };

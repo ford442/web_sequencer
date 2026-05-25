@@ -229,6 +229,21 @@ export class Open303Oscillator {
         }
     }
 
+    /**
+     * Switch the DSP engine used by this oscillator's AudioWorklet processor.
+     *
+     * 'open303' — custom synthesizer (default, open303_* API in hyphon_native.wasm)
+     * 'jc303'   — authentic rosic::Open303 (jc303_* multi-instance API)
+     *
+     * The worklet will silently ignore the request when the requested engine is
+     * not available in the loaded WASM build.
+     */
+    setEngine303(engine: 'open303' | 'jc303'): void {
+        if (this.workletNode) {
+            this.workletNode.port.postMessage({ type: 'set-engine', data: { engine } });
+        }
+    }
+
     // Explicit setters used by the application
     setWaveform(v: number) { this.params.waveform = v; this.setParam('setWaveform', v); }
     setCutoff(v: number) { this.params.cutoff = v; this.setParam('setCutoff', v); }

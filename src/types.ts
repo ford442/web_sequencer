@@ -33,6 +33,8 @@ export interface SynthParams {
   delayTime: number; // seconds
   delayFeedback: number; // 0-1
   delayMix: number; // 0-1 (wet/dry)
+  /** Which DSP engine to use when waveform is '303-saw' or '303-sqr'. Defaults to 'open303'. */
+  engine303?: Engine303;
 }
 
 export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
@@ -131,6 +133,12 @@ export interface SamplerBankParams {
 
 export type SamplerParams = SamplerBankParams[];
 
+/** TB-303 DSP engine selection.
+ *  - 'open303': custom synthesizer (open303_wrapper.cpp, open303_* API)
+ *  - 'jc303':   authentic rosic::Open303 (jc303_wrapper.cpp, jc303_* API)
+ */
+export type Engine303 = 'open303' | 'jc303';
+
 export interface Bass2Params {
   waveform: '303-saw' | '303-sqr';
   cutoff: number;
@@ -142,6 +150,8 @@ export interface Bass2Params {
   volume: number;
   pitch: number;
   pan?: number;
+  /** Which DSP engine to use for this voice. Defaults to 'open303'. */
+  engine303?: Engine303;
 }
 
 export interface AllDrumParams {
