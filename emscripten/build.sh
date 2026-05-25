@@ -82,7 +82,15 @@ EXPORTS="[ \
     '_jc303_setAccent', \
     '_jc303_setVolume', \
     '_jc303_setFilterMode', \
-    '_jc303_process' \
+    '_jc303_process', \
+    '_prophecy_create', \
+    '_prophecy_destroy', \
+    '_prophecy_init', \
+    '_prophecy_note_on', \
+    '_prophecy_note_off', \
+    '_prophecy_all_notes_off', \
+    '_prophecy_set_param', \
+    '_prophecy_process' \
 ]"
 
 # ---------------------------------------------------------
@@ -158,6 +166,9 @@ for f in $REPO_ROOT/jc303_wasm/src/dsp/open303/*.cpp; do
     compile_cpp "$f"
 done
 compile_cpp "$SCRIPT_DIR/jc303_wrapper.cpp"
+
+# 5b. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
+compile_cpp "$SCRIPT_DIR/prophecy_wrapper.cpp"
 
 # 6. Compile Wrapper & Main
 compile_cpp "$SCRIPT_DIR/rubberband_wrapper.cpp"
