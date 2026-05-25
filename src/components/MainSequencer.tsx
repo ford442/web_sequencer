@@ -395,75 +395,58 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         if (lastStepRef.current !== -1) { updateClasses(lastStepRef.current); } else { lastActiveIndexRef.current = currentActive; }
     }, [updateClasses]);
 
-    const renderedSteps = [];
-
-    // Check if we should render automation
-    if (viewMode === 'automation' && isSelected && onAutomationChange && automationParam) {
-         const values = automation?.[automationParam] || Array(32).fill(null);
-
-         for (let i = 0; i < 32; i++) {
-             const val = values[i] ?? 0.5; // Default to center (no shift)
-             renderedSteps.push(
-                <AutomationStep
-                    key={i}
-                    stepIndex={i}
-                    value={val}
-                    rowKey={rowKey}
-                    rowLabel={label}
-                    onChange={onAutomationChange}
-                    refsArray={stepRefs}
-                />
-             );
-         }
-
-    } else if (viewMode === 'automation' && !isSelected) {
-        // If automation mode but track not selected, render dimmed notes or nothing?
-        // Let's render normal notes but dimmed logic could be applied via CSS if needed.
-        // For now, render normal notes to keep context.
-        // Or render nothing to focus on the selected track automation?
-        // Let's fall back to rendering notes.
-        let skipCount = 0;
-        for (let i = 0; i < 32; i++) {
-            if (skipCount > 0) { skipCount--; continue; }
-            const stepData = steps[i];
-            const length = stepData?.length || 1;
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} reverse={stepData?.reverse} />);
-            if (stepData && length > 1) { skipCount = length - 1; }
-        }
-    } else {
-        // Render Notes
-        let skipCount = 0;
-        for (let i = 0; i < 32; i++) {
-            if (skipCount > 0) { skipCount--; continue; }
-            const stepData = steps[i];
-            const length = stepData?.length || 1;
-
-            let isRangeSelected = false;
-            if (selectionRange) {
-                const low = Math.min(selectionRange.start, selectionRange.end);
-                const high = Math.max(selectionRange.start, selectionRange.end);
-                // Check if step is within range
-                if (i >= low && i <= high) isRangeSelected = true;
+    const renderedSteps = useMemo(() => {
+        const stepsArray = [];
+        if (viewMode === 'automation' && isSelected && onAutomationChange && automationParam) {
+             const values = automation?.[automationParam] || Array(32).fill(null);
+             for (let i = 0; i < 32; i++) {
+                 const val = values[i] ?? 0.5;
+                 stepsArray.push(
+                    <AutomationStep
+                        key={i} stepIndex={i} value={val} rowKey={rowKey} rowLabel={label}
+                        onChange={onAutomationChange} refsArray={stepRefs}
+                    />
+                 );
+             }
+        } else if (viewMode === 'automation' && !isSelected) {
+            let skipCount = 0;
+            for (let i = 0; i < 32; i++) {
+                if (skipCount > 0) { skipCount--; continue; }
+                const stepData = steps[i];
+                const length = stepData?.length || 1;
+                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} reverse={stepData?.reverse} />);
+                if (stepData && length > 1) { skipCount = length - 1; }
             }
-
-            let phonemeLabel: string | undefined = undefined;
-            if (stepData && rowKey === 'sampler' && alignment) {
-                let sliceIdx = -1;
-                if (stepData.sliceIndex !== undefined) {
-                    sliceIdx = stepData.sliceIndex;
-                } else if (stepData.note) {
-                    sliceIdx = noteToMidi(stepData.note) - 60;
+        } else {
+            let skipCount = 0;
+            for (let i = 0; i < 32; i++) {
+                if (skipCount > 0) { skipCount--; continue; }
+                const stepData = steps[i];
+                const length = stepData?.length || 1;
+                let isRangeSelected = false;
+                if (selectionRange) {
+                    const low = Math.min(selectionRange.start, selectionRange.end);
+                    const high = Math.max(selectionRange.start, selectionRange.end);
+                    if (i >= low && i <= high) isRangeSelected = true;
                 }
-
-                if (sliceIdx >= 0 && alignment.phonemes[sliceIdx]) {
-                    phonemeLabel = alignment.phonemes[sliceIdx].phoneme;
+                let phonemeLabel: string | undefined = undefined;
+                if (stepData && rowKey === 'sampler' && alignment) {
+                    let sliceIdx = -1;
+                    if (stepData.sliceIndex !== undefined) {
+                        sliceIdx = stepData.sliceIndex;
+                    } else if (stepData.note) {
+                        sliceIdx = noteToMidi(stepData.note) - 60;
+                    }
+                    if (sliceIdx >= 0 && alignment.phonemes[sliceIdx]) {
+                        phonemeLabel = alignment.phonemes[sliceIdx].phoneme;
+                    }
                 }
+                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} />);
+                if (stepData && length > 1) { skipCount = length - 1; }
             }
-
-            renderedSteps.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} />);
-            if (stepData && length > 1) { skipCount = length - 1; }
         }
-    }
+        return stepsArray;
+    }, [viewMode, isSelected, onAutomationChange, automationParam, automation, steps, label, rowKey, onToggle, onRightMouseDown, onEditLength, onSelectionStart, onSelectionEnter, selectionRange, alignment]);
 
 
     const handleRowClick = useCallback(() => onSelectRow(rowKey), [onSelectRow, rowKey]);
@@ -474,9 +457,13 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         }
     }, [onSelectRow, rowKey]);
 
+    const renderedTrackSlots = useMemo(() => (
+        [0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))
+    ), [activeSlot, trackSlots, rowKey, onSelectSlot]);
+
     return (
         <g transform={`translate(0, ${rowIndex * 60})`}>
-            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
+            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} aria-description="Left-click to select row. Right-click for options." aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
                 {isSelected && (
                     <rect 
                         x={-10} 
@@ -515,7 +502,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 )}
             </g>
             <g transform="translate(30, 16)">
-                {[0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))}
+                {renderedTrackSlots}
             </g>
             <g style={{ transform: 'scaleX(var(--zoom-level))', transformOrigin: 'left' }} transform="translate(220, 0)">
                 <GridIndicators />

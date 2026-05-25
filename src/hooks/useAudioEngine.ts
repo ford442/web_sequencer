@@ -517,6 +517,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     gateDepth?: number,
                     spectralPanRate?: number,
                     spectralPanDepth?: number,
+                    reverbLfoRate?: number,
+                    reverbLfoDepth?: number,
                     isHarmonyVoice?: boolean
                 },
                 pitchOffsetSemitones: number = 0,
@@ -739,6 +741,33 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 formantReverbEq.type = 'lowpass';
                                 formantReverbEq.frequency.value = reverbEqCutoff;
                                 formantReverbEq.Q.value = 0.5; // Gentle slope
+
+                                const lfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
+                                const lfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
+
+                                if (lfoDepth > 0 && lfoRate > 0) {
+                                    // Base amount minus the max modulation depth ensures we duck down
+                                    const minGain = Math.max(0, reverbSendAmount * (1 - lfoDepth));
+                                    const maxGain = reverbSendAmount;
+                                    const midGain = (maxGain + minGain) / 2;
+                                    const amplitude = (maxGain - minGain) / 2;
+
+                                    reverbGain.gain.value = midGain; // Set base level to midpoint
+
+                                    // LFO to modulate gain up to reverbSendAmount
+                                    const lfo = context.createOscillator();
+                                    lfo.type = 'sine';
+                                    lfo.frequency.value = lfoRate;
+
+                                    const lfoDepthGain = context.createGain();
+                                    lfoDepthGain.gain.value = amplitude;
+
+                                    lfo.connect(lfoDepthGain);
+                                    lfoDepthGain.connect(reverbGain.gain);
+
+                                    lfo.start(triggerTime);
+                                    lfo.stop(triggerTime + targetDuration + 1.0); // Stop after duration + tail
+                                }
 
                                 reverbGain.connect(formantReverbEq);
                                 formantReverbEq.connect(targetReverbNode);
