@@ -343,7 +343,58 @@ export const HardwareModule = memo(
         // --- WEBGPU RENDERER ---
         useEffect(() => {
             const canvas = canvasRef.current;
-            if (!canvas || !navigator.gpu) return;
+            if (!canvas) return;
+
+            // 2D canvas fallback for when WebGPU is unavailable or fails to initialise.
+            const renderWith2D = (ctrl: KnobConfig[], color: [number, number, number]) => {
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.scale(dpr, dpr);
+                const w = rect.width, h = rect.height;
+                const [r, g, b] = color;
+                const colorStr = `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
+                ctx.fillStyle = '#1a1d23';
+                ctx.fillRect(0, 0, w, h);
+                for (const c of ctrl) {
+                    const cx = c.x * w;
+                    const cy = c.y * h;
+                    const radius = c.size * Math.min(w, h);
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = '#2a2d35';
+                    ctx.fill();
+                    ctx.strokeStyle = colorStr;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius * 0.5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#1e2128';
+                    ctx.fill();
+                    const startAngle = -0.75 * Math.PI;
+                    const endAngle = startAngle + c.value * 1.5 * Math.PI;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius * 0.75, startAngle, endAngle);
+                    ctx.strokeStyle = colorStr;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    const indicatorAngle = endAngle;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(cx + Math.cos(indicatorAngle) * radius * 0.55, cy + Math.sin(indicatorAngle) * radius * 0.55);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            };
+
+            if (!navigator.gpu) {
+                renderWith2D(controlsRef.current, colorHex);
+                return;
+            }
 
             let context: GPUCanvasContext;
             let device: GPUDevice;
@@ -355,7 +406,10 @@ export const HardwareModule = memo(
             const init = async () => {
                 try {
                     const adapter = await navigator.gpu.requestAdapter();
-                    if (!adapter) return;
+                    if (!adapter) {
+                        renderWith2D(controlsRef.current, colorHex);
+                        return;
+                    }
 
                     const newDevice = await adapter.requestDevice();
                     // If component unmounted while waiting for device, destroy it immediately
@@ -588,7 +642,7 @@ export const HardwareModule = memo(
                         };
                         animationFrameId = requestAnimationFrame(loop);
                     }
-                } catch (e) { console.error("WebGPU Init Failed", e); }
+                } catch (e) { console.error("WebGPU Init Failed, falling back to 2D canvas", e); renderWith2D(controlsRef.current, colorHex); }
             };
 
             let animationFrameId: number;

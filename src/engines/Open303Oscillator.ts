@@ -86,13 +86,18 @@ export class Open303Oscillator {
 
             console.log(`[Open303Oscillator] WASM variant: ${variant}, native=${isNative}`);
 
+            // hyphon_native.wasm requires at least 8192 pages (512 MB).
+            // Pass this as the floor so the worklet's createMemory() allocates enough.
+            const memoryPages = isThreaded ? 8192 : undefined;
+
             this.workletNode.port.postMessage({
                 type: 'init-wasm',
                 data: {
                     wasmBytes,
                     sampleRate: audioContext.sampleRate,
                     isThreaded,
-                    variant
+                    variant,
+                    memoryPages
                 }
             });
 
@@ -118,13 +123,15 @@ export class Open303Oscillator {
                     }
                 };
                 
-                // Timeout: 20s to account for large WASM compile on slower devices
+                // Timeout: 8s — 1.2 MB WASM should compile in < 3s on modern devices.
+                // 20s was excessively generous and caused the second 303 instance to time out
+                // when the first one failed (both share a Promise.allSettled budget).
                 setTimeout(() => {
                     if (!readyReceived) {
-                        console.error("[Open303] Initialization timeout (20s)");
+                        console.error("[Open303] Initialization timeout (8s)");
                         resolve(false);
                     }
-                }, 20000);
+                }, 8000);
             });
 
             if (!initSuccess) {

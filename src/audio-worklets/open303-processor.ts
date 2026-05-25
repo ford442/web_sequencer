@@ -248,10 +248,10 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private createMemory(pages: number | undefined, shared: boolean): WebAssembly.Memory {
-        // CRITICAL FIX: Large initial memory to prevent stack overflow
-        // 32MB stack + 32MB heap minimum = 1024 pages (64MB)
-        const memoryImportPages = pages || 1024;
-        const maxMemoryPages = 4096; // 256MB max
+        // hyphon_native.wasm (Emscripten threaded build) declares initial: 8192 pages (512 MB).
+        // The floor must be at least 8192; pass a higher value via `pages` to override.
+        const memoryImportPages = pages ? Math.max(pages, 8192) : 8192;
+        const maxMemoryPages = 16384; // 1 GB max
 
         if (shared) {
             try {
