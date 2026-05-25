@@ -296,6 +296,8 @@ const HarmonizerPopover: React.FC<{
                     {/* Toggle switch style ON/OFF button */}
                     <button 
                         onClick={() => setLocalActive(!localActive)}
+                        aria-label={localActive ? "Disable Harmonizer" : "Enable Harmonizer"}
+                        aria-pressed={localActive}
                         className={`relative px-3 py-1 rounded-full text-[9px] font-bold transition-all border ${
                             localActive 
                                 ? 'bg-green-500/20 text-green-400 border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.3)]' 
@@ -319,6 +321,8 @@ const HarmonizerPopover: React.FC<{
                                 <button
                                     key={count}
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
+                                    aria-label={`${count} Voices`}
+                                    aria-pressed={localConfig.voiceCount === count}
                                     className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${
                                         localConfig.voiceCount === count
                                             ? 'text-black shadow-lg'
@@ -343,6 +347,8 @@ const HarmonizerPopover: React.FC<{
                                 <button
                                     key={value}
                                     onClick={() => handleHarmonyTypeChange(value)}
+                                    aria-label={`${label} Harmony`}
+                                    aria-pressed={localConfig.harmonyType === value}
                                     className={`py-1.5 rounded-md text-[9px] font-bold transition-all relative overflow-hidden ${
                                         localConfig.harmonyType === value
                                             ? 'text-white'
