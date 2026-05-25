@@ -35,7 +35,7 @@ export function copySteps(pattern: Pattern, selection: SelectionState, activeSam
 
     // Extract slice and deep clone to avoid reference issues
     const slice = sourceSteps.slice(low, high + 1);
-    return JSON.parse(JSON.stringify(slice));
+    return slice.map(note => (note ? { ...note } : null));
 }
 
 /**
@@ -49,31 +49,40 @@ export function pasteSteps(
     targetStep: number,
     activeSamplerBank: number
 ): Pattern {
-    // Deep clone the entire pattern to ensure immutability
-    const newPattern = JSON.parse(JSON.stringify(pattern)) as Pattern;
-
-    let targetSteps: (Note | null)[];
+    // Shallow clone the entire pattern to ensure immutability
+    const newPattern = { ...pattern };
 
     if (targetTrack === 'sampler') {
-        // Ensure the bank exists (it should, based on initialization)
+        newPattern.sampler = [...pattern.sampler];
         if (!newPattern.sampler[activeSamplerBank]) {
-             // If for some reason it doesn't exist, we can't paste. Return original.
-             return pattern;
+            return pattern;
         }
-        targetSteps = newPattern.sampler[activeSamplerBank].steps;
+        newPattern.sampler[activeSamplerBank] = {
+            ...newPattern.sampler[activeSamplerBank],
+            steps: [...newPattern.sampler[activeSamplerBank].steps]
+        };
+        const maxSteps = newPattern.sampler[activeSamplerBank].steps.length;
+        clipboardData.forEach((note, index) => {
+            const currentStep = targetStep + index;
+            if (currentStep < maxSteps) {
+                newPattern.sampler[activeSamplerBank].steps[currentStep] = note ? { ...note } : null;
+            }
+        });
     } else {
-        targetSteps = (newPattern[targetTrack] as PartSequence).steps;
+        const part = pattern[targetTrack] as PartSequence;
+        const newPart = {
+            ...part,
+            steps: [...part.steps]
+        };
+        const maxSteps = newPart.steps.length;
+        clipboardData.forEach((note, index) => {
+            const currentStep = targetStep + index;
+            if (currentStep < maxSteps) {
+                newPart.steps[currentStep] = note ? { ...note } : null;
+            }
+        });
+        (newPattern[targetTrack] as PartSequence) = newPart;
     }
-
-    const maxSteps = targetSteps.length;
-
-    clipboardData.forEach((note, index) => {
-        const currentStep = targetStep + index;
-        if (currentStep < maxSteps) {
-             // Deep clone the note from clipboard to avoid shared references across pastes
-             targetSteps[currentStep] = note ? JSON.parse(JSON.stringify(note)) : null;
-        }
-    });
 
     return newPattern;
 }
