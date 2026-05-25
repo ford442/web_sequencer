@@ -152,6 +152,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         tremoloDepth: 0,
         tremoloRate: 0.1,
         breathIntensity: 0,
+        expressiveness: {
+            vibratoRate: 5.5,
+            vibratoDepth: 0,
+            tremoloDepth: 0,
+            breathAmount: 0,
+        },
         freeze: 0,
         grainPitchQuantize: 0,
         formantLfoRate: 0,

@@ -186,6 +186,12 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                     const samplerWithMode = songData.params.sampler.map(bank => ({
                         ...bank,
                         mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable',
+                        expressiveness: bank.expressiveness ?? {
+                            vibratoRate: 5.5,
+                            vibratoDepth: bank.vibratoDepth ?? 0,
+                            tremoloDepth: bank.tremoloDepth ?? 0,
+                            breathAmount: bank.breathIntensity ?? 0,
+                        },
                     }));
                     setSampler(samplerWithMode);
                     samplerRef.current = samplerWithMode;
@@ -460,6 +466,12 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                     delaySend: 0,
                     mode: 'loop',
                     grainSize: 4410,
+                    expressiveness: {
+                        vibratoRate: 5.5,
+                        vibratoDepth: 0,
+                        tremoloDepth: 0,
+                        breathAmount: 0,
+                    },
                 })),
             },
             trackStorage: {
