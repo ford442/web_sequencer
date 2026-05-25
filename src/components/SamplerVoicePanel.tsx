@@ -2,6 +2,7 @@ import { type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../e
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { LadderButton } from './sampler/LadderButton';
+import { noop } from '../utils/noop';
 
 interface SamplerVoicePanelProps {
     title: string;
@@ -31,8 +32,6 @@ interface SamplerVoicePanelProps {
     onHarmonizerConfigChange?: (config: HarmonizerConfig, isActive: boolean) => void;
     isHarmonizeActive?: boolean;
 }
-
-const noopHarmonizerConfigChange = () => {};
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -865,7 +864,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                     onClose={handleHarmonizerClose}
                                     config={harmonizerConfig || defaultConfig}
                                     isActive={isHarmonizeActive}
-                                    onApply={onHarmonizerConfigChange || noopHarmonizerConfigChange}
+                                    onApply={onHarmonizerConfigChange || noop}
                                     colorHex={colorHex}
                                 />
                             </div>
