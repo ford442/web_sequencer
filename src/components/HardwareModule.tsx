@@ -1,4 +1,5 @@
 import React, { memo, useRef, useEffect, useCallback } from 'react';
+import { KnobGPUContext, type SlotHandle } from './KnobGPUContext';
 
 export interface KnobConfig {
     id: string;
@@ -18,12 +19,10 @@ interface HardwareModuleProps {
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void;
     children?: React.ReactNode;
-    is3D?: boolean; // Enable holographic shader in 3D mode
+    is3D?: boolean; // Kept for API compatibility; no longer drives knob rendering
 }
 
 // PERFORMANCE: Memoized Knob Overlay Component
-// This component encapsulates the DOM overlays for each knob (Label, Record Button, A11y Slider).
-// It accepts primitive props to ensure React.memo works efficiently even when the parent 'KnobConfig' object changes reference.
 interface KnobOverlayProps {
     id: string;
     label: string;
@@ -45,7 +44,7 @@ const KnobOverlay = memo(({
 }: KnobOverlayProps) => {
     return (
         <>
-            {/* 1. Label and Value Display - zIndex 10 ensures labels are below buttons */}
+            {/* 1. Label and Value Display */}
             <div
                 className="absolute text-center transform -translate-x-1/2"
                 style={{
@@ -59,7 +58,7 @@ const KnobOverlay = memo(({
                 <div className="text-[9px] opacity-60 font-mono">{valueDisplay ?? Math.round(value * 100)}</div>
             </div>
 
-            {/* 2. Record Button (Conditional) - zIndex 20 ensures buttons are above labels */}
+            {/* 2. Record Button */}
             {onRecordToggle && (
                 <button
                     onClick={(e) => { e.stopPropagation(); onRecordToggle(id); }}
@@ -79,7 +78,7 @@ const KnobOverlay = memo(({
                 </button>
             )}
 
-            {/* 3. Accessibility Slider (Invisible) - zIndex 30 ensures top interactivity */}
+            {/* 3. Accessibility Slider */}
             <div
                 ref={(el) => onRegisterRef(index, el)}
                 role="slider"
@@ -135,67 +134,73 @@ const KnobOverlay = memo(({
     );
 });
 
-// Named color constants for the 2D canvas knob fallback renderer.
-const KNOB_BG_COLOR = '#1a1d23';
-const KNOB_OUTER_COLOR = '#2a2d35';
-const KNOB_INNER_COLOR = '#1e2128';
-const KNOB_INDICATOR_COLOR = '#ffffff';
-
 /**
- * Renders all knobs using the Canvas 2D API.
- * Called when WebGPU is unavailable or its initialisation fails so that knobs
- * are always visible regardless of the browser's GPU capabilities.
+ * Renders a single knob using the Canvas 2D API.
+ * Called when WebGPU is unavailable so knobs remain visible.
+ * Visual contract: dark background, cyan outer ring, cyan-to-teal arc,
+ * white needle. Approximates the shared WGSL holographic look.
  */
-function renderWith2D(
-    canvas: HTMLCanvasElement,
-    controls: KnobConfig[],
-    colorHex: [number, number, number]
-): void {
+function renderWith2D(canvas: HTMLCanvasElement, value: number): void {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-    const w = rect.width, h = rect.height;
-    const [r, g, b] = colorHex;
-    const accentColor = `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
-    ctx.fillStyle = KNOB_BG_COLOR;
-    ctx.fillRect(0, 0, w, h);
-    for (const c of controls) {
-        const cx = c.x * w;
-        const cy = c.y * h;
-        const radius = c.size * Math.min(w, h);
-        // Outer ring
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fillStyle = KNOB_OUTER_COLOR;
-        ctx.fill();
-        ctx.strokeStyle = accentColor;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        // Inner circle
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius * 0.5, 0, Math.PI * 2);
-        ctx.fillStyle = KNOB_INNER_COLOR;
-        ctx.fill();
-        // Value arc
-        const startAngle = -0.75 * Math.PI;
-        const endAngle = startAngle + c.value * 1.5 * Math.PI;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius * 0.75, startAngle, endAngle);
-        ctx.strokeStyle = accentColor;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        // Indicator needle
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(endAngle) * radius * 0.55, cy + Math.sin(endAngle) * radius * 0.55);
-        ctx.strokeStyle = KNOB_INDICATOR_COLOR;
-        ctx.lineWidth = 2;
-        ctx.stroke();
+    const targetW = Math.max(1, Math.floor(rect.width * dpr));
+    const targetH = Math.max(1, Math.floor(rect.height * dpr));
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
     }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    const w = rect.width;
+    const h = rect.height;
+    const cx = w / 2;
+    const cy = h / 2;
+    const radius = Math.min(w, h) / 2 * 0.9;
+
+    // Background
+    ctx.fillStyle = '#0d0f13';
+    ctx.fillRect(0, 0, w, h);
+
+    // Outer ring at ~55% radius
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.55, 0, Math.PI * 2);
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Value arc (270° sweep) with cyan-to-teal gradient
+    const startAngle = -0.75 * Math.PI;
+    const endAngle = startAngle + value * 1.5 * Math.PI;
+    const arcRadius = radius * 0.75;
+    const grad = ctx.createLinearGradient(
+        cx + Math.cos(startAngle) * arcRadius,
+        cy + Math.sin(startAngle) * arcRadius,
+        cx + Math.cos(endAngle) * arcRadius,
+        cy + Math.sin(endAngle) * arcRadius
+    );
+    grad.addColorStop(0, '#00e5ff');
+    grad.addColorStop(1, '#00897b');
+    ctx.beginPath();
+    ctx.arc(cx, cy, arcRadius, startAngle, endAngle);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Needle
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(
+        cx + Math.cos(endAngle) * radius * 0.55,
+        cy + Math.sin(endAngle) * radius * 0.55
+    );
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
 }
 
 export const HardwareModule = memo(
@@ -208,99 +213,55 @@ export const HardwareModule = memo(
         children,
         is3D = false
     }: HardwareModuleProps) => {
-        const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
         const cachedRectRef = useRef<DOMRect | null>(null);
         const controlsRef = useRef(controls);
-        // Ref to track previous controls for optimized diffing
         const prevControlsRef = useRef<KnobConfig[]>([]);
         const activeKnobIndex = useRef<number | null>(null);
         const startY = useRef(0);
         const startVal = useRef(0);
 
-        // PERFORMANCE: Staging buffer for WebGPU to avoid allocation per frame.
-        // We use a Ref so it persists across renders and can be updated by effects.
-        // Size: 288 bytes / 4 = 72 floats (matches shader struct size exactly)
-        const stagingBufferRef = useRef(new Float32Array(72));
+        const knobCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+        const knobHandlesRef = useRef<(SlotHandle | null)[]>([]);
 
-        // Ref to store the render function for demand-based rendering
-        const renderRef = useRef<(() => void) | null>(null);
-
-        // Ref to track dirty state for GPU buffer updates
-        const dirtyRef = useRef(true);
-
-        // Refs for accessibility elements to enable focus management
+        // Refs for accessibility elements
         const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-        // PERFORMANCE: Stable callback for registering refs from child components
         const handleRegisterRef = useCallback((index: number, el: HTMLDivElement | null) => {
             sliderRefs.current[index] = el;
         }, []);
 
-        // Sync refs & Update Staging Buffer
+        // Sync controls ref and drive 2D fallback re-renders when values change
         useEffect(() => {
             controlsRef.current = controls;
-            dirtyRef.current = true; // Mark as dirty when props change
-
-            // Update Staging Buffer (Static Data)
-            // This moves the overhead of populating controls/color from the 60fps render loop
-            // to this effect which only runs when props actually change.
-            const buf = stagingBufferRef.current;
             const prev = prevControlsRef.current;
-
-            // Clear dynamic regions if length changed (layout change)
-            // This ensures if we switch from 12 knobs to 4, the old data is cleared.
-            const fullUpdate = controls.length !== prev.length;
-            if (fullUpdate) {
-                buf.fill(0, 8, 72);
-            }
-
-            // Update Color [4-7]
-            buf[4] = colorHex[0];
-            buf[5] = colorHex[1];
-            buf[6] = colorHex[2];
-
-            // Update Controls (Vals and Positions)
+            const handles = knobHandlesRef.current;
             controls.forEach((ctrl, i) => {
-                if (i < 12) {
-                    // Optimization: Only update buffer if control object changed reference
-                    // (Requires parent to use useStableKnobConfig)
-                    if (fullUpdate || ctrl !== prev[i]) {
-                        // Vals start at index 8
-                        buf[8 + i] = ctrl.value;
-
-                        // Positions start at index 24, stride 4
-                        const posOffset = 24 + (i * 4);
-                        buf[posOffset] = ctrl.x;
-                        buf[posOffset + 1] = ctrl.y;
-                        buf[posOffset + 2] = ctrl.size;
+                if (handles[i] === null) {
+                    const prevCtrl = prev[i];
+                    if (prevCtrl && prevCtrl.id === ctrl.id && prevCtrl.value !== ctrl.value) {
+                        const canvas = knobCanvasRefs.current[i];
+                        if (canvas) renderWith2D(canvas, ctrl.value);
                     }
                 }
             });
-
             prevControlsRef.current = controls;
-
-            // Optimization: In 3D mode, the animation loop handles rendering.
-            // Avoid redundant render calls to prevent double-work per frame.
-            if (!is3D && renderRef.current) renderRef.current();
-        }, [controls, colorHex, is3D]);
+        }, [controls]);
 
         // --- INTERACTION LOGIC (Mouse + Touch + Wheel) ---
         useEffect(() => {
-            const canvas = canvasRef.current;
-            if (!canvas) return;
+            const container = containerRef.current;
+            if (!container) return;
 
-            cachedRectRef.current = canvas.getBoundingClientRect();
+            cachedRectRef.current = container.getBoundingClientRect();
 
             const observer = new ResizeObserver(() => {
-                cachedRectRef.current = canvas.getBoundingClientRect();
+                cachedRectRef.current = container.getBoundingClientRect();
             });
-            observer.observe(canvas);
+            observer.observe(container);
 
-            // Shared hit detection: normalises client coords using the same scale for X and Y
-            // to avoid elliptical hit zones on non-square canvases (Issue 5 fix).
             const findHitKnob = (clientX: number, clientY: number): number => {
-                const rect = cachedRectRef.current || canvas.getBoundingClientRect();
+                const rect = cachedRectRef.current || container.getBoundingClientRect();
                 const scale = Math.max(rect.width, rect.height);
                 const normX = (clientX - rect.left) / scale;
                 const normY = (clientY - rect.top) / scale;
@@ -309,7 +270,6 @@ export const HardwareModule = memo(
                     const kNormY = k.y * rect.height / scale;
                     const dx = kNormX - normX;
                     const dy = kNormY - normY;
-                    // Use the same scale for size so hit circles remain circular in pixel space
                     const kSizeNorm = k.size * Math.min(rect.width, rect.height) / scale;
                     return Math.sqrt(dx * dx + dy * dy) < (kSizeNorm * 1.2);
                 });
@@ -319,12 +279,9 @@ export const HardwareModule = memo(
                 activeKnobIndex.current = hitIndex;
                 startY.current = clientY;
                 startVal.current = controlsRef.current[hitIndex].value;
-                // UX IMPROVEMENT: Focus the accessible slider when clicking the visual knob
-                // This allows users to click to select, then use arrow keys for fine-tuning
                 sliderRefs.current[hitIndex]?.focus();
             };
 
-            // --- Mouse Handlers ---
             const handleMouseDown = (e: MouseEvent) => {
                 const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex !== -1) {
@@ -347,7 +304,6 @@ export const HardwareModule = memo(
                 document.body.style.cursor = 'default';
             };
 
-            // --- Touch Handlers (Issue 1 fix) ---
             const handleTouchStart = (e: TouchEvent) => {
                 const touch = e.touches[0];
                 const hitIndex = findHitKnob(touch.clientX, touch.clientY);
@@ -371,7 +327,6 @@ export const HardwareModule = memo(
                 activeKnobIndex.current = null;
             };
 
-            // --- Wheel Handler (Issue 2 fix) ---
             const handleWheel = (e: WheelEvent) => {
                 const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex === -1) return;
@@ -383,337 +338,110 @@ export const HardwareModule = memo(
                 onParamChange(knob.id, newVal);
             };
 
-            canvas.addEventListener('mousedown', handleMouseDown);
+            container.addEventListener('mousedown', handleMouseDown);
             window.addEventListener('mousemove', handleMouseMove);
             window.addEventListener('mouseup', handleMouseUp);
-            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            container.addEventListener('touchstart', handleTouchStart, { passive: false });
             window.addEventListener('touchmove', handleTouchMove, { passive: false });
             window.addEventListener('touchend', handleTouchEnd);
-            canvas.addEventListener('wheel', handleWheel, { passive: false });
+            container.addEventListener('wheel', handleWheel, { passive: false });
 
             return () => {
                 observer.disconnect();
-                canvas.removeEventListener('mousedown', handleMouseDown);
+                container.removeEventListener('mousedown', handleMouseDown);
                 window.removeEventListener('mousemove', handleMouseMove);
                 window.removeEventListener('mouseup', handleMouseUp);
-                canvas.removeEventListener('touchstart', handleTouchStart);
+                container.removeEventListener('touchstart', handleTouchStart);
                 window.removeEventListener('touchmove', handleTouchMove);
                 window.removeEventListener('touchend', handleTouchEnd);
-                canvas.removeEventListener('wheel', handleWheel);
+                container.removeEventListener('wheel', handleWheel);
             };
         }, [onParamChange]);
 
-        // --- WEBGPU RENDERER ---
+        // ResizeObserver to keep knob canvases sized correctly
         useEffect(() => {
-            const canvas = canvasRef.current;
-            if (!canvas) return;
+            const container = containerRef.current;
+            if (!container) return;
+            const ro = new ResizeObserver((entries) => {
+                const rect = entries[0].contentRect;
+                const minDim = Math.min(rect.width, rect.height);
+                controlsRef.current.forEach((ctrl, i) => {
+                    const canvas = knobCanvasRefs.current[i];
+                    if (!canvas) return;
+                    const sizePx = ctrl.size * minDim * 2;
+                    canvas.style.width = `${sizePx}px`;
+                    canvas.style.height = `${sizePx}px`;
+                    canvas.style.left = `${ctrl.x * rect.width}px`;
+                    canvas.style.top = `${ctrl.y * rect.height}px`;
+                    canvas.style.position = 'absolute';
+                    canvas.style.transform = 'translate(-50%, -50%)';
+                    const dpr = window.devicePixelRatio || 1;
+                    const targetW = Math.max(1, Math.floor(sizePx * dpr));
+                    const targetH = Math.max(1, Math.floor(sizePx * dpr));
+                    if (canvas.width !== targetW || canvas.height !== targetH) {
+                        canvas.width = targetW;
+                        canvas.height = targetH;
+                    }
+                    if (knobHandlesRef.current[i] === null) {
+                        renderWith2D(canvas, ctrl.value);
+                    }
+                });
+            });
+            ro.observe(container);
+            return () => ro.disconnect();
+        }, []);
 
-            if (!navigator.gpu) {
-                renderWith2D(canvas, controlsRef.current, colorHex);
-                return;
+        const setKnobCanvasRef = useCallback((index: number) => (el: HTMLCanvasElement | null) => {
+            const oldCanvas = knobCanvasRefs.current[index];
+            if (oldCanvas === el) return;
+            const oldHandle = knobHandlesRef.current[index];
+            if (oldHandle) {
+                KnobGPUContext.unregister(oldHandle);
+                knobHandlesRef.current[index] = null;
+            }
+            knobCanvasRefs.current[index] = el;
+            if (!el) return;
+
+            const container = el.parentElement as HTMLDivElement | null;
+            if (container) {
+                const rect = container.getBoundingClientRect();
+                const minDim = Math.min(rect.width, rect.height);
+                const ctrl = controlsRef.current[index];
+                if (ctrl) {
+                    const sizePx = ctrl.size * minDim * 2;
+                    el.style.width = `${sizePx}px`;
+                    el.style.height = `${sizePx}px`;
+                    el.style.left = `${ctrl.x * rect.width}px`;
+                    el.style.top = `${ctrl.y * rect.height}px`;
+                    el.style.position = 'absolute';
+                    el.style.transform = 'translate(-50%, -50%)';
+                    const dpr = window.devicePixelRatio || 1;
+                    el.width = Math.max(1, Math.floor(sizePx * dpr));
+                    el.height = Math.max(1, Math.floor(sizePx * dpr));
+                }
             }
 
-            let context: GPUCanvasContext;
-            let device: GPUDevice;
-            let pipeline: GPURenderPipeline;
-            let uniformBuffer: GPUBuffer;
-            let bindGroup: GPUBindGroup; // Performance: Reuse bindGroup
-            let isActive = true;
-
-            const init = async () => {
-                try {
-                    const adapter = await navigator.gpu.requestAdapter();
-                    if (!adapter) {
-                        renderWith2D(canvas, controlsRef.current, colorHex);
-                        return;
-                    }
-
-                    const newDevice = await adapter.requestDevice();
-                    // If component unmounted while waiting for device, destroy it immediately
-                    if (!isActive) {
-                        newDevice.destroy();
-                        return;
-                    }
-                    device = newDevice;
-
-                    context = canvas.getContext('webgpu') as GPUCanvasContext;
-                    context.configure({
-                        device,
-                        format: navigator.gpu.getPreferredCanvasFormat(),
-                        alphaMode: 'premultiplied'
-                    });
-
-                    // Shader logic - supports up to 12 knobs
-                    // Two shader modes: standard and holographic (3D mode)
-                    const shaderCode = is3D ? `
-                    // HOLOGRAPHIC SHADER FOR 3D MODE
-                    struct Uniforms {
-                        time: f32, ratio: f32, pad1: f32, pad2: f32,
-                        color: vec3f, pad3: f32,
-                        vals1: vec4f, vals2: vec4f, vals3: vec4f,
-                        pad4: vec4f,
-                        pos: array<vec4f, 12>,
-                    };
-                    @group(0) @binding(0) var<uniform> u: Uniforms;
-
-                    struct VertexOutput {
-                        @builtin(position) position: vec4f,
-                        @location(0) uv: vec2f,
-                    };
-
-                    @vertex
-                    fn vs_main(@builtin(vertex_index) vIdx: u32) -> VertexOutput {
-                        var pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
-                        var output: VertexOutput;
-                        output.position = vec4f(pos[vIdx], 0.0, 1.0);
-                        output.uv = pos[vIdx];
-                        return output;
-                    }
-
-                    fn get_knob_val(idx: i32) -> f32 {
-                        if (idx < 4) { return u.vals1[idx]; }
-                        if (idx < 8) { return u.vals2[idx - 4]; }
-                        return u.vals3[idx - 8];
-                    }
-
-                    fn rotate(angle: f32) -> mat2x2f {
-                        let c = cos(angle);
-                        let s = sin(angle);
-                        return mat2x2f(c, -s, s, c);
-                    }
-
-                    @fragment
-                    fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-                        var uv = in.uv * 0.5 + 0.5; 
-                        uv.y = 1.0 - uv.y;
-                        var p = uv; p.x = p.x * u.ratio;
-
-                        // Dark background with subtle grain
-                        var col = vec3f(0.08, 0.1, 0.12);
-                        col += (fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453) * 0.02);
-                        
-                        // Holographic scanlines
-                        let scanline = sin(uv.y * 300.0 + u.time * 8.0) * 0.5 + 0.5;
-                        col *= 0.92 + 0.08 * scanline;
-
-                        for (var i = 0; i < 12; i++) {
-                            let k_pos_uv = u.pos[i];
-                            if (k_pos_uv.z == 0.0) { continue; }
-
-                            let center_draw = vec2f(k_pos_uv.x * u.ratio, k_pos_uv.y);
-                            let delta = p - center_draw;
-                            let dist = length(delta);
-                            let radius = k_pos_uv.z;
-                            let val = get_knob_val(i);
-
-                            if (dist < radius * 1.2) {
-                                // Outer glow/halo effect
-                                let halo = smoothstep(radius * 1.2, radius * 0.9, dist);
-                                col += u.color * halo * 0.3 * (0.8 + 0.2 * sin(u.time * 3.0));
-
-                                if (dist < radius) {
-                                    // Rotating data ring
-                                    let rot_delta = rotate(u.time * 0.5) * delta;
-                                    let ring_dist = abs(length(rot_delta) - (radius * 0.85));
-                                    let angle_rot = atan2(rot_delta.y, rot_delta.x);
-                                    let dash = sin(angle_rot * 15.0);
-                                    if (ring_dist < 0.01 && dash > 0.3) {
-                                        col = mix(col, u.color * 1.5, smoothstep(0.01, 0.0, ring_dist));
-                                    }
-
-                                    // Inner holographic disc with fresnel
-                                    if (dist < radius * 0.7) {
-                                        let fresnel = pow(1.0 - (dist / (radius * 0.7)), 2.0);
-                                        col = mix(col, u.color * 0.3, 0.4 * fresnel);
-                                        
-                                        // Holographic shimmer
-                                        let shimmer = sin(dist * 100.0 - u.time * 10.0) * 0.5 + 0.5;
-                                        col += u.color * shimmer * 0.15 * fresnel;
-                                    }
-
-                                    // Value indicator needle with glow
-                                    let ang = mix(-2.4, 2.4, val) - 1.5708;
-                                    let dir = vec2f(cos(ang), sin(ang));
-                                    let proj = dot(delta, dir);
-                                    let perp_dist = length(delta - dir * proj);
-                                    
-                                    if (proj > 0.0 && proj < radius * 0.6 && perp_dist < 0.015) {
-                                        let needle_glow = 1.0 / (perp_dist * 80.0 + 1.0);
-                                        col = mix(col, vec3f(1.0, 1.0, 1.0), needle_glow * 0.8);
-                                        col += u.color * needle_glow * 0.5;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Holographic glitch effect (occasional)
-                        let glitch = step(0.97, sin(u.time * 15.0 + p.x * 50.0));
-                        if (glitch > 0.5) {
-                            col += u.color * 0.2 * (sin(u.time * 100.0) * 0.5 + 0.5);
-                        }
-
-                        return vec4f(col, 1.0);
-                    }
-                ` : `
-                    // STANDARD SHADER FOR 2D MODE
-                    struct Uniforms {
-                        time: f32, ratio: f32, pad1: f32, pad2: f32,
-                        color: vec3f, pad3: f32,
-                        vals1: vec4f, vals2: vec4f, vals3: vec4f,
-                        pad4: vec4f,
-                        pos: array<vec4f, 12>,
-                    };
-                    @group(0) @binding(0) var<uniform> u: Uniforms;
-
-                    struct VertexOutput {
-                        @builtin(position) position: vec4f,
-                        @location(0) uv: vec2f,
-                    };
-
-                    @vertex
-                    fn vs_main(@builtin(vertex_index) vIdx: u32) -> VertexOutput {
-                        var pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
-                        var output: VertexOutput;
-                        output.position = vec4f(pos[vIdx], 0.0, 1.0);
-                        output.uv = pos[vIdx];
-                        return output;
-                    }
-
-                    fn get_knob_val(idx: i32) -> f32 {
-                        if (idx < 4) { return u.vals1[idx]; }
-                        if (idx < 8) { return u.vals2[idx - 4]; }
-                        return u.vals3[idx - 8];
-                    }
-
-                    @fragment
-                    fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-                        var uv = in.uv * 0.5 + 0.5; 
-                        uv.y = 1.0 - uv.y;
-                        var p = uv; p.x = p.x * u.ratio;
-
-                        var col = vec3f(0.12, 0.14, 0.16);
-                        col += (fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453) * 0.03);
-                        col *= 0.9 + 0.1 * sin(uv.y * 200.0);
-
-                        for (var i = 0; i < 12; i++) {
-                            let k_pos_uv = u.pos[i];
-                            if (k_pos_uv.z == 0.0) { continue; }
-
-                            let center_draw = vec2f(k_pos_uv.x * u.ratio, k_pos_uv.y);
-                            let dist = length(p - center_draw);
-                            let radius = k_pos_uv.z;
-                            let val = get_knob_val(i);
-
-                            if (dist < radius) {
-                                col = mix(col, vec3f(0.05), smoothstep(radius, radius - 0.01, dist));
-                                let ring_dist = abs(dist - (radius * 0.75));
-                                if (ring_dist < 0.015) {
-                                    col = mix(col, u.color, smoothstep(0.015, 0.0, ring_dist));
-                                }
-                                if (dist < radius * 0.5) {
-                                    let shine = dot(normalize(p - center_draw), vec2f(0.5, -0.5));
-                                    col = mix(col, vec3f(0.2) + shine*0.1, smoothstep(radius*0.5, radius*0.5 - 0.01, dist));
-                                    
-                                    let ang = mix(-2.4, 2.4, val) - 1.5708;
-                                    let dir = vec2f(cos(ang), sin(ang));
-                                    let delta = p - center_draw;
-                                    let proj = dot(delta, dir);
-                                    if (proj > 0.0 && proj < radius*0.45 && length(delta - dir * proj) < 0.005) {
-                                         col = vec3f(1.0);
-                                    }
-                                }
-                            }
-                        }
-                        return vec4f(col, 1.0);
-                    }
-                `;
-
-                    const module = device.createShaderModule({ code: shaderCode });
-                    pipeline = device.createRenderPipeline({
-                        layout: 'auto',
-                        vertex: { module, entryPoint: 'vs_main' },
-                        fragment: { module, entryPoint: 'fs_main', targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }] },
-                        primitive: { topology: 'triangle-list' }
-                    });
-
-                    uniformBuffer = device.createBuffer({ size: 320, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-
-                    // Optimization: Create BindGroup once
-                    bindGroup = device.createBindGroup({
-                        layout: pipeline.getBindGroupLayout(0),
-                        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
-                    });
-
-                    // Assign render function for external calls
-                    renderRef.current = render;
-
-                    // Initial render
-                    render();
-
-                    // Start animation loop for holographic effects in 3D mode
-                    if (is3D) {
-                        const loop = () => {
-                            if (!isActive) return;
-                            render();
-                            animationFrameId = requestAnimationFrame(loop);
-                        };
-                        animationFrameId = requestAnimationFrame(loop);
-                    }
-                } catch (e) { console.error("WebGPU Init Failed, falling back to 2D canvas", e); renderWith2D(canvas, controlsRef.current, colorHex); }
-            };
-
-            let animationFrameId: number;
-
-            const render = () => {
-                if (!isActive || !device || !pipeline || !bindGroup) return;
-
-                const buf = stagingBufferRef.current;
-                const width = canvas.width, height = canvas.height;
-
-                // Update Dynamic Data (Time/Ratio)
-                // We only update what changes every frame.
-                // Static data (Controls, Color) is updated in the useEffect above.
-                buf[0] = performance.now() / 1000;
-                buf[1] = width / height;
-
-                // PERFORMANCE: Optimized partial write
-                // Only write the full buffer if static data changed (dirtyRef)
-                // Otherwise, only write the first 8 bytes (2 floats: time, ratio)
-                if (dirtyRef.current) {
-                    device.queue.writeBuffer(uniformBuffer, 0, buf);
-                    dirtyRef.current = false;
-                } else {
-                    device.queue.writeBuffer(uniformBuffer, 0, buf, 0, 2);
-                }
-
-                const encoder = device.createCommandEncoder();
-                const pass = encoder.beginRenderPass({
-                    colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: 'clear', clearValue: { r: 0, g: 0, b: 0, a: 1 }, storeOp: 'store' }]
-                });
-                pass.setPipeline(pipeline);
-                pass.setBindGroup(0, bindGroup);
-                pass.draw(3);
-                pass.end();
-                device.queue.submit([encoder.finish()]);
-            };
-
-            init();
-
-            return () => {
-                isActive = false;
-                if (animationFrameId) cancelAnimationFrame(animationFrameId);
-                renderRef.current = null;
-                if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
-            };
-        }, [is3D]); // Re-initialize when switching between 2D and 3D mode
+            const handle = KnobGPUContext.register(el, () => controlsRef.current[index]?.value ?? 0);
+            knobHandlesRef.current[index] = handle;
+            if (!handle) {
+                const ctrl = controlsRef.current[index];
+                if (ctrl) renderWith2D(el, ctrl.value);
+            }
+        }, []);
 
         return (
             <div ref={containerRef} className={`relative rounded-lg shadow-xl bg-gray-900 border border-gray-700 ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: '220px' }}>
-                <canvas ref={canvasRef} width={800} height={400} className="w-full h-full block" />
+                {controls.map((c, i) => (
+                    <canvas
+                        key={c.id}
+                        ref={setKnobCanvasRef(i)}
+                        className="block"
+                        style={{ position: 'absolute', pointerEvents: 'none' }}
+                    />
+                ))}
                 <div className="absolute inset-0 pointer-events-none">
                     <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">{title.toUpperCase()}</div>
 
-                    {/* PERFORMANCE: Optimized Single Loop using Memoized Overlay Components */}
                     {controls.map((c, i) => (
                         <KnobOverlay
                             key={c.id}
@@ -732,7 +460,6 @@ export const HardwareModule = memo(
                             onRegisterRef={handleRegisterRef}
                         />
                     ))}
-
                 </div>
                 {children && <div className="absolute inset-0 pointer-events-none">{children}</div>}
             </div>
