@@ -15,7 +15,13 @@ export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     grainSize: 4410,
     freeze: 0,
     freezeLfoRate: 0,
-    freezeLfoDepth: 0
+    freezeLfoDepth: 0,
+    expressiveness: {
+        vibratoRate: 5.5,
+        vibratoDepth: 0,
+        tremoloDepth: 0,
+        breathAmount: 0,
+    },
 };
 
 export const INITIAL_SAMPLER_PARAMS: SamplerParams = Array.from({ length: 8 }, (_, i) => ({

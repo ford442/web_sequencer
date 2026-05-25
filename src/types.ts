@@ -121,6 +121,12 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   pitchDecay?: number;
+  expressiveness?: {
+    vibratoRate: number;
+    vibratoDepth: number;
+    tremoloDepth: number;
+    breathAmount: number;
+  };
 }
 
 export type SamplerParams = SamplerBankParams[];

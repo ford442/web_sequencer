@@ -238,13 +238,19 @@ class Open303Processor extends AudioWorkletProcessor {
         // to succeed without spurious overflow calls.
         this.configureWasmStack(this.wasmInstance);
 
-        // 4. Verify exports
+        // 4. Verify exports — accept either the native multi-instance API
+        // (open303_create/open303_init, exported by hyphon_native.wasm) or the
+        // legacy single-instance jc303_init/jc303_process API.
         const exports = this.wasmInstance.exports as any;
-        const hasInit = typeof exports.jc303_init === 'function';
-        const hasProcess = typeof exports.jc303_process === 'function';
+        const hasNative = typeof exports.open303_create === 'function'
+                       && typeof exports.open303_init === 'function';
+        const hasLegacy = typeof exports.jc303_init === 'function'
+                       && typeof exports.jc303_process === 'function';
 
-        if (!hasInit || !hasProcess) {
-            throw new Error(`Missing required functions: jc303_init=${hasInit}, jc303_process=${hasProcess}`);
+        if (!hasNative && !hasLegacy) {
+            throw new Error(
+                `Missing required exports: neither open303_* (native) nor jc303_* (legacy) found`
+            );
         }
 
         // 5. Initialize the synth with stack protection
@@ -252,10 +258,13 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private createMemory(pages: number | undefined, shared: boolean): WebAssembly.Memory {
-        // hyphon_native.wasm (Emscripten threaded build) declares initial: 8192 pages (512 MB).
-        // The floor must be at least OPEN303_MIN_MEMORY_PAGES; pass a higher value via `pages` to override.
-        const memoryImportPages = pages ? Math.max(pages, OPEN303_MIN_MEMORY_PAGES) : OPEN303_MIN_MEMORY_PAGES;
-        const maxMemoryPages = 16384; // 1 GB max
+        // hyphon_native.wasm (threaded build with Open303 + Rubberband + ONNX shim)
+        // declares an initial memory of 8192 pages (512 MB). Anything smaller fails
+        // instantiation with "memory import has N pages which is smaller than the
+        // declared initial of 8192". Use that as the floor and allow growth up to 1 GB.
+        const HYPHON_NATIVE_MIN_PAGES = 8192;
+        const memoryImportPages = Math.max(pages ?? 0, HYPHON_NATIVE_MIN_PAGES);
+        const maxMemoryPages = 16384; // 1 GB ceiling
 
         if (shared) {
             try {
