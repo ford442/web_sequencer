@@ -28,6 +28,10 @@ const SynthState = {
 
 type SynthStateType = typeof SynthState[keyof typeof SynthState];
 
+/** Minimum WebAssembly memory pages for hyphon_native.wasm (threaded Emscripten build).
+ *  Must stay in sync with OPEN303_MIN_MEMORY_PAGES in Open303Oscillator.ts. */
+const OPEN303_MIN_MEMORY_PAGES = 8192;
+
 // Map from jc303_set* function name → open303 paramId
 // (keeps the existing message protocol while supporting the new native API)
 const JC303_PARAM_MAP: Record<string, number> = {

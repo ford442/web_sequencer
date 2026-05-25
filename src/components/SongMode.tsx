@@ -449,9 +449,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                                 onClick={() => onSetBackgroundImage('')}
                                 className="text-gray-500 hover:text-white px-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
                                 aria-label="Clear Background Image"
-                            >
-                                ✕
-                            </button>
+                            ><span aria-hidden="true">✕</span></button>
                         )}
                     </div>
                     <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
@@ -493,7 +491,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                             </span>
                         ) : 'EXPORT XM'}
                     </button>
-                    <button onClick={onToggle} aria-label="Close Song Mode" title="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">✕</button>
+                    <button onClick={onToggle} aria-label="Close Song Mode" title="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1"><span aria-hidden="true">✕</span></button>
                 </div>
             </div>
 

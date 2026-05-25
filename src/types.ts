@@ -91,6 +91,8 @@ export interface SamplerBankParams {
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
+  reverbLfoRate?: number;
+  reverbLfoDepth?: number;
   formantLfoShape?: number[];
   formantEnvAttack?: number;
   formantEnvDecay?: number;
@@ -116,7 +118,15 @@ export interface SamplerBankParams {
   pitchAttack?: number;
   gateRate?: number;
   gateDepth?: number;
+  spectralPanRate?: number;
+  spectralPanDepth?: number;
   pitchDecay?: number;
+  expressiveness?: {
+    vibratoRate: number;
+    vibratoDepth: number;
+    tremoloDepth: number;
+    breathAmount: number;
+  };
 }
 
 export type SamplerParams = SamplerBankParams[];
@@ -176,12 +186,16 @@ export interface Note {
   vibratoDepth?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
+  reverbLfoRate?: number;
+  reverbLfoDepth?: number;
   delaySend?: number;
   choir?: number;
   drive?: number;
   tranceGate?: number;
   gateRate?: number;
   gateDepth?: number;
+  spectralPanRate?: number;
+  spectralPanDepth?: number;
   phonemes?: PhonemeData[];
   // ... other fields as needed
 }
