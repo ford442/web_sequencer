@@ -118,7 +118,15 @@ export interface SamplerBankParams {
   pitchAttack?: number;
   gateRate?: number;
   gateDepth?: number;
+  spectralPanRate?: number;
+  spectralPanDepth?: number;
   pitchDecay?: number;
+  expressiveness?: {
+    vibratoRate: number;
+    vibratoDepth: number;
+    tremoloDepth: number;
+    breathAmount: number;
+  };
 }
 
 export type SamplerParams = SamplerBankParams[];
@@ -186,6 +194,8 @@ export interface Note {
   tranceGate?: number;
   gateRate?: number;
   gateDepth?: number;
+  spectralPanRate?: number;
+  spectralPanDepth?: number;
   phonemes?: PhonemeData[];
   // ... other fields as needed
 }

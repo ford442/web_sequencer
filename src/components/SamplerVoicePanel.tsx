@@ -19,6 +19,10 @@ interface SamplerVoicePanelProps {
     formantShift?: number; // -12 to +12
     pitchAttack?: number; // 0-1
     pitchDecay?: number; // 0-1
+    vibratoRate?: number; // Hz
+    vibratoDepth?: number; // 0-1
+    tremoloDepth?: number; // 0-1
+    breathAmount?: number; // 0-1
     quality?: 'preview' | 'good' | 'better' | 'best';
     stretchMode?: 'Time' | 'Pitch' | 'Formant';
     lockToSequencer?: boolean;
@@ -488,6 +492,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     formantShift = 0,
     pitchAttack = 0,
     pitchDecay = 0.5,
+    vibratoRate = 5.5,
+    vibratoDepth = 0,
+    tremoloDepth = 0,
+    breathAmount = 0,
     quality = 'good',
     stretchMode = 'Time',
     lockToSequencer = false,
@@ -502,6 +510,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [localFormant, setLocalFormant] = useState(formantShift);
     const [localPitchAtk, setLocalPitchAtk] = useState(pitchAttack);
     const [localPitchDec, setLocalPitchDecay] = useState(pitchDecay);
+    const [localVibratoRate, setLocalVibratoRate] = useState(vibratoRate);
+    const [localVibratoDepth, setLocalVibratoDepth] = useState(vibratoDepth);
+    const [localTremoloDepth, setLocalTremoloDepth] = useState(tremoloDepth);
+    const [localBreathAmount, setLocalBreathAmount] = useState(breathAmount);
     const [localQuality, setLocalQuality] = useState<typeof quality>(quality);
     const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
@@ -527,6 +539,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'formantShift': setLocalFormant(value as number); break;
             case 'pitchAttack': setLocalPitchAtk(value as number); break;
             case 'pitchDecay': setLocalPitchDecay(value as number); break;
+            case 'vibratoRate': setLocalVibratoRate(value as number); break;
+            case 'vibratoDepth': setLocalVibratoDepth(value as number); break;
+            case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
+            case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'quality': setLocalQuality(value as typeof quality); break;
             case 'stretchMode': setLocalStretch(value as typeof stretchMode); break;
             case 'lockToSequencer': setLocalLock(value as boolean); break;
@@ -608,7 +624,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             </div>
 
             {/* Sampler Voice Controls Panel */}
-            <div className="h-[180px] bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-t-2 border-purple-500/30 p-3 flex gap-4 shrink-0 relative overflow-hidden">
+            <div className="min-h-[280px] bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-t-2 border-purple-500/30 p-3 flex gap-4 shrink-0 relative overflow-y-auto overflow-x-hidden">
                 {/* Subtle grid pattern */}
                 <div className="absolute inset-0 opacity-5" style={{
                     backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
@@ -753,6 +769,43 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                                 LOCK TO SEQUENCER NOTES
                             </span>
                         </div>
+                    </div>
+
+                    <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent my-1" />
+
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-mono text-cyan-400 font-bold tracking-wider px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">EXPRESSION</span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-cyan-500/30 to-transparent" />
+                        </div>
+                        <HSlider
+                            label="VIB RATE"
+                            value={(localVibratoRate / 10) * 2 - 1}
+                            displayValue={`${localVibratoRate.toFixed(1)}Hz`}
+                            onChange={(v) => handleParamChange('vibratoRate', Math.max(0, Math.min(10, ((v + 1) / 2) * 10)))}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="VIB DEPTH"
+                            value={localVibratoDepth * 2 - 1}
+                            displayValue={localVibratoDepth.toFixed(2)}
+                            onChange={(v) => handleParamChange('vibratoDepth', Math.max(0, Math.min(1, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="TREMOLO"
+                            value={localTremoloDepth * 2 - 1}
+                            displayValue={localTremoloDepth.toFixed(2)}
+                            onChange={(v) => handleParamChange('tremoloDepth', Math.max(0, Math.min(1, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="BREATH"
+                            value={localBreathAmount * 2 - 1}
+                            displayValue={localBreathAmount.toFixed(2)}
+                            onChange={(v) => handleParamChange('breathAmount', Math.max(0, Math.min(1, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
                     </div>
 
                     {/* Divider */}

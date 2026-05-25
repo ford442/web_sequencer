@@ -63,6 +63,8 @@ interface ActiveSynthNote {
 interface ActiveSamplerNote {
     source: AudioBufferSourceNode;
     envGain: GainNode;
+    expressiveNode?: AudioWorkletNode | null;
+    releaseTime?: number;
 }
 
 export interface PlaybackRefs {

@@ -945,6 +945,17 @@ export class SingingVoice {
     }
 
     /**
+     * Set vibrato rate in Hz.
+     * @param rate Vibrato rate in Hz
+     * @param time Optional time to apply the change (default: now)
+     */
+    setVibratoRate(rate: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('vibratoRate')?.setValueAtTime(rate, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set gate depth for rhythmic gating effect.
      * @param percent Gate depth (0-100)
      * @param time Optional time to apply the change

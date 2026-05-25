@@ -208,6 +208,9 @@ export function applySamplerVoiceParamUpdate({
 
     manager.getAllVoices().forEach((voice) => {
         switch (param) {
+            case 'vibratoRate':
+                voice.setVibratoRate(value as number);
+                break;
             case 'rootNote':
                 voice.setRootNote(value as number);
                 break;
@@ -225,6 +228,15 @@ export function applySamplerVoiceParamUpdate({
                 break;
             case 'pitchDecay':
                 voice.setPitchDecay(value as number);
+                break;
+            case 'vibratoDepth':
+                voice.setVibratoDepth(value as number);
+                break;
+            case 'tremoloDepth':
+                voice.setTremoloDepth(value as number);
+                break;
+            case 'breathAmount':
+                voice.setBreathIntensity(value as number);
                 break;
         }
     });

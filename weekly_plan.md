@@ -1,12 +1,12 @@
 # web_sequencer — Weekly Plan
 
 ## Today's focus
-**2026-05-18 (Sun) — User Idea mode.** Continuing `[in progress — 2026-05-11]`: Holographic knob GPU context unification — `KnobGPUContext.ts` singleton was not created last week; `MagicKnob.tsx` still runs per-instance `GPUDevice` + per-instance RAF. Full implementation this week: singleton with shared `GPURenderPipeline` and one RAF loop, per-knob uniform buffer slot + bind group, register/unregister API, retire the N-device anti-pattern.
+**2026-05-25 (Sun) — User Idea mode.** Holographic knob WGSL render pass unification — route `HardwareModule.tsx`'s per-component WebGPU knob rendering through the `KnobGPUContext` singleton (shared pipeline + RAF, same WGSL shader already used by `MagicKnob.tsx`), retire the duplicate per-component `GPUDevice` init + per-component RAF in `HardwareModule.tsx`, and unify the visual output so the 2D Canvas fallback (`renderWith2D`) and the WebGPU path share the same lighting/material contracts and don't visually drift.
 
 ## Ideas
 - [done — 2026-04-27] **Verify bug-report.md staleness** — confirmed stale: `useAudioEngine.ts` is 938 lines; the try/catch at line 1393 no longer exists. `bug-report.md` can be deleted.
-- [in progress — 2026-05-11] **Holographic knob GPU context unification** — audit findings confirmed (per-instance GPUDevice + RAF); implementing `KnobGPUContext.ts` singleton with shared pipeline and batched draw loop. Multi-day.
-- [ ] Holographic knob WGSL render pass unification — single compute-driven render path so every knob shares lighting/material, kill drift between the 2D fallback and the WebGPU canvas path. (multi-day; depends on perf audit findings)
+- [done — 2026-05-25] **Holographic knob GPU context unification** — `KnobGPUContext.ts` singleton fully implemented (shared `GPURenderPipeline`, single batched RAF, per-knob `uniformBuffer`+`bindGroup`, `register`/`unregister` API); `MagicKnob.tsx` fully ported. N-device anti-pattern retired.
+- [in progress — 2026-05-25] Holographic knob WGSL render pass unification — single compute-driven render path so every knob shares lighting/material, kill drift between the 2D fallback and the WebGPU canvas path. (multi-day; depends on perf audit findings)
 
 ## Backlog
 - [ ] **PR #506** "Fix: Resolve TypeScript errors related to Note interface" — open (Jules, May 3), needs review/merge or feedback.
@@ -18,6 +18,7 @@
 - [ ] Dozens of one-off `fix*.py` / `patch*.py` / `update_*.py` scripts at repo root — candidate for archival into `tools/`.
 
 ## Done
+- 2026-05-25 — Holographic knob GPU context unification: `KnobGPUContext.ts` singleton + `MagicKnob.tsx` fully ported (PR #617 context: WASM memory fix also landed).
 - 2026-05-18 — jc303/Open303 WASM pipeline stabilized: stub-WASM early detection, `Open303Manager` params wiring, WASM promoted to Vite content-hashed asset (PRs #569 + #572, Claude Code).
 - 2026-05-18 — Live keyboard triggers drum voices with MIDI note pitch shifting (PR #571, Copilot).
 - 2026-05-18 — Vocal Harmony Parallel Bus: dedicated parallel bus + glue compression + EQ for harmony voices; `isHarmonyVoice` routing out of main lead saturation path (PR #568, Jules).
@@ -49,7 +50,7 @@
 - 2026-04-12 — AdvancedNoteSelector + ScaleSelector (PR #443).
 
 ## Last run
-Date: 2026-05-18
-Mode: User Idea (continuing)
-Focus: Holographic knob GPU context unification — KnobGPUContext.ts singleton + MagicKnob.tsx refactor
+Date: 2026-05-25
+Mode: User Idea
+Focus: Holographic knob WGSL render pass unification — route HardwareModule.tsx per-component knob WebGPU rendering through KnobGPUContext singleton; unify 2D fallback visual contract with WebGPU path.
 Outcome: (to be filled at end-of-day)
