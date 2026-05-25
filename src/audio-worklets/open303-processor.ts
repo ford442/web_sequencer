@@ -28,6 +28,10 @@ const SynthState = {
 
 type SynthStateType = typeof SynthState[keyof typeof SynthState];
 
+/** Minimum WebAssembly memory pages for hyphon_native.wasm (threaded Emscripten build).
+ *  Must stay in sync with OPEN303_MIN_MEMORY_PAGES in Open303Oscillator.ts. */
+const OPEN303_MIN_MEMORY_PAGES = 8192;
+
 // Map from jc303_set* function name → open303 paramId
 // (keeps the existing message protocol while supporting the new native API)
 const JC303_PARAM_MAP: Record<string, number> = {
@@ -248,10 +252,10 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private createMemory(pages: number | undefined, shared: boolean): WebAssembly.Memory {
-        // CRITICAL FIX: Large initial memory to prevent stack overflow
-        // 32MB stack + 32MB heap minimum = 1024 pages (64MB)
-        const memoryImportPages = pages || 1024;
-        const maxMemoryPages = 4096; // 256MB max
+        // hyphon_native.wasm (Emscripten threaded build) declares initial: 8192 pages (512 MB).
+        // The floor must be at least OPEN303_MIN_MEMORY_PAGES; pass a higher value via `pages` to override.
+        const memoryImportPages = pages ? Math.max(pages, OPEN303_MIN_MEMORY_PAGES) : OPEN303_MIN_MEMORY_PAGES;
+        const maxMemoryPages = 16384; // 1 GB max
 
         if (shared) {
             try {

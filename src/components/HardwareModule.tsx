@@ -135,6 +135,69 @@ const KnobOverlay = memo(({
     );
 });
 
+// Named color constants for the 2D canvas knob fallback renderer.
+const KNOB_BG_COLOR = '#1a1d23';
+const KNOB_OUTER_COLOR = '#2a2d35';
+const KNOB_INNER_COLOR = '#1e2128';
+const KNOB_INDICATOR_COLOR = '#ffffff';
+
+/**
+ * Renders all knobs using the Canvas 2D API.
+ * Called when WebGPU is unavailable or its initialisation fails so that knobs
+ * are always visible regardless of the browser's GPU capabilities.
+ */
+function renderWith2D(
+    canvas: HTMLCanvasElement,
+    controls: KnobConfig[],
+    colorHex: [number, number, number]
+): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const w = rect.width, h = rect.height;
+    const [r, g, b] = colorHex;
+    const accentColor = `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
+    ctx.fillStyle = KNOB_BG_COLOR;
+    ctx.fillRect(0, 0, w, h);
+    for (const c of controls) {
+        const cx = c.x * w;
+        const cy = c.y * h;
+        const radius = c.size * Math.min(w, h);
+        // Outer ring
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fillStyle = KNOB_OUTER_COLOR;
+        ctx.fill();
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Inner circle
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = KNOB_INNER_COLOR;
+        ctx.fill();
+        // Value arc
+        const startAngle = -0.75 * Math.PI;
+        const endAngle = startAngle + c.value * 1.5 * Math.PI;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 0.75, startAngle, endAngle);
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        // Indicator needle
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(endAngle) * radius * 0.55, cy + Math.sin(endAngle) * radius * 0.55);
+        ctx.strokeStyle = KNOB_INDICATOR_COLOR;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+}
+
 export const HardwareModule = memo(
     ({
         title,
@@ -343,7 +406,12 @@ export const HardwareModule = memo(
         // --- WEBGPU RENDERER ---
         useEffect(() => {
             const canvas = canvasRef.current;
-            if (!canvas || !navigator.gpu) return;
+            if (!canvas) return;
+
+            if (!navigator.gpu) {
+                renderWith2D(canvas, controlsRef.current, colorHex);
+                return;
+            }
 
             let context: GPUCanvasContext;
             let device: GPUDevice;
@@ -355,7 +423,10 @@ export const HardwareModule = memo(
             const init = async () => {
                 try {
                     const adapter = await navigator.gpu.requestAdapter();
-                    if (!adapter) return;
+                    if (!adapter) {
+                        renderWith2D(canvas, controlsRef.current, colorHex);
+                        return;
+                    }
 
                     const newDevice = await adapter.requestDevice();
                     // If component unmounted while waiting for device, destroy it immediately
@@ -588,7 +659,7 @@ export const HardwareModule = memo(
                         };
                         animationFrameId = requestAnimationFrame(loop);
                     }
-                } catch (e) { console.error("WebGPU Init Failed", e); }
+                } catch (e) { console.error("WebGPU Init Failed, falling back to 2D canvas", e); renderWith2D(canvas, controlsRef.current, colorHex); }
             };
 
             let animationFrameId: number;

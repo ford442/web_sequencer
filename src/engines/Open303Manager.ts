@@ -66,12 +66,12 @@ export class Open303Manager {
                 preferThreaded: false,
                 forceSingleThreaded: true
             };
-            const [bass1Ready, bass2Ready] = await Promise.all([
+            const results = await Promise.allSettled([
                 this.bass1.init(audioContext, workletUrl, initConfig),
                 this.bass2.init(audioContext, workletUrl, initConfig),
             ]);
-            this.bass1Ready = bass1Ready;
-            this.bass2Ready = bass2Ready;
+            this.bass1Ready = results[0].status === 'fulfilled' ? results[0].value : false;
+            this.bass2Ready = results[1].status === 'fulfilled' ? results[1].value : false;
 
             if (this.bass1Ready) this.bass1.connect(this.bass1Gain);
             if (this.bass2Ready) this.bass2.connect(this.bass2Gain);
