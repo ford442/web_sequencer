@@ -515,6 +515,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     tranceGate?: number,
                     gateRate?: number,
                     gateDepth?: number,
+                    spectralPanRate?: number,
+                    spectralPanDepth?: number,
                     reverbLfoRate?: number,
                     reverbLfoDepth?: number,
                     isHarmonyVoice?: boolean
@@ -622,7 +624,93 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 finalDest = filter;
                             }
 
-                            voice.connectOutput(finalDest);
+
+                            let spectralFinalDest = finalDest;
+                            let wetGain: GainNode | null = null;
+                            // Apply Spectral Panning
+                            const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+                            const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+                            if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
+                                const lowBand = context.createBiquadFilter();
+                                lowBand.type = "lowpass";
+                                lowBand.frequency.value = 400;
+
+                                const midBand = context.createBiquadFilter();
+                                midBand.type = "bandpass";
+                                midBand.frequency.value = 1500;
+                                midBand.Q.value = 1;
+
+                                const highBand = context.createBiquadFilter();
+                                highBand.type = "highpass";
+                                highBand.frequency.value = 4000;
+
+                                const lowPanner = context.createStereoPanner();
+                                const midPanner = context.createStereoPanner();
+                                const highPanner = context.createStereoPanner();
+
+                                const rate = spectralPanRate || 1;
+                                const lfoRate = rate * (tempo / 60);
+
+                                const lowLfo = context.createOscillator();
+                                lowLfo.type = "sine";
+                                lowLfo.frequency.value = lfoRate * 0.5;
+                                const lowGain = context.createGain();
+                                lowGain.gain.value = spectralPanDepth;
+                                lowLfo.connect(lowGain);
+                                lowGain.connect(lowPanner.pan);
+                                lowLfo.start(triggerTime);
+
+                                const midLfo = context.createOscillator();
+                                midLfo.type = "sine";
+                                midLfo.frequency.value = lfoRate * 0.75;
+                                const midGain = context.createGain();
+                                midGain.gain.value = spectralPanDepth * 0.8;
+                                midLfo.connect(midGain);
+                                midGain.connect(midPanner.pan);
+                                midLfo.start(triggerTime);
+
+                                const highLfo = context.createOscillator();
+                                highLfo.type = "sine";
+                                highLfo.frequency.value = lfoRate;
+                                const highGain = context.createGain();
+                                highGain.gain.value = spectralPanDepth * 1.2;
+                                highLfo.connect(highGain);
+                                highGain.connect(highPanner.pan);
+                                highLfo.start(triggerTime);
+
+                                lowBand.connect(lowPanner);
+                                midBand.connect(midPanner);
+                                highBand.connect(highPanner);
+
+                                lowPanner.connect(finalDest);
+                                midPanner.connect(finalDest);
+                                highPanner.connect(finalDest);
+
+                                const dryGain = context.createGain();
+                                dryGain.gain.value = 1.0 - spectralPanDepth;
+                                dryGain.connect(finalDest);
+
+                                wetGain = context.createGain();
+                                wetGain.gain.value = spectralPanDepth;
+                                wetGain.connect(lowBand);
+                                wetGain.connect(midBand);
+                                wetGain.connect(highBand);
+
+                                voice.connectOutput(dryGain);
+                                voice.connectOutput(wetGain);
+                                spectralFinalDest = dryGain;
+
+                                // Clean up LFOs when voice finishes
+                                const stopOscillators = () => {
+                                    try { lowLfo.stop(); } catch(e){}
+                                    try { midLfo.stop(); } catch(e){}
+                                    try { highLfo.stop(); } catch(e){}
+                                };
+                                // this may not be perfect teardown if stretch voice lasts longer, but it is a start
+                                setTimeout(stopOscillators, targetDuration * 1000 + 100);
+                            } else {
+                                voice.connectOutput(finalDest);
+                            }
 
                             // Setup Reverb Send (Formant-Aware)
                             const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
@@ -1023,6 +1111,87 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     } else {
                         finalDestination = masterSaturationRef.current!;
                     }
+
+                    const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+                    const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+                    let spectralFinalDest = finalDestination;
+                    let wetGain: GainNode | null = null;
+                    if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
+                        // Parallel low/band/high bands with independent LFO panners for spectral movement
+                        const lowBand = context.createBiquadFilter();
+                        lowBand.type = "lowpass";
+                        lowBand.frequency.value = 400;
+
+                        const midBand = context.createBiquadFilter();
+                        midBand.type = "bandpass";
+                        midBand.frequency.value = 1500;
+                        midBand.Q.value = 1;
+
+                        const highBand = context.createBiquadFilter();
+                        highBand.type = "highpass";
+                        highBand.frequency.value = 4000;
+
+                        const lowPanner = context.createStereoPanner();
+                        const midPanner = context.createStereoPanner();
+                        const highPanner = context.createStereoPanner();
+
+                        const rate = spectralPanRate || 1;
+                        const lfoRate = rate * (tempo / 60);
+
+                        const lowLfo = context.createOscillator();
+                        lowLfo.type = "sine";
+                        lowLfo.frequency.value = lfoRate * 0.5;
+                        const lowGain = context.createGain();
+                        lowGain.gain.value = spectralPanDepth;
+                        lowLfo.connect(lowGain);
+                        lowGain.connect(lowPanner.pan);
+                        lowLfo.start(startTime);
+
+                        const midLfo = context.createOscillator();
+                        midLfo.type = "sine";
+                        midLfo.frequency.value = lfoRate * 0.75;
+                        const midGain = context.createGain();
+                        midGain.gain.value = spectralPanDepth * 0.8;
+                        midLfo.connect(midGain);
+                        midGain.connect(midPanner.pan);
+                        midLfo.start(startTime);
+
+                        const highLfo = context.createOscillator();
+                        highLfo.type = "sine";
+                        highLfo.frequency.value = lfoRate;
+                        const highGain = context.createGain();
+                        highGain.gain.value = spectralPanDepth * 1.2;
+                        highLfo.connect(highGain);
+                        highGain.connect(highPanner.pan);
+                        highLfo.start(startTime);
+
+                        lowBand.connect(lowPanner);
+                        midBand.connect(midPanner);
+                        highBand.connect(highPanner);
+
+                        lowPanner.connect(finalDestination);
+                        midPanner.connect(finalDestination);
+                        highPanner.connect(finalDestination);
+
+                        const dryGain = context.createGain();
+                        dryGain.gain.value = 1.0 - spectralPanDepth;
+                        dryGain.connect(finalDestination);
+
+                        wetGain = context.createGain();
+                        wetGain.gain.value = spectralPanDepth;
+                        wetGain.connect(lowBand);
+                        wetGain.connect(midBand);
+                        wetGain.connect(highBand);
+
+                        spectralFinalDest = dryGain;
+
+                        source.addEventListener("ended", () => {
+                            try { lowLfo.stop(); } catch(e){}
+                            try { midLfo.stop(); } catch(e){}
+                            try { highLfo.stop(); } catch(e){}
+                        });
+                    }
+
                     if (params.pan !== undefined && params.pan !== 0) {
                         const panner = context.createStereoPanner();
                         panner.pan.value = params.pan;
@@ -1037,7 +1206,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     } else {
                         filter.connect(gain);
                     }
-                    gain.connect(finalDestination);
+
+                    if (wetGain) {
+                        gain.connect(spectralFinalDest);
+                        gain.connect(wetGain);
+                    } else {
+                        gain.connect(spectralFinalDest);
+                    }
 
                     source.start(startTime);
                     if (duration > 0) {
