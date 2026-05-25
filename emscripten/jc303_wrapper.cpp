@@ -54,23 +54,6 @@ enum Jc303Param : int {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Linear / Exponential mapping helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-static inline double linToLin(double x, double x0, double x1, double y0, double y1)
-{
-    if (std::abs(x1 - x0) < 1e-12) return y0;
-    return y0 + (x - x0) * (y1 - y0) / (x1 - x0);
-}
-
-static inline double linToExp(double x, double x0, double x1, double y0, double y1)
-{
-    if (std::abs(x1 - x0) < 1e-12) return y0;
-    const double a = std::log(y1 / y0);
-    return y0 * std::exp(a * (x - x0) / (x1 - x0));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Jc303Instance
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -294,26 +277,26 @@ EMSCRIPTEN_KEEPALIVE uintptr_t jc303_process(int numFrames)
 // ─────────────────────────────────────────────────────────────────────────────
 
 EMSCRIPTEN_BINDINGS(jc303_module) {
-    function("jc303_create",           &jc303_create);
-    function("jc303_destroy",          &jc303_destroy);
-    function("jc303_init_handle",      &jc303_init_handle);
-    function("jc303_note_on",          &jc303_note_on);
-    function("jc303_note_off",         &jc303_note_off);
-    function("jc303_all_notes_off",    &jc303_all_notes_off);
-    function("jc303_set_param",        &jc303_set_param);
-    function("jc303_process_handle",   &jc303_process_handle);
+    emscripten::function("jc303_create",           &jc303_create);
+    emscripten::function("jc303_destroy",          &jc303_destroy);
+    emscripten::function("jc303_init_handle",      &jc303_init_handle);
+    emscripten::function("jc303_note_on",          &jc303_note_on);
+    emscripten::function("jc303_note_off",         &jc303_note_off);
+    emscripten::function("jc303_all_notes_off",    &jc303_all_notes_off);
+    emscripten::function("jc303_set_param",        &jc303_set_param);
+    emscripten::function("jc303_process_handle",   &jc303_process_handle);
 
-    function("jc303_init",             &jc303_init);
-    function("jc303_noteOn",           &jc303_noteOn);
-    function("jc303_noteOff",          &jc303_noteOff);
-    function("jc303_allNotesOff",      &jc303_allNotesOff);
-    function("jc303_setWaveform",      &jc303_setWaveform);
-    function("jc303_setCutoff",        &jc303_setCutoff);
-    function("jc303_setResonance",     &jc303_setResonance);
-    function("jc303_setEnvMod",        &jc303_setEnvMod);
-    function("jc303_setDecay",         &jc303_setDecay);
-    function("jc303_setAccent",        &jc303_setAccent);
-    function("jc303_setVolume",        &jc303_setVolume);
-    function("jc303_setFilterMode",    &jc303_setFilterMode);
-    function("jc303_process",          &jc303_process);
+    emscripten::function("jc303_init",             &jc303_init);
+    emscripten::function("jc303_noteOn",           &jc303_noteOn);
+    emscripten::function("jc303_noteOff",          &jc303_noteOff);
+    emscripten::function("jc303_allNotesOff",      &jc303_allNotesOff);
+    emscripten::function("jc303_setWaveform",      &jc303_setWaveform);
+    emscripten::function("jc303_setCutoff",        &jc303_setCutoff);
+    emscripten::function("jc303_setResonance",     &jc303_setResonance);
+    emscripten::function("jc303_setEnvMod",        &jc303_setEnvMod);
+    emscripten::function("jc303_setDecay",         &jc303_setDecay);
+    emscripten::function("jc303_setAccent",        &jc303_setAccent);
+    emscripten::function("jc303_setVolume",        &jc303_setVolume);
+    emscripten::function("jc303_setFilterMode",    &jc303_setFilterMode);
+    emscripten::function("jc303_process",          &jc303_process);
 }
