@@ -8,6 +8,7 @@ import type { Pattern, PartSequence, TrackKey, PhonemeData } from '../types';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useTimelineZoom } from '../hooks/useTimelineZoom';
 import { DEFAULT_ZOOM } from './sequencer/constants';
+import { noop } from '../utils/noop';
 
 // --- PERFORMANCE STYLES ---
 const SEQUENCER_STYLES = `
@@ -567,8 +568,6 @@ export interface MainSequencerProps {
     children?: React.ReactNode;
 }
 
-const noopPitchChange = () => {};
-
 const SequencerRowWrapper = memo(({
     row, rIdx, rowRefs, pattern, activeSamplerBank, selectedTrack, activeTrackSlots,
     trackStorage, handleStepPointerDown, onRightMouseDown, onEditLength, onSelectRow,
@@ -760,7 +759,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
                                     onToggle={handleStepPointerDown}
-                                    onPitchChange={onPitchChange}
+                                    onPitchChange={onPitchChange || noop}
                                     onEditLength={onEditLength}
                                     onSelectRow={onSelectRow}
                                     onSelectSlot={onSelectSlot}
