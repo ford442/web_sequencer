@@ -15,3 +15,9 @@
 ## 2026-05-13 - [NoteSelector Accessibility Improvements]
 **Learning:** Grouping related slider inputs (like Velocity, Duration, Expression) in a complex custom modal component using `<fieldset>` with `sr-only` `<legend>` dramatically improves screen reader navigation and context without affecting the existing visual layout, as long as utility classes like `border-none p-0 m-0` are applied to the fieldset.
 **Action:** Always wrap logical groups of parameter controls in `<fieldset>` tags with descriptive `<legend>` elements instead of generic `div` containers, especially in dense UI sections.
+## 2026-05-25 - Toast Accessibility Close Button
+**Learning:** The Toast component lacked a close button, making it hard to dismiss quickly for keyboard and screen reader users before the 3s timeout. Automated Playwright verification of transient Toasts is also brittle without global state hooks.
+**Action:** Added an explicit close button with  and  to Toasts, and set  on the alert. Will rely on unit tests and manual dev check for transient UI components instead of forcing brittle E2E flows.
+## 2026-05-25 - Toast Accessibility Close Button
+**Learning:** The Toast component lacked a close button, making it hard to dismiss quickly for keyboard and screen reader users before the 3s timeout. Automated Playwright verification of transient Toasts is also brittle without global state hooks.
+**Action:** Added an explicit close button with aria-label and title to Toasts, and set aria-live=polite on the alert. Will rely on unit tests and manual dev check for transient UI components instead of forcing brittle E2E flows.
