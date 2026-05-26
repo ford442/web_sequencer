@@ -19,10 +19,11 @@ describe('HardwareModule - WebGPU Optimization', () => {
     beforeEach(() => {
         // Reset the singleton
         import('../components/KnobGPUContext').then(m => {
-             m.KnobGPUContext.device = null;
-             m.KnobGPUContext.slots.clear();
-             m.KnobGPUContext.pendingIds.clear();
-             m.KnobGPUContext.initPromise = null;
+             const ctx = m.KnobGPUContext as any;
+             ctx.device = null;
+             ctx.slots.clear();
+             ctx.pendingIds.clear();
+             ctx.initPromise = null;
         });
         // Mock RequestAnimationFrame
         frameCallbacks = [];
