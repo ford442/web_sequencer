@@ -22,7 +22,7 @@ export const Oscilloscope: React.FC<OscilloscopeProps> = React.memo(({ params, a
             <div className="absolute inset-0 flex items-center justify-center text-gray-800 text-xs font-mono pointer-events-none -z-10">
                 WGSL SCOPE
             </div>
-            <canvas
+            <canvas aria-hidden="true"
                 ref={canvasRef}
                 width={600}
                 height={200}
