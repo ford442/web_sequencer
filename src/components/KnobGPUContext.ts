@@ -200,8 +200,7 @@ class KnobGPUContextClass {
 
         const slot = this.slots.get(handle.id);
         if (slot) {
-            // Defensive: some test mocks or partial init paths may leave uniformBuffer without destroy
-            slot.uniformBuffer?.destroy?.();
+            if (slot.uniformBuffer && typeof slot.uniformBuffer.destroy === 'function') { slot.uniformBuffer.destroy(); }
             this.slots.delete(handle.id);
         }
 
