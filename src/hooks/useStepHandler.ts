@@ -13,6 +13,7 @@ import type { TrackKey } from '../constants/appDefaults';
 import { noteToMidi, midiToNote, tunedNoteToFrequency } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
+import type { SynthNoteParams } from './audioEngine/audioPlayback';
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const notesArray = Array.isArray(notes) ? notes : [notes];
@@ -42,6 +43,7 @@ export interface UseStepHandlerOptions {
     patternRef: React.MutableRefObject<Pattern>;
     lastFreqRef: React.MutableRefObject<Record<string, number>>;
     lastSamplerMidiRef: React.MutableRefObject<Record<number, number>>;
+    lastSamplerFormantRef: React.MutableRefObject<Record<number, number>>;
     synthARef: React.MutableRefObject<SynthParams>;
     synthBRef: React.MutableRefObject<SynthParams>;
     bass2Ref: React.MutableRefObject<Bass2Params>;
@@ -82,6 +84,7 @@ export const useStepHandler = ({
     patternRef,
     lastFreqRef,
     lastSamplerMidiRef,
+    lastSamplerFormantRef,
     synthARef,
     synthBRef,
     bass2Ref,
@@ -163,6 +166,30 @@ export const useStepHandler = ({
                 ? lastFreqRef.current[trackKey]
                 : undefined;
 
+            // Build per-step note params from stepData (including Prophecy params).
+            // Note: previously `currentScale` was passed here but `SynthNoteParams` has no scale
+            // properties — it was never consumed by createPlaySynth. Microtonal slide tracking
+            // continues to use `tunedNoteToFrequency` below. VoiceManager handles scale tuning
+            // independently when it plays the note string.
+            const noteParams: SynthNoteParams = {};
+            if (stepData.timbre !== undefined) noteParams.timbre = stepData.timbre;
+            if (stepData.microtiming !== undefined) noteParams.microtiming = stepData.microtiming;
+            if (stepData.retrigger !== undefined) noteParams.retrigger = stepData.retrigger;
+            if (stepData.formantShift !== undefined) noteParams.formantShift = stepData.formantShift;
+            if (stepData.reverbSend !== undefined) noteParams.reverbSend = stepData.reverbSend;
+            if (stepData.reverbType !== undefined) noteParams.reverbType = stepData.reverbType;
+            if (stepData.delaySend !== undefined) noteParams.delaySend = stepData.delaySend;
+            if (stepData.vowel !== undefined) noteParams.vowel = stepData.vowel;
+            if (stepData.portamento !== undefined) noteParams.portamento = stepData.portamento;
+            // Apply per-lane automation overrides for prophecy params
+            const automation = activePattern[trackKey]?.automation;
+            const autoVowel = automation?.['vowel']?.[step];
+            if (autoVowel !== undefined && autoVowel !== null) noteParams.vowel = autoVowel;
+            const autoPortamento = automation?.['portamento']?.[step];
+            if (autoPortamento !== undefined && autoPortamento !== null) noteParams.portamento = autoPortamento;
+            const autoFormantShift = automation?.['formantShift']?.[step];
+            if (autoFormantShift !== undefined && autoFormantShift !== null) noteParams.formantShift = autoFormantShift;
+
             audioEngine.playSynth(
                 params,
                 notes,
@@ -171,7 +198,7 @@ export const useStepHandler = ({
                 stepTime,
                 slideFrom,
                 trackKey,
-                currentScale // ← Microtonal tuning passed here
+                noteParams,
             );
 
             // Update last frequency for future slides
@@ -248,6 +275,7 @@ export const useStepHandler = ({
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
             const slideFromMidi = stepData.slide ? lastSamplerMidiRef.current[bankIdx] : undefined;
+            const slideFromFormant = (stepData.slide || stepData.slideFormant) ? lastSamplerFormantRef.current[bankIdx] : undefined;
 
             const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
 
@@ -289,10 +317,12 @@ export const useStepHandler = ({
                 time,
                 stepData.length,
                 stepTime,
-                currentScale // ← Microtonal support
+                { ...stepData, slideFromMidi, slideFromFormant },
+                currentScale
             );
 
             lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
+            lastSamplerFormantRef.current[bankIdx] = stepData.formantShift !== undefined ? stepData.formantShift : (voiceParams.formantShift || 0);
         });
 
         // Visual feedback for phoneme slices

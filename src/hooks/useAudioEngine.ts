@@ -6,9 +6,11 @@ import type {
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Manager } from '../engines/Open303Manager';
+import { ProphecyManager } from '../engines/ProphecyManager';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
+import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
@@ -48,6 +50,7 @@ import { loadingProgressStore } from '../stores/loadingProgressStore';
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
+import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker&url';
 import vocalOverdriveProcessorUrl from '../audio-worklets/vocal-overdrive-processor.ts?worker&url';
 import expressiveVoiceProcessorUrl from '../audio-worklets/expressive-voice-processor.ts?worker&url';
 import expressiveVoiceProcessorWorkletUrl from '../audio-worklets/expressive-voice-processor-worklet.ts?worker&url';
@@ -117,6 +120,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
     const open303ManagerRef = useRef<Open303Manager | null>(null);
+    const prophecyManagerRef = useRef<ProphecyManager | null>(null);
 
     // Voice Managers
     const voiceManagerARef = useRef<VoiceManager | null>(null);
@@ -160,6 +164,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
     const multisampleBanksRef = useRef<Map<string, MultisampleBank>>(new Map());
 
+    // Drum Kit Engine (initialized with default 808)
+    const drumKitEngineRef = useRef<DrumKitEngine>(new DrumKitEngine('808'));
+
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
         masterSaturationRef,
@@ -171,6 +178,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
+        prophecyManagerRef,
         voiceManagerARef,
         voiceManagerBRef,
         nextSynthNoteId,
@@ -184,6 +192,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         sidechainGainRef,
         bassSidechainEQBusRef,
         sidechainBusRef,
+        drumKitEngineRef,
     }), []);
 
     useEffect(() => {
@@ -330,6 +339,33 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
             }
             loadingProgressStore.completeStep('open303Engine');
+
+            // Initialize Prophecy Formant Engine
+            loadingProgressStore.startStep('prophecyEngine');
+            const prophecyManager = new ProphecyManager();
+            let prophecyReady = false;
+
+            try {
+                prophecyReady = await prophecyManager.init(context, prophecyProcessorUrl);
+
+                if (prophecyReady) {
+                    prophecyManager.connect(masterBusInput);
+                    prophecyManagerRef.current = prophecyManager;
+                    console.log('[useAudioEngine] ProphecyManager Ready');
+                    try { engineTelemetry.registerResolution('prophecy', 'prophecy', 'ready'); } catch (e) { /* noop */ }
+                } else {
+                    console.warn('[useAudioEngine] ProphecyManager failed to initialize');
+                    try { engineTelemetry.registerResolution('prophecy', 'fallback', 'notReady'); } catch (e) { /* noop */ }
+                }
+            } catch (e) {
+                console.error('[useAudioEngine] ProphecyManager crashed during init:', e);
+                prophecyReady = false;
+            }
+
+            if (!prophecyReady) {
+                console.log('[useAudioEngine] Prophecy bypassed - formant waveforms will fall back to standard oscillators');
+            }
+            loadingProgressStore.completeStep('prophecyEngine');
 
             loadingProgressStore.startStep('wavFiles');
             const [sawBuf, sqrBuf] = await Promise.all([
@@ -532,6 +568,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
+                    slideFromFormant?: number,
                     slideType?: 'linear' | 'exponential',
                     phonemes?: PhonemeData[],
                     freeze?: number,
@@ -823,13 +860,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Apply Timbre Modulation (Formant Shift)
                             const baseShift = params.formantShift || 0;
+                            let targetFormantShift = baseShift;
+
                             if (noteParams?.formantShift !== undefined) {
-                                voice.setFormantShift(baseShift + noteParams.formantShift, triggerTime);
+                                targetFormantShift = baseShift + noteParams.formantShift;
                             } else if (noteParams?.timbre !== undefined) {
-                                const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
-                                voice.setFormantShift(baseShift + mod, triggerTime);
-                            } else if (params.formantShift !== undefined) {
-                                voice.setFormantShift(params.formantShift, triggerTime);
+                                targetFormantShift = baseShift + (noteParams.timbre * 12) - 6;
+                            }
+
+                            if (noteParams?.slideFromFormant !== undefined && (noteParams?.slide === true || noteParams?.slideFormant === true)) {
+                                const startFormantShift = baseShift + noteParams.slideFromFormant;
+                                const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
+                                voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);
+                            } else {
+                                voice.setFormantShift(targetFormantShift, triggerTime);
                             }
 
                             // Apply Character Morphing
@@ -1263,7 +1307,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     if (params.pan !== undefined && params.pan !== 0) {
                         const panner = context.createStereoPanner();
                         panner.pan.value = params.pan;
-                        panner.connect(masterSaturationRef.current!);
+                        panner.connect(finalDestination);
                         finalDestination = panner;
                     }
 
@@ -1330,6 +1374,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 time: number,
                 durationSteps: number = 1,
                 stepTime: number = 0.2,
+                noteParams?: any,
                 tuning?: ScaleDefinition | null
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
@@ -1338,7 +1383,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const voices = harmonizer.generateVoices();
 
                     // Play base voice (index 0) - the original note
-                    playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
+                    playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
 
                     // Play each harmony voice (skip index 0 which is base)
                     voices.forEach((voice) => {
@@ -1347,7 +1392,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         // Create modified params for this harmony voice
                         const voiceParams: SamplerBankParams = {
                             ...params,
-                            pan: voice.pan,
+                            pan: Math.max(-1, Math.min(1, (params.pan || 0) + (voice.pan || 0))),
                             volume: params.volume * voice.gain * 0.85,
                             formantShift: (params.formantShift || 0) + voice.formantShift,
                             fineTune: (params.fineTune || 0) + voice.detuneCents
@@ -1356,7 +1401,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;
@@ -1603,6 +1648,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         isReady,
         initializeAudio,
         onParamChange: updateVoiceParams,
-        updateSamplerVoiceParams
+        updateSamplerVoiceParams,
+        drumKitEngineRef,
     }), [audioEngine, isReady, initializeAudio, updateVoiceParams, updateSamplerVoiceParams]);
 };

@@ -5,7 +5,7 @@ import { getNoteColor } from '../../utils/noteColors'
 
 export const ContextMenuNode = React.memo(() => {
   const state = useAppStateContext()
-  const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu } = state
+  const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu, synthA, synthB } = state
 
   return useMemo(() => {
     if (!contextMenu) return null
@@ -13,6 +13,10 @@ export const ContextMenuNode = React.memo(() => {
     const step = contextMenu.step
     const sequence = track === 'sampler' ? pattern.sampler[activeSamplerBank] : (pattern as any)[track]
     const stepData = sequence?.steps[step] || null
+
+    // Determine if the active synth for this track is a Prophecy voice
+    const waveform = track === 'partA' ? synthA?.waveform : (track === 'partB' ? synthB?.waveform : undefined)
+    const isProphecy = waveform?.startsWith('prophecy-') ?? false
 
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
@@ -30,6 +34,7 @@ export const ContextMenuNode = React.memo(() => {
           currentReverse={stepData?.reverse ?? false}
           currentFreeze={stepData?.freeze ?? 0}
           currentFormantShift={stepData?.formantShift}
+          currentSlideFormant={stepData?.slideFormant}
           currentFilterCutoff={stepData?.filterCutoff}
           currentFilterResonance={stepData?.filterResonance}
           currentEnvMod={stepData?.envMod}
@@ -45,6 +50,9 @@ export const ContextMenuNode = React.memo(() => {
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
           currentTranceGate={stepData?.tranceGate}
+          isProphecy={isProphecy}
+          currentVowel={stepData?.vowel ?? 0}
+          currentPortamento={stepData?.portamento ?? 0}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
           onPropertyChange={handleNotePropertyChange}
@@ -54,7 +62,7 @@ export const ContextMenuNode = React.memo(() => {
         />
       </div>
     )
-  }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu])
+  }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu, synthA, synthB])
 })
 
 export default ContextMenuNode

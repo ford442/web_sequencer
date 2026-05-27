@@ -16,7 +16,10 @@ import type { MainSequencerHandle } from '../components/MainSequencer'
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner'
 import { type HarmonizerConfig } from '../engines/Harmonizer'
 import { WaveformSelector } from '../components/WaveformSelector'
+import { Engine303Selector } from '../components/Engine303Selector'
+import { ProphecyPanel } from '../components/ProphecyPanel'
 import { SamplerPanel } from '../components/SamplerPanel'
+import { engineTelemetry } from '../utils/engineTelemetry'
 
 import {
     NUM_STEPS,
@@ -28,8 +31,10 @@ import {
     DEFAULT_SNARE_PARAMS,
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
+    DEFAULT_DRUM_KIT,
+    getKitDrumParams,
 } from '../constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType } from '../types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType } from '../types'
 import {
     INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
@@ -112,7 +117,7 @@ export function useAppState() {
 
     const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
-    const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide, tempo)
+    const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef } = useAudioEngine(pyodide, tempo)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
     useTTSPreloader()
@@ -125,6 +130,7 @@ export function useAppState() {
     const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
 
     const lastSamplerMidiRef = useRef<Record<number, number>>({});
+    const lastSamplerFormantRef = useRef<Record<number, number>>({});
 
     const handleStart = async () => {
         console.log("Initialization sequence started...");
@@ -271,6 +277,24 @@ export function useAppState() {
     const [openHat, setOpenHat] = useState(DEFAULT_OPEN_HAT_PARAMS);
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
     const updateOpenHat = useCallback((u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => { setOpenHat(prev => { const n = { ...prev, ...u }; openHatRef.current = n; return n; }); }, []);
+
+    // Drum kit selection (808/909)
+    const [drumKit, setDrumKit] = useState<DrumKitType>(DEFAULT_DRUM_KIT);
+    const drumKitRef = useRef<DrumKitType>(DEFAULT_DRUM_KIT);
+    const updateDrumKit = useCallback((kit: DrumKitType) => {
+      setDrumKit(kit);
+      drumKitRef.current = kit;
+      // Sync kit engine
+      if (drumKitEngineRef?.current) {
+        drumKitEngineRef.current.setKit(kit);
+      }
+      // Apply kit default params when switching
+      const kitParams = getKitDrumParams(kit);
+      setKick(kitParams.kick); kickRef.current = kitParams.kick;
+      setSnare(kitParams.snare); snareRef.current = kitParams.snare;
+      setClosedHat(kitParams.closedHat); closedHatRef.current = kitParams.closedHat;
+      setOpenHat(kitParams.openHat); openHatRef.current = kitParams.openHat;
+    }, [drumKitEngineRef]);
 
     const [sampler, setSampler] = useState<SamplerParams>(INITIAL_SAMPLER_PARAMS);
     const samplerRef = useRef(INITIAL_SAMPLER_PARAMS);
@@ -459,6 +483,7 @@ export function useAppState() {
         patternRef,
         lastFreqRef,
         lastSamplerMidiRef,
+        lastSamplerFormantRef,
         synthARef,
         synthBRef,
         bass2Ref,
@@ -1023,7 +1048,8 @@ const handleNotePropertyChange = useCallback((
          'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 
          'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
          'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delaySend' | 'freezeEnvDepth' |
-         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate',
+         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' |
+         'vowel' | 'portamento',
     value: number | boolean | string
 ) => {
     if (!contextMenu) return;
@@ -1146,6 +1172,7 @@ const handleNotePropertyChange = useCallback((
         setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen,
+        setDrumKit: updateDrumKit,
     });
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal }); }, [updateSynthA, updateSynthB]);
@@ -1315,52 +1342,73 @@ const handleLyricApply = useCallback(async (text: string) => {
     const openHatControls = useStableKnobConfig(getOpenHatControls, openHat);
     const samplerControls = useStableKnobConfig(getSamplerControls, sampler[activeSamplerBank]);
 
-    const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
+    const synthAChild = useMemo(() => {
+        const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
+        const isProphecy = synthA.waveform?.startsWith('prophecy-') ?? false;
+        const engine = synthA.engine303 ?? 'open303';
+        const handleSynthAEngineChange = (e: 'open303' | 'jc303') => {
+            updateSynthA({ engine303: e });
+            const mgr = audioEngine?.open303Engine;
+            if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(e);
+            engineTelemetry.registerResolution('synthA-engine303', e, 'user-initiated');
+        };
+        return (
+            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
+                <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
+                {is303 && (
+                    <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
+                )}
+                {isProphecy && (
+                    <ProphecyPanel
+                        vowel={synthA.vowel ?? 0}
+                        portamento={synthA.portamento ?? 0}
+                        formantShift={synthA.formantShift ?? 0}
+                        accentColor="cyan"
+                        onVowelChange={(v) => updateSynthA({ vowel: v })}
+                        onPortamentoChange={(v) => updateSynthA({ portamento: v })}
+                        onFormantShiftChange={(v) => updateSynthA({ formantShift: v })}
+                    />
+                )}
+            </div>
+        );
+    }, [synthA.waveform, synthA.engine303, synthA.vowel, synthA.portamento, synthA.formantShift, updateSynthA, audioEngine]);
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
+        const isProphecy = synthB.waveform?.startsWith('prophecy-') ?? false;
         const engine = synthB.engine303 ?? 'open303';
         const handleSynthBEngineChange = (e: 'open303' | 'jc303') => {
             updateSynthB({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(e);
+            engineTelemetry.registerResolution('synthB-engine303', e, 'user-initiated');
         };
         return (
             <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
                 <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
                 {is303 && (
-                    <div className="flex flex-col gap-1 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
-                        <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center">Engine</span>
-                        <button
-                            onClick={() => handleSynthBEngineChange('open303')}
-                            className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                                engine === 'open303'
-                                    ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                                    : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                            }`}
-                        >
-                            Custom
-                        </button>
-                        <button
-                            onClick={() => handleSynthBEngineChange('jc303')}
-                            className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                                engine === 'jc303'
-                                    ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                                    : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                            }`}
-                        >
-                            JC303
-                        </button>
-                    </div>
+                    <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
+                )}
+                {isProphecy && (
+                    <ProphecyPanel
+                        vowel={synthB.vowel ?? 0}
+                        portamento={synthB.portamento ?? 0}
+                        formantShift={synthB.formantShift ?? 0}
+                        accentColor="pink"
+                        onVowelChange={(v) => updateSynthB({ vowel: v })}
+                        onPortamentoChange={(v) => updateSynthB({ portamento: v })}
+                        onFormantShiftChange={(v) => updateSynthB({ formantShift: v })}
+                    />
                 )}
             </div>
         );
-    }, [synthB.waveform, synthB.engine303, updateSynthB, audioEngine]);
+    }, [synthB.waveform, synthB.engine303, synthB.vowel, synthB.portamento, synthB.formantShift, updateSynthB, audioEngine]);
     const bass2Child = useMemo(() => {
         const engine = bass2.engine303 ?? 'open303';
         const handleBass2EngineChange = (e: 'open303' | 'jc303') => {
             updateBass2({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(e);
+            engineTelemetry.registerResolution('bass2-engine303', e, 'user-initiated');
         };
         return (
         <div className="absolute top-4 right-6 pointer-events-auto">
@@ -1386,27 +1434,7 @@ const handleLyricApply = useCallback(async (text: string) => {
                 >
                     SQR
                 </button>
-                <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center mt-1">Engine</span>
-                <button
-                    onClick={() => handleBass2EngineChange('open303')}
-                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                        engine === 'open303'
-                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    }`}
-                >
-                    Custom
-                </button>
-                <button
-                    onClick={() => handleBass2EngineChange('jc303')}
-                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                        engine === 'jc303'
-                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    }`}
-                >
-                    JC303
-                </button>
+                <Engine303Selector engine={engine} onChange={handleBass2EngineChange} accentColor="pink" />
             </div>
         </div>
         );
@@ -1454,6 +1482,7 @@ const handleLyricApply = useCallback(async (text: string) => {
         melodicMode, setMelodicMode,
         activeAlignment, setActiveAlignment,
         lastSamplerMidiRef,
+        lastSamplerFormantRef,
         currentScale, setCurrentScale,
         sliceHighlightRef,
         selection, setSelection,
@@ -1495,6 +1524,9 @@ const handleLyricApply = useCallback(async (text: string) => {
         openHat, setOpenHat,
         openHatRef,
         updateOpenHat,
+        drumKit,
+        drumKitRef,
+        updateDrumKit,
         sampler, setSampler,
         samplerRef,
         updateSampler,

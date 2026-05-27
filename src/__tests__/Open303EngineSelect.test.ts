@@ -117,6 +117,58 @@ describe('Open303Manager engine selection', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Open303Manager lead303 engine delegation (partA / SYNTH A LEAD)
+// ---------------------------------------------------------------------------
+
+describe('Open303Manager lead303 engine selection', () => {
+    let manager: Open303Manager;
+    let lead303SetEngine: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+        manager = new Open303Manager();
+        lead303SetEngine = vi.fn();
+
+        const fakeLead303 = { setEngine303: lead303SetEngine } as unknown as Open303Oscillator;
+        (manager as any).lead303 = fakeLead303;
+    });
+
+    it('setLead303Engine delegates to lead303.setEngine303()', () => {
+        manager.setLead303Engine('jc303');
+        expect(lead303SetEngine).toHaveBeenCalledOnce();
+        expect(lead303SetEngine).toHaveBeenCalledWith('jc303');
+    });
+
+    it('setLead303Engine with "open303" delegates correctly', () => {
+        manager.setLead303Engine('open303');
+        expect(lead303SetEngine).toHaveBeenCalledOnce();
+        expect(lead303SetEngine).toHaveBeenCalledWith('open303');
+    });
+
+    it('setLead303Engine is a no-op when lead303 is null', () => {
+        (manager as any).lead303 = null;
+        expect(() => manager.setLead303Engine('jc303')).not.toThrow();
+    });
+
+    it('supports switching back to open303 from jc303', () => {
+        manager.setLead303Engine('jc303');
+        manager.setLead303Engine('open303');
+        expect(lead303SetEngine).toHaveBeenCalledTimes(2);
+        expect(lead303SetEngine).toHaveBeenNthCalledWith(1, 'jc303');
+        expect(lead303SetEngine).toHaveBeenNthCalledWith(2, 'open303');
+    });
+
+    it('isLead303Ready returns false when lead303Ready is false', () => {
+        (manager as any).lead303Ready = false;
+        expect(manager.isLead303Ready()).toBe(false);
+    });
+
+    it('isLead303Ready returns true when lead303Ready is true', () => {
+        (manager as any).lead303Ready = true;
+        expect(manager.isLead303Ready()).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Default parameter values
 // ---------------------------------------------------------------------------
 

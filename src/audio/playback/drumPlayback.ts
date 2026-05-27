@@ -5,18 +5,25 @@
  * - Kick drum (oscillator with pitch envelope)
  * - Snare (tone + noise)
  * - Hi-hats (filtered noise)
+ * 
+ * Supports kit selection (808/909) for authentic ReBirth-style sound character.
  */
 
-import type { KickParams, SnareParams, HatParams, DrumSound } from '../../types';
+import type { KickParams, SnareParams, HatParams, DrumSound, DrumKitType } from '../../types';
+import { DrumKitEngine } from '../../engines/DrumKitEngine';
 
 export interface DrumPlaybackContext {
     context: AudioContext;
     masterGain: GainNode;
     noiseBuffer: AudioBuffer | null;
+    /** Optional kit engine for authentic 808/909 synthesis */
+    drumKitEngine?: DrumKitEngine | null;
 }
 
 /**
- * Play a drum sound
+ * Play a drum sound. When a DrumKitEngine is provided in the context,
+ * uses kit-aware synthesis for authentic 808/909 character.
+ * Falls back to basic synthesis when no kit engine is present.
  */
 export function playDrum(
     ctx: DrumPlaybackContext,
@@ -24,9 +31,17 @@ export function playDrum(
     params: KickParams | SnareParams | HatParams,
     time: number
 ): void {
-    const { context, masterGain, noiseBuffer } = ctx;
+    const { context, masterGain, noiseBuffer, drumKitEngine } = ctx;
     
     if (!masterGain) return;
+
+    // Use kit engine when available for authentic sound
+    if (drumKitEngine) {
+        drumKitEngine.play(context, masterGain, noiseBuffer, sound, params, time);
+        return;
+    }
+
+    // Legacy fallback: basic synthesis without kit character
     const now = time;
 
     if (sound === 'kick') {

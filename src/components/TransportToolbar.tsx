@@ -25,6 +25,8 @@ interface TransportToolbarProps {
     setIs3DMode: React.Dispatch<React.SetStateAction<boolean>>
     currentScale: ScaleDefinition | null
     setCurrentScale: (scale: ScaleDefinition | null) => void
+    /** Optional always-visible engine status indicator rendered in the left cluster. */
+    engineStatus?: React.ReactNode
 }
 
 export const TransportToolbar = memo(function TransportToolbar({
@@ -48,6 +50,7 @@ export const TransportToolbar = memo(function TransportToolbar({
     setIs3DMode,
     currentScale,
     setCurrentScale,
+    engineStatus,
 }: TransportToolbarProps) {
     return (
         <header className="h-12 flex items-center justify-between px-4 bg-gradient-to-r from-[#0b0d10] via-[#0d1014] to-[#0b0d10] border-b border-cyan-900/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)] shrink-0 relative backdrop-blur-md w-full z-30">
@@ -81,6 +84,13 @@ export const TransportToolbar = memo(function TransportToolbar({
                 <div className="flex items-center gap-2">
                     <CloudStatus />
                 </div>
+
+                {/* Engine Status Pills */}
+                {engineStatus && (
+                    <div className="flex items-center">
+                        {engineStatus}
+                    </div>
+                )}
             </div>
 
             {/* Center: Transport Controls */}

@@ -126,6 +126,8 @@ export const BottomBar = memo(function BottomBar({
                         <option value="formantShift">Formant</option>
                         <option value="vibratoDepth">Vibrato</option>
                         <option value="chordInversion">Chord Inversion</option>
+                        <option value="vowel">Vowel (Prophecy)</option>
+                        <option value="portamento">Portamento (Prophecy)</option>
                     </select>
                 )}
 

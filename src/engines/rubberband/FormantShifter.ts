@@ -392,7 +392,7 @@ export class FormantShifter {
      * @param shift New formant shift specification
      * @param rampTime Optional duration for interpolating to the new shift (seconds)
      */
-    updateFilterChain(shift: FormantShift, rampTime: number = 0.05): void {
+    updateFilterChain(shift: FormantShift, rampTime: number = 0.05, startTime?: number): void {
         if (this.filterNodes.length === 0) {
             this.createFilterChain(shift);
             return;
@@ -408,7 +408,8 @@ export class FormantShifter {
             formants.push({ freq: this.sourceFormants.f4, shift: shift.f4Shift });
         }
         
-        const targetTime = this.audioContext.currentTime + rampTime;
+        const now = startTime ?? this.audioContext.currentTime;
+        const targetTime = now + rampTime;
 
         // Update frequency and gain of existing filters
         for (let i = 0; i < formants.length && i < this.filterNodes.length; i++) {
@@ -416,12 +417,12 @@ export class FormantShifter {
             const freqMultiplier = Math.pow(2, semitonesShift / 12);
             const targetFreq = freq * freqMultiplier;
             
-            this.filterNodes[i].frequency.cancelScheduledValues(this.audioContext.currentTime);
-            this.filterNodes[i].frequency.setValueAtTime(this.filterNodes[i].frequency.value, this.audioContext.currentTime);
+            this.filterNodes[i].frequency.cancelScheduledValues(now);
+            this.filterNodes[i].frequency.setValueAtTime(this.filterNodes[i].frequency.value, now);
             this.filterNodes[i].frequency.linearRampToValueAtTime(targetFreq, targetTime);
 
-            this.filterNodes[i].gain.cancelScheduledValues(this.audioContext.currentTime);
-            this.filterNodes[i].gain.setValueAtTime(this.filterNodes[i].gain.value, this.audioContext.currentTime);
+            this.filterNodes[i].gain.cancelScheduledValues(now);
+            this.filterNodes[i].gain.setValueAtTime(this.filterNodes[i].gain.value, now);
             this.filterNodes[i].gain.linearRampToValueAtTime(Math.abs(semitonesShift) * 2, targetTime);
         }
         

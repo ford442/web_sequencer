@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params } from '../types';
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType } from '../types';
 import type { CloudItemType } from '../services/CloudStorage';
 import type { AISongData } from '../importers/ai-song';
 import type { TrackKey, SongSnapshot } from '../constants/appDefaults';
@@ -68,6 +68,9 @@ export interface SongStorageDeps {
     // Modal setters referenced by import functions
     setIsAISongModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+
+    // Drum kit setter (optional for backwards compat)
+    setDrumKit?: (kit: DrumKitType) => void;
 }
 
 export interface SongStorageReturn {
@@ -500,6 +503,11 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         if (song.params.bass2) {
             setBass2(song.params.bass2);
             bass2Ref.current = song.params.bass2;
+        }
+
+        // Set drum kit type from imported song
+        if (song.params.drumKit && deps.setDrumKit) {
+            deps.setDrumKit(song.params.drumKit);
         }
 
         loadCloudData(savedSong, 'song');
