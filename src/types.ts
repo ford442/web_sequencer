@@ -184,6 +184,7 @@ export interface Note {
   velocity: number;
   length?: number;
   slide?: boolean;
+  slideFormant?: boolean;
   chord?: string[];
   timbre?: number;
   probability?: number;

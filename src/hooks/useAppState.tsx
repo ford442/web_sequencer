@@ -126,6 +126,7 @@ export function useAppState() {
     const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
 
     const lastSamplerMidiRef = useRef<Record<number, number>>({});
+    const lastSamplerFormantRef = useRef<Record<number, number>>({});
 
     const handleStart = async () => {
         console.log("Initialization sequence started...");
@@ -460,6 +461,7 @@ export function useAppState() {
         patternRef,
         lastFreqRef,
         lastSamplerMidiRef,
+        lastSamplerFormantRef,
         synthARef,
         synthBRef,
         bass2Ref,
@@ -1429,6 +1431,7 @@ const handleLyricApply = useCallback(async (text: string) => {
         melodicMode, setMelodicMode,
         activeAlignment, setActiveAlignment,
         lastSamplerMidiRef,
+        lastSamplerFormantRef,
         currentScale, setCurrentScale,
         sliceHighlightRef,
         selection, setSelection,

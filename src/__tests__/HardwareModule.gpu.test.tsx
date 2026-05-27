@@ -99,7 +99,8 @@ describe('HardwareModule - WebGPU Optimization', () => {
 
     it('optimizes buffer writes: full write initially, partial write on animation frame', async () => {
         const onParamChange = vi.fn();
-        let unmount: any;
+        let unmount: any = () => {};
+        let rerender: any;
 
         await act(async () => {
             const result = render(
@@ -112,6 +113,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
                 />
             );
             rerender = result.rerender;
+            unmount = result.unmount;
         });
 
         // Trigger next frame
@@ -135,15 +137,6 @@ describe('HardwareModule - WebGPU Optimization', () => {
         expect(firstCall[3]).toBeUndefined();
         expect(firstCall[4]).toBeUndefined();
 
-        // Trigger next frame
-            unmount = result.unmount;
-        });
-
-        // Simply unmount to trigger cleanup where the TypeError was occurring.
-        // If it doesn't crash, the test passes successfully (fixing the issue from CI).
-        await act(async () => {
-            unmount();
-        });
 
         // Subsequent frame: Also a full write of 4 elements (the refactored code writes everything each frame)
         expect(mockWriteBuffer).toHaveBeenCalledTimes(2);
