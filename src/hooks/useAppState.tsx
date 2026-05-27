@@ -19,6 +19,7 @@ import { WaveformSelector } from '../components/WaveformSelector'
 import { Engine303Selector } from '../components/Engine303Selector'
 import { ProphecyPanel } from '../components/ProphecyPanel'
 import { SamplerPanel } from '../components/SamplerPanel'
+import { engineTelemetry } from '../utils/engineTelemetry'
 
 import {
     NUM_STEPS,
@@ -1326,6 +1327,7 @@ const handleLyricApply = useCallback(async (text: string) => {
             updateSynthA({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(e);
+            engineTelemetry.registerResolution('synthA-engine303', e, 'user-initiated');
         };
         return (
             <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
@@ -1355,6 +1357,7 @@ const handleLyricApply = useCallback(async (text: string) => {
             updateSynthB({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(e);
+            engineTelemetry.registerResolution('synthB-engine303', e, 'user-initiated');
         };
         return (
             <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
@@ -1382,6 +1385,7 @@ const handleLyricApply = useCallback(async (text: string) => {
             updateBass2({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(e);
+            engineTelemetry.registerResolution('bass2-engine303', e, 'user-initiated');
         };
         return (
         <div className="absolute top-4 right-6 pointer-events-auto">
