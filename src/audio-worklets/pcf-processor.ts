@@ -276,43 +276,41 @@ class PcfProcessor extends AudioWorkletProcessor {
             return true;
         }
 
+        // Advance transport and compute target cutoff at block rate
+        // (recompute coefficients once per block to reduce CPU)
+        if (this.playing) {
+            this.sampleCounter += blockSize;
+            while (this.sampleCounter >= this.samplesPerStep) {
+                this.sampleCounter -= this.samplesPerStep;
+                this.currentStep = (this.currentStep + 1) % this.patternLength;
+                this.triggerStep();
+            }
+        }
+
+        // Apply envelope decay for block duration
+        this.envelopeLevel *= Math.pow(this.envelopeDecayRate, blockSize);
+
+        // Calculate target cutoff for this block
+        let targetHz: number;
+        if (this.automationCutoffHz >= 0) {
+            targetHz = this.automationCutoffHz;
+        } else {
+            const baseHz = this.midiToHz(this.baseCutoff);
+            const maxHz = this.midiToHz(127);
+            const modRange = (maxHz - baseHz) * this.envelopeLevel;
+            targetHz = baseHz + modRange;
+        }
+
+        // Smooth cutoff and recompute coefficients once per block
+        this.currentCutoffHz += (targetHz - this.currentCutoffHz) * this.smoothingCoeff * blockSize;
+        if (Math.abs(this.currentCutoffHz - this.targetCutoffHz) > 0.5) {
+            this.targetCutoffHz = this.currentCutoffHz;
+            this.computeCoefficients(this.currentCutoffHz, this.resonance);
+        }
+
+        // Apply biquad filter (Direct Form II Transposed)
         for (let i = 0; i < blockSize; i++) {
-            // Advance transport timing
-            if (this.playing) {
-                this.sampleCounter++;
-                if (this.sampleCounter >= this.samplesPerStep) {
-                    this.sampleCounter = 0;
-                    this.currentStep = (this.currentStep + 1) % this.patternLength;
-                    this.triggerStep();
-                }
-            }
-
-            // Apply envelope decay
-            this.envelopeLevel *= this.envelopeDecayRate;
-
-            // Calculate target cutoff
-            let targetHz: number;
-            if (this.automationCutoffHz >= 0) {
-                // External automation drives cutoff directly
-                targetHz = this.automationCutoffHz;
-            } else {
-                // Pattern-driven: base cutoff + envelope modulation
-                const baseHz = this.midiToHz(this.baseCutoff);
-                const maxHz = this.midiToHz(127);
-                const modRange = (maxHz - baseHz) * this.envelopeLevel;
-                targetHz = baseHz + modRange;
-            }
-
-            // Smooth cutoff changes
-            this.currentCutoffHz += (targetHz - this.currentCutoffHz) * this.smoothingCoeff;
-
-            // Recompute coefficients (only when cutoff changes significantly)
-            if (Math.abs(this.currentCutoffHz - this.targetCutoffHz) > 1) {
-                this.targetCutoffHz = this.currentCutoffHz;
-                this.computeCoefficients(this.currentCutoffHz, this.resonance);
-            }
-
-            // Apply biquad filter (Direct Form II Transposed) - Left channel
+            // Left channel
             const xL = inputL[i];
             const yL = this.b0 * xL + this.z1L;
             this.z1L = this.b1 * xL - this.a1 * yL + this.z2L;
