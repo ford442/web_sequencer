@@ -502,7 +502,8 @@ export class RbsImporter {
   ): HyphonSong['params'] {
     // Map TB-303 0-127 range to Hyphon parameters using exponential curves
     const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1 }, sourceName: string): SynthParams => {
-      const waveform: Waveform = tb303.waveform === 0 ? 'sawtooth' : 'square';
+      // Use 303-specific waveforms so Open303Manager is selected for playback
+      const waveform: Waveform = tb303.waveform === 0 ? '303-saw' : '303-sqr';
       
       // Cutoff: RBS 0-127 → Hyphon 100-8000 Hz (exponential curve)
       // Formula: 100 * 2^(rbsCutoff / 21.17) where 127 ≈ 8000Hz
