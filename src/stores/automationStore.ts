@@ -280,7 +280,12 @@ class AutomationStore {
     this.notify();
   }
 
-  /** Record a point during active recording */
+  /**
+   * Record a point during active recording.
+   * NOTE: Does not notify subscribers on each point for performance reasons —
+   * recording can produce 60+ points/sec. Consumers needing live feedback
+   * should poll getState() or use a separate RAF-based display loop.
+   */
   recordPoint(target: AutomationTarget, parameter: string, point: AutomationLanePoint): void {
     this.state = {
       ...this.state,
@@ -290,7 +295,6 @@ class AutomationStore {
           : b
       ),
     };
-    // Don't notify on every point to avoid performance issues during recording
   }
 
   /** Stop recording and commit buffer to a new lane */
@@ -353,10 +357,13 @@ class AutomationStore {
   // Playback
   // --------------------------------------------------------------------------
 
-  /** Update the current playback step position */
+  /**
+   * Update the current playback step position.
+   * NOTE: Does not notify subscribers — called on every 16th-note tick.
+   * The playback scheduler reads this via getState() directly.
+   */
   setPlaybackStep(step: number): void {
     this.state = { ...this.state, playbackStep: step };
-    // Don't notify on every step to avoid performance issues
   }
 
   /** Toggle global automation playback */
@@ -401,7 +408,8 @@ class AutomationStore {
       return before.value + t * (after.value - before.value);
     }
 
-    // Smooth (cubic ease in-out)
+    // Smooth interpolation: cubic Hermite (smoothstep) 3t² - 2t³
+    // Provides ease-in/ease-out curve between points for natural knob movement
     const smoothT = t * t * (3 - 2 * t);
     return before.value + smoothT * (after.value - before.value);
   }
