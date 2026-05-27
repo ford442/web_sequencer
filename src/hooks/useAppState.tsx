@@ -1316,7 +1316,23 @@ const handleLyricApply = useCallback(async (text: string) => {
     const openHatControls = useStableKnobConfig(getOpenHatControls, openHat);
     const samplerControls = useStableKnobConfig(getSamplerControls, sampler[activeSamplerBank]);
 
-    const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
+    const synthAChild = useMemo(() => {
+        const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
+        const engine = synthA.engine303 ?? 'open303';
+        const handleSynthAEngineChange = (e: 'open303' | 'jc303') => {
+            updateSynthA({ engine303: e });
+            const mgr = audioEngine?.open303Engine;
+            if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(e);
+        };
+        return (
+            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
+                <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
+                {is303 && (
+                    <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
+                )}
+            </div>
+        );
+    }, [synthA.waveform, synthA.engine303, updateSynthA, audioEngine]);
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
         const engine = synthB.engine303 ?? 'open303';
