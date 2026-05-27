@@ -33,6 +33,12 @@ export interface SynthNoteParams {
     reverbType?: 'room' | 'plate' | 'hall';
     envMod?: number;
     delaySend?: number;
+    /** Prophecy: Vowel formant preset override 0–4 */
+    vowel?: number;
+    /** Prophecy: Portamento rate override 0–1 */
+    portamento?: number;
+    /** Prophecy: Formant shift override 0–1 */
+    formantShift?: number;
 }
 
 export interface DrumNoteParams {
@@ -108,7 +114,8 @@ export function createPlaySynth(
 
         const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
         let effectiveParams = params;
-        if (noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined) {
+        if (noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined
+            || noteParams?.vowel !== undefined || noteParams?.portamento !== undefined || noteParams?.formantShift !== undefined) {
             effectiveParams = { ...params };
 
             if (noteParams?.timbre !== undefined) {
@@ -124,6 +131,15 @@ export function createPlaySynth(
             if (noteParams?.envMod !== undefined) {
                 // @ts-expect-error envMod may not exist on SynthParams directly, but gets mapped correctly to Bass2/Open303 overrides
                 effectiveParams.envMod = noteParams.envMod;
+            }
+            if (noteParams?.vowel !== undefined) {
+                effectiveParams.vowel = noteParams.vowel;
+            }
+            if (noteParams?.portamento !== undefined) {
+                effectiveParams.portamento = noteParams.portamento;
+            }
+            if (noteParams?.formantShift !== undefined) {
+                effectiveParams.formantShift = noteParams.formantShift;
             }
         }
 

@@ -13,6 +13,7 @@ import type { TrackKey } from '../constants/appDefaults';
 import { noteToMidi, midiToNote, tunedNoteToFrequency } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
+import type { SynthNoteParams } from './audioEngine/audioPlayback';
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const notesArray = Array.isArray(notes) ? notes : [notes];
@@ -163,6 +164,26 @@ export const useStepHandler = ({
                 ? lastFreqRef.current[trackKey]
                 : undefined;
 
+            // Build per-step note params from stepData (including Prophecy params)
+            const noteParams: SynthNoteParams = {};
+            if (stepData.timbre !== undefined) noteParams.timbre = stepData.timbre;
+            if (stepData.microtiming !== undefined) noteParams.microtiming = stepData.microtiming;
+            if (stepData.retrigger !== undefined) noteParams.retrigger = stepData.retrigger;
+            if (stepData.formantShift !== undefined) noteParams.formantShift = stepData.formantShift;
+            if (stepData.reverbSend !== undefined) noteParams.reverbSend = stepData.reverbSend;
+            if (stepData.reverbType !== undefined) noteParams.reverbType = stepData.reverbType;
+            if (stepData.delaySend !== undefined) noteParams.delaySend = stepData.delaySend;
+            if (stepData.vowel !== undefined) noteParams.vowel = stepData.vowel;
+            if (stepData.portamento !== undefined) noteParams.portamento = stepData.portamento;
+            // Apply automation overrides for prophecy params
+            const automation = activePattern[trackKey].automation;
+            const autoVowel = automation?.['vowel']?.[step];
+            if (autoVowel !== undefined && autoVowel !== null) noteParams.vowel = autoVowel;
+            const autoPortamento = automation?.['portamento']?.[step];
+            if (autoPortamento !== undefined && autoPortamento !== null) noteParams.portamento = autoPortamento;
+            const autoFormantShift = automation?.['formantShift']?.[step];
+            if (autoFormantShift !== undefined && autoFormantShift !== null) noteParams.formantShift = autoFormantShift;
+
             audioEngine.playSynth(
                 params,
                 notes,
@@ -171,7 +192,7 @@ export const useStepHandler = ({
                 stepTime,
                 slideFrom,
                 trackKey,
-                currentScale // ← Microtonal tuning passed here
+                noteParams,
             );
 
             // Update last frequency for future slides
