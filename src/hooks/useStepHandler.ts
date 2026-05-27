@@ -164,7 +164,11 @@ export const useStepHandler = ({
                 ? lastFreqRef.current[trackKey]
                 : undefined;
 
-            // Build per-step note params from stepData (including Prophecy params)
+            // Build per-step note params from stepData (including Prophecy params).
+            // Note: previously `currentScale` was passed here but `SynthNoteParams` has no scale
+            // properties — it was never consumed by createPlaySynth. Microtonal slide tracking
+            // continues to use `tunedNoteToFrequency` below. VoiceManager handles scale tuning
+            // independently when it plays the note string.
             const noteParams: SynthNoteParams = {};
             if (stepData.timbre !== undefined) noteParams.timbre = stepData.timbre;
             if (stepData.microtiming !== undefined) noteParams.microtiming = stepData.microtiming;
@@ -175,8 +179,8 @@ export const useStepHandler = ({
             if (stepData.delaySend !== undefined) noteParams.delaySend = stepData.delaySend;
             if (stepData.vowel !== undefined) noteParams.vowel = stepData.vowel;
             if (stepData.portamento !== undefined) noteParams.portamento = stepData.portamento;
-            // Apply automation overrides for prophecy params
-            const automation = activePattern[trackKey].automation;
+            // Apply per-lane automation overrides for prophecy params
+            const automation = activePattern[trackKey]?.automation;
             const autoVowel = automation?.['vowel']?.[step];
             if (autoVowel !== undefined && autoVowel !== null) noteParams.vowel = autoVowel;
             const autoPortamento = automation?.['portamento']?.[step];
