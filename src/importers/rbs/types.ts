@@ -416,6 +416,9 @@ export interface HyphonSong {
     
     /** Open hat params */
     openHat: HatParams;
+    
+    /** Selected drum kit type (808/909) from .rbs file */
+    drumKit?: '808' | '909';
   };
   
   /** Converted automation lanes */

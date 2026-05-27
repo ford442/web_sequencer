@@ -31,8 +31,10 @@ import {
     DEFAULT_SNARE_PARAMS,
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
+    DEFAULT_DRUM_KIT,
+    getKitDrumParams,
 } from '../constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType } from '../types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType } from '../types'
 import {
     INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
@@ -115,7 +117,7 @@ export function useAppState() {
 
     const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
-    const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide, tempo)
+    const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef } = useAudioEngine(pyodide, tempo)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
     useTTSPreloader()
@@ -275,6 +277,24 @@ export function useAppState() {
     const [openHat, setOpenHat] = useState(DEFAULT_OPEN_HAT_PARAMS);
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
     const updateOpenHat = useCallback((u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => { setOpenHat(prev => { const n = { ...prev, ...u }; openHatRef.current = n; return n; }); }, []);
+
+    // Drum kit selection (808/909)
+    const [drumKit, setDrumKit] = useState<DrumKitType>(DEFAULT_DRUM_KIT);
+    const drumKitRef = useRef<DrumKitType>(DEFAULT_DRUM_KIT);
+    const updateDrumKit = useCallback((kit: DrumKitType) => {
+      setDrumKit(kit);
+      drumKitRef.current = kit;
+      // Sync kit engine
+      if (drumKitEngineRef?.current) {
+        drumKitEngineRef.current.setKit(kit);
+      }
+      // Apply kit default params when switching
+      const kitParams = getKitDrumParams(kit);
+      setKick(kitParams.kick); kickRef.current = kitParams.kick;
+      setSnare(kitParams.snare); snareRef.current = kitParams.snare;
+      setClosedHat(kitParams.closedHat); closedHatRef.current = kitParams.closedHat;
+      setOpenHat(kitParams.openHat); openHatRef.current = kitParams.openHat;
+    }, [drumKitEngineRef]);
 
     const [sampler, setSampler] = useState<SamplerParams>(INITIAL_SAMPLER_PARAMS);
     const samplerRef = useRef(INITIAL_SAMPLER_PARAMS);
@@ -1152,6 +1172,7 @@ const handleNotePropertyChange = useCallback((
         setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen,
+        setDrumKit: updateDrumKit,
     });
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal }); }, [updateSynthA, updateSynthB]);
@@ -1503,6 +1524,9 @@ const handleLyricApply = useCallback(async (text: string) => {
         openHat, setOpenHat,
         openHatRef,
         updateOpenHat,
+        drumKit,
+        drumKitRef,
+        updateDrumKit,
         sampler, setSampler,
         samplerRef,
         updateSampler,

@@ -38,6 +38,8 @@ export const RackNode = React.memo(() => {
     selectedTrack,
     synthB,
     bass2,
+    drumKit,
+    updateDrumKit,
   } = useAppStateContext()
 
   /** JC303-active badge for the SYNTH B title bar (only when a 303 waveform and jc303 engine are active). */
@@ -69,10 +71,30 @@ export const RackNode = React.memo(() => {
     );
   }, [bass2.engine303]);
 
+  /** Drum kit LED badge showing active 808/909 with a switcher */
+  const drumKitBadge = useMemo(() => (
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); updateDrumKit(drumKit === '808' ? '909' : '808'); }}
+        className={`text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border transition-colors cursor-pointer ${
+          drumKit === '808'
+            ? 'bg-red-950/90 text-red-300 border-red-500/60'
+            : 'bg-blue-950/90 text-blue-300 border-blue-500/60'
+        }`}
+        title={`Active: TR-${drumKit} — Click to switch`}
+        aria-label={`Drum kit: TR-${drumKit}. Click to switch.`}
+      >
+        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-0.5 ${drumKit === '808' ? 'bg-red-400 animate-pulse' : 'bg-blue-400 animate-pulse'}`} />
+        {drumKit}
+      </button>
+    </span>
+  ), [drumKit, updateDrumKit]);
+
   const rackModulePartA = useMemo(() => <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={synthAControls} onParamChange={onSynthAParamChange} is3D={is3DMode}>{synthAChild}</HardwareModule>, [synthAControls, onSynthAParamChange, is3DMode, synthAChild])
   const rackModulePartB = useMemo(() => <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={synthBControls} onParamChange={onSynthBParamChange} is3D={is3DMode} titleBadge={synthBTitleBadge}>{synthBChild}</HardwareModule>, [synthBControls, onSynthBParamChange, is3DMode, synthBChild, synthBTitleBadge])
   const rackModuleBass2 = useMemo(() => <HardwareModule title="BASS 2 // TB-303" colorHex={COLOR_BASS2} controls={bass2Controls} onParamChange={onBass2ParamChange} is3D={is3DMode} titleBadge={bass2TitleBadge}>{bass2Child}</HardwareModule>, [bass2Controls, onBass2ParamChange, is3DMode, bass2Child, bass2TitleBadge])
-  const rackModuleKick = useMemo(() => <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} is3D={is3DMode} />, [kickControls, handleKickChange, is3DMode])
+  const rackModuleKick = useMemo(() => <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={kickControls} onParamChange={handleKickChange} is3D={is3DMode} titleBadge={drumKitBadge} />, [kickControls, handleKickChange, is3DMode, drumKitBadge])
   const rackModuleSnare = useMemo(() => <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={snareControls} onParamChange={handleSnareChange} is3D={is3DMode} />, [snareControls, handleSnareChange, is3DMode])
   const rackModuleClosedHat = useMemo(() => <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={closedHatControls} onParamChange={handleClosedHatChange} is3D={is3DMode} />, [closedHatControls, handleClosedHatChange, is3DMode])
   const rackModuleOpenHat = useMemo(() => <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={openHatControls} onParamChange={handleOpenHatChange} is3D={is3DMode} />, [openHatControls, handleOpenHatChange, is3DMode])

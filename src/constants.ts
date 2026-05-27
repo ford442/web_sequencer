@@ -1,6 +1,7 @@
 import { noteToMidi, applyMicrotonalTuning } from './utils/musicTheory';
 import type { ScaleDefinition } from './utils/musicTheory';
-import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerBankParams, SamplerParams, AmbianceTrack } from './types';
+import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerBankParams, SamplerParams, AmbianceTrack, DrumKitType } from './types';
+import { DRUM_KIT_PRESETS } from './engines/DrumKitPresets';
 
 export const NUM_STEPS = 32;
 export const DEFAULT_TEMPO = 120;
@@ -57,6 +58,23 @@ export const DEFAULT_SNARE_PARAMS: SnareParams = { decay: 0.2, tone: 150, noise:
 export const DEFAULT_CLOSED_HAT_PARAMS: HatParams = { pitch: 9000, decay: 0.05, volume: 0.4 };
 
 export const DEFAULT_OPEN_HAT_PARAMS: HatParams = { pitch: 7000, decay: 0.4, volume: 0.4 };
+
+/** Default drum kit type */
+export const DEFAULT_DRUM_KIT: DrumKitType = '808';
+
+/**
+ * Get default drum params for a specific kit type.
+ * Use this when switching kits or loading .rbs files.
+ */
+export function getKitDrumParams(kitType: DrumKitType): { kick: KickParams; snare: SnareParams; closedHat: HatParams; openHat: HatParams } {
+  const preset = DRUM_KIT_PRESETS[kitType];
+  return {
+    kick: { ...preset.kick },
+    snare: { ...preset.snare },
+    closedHat: { ...preset.closedHat },
+    openHat: { ...preset.openHat },
+  };
+}
 
 // This is just a helper, the actual default is array of 8 of these
 export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
