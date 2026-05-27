@@ -20,7 +20,7 @@ interface EngineStatusPillProps {
  * Lightweight, always-visible engine status bar for the Transport.
  *
  * Shows a small pill for each voice that is using a non-default engine:
- *  - Pink "JC303" badge when rosic::Open303 (jc303) is selected
+ *  - Pink "JC303" badge when the authentic JC303 engine is selected
  *  - Cyan "PROPHECY" badge when a prophecy-* waveform is active
  *
  * Hidden entirely when all voices are using default engines, so it only
@@ -54,7 +54,7 @@ export const EngineStatusPill: React.FC<EngineStatusPillProps> = memo(({
                 label: voice.label,
                 engine: 'JC303',
                 style: 'bg-pink-950/90 text-pink-300 border-pink-500/60',
-                title: `SYNTH ${voice.label}: Authentic JC303 (rosic::Open303) engine active`,
+                title: `SYNTH ${voice.label}: Authentic JC303 engine active`,
             });
         }
     }
