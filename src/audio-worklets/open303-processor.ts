@@ -568,7 +568,9 @@ class Open303Processor extends AudioWorkletProcessor {
             const res = exports.jc303_init_handle(this.jc303Handle, sampleRate, this.nativeBufFrames);
             if (res !== 1) {
                 console.warn(`[Open303] jc303_init_handle() returned ${res}`);
-                exports.jc303_destroy && exports.jc303_destroy(this.jc303Handle);
+                if (exports.jc303_destroy) {
+                    exports.jc303_destroy(this.jc303Handle);
+                }
                 this.jc303Handle = 0;
                 return;
             }

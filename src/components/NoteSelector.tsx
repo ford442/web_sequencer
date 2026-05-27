@@ -23,6 +23,7 @@ interface NoteSelectorProps {
     currentRetrigger?: number;
     currentFreeze?: number;
     currentFormantShift?: number;
+    currentSlideFormant?: boolean;
     currentFilterCutoff?: number;
     currentFilterResonance?: number;
     currentEnvMod?: number;
@@ -43,6 +44,12 @@ interface NoteSelectorProps {
     currentChoir?: number;
     currentGateDepth?: number;
     currentGateRate?: number;
+    /** Prophecy: whether the active synth uses a prophecy-* waveform */
+    isProphecy?: boolean;
+    /** Prophecy: current vowel formant 0–4 */
+    currentVowel?: number;
+    /** Prophecy: current portamento rate 0–1 */
+    currentPortamento?: number;
     onPropertyChange?: (key:
         | 'timbre'
         | 'velocity'
@@ -59,6 +66,7 @@ interface NoteSelectorProps {
         | 'filterCutoff'
         | 'filterResonance'
         | 'envMod'
+        | 'slideFormant'
         | 'formantLfoRate'
         | 'formantLfoDepth'
         | 'formantEnvAttack'
@@ -75,6 +83,8 @@ interface NoteSelectorProps {
         | 'reverbLfoDepth'
         | 'delaySend'
         | 'choir'
+        | 'vowel'
+        | 'portamento'
     , value: number | boolean | string) => void;
 }
 
@@ -110,6 +120,9 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
 
     currentGateDepth = 0,
     currentGateRate = 8,
+    isProphecy = false,
+    currentVowel = 0,
+    currentPortamento = 0,
     onPropertyChange
 }) => {
     // Determine octave range based on track type
@@ -530,6 +543,45 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                             </>
                         )}
 
+
+                        {/* Formant Shift Control */}
+                        {(trackType === 'sampler' || trackType === 'synth') && currentFormantShift !== undefined && (
+                            <div className="flex flex-col gap-1 mb-2">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                    <label htmlFor="note-fmt-shift">Formant Shift</label>
+                                    <span className="text-cyan-400 font-mono text-[10px] bg-zinc-950 px-1 py-0.5 rounded border border-zinc-800">
+                                        {currentFormantShift > 0 ? '+' : ''}{currentFormantShift}st
+                                    </span>
+                                </div>
+                                <input
+                                    id="note-fmt-shift"
+                                    type="range"
+                                    min="-12"
+                                    max="12"
+                                    step="1"
+                                    value={currentFormantShift}
+                                    onChange={(e) => onPropertyChange('formantShift', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
+                                    aria-valuetext={`${currentFormantShift > 0 ? '+' : ''}${currentFormantShift} st`}
+                                />
+                                <div className="flex items-center gap-2 mt-1">
+                                    <button
+                                        className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-zinc-900 border-zinc-700 text-gray-500'} hover:bg-zinc-800 transition-colors`}
+                                        onClick={() => onPropertyChange('slideFormant', !currentSlideFormant)}
+                                        title="Glide Formant from Previous Step"
+                                        aria-label="Toggle Formant Glide"
+                                        aria-pressed={currentSlideFormant}
+                                    >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M5 19L19 5" />
+                                            <path d="M19 19V5H5" />
+                                        </svg>
+                                    </button>
+                                    <span className="text-[9px] uppercase font-mono tracking-widest text-gray-400">Glide</span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Formant LFO Rate Control */}
                         {trackType === 'synth' && (
                             <div className="flex flex-col gap-1">
@@ -616,6 +668,59 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     aria-label="Vibrato Depth"
                                 />
                             </div>
+                        )}
+
+                        {/* ── Prophecy-specific controls ─────────────────────── */}
+                        {isProphecy && onPropertyChange && (
+                            <>
+                                {/* Vowel Select */}
+                                <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                                    <legend className="text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        Vowel (Prophecy)
+                                    </legend>
+                                    <div
+                                        role="group"
+                                        aria-label="Prophecy vowel formant"
+                                        className="flex gap-1"
+                                    >
+                                        {(['A', 'E', 'I', 'O', 'U'] as const).map((label, idx) => (
+                                            <button
+                                                key={label}
+                                                onClick={() => onPropertyChange('vowel', idx)}
+                                                aria-pressed={Math.round(currentVowel) === idx}
+                                                aria-label={`Vowel ${label}`}
+                                                className={`flex-1 py-1 text-[10px] font-bold rounded transition-all ${
+                                                    Math.round(currentVowel) === idx
+                                                        ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.4)]'
+                                                        : 'bg-gray-800/80 text-cyan-200/70 hover:bg-gray-700 hover:text-white border border-gray-700/50'
+                                                }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </fieldset>
+
+                                {/* Portamento */}
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-portamento">Portamento (Prophecy)</label>
+                                        <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{Math.round(currentPortamento * 100)}%</span>
+                                    </div>
+                                    <input
+                                        id="note-portamento"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentPortamento}
+                                        onChange={(e) => onPropertyChange('portamento', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                        aria-valuetext={`${Math.round(currentPortamento * 100)}%`}
+                                        aria-label="Portamento"
+                                    />
+                                </div>
+                            </>
                         )}
 
                         {/* Morph Override */}

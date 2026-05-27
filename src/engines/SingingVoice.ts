@@ -912,6 +912,31 @@ export class SingingVoice {
     }
 
     /**
+     * Glide formant shift from a starting value to an end value.
+     */
+    setFormantGlide(startSemitones: number, endSemitones: number, startTime: number, duration: number): void {
+        if (this.formantShifter && this.config.enableFormantShifting) {
+            // First jump to start without ramping
+            const startShift = {
+                f1Shift: startSemitones,
+                f2Shift: startSemitones,
+                f3Shift: startSemitones,
+                f4Shift: startSemitones
+            };
+            this.formantShifter.updateFilterChain(startShift, 0, startTime);
+
+            // Then ramp to end over duration
+            const endShift = {
+                f1Shift: endSemitones,
+                f2Shift: endSemitones,
+                f3Shift: endSemitones,
+                f4Shift: endSemitones
+            };
+            this.formantShifter.updateFilterChain(endShift, duration, startTime);
+        }
+    }
+
+    /**
      * Trigger a formant envelope.
      */
     setFormantEnvelope(amount: number, attack: number, decay: number, triggerTime: number) {

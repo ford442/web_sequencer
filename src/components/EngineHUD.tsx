@@ -5,8 +5,16 @@ const CONTAINER_ID = 'engine-hud-root';
 if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   const container = document.createElement('div');
   container.id = CONTAINER_ID;
+
+  // A11y: This is a developer-only diagnostic overlay (Ctrl+Shift+E to toggle).
+  // Never announced to screen readers; not part of primary content.
   container.setAttribute('aria-hidden', 'true');
   container.setAttribute('data-nosnippet', 'true');
+  // Inert is progressive enhancement (hides from a11y tree + input in supporting browsers)
+  if ('inert' in container) {
+    (container as any).inert = true;
+  }
+
   document.body.appendChild(container);
 
   const style = document.createElement('style');
