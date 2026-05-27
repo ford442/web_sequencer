@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType } from '../types';
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane } from '../types';
 import type { CloudItemType } from '../services/CloudStorage';
 import type { AISongData } from '../importers/ai-song';
+import type { HyphonAutomationLane } from '../importers/rbs';
 import type { TrackKey, SongSnapshot } from '../constants/appDefaults';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
@@ -100,6 +101,11 @@ export interface SongStorageReturn {
     setIsImportingAISong: React.Dispatch<React.SetStateAction<boolean>>;
     setAiImportProgress: React.Dispatch<React.SetStateAction<number>>;
     setAiImportStage: React.Dispatch<React.SetStateAction<AiImportStage>>;
+}
+
+/** Convert a 303-waveform string (e.g. '303-sqr', '303-saw') to the Open303 shorthand */
+function convert303Waveform(waveform: string): 'saw' | 'sqr' {
+    return waveform === '303-sqr' ? 'sqr' : 'saw';
 }
 
 export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
@@ -442,7 +448,28 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
 
     // ---- RBS Import ----
 
+    /** Convert HyphonAutomationLane[] (from RBS importer) to UnifiedAutomationLane[] */
+    const convertRbsAutomationLanes = useCallback((lanes: HyphonAutomationLane[]): UnifiedAutomationLane[] => {
+        return lanes.map((lane, idx) => ({
+            id: `rbs-${lane.target}-${lane.parameter}-${idx}`,
+            target: lane.target,
+            parameter: lane.parameter,
+            name: lane.name,
+            points: lane.points.map(([step, value]) => ({ step, value })),
+            interpolation: lane.interpolation,
+            source: 'rbs' as const,
+            scope: 'pattern' as const,
+            enabled: true,
+            originalRange: lane.originalRange,
+        }));
+    }, []);
+
     const handleRbsImport = useCallback((song: import('../importers/rbs').HyphonSong) => {
+        // Convert HyphonSong automation lanes to UnifiedAutomationLane format for persistence
+        const automationLanes: UnifiedAutomationLane[] | undefined = song.automation && song.automation.length > 0
+            ? convertRbsAutomationLanes(song.automation)
+            : undefined;
+
         // Convert HyphonSong to SavedSongData format
         const savedSong: SavedSongData = {
             version: 1,
@@ -497,6 +524,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 snare: 0, closedHat: 0, openHat: 0, sampler: null,
             })),
             ttsPhrases: Array(8).fill('Hello World'),
+            ...(automationLanes ? { automationLanes } : {}),
         };
 
         // Also set bass2 params if they exist
@@ -511,9 +539,43 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         }
 
         loadCloudData(savedSong, 'song');
+
+        // Wire imported 303 params to Open303Manager instances.
+        // partB → bass1 (SYNTH B), partA → lead303 (SYNTH A LEAD), bass2 → bass2 instance.
+        const open303Engine = audioEngine?.open303Engine;
+        if (open303Engine) {
+            const synthB = song.params.synthB;
+            if (synthB) {
+                open303Engine.applyBass1Params({
+                    filterCutoff: synthB.filterCutoff,
+                    filterResonance: synthB.filterResonance,
+                    filterMode: synthB.filterMode ?? 0,
+                    decay: synthB.decay,
+                    volume: synthB.volume,
+                    pan: synthB.pan,
+                }, convert303Waveform(synthB.waveform ?? ''));
+            }
+
+            const synthA = song.params.synthA;
+            if (synthA) {
+                open303Engine.applyLead303Params({
+                    filterCutoff: synthA.filterCutoff,
+                    filterResonance: synthA.filterResonance,
+                    filterMode: synthA.filterMode ?? 0,
+                    decay: synthA.decay,
+                    volume: synthA.volume,
+                    pan: synthA.pan,
+                }, convert303Waveform(synthA.waveform ?? ''));
+            }
+
+            if (song.params.bass2) {
+                open303Engine.applyBass2Params(song.params.bass2);
+            }
+        }
+
         setIsRbsImportModalOpen(false);
         showToast(`Imported "${song.metadata.name}" from RBS`, 'success');
-    }, [loadCloudData, showToast]);
+    }, [loadCloudData, showToast, convertRbsAutomationLanes, audioEngine]);
 
     return {
         getSongData,
