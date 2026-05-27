@@ -5,6 +5,8 @@ const CONTAINER_ID = 'engine-hud-root';
 if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   const container = document.createElement('div');
   container.id = CONTAINER_ID;
+  container.setAttribute('aria-hidden', 'true');
+  container.setAttribute('data-nosnippet', 'true');
   document.body.appendChild(container);
 
   const style = document.createElement('style');

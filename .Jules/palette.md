@@ -18,3 +18,6 @@
 ## 2026-05-14 - Aria Labeling in Mode-Switching Components
 **Learning:** Found that custom toggle switches and mutually exclusive selection buttons (like Voice Type and Harmony Type) frequently lack proper ARIA attributes (`aria-label` and `aria-pressed`). These mode-switching controls are critical for screen reader users to understand the state of complex UI features.
 **Action:** Always bind `aria-pressed` or `aria-selected` to the active state of mode-switching components, and ensure descriptive `aria-label`s are applied, especially when visual feedback is purely styling-based.
+## 2026-05-15 - Standardizing Loading States
+**Learning:** Found that scattered async operations often used disparate loading patterns—some inline SVGs, some custom text, and many lacking `aria-busy` and `aria-hidden="true"` on the loading spinners. This results in inconsistent visual feedback and fragmented screen-reader experiences during operations like mixdowns or file imports.
+**Action:** Created and applied a reusable `<LoadingButton>` component that bakes in `aria-busy`, `disabled` state, `cursor-wait`, and an accessible (SVG `aria-hidden="true"`, `focusable="false"`) spinner. Use this pattern for all asynchronous button actions.
