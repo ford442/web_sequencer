@@ -103,6 +103,11 @@ export interface SongStorageReturn {
     setAiImportStage: React.Dispatch<React.SetStateAction<AiImportStage>>;
 }
 
+/** Convert a 303-waveform string (e.g. '303-sqr', '303-saw') to the Open303 shorthand */
+function convert303Waveform(waveform: string): 'saw' | 'sqr' {
+    return waveform === '303-sqr' ? 'sqr' : 'saw';
+}
+
 export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     const {
         patternRef, tempoRef,
@@ -446,8 +451,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     /** Convert HyphonAutomationLane[] (from RBS importer) to UnifiedAutomationLane[] */
     const convertRbsAutomationLanes = useCallback((lanes: HyphonAutomationLane[]): UnifiedAutomationLane[] => {
         return lanes.map((lane, idx) => ({
-            id: `rbs-${lane.parameter}-${idx}`,
-            target: lane.target as UnifiedAutomationLane['target'],
+            id: `rbs-${lane.target}-${lane.parameter}-${idx}`,
+            target: lane.target,
             parameter: lane.parameter,
             name: lane.name,
             points: lane.points.map(([step, value]) => ({ step, value })),
@@ -541,7 +546,6 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         if (open303Engine) {
             const synthB = song.params.synthB;
             if (synthB) {
-                const waveformB: 'saw' | 'sqr' = synthB.waveform === '303-sqr' ? 'sqr' : 'saw';
                 open303Engine.applyBass1Params({
                     filterCutoff: synthB.filterCutoff,
                     filterResonance: synthB.filterResonance,
@@ -549,12 +553,11 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                     decay: synthB.decay,
                     volume: synthB.volume,
                     pan: synthB.pan,
-                }, waveformB);
+                }, convert303Waveform(synthB.waveform ?? ''));
             }
 
             const synthA = song.params.synthA;
             if (synthA) {
-                const waveformA: 'saw' | 'sqr' = synthA.waveform === '303-sqr' ? 'sqr' : 'saw';
                 open303Engine.applyLead303Params({
                     filterCutoff: synthA.filterCutoff,
                     filterResonance: synthA.filterResonance,
@@ -562,7 +565,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                     decay: synthA.decay,
                     volume: synthA.volume,
                     pan: synthA.pan,
-                }, waveformA);
+                }, convert303Waveform(synthA.waveform ?? ''));
             }
 
             if (song.params.bass2) {
