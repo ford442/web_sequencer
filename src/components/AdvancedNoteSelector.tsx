@@ -236,6 +236,8 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.m
                                             aria-selected={isSelected}
                                             aria-disabled={!isInScale}
                                             disabled={!isInScale}
+                                            title={`${fullNote}${!isInScale ? ' (Out of scale)' : ''}`}
+                                            aria-label={`${fullNote}${!isInScale ? ' (Out of scale)' : ''}`}
                                             onClick={() => isInScale && handleFlyoutSelect(fullNote)}
                                             className={`w-8 h-5 text-[9px] font-mono rounded flex items-center justify-center transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${
                                                 isInScale ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed disabled:opacity-35'
