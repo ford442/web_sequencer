@@ -85,6 +85,10 @@ export class ProphecyManager {
         osc.setRelease(Math.max(0, Math.min(1, params.release / 3)));
         // Map filterResonance (0-20) → Prophecy RESONANCE (0-1, inverted: high Q = low value)
         osc.setResonance(Math.max(0, Math.min(1, 1 - params.filterResonance / 20)));
+        // Prophecy-specific params
+        osc.setVowel(Math.round(Math.max(0, Math.min(4, params.vowel ?? 0))));
+        osc.setPortamento(Math.max(0, Math.min(1, params.portamento ?? 0)));
+        osc.setFormantShift(Math.max(0, Math.min(1, params.formantShift ?? 0)));
     }
 
     applyPartAParams(params: SynthParams, waveType: string): void {

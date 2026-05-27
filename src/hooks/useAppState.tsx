@@ -17,6 +17,7 @@ import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner'
 import { type HarmonizerConfig } from '../engines/Harmonizer'
 import { WaveformSelector } from '../components/WaveformSelector'
 import { Engine303Selector } from '../components/Engine303Selector'
+import { ProphecyPanel } from '../components/ProphecyPanel'
 import { SamplerPanel } from '../components/SamplerPanel'
 
 import {
@@ -1024,7 +1025,8 @@ const handleNotePropertyChange = useCallback((
          'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 
          'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
          'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delaySend' | 'freezeEnvDepth' |
-         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate',
+         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' |
+         'vowel' | 'portamento',
     value: number | boolean | string
 ) => {
     if (!contextMenu) return;
@@ -1318,6 +1320,7 @@ const handleLyricApply = useCallback(async (text: string) => {
 
     const synthAChild = useMemo(() => {
         const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
+        const isProphecy = synthA.waveform?.startsWith('prophecy-') ?? false;
         const engine = synthA.engine303 ?? 'open303';
         const handleSynthAEngineChange = (e: 'open303' | 'jc303') => {
             updateSynthA({ engine303: e });
@@ -1330,11 +1333,23 @@ const handleLyricApply = useCallback(async (text: string) => {
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
                 )}
+                {isProphecy && (
+                    <ProphecyPanel
+                        vowel={synthA.vowel ?? 0}
+                        portamento={synthA.portamento ?? 0}
+                        formantShift={synthA.formantShift ?? 0}
+                        accentColor="cyan"
+                        onVowelChange={(v) => updateSynthA({ vowel: v })}
+                        onPortamentoChange={(v) => updateSynthA({ portamento: v })}
+                        onFormantShiftChange={(v) => updateSynthA({ formantShift: v })}
+                    />
+                )}
             </div>
         );
-    }, [synthA.waveform, synthA.engine303, updateSynthA, audioEngine]);
+    }, [synthA.waveform, synthA.engine303, synthA.vowel, synthA.portamento, synthA.formantShift, updateSynthA, audioEngine]);
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
+        const isProphecy = synthB.waveform?.startsWith('prophecy-') ?? false;
         const engine = synthB.engine303 ?? 'open303';
         const handleSynthBEngineChange = (e: 'open303' | 'jc303') => {
             updateSynthB({ engine303: e });
@@ -1347,9 +1362,20 @@ const handleLyricApply = useCallback(async (text: string) => {
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
                 )}
+                {isProphecy && (
+                    <ProphecyPanel
+                        vowel={synthB.vowel ?? 0}
+                        portamento={synthB.portamento ?? 0}
+                        formantShift={synthB.formantShift ?? 0}
+                        accentColor="pink"
+                        onVowelChange={(v) => updateSynthB({ vowel: v })}
+                        onPortamentoChange={(v) => updateSynthB({ portamento: v })}
+                        onFormantShiftChange={(v) => updateSynthB({ formantShift: v })}
+                    />
+                )}
             </div>
         );
-    }, [synthB.waveform, synthB.engine303, updateSynthB, audioEngine]);
+    }, [synthB.waveform, synthB.engine303, synthB.vowel, synthB.portamento, synthB.formantShift, updateSynthB, audioEngine]);
     const bass2Child = useMemo(() => {
         const engine = bass2.engine303 ?? 'open303';
         const handleBass2EngineChange = (e: 'open303' | 'jc303') => {
