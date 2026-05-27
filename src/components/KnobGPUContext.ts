@@ -200,7 +200,7 @@ class KnobGPUContextClass {
 
         const slot = this.slots.get(handle.id);
         if (slot) {
-            slot.uniformBuffer.destroy();
+            if (slot.uniformBuffer && typeof slot.uniformBuffer.destroy === 'function') { slot.uniformBuffer.destroy(); }
             this.slots.delete(handle.id);
         }
 
