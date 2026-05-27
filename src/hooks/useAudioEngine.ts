@@ -563,6 +563,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
+                    slideFromFormant?: number,
                     slideType?: 'linear' | 'exponential',
                     phonemes?: PhonemeData[],
                     freeze?: number,
@@ -854,13 +855,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Apply Timbre Modulation (Formant Shift)
                             const baseShift = params.formantShift || 0;
+                            let targetFormantShift = baseShift;
+
                             if (noteParams?.formantShift !== undefined) {
-                                voice.setFormantShift(baseShift + noteParams.formantShift, triggerTime);
+                                targetFormantShift = baseShift + noteParams.formantShift;
                             } else if (noteParams?.timbre !== undefined) {
-                                const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
-                                voice.setFormantShift(baseShift + mod, triggerTime);
-                            } else if (params.formantShift !== undefined) {
-                                voice.setFormantShift(params.formantShift, triggerTime);
+                                targetFormantShift = baseShift + (noteParams.timbre * 12) - 6;
+                            }
+
+                            if (noteParams?.slideFromFormant !== undefined && (noteParams?.slide === true || noteParams?.slideFormant === true)) {
+                                const startFormantShift = baseShift + noteParams.slideFromFormant;
+                                const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
+                                voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);
+                            } else {
+                                voice.setFormantShift(targetFormantShift, triggerTime);
                             }
 
                             // Apply Character Morphing
@@ -1361,6 +1369,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 time: number,
                 durationSteps: number = 1,
                 stepTime: number = 0.2,
+                noteParams?: any,
                 tuning?: ScaleDefinition | null
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
@@ -1369,7 +1378,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const voices = harmonizer.generateVoices();
 
                     // Play base voice (index 0) - the original note
-                    playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
+                    playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
 
                     // Play each harmony voice (skip index 0 which is base)
                     voices.forEach((voice) => {
@@ -1387,7 +1396,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;

@@ -120,7 +120,7 @@
 * [x] **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
 * [x] **Idea:** "Harmony Panning & Routing Fix" - Fix the master saturation bypass for harmony voices that prevented proper panning. Ensure pan parameters add up and clamp correctly.
 * **Idea:** "Dynamic Delay Times" - Add LFOs and envelopes to modulate delay time.
-* **Idea:** "Formant Glide" - Add step-sequenced formant slide/glide.
+* [x] **Idea:** "Formant Glide" - Add step-sequenced formant slide/glide. (Implemented via `slideFormant` toggle and `setFormantGlide` in AudioEngine/SingingVoice)
 ---
 
 * [x] **Idea:** "Harmony Bus Parameters + Stereo Widener" - Expose compressor/EQ and optional widening parameters on the Vocal Harmony Parallel Bus to the UI.
@@ -129,6 +129,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-05-27] - Implemented Formant Glide: Added `slideFormant` parameter to `Note` interface and `NoteSelector` UI. Plumbed parameter through `useStepHandler` to track `lastSamplerFormantRef` and passed `slideFromFormant` down to `useAudioEngine`. Extended `SingingVoice` and `FormantShifter` to accept `setFormantGlide` scheduling via `linearRampToValueAtTime`. Fulfills the "Formant Glide" Innovation Lab idea.
 * [2026-07-08] - Implemented Harmony Panning & Routing Fix: Fixed an issue where the panner node was routed back to `masterSaturation` instead of its intended spectral final destination, bypassing the `isHarmonyVoice` logic. Updated harmony voice parameter calculation to correctly sum and clamp (-1 to 1) panning between base sample settings and harmony settings to allow true wide stereo spread. Fulfills the "Harmony Panning & Routing Fix" Innovation Lab idea.
 * [2026-07-07] - Implemented Dynamic Reverb Density LFO: Added `reverbLfoRate` and `reverbLfoDepth` to `SamplerBankParams` and `Note` interfaces. Exposed these parameters in `SamplerPanel` and `NoteSelector` for global and per-step control. Updated `useAudioEngine.ts` to modulate the reverb send gain with a dedicated sine wave `OscillatorNode`, creating rhythmic breathing and swirling spatial effects without introducing convolver artifacts. Fulfills the "Dynamic Reverb Density LFO" Innovation Lab idea.
 * [2026-07-06] - Implemented Harmony Bus Parameters + Stereo Widener: Exposed `busCompressorThreshold`, `busEqGain`, and `busWidener` in `HarmonizerConfig` and `HarmonizerPopover`. Implemented Haas effect delay routing on the harmony parallel bus in `useAudioEngine.ts` for wide stereo spread. Fulfills the "Harmony Bus Parameters + Stereo Widener" Innovation Lab idea. Added new ideas: "Dynamic Reverb Density LFO" and "Spectral Panning".

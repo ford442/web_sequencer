@@ -43,6 +43,7 @@ export interface UseStepHandlerOptions {
     patternRef: React.MutableRefObject<Pattern>;
     lastFreqRef: React.MutableRefObject<Record<string, number>>;
     lastSamplerMidiRef: React.MutableRefObject<Record<number, number>>;
+    lastSamplerFormantRef: React.MutableRefObject<Record<number, number>>;
     synthARef: React.MutableRefObject<SynthParams>;
     synthBRef: React.MutableRefObject<SynthParams>;
     bass2Ref: React.MutableRefObject<Bass2Params>;
@@ -83,6 +84,7 @@ export const useStepHandler = ({
     patternRef,
     lastFreqRef,
     lastSamplerMidiRef,
+    lastSamplerFormantRef,
     synthARef,
     synthBRef,
     bass2Ref,
@@ -273,6 +275,7 @@ export const useStepHandler = ({
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
             const slideFromMidi = stepData.slide ? lastSamplerMidiRef.current[bankIdx] : undefined;
+            const slideFromFormant = (stepData.slide || stepData.slideFormant) ? lastSamplerFormantRef.current[bankIdx] : undefined;
 
             const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
 
@@ -314,10 +317,12 @@ export const useStepHandler = ({
                 time,
                 stepData.length,
                 stepTime,
-                currentScale // ← Microtonal support
+                { ...stepData, slideFromMidi, slideFromFormant },
+                currentScale
             );
 
             lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
+            lastSamplerFormantRef.current[bankIdx] = stepData.formantShift !== undefined ? stepData.formantShift : (voiceParams.formantShift || 0);
         });
 
         // Visual feedback for phoneme slices
