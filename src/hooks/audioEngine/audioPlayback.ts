@@ -199,6 +199,40 @@ export function createPlaySynth(
                 }
             }
 
+            if (track === 'partA' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
+                if (refs.open303ManagerRef.current?.isLead303Ready()) {
+                    refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+
+                    const noteStr = Array.isArray(note) ? note[0] : note;
+                    if (!noteStr) {
+                        continue;
+                    }
+
+                    const midi = noteToMidi(noteStr);
+                    const now = context.currentTime;
+                    const startDelay = Math.max(0, noteTime - now);
+                    const noteDuration = subDuration;
+
+                    setTimeout(() => {
+                        const t0 = performance.now();
+                        refs.open303ManagerRef.current?.noteOnLead303(midi, 100);
+                        const t1 = performance.now();
+                        try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+                    }, startDelay * 1000);
+
+                    setTimeout(() => {
+                        if (slideFromFreq === undefined) {
+                            const t0 = performance.now();
+                            refs.open303ManagerRef.current?.noteOffLead303(midi);
+                            const t1 = performance.now();
+                            try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+                        }
+                    }, (startDelay + noteDuration) * 1000);
+
+                    continue;
+                }
+            }
+
             const noteDuration = subDuration;
             const effectiveSlide = i === 0 ? slideFromFreq : undefined;
 
@@ -438,6 +472,20 @@ export function createNoteOnSynth(
             }
         }
 
+        if (track === 'partA' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
+            if (refs.open303ManagerRef.current?.isLead303Ready()) {
+                refs.open303ManagerRef.current.applyLead303Params(params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+                const midi = noteToMidi(note);
+                const t0 = performance.now();
+                refs.open303ManagerRef.current.noteOnLead303(midi, 100);
+                const t1 = performance.now();
+                try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+                const id = refs.nextSynthNoteId.current++;
+                refs.activeSynthNotes.current.set(id, { stop: () => refs.open303ManagerRef.current?.noteOffLead303(midi) });
+                return id;
+            }
+        }
+
         let manager = refs.voiceManagerARef.current;
         if (track === 'partB') {
             manager = refs.voiceManagerBRef.current;
@@ -487,6 +535,7 @@ export function createStopAllNotes(
         refs.singingVoiceManagerRef.current?.stopAll();
         refs.open303ManagerRef.current?.noteOffBass1(0);
         refs.open303ManagerRef.current?.noteOffBass2(0);
+        refs.open303ManagerRef.current?.noteOffLead303(0);
     };
 }
 

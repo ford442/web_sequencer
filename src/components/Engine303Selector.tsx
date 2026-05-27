@@ -11,7 +11,7 @@ interface Engine303SelectorProps {
 }
 
 /**
- * Engine selector toggle for TB-303 voices (SYNTH B and BASS 2).
+ * Engine selector toggle for TB-303 voices (SYNTH A, SYNTH B and BASS 2).
  *
  * Lets the user switch between:
  *  - **Custom Open303** – built-in open303_* WASM synthesizer
