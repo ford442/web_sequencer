@@ -13,6 +13,7 @@ For a quick-start overview see the root [README.md](../README.md).
 |------|---------|
 | [HARMONIZER_IMPLEMENTATION.md](audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design and implementation details |
 | [JC303_STACK_OVERFLOW_FIX.md](audio-engine/JC303_STACK_OVERFLOW_FIX.md) | Fix for stack overflow in the JC-303 TB-303 clone WASM build |
+| [jc303-prophecy.md](audio-engine/jc303-prophecy.md) | Current per-voice Open303/JC303 switching and Prophecy integration notes |
 | [MULTISAMPLE_GENERATOR_DESIGN.md](audio-engine/MULTISAMPLE_GENERATOR_DESIGN.md) | Design notes for the multisample generator |
 | [MULTISAMPLE_IMPLEMENTATION_SUMMARY.md](audio-engine/MULTISAMPLE_IMPLEMENTATION_SUMMARY.md) | Implementation summary for multisample generation |
 | [OPEN303_FALLBACK_MODES.md](audio-engine/OPEN303_FALLBACK_MODES.md) | Fallback synthesis modes for the Open303 engine |

@@ -8,7 +8,7 @@
 
 ### Key Features
 - **Dual synthesizers** (Lead & Bass / Part A & Part B) with ADSR, filters, delay, and multiple waveform engines
-- **TB-303 clone** (Bass 2) via the JC-303 WASM synthesizer
+- **TB-303 engines** with per-voice `engine303` switching (`open303` or authentic `jc303`) plus Prophecy formant waveforms
 - **Drum machine** (Kick, Snare, Open/Closed Hi-Hats)
 - **Sampler with 8 independent banks** and Supertonic TTS integration
 - **Real-time voice designer** with GPU-accelerated DSP (sharpen, echo, tremolo, jitter, geometric transforms)
@@ -47,10 +47,20 @@
 |--------|----------|--------------|---------|
 | AssemblyScript | TypeScript-like | `src/wasm/*.wasm` | Oscillators, track freezer, FFT, audio export, XM export |
 | Rust/WASM | Rust | `public/rust-wasm/` | High-precision synthesis |
-| Emscripten | C++ | `public/hyphon_native.js` (+ `.wasm`, `.worker.js`) | Rubberband pitch/time stretching, Pyodide bootstrap |
-| JC-303 | C++ (JUCE) | `public/jc303.*` | TB-303 clone synthesizer |
+| Emscripten | C++ | `public/hyphon_native.js` (+ `.wasm`, `.worker.js`) | Rubberband, Open303 + JC303 dual-engine wrappers, Prophecy formant engine, Pyodide bootstrap |
+| JC-303 | C++ (JUCE) | `public/jc303.*` | Legacy standalone TB-303-compatible wasm variants |
 | WebGPU | WGSL/TypeScript | Runtime | GPU-accelerated DSP (voice designer, scope) |
 | Web Audio | TypeScript | Native | Primary audio graph, scheduling, effects |
+
+#### Emscripten dual-303 + Prophecy internals (`hyphon_native.wasm`)
+- **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp` (see `emscripten/build.sh`)
+- **Per-voice 303 switching**: `SynthParams.engine303` (`'open303' | 'jc303'`) flows through `Open303Manager.setBass1Engine/setBass2Engine/setLead303Engine` into the `open303-processor` `set-engine` message path.
+- **Current routing**:
+  - `partB` / **SYNTH B** 303 waves → `bass1`
+  - **BASS 2** 303 waves → `bass2`
+  - `partA` / **SYNTH A LEAD** 303 waves → `lead303`
+- **Prophecy formant routing**:
+  - `prophecy-*` waves route via `ProphecyManager` (`partA` + `partB`) and `prophecy-processor` worklet to `prophecy_*` exports in `hyphon_native.wasm`.
 
 ### Backend & Services
 | Component | Technology | Purpose |
@@ -285,6 +295,7 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Output**: `public/hyphon_native.js` (+ `.wasm`, `.worker.js`)
 - **Requires**: `libomp.a` in `emscripten/` directory
 - **Requires**: Emscripten SDK activated
+- **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`)
 
 ### 4. JC-303 World (`/jc303_wasm`)
 - **Build**: `bash tools/build_jc303_omp.sh debug both`
@@ -528,6 +539,6 @@ interface Note {
 
 - **Supertonic TTS**: https://github.com/supertone-inc/supertonic
 - **Rubberband Library**: https://breakfastquay.com/rubberband/
-- **JC-303**: TB-303 clone synthesizer (git submodule)
+- **JC-303 / Open303 / Prophecy wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`
 - **Emscripten**: https://emscripten.org/
 - **AssemblyScript**: https://www.assemblyscript.org/
