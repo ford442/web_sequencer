@@ -137,7 +137,7 @@ export class RbsImporter {
 
     // Convert PCF to automation if enabled
     const automation: HyphonAutomationLane[] = [];
-    if (this.options.convertPcfToAutomation && raw.pcf.enabled) {
+    if (this.options.convertPcfToAutomation && raw.pcf.enabled && !this.options.importPcfAsFilter) {
       const pcfAutomation = this.convertPcfToAutomation(raw.pcf);
       automation.push(...pcfAutomation);
     }
@@ -162,6 +162,16 @@ export class RbsImporter {
       pattern,
       params,
       automation: automation.length > 0 ? automation : undefined,
+      pcfFilter: this.options.importPcfAsFilter && raw.pcf.enabled ? {
+        enabled: raw.pcf.enabled,
+        filterType: raw.pcf.filterType,
+        cutoff: raw.pcf.cutoff,
+        resonance: raw.pcf.resonance,
+        envAmount: raw.pcf.envAmount,
+        decay: raw.pcf.decay,
+        pattern: [...raw.pcf.pattern],
+        target: { ...raw.pcf.target },
+      } : undefined,
       rbsMetadata: {
         originalVersion: raw.version,
         pcfSettings: raw.pcf,
