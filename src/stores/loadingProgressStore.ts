@@ -12,6 +12,7 @@ export type LoadingStep =
   | 'webGpuEngine'
   | 'wasmEngine'
   | 'open303Engine'
+  | 'prophecyEngine'
   | 'wavFiles'
   | 'singingVoice'
   | 'ambianceBuffers'
@@ -54,9 +55,10 @@ class LoadingProgressStore {
     masterChain: 4,         // gain/saturation/reverb/delay nodes, ~10ms
     webGpuEngine: 8,        // GPU detection / adapter request, ~100-300ms
     wasmEngine: 5,          // WASM oscillator init
-    open303Engine: 20,      // WASM fetch + worklet × 2 (now parallel)
+    open303Engine: 15,      // WASM fetch + worklet × 2 (now parallel)
+    prophecyEngine: 10,     // Prophecy formant WASM worklet init
     wavFiles: 5,            // fetch + decodeAudioData for saw/square
-    singingVoice: 50,       // 12 SingingVoice worklets, dominant cost
+    singingVoice: 45,       // 12 SingingVoice worklets, dominant cost
     ambianceBuffers: 0,     // lazy-loaded, not part of init
     ttsEngine: 0,           // Supertonic, loads after overlay closes
     complete: 5,            // final wiring
@@ -68,6 +70,7 @@ class LoadingProgressStore {
     webGpuEngine: 'Initializing WebGPU Oscillator',
     wasmEngine: 'Loading WASM Oscillator',
     open303Engine: 'Loading TB-303 Bass Engine',
+    prophecyEngine: 'Loading Prophecy Formant Engine',
     wavFiles: 'Loading Waveform Samples',
     singingVoice: 'Initializing Singing Voice Pool',
     ambianceBuffers: 'Preparing Ambiance Tracks',

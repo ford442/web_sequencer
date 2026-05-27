@@ -5,12 +5,14 @@
  * - Standard oscillators (sawtooth, square, triangle, sine)
  * - WAV file-based playback (wav-saw, wav-sqr)
  * - Open303 (TB-303 clone) synthesis
+ * - Prophecy formant synthesis
  */
 import type { SynthParams } from '../../types';
 import { tunedNoteToFrequency } from '../../constants';
 import { noteToMidi } from '../../utils/musicTheory';
 import type { ScaleDefinition } from '../../utils/musicTheory';
 import type { Open303Oscillator } from '../../engines/Open303Oscillator';
+import type { ProphecyOscillator } from '../../engines/ProphecyOscillator';
 
 // Map UI params to Open303 engine
 export function apply303Params(
@@ -28,10 +30,42 @@ export function apply303Params(
     engine.setVolume(params.volume);
 }
 
+/** Maps a Prophecy waveform variant to its waveType string. */
+const PROPHECY_WAVE_TYPES: Partial<Record<string, string>> = {
+    'prophecy-saw':   'saw',
+    'prophecy-sqr':   'sqr',
+    'prophecy-tri':   'tri',
+    'prophecy-pulse': 'pulse',
+};
+
+/** Numeric waveform IDs matching ProphecyParam.WAVEFORM values. */
+const PROPHECY_WAVE_ID: Record<string, number> = {
+    saw:   0,
+    sqr:   1,
+    tri:   2,
+    pulse: 3,
+};
+
+// Map UI params to Prophecy engine
+export function applyProphecyParams(
+    engine: ProphecyOscillator,
+    params: SynthParams,
+    waveType: string
+): void {
+    engine.setWaveform(PROPHECY_WAVE_ID[waveType] ?? 0);
+    engine.setVolume(params.volume);
+    engine.setAttack(Math.max(0, Math.min(1, params.attack / 2)));
+    engine.setDecay(Math.max(0, Math.min(1, params.decay / 2)));
+    engine.setSustain(Math.max(0, Math.min(1, params.sustain)));
+    engine.setRelease(Math.max(0, Math.min(1, params.release / 3)));
+    engine.setResonance(Math.max(0, Math.min(1, 1 - params.filterResonance / 20)));
+}
+
 export interface SynthPlaybackContext {
     context: AudioContext;
     masterGain: GainNode;
     open303Engine?: Open303Oscillator | null;
+    prophecyEngine?: ProphecyOscillator | null;
     wavSawBuffer: AudioBuffer | null;
     wavSqrBuffer: AudioBuffer | null;
 }
@@ -53,7 +87,7 @@ export function playSynth(
     stepTime: number = 0.2,
     tuning: ScaleDefinition | null = null
 ): void {
-    const { context, masterGain, open303Engine, wavSawBuffer, wavSqrBuffer } = ctx;
+    const { context, masterGain, open303Engine, prophecyEngine, wavSawBuffer, wavSqrBuffer } = ctx;
 
     if (!masterGain) return;
 
@@ -69,6 +103,23 @@ export function playSynth(
 
             setTimeout(() => open303Engine.noteOn(midi, 100), startDelay * 1000);
             setTimeout(() => open303Engine.noteOff(midi), (startDelay + duration) * 1000);
+            return;
+        }
+    }
+
+    // === Prophecy Routing ===
+    const prophecyWaveType = PROPHECY_WAVE_TYPES[params.waveform];
+    if (prophecyWaveType !== undefined) {
+        if (prophecyEngine) {
+            applyProphecyParams(prophecyEngine, params, prophecyWaveType);
+
+            const midi = noteToMidi(note);
+            const now = context.currentTime;
+            const startDelay = Math.max(0, time - now);
+            const duration = durationSteps * stepTime;
+
+            setTimeout(() => prophecyEngine.noteOn(midi, 100), startDelay * 1000);
+            setTimeout(() => prophecyEngine.noteOff(midi), (startDelay + duration) * 1000);
             return;
         }
     }
@@ -191,7 +242,7 @@ export function playSynth(
 }
 
 /**
- * Trigger interactive synth note (mainly for 303)
+ * Trigger interactive synth note (mainly for 303 and Prophecy)
  */
 export function noteOnSynth(
     ctx: SynthPlaybackContext,
@@ -214,6 +265,23 @@ export function noteOnSynth(
             return id;
         }
     }
+
+    const prophecyWaveType = PROPHECY_WAVE_TYPES[params.waveform];
+    if (prophecyWaveType !== undefined) {
+        if (ctx.prophecyEngine) {
+            applyProphecyParams(ctx.prophecyEngine, params, prophecyWaveType);
+
+            const midi = noteToMidi(note);
+            ctx.prophecyEngine.noteOn(midi, 100);
+
+            const id = state.nextNoteId++;
+            state.activeNotes.set(id, {
+                stop: () => ctx.prophecyEngine?.noteOff(midi)
+            });
+            return id;
+        }
+    }
+
     return null; // Standard oscillators not yet supported in live noteOn
 }
 
