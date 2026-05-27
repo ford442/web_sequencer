@@ -55,10 +55,10 @@ class LoadingProgressStore {
     masterChain: 4,         // gain/saturation/reverb/delay nodes, ~10ms
     webGpuEngine: 8,        // GPU detection / adapter request, ~100-300ms
     wasmEngine: 5,          // WASM oscillator init
-    open303Engine: 15,      // WASM fetch + worklet × 2 (now parallel)
+    open303Engine: 15,      // WASM fetch + worklet × 2 (was 20; reduced by 5 to fit prophecyEngine)
     prophecyEngine: 10,     // Prophecy formant WASM worklet init
     wavFiles: 5,            // fetch + decodeAudioData for saw/square
-    singingVoice: 45,       // 12 SingingVoice worklets, dominant cost
+    singingVoice: 45,       // 12 SingingVoice worklets, dominant cost (was 50; reduced by 5 to fit prophecyEngine)
     ambianceBuffers: 0,     // lazy-loaded, not part of init
     ttsEngine: 0,           // Supertonic, loads after overlay closes
     complete: 5,            // final wiring

@@ -13,6 +13,7 @@ import { noteToMidi } from '../../utils/musicTheory';
 import type { ScaleDefinition } from '../../utils/musicTheory';
 import type { Open303Oscillator } from '../../engines/Open303Oscillator';
 import type { ProphecyOscillator } from '../../engines/ProphecyOscillator';
+import { PROPHECY_WAVEFORM_SUFFIX, PROPHECY_WAVEFORM_ID } from '../../engines/ProphecyParams';
 
 // Map UI params to Open303 engine
 export function apply303Params(
@@ -30,29 +31,13 @@ export function apply303Params(
     engine.setVolume(params.volume);
 }
 
-/** Maps a Prophecy waveform variant to its waveType string. */
-const PROPHECY_WAVE_TYPES: Partial<Record<string, string>> = {
-    'prophecy-saw':   'saw',
-    'prophecy-sqr':   'sqr',
-    'prophecy-tri':   'tri',
-    'prophecy-pulse': 'pulse',
-};
-
-/** Numeric waveform IDs matching ProphecyParam.WAVEFORM values. */
-const PROPHECY_WAVE_ID: Record<string, number> = {
-    saw:   0,
-    sqr:   1,
-    tri:   2,
-    pulse: 3,
-};
-
 // Map UI params to Prophecy engine
 export function applyProphecyParams(
     engine: ProphecyOscillator,
     params: SynthParams,
     waveType: string
 ): void {
-    engine.setWaveform(PROPHECY_WAVE_ID[waveType] ?? 0);
+    engine.setWaveform(PROPHECY_WAVEFORM_ID[waveType] ?? 0);
     engine.setVolume(params.volume);
     engine.setAttack(Math.max(0, Math.min(1, params.attack / 2)));
     engine.setDecay(Math.max(0, Math.min(1, params.decay / 2)));
@@ -108,7 +93,7 @@ export function playSynth(
     }
 
     // === Prophecy Routing ===
-    const prophecyWaveType = PROPHECY_WAVE_TYPES[params.waveform];
+    const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
     if (prophecyWaveType !== undefined) {
         if (prophecyEngine) {
             applyProphecyParams(prophecyEngine, params, prophecyWaveType);
@@ -266,7 +251,7 @@ export function noteOnSynth(
         }
     }
 
-    const prophecyWaveType = PROPHECY_WAVE_TYPES[params.waveform];
+    const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
     if (prophecyWaveType !== undefined) {
         if (ctx.prophecyEngine) {
             applyProphecyParams(ctx.prophecyEngine, params, prophecyWaveType);

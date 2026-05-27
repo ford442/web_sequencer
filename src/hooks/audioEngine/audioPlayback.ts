@@ -15,20 +15,13 @@ const DRUM_REF_MIDI = 48;
 import { Harmonizer, type HarmonizerConfig } from '../../engines/Harmonizer';
 import { Open303Manager } from '../../engines/Open303Manager';
 import { ProphecyManager } from '../../engines/ProphecyManager';
+import { PROPHECY_WAVEFORM_SUFFIX } from '../../engines/ProphecyParams';
 import type { VoiceManager, Voice } from '../../engines/VoiceManager';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import { makeDistortionCurve } from './distortion';
 import { engineTelemetry } from '../../utils/engineTelemetry';
 
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
-
-/** Maps a Prophecy waveform Waveform value to the waveType string passed to ProphecyManager. */
-const PROPHECY_WAVEFORM_TYPE: Partial<Record<string, string>> = {
-    'prophecy-saw':   'saw',
-    'prophecy-sqr':   'sqr',
-    'prophecy-tri':   'tri',
-    'prophecy-pulse': 'pulse',
-};
 
 export interface SynthNoteParams {
     timbre?: number;
@@ -245,7 +238,7 @@ export function createPlaySynth(
             }
 
             // === Prophecy Routing ===
-            const prophecyWaveType = PROPHECY_WAVEFORM_TYPE[params.waveform];
+            const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
             if (track === 'partB' && prophecyWaveType !== undefined) {
                 if (refs.prophecyManagerRef?.current?.isPartBReady()) {
                     refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
@@ -564,7 +557,7 @@ export function createNoteOnSynth(
         }
 
         // === Prophecy Routing (interactive noteOn) ===
-        const prophecyWaveTypeNoteOn = PROPHECY_WAVEFORM_TYPE[params.waveform];
+        const prophecyWaveTypeNoteOn = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
         if (track === 'partB' && prophecyWaveTypeNoteOn !== undefined) {
             if (refs.prophecyManagerRef?.current?.isPartBReady()) {
                 refs.prophecyManagerRef.current.applyPartBParams(params, prophecyWaveTypeNoteOn);

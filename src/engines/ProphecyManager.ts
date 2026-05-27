@@ -11,15 +11,7 @@
 
 import { ProphecyOscillator } from './ProphecyOscillator';
 import type { SynthParams } from '../types';
-import { ProphecyParam } from './ProphecyParams';
-
-/** Maps a SynthParams waveform suffix to a ProphecyParam.WAVEFORM value. */
-const WAVEFORM_MAP: Record<string, number> = {
-    saw:   ProphecyParam.WAVEFORM, // 0 = Sawtooth
-    sqr:   1,                       // 1 = Square
-    tri:   2,                       // 2 = Triangle
-    pulse: 3,                       // 3 = Pulse
-};
+import { PROPHECY_WAVEFORM_ID } from './ProphecyParams';
 
 export class ProphecyManager {
     private partA: ProphecyOscillator | null = null;
@@ -84,7 +76,7 @@ export class ProphecyManager {
         params: SynthParams,
         waveType: string,
     ): void {
-        osc.setWaveform(WAVEFORM_MAP[waveType] ?? 0);
+        osc.setWaveform(PROPHECY_WAVEFORM_ID[waveType] ?? 0);
         osc.setVolume(params.volume);
         // Map ADSR: UI values are in seconds/levels; Prophecy params are 0-1
         osc.setAttack(Math.max(0, Math.min(1, params.attack / 2)));
