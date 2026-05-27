@@ -64,6 +64,7 @@ export const ProphecyPanel: React.FC<ProphecyPanelProps> = memo(({
                         key={label}
                         onClick={() => onVowelChange(idx)}
                         aria-pressed={isActive(idx)}
+                        aria-label={`Vowel ${label}`}
                         title={`Vowel ${label} (formant preset ${idx})`}
                         className={`flex-1 py-1 text-[9px] font-bold rounded-md transition-all border ${
                             isActive(idx) ? activeStyle : inactiveStyle
