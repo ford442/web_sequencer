@@ -9,6 +9,6 @@
 
 ### Caveats
 - UI discoverability for these features is still in progress; see tracking issues:
-  - [#632](https://github.com/ford442/web_sequencer/issues/632)
-  - [#633](https://github.com/ford442/web_sequencer/issues/633)
-  - [#634](https://github.com/ford442/web_sequencer/issues/634)
+  - [#632](https://github.com/ford442/web_sequencer/issues/632): per-voice 303 engine selection UI follow-up
+  - [#633](https://github.com/ford442/web_sequencer/issues/633): Prophecy controls/discoverability follow-up
+  - [#634](https://github.com/ford442/web_sequencer/issues/634): related engine/help visibility tracking

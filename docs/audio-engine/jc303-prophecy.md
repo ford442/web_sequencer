@@ -76,7 +76,7 @@ bash tools/build_jc303_omp.sh release both
 
 Both `open303-processor.ts` and `prophecy-processor.ts` enforce:
 
-- minimum `memoryPages = 8192` (512 MB) for threaded `hyphon_native.wasm`
+- minimum `memoryPages = 8192` (8192 × 64KB pages = 512 MB) for threaded `hyphon_native.wasm`
 
 Keep this aligned with Emscripten linker memory settings in `emscripten/build.sh`.
 
