@@ -1263,7 +1263,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     if (params.pan !== undefined && params.pan !== 0) {
                         const panner = context.createStereoPanner();
                         panner.pan.value = params.pan;
-                        panner.connect(masterSaturationRef.current!);
+                        panner.connect(finalDestination);
                         finalDestination = panner;
                     }
 
@@ -1347,7 +1347,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         // Create modified params for this harmony voice
                         const voiceParams: SamplerBankParams = {
                             ...params,
-                            pan: voice.pan,
+                            pan: Math.max(-1, Math.min(1, (params.pan || 0) + (voice.pan || 0))),
                             volume: params.volume * voice.gain * 0.85,
                             formantShift: (params.formantShift || 0) + voice.formantShift,
                             fineTune: (params.fineTune || 0) + voice.detuneCents
