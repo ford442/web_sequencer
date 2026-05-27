@@ -16,6 +16,7 @@ import type { MainSequencerHandle } from '../components/MainSequencer'
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner'
 import { type HarmonizerConfig } from '../engines/Harmonizer'
 import { WaveformSelector } from '../components/WaveformSelector'
+import { Engine303Selector } from '../components/Engine303Selector'
 import { SamplerPanel } from '../components/SamplerPanel'
 
 import {
@@ -1328,29 +1329,7 @@ const handleLyricApply = useCallback(async (text: string) => {
             <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
                 <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
                 {is303 && (
-                    <div className="flex flex-col gap-1 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
-                        <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center">Engine</span>
-                        <button
-                            onClick={() => handleSynthBEngineChange('open303')}
-                            className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                                engine === 'open303'
-                                    ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                                    : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                            }`}
-                        >
-                            Custom
-                        </button>
-                        <button
-                            onClick={() => handleSynthBEngineChange('jc303')}
-                            className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                                engine === 'jc303'
-                                    ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                                    : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                            }`}
-                        >
-                            JC303
-                        </button>
-                    </div>
+                    <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
                 )}
             </div>
         );
@@ -1386,27 +1365,7 @@ const handleLyricApply = useCallback(async (text: string) => {
                 >
                     SQR
                 </button>
-                <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center mt-1">Engine</span>
-                <button
-                    onClick={() => handleBass2EngineChange('open303')}
-                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                        engine === 'open303'
-                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    }`}
-                >
-                    Custom
-                </button>
-                <button
-                    onClick={() => handleBass2EngineChange('jc303')}
-                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                        engine === 'jc303'
-                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    }`}
-                >
-                    JC303
-                </button>
+                <Engine303Selector engine={engine} onChange={handleBass2EngineChange} accentColor="pink" />
             </div>
         </div>
         );
