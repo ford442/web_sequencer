@@ -45,6 +45,14 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = React.memo(({ onClose
                 { key: 'Shift + Tab', desc: 'Focus Previous Element' },
                 { key: 'Esc', desc: 'Close Modals' },
             ]
+        },
+        {
+            title: 'Engine Selection & Formant Synths',
+            items: [
+                { key: 'SYNTH B / BASS 2', desc: 'Use 303 waveforms to route into per-voice Open303/JC303 engines' },
+                { key: 'engine303', desc: '303 voices can switch between open303 and authentic jc303 DSP' },
+                { key: 'prophecy-*', desc: 'Formant synth waveforms are available for partA/partB (UI surfacing in progress)' },
+            ]
         }
     ];
 
