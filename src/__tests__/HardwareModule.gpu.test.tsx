@@ -111,6 +111,31 @@ describe('HardwareModule - WebGPU Optimization', () => {
                     is3D={true}
                 />
             );
+            rerender = result.rerender;
+        });
+
+        // Trigger next frame
+        await act(async () => {
+            const cb = frameCallbacks.shift();
+            if (cb) cb(performance.now());
+        });
+
+        // Wait for async init using waitFor
+        await waitFor(() => {
+            expect(mockWriteBuffer).toHaveBeenCalled();
+        });
+
+        // Initial render: writeBuffer(buffer, 0, buf)
+        const firstCall = mockWriteBuffer.mock.calls[0];
+        const writtenData = firstCall[2];
+        expect(writtenData).toBeInstanceOf(Float32Array);
+        expect(writtenData.length).toBe(4); // 4 floats: time, value, width, height
+
+        // Offset and size are implicit defaults in this simpler approach
+        expect(firstCall[3]).toBeUndefined();
+        expect(firstCall[4]).toBeUndefined();
+
+        // Trigger next frame
             unmount = result.unmount;
         });
 
@@ -120,7 +145,33 @@ describe('HardwareModule - WebGPU Optimization', () => {
             unmount();
         });
 
-        expect(true).toBe(true);
+        // Subsequent frame: Also a full write of 4 elements (the refactored code writes everything each frame)
+        expect(mockWriteBuffer).toHaveBeenCalledTimes(2);
+        const secondCall = mockWriteBuffer.mock.calls[1];
+        expect(secondCall[3]).toBeUndefined(); // offset
+        expect(secondCall[4]).toBeUndefined(); // size
+
+        // Update props
+        const newControls = [...mockControls, { id: 'new', label: 'New', x: 0, y: 0, size: 0.1, value: 0 }];
+        await act(async () => {
+            rerender(
+                <HardwareModule
+                    title="Test Module"
+                    colorHex={mockColorHex}
+                    controls={newControls}
+                    onParamChange={onParamChange}
+                    is3D={true}
+                />
+            );
+        });
+
+        await act(async () => {
+            const cb = frameCallbacks.shift();
+            if (cb) cb(performance.now());
+        });
+
+        // We added a new control, so we should get calls for the old + new controls during the next RAF
+        expect(mockWriteBuffer.mock.calls.length).toBeGreaterThan(2);
     });
 
 });
