@@ -15,7 +15,8 @@ export type Waveform =
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
   | 'rust-saw' | 'rust-sqr'
-  | '303-saw' | '303-sqr';
+  | '303-saw' | '303-sqr'
+  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
 
 export interface SynthParams {
   waveform: Waveform;

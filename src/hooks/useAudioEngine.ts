@@ -6,6 +6,7 @@ import type {
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Manager } from '../engines/Open303Manager';
+import { ProphecyManager } from '../engines/ProphecyManager';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
@@ -48,6 +49,7 @@ import { loadingProgressStore } from '../stores/loadingProgressStore';
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
+import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker&url';
 import vocalOverdriveProcessorUrl from '../audio-worklets/vocal-overdrive-processor.ts?worker&url';
 import expressiveVoiceProcessorUrl from '../audio-worklets/expressive-voice-processor.ts?worker&url';
 import expressiveVoiceProcessorWorkletUrl from '../audio-worklets/expressive-voice-processor-worklet.ts?worker&url';
@@ -117,6 +119,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
     const open303ManagerRef = useRef<Open303Manager | null>(null);
+    const prophecyManagerRef = useRef<ProphecyManager | null>(null);
 
     // Voice Managers
     const voiceManagerARef = useRef<VoiceManager | null>(null);
@@ -171,6 +174,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
+        prophecyManagerRef,
         voiceManagerARef,
         voiceManagerBRef,
         nextSynthNoteId,
@@ -330,6 +334,33 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
             }
             loadingProgressStore.completeStep('open303Engine');
+
+            // Initialize Prophecy Formant Engine
+            loadingProgressStore.startStep('prophecyEngine');
+            const prophecyManager = new ProphecyManager();
+            let prophecyReady = false;
+
+            try {
+                prophecyReady = await prophecyManager.init(context, prophecyProcessorUrl);
+
+                if (prophecyReady) {
+                    prophecyManager.connect(masterBusInput);
+                    prophecyManagerRef.current = prophecyManager;
+                    console.log('[useAudioEngine] ProphecyManager Ready');
+                    try { engineTelemetry.registerResolution('prophecy', 'prophecy', 'ready'); } catch (e) { /* noop */ }
+                } else {
+                    console.warn('[useAudioEngine] ProphecyManager failed to initialize');
+                    try { engineTelemetry.registerResolution('prophecy', 'fallback', 'notReady'); } catch (e) { /* noop */ }
+                }
+            } catch (e) {
+                console.error('[useAudioEngine] ProphecyManager crashed during init:', e);
+                prophecyReady = false;
+            }
+
+            if (!prophecyReady) {
+                console.log('[useAudioEngine] Prophecy bypassed - formant waveforms will fall back to standard oscillators');
+            }
+            loadingProgressStore.completeStep('prophecyEngine');
 
             loadingProgressStore.startStep('wavFiles');
             const [sawBuf, sqrBuf] = await Promise.all([

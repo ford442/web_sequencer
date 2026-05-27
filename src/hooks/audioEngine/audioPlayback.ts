@@ -14,12 +14,15 @@ import { noteToMidi } from '../../utils/musicTheory';
 const DRUM_REF_MIDI = 48;
 import { Harmonizer, type HarmonizerConfig } from '../../engines/Harmonizer';
 import { Open303Manager } from '../../engines/Open303Manager';
+import { ProphecyManager } from '../../engines/ProphecyManager';
+import { PROPHECY_WAVEFORM_SUFFIX } from '../../engines/ProphecyParams';
 import type { VoiceManager, Voice } from '../../engines/VoiceManager';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import { makeDistortionCurve } from './distortion';
 import { engineTelemetry } from '../../utils/engineTelemetry';
 
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
+
 export interface SynthNoteParams {
     timbre?: number;
     microtiming?: number;
@@ -79,6 +82,7 @@ export interface PlaybackRefs {
     masterPannerRef: MutableRefObject<StereoPannerNode | null>;
     noiseBufferRef: MutableRefObject<AudioBuffer | null>;
     open303ManagerRef: MutableRefObject<Open303Manager | null>;
+    prophecyManagerRef: MutableRefObject<ProphecyManager | null>;
     voiceManagerARef: MutableRefObject<VoiceManager | null>;
     voiceManagerBRef: MutableRefObject<VoiceManager | null>;
     nextSynthNoteId: MutableRefObject<number>;
@@ -95,7 +99,7 @@ export interface PlaybackRefs {
 
 export function createPlaySynth(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'bassSidechainEQBusRef'>,
+    refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'prophecyManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'bassSidechainEQBusRef'>,
 ): PlaySynthFn {
     return (params, note, time, durationSteps = 1, stepTime = 0.2, slideFromFreq, track, noteParams) => {
         if (!refs.masterGainRef.current) {
@@ -226,6 +230,72 @@ export function createPlaySynth(
                             refs.open303ManagerRef.current?.noteOffLead303(midi);
                             const t1 = performance.now();
                             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+                        }
+                    }, (startDelay + noteDuration) * 1000);
+
+                    continue;
+                }
+            }
+
+            // === Prophecy Routing ===
+            const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
+            if (track === 'partB' && prophecyWaveType !== undefined) {
+                if (refs.prophecyManagerRef?.current?.isPartBReady()) {
+                    refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
+
+                    const noteStr = Array.isArray(note) ? note[0] : note;
+                    if (!noteStr) {
+                        continue;
+                    }
+
+                    const midi = noteToMidi(noteStr);
+                    const now = context.currentTime;
+                    const startDelay = Math.max(0, noteTime - now);
+                    const noteDuration = subDuration;
+
+                    triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, noteTime, noteDuration);
+
+                    setTimeout(() => {
+                        const t0 = performance.now();
+                        refs.prophecyManagerRef?.current?.noteOnPartB(midi, 100);
+                        const t1 = performance.now();
+                        try { engineTelemetry.recordLatency('prophecy', t1 - t0); } catch (_) {}
+                    }, startDelay * 1000);
+
+                    setTimeout(() => {
+                        if (slideFromFreq === undefined) {
+                            refs.prophecyManagerRef?.current?.noteOffPartB(midi);
+                        }
+                    }, (startDelay + noteDuration) * 1000);
+
+                    continue;
+                }
+            }
+
+            if (track === 'partA' && prophecyWaveType !== undefined) {
+                if (refs.prophecyManagerRef?.current?.isPartAReady()) {
+                    refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
+
+                    const noteStr = Array.isArray(note) ? note[0] : note;
+                    if (!noteStr) {
+                        continue;
+                    }
+
+                    const midi = noteToMidi(noteStr);
+                    const now = context.currentTime;
+                    const startDelay = Math.max(0, noteTime - now);
+                    const noteDuration = subDuration;
+
+                    setTimeout(() => {
+                        const t0 = performance.now();
+                        refs.prophecyManagerRef?.current?.noteOnPartA(midi, 100);
+                        const t1 = performance.now();
+                        try { engineTelemetry.recordLatency('prophecy', t1 - t0); } catch (_) {}
+                    }, startDelay * 1000);
+
+                    setTimeout(() => {
+                        if (slideFromFreq === undefined) {
+                            refs.prophecyManagerRef?.current?.noteOffPartA(midi);
                         }
                     }, (startDelay + noteDuration) * 1000);
 
@@ -437,7 +507,7 @@ export function createPlayDrum(
 
 export function createNoteOnSynth(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'nextSynthNoteId' | 'activeSynthNotes' | 'bassSidechainEQBusRef'>,
+    refs: Pick<PlaybackRefs, 'open303ManagerRef' | 'prophecyManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'nextSynthNoteId' | 'activeSynthNotes' | 'bassSidechainEQBusRef'>,
 ): NoteOnSynthFn {
     return (params, note, time, track) => {
         const now = time || context.currentTime;
@@ -482,6 +552,37 @@ export function createNoteOnSynth(
                 try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                 const id = refs.nextSynthNoteId.current++;
                 refs.activeSynthNotes.current.set(id, { stop: () => refs.open303ManagerRef.current?.noteOffLead303(midi) });
+                return id;
+            }
+        }
+
+        // === Prophecy Routing (interactive noteOn) ===
+        const prophecyWaveTypeNoteOn = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
+        if (track === 'partB' && prophecyWaveTypeNoteOn !== undefined) {
+            if (refs.prophecyManagerRef?.current?.isPartBReady()) {
+                refs.prophecyManagerRef.current.applyPartBParams(params, prophecyWaveTypeNoteOn);
+                const midi = noteToMidi(note);
+                triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, now, 0.25);
+                const t0 = performance.now();
+                refs.prophecyManagerRef.current.noteOnPartB(midi, 100);
+                const t1 = performance.now();
+                try { engineTelemetry.recordLatency('prophecy', t1 - t0); } catch (_) {}
+                const id = refs.nextSynthNoteId.current++;
+                refs.activeSynthNotes.current.set(id, { stop: () => refs.prophecyManagerRef?.current?.noteOffPartB(midi) });
+                return id;
+            }
+        }
+
+        if (track === 'partA' && prophecyWaveTypeNoteOn !== undefined) {
+            if (refs.prophecyManagerRef?.current?.isPartAReady()) {
+                refs.prophecyManagerRef.current.applyPartAParams(params, prophecyWaveTypeNoteOn);
+                const midi = noteToMidi(note);
+                const t0 = performance.now();
+                refs.prophecyManagerRef.current.noteOnPartA(midi, 100);
+                const t1 = performance.now();
+                try { engineTelemetry.recordLatency('prophecy', t1 - t0); } catch (_) {}
+                const id = refs.nextSynthNoteId.current++;
+                refs.activeSynthNotes.current.set(id, { stop: () => refs.prophecyManagerRef?.current?.noteOffPartA(midi) });
                 return id;
             }
         }
