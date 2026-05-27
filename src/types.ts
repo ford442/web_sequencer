@@ -46,6 +46,9 @@ export interface SynthParams {
 
 export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
 
+/** Drum kit type selection for authentic 808/909 sound character */
+export type DrumKitType = '808' | '909';
+
 export interface KickParams {
   pitch: number;
   decay: number;

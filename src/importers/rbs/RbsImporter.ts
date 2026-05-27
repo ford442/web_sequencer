@@ -577,6 +577,12 @@ export class RbsImporter {
     // Convert drum parameters based on kit type
     const { kick, snare, closedHat, openHat } = this.convertDrumParams(raw.drums, mappings);
 
+    // Determine final kit type for downstream consumers
+    let drumKit: '808' | '909' = raw.drums.kitType;
+    if (this.options.drumKitMapping !== 'auto') {
+      drumKit = this.options.drumKitMapping;
+    }
+
     return {
       synthA,
       synthB,
@@ -584,7 +590,8 @@ export class RbsImporter {
       kick,
       snare,
       closedHat,
-      openHat
+      openHat,
+      drumKit
     };
   }
 

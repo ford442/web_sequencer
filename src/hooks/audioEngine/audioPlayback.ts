@@ -18,6 +18,7 @@ import { ProphecyManager } from '../../engines/ProphecyManager';
 import { PROPHECY_WAVEFORM_SUFFIX } from '../../engines/ProphecyParams';
 import type { VoiceManager, Voice } from '../../engines/VoiceManager';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
+import { DrumKitEngine } from '../../engines/DrumKitEngine';
 import { makeDistortionCurve } from './distortion';
 import { engineTelemetry } from '../../utils/engineTelemetry';
 
@@ -101,6 +102,7 @@ export interface PlaybackRefs {
     harmonizerRef: MutableRefObject<Harmonizer | null>;
     bassSidechainEQBusRef: MutableRefObject<BiquadFilterNode | null>;
     sidechainBusRef: MutableRefObject<GainNode | null>;
+    drumKitEngineRef: MutableRefObject<DrumKitEngine | null>;
 }
 
 export function createPlaySynth(
@@ -400,7 +402,7 @@ export const triggerBassEQDuck = (
 
 export function createPlayDrum(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef'>,
+    refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef' | 'drumKitEngineRef'>,
 ): AudioEngine['playDrum'] {
     return (sound, params, time, _tuning, stepTime = 0.125, note?: string) => {
         if (!refs.masterGainRef.current) {
@@ -418,6 +420,33 @@ export function createPlayDrum(
         for (let i = 0; i < retrigger; i++) {
             const now = time + (i * subStep);
 
+            // Use DrumKitEngine for authentic 808/909 synthesis when available
+            const kitEngine = refs.drumKitEngineRef?.current;
+            if (kitEngine) {
+                // Apply pitch ratio to params before passing to kit engine
+                let adjustedParams = params;
+                if (pitchRatio !== 1) {
+                    if (sound === 'kick') {
+                        const kp = params as KickParams;
+                        adjustedParams = { ...kp, pitch: kp.pitch * pitchRatio };
+                    } else if (sound === 'snare') {
+                        const sp = params as SnareParams;
+                        adjustedParams = { ...sp, tone: sp.tone * pitchRatio };
+                    } else {
+                        const hp = params as HatParams;
+                        adjustedParams = { ...hp, pitch: hp.pitch * pitchRatio };
+                    }
+                }
+
+                if (sound === 'kick' && refs.sidechainGainRef.current) {
+                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+                }
+
+                kitEngine.play(context, refs.masterGainRef.current, refs.noiseBufferRef.current, sound, adjustedParams, now);
+                continue;
+            }
+
+            // Legacy fallback (no kit engine)
             if (sound === 'kick') {
                 if (refs.sidechainGainRef.current) {
                     triggerSidechainDuck(context, refs.sidechainGainRef.current, now);

@@ -10,6 +10,7 @@ import { ProphecyManager } from '../engines/ProphecyManager';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
+import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
@@ -163,6 +164,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
     const multisampleBanksRef = useRef<Map<string, MultisampleBank>>(new Map());
 
+    // Drum Kit Engine (initialized with default 808)
+    const drumKitEngineRef = useRef<DrumKitEngine>(new DrumKitEngine('808'));
+
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
         masterSaturationRef,
@@ -188,6 +192,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         sidechainGainRef,
         bassSidechainEQBusRef,
         sidechainBusRef,
+        drumKitEngineRef,
     }), []);
 
     useEffect(() => {
@@ -1643,6 +1648,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         isReady,
         initializeAudio,
         onParamChange: updateVoiceParams,
-        updateSamplerVoiceParams
+        updateSamplerVoiceParams,
+        drumKitEngineRef,
     }), [audioEngine, isReady, initializeAudio, updateVoiceParams, updateSamplerVoiceParams]);
 };
