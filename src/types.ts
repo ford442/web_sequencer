@@ -348,6 +348,112 @@ export interface KnobAutomation {
   isRecording: boolean;
 }
 
+// ============================================================================
+// AUTOMATION LANE SYSTEM (Issue #652)
+// ============================================================================
+
+/** Automation target — which track/instrument the lane controls */
+export type AutomationTarget =
+  | 'synthA' | 'synthB' | 'bass2'
+  | 'kick' | 'snare' | 'closedHat' | 'openHat'
+  | 'master';
+
+/** Where the automation data originated */
+export type AutomationSource = 'rbs' | 'recorded' | 'ai' | 'manual';
+
+/** Interpolation mode between automation points */
+export type AutomationInterpolation = 'step' | 'linear' | 'smooth';
+
+/** Scope of the automation lane */
+export type AutomationScope = 'pattern' | 'song';
+
+/**
+ * A single point in an automation lane.
+ * Uses normalized 0–1 values for portability across parameter ranges.
+ */
+export interface AutomationLanePoint {
+  /** Step index (0-based, relative to pattern or song position) */
+  step: number;
+  /** Normalized value 0–1 */
+  value: number;
+  /** Optional: interpolation override for this segment */
+  interpolation?: AutomationInterpolation;
+}
+
+/**
+ * Unified automation lane — the core data model for all automation sources.
+ * Handles imported .rbs lanes, live-recorded knob movements, and AI-generated automation.
+ */
+export interface UnifiedAutomationLane {
+  /** Unique lane identifier */
+  id: string;
+  /** Target track */
+  target: AutomationTarget;
+  /** Parameter path (e.g. 'cutoff', 'resonance', 'envMod', 'decay', 'accent') */
+  parameter: string;
+  /** Human-readable display name */
+  name: string;
+  /** Automation data points (sorted by step) */
+  points: AutomationLanePoint[];
+  /** Default interpolation mode for the lane */
+  interpolation: AutomationInterpolation;
+  /** Where this lane came from */
+  source: AutomationSource;
+  /** Whether this lane applies per-pattern or song-wide */
+  scope: AutomationScope;
+  /** Pattern index this lane belongs to (when scope='pattern') */
+  patternIndex?: number;
+  /** Whether the lane is enabled for playback */
+  enabled: boolean;
+  /** Original value range (for display/conversion), defaults to [0, 1] */
+  originalRange?: [number, number];
+}
+
+/**
+ * Record-arm state for a single parameter.
+ * When armed, knob movements are captured into a recording buffer.
+ */
+export interface AutomationRecordArm {
+  /** Target track */
+  target: AutomationTarget;
+  /** Parameter being armed */
+  parameter: string;
+  /** Whether currently armed for recording */
+  armed: boolean;
+}
+
+/**
+ * Active recording buffer — captures knob movements in real time.
+ */
+export interface AutomationRecordingBuffer {
+  /** Target track */
+  target: AutomationTarget;
+  /** Parameter being recorded */
+  parameter: string;
+  /** Captured points during recording (may have sub-step resolution) */
+  points: AutomationLanePoint[];
+  /** Recording start time (performance.now()) */
+  startTime: number;
+  /** Whether recording is in progress */
+  isRecording: boolean;
+}
+
+/**
+ * Full automation state for the application.
+ */
+export interface AutomationState {
+  /** All automation lanes (imported + recorded) */
+  lanes: UnifiedAutomationLane[];
+  /** Record-arm flags per parameter */
+  recordArms: AutomationRecordArm[];
+  /** Active recording buffers (one per armed parameter during record) */
+  recordingBuffers: AutomationRecordingBuffer[];
+  /** Current playback step position (for scheduler) */
+  playbackStep: number;
+  /** Whether global automation playback is enabled */
+  playbackEnabled: boolean;
+}
+
 export interface SongStep {
   patternIndex: number;
 }
@@ -378,6 +484,8 @@ export interface SavedSongData {
   backgroundImage?: string;
   embeddedSamples?: { [bankIndex: number]: string };
   ttsPhrases?: string[];
+  /** Persisted automation lanes (from .rbs import, recordings, or AI) */
+  automationLanes?: UnifiedAutomationLane[];
 }
 export interface AmbianceTrack {
   id: string;
