@@ -8,7 +8,7 @@ import type {
     SnareParams,
     SynthParams,
 } from '../../types';
-import { noteToMidi } from '../../utils/musicTheory';
+import { noteToMidi, type ScaleDefinition } from '../../utils/musicTheory';
 
 /** Reference MIDI note for drum pitch shifting (C3). A step with note C3 plays at unmodified pitch. */
 const DRUM_REF_MIDI = 48;
