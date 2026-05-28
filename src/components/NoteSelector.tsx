@@ -5,7 +5,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 interface NoteSelectorProps {
     x: number;
     y: number;
-    trackType: 'synth' | 'drum';
+    trackType: 'synth' | 'drum' | 'voice';
     currentNote: string;
     currentLength: number;
     onSelect: (note: string) => void;
@@ -36,6 +36,8 @@ interface NoteSelectorProps {
     currentReverbType?: import('../types').ReverbType;
     currentReverbLfoRate?: number;
     currentReverbLfoDepth?: number;
+    currentDelayLfoRate?: number;
+    currentDelayLfoDepth?: number;
     currentFreezeEnvDepth?: number;
     currentGrainEnvDepth?: number;
     currentGrainPitchQuantize?: number;
@@ -587,7 +589,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
 
 
                         {/* Formant Shift Control */}
-                        {(trackType === 'sampler' || trackType === 'synth') && currentFormantShift !== undefined && (
+                        {(trackType === 'voice' || trackType === 'synth') && currentFormantShift !== undefined && (
                             <div className="flex flex-col gap-1 mb-2">
                                 <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                                     <label htmlFor="note-fmt-shift">Formant Shift</label>

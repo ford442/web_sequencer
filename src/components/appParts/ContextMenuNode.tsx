@@ -23,7 +23,7 @@ export const ContextMenuNode = React.memo(() => {
         <NoteSelector
           x={contextMenu.x}
           y={contextMenu.y}
-          trackType={(track.startsWith('part') || track === 'sampler') ? 'synth' : 'drum'}
+          trackType={track === 'sampler' ? 'voice' : (track.startsWith('part') ? 'synth' : 'drum')}
           currentNote={stepData?.note ?? ''}
           currentLength={stepData?.length ?? 1}
           currentTimbre={stepData?.timbre ?? 0}
