@@ -103,6 +103,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentRetrigger = 1,
     currentFreeze = 0,
     currentFormantShift,
+    currentSlideFormant = false,
     currentFilterCutoff,
     currentFilterResonance,
     currentEnvMod,
@@ -586,46 +587,43 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 </div>
                             </>
                         )}
-
-
-                        {/* Formant Shift Control */}
-                        {(trackType === 'voice' || trackType === 'synth') && currentFormantShift !== undefined && (
-                            <div className="flex flex-col gap-1 mb-2">
-                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                                    <label htmlFor="note-fmt-shift">Formant Shift</label>
-                                    <span className="text-cyan-400 font-mono text-[10px] bg-zinc-950 px-1 py-0.5 rounded border border-zinc-800">
-                                        {currentFormantShift > 0 ? '+' : ''}{currentFormantShift}st
-                                    </span>
-                                </div>
-                                <input
-                                    id="note-fmt-shift"
-                                    type="range"
-                                    min="-12"
-                                    max="12"
-                                    step="1"
-                                    value={currentFormantShift}
-                                    onChange={(e) => onPropertyChange('formantShift', parseFloat(e.target.value))}
-                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
-                                    aria-valuetext={`${currentFormantShift > 0 ? '+' : ''}${currentFormantShift} st`}
-                                />
-                                <div className="flex items-center gap-2 mt-1">
-                                    <button
-                                        className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-zinc-900 border-zinc-700 text-gray-500'} hover:bg-zinc-800 transition-colors`}
-                                        onClick={() => onPropertyChange('slideFormant', !currentSlideFormant)}
-                                        title="Glide Formant from Previous Step"
-                                        aria-label="Toggle Formant Glide"
-                                        aria-pressed={currentSlideFormant}
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M5 19L19 5" />
-                                            <path d="M19 19V5H5" />
-                                        </svg>
-                                    </button>
-                                    <span className="text-[9px] uppercase font-mono tracking-widest text-gray-400">Glide</span>
-                                </div>
-                            </div>
-                        )}
-
+{/* Formant Shift Control */}
+{(trackType === 'voice' || trackType === 'synth') && currentFormantShift !== undefined && (
+    <div className="flex flex-col gap-1 mb-2">
+        <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+            <label htmlFor="note-fmt-shift">Formant Shift</label>
+            <span className="text-cyan-400 font-mono text-[10px] bg-zinc-950 px-1 py-0.5 rounded border border-zinc-800">
+                {currentFormantShift > 0 ? '+' : ''}{currentFormantShift}st
+            </span>
+        </div>
+        <input
+            id="note-fmt-shift"
+            type="range"
+            min="-12"
+            max="12"
+            step="1"
+            value={currentFormantShift}
+            onChange={(e) => onPropertyChange('formantShift', parseFloat(e.target.value))}
+            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
+            aria-valuetext={`${currentFormantShift > 0 ? '+' : ''}${currentFormantShift} st`}
+        />
+        <div className="flex items-center gap-2 mt-1">
+            <button
+                className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-zinc-900 border-zinc-700 text-gray-500'} hover:bg-zinc-800 transition-colors`}
+                onClick={() => onPropertyChange('slideFormant', !currentSlideFormant)}
+                title="Glide Formant from Previous Step"
+                aria-label="Toggle Formant Glide"
+                aria-pressed={currentSlideFormant}
+            >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 19L19 5" />
+                    <path d="M19 19V5H5" />
+                </svg>
+            </button>
+            <span className="text-[9px] uppercase font-mono tracking-widest text-gray-400">Glide</span>
+        </div>
+    </div>
+)}
                         {/* Formant LFO Rate Control */}
                         {trackType === 'synth' && (
                             <div className="flex flex-col gap-1">

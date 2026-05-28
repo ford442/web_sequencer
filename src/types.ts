@@ -261,7 +261,7 @@ export interface AudioEngine {
     stepTime?: number,
     slideFromFreq?: number,
     track?: 'partA' | 'partB' | 'bass2',
-    tuning?: ScaleDefinition | null
+    noteParams?: any
   ) => void;
 
   playDrum: (

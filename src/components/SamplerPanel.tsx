@@ -1167,7 +1167,9 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
     if (prev.audioEngine !== next.audioEngine) return false;
 
     // 5. Check if loaded banks status changed
-    if (JSON.stringify(prev.loadedBanks) !== JSON.stringify(next.loadedBanks)) return false;
+    const prevBanks = prev.loadedBanks || [];
+    const nextBanks = next.loadedBanks || [];
+    if (prevBanks.length !== nextBanks.length || prevBanks.some((val, i) => val !== nextBanks[i])) return false;
 
     // 6. Check sample buffer
     if (prev.sampleBuffer !== next.sampleBuffer) return false;
