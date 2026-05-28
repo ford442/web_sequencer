@@ -1049,7 +1049,7 @@ const handleNotePropertyChange = useCallback((
          'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
          'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delaySend' | 'freezeEnvDepth' |
          'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' |
-         'vowel' | 'portamento',
+         'vowel' | 'portamento' | 'slideFormant',
     value: number | boolean | string
 ) => {
     if (!contextMenu) return;

@@ -545,7 +545,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
 
 
                         {/* Formant Shift Control */}
-                        {(trackType === 'sampler' || trackType === 'synth') && currentFormantShift !== undefined && (
+                        {currentFormantShift !== undefined && (
                             <div className="flex flex-col gap-1 mb-2">
                                 <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                                     <label htmlFor="note-fmt-shift">Formant Shift</label>

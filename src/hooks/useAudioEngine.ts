@@ -868,7 +868,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 targetFormantShift = baseShift + (noteParams.timbre * 12) - 6;
                             }
 
-                            if (noteParams?.slideFromFormant !== undefined && (noteParams?.slide === true || noteParams?.slideFormant === true)) {
+                            if (noteParams?.slideFromFormant !== undefined && ((noteParams as any)?.slide === true || (noteParams as any)?.slideFormant === true)) {
                                 const startFormantShift = baseShift + noteParams.slideFromFormant;
                                 const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
                                 voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);
