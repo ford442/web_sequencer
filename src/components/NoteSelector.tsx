@@ -81,6 +81,8 @@ interface NoteSelectorProps {
         | 'reverbType'
         | 'reverbLfoRate'
         | 'reverbLfoDepth'
+        | 'delayLfoRate'
+        | 'delayLfoDepth'
         | 'delaySend'
         | 'choir'
         | 'vowel'
@@ -111,6 +113,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentReverbType,
     currentReverbLfoRate,
     currentReverbLfoDepth,
+    currentDelayLfoRate,
+    currentDelayLfoDepth,
     currentDelaySend,
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
@@ -499,6 +503,43 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         aria-valuetext={`${currentReverbLfoDepth !== undefined ? Math.round(currentReverbLfoDepth * 100) : 0}%`}
                                         aria-label="Reverb LFO Depth"
                                     />
+
+                                    <div className="mt-4 border-t border-indigo-500/20 pt-4">
+                                        <div className="flex justify-between mb-1">
+                                            <span className="text-[10px] text-indigo-200/70 font-medium">Delay LFO Rate</span>
+                                            <span className="text-[10px] text-indigo-300/90 tabular-nums">
+                                                {currentDelayLfoRate !== undefined ? currentDelayLfoRate.toFixed(1) : 0} Hz
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0.1"
+                                            max="10"
+                                            step="0.1"
+                                            value={currentDelayLfoRate !== undefined ? currentDelayLfoRate : 0}
+                                            onChange={(e) => onPropertyChange?.('delayLfoRate', parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                            aria-valuetext={`${currentDelayLfoRate !== undefined ? currentDelayLfoRate.toFixed(1) : 0} Hz`}
+                                            aria-label="Delay LFO Rate"
+                                        />
+                                        <div className="flex justify-between mt-2 mb-1">
+                                            <span className="text-[10px] text-indigo-200/70 font-medium">Delay LFO Depth</span>
+                                            <span className="text-[10px] text-indigo-300/90 tabular-nums">
+                                                {currentDelayLfoDepth !== undefined ? Math.round(currentDelayLfoDepth * 100) : 0}%
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            value={currentDelayLfoDepth !== undefined ? currentDelayLfoDepth : 0}
+                                            onChange={(e) => onPropertyChange?.('delayLfoDepth', parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                            aria-valuetext={`${currentDelayLfoDepth !== undefined ? Math.round(currentDelayLfoDepth * 100) : 0}%`}
+                                            aria-label="Delay LFO Depth"
+                                        />
+                                    </div>
                                 </div>
 
 

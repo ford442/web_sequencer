@@ -1,9 +1,10 @@
+@import './accessibility.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Accessibility features: reduced-motion, high-contrast, mobile touch */
-@import './accessibility.css';
 
 :root {
   font-family: 'Roboto Mono', monospace;
