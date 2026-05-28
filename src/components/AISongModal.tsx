@@ -26,7 +26,6 @@ import {
 } from '../importers/ai-song';
 import { LoadingButton } from './LoadingButton';
 import type { SavedSongData } from '../types';
-import { LoadingButton } from './LoadingButton';
 import type { TabType, ValidationStage, ErrorCategory, ImportStage, TrackStats, FieldError, ValidationState, DroppedFile, AISongModalProps } from '../types/aiSongModal';
 import { PROMPT_TEMPLATE, EXAMPLES } from '../constants/aiSongExamples';
 import { generateId, fixCommonJsonIssues, categorizeError, getErrorSuggestions, getValidationColor, getTextareaBorderColor, formatFileSize, getFileIcon } from '../utils/aiSongUtils';
