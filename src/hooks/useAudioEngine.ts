@@ -513,7 +513,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             // --- Playback Functions Extraction ---
             const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', tuning?: any | null) => {
-                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track);
+                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track, tuning);
             };
             const playDrum = createPlayDrum(context, playbackRefs) as any;
             const {
@@ -868,7 +868,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 targetFormantShift = baseShift + (noteParams.timbre * 12) - 6;
                             }
 
-                            if (noteParams?.slideFromFormant !== undefined && (noteParams?.slide === true || noteParams?.slideFormant === true)) {
+                            if (noteParams?.slideFromFormant !== undefined && (noteParams?.slideFromMidi !== undefined || noteParams?.slideFromFormant !== undefined)) {
                                 const startFormantShift = baseShift + noteParams.slideFromFormant;
                                 const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
                                 voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);

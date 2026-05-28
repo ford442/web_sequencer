@@ -47,6 +47,8 @@ export const ContextMenuNode = React.memo(() => {
           currentCharacterMorph={stepData?.characterMorph}
           currentReverbSend={stepData?.reverbSend}
           currentReverbType={stepData?.reverbType}
+          currentDelayLfoRate={stepData?.delayLfoRate}
+          currentDelayLfoDepth={stepData?.delayLfoDepth}
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
           currentTranceGate={stepData?.tranceGate}

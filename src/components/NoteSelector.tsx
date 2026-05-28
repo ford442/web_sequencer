@@ -127,6 +127,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     isProphecy = false,
     currentVowel = 0,
     currentPortamento = 0,
+    currentSlideFormant = false,
     onPropertyChange
 }) => {
     // Determine octave range based on track type
