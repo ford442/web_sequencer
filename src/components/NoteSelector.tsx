@@ -99,6 +99,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentRetrigger = 1,
     currentFreeze = 0,
     currentFormantShift,
+    currentSlideFormant = false,
     currentFilterCutoff,
     currentFilterResonance,
     currentEnvMod,

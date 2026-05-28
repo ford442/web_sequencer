@@ -244,7 +244,7 @@ export const useStepHandler = ({
                 stepTime,
                 undefined,
                 'bass2' as any,
-                currentScale
+                undefined
             );
         };
 
@@ -318,6 +318,7 @@ export const useStepHandler = ({
                 stepData.length,
                 stepTime,
                 { ...stepData, slideFromMidi, slideFromFormant },
+                0, // pitchOffsetSemitones
                 currentScale
             );
 
