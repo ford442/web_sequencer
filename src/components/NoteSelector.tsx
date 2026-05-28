@@ -5,7 +5,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 interface NoteSelectorProps {
     x: number;
     y: number;
-    trackType: 'synth' | 'drum';
+    trackType: 'synth' | 'drum' | 'voice';
     currentNote: string;
     currentLength: number;
     onSelect: (note: string) => void;
@@ -36,6 +36,8 @@ interface NoteSelectorProps {
     currentReverbType?: import('../types').ReverbType;
     currentReverbLfoRate?: number;
     currentReverbLfoDepth?: number;
+    currentDelayLfoRate?: number;
+    currentDelayLfoDepth?: number;
     currentFreezeEnvDepth?: number;
     currentGrainEnvDepth?: number;
     currentGrainPitchQuantize?: number;
@@ -81,6 +83,8 @@ interface NoteSelectorProps {
         | 'reverbType'
         | 'reverbLfoRate'
         | 'reverbLfoDepth'
+        | 'delayLfoRate'
+        | 'delayLfoDepth'
         | 'delaySend'
         | 'choir'
         | 'vowel'
@@ -112,6 +116,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentReverbType,
     currentReverbLfoRate,
     currentReverbLfoDepth,
+    currentDelayLfoRate,
+    currentDelayLfoDepth,
     currentDelaySend,
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
@@ -124,6 +130,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     isProphecy = false,
     currentVowel = 0,
     currentPortamento = 0,
+    currentSlideFormant = false,
     onPropertyChange
 }) => {
     // Determine octave range based on track type
@@ -500,6 +507,43 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         aria-valuetext={`${currentReverbLfoDepth !== undefined ? Math.round(currentReverbLfoDepth * 100) : 0}%`}
                                         aria-label="Reverb LFO Depth"
                                     />
+
+                                    <div className="mt-4 border-t border-indigo-500/20 pt-4">
+                                        <div className="flex justify-between mb-1">
+                                            <span className="text-[10px] text-indigo-200/70 font-medium">Delay LFO Rate</span>
+                                            <span className="text-[10px] text-indigo-300/90 tabular-nums">
+                                                {currentDelayLfoRate !== undefined ? currentDelayLfoRate.toFixed(1) : 0} Hz
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0.1"
+                                            max="10"
+                                            step="0.1"
+                                            value={currentDelayLfoRate !== undefined ? currentDelayLfoRate : 0}
+                                            onChange={(e) => onPropertyChange?.('delayLfoRate', parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                            aria-valuetext={`${currentDelayLfoRate !== undefined ? currentDelayLfoRate.toFixed(1) : 0} Hz`}
+                                            aria-label="Delay LFO Rate"
+                                        />
+                                        <div className="flex justify-between mt-2 mb-1">
+                                            <span className="text-[10px] text-indigo-200/70 font-medium">Delay LFO Depth</span>
+                                            <span className="text-[10px] text-indigo-300/90 tabular-nums">
+                                                {currentDelayLfoDepth !== undefined ? Math.round(currentDelayLfoDepth * 100) : 0}%
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            value={currentDelayLfoDepth !== undefined ? currentDelayLfoDepth : 0}
+                                            onChange={(e) => onPropertyChange?.('delayLfoDepth', parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                            aria-valuetext={`${currentDelayLfoDepth !== undefined ? Math.round(currentDelayLfoDepth * 100) : 0}%`}
+                                            aria-label="Delay LFO Depth"
+                                        />
+                                    </div>
                                 </div>
 
 
@@ -543,46 +587,43 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 </div>
                             </>
                         )}
-
-
-                        {/* Formant Shift Control */}
-                        {currentFormantShift !== undefined && (
-                            <div className="flex flex-col gap-1 mb-2">
-                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                                    <label htmlFor="note-fmt-shift">Formant Shift</label>
-                                    <span className="text-cyan-400 font-mono text-[10px] bg-zinc-950 px-1 py-0.5 rounded border border-zinc-800">
-                                        {currentFormantShift > 0 ? '+' : ''}{currentFormantShift}st
-                                    </span>
-                                </div>
-                                <input
-                                    id="note-fmt-shift"
-                                    type="range"
-                                    min="-12"
-                                    max="12"
-                                    step="1"
-                                    value={currentFormantShift}
-                                    onChange={(e) => onPropertyChange('formantShift', parseFloat(e.target.value))}
-                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
-                                    aria-valuetext={`${currentFormantShift > 0 ? '+' : ''}${currentFormantShift} st`}
-                                />
-                                <div className="flex items-center gap-2 mt-1">
-                                    <button
-                                        className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-zinc-900 border-zinc-700 text-gray-500'} hover:bg-zinc-800 transition-colors`}
-                                        onClick={() => onPropertyChange('slideFormant', !currentSlideFormant)}
-                                        title="Glide Formant from Previous Step"
-                                        aria-label="Toggle Formant Glide"
-                                        aria-pressed={currentSlideFormant}
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M5 19L19 5" />
-                                            <path d="M19 19V5H5" />
-                                        </svg>
-                                    </button>
-                                    <span className="text-[9px] uppercase font-mono tracking-widest text-gray-400">Glide</span>
-                                </div>
-                            </div>
-                        )}
-
+{/* Formant Shift Control */}
+{(trackType === 'voice' || trackType === 'synth') && currentFormantShift !== undefined && (
+    <div className="flex flex-col gap-1 mb-2">
+        <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+            <label htmlFor="note-fmt-shift">Formant Shift</label>
+            <span className="text-cyan-400 font-mono text-[10px] bg-zinc-950 px-1 py-0.5 rounded border border-zinc-800">
+                {currentFormantShift > 0 ? '+' : ''}{currentFormantShift}st
+            </span>
+        </div>
+        <input
+            id="note-fmt-shift"
+            type="range"
+            min="-12"
+            max="12"
+            step="1"
+            value={currentFormantShift}
+            onChange={(e) => onPropertyChange('formantShift', parseFloat(e.target.value))}
+            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
+            aria-valuetext={`${currentFormantShift > 0 ? '+' : ''}${currentFormantShift} st`}
+        />
+        <div className="flex items-center gap-2 mt-1">
+            <button
+                className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-zinc-900 border-zinc-700 text-gray-500'} hover:bg-zinc-800 transition-colors`}
+                onClick={() => onPropertyChange('slideFormant', !currentSlideFormant)}
+                title="Glide Formant from Previous Step"
+                aria-label="Toggle Formant Glide"
+                aria-pressed={currentSlideFormant}
+            >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 19L19 5" />
+                    <path d="M19 19V5H5" />
+                </svg>
+            </button>
+            <span className="text-[9px] uppercase font-mono tracking-widest text-gray-400">Glide</span>
+        </div>
+    </div>
+)}
                         {/* Formant LFO Rate Control */}
                         {trackType === 'synth' && (
                             <div className="flex flex-col gap-1">

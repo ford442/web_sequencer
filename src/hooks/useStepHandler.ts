@@ -199,6 +199,7 @@ export const useStepHandler = ({
                 slideFrom,
                 trackKey,
                 noteParams,
+                currentScale
             );
 
             // Update last frequency for future slides
@@ -244,7 +245,8 @@ export const useStepHandler = ({
                 stepTime,
                 undefined,
                 'bass2' as any,
-                undefined
+                undefined,
+                currentScale
             );
         };
 

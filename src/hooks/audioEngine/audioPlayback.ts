@@ -8,7 +8,7 @@ import type {
     SnareParams,
     SynthParams,
 } from '../../types';
-import { noteToMidi } from '../../utils/musicTheory';
+import { noteToMidi, type ScaleDefinition } from '../../utils/musicTheory';
 
 /** Reference MIDI note for drum pitch shifting (C3). A step with note C3 plays at unmodified pitch. */
 const DRUM_REF_MIDI = 48;
@@ -57,6 +57,7 @@ export type PlaySynthFn = (
     slideFromFreq?: number,
     track?: SynthTrack,
     noteParams?: SynthNoteParams,
+    tuning?: ScaleDefinition | null
 ) => void;
 
 export type NoteOnSynthFn = (
@@ -109,7 +110,7 @@ export function createPlaySynth(
     context: AudioContext,
     refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'prophecyManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'bassSidechainEQBusRef'>,
 ): PlaySynthFn {
-    return (params, note, time, durationSteps = 1, stepTime = 0.2, slideFromFreq, track, noteParams) => {
+    return (params, note, time, durationSteps = 1, stepTime = 0.2, slideFromFreq, track, noteParams, tuning) => {
         if (!refs.masterGainRef.current) {
             return;
         }

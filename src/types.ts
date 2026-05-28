@@ -105,6 +105,8 @@ export interface SamplerBankParams {
   formantLfoDepth?: number;
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
+  delayLfoRate?: number;
+  delayLfoDepth?: number;
   formantLfoShape?: number[];
   formantEnvAttack?: number;
   formantEnvDecay?: number;
@@ -209,6 +211,8 @@ export interface Note {
   reverbType?: ReverbType;
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
+  delayLfoRate?: number;
+  delayLfoDepth?: number;
   delaySend?: number;
   choir?: number;
   drive?: number;
