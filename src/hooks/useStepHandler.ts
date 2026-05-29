@@ -190,17 +190,7 @@ export const useStepHandler = ({
             const autoFormantShift = automation?.['formantShift']?.[step];
             if (autoFormantShift !== undefined && autoFormantShift !== null) noteParams.formantShift = autoFormantShift;
 
-            audioEngine.playSynth(
-                params,
-                notes,
-                time,
-                stepData.length,
-                stepTime,
-                slideFrom,
-                trackKey,
-                noteParams,
-                currentScale
-            );
+            audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, noteParams, currentScale);
 
             // Update last frequency for future slides
             lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale);
@@ -237,17 +227,7 @@ export const useStepHandler = ({
                 (audioEngine.open303Engine as any).applyBass2Params?.(bass2Ref.current);
             }
 
-            audioEngine.playSynth(
-                bass2Params,
-                notes,
-                time,
-                stepData.length,
-                stepTime,
-                undefined,
-                'bass2' as any,
-                undefined,
-                currentScale
-            );
+            audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, undefined, currentScale);
         };
 
         // Trigger synths
