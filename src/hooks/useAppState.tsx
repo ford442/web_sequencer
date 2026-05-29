@@ -397,43 +397,114 @@ export function useAppState() {
     }, [sampler, activeSamplerBank]);
 
     const handleAutoMix = useCallback(() => {
-        updateSynthA({ pan: -0.3 });
-        updateSynthB({ pan: 0.3 });
-        updateBass2({ pan: 0 });
-        updateKick({ pan: 0 });
-        updateSnare({ pan: 0 });
+        // 1. Analyze Sequence Content
+        const pattern = patternRef.current;
+        const calculateActivity = (trackSeq: any) => {
+            if (!trackSeq || !trackSeq.steps) return 0;
+            let activeSteps = 0;
+            let totalVelocity = 0;
+            trackSeq.steps.forEach((step: any) => {
+                if (step) {
+                    activeSteps++;
+                    totalVelocity += step.velocity || 1;
+                }
+            });
+            return activeSteps === 0 ? 0 : totalVelocity / trackSeq.steps.length;
+        };
+
+        const synthAActivity = calculateActivity(pattern.partA);
+        const synthBActivity = calculateActivity(pattern.partB);
+        const bassActivity = calculateActivity(pattern.bass2);
+        const kickActivity = calculateActivity(pattern.kick);
+        const snareActivity = calculateActivity(pattern.snare);
+        const closedHatActivity = calculateActivity(pattern.closedHat);
+        const openHatActivity = calculateActivity(pattern.openHat);
+
+        const samplerActivities = pattern.sampler.map(bank => calculateActivity(bank));
+        const totalSamplerActivity = samplerActivities.reduce((a, b) => a + b, 0);
+
+        // 2. Dynamic Panning
+        // Spread synths based on relative activity to avoid crowding
+        let synthAPan = -0.3;
+        let synthBPan = 0.3;
+        if (synthAActivity > 0 && synthBActivity === 0) {
+            synthAPan = 0; // Center if it's the only synth
+        } else if (synthBActivity > 0 && synthAActivity === 0) {
+            synthBPan = 0;
+        }
+
+        updateSynthA({ pan: synthAPan });
+        updateSynthB({ pan: synthBPan });
+        updateBass2({ pan: 0 }); // Bass always centered
+        updateKick({ pan: 0 });  // Kick always centered
+        updateSnare({ pan: 0 }); // Snare always centered
         updateClosedHat({ pan: 0.15 });
         updateOpenHat({ pan: 0.25 });
+
+        // Spread sampler voices wider if they are active, stagger them
         setSampler(prev => {
             const next = [...prev];
+            let panSpread = 0.4;
+            if (totalSamplerActivity > 0.5) panSpread = 0.6; // Wider if very active
             for (let i = 0; i < 8; i++) {
-                next[i] = { ...next[i], pan: (i % 2 === 0 ? -0.4 : 0.4) + (i * 0.05) };
+                // Determine direction and width based on index and activity
+                const direction = i % 2 === 0 ? -1 : 1;
+                const width = panSpread + (i * 0.05 * direction);
+                // Keep the lead (0) closer to center if it's the main vocal
+                next[i] = { ...next[i], pan: i === 0 ? 0 : Math.max(-1, Math.min(1, width)) };
             }
             return next;
         });
 
-        updateSynthA({ volume: 0.65 });
-        updateSynthB({ volume: 0.65 });
-        updateBass2({ volume: 0.85 });
-        updateKick({ volume: 0.95 });
-        updateSnare({ volume: 0.85 });
-        updateClosedHat({ volume: 0.6 });
-        updateOpenHat({ volume: 0.65 });
+        // 3. Dynamic Leveling
+        // Attenuate dense tracks to leave headroom
+        const scaleVolume = (baseVol: number, activity: number) => {
+            if (activity === 0) return baseVol;
+            // Reduce volume slightly as activity increases (up to 15% reduction)
+            const reduction = Math.min(0.15, activity * 0.2);
+            return Math.max(0.1, baseVol - reduction);
+        };
+
+        updateSynthA({ volume: scaleVolume(0.7, synthAActivity) });
+        updateSynthB({ volume: scaleVolume(0.7, synthBActivity) });
+        updateBass2({ volume: scaleVolume(0.85, bassActivity) });
+        updateKick({ volume: scaleVolume(0.95, kickActivity) });
+        updateSnare({ volume: scaleVolume(0.85, snareActivity) });
+        updateClosedHat({ volume: scaleVolume(0.6, closedHatActivity) });
+        updateOpenHat({ volume: scaleVolume(0.65, openHatActivity) });
+
         setSampler(prev => {
             const next = [...prev];
             for (let i = 0; i < 8; i++) {
-                next[i] = { ...next[i], volume: 0.7 };
+                next[i] = { ...next[i], volume: scaleVolume(0.75, samplerActivities[i]) };
             }
             return next;
         });
+
+        // 4. Dynamic EQ / Masking Prevention
+        // If Bass is active, thin out the synths slightly
+        if (bassActivity > 0.1) {
+            updateSynthA({ filterCutoff: Math.max(synthA.filterCutoff, 250) }); // Highpass
+            updateSynthB({ filterCutoff: Math.max(synthB.filterCutoff, 250) });
+        } else {
+             // Reset to lower if bass is sparse
+            if (synthA.filterCutoff > 100) updateSynthA({ filterCutoff: 100 });
+            if (synthB.filterCutoff > 100) updateSynthB({ filterCutoff: 100 });
+        }
+
+        // If Vocals are very active, reduce synth resonance to clear the mid-range
+        if (totalSamplerActivity > 0.3) {
+            updateSynthA({ filterResonance: Math.min(synthA.filterResonance, 3) });
+            updateSynthB({ filterResonance: Math.min(synthB.filterResonance, 3) });
+        }
 
         setMasterVolume(0.85);
         if (audioEngine) {
             audioEngine.setMasterVolume(0.85);
         }
 
-        console.log("Auto-Mix Assistant applied deterministic mixing parameters.");
-    }, [updateSynthA, updateSynthB, updateBass2, updateKick, updateSnare, updateClosedHat, updateOpenHat, audioEngine]);
+        console.log("Auto-Mix Assistant applied dynamic, content-aware mixing parameters.");
+    }, [updateSynthA, updateSynthB, updateBass2, updateKick, updateSnare, updateClosedHat, updateOpenHat, audioEngine, synthA.filterCutoff, synthA.filterResonance, synthB.filterCutoff, synthB.filterResonance, setSampler]);
 
     const tempoHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const tempoRef = useRef(tempo);

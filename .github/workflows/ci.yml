@@ -55,11 +55,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.51
-
       - name: Build WASM artifacts
         run: pnpm run build:wasm
 
@@ -70,9 +65,6 @@ jobs:
         # triaged and resolved in a follow-up.
         run: pnpm lint
         continue-on-error: true
-
-      - name: Build WASM
-        run: pnpm run build:wasm
 
       - name: Test (Vitest)
         # WASM artifacts are gitignored and intentionally not built in Phase 1.
