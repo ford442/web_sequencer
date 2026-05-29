@@ -45,6 +45,14 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = React.memo(({ onClose
                 { key: 'Shift + Tab', desc: 'Focus Previous Element' },
                 { key: 'Esc', desc: 'Close Modals' },
             ]
+        },
+        {
+            title: 'Feature Reference (Non-Shortcut)',
+            items: [
+                { key: 'SYNTH B / BASS 2', desc: 'Select 303-* waveforms in these sections to route into per-voice Open303/JC303 engines' },
+                { key: 'ENGINE MODE', desc: '303 voices support open303 and authentic jc303 DSP selection via the engine303 setting' },
+                { key: 'PROPHECY WAVES', desc: 'Select prophecy-* waveforms for partA/partB formant synthesis (more controls coming soon)' },
+            ]
         }
     ];
 

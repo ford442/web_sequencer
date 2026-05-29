@@ -50,6 +50,28 @@ export interface ProphecyParams {
     resonance:     number;   // 0–1
 }
 
+/**
+ * Maps a full Prophecy Waveform enum value to the short waveType suffix
+ * used internally (e.g. 'prophecy-saw' → 'saw').
+ */
+export const PROPHECY_WAVEFORM_SUFFIX: Partial<Record<string, string>> = {
+    'prophecy-saw':   'saw',
+    'prophecy-sqr':   'sqr',
+    'prophecy-tri':   'tri',
+    'prophecy-pulse': 'pulse',
+};
+
+/**
+ * Maps a short waveType suffix to the numeric waveform ID expected by
+ * `prophecy_set_param(WAVEFORM, ...)` (0=Saw, 1=Square, 2=Triangle, 3=Pulse).
+ */
+export const PROPHECY_WAVEFORM_ID: Record<string, number> = {
+    saw:   0,
+    sqr:   1,
+    tri:   2,
+    pulse: 3,
+};
+
 /** Sensible defaults that give an audible formant-rich pad sound immediately. */
 export const DEFAULT_PROPHECY_PARAMS: ProphecyParams = {
     waveform:     0,     // Sawtooth

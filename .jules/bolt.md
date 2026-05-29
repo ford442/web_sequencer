@@ -5,18 +5,23 @@
 ## 2024-05-16 - Sequencer React Memoization Enhancements
 **Learning:** When using immutable update patterns (like shallow cloning) in a parent component, child components wrapped in `React.memo` do not need expensive custom `areEqual` functions that loop through arrays to check for deep equality. The parent's immutable update guarantees that if a change occurred, the array reference itself will be different. Deep array equality checks inside `areEqual` functions for arrays with 256 elements per row add massive, redundant CPU overhead on every render cycle.
 **Action:** Replace custom `arraysEqual` loops inside `React.memo` comparators with simple reference equality (`prev.steps === next.steps`). This is vastly faster and correctly detects updates when the parent state management creates new array references for mutations.
+
 ## 2026-05-19 - Component Memoization
 **Learning:** Components wrapped with React.memo that take callbacks as props will still re-render if the callbacks are recreated on every render of the parent component. Replacing React.memo with memo and use callbacks helps minimize renders and improve UI fluidity
 **Action:** Use memo everywhere where React.memo is used and use useCallback.
+
 ## 2026-05-19 - Detach Visual Zoom from React State
 **Learning:** Chasing down useMemo/useCallback dependencies for rapidly changing layout props (like zoom) is often a losing battle. Passing  as a prop forced 256 SVG steps per row to re-render constantly during scrolling, crushing the main thread.
 **Action:** Bypassed the React render cycle entirely for gestures by imperatively updating a CSS custom property (`--zoom-level`) via `requestAnimationFrame`, and using a debouncer to sync the final zoom value back to React state.
+
 ## 2024-05-17 - Detach Visual Zoom from React State
 **Learning:** Chasing down useMemo/useCallback dependencies for rapidly changing layout props (like zoom) is often a losing battle. Passing `zoom` as a prop forced 256 SVG steps per row to re-render constantly during scrolling, crushing the main thread.
 **Action:** Bypassed the React render cycle entirely for gestures by imperatively updating a CSS custom property (`--zoom-level`) via `requestAnimationFrame`, and using a debouncer to sync the final zoom value back to React state.
+
 ## 2026-05-21 - Stabilized Global Context Handlers
 **Learning:** Passing unstabilized inline functions through context completely invalidates `React.memo` on all downstream consumer components, leading to massive re-renders.
 **Action:** Always wrap global context handlers (like those in `useAppState.tsx`) in `useCallback` with precise dependency arrays before passing them down.
+
 ## 2024-05-19 - Component Memoization
 **Learning:** Components wrapped with React.memo that take callbacks as props will still re-render if the callbacks are recreated on every render of the parent component. Replacing React.memo with memo and use callbacks helps minimize renders and improve UI fluidity
 **Action:** Use memo everywhere where React.memo is used and use useCallback.
@@ -32,6 +37,11 @@
 ## 2026-05-25 - Stable fallbacks for React components
 **Learning:** Using inline fallback functions, such as `onPitchChange || (() => {})`, as props for child components defeats React's memoization. A new arrow function reference is created on every render, causing the child component to unnecessarily re-render even if its actual dependencies haven't changed.
 **Action:** Create a module-scoped constant or a shared utility function (e.g., `export const noop = () => {};` in `src/utils/noop.ts`) and use it as the fallback (e.g., `onPitchChange || noop`). This provides a single, globally stable reference that maintains the integrity of `React.memo`.
+
 ## 2024-05-24 - JSON.parse(JSON.stringify()) Optimization Pitfall
 **Learning:** When trying to optimize performance by removing `JSON.parse(JSON.stringify())` deep clones, do not blindly replace them with shallow clones (like spread operators or `.map`) on global initializer objects, default templates, or version history records. Doing so causes "State Bleed" where deeply nested structures retain references to the global template. If a user modifies an effect config on Track 1, it mutates the global template, thereby breaking Track 2. Additionally, custom mapping logic on complex objects like `VersionHistory` risks data loss by accidentally dropping unmapped fields.
 **Action:** Only optimize `JSON.parse` with shallow/immutable updates for hot-path UI event handlers (like `pasteSteps` or track edits) where the specific path being mutated is known and controlled. For cold paths like app initialization or saving, leave the deep clone intact or use `structuredClone()` to guarantee absolute reference detachment.
+
+## 2026-05-26 - Sequencer React Performance Enhancements (useMemo on inner arrays)
+**Learning:** In heavily repeated layout components wrapped in `React.memo` (like `SequencerRow`), relying solely on parent memoization isn't enough when arrays of child elements (`renderedSteps`, `TrackSlotButton` arrays) are mapped out inline. Doing so forces inner array regeneration on every transient parent prop change or visual state update that bypasses `React.memo`'s comparator. Custom `areEqual` comparators in `React.memo` that omit callback props to rely on strict object references frequently cause "stale closures," breaking core component interaction.
+**Action:** When a parent sequence row passes its custom `areEqual` check, ensure the generated arrays of 32+ SVG inner components are strictly wrapped in `useMemo` hooks, keeping the dependencies bound to exact visual and structural state (like `steps`, `activeSlot`, etc.) rather than inline anonymous functions or constantly updating parent refs. When defining `React.memo` custom `areEqual` functions, you should avoid dropping callback props from the comparison unless the parent guarantees they are absolutely stable (or uses a `useRef` event bus pattern) to prevent stale state references on click events.

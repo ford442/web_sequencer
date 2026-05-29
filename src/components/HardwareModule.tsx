@@ -19,6 +19,8 @@ interface HardwareModuleProps {
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void;
     children?: React.ReactNode;
+    /** Optional badge rendered in the title bar (e.g. engine indicator pill). */
+    titleBadge?: React.ReactNode;
     is3D?: boolean; // Kept for API compatibility; no longer drives knob rendering
 }
 
@@ -211,6 +213,7 @@ export const HardwareModule = memo(
         onParamChange,
         onRecordToggle,
         children,
+        titleBadge,
         is3D = false
     }: HardwareModuleProps) => {
         const containerRef = useRef<HTMLDivElement>(null);
@@ -440,7 +443,10 @@ export const HardwareModule = memo(
                     />
                 ))}
                 <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">{title.toUpperCase()}</div>
+                    <div className="absolute top-2 left-4 flex items-center gap-2 border-b border-white/20 pb-1 w-auto max-w-[90%]">
+                        <span className="text-xs font-orbitron font-bold text-white/50 tracking-widest">{title.toUpperCase()}</span>
+                        {titleBadge}
+                    </div>
 
                     {controls.map((c, i) => (
                         <KnobOverlay

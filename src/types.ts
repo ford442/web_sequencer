@@ -15,7 +15,8 @@ export type Waveform =
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
   | 'rust-saw' | 'rust-sqr'
-  | '303-saw' | '303-sqr';
+  | '303-saw' | '303-sqr'
+  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
 
 export interface SynthParams {
   waveform: Waveform;
@@ -35,6 +36,12 @@ export interface SynthParams {
   delayMix: number; // 0-1 (wet/dry)
   /** Which DSP engine to use when waveform is '303-saw' or '303-sqr'. Defaults to 'open303'. */
   engine303?: Engine303;
+  /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
+  vowel?: number;
+  /** Prophecy: Portamento rate 0–1 (0=instantaneous, 1=max glide) */
+  portamento?: number;
+  /** Prophecy: Formant frequency shift 0–1 */
+  formantShift?: number;
 }
 
 export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
@@ -207,6 +214,10 @@ export interface Note {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   phonemes?: PhonemeData[];
+  /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
+  vowel?: number;
+  /** Prophecy: Portamento rate 0–1 */
+  portamento?: number;
   // ... other fields as needed
 }
 
