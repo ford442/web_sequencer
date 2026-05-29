@@ -8,6 +8,7 @@ interface NoteSelectorProps {
     trackType: 'synth' | 'drum' | 'voice';
     currentNote: string;
     currentLength: number;
+    currentPan?: number;
     onSelect: (note: string) => void;
     onLengthChange: (length: number) => void;
     onClose: () => void;
@@ -93,6 +94,7 @@ interface NoteSelectorProps {
 }
 
 export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
+    currentPan,
     x, y, trackType, currentNote, currentLength, onSelect, onLengthChange, onClose, getNoteColor, currentScale,
 
     currentTimbre = 0,
@@ -370,7 +372,49 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                             </>
                         )}
 
-                        {/* Delay Send Control */}
+
+                        {/* Pan Control */}
+                        <fieldset className="flex items-center justify-between group">
+                            <legend className="sr-only">Pan Control</legend>
+                            <div className="flex flex-col">
+                                <label htmlFor="note-pan" className="text-xs font-bold font-orbitron text-cyan-400 group-hover:text-cyan-300 transition-colors drop-shadow-[0_0_5px_rgba(6,182,212,0.3)]">Pan</label>
+                                <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentPan !== undefined ? Math.round(currentPan * 100) : 0}%</span>
+                            </div>
+                            <input
+                                id="note-pan"
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.05"
+                                value={currentPan !== undefined ? currentPan : 0}
+                                onChange={(e) => onPropertyChange?.('pan', parseFloat(e.target.value))}
+                                className="w-24 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]"
+                                aria-label="Pan"
+                            />
+                        </fieldset>
+
+
+                        {/* Pan Control */}
+                        <fieldset className="flex items-center justify-between group">
+                            <legend className="sr-only">Pan Control</legend>
+                            <div className="flex flex-col">
+                                <label htmlFor="note-pan" className="text-xs font-bold font-orbitron text-cyan-400 group-hover:text-cyan-300 transition-colors drop-shadow-[0_0_5px_rgba(6,182,212,0.3)]">Pan</label>
+                                <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentPan !== undefined ? Math.round(currentPan * 100) : 0}%</span>
+                            </div>
+                            <input
+                                id="note-pan"
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.05"
+                                value={currentPan !== undefined ? currentPan : 0}
+                                onChange={(e) => onPropertyChange?.('pan', parseFloat(e.target.value))}
+                                className="w-24 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]"
+                                aria-label="Pan"
+                            />
+                        </fieldset>
+
+                                {/* Delay Send Control */}
                         {onPropertyChange && (
                             <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
                                 <legend className="sr-only">Delay Send Control</legend>

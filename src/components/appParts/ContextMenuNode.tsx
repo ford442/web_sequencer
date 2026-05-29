@@ -26,6 +26,7 @@ export const ContextMenuNode = React.memo(() => {
           trackType={track === 'sampler' ? 'voice' : (track.startsWith('part') ? 'synth' : 'drum')}
           currentNote={stepData?.note ?? ''}
           currentLength={stepData?.length ?? 1}
+          currentPan={stepData?.pan}
           currentTimbre={stepData?.timbre ?? 0}
           currentVelocity={stepData?.velocity ?? 1}
           currentProbability={stepData?.probability ?? 1}

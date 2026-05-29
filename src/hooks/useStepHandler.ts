@@ -285,6 +285,7 @@ export const useStepHandler = ({
                 rootNote: voiceParams.rootNote,
                 coarseTune: voiceParams.coarseTune,
                 fineTune: voiceParams.fineTune,
+                pan: stepData.pan ?? voiceParams.pan,
                 formantShift: voiceParams.formantShift,
                 attack: voiceParams.attack,
                 decay: voiceParams.decay,
