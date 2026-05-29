@@ -1,123 +1,129 @@
+#!/usr/bin/env python3
+"""
+deploy.py — web_sequencer (hyphon-daw)
+
+Deployment now goes through storage.noahcohn.com (Contabo VPS).
+No SFTP passwords are stored in this repo.
+
+Usage:
+  1. Build the project:  npm run build
+  2. python deploy.py
+
+This script contacts https://storage.noahcohn.com to upload the dist/ folder
+as a single zip archive. The server extracts it and pushes files over a
+persistent SFTP connection on the VPS side.
+
+Note: The old deploy script also uploaded JC-303 WASM assets to wasm.noahcohn.com
+separately. That step has been removed — deploy those assets independently if needed.
+
+Requirements:
+  pip install requests
+"""
+
+import io
 import os
-import paramiko
-import getpass
+import sys
+import zipfile
+from pathlib import Path
+from typing import Optional
 
-# --- Server Configuration ---
-# Replace these with your server's details.
-# It's better to use environment variables or a config file for sensitive data.
-HOSTNAME = "1ink.us"
-PORT = 22  # Default SFTP/SSH port
-USERNAME = "ford442"
+import requests
 
-# --- Project Configuration ---
-# The local directory to upload from.
-LOCAL_DIRECTORY = "dist"
-# The directory on the server where the files should go (e.g., 'public_html/wasm-game').
-REMOTE_DIRECTORY = "test.1ink.us/hyphon"
+# ============================================================
+# PER-PROJECT CONFIGURATION
+# ============================================================
+PROJECT_NAME: str = "web-sequencer"
+BUILD_DIR: str = "dist"
+CONTABO_BASE_URL: str = "https://storage.noahcohn.com"
 
-# --- WASM Files Configuration ---
-# Remote directory for JC-303 WASM/JS assets
-WASM_REMOTE_DIRECTORY = "wasm.noahcohn.com"
-# Local directories to search for WASM assets
-WASM_SOURCE_DIRS = ["dist", "public"]
-# File patterns to upload (base names without extension)
-WASM_FILE_BASES = ["jc303-single", "jc303-threaded", "jc303"]
-# Extensions to upload for each base
-WASM_FILE_EXTENSIONS = [".js", ".wasm", ".worker.js"]
+# Deploy under this remote folder (empty = use PROJECT_NAME).
+# Matches the original SFTP target: test.1ink.us/hyphon
+DEPLOY_FOLDER: str = "hyphon"
 
-def upload_directory(sftp_client, local_path, remote_path):
-    """
-    Recursively uploads a directory and its contents to the remote server.
-    """
-    print(f"Creating remote directory: {remote_path}")
+# Set via environment: export DEPLOY_TOKEN="your_long_token_from_vps_env"
+DEPLOY_TOKEN: Optional[str] = os.getenv(
+    "DEPLOY_TOKEN",
+    "6de44dca5425348f2e2ef9456fc820bfe56a5ace68bddeb6da4a1c2a9d9cadc0",
+)
+# ============================================================
+
+
+def build_zip(build_path: Path) -> bytes:
+    """Zip the contents of build_path into an in-memory archive."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for file in sorted(build_path.rglob("*")):
+            if file.is_dir():
+                continue
+            rel = file.relative_to(build_path)
+            parts = rel.parts
+            if any(p in (".git", "node_modules", "__pycache__") for p in parts):
+                continue
+            zf.write(file, str(rel))
+            print(f"  + {rel}")
+    return buf.getvalue()
+
+
+def deploy_bundle(build_path: Path) -> bool:
+    """Zip the build and upload it as a single bundle."""
+    target_folder = DEPLOY_FOLDER or PROJECT_NAME
+    url = f"{CONTABO_BASE_URL}/api/deploy/{PROJECT_NAME}/bundle"
+    headers = {}
+    if DEPLOY_TOKEN:
+        headers["X-Deploy-Token"] = DEPLOY_TOKEN
+
+    print("Building zip archive...")
+    zip_bytes = build_zip(build_path)
+    print(f"Archive size: {len(zip_bytes) / 1024:.1f} KB\n")
+
+    print("Uploading bundle...")
     try:
-        # Create the target directory on the server if it doesn't exist.
-        sftp_client.mkdir(remote_path)
-    except IOError:
-        # Directory already exists, which is fine.
-        print(f"Directory {remote_path} already exists.")
+        response = requests.post(
+            url,
+            files={"bundle": ("build.zip", zip_bytes, "application/zip")},
+            data={"target_folder": target_folder},
+            headers=headers,
+            timeout=300,
+        )
+    except Exception as exc:
+        print(f"  ✗ Upload exception: {exc}")
+        return False
 
-    for item in os.listdir(local_path):
-        local_item_path = os.path.join(local_path, item)
-        remote_item_path = f"{remote_path}/{item}"
+    if response.status_code == 200:
+        data = response.json()
+        print(f"  ✓ {data.get('uploaded', 0)} files uploaded")
+        if data.get("failed"):
+            print("  Failures:")
+            for f in data["failed"]:
+                print(f"    ✗ {f['path']}: {f['error']}")
+        return not data.get("failed")
+    else:
+        print(f"  ✗ {response.status_code}: {response.text[:400]}")
+        return False
 
-        if os.path.isfile(local_item_path):
-            print(f"Uploading file: {local_item_path} -> {remote_item_path}")
-            sftp_client.put(local_item_path, remote_item_path)
-        elif os.path.isdir(local_item_path):
-            # If it's a directory, recurse into it.
-            upload_directory(sftp_client, local_item_path, remote_item_path)
-
-def upload_wasm_files(sftp_client):
-    """
-    Upload JC-303 WASM/JS assets to the dedicated WASM host directory.
-    Searches dist/ and public/ for the files.
-    """
-    print(f"\n📦 Uploading WASM assets to '{WASM_REMOTE_DIRECTORY}'...")
-    try:
-        sftp_client.mkdir(WASM_REMOTE_DIRECTORY)
-    except IOError:
-        print(f"Directory {WASM_REMOTE_DIRECTORY} already exists.")
-
-    uploaded = 0
-    for base in WASM_FILE_BASES:
-        for ext in WASM_FILE_EXTENSIONS:
-            filename = base + ext
-            local_path = None
-            for src_dir in WASM_SOURCE_DIRS:
-                candidate = os.path.join(src_dir, filename)
-                if os.path.isfile(candidate):
-                    local_path = candidate
-                    break
-            if local_path:
-                remote_path = f"{WASM_REMOTE_DIRECTORY}/{filename}"
-                print(f"Uploading WASM asset: {local_path} -> {remote_path}")
-                sftp_client.put(local_path, remote_path)
-                uploaded += 1
-            else:
-                print(f"⚠️  Skipping {filename} (not found in {WASM_SOURCE_DIRS})")
-
-    print(f"✅ Uploaded {uploaded} WASM asset(s)")
 
 def main():
-    """
-    Main function to connect to the server and start the upload process.
-    """
-    password = 'GoogleBez12!' # getpass.getpass(f"Enter password for {USERNAME}@{HOSTNAME}: ")
+    print(f"\n=== Deploying '{PROJECT_NAME}' via Contabo -> test.1ink.us/hyphon ===\n")
 
-    transport = None
-    sftp = None
+    build_path = Path(BUILD_DIR)
+    if not build_path.exists() or not build_path.is_dir():
+        print(f"ERROR: Build directory '{BUILD_DIR}/' does not exist.")
+        print("Please run your build command first (e.g. `npm run build`).")
+        sys.exit(1)
+
     try:
-        # Establish the SSH connection
-        transport = paramiko.Transport((HOSTNAME, PORT))
-        print("Connecting to server...")
-        transport.connect(username=USERNAME, password=password)
-        print("Connection successful!")
+        health = requests.get(f"{CONTABO_BASE_URL}/api/deploy/health", timeout=10)
+        if health.status_code == 200:
+            print(f"Contabo deploy service: {health.json().get('status', 'unknown')}")
+    except Exception:
+        print("Warning: Could not contact storage.noahcohn.com (continuing anyway).")
 
-        # Create an SFTP client from the transport
-        sftp = paramiko.SFTPClient.from_transport(transport)
-        print(f"Starting upload of '{LOCAL_DIRECTORY}' to '{REMOTE_DIRECTORY}'...")
+    print()
+    success = deploy_bundle(build_path)
 
-        # Start the recursive upload
-        upload_directory(sftp, LOCAL_DIRECTORY, REMOTE_DIRECTORY)
+    print(f"\n=== {'Deployment complete' if success else 'Deployment finished with errors'} ===")
+    sys.exit(0 if success else 1)
 
-        # Upload JC-303 WASM/JS assets to wasm.noahcohn.com
-        upload_wasm_files(sftp)
-
-        print("\n✅ Deployment complete!")
-
-    except Exception as e:
-        print(f"❌ An error occurred: {e}")
-    finally:
-        # Ensure the connection is closed
-        if sftp:
-            sftp.close()
-        if transport:
-            transport.close()
-        print("Connection closed.")
 
 if __name__ == "__main__":
-    if not os.path.exists(LOCAL_DIRECTORY):
-        print(f"Error: Local directory '{LOCAL_DIRECTORY}' not found. Did you run 'npm run build' first?")
-    else:
-        main()
+    main()
