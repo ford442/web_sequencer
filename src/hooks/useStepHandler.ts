@@ -190,17 +190,7 @@ export const useStepHandler = ({
             const autoFormantShift = automation?.['formantShift']?.[step];
             if (autoFormantShift !== undefined && autoFormantShift !== null) noteParams.formantShift = autoFormantShift;
 
-            audioEngine.playSynth(
-                params,
-                notes,
-                time,
-                stepData.length,
-                stepTime,
-                slideFrom,
-                trackKey,
-                noteParams,
-                currentScale
-            );
+            audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
 
             // Update last frequency for future slides
             lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale);
@@ -237,17 +227,7 @@ export const useStepHandler = ({
                 (audioEngine.open303Engine as any).applyBass2Params?.(bass2Ref.current);
             }
 
-            audioEngine.playSynth(
-                bass2Params,
-                notes,
-                time,
-                stepData.length,
-                stepTime,
-                undefined,
-                'bass2' as any,
-                undefined,
-                currentScale
-            );
+            audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, undefined);
         };
 
         // Trigger synths
@@ -313,16 +293,7 @@ export const useStepHandler = ({
                 lockToSequencer: voiceParams.lockToSequencer,
             };
 
-            audioEngine.playSampler(
-                bankParams,
-                finalNotes,
-                time,
-                stepData.length,
-                stepTime,
-                { ...stepData, slideFromMidi, slideFromFormant },
-                0, // pitchOffsetSemitones
-                currentScale
-            );
+            audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
 
             lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
             lastSamplerFormantRef.current[bankIdx] = stepData.formantShift !== undefined ? stepData.formantShift : (voiceParams.formantShift || 0);

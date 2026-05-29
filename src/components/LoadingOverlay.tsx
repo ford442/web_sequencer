@@ -18,7 +18,6 @@ const STEP_ICONS: Record<LoadingStep, string> = {
   singingVoice: '🎤',
   ambianceBuffers: '🌊',
   ttsEngine: '🗣️',
-  prophecyEngine: '🔮',
   complete: '✨',
 };
 

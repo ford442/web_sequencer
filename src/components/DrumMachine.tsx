@@ -63,13 +63,14 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
               type="button"
               className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
                 drumKit === '808'
-                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)]'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
               }`}
               onClick={() => onDrumKitChange('808')}
               role="radio"
               aria-checked={drumKit === '808'}
               aria-label="TR-808 Kit"
+              title="Switch to TR-808 Kit"
             >
               <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '808' ? 'bg-red-500 animate-pulse' : 'bg-gray-600'}`} />
               808
@@ -78,13 +79,14 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
               type="button"
               className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
                 drumKit === '909'
-                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)]'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
               }`}
               onClick={() => onDrumKitChange('909')}
               role="radio"
               aria-checked={drumKit === '909'}
               aria-label="TR-909 Kit"
+              title="Switch to TR-909 Kit"
             >
               <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '909' ? 'bg-blue-500 animate-pulse' : 'bg-gray-600'}`} />
               909
