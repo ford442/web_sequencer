@@ -363,7 +363,7 @@ export interface KnobAutomation {
 export type AutomationTarget =
   | 'synthA' | 'synthB' | 'bass2'
   | 'kick' | 'snare' | 'closedHat' | 'openHat'
-  | 'master';
+  | 'sampler' | 'master';
 
 /** Where the automation data originated */
 export type AutomationSource = 'rbs' | 'recorded' | 'ai' | 'manual';

@@ -63,6 +63,7 @@ export const App: React.FC = () => {
         isLyricTrackVisible, setIsLyricTrackVisible, ttsPhrases,
         isGenerating, handleLyricApply,
         tempo, isRecording, isPlaying,
+        isAutomationRecording, setIsAutomationRecording,
         setIsRecording, setIsSongModeOpen,
         songStorage, activeSongSlot, loadSong, handleSaveSong,
         handleClearPattern, handleTempoHoldStart, handleTempoHoldEnd,
@@ -162,6 +163,9 @@ export const App: React.FC = () => {
                 setIsRbsImportModalOpen={setIsRbsImportModalOpen}
                 setIsAISongModalOpen={setIsAISongModalOpen}
                 setIsCloudLibraryOpen={setIsCloudLibraryOpen}
+                isAutomationRecording={isAutomationRecording}
+                setIsAutomationRecording={setIsAutomationRecording}
+                isPlaying={isPlaying}
                 handleAutoMix={handleAutoMix}
                 reverbType={reverbType}
                 handleReverbType={handleReverbType}

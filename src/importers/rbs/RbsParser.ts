@@ -1,12 +1,26 @@
 /**
  * RBS File Parser
  * 
- * Parses .rbs files from ReBirth RB-338 and Roland-pattern-compatible sequencers.
+ * Parses .rbs files from ReBirth RB-338 (v1.5, 2.0, 2.0.1) and compatible sequencers.
  * 
  * Architecture:
- * - Implements real binary parsing based on reverse-engineered RBS format
- * - Handles all sections: HEADER, TB-303A, TB-303B, DRUMS, PCF, AUTOMATION
- * - Comprehensive error handling with detailed offset information
+ * - Current implementation: Fixed-offset parser for single-pattern data (HEAD + TB303 A/B + DRUMS + PCF + basic automation).
+ *   Already handles 16-step patterns, param extraction, accent/slide/tie flags, PCF, basic automation lanes, drum kit/tuning/decay.
+ * - Next evolution (see GitHub #671): Full IFF "CAT RB40" chunk-based parser (per definitive RBS42.txt + rbs.h from nsauzede/jsynth reverse engineering).
+ *   Required for real multi-pattern song files: 32 patterns per device in DEVL catalog, GLOB (play mode song vs pattern), TRKL/TRAK event lists (delta-tick + ctrlID + value) for song arrangement + continuous automation.
+ * - Version handling: v2.0+ (RB40) is the documented full format; v1.5 is a simpler subset (often 1x303 + 808 only).
+ *
+ * Automation Precision Notes (critical for accurate ReBirth playback + future authentic RBS song creation):
+ * - TRAK events use sub-step / tick resolution (~24 PPQ, 768 ticks/bar). Requires 1/96+ sub-step support in lanes + AudioParam scheduling (setValueAtTime + linearRampToValueAtTime) rather than pure per-step JS updates.
+ * - Hybrid: Step-based (pattern step bitmasks for accent/slide/note) + continuous curves (knob automation events).
+ * - Must reproduce ReBirth accent intensity, slide/portamento timing, PCF sweeps, 303 env/decay/wave changes with low jitter and tight clock sync (no drift over long songs).
+ * - Recording must capture with temporal accuracy aligned to scheduler/audio clock.
+ * - The system (lanes + scheduler + Open303 wiring) must be expressive enough to *author* new ReBirth-style songs inside Hyphon.
+ * See updated issues #669, #670, #654, and new #671 for details and requirements.
+ *
+ * Primary external reference: https://github.com/nsauzede/jsynth (RBS42.txt, songfilev4.txt, rbs.h/c with exact packed structs, controller IDs, event encoding).
+ *
+ * Comprehensive error handling with detailed offset information.
  */
 
 import type { 
@@ -35,16 +49,16 @@ export type RbsParserResult =
   | { success: true; data: RawRbsData }
   | { success: false; error: RbsParserError };
 
-/** Supported RBS format versions */
-const SUPPORTED_VERSIONS = ['1.0', '2.0'];
+/** Supported RBS format versions (current parser accepts common ones; full IFF path will detect RB40 / v4.x) */
+const SUPPORTED_VERSIONS = ['1.0', '1.5', '2.0', '2.0.1', '4.0', '4.2'];
 
 /** Minimum valid RBS file size (header + minimal patterns) */
 const MIN_FILE_SIZE = 0x300; // 768 bytes minimum
 
-/** File offset constants */
+/** File offset constants (legacy fixed-offset path for single-pattern / current parser) */
 const OFFSETS = {
   HEADER: 0x00,
-  HEADER_SIZE: 0x40,           // 64 bytes
+  HEADER_SIZE: 0x40,           // 64 bytes (legacy view)
   TB303_A: 0x40,
   TB303_A_SIZE: 0x100,         // 256 bytes
   TB303_B: 0x140,
@@ -55,6 +69,16 @@ const OFFSETS = {
   PCF_SIZE: 0x40,              // 64 bytes
   AUTOMATION: 0x300,
 } as const;
+
+/**
+ * IFF chunk header (parsed from CAT RB40 files).
+ * ReBirth uses big-endian for chunk sizes in the IFF container.
+ */
+interface IffChunk {
+  id: string;      // 4-char ID (e.g. "HEAD", "GLOB", "DEVL", "TRAK")
+  size: number;    // payload size (big-endian uint32 after ID)
+  offset: number;  // absolute file offset of payload start
+}
 
 /** Step structure size in bytes */
 const STEP_SIZE = 15;
@@ -131,6 +155,14 @@ export class RbsParser {
       this.rawBytes = new Uint8Array(arrayBuffer);
 
       this.onProgress?.(5);
+
+      // --- IFF CAT / RB40 detection (progressive step toward full song arrangement support, #671) ---
+      const iffChunks = this.parseIffChunks();
+      if (iffChunks.length > 0) {
+        console.info(`[RbsParser] Detected full IFF CAT RB40 structure with ${iffChunks.length} top-level chunks. Full TRAK/GLOB song parsing is work in progress (see GitHub #671). Falling back to legacy single-pattern extraction for compatibility.`);
+        // Future: branch here to parse GLOB (play mode), DEVL patterns (all 32), TRKL/TRAK events (arrangement + automation deltas).
+        // For now we continue with the proven fixed-offset extraction so existing imports keep working.
+      }
 
       // Parse header (0-10%)
       const headerResult = this.parseHeader();
@@ -667,6 +699,45 @@ export class RbsParser {
    */
   private clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value));
+  }
+
+  /**
+   * Parse top-level IFF CAT container and return list of chunks (for full RB40 song files).
+   * This is the foundation for proper multi-pattern + song arrangement support (see #671).
+   * ReBirth .rbs is "CAT <size> RB40" followed by chunks (HEAD, GLOB, DEVL catalog, TRKL catalog with TRAK events).
+   * Sizes are big-endian. This method is intentionally lightweight and safe for progressive enhancement.
+   */
+  private parseIffChunks(): IffChunk[] {
+    const chunks: IffChunk[] = [];
+    if (this.fileSize < 12) return chunks;
+
+    // Check for "CAT " magic at 0
+    const magic = this.readAsciiString(0, 4);
+    if (magic !== 'CAT ') {
+      return chunks; // not IFF CAT; fall back to legacy fixed-offset path
+    }
+
+    // Root size (big-endian uint32 at 4)
+    const rootSize = this.dataView.getUint32(4, false);
+    let pos = 12; // after "CAT " + size + "RB40" (or similar form type)
+
+    // Read form type (usually "RB40" or "RB40HEAD" style)
+    const formType = this.readAsciiString(8, 4);
+    console.debug(`[RbsParser] IFF CAT form detected: ${formType}, root size ${rootSize}`);
+
+    // Walk chunks (simple safe parser; real impl will handle nested CAT DEVL/TRKL)
+    const maxPos = Math.min(this.fileSize, 8 + rootSize);
+    while (pos + 8 <= maxPos) {
+      const id = this.readAsciiString(pos, 4);
+      if (!id || id.charCodeAt(0) < 32) break;
+      const size = this.dataView.getUint32(pos + 4, false);
+      chunks.push({ id, size, offset: pos + 8 });
+      pos += 8 + size;
+      // pad to even (IFF rule)
+      if (size % 2 === 1) pos++;
+    }
+
+    return chunks;
   }
 
   /**

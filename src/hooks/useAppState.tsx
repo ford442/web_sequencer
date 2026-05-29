@@ -8,6 +8,7 @@ import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
+import { automationStore } from '../stores/automationStore';
 import { exportSongToXM } from '../utils/xmExport'
 import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import type { ScaleDefinition } from '../utils/musicTheory'
@@ -153,6 +154,7 @@ export function useAppState() {
     const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
+    const [isAutomationRecording, setIsAutomationRecording] = useState(false)
     const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
     const [ambianceUrl, setAmbianceUrl] = useState<string>('')
     const [backgroundImage, setBackgroundImage] = useState<string>('')
@@ -369,6 +371,14 @@ export function useAppState() {
         });
         if (audioEngine?.updateSamplerVoiceParams) {
             audioEngine.updateSamplerVoiceParams(activeSamplerBankRef.current, param, value);
+        }
+
+        // Live automation recording capture for Voice Designer (high creative value)
+        if (automationStore.isParameterArmed('sampler', param)) {
+            const step = automationStore.getState().playbackStep || currentStepRef.current || 0;
+            let norm = typeof value === 'number' ? value : 0;
+            if (param === 'formantShift') norm = (norm + 1) / 2; // -> 0-1
+            automationStore.recordPoint('sampler', param, { step, value: Math.max(0, Math.min(1, norm)) });
         }
     }, [audioEngine]);
 
@@ -588,6 +598,47 @@ export function useAppState() {
         }
     }, [schedPlaying]);
 
+    // === Automation Recording Management (builds on #652 store) ===
+    // When automation record is enabled + playing, auto-arm and capture high-value params.
+    // On stop, commit buffers to 'recorded' lanes (pattern scope for now; song scope for full RBS songs).
+    useEffect(() => {
+        const armedParams: Array<{target: any, param: string, norm?: (v: number) => number}> = [
+            { target: 'sampler', param: 'formantShift', norm: (v: number) => (v + 1) / 2 }, // -1..1 -> 0-1
+            { target: 'sampler', param: 'drive' },
+            { target: 'sampler', param: 'attack' },
+            { target: 'sampler', param: 'decay' },
+            { target: 'synthA', param: 'filterCutoff', norm: (v: number) => Math.max(0, Math.min(1, v / 8000)) },
+            { target: 'synthB', param: 'filterCutoff', norm: (v: number) => Math.max(0, Math.min(1, v / 8000)) },
+            { target: 'bass2', param: 'filterCutoff', norm: (v: number) => Math.max(0, Math.min(1, v / 8000)) },
+            { target: 'synthA', param: 'filterResonance', norm: (v: number) => Math.max(0, Math.min(1, v / 20)) },
+            { target: 'master', param: 'volume' },
+        ];
+
+        if (isAutomationRecording && schedPlaying) {
+            // Arm and start recording buffers for these
+            armedParams.forEach(({ target, param }) => {
+                if (!automationStore.isParameterArmed(target as any, param)) {
+                    automationStore.armParameter(target as any, param);
+                }
+                // Start buffer if not already recording
+                const buf = automationStore.getState().recordingBuffers.find(b => b.target === target && b.parameter === param && b.isRecording);
+                if (!buf) {
+                    automationStore.startRecording(target as any, param);
+                }
+            });
+        } else if (!isAutomationRecording || !schedPlaying) {
+            // Commit any active recordings to lanes
+            armedParams.forEach(({ target, param }) => {
+                if (automationStore.isParameterArmed(target as any, param)) {
+                    const scope: 'pattern' | 'song' = isSongModeActive ? 'song' : 'pattern';
+                    const patternIdx = isSongModeActive ? undefined : (activeTrackSlotsRef.current['partA'] ?? 0); // representative
+                    automationStore.stopRecording(target as any, param, { scope, patternIndex: patternIdx, name: `${target}.${param} (recorded)` });
+                    automationStore.disarmParameter(target as any, param);
+                }
+            });
+        }
+    }, [isAutomationRecording, schedPlaying, isSongModeActive]);
+
     const handlePlayToggle = useCallback(async () => {
         if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
         setSchedPlaying(prev => !prev)
@@ -606,7 +657,12 @@ export function useAppState() {
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
     }, [handlePlayToggle]);
 
-    const handleMasterVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v); }, [audioEngine]);
+    const handleMasterVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v);
+        if (automationStore.isParameterArmed('master', 'volume')) {
+            const step = automationStore.getState().playbackStep || currentStepRef.current || 0;
+            automationStore.recordPoint('master', 'volume', { step, value: Math.max(0, Math.min(1, v)) });
+        }
+    }, [audioEngine]);
     const handleMasterVolumeKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); } }, [audioEngine]);
     const handleMasterVolumeReset = useCallback(() => { setMasterVolume(0.8); audioEngine?.setMasterVolume(0.8); }, [audioEngine]);
 
@@ -1214,8 +1270,27 @@ const handleNotePropertyChange = useCallback((
         setDrumKit: updateDrumKit,
     });
 
-    const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal }); }, [updateSynthA, updateSynthB]);
-    const handleBass2Change = useCallback((id: string, val: number) => { let realVal = val; if (id === 'waveform') realVal = val > 0.5 ? 1 : 0; else if (id === 'cutoff') realVal = val * 8000; else if (id === 'resonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'pitch') realVal = Math.floor(val * 48 - 24); updateBass2({ [id]: realVal }); }, [updateBass2]);
+    const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal });
+        // Capture to automation recording buffer if armed (for RBS song creation with movement)
+        const target = isA ? 'synthA' : 'synthB';
+        if (automationStore.isParameterArmed(target as any, id)) {
+            const step = automationStore.getState().playbackStep || currentStepRef.current || 0;
+            let norm = val;
+            if (id === 'filterCutoff') norm = Math.max(0, Math.min(1, val / 8000));
+            else if (id === 'filterResonance') norm = Math.max(0, Math.min(1, val / 20));
+            automationStore.recordPoint(target as any, id, { step, value: norm });
+        }
+    }, [updateSynthA, updateSynthB]);
+    const handleBass2Change = useCallback((id: string, val: number) => { let realVal = val; if (id === 'waveform') realVal = val > 0.5 ? 1 : 0; else if (id === 'cutoff') realVal = val * 8000; else if (id === 'resonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'pitch') realVal = Math.floor(val * 48 - 24); updateBass2({ [id]: realVal });
+        // Bass2 automation recording capture
+        if (automationStore.isParameterArmed('bass2' as any, id)) {
+            const step = automationStore.getState().playbackStep || currentStepRef.current || 0;
+            let norm = val;
+            if (id === 'cutoff') norm = Math.max(0, Math.min(1, val / 8000));
+            else if (id === 'resonance') norm = Math.max(0, Math.min(1, val / 20));
+            automationStore.recordPoint('bass2' as any, id, { step, value: norm });
+        }
+    }, [updateBass2]);
     const handleKickChange = useCallback((id: string, val: number) => { let realVal = val; if (id === 'pitch') realVal = val * 130 + 20; updateKick({ [id]: realVal }); }, [updateKick]);
     const handleSnareChange = useCallback((id: string, val: number) => { let realVal = val; if (id === 'tone') realVal = val * 300 + 100; else if (id === 'noise') realVal = val * 7000 + 1000; else if (id === 'decay') realVal = val * 0.5; updateSnare({ [id]: realVal }); }, [updateSnare]);
     const handleClosedHatChange = useCallback((id: string, val: number) => updateClosedHat({ [id]: val }), [updateClosedHat]);
@@ -1225,6 +1300,15 @@ const handleNotePropertyChange = useCallback((
             const next = [...prev]; const currentBank = next[activeSamplerBank];
             next[activeSamplerBank] = { ...currentBank, [id]: realVal }; return next;
         });
+        // Sampler track param automation recording
+        if (automationStore.isParameterArmed('sampler', id)) {
+            const step = automationStore.getState().playbackStep || currentStepRef.current || 0;
+            let norm = val;
+            if (id === 'filterCutoff') norm = Math.max(0, Math.min(1, val / 20000));
+            else if (id === 'filterResonance') norm = Math.max(0, Math.min(1, val / 20));
+            else if (id === 'volume') norm = Math.max(0, Math.min(1, val));
+            automationStore.recordPoint('sampler', id, { step, value: norm });
+        }
     }, [activeSamplerBank]);
 
     const handleSamplerParamChange = useCallback((bankIdx: number, key: string, val: any) => {
@@ -1503,6 +1587,7 @@ const handleLyricApply = useCallback(async (text: string) => {
         isInitialized, setIsInitialized,
         isPlaying, setIsPlaying,
         isRecording, setIsRecording,
+        isAutomationRecording, setIsAutomationRecording,
         selectedTrack, setSelectedTrack,
         ambianceUrl, setAmbianceUrl,
         backgroundImage, setBackgroundImage,

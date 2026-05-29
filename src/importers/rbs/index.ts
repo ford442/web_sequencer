@@ -47,6 +47,10 @@ export { DEFAULT_RBS_IMPORT_OPTIONS, AUTOMATION_PARAMETER_MAP } from './types';
 export { RbsParser, parseRbsFile } from './RbsParser';
 export type { RbsParserResult, RbsParserError } from './RbsParser';
 
+// New spec-driven Rebirth parser (recommended API per technical spec)
+export { RebirthRBSParser, parseRebirthRBSFile } from './RebirthRBSParser';
+export type { RebirthParseResult } from './RebirthRBSParser';
+
 // Importer
 export { RbsImporter, convertToHyphonSong } from './RbsImporter';
 export type { RbsImportResult, ImportReport, RbsImportError } from './RbsImporter';
