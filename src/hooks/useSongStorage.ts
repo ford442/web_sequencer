@@ -3,11 +3,11 @@ import type { MutableRefObject } from 'react';
 import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane } from '../types';
 import type { CloudItemType } from '../services/CloudStorage';
 import type { AISongData } from '../importers/ai-song';
-import type { HyphonAutomationLane } from '../importers/rbs';
 import type { TrackKey, SongSnapshot } from '../constants/appDefaults';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
 import { audioBufferToWav, blobToBase64 } from '../utils/audioExport';
+import { automationStore, convertHyphonLanes } from '../stores/automationStore';
 
 // ---- Types for the hook parameters ----
 
@@ -140,6 +140,9 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 encodedSamples[idx] = b64;
             }
         }));
+        // automationStore is a module singleton — exportLanes() reads its current state at call time,
+        // so memoization of this callback does not cause stale automation data.
+        const exportedLanes = automationStore.exportLanes();
         return {
             version: 1,
             pattern: patternRef.current,
@@ -161,6 +164,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             songStructure: songStructureRef.current,
             embeddedSamples: encodedSamples,
             ttsPhrases,
+            ...(exportedLanes.length > 0 ? { automationLanes: exportedLanes } : {}),
         } as SavedSongData;
     }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
 
@@ -236,6 +240,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 }));
                 setSampleBuffers(loadedBuffers);
             }
+            // Restore automation lanes — importLanes replaces all existing lanes (including clearing when empty).
+            automationStore.importLanes(songData.automationLanes ?? []);
             showToast("Song loaded!", "success");
         } else if (type === 'bank') {
             if (data.trackStorage) {
@@ -451,26 +457,10 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     // apply initial Open303Manager params for 303 tracks, populate automation store (see #652), show ImportReport.
     // Current impl only does basic pattern/params via loadCloudData. See epic #650 + #651-656 for the full plan.
 
-    /** Convert HyphonAutomationLane[] (from RBS importer) to UnifiedAutomationLane[] */
-    const convertRbsAutomationLanes = useCallback((lanes: HyphonAutomationLane[]): UnifiedAutomationLane[] => {
-        return lanes.map((lane, idx) => ({
-            id: `rbs-${lane.target}-${lane.parameter}-${idx}`,
-            target: lane.target,
-            parameter: lane.parameter,
-            name: lane.name,
-            points: lane.points.map(([step, value]) => ({ step, value })),
-            interpolation: lane.interpolation,
-            source: 'rbs' as const,
-            scope: 'pattern' as const,
-            enabled: true,
-            originalRange: lane.originalRange,
-        }));
-    }, []);
-
     const handleRbsImport = useCallback((song: import('../importers/rbs').HyphonSong) => {
-        // Convert HyphonSong automation lanes to UnifiedAutomationLane format for persistence
+        // Convert HyphonSong automation lanes using the centralized automationStore converter
         const automationLanes: UnifiedAutomationLane[] | undefined = song.automation && song.automation.length > 0
-            ? convertRbsAutomationLanes(song.automation)
+            ? convertHyphonLanes(song.automation)
             : undefined;
 
         // Convert HyphonSong to SavedSongData format
@@ -578,7 +568,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
 
         setIsRbsImportModalOpen(false);
         showToast(`Imported "${song.metadata.name}" from RBS`, 'success');
-    }, [loadCloudData, showToast, convertRbsAutomationLanes, audioEngine]);
+    }, [loadCloudData, showToast, audioEngine]);
 
     return {
         getSongData,
