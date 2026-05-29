@@ -261,6 +261,7 @@ export interface AudioEngine {
     stepTime?: number,
     slideFromFreq?: number,
     track?: 'partA' | 'partB' | 'bass2',
+    tuning?: ScaleDefinition | null,
     noteParams?: any
   ) => void;
 
@@ -279,6 +280,7 @@ export interface AudioEngine {
     time: number,
     durationSteps?: number,
     stepTime?: number,
+    noteParams?: any,
     tuning?: ScaleDefinition | null
   ) => void;
 
