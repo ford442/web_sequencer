@@ -21,3 +21,6 @@
 ## 2026-05-25 - Toast Accessibility Close Button
 **Learning:** The Toast component lacked a close button, making it hard to dismiss quickly for keyboard and screen reader users before the 3s timeout. Automated Playwright verification of transient Toasts is also brittle without global state hooks.
 **Action:** Added an explicit close button with aria-label and title to Toasts, and set aria-live=polite on the alert. Will rely on unit tests and manual dev check for transient UI components instead of forcing brittle E2E flows.
+## 2024-05-28 - Icon-Only Button ARIA Labels
+**Learning:** Initial grep searches for missing `aria-label` attributes on `<button>` elements with `title` attributes were misleading due to JSX formatting (attributes spread across multiple lines). A thorough manual inspection confirmed that core components (PhonemePainter, VoiceEditor, LiveKeyboard, NoteSelector, BottomBar) already have robust `aria-label` implementations for their icon-only buttons.
+**Action:** Always verify regex/grep results with manual file inspection when analyzing JSX for accessibility attributes. Avoid redundant work on this specific pattern in these components.
