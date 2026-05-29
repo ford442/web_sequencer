@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { DrumMachine } from '../DrumMachine';
-import { AllDrumParams } from '../../types';
+import type { AllDrumParams } from '../../types';
 
 const mockParams: AllDrumParams = {
     kick: { pitch: 50, decay: 0.5, tone: 0.5, volume: 1.0 },
