@@ -42,3 +42,7 @@ emscripten/temp_build/
 
 # Embedded git repository (should not be tracked as submodule)
 gpt_mini_work/contabo_storage_manager/
+public/*.wasm
+src/wasm/*.wasm
+public/*.js
+src/wasm/*.js
