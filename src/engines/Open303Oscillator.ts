@@ -6,6 +6,14 @@ import { engineTelemetry } from '../utils/engineTelemetry';
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
 const HYPHON_NATIVE_WASM_URL = new URL('/hyphon_native.wasm', import.meta.url).href;
 
+/** Minimum WebAssembly memory pages required by the threaded hyphon_native.wasm build.
+ *  The module declares initial: 8192 (512 MB). Must stay in sync with
+ *  open303-processor.ts OPEN303_MIN_MEMORY_PAGES. */
+const OPEN303_MIN_MEMORY_PAGES = 8192;
+
+/** Maximum milliseconds to wait for the Open303 worklet to signal readiness. */
+const OPEN303_INIT_TIMEOUT_MS = 8000;
+
 export class Open303Oscillator {
     private workletNode: AudioWorkletNode | null = null;
     private gainNode: GainNode | null = null;
@@ -86,13 +94,18 @@ export class Open303Oscillator {
 
             console.log(`[Open303Oscillator] WASM variant: ${variant}, native=${isNative}`);
 
+            // hyphon_native.wasm requires at least OPEN303_MIN_MEMORY_PAGES (512 MB).
+            // Pass this as the floor so the worklet's createMemory() allocates enough.
+            const memoryPages = isThreaded ? OPEN303_MIN_MEMORY_PAGES : undefined;
+
             this.workletNode.port.postMessage({
                 type: 'init-wasm',
                 data: {
                     wasmBytes,
                     sampleRate: audioContext.sampleRate,
                     isThreaded,
-                    variant
+                    variant,
+                    memoryPages
                 }
             });
 
@@ -118,13 +131,15 @@ export class Open303Oscillator {
                     }
                 };
                 
-                // Timeout: 20s to account for large WASM compile on slower devices
+                // Timeout: OPEN303_INIT_TIMEOUT_MS — 1.2 MB WASM should compile in < 3s on modern devices.
+                // 20s was excessively generous and caused the second 303 instance to time out
+                // when the first one failed (both share a Promise.allSettled budget).
                 setTimeout(() => {
                     if (!readyReceived) {
-                        console.error("[Open303] Initialization timeout (20s)");
+                        console.error(`[Open303] Initialization timeout (${OPEN303_INIT_TIMEOUT_MS}ms)`);
                         resolve(false);
                     }
-                }, 20000);
+                }, OPEN303_INIT_TIMEOUT_MS);
             });
 
             if (!initSuccess) {
@@ -211,6 +226,21 @@ export class Open303Oscillator {
             }
         } else if (this.workletNode) {
             this.workletNode.port.postMessage({ type: 'param', data: { func: `jc303_${func}`, value } });
+        }
+    }
+
+    /**
+     * Switch the DSP engine used by this oscillator's AudioWorklet processor.
+     *
+     * 'open303' — custom synthesizer (default, open303_* API in hyphon_native.wasm)
+     * 'jc303'   — authentic rosic::Open303 (jc303_* multi-instance API)
+     *
+     * The worklet will silently ignore the request when the requested engine is
+     * not available in the loaded WASM build.
+     */
+    setEngine303(engine: 'open303' | 'jc303'): void {
+        if (this.workletNode) {
+            this.workletNode.port.postMessage({ type: 'set-engine', data: { engine } });
         }
     }
 

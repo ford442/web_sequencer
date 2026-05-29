@@ -416,10 +416,29 @@ export interface HyphonSong {
     
     /** Open hat params */
     openHat: HatParams;
+    
+    /** Selected drum kit type (808/909) from .rbs file */
+    drumKit?: '808' | '909';
   };
   
   /** Converted automation lanes */
   automation?: HyphonAutomationLane[];
+
+  /** PCF real-time filter configuration (when importPcfAsFilter is enabled) */
+  pcfFilter?: {
+    enabled: boolean;
+    filterType: 'lp' | 'bp' | 'hp';
+    cutoff: number;
+    resonance: number;
+    envAmount: number;
+    decay: number;
+    pattern: number[];
+    target: {
+      tb303A: boolean;
+      tb303B: boolean;
+      drums: boolean;
+    };
+  };
   
   /** Additional RBS-specific data preserved for round-trip */
   rbsMetadata?: {

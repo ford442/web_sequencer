@@ -24,6 +24,7 @@ import {
   type AIImportResultType,
   type AIImportErrorDetails
 } from '../importers/ai-song';
+import { LoadingButton } from './LoadingButton';
 import type { SavedSongData } from '../types';
 import type { TabType, ValidationStage, ErrorCategory, ImportStage, TrackStats, FieldError, ValidationState, DroppedFile, AISongModalProps } from '../types/aiSongModal';
 import { PROMPT_TEMPLATE, EXAMPLES } from '../constants/aiSongExamples';
@@ -1367,30 +1368,25 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
               </button>
             </Tooltip>
             <Tooltip text={parsedData ? "Ctrl+Enter to import" : "Enter valid JSON first"} position="top">
-              <button
+              <LoadingButton
                 onClick={handleImport}
-                disabled={!parsedData || isImporting}
-                aria-busy={isImporting}
-                className={`px-3 sm:px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 disabled:cursor-not-allowed ${
+                disabled={!parsedData}
+                isLoading={isImporting}
+                loadingText="Importing..."
+                spinnerColor="text-white"
+                className={`px-3 sm:px-4 py-2 text-xs font-medium rounded flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
                   parsedData && !isImporting
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)]'
                     : 'bg-gray-700 text-gray-500'
                 }`}
                 aria-label="Import AI Song"
               >
-                {isImporting ? (
                   <>
-                    <span className="animate-spin">⏳</span>
-                    <span className="hidden sm:inline">Importing...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>🎵</span>
+                    <span aria-hidden="true">🎵</span>
                     <span className="hidden sm:inline">Import Song</span>
                     <span className="sm:hidden">Import</span>
                   </>
-                )}
-              </button>
+              </LoadingButton>
             </Tooltip>
           </div>
         </div>

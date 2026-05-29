@@ -13,6 +13,7 @@ const STEP_ICONS: Record<LoadingStep, string> = {
   webGpuEngine: '🎮',
   wasmEngine: '⚡',
   open303Engine: '🎸',
+  prophecyEngine: '🔮',
   wavFiles: '🎵',
   singingVoice: '🎤',
   ambianceBuffers: '🌊',

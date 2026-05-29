@@ -86,11 +86,11 @@ const SHADER_CODE = `
       let needle_vec = vec2f(sin(val_mapped), cos(val_mapped));
 
       // Value arc: light the inner ring where the pixel angle <= val_mapped
-      // atan2 gives [-π, π]; we shift so 0 = straight up (matches needle_vec above)
+      // atan2 gives [-\u03c0, \u03c0]; we shift so 0 = straight up (matches needle_vec above)
       let pixel_angle = atan2(uv.x, uv.y); // note: swapped args for "up = 0" convention
       let arc_radius = 0.42;
       let arc_dist = abs(length(uv) - arc_radius);
-      // Only draw arc within the ±max_angle sweep and up to the current value
+      // Only draw arc within the \u00b1max_angle sweep and up to the current value
       if (arc_dist < 0.03 && pixel_angle >= -max_angle && pixel_angle <= val_mapped) {
           let arc_brightness = smoothstep(0.03, 0.0, arc_dist);
           // Color shifts from teal at min to bright cyan at current value
@@ -116,7 +116,7 @@ const SHADER_CODE = `
       // The Needle
       let proj = dot(uv, needle_vec);
       let perp = length(uv - needle_vec * proj);
-      // Guard against perp ≈ 0 to avoid Inf bloom
+      // Guard against perp \u2248 0 to avoid Inf bloom
       if (proj > 0.0 && proj < 0.5 && perp < 0.02 && perp > 0.0005) {
           alpha += min(1.0 / (perp * 100.0), 8.0); // Bloom needle, clamped
           color = vec3f(1.0, 1.0, 1.0); // White hot center
@@ -200,7 +200,7 @@ class KnobGPUContextClass {
 
         const slot = this.slots.get(handle.id);
         if (slot) {
-            slot.uniformBuffer.destroy();
+            if (slot.uniformBuffer && typeof slot.uniformBuffer.destroy === 'function') { slot.uniformBuffer.destroy(); }
             this.slots.delete(handle.id);
         }
 

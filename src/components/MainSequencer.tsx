@@ -8,6 +8,7 @@ import type { Pattern, PartSequence, TrackKey, PhonemeData } from '../types';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useTimelineZoom } from '../hooks/useTimelineZoom';
 import { DEFAULT_ZOOM } from './sequencer/constants';
+import { noop } from '../utils/noop';
 
 // --- PERFORMANCE STYLES ---
 const SEQUENCER_STYLES = `
@@ -567,13 +568,11 @@ export interface MainSequencerProps {
     children?: React.ReactNode;
 }
 
-const noopPitchChange = () => {};
-
 const SequencerRowWrapper = memo(({
-    row, rIdx, rowRefs, pattern, activeSamplerBank, selectedTrack, activeTrackSlots,
-    trackStorage, handleStepPointerDown, onRightMouseDown, onEditLength, onSelectRow,
-    onSelectSlot, onSelectionStart, onSelectionEnter, selectionRangeMap,
-    viewMode, automationParam, onAutomationChange, alignment
+    row, rIdx, rowRefs, steps, automation, isSelected, activeSlot,
+    trackSlots, handleStepPointerDown, onRightMouseDown, onEditLength, onSelectRow,
+    onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange,
+    viewMode, automationParam, onAutomationChange, alignment, activeSamplerBank
 }: any) => {
     // We isolate the ref callback here so it doesn't cause constant re-renders during parent renders
     const setRef = useCallback((el: any) => {
@@ -586,12 +585,12 @@ const SequencerRowWrapper = memo(({
             rowKey={row.key}
             label={row.key === 'sampler' ? `SMP ${activeSamplerBank + 1}` : row.label}
             rowIndex={rIdx}
-            steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
+            steps={steps}
             // Pass Automation Data
-            automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
-            isSelected={selectedTrack === row.key}
-            activeSlot={activeTrackSlots[row.key]}
-            trackSlots={trackStorage[row.key]}
+            automation={automation}
+            isSelected={isSelected}
+            activeSlot={activeSlot}
+            trackSlots={trackSlots}
             onToggle={handleStepPointerDown}
             onRightMouseDown={onRightMouseDown}
             onEditLength={onEditLength}
@@ -599,12 +598,30 @@ const SequencerRowWrapper = memo(({
             onSelectSlot={onSelectSlot}
             onSelectionStart={onSelectionStart}
             onSelectionEnter={onSelectionEnter}
-            selectionRange={selectionRangeMap?.[row.key] || null}
+            selectionRange={selectionRange}
             viewMode={viewMode}
             automationParam={automationParam}
             onAutomationChange={onAutomationChange}
             alignment={row.key === 'sampler' ? alignment : null}
         />
+    );
+}, (prev: any, next: any) => {
+    return (
+        prev.row.key === next.row.key &&
+        prev.row.label === next.row.label &&
+        prev.rIdx === next.rIdx &&
+        prev.isSelected === next.isSelected &&
+        prev.activeSlot === next.activeSlot &&
+        prev.viewMode === next.viewMode &&
+        prev.automationParam === next.automationParam &&
+        prev.selectionRange?.start === next.selectionRange?.start &&
+        prev.selectionRange?.end === next.selectionRange?.end &&
+        // ⚡ Bolt: Relying on reference equality since useAppState performs immutable updates via shallow cloning.
+        prev.steps === next.steps &&
+        prev.automation === next.automation &&
+        prev.trackSlots === next.trackSlots &&
+        prev.alignment === next.alignment &&
+        prev.activeSamplerBank === next.activeSamplerBank
     );
 });
 
@@ -760,7 +777,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     activeSlot={activeTrackSlots[row.key]}
                                     trackSlots={trackStorage[row.key]}
                                     onToggle={handleStepPointerDown}
-                                    onPitchChange={onPitchChange}
+                                    onPitchChange={onPitchChange || noop}
                                     onEditLength={onEditLength}
                                     onSelectRow={onSelectRow}
                                     onSelectSlot={onSelectSlot}
@@ -775,11 +792,13 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 row={row}
                                 rIdx={rIdx}
                                 rowRefs={rowRefs}
-                                pattern={pattern}
+                                steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
+                                automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
+                                isSelected={selectedTrack === row.key}
+                                activeSlot={activeTrackSlots[row.key]}
+                                trackSlots={trackStorage[row.key]}
+                                selectionRange={selectionRangeMap?.[row.key] || null}
                                 activeSamplerBank={activeSamplerBank}
-                                selectedTrack={selectedTrack}
-                                activeTrackSlots={activeTrackSlots}
-                                trackStorage={trackStorage}
                                 handleStepPointerDown={handleStepPointerDown}
                                 onRightMouseDown={onRightMouseDown}
                                 onEditLength={onEditLength}
@@ -787,7 +806,6 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 onSelectSlot={onSelectSlot}
                                 onSelectionStart={onSelectionStart}
                                 onSelectionEnter={onSelectionEnter}
-                                selectionRangeMap={selectionRangeMap}
                                 viewMode={viewMode}
                                 automationParam={automationParam}
                                 onAutomationChange={onAutomationChange}

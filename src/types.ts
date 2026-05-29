@@ -15,7 +15,8 @@ export type Waveform =
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
   | 'rust-saw' | 'rust-sqr'
-  | '303-saw' | '303-sqr';
+  | '303-saw' | '303-sqr'
+  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
 
 export interface SynthParams {
   waveform: Waveform;
@@ -33,9 +34,20 @@ export interface SynthParams {
   delayTime: number; // seconds
   delayFeedback: number; // 0-1
   delayMix: number; // 0-1 (wet/dry)
+  /** Which DSP engine to use when waveform is '303-saw' or '303-sqr'. Defaults to 'open303'. */
+  engine303?: Engine303;
+  /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
+  vowel?: number;
+  /** Prophecy: Portamento rate 0–1 (0=instantaneous, 1=max glide) */
+  portamento?: number;
+  /** Prophecy: Formant frequency shift 0–1 */
+  formantShift?: number;
 }
 
 export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
+
+/** Drum kit type selection for authentic 808/909 sound character */
+export type DrumKitType = '808' | '909';
 
 export interface KickParams {
   pitch: number;
@@ -93,6 +105,8 @@ export interface SamplerBankParams {
   formantLfoDepth?: number;
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
+  delayLfoRate?: number;
+  delayLfoDepth?: number;
   formantLfoShape?: number[];
   formantEnvAttack?: number;
   formantEnvDecay?: number;
@@ -118,10 +132,24 @@ export interface SamplerBankParams {
   pitchAttack?: number;
   gateRate?: number;
   gateDepth?: number;
+  spectralPanRate?: number;
+  spectralPanDepth?: number;
   pitchDecay?: number;
+  expressiveness?: {
+    vibratoRate: number;
+    vibratoDepth: number;
+    tremoloDepth: number;
+    breathAmount: number;
+  };
 }
 
 export type SamplerParams = SamplerBankParams[];
+
+/** TB-303 DSP engine selection.
+ *  - 'open303': custom synthesizer (open303_wrapper.cpp, open303_* API)
+ *  - 'jc303':   authentic rosic::Open303 (jc303_wrapper.cpp, jc303_* API)
+ */
+export type Engine303 = 'open303' | 'jc303';
 
 export interface Bass2Params {
   waveform: '303-saw' | '303-sqr';
@@ -134,6 +162,8 @@ export interface Bass2Params {
   volume: number;
   pitch: number;
   pan?: number;
+  /** Which DSP engine to use for this voice. Defaults to 'open303'. */
+  engine303?: Engine303;
 }
 
 export interface AllDrumParams {
@@ -167,6 +197,7 @@ export interface Note {
   velocity: number;
   length?: number;
   slide?: boolean;
+  slideFormant?: boolean;
   chord?: string[];
   timbre?: number;
   probability?: number;
@@ -181,13 +212,21 @@ export interface Note {
   reverbType?: ReverbType;
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
+  delayLfoRate?: number;
+  delayLfoDepth?: number;
   delaySend?: number;
   choir?: number;
   drive?: number;
   tranceGate?: number;
   gateRate?: number;
   gateDepth?: number;
+  spectralPanRate?: number;
+  spectralPanDepth?: number;
   phonemes?: PhonemeData[];
+  /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
+  vowel?: number;
+  /** Prophecy: Portamento rate 0–1 */
+  portamento?: number;
   // ... other fields as needed
 }
 
@@ -223,7 +262,8 @@ export interface AudioEngine {
     stepTime?: number,
     slideFromFreq?: number,
     track?: 'partA' | 'partB' | 'bass2',
-    tuning?: ScaleDefinition | null
+    tuning?: ScaleDefinition | null,
+    noteParams?: any
   ) => void;
 
   playDrum: (
@@ -241,6 +281,7 @@ export interface AudioEngine {
     time: number,
     durationSteps?: number,
     stepTime?: number,
+    noteParams?: any,
     tuning?: ScaleDefinition | null
   ) => void;
 
@@ -314,6 +355,112 @@ export interface KnobAutomation {
   isRecording: boolean;
 }
 
+// ============================================================================
+// AUTOMATION LANE SYSTEM (Issue #652)
+// ============================================================================
+
+/** Automation target — which track/instrument the lane controls */
+export type AutomationTarget =
+  | 'synthA' | 'synthB' | 'bass2'
+  | 'kick' | 'snare' | 'closedHat' | 'openHat'
+  | 'master';
+
+/** Where the automation data originated */
+export type AutomationSource = 'rbs' | 'recorded' | 'ai' | 'manual';
+
+/** Interpolation mode between automation points */
+export type AutomationInterpolation = 'step' | 'linear' | 'smooth';
+
+/** Scope of the automation lane */
+export type AutomationScope = 'pattern' | 'song';
+
+/**
+ * A single point in an automation lane.
+ * Uses normalized 0–1 values for portability across parameter ranges.
+ */
+export interface AutomationLanePoint {
+  /** Step index (0-based, relative to pattern or song position) */
+  step: number;
+  /** Normalized value 0–1 */
+  value: number;
+  /** Optional: interpolation override for this segment */
+  interpolation?: AutomationInterpolation;
+}
+
+/**
+ * Unified automation lane — the core data model for all automation sources.
+ * Handles imported .rbs lanes, live-recorded knob movements, and AI-generated automation.
+ */
+export interface UnifiedAutomationLane {
+  /** Unique lane identifier */
+  id: string;
+  /** Target track */
+  target: AutomationTarget;
+  /** Parameter path (e.g. 'cutoff', 'resonance', 'envMod', 'decay', 'accent') */
+  parameter: string;
+  /** Human-readable display name */
+  name: string;
+  /** Automation data points (sorted by step) */
+  points: AutomationLanePoint[];
+  /** Default interpolation mode for the lane */
+  interpolation: AutomationInterpolation;
+  /** Where this lane came from */
+  source: AutomationSource;
+  /** Whether this lane applies per-pattern or song-wide */
+  scope: AutomationScope;
+  /** Pattern index this lane belongs to (when scope='pattern') */
+  patternIndex?: number;
+  /** Whether the lane is enabled for playback */
+  enabled: boolean;
+  /** Original value range (for display/conversion), defaults to [0, 1] */
+  originalRange?: [number, number];
+}
+
+/**
+ * Record-arm state for a single parameter.
+ * When armed, knob movements are captured into a recording buffer.
+ */
+export interface AutomationRecordArm {
+  /** Target track */
+  target: AutomationTarget;
+  /** Parameter being armed */
+  parameter: string;
+  /** Whether currently armed for recording */
+  armed: boolean;
+}
+
+/**
+ * Active recording buffer — captures knob movements in real time.
+ */
+export interface AutomationRecordingBuffer {
+  /** Target track */
+  target: AutomationTarget;
+  /** Parameter being recorded */
+  parameter: string;
+  /** Captured points during recording (may have sub-step resolution) */
+  points: AutomationLanePoint[];
+  /** Recording start time (performance.now()) */
+  startTime: number;
+  /** Whether recording is in progress */
+  isRecording: boolean;
+}
+
+/**
+ * Full automation state for the application.
+ */
+export interface AutomationState {
+  /** All automation lanes (imported + recorded) */
+  lanes: UnifiedAutomationLane[];
+  /** Record-arm flags per parameter */
+  recordArms: AutomationRecordArm[];
+  /** Active recording buffers (one per armed parameter during record) */
+  recordingBuffers: AutomationRecordingBuffer[];
+  /** Current playback step position (for scheduler) */
+  playbackStep: number;
+  /** Whether global automation playback is enabled */
+  playbackEnabled: boolean;
+}
+
 export interface SongStep {
   patternIndex: number;
 }
@@ -344,6 +491,8 @@ export interface SavedSongData {
   backgroundImage?: string;
   embeddedSamples?: { [bankIndex: number]: string };
   ttsPhrases?: string[];
+  /** Persisted automation lanes (from .rbs import, recordings, or AI) */
+  automationLanes?: UnifiedAutomationLane[];
 }
 export interface AmbianceTrack {
   id: string;

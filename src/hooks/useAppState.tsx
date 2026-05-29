@@ -16,7 +16,10 @@ import type { MainSequencerHandle } from '../components/MainSequencer'
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner'
 import { type HarmonizerConfig } from '../engines/Harmonizer'
 import { WaveformSelector } from '../components/WaveformSelector'
+import { Engine303Selector } from '../components/Engine303Selector'
+import { ProphecyPanel } from '../components/ProphecyPanel'
 import { SamplerPanel } from '../components/SamplerPanel'
+import { engineTelemetry } from '../utils/engineTelemetry'
 
 import {
     NUM_STEPS,
@@ -28,8 +31,10 @@ import {
     DEFAULT_SNARE_PARAMS,
     DEFAULT_CLOSED_HAT_PARAMS,
     DEFAULT_OPEN_HAT_PARAMS,
+    DEFAULT_DRUM_KIT,
+    getKitDrumParams,
 } from '../constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType } from '../types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType } from '../types'
 import {
     INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
@@ -112,7 +117,7 @@ export function useAppState() {
 
     const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
-    const { audioEngine, isReady, initializeAudio, onParamChange } = useAudioEngine(pyodide, tempo)
+    const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef } = useAudioEngine(pyodide, tempo)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
     useTTSPreloader()
@@ -125,6 +130,7 @@ export function useAppState() {
     const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
 
     const lastSamplerMidiRef = useRef<Record<number, number>>({});
+    const lastSamplerFormantRef = useRef<Record<number, number>>({});
 
     const handleStart = async () => {
         console.log("Initialization sequence started...");
@@ -272,6 +278,24 @@ export function useAppState() {
     const openHatRef = useRef(DEFAULT_OPEN_HAT_PARAMS);
     const updateOpenHat = useCallback((u: Partial<typeof DEFAULT_OPEN_HAT_PARAMS>) => { setOpenHat(prev => { const n = { ...prev, ...u }; openHatRef.current = n; return n; }); }, []);
 
+    // Drum kit selection (808/909)
+    const [drumKit, setDrumKit] = useState<DrumKitType>(DEFAULT_DRUM_KIT);
+    const drumKitRef = useRef<DrumKitType>(DEFAULT_DRUM_KIT);
+    const updateDrumKit = useCallback((kit: DrumKitType) => {
+      setDrumKit(kit);
+      drumKitRef.current = kit;
+      // Sync kit engine
+      if (drumKitEngineRef?.current) {
+        drumKitEngineRef.current.setKit(kit);
+      }
+      // Apply kit default params when switching
+      const kitParams = getKitDrumParams(kit);
+      setKick(kitParams.kick); kickRef.current = kitParams.kick;
+      setSnare(kitParams.snare); snareRef.current = kitParams.snare;
+      setClosedHat(kitParams.closedHat); closedHatRef.current = kitParams.closedHat;
+      setOpenHat(kitParams.openHat); openHatRef.current = kitParams.openHat;
+    }, [drumKitEngineRef]);
+
     const [sampler, setSampler] = useState<SamplerParams>(INITIAL_SAMPLER_PARAMS);
     const samplerRef = useRef(INITIAL_SAMPLER_PARAMS);
     const updateSampler = useCallback((u: SamplerParams) => { setSampler(u); samplerRef.current = u; }, []);
@@ -284,6 +308,10 @@ export function useAppState() {
         formantShift: 0,
         attack: 0,
         decay: 0.5,
+        vibratoRate: 5.5,
+        vibratoDepth: 0,
+        tremoloDepth: 0,
+        breathAmount: 0,
         quality: 'good' as 'preview' | 'good' | 'better' | 'best',
         stretchMode: 'Time' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
@@ -311,10 +339,62 @@ export function useAppState() {
         const newParams = { ...samplerVoiceParamsRef.current, [param]: value };
         samplerVoiceParamsRef.current = newParams;
         setSamplerVoiceParams(newParams);
+        setSampler(prev => {
+            const next = [...prev];
+            const bankIndex = activeSamplerBankRef.current;
+            const current = next[bankIndex];
+            if (!current) return prev;
+
+            const nextBank: SamplerBankParams = {
+                ...current,
+                [param]: value as any,
+            };
+
+            if (param === 'breathAmount') {
+                // Backward-compat for existing playback paths that still read flat breathIntensity.
+                nextBank.breathIntensity = value as number;
+            }
+            if (param === 'vibratoRate' || param === 'vibratoDepth' || param === 'tremoloDepth' || param === 'breathAmount') {
+                nextBank.expressiveness = {
+                    vibratoRate: param === 'vibratoRate' ? value as number : current.expressiveness?.vibratoRate ?? 5.5,
+                    vibratoDepth: param === 'vibratoDepth' ? value as number : current.expressiveness?.vibratoDepth ?? (current.vibratoDepth ?? 0),
+                    tremoloDepth: param === 'tremoloDepth' ? value as number : current.expressiveness?.tremoloDepth ?? (current.tremoloDepth ?? 0),
+                    breathAmount: param === 'breathAmount' ? value as number : current.expressiveness?.breathAmount ?? (current.breathIntensity ?? 0),
+                };
+            }
+
+            next[bankIndex] = nextBank;
+            samplerRef.current = next;
+            return next;
+        });
         if (audioEngine?.updateSamplerVoiceParams) {
             audioEngine.updateSamplerVoiceParams(activeSamplerBankRef.current, param, value);
         }
     }, [audioEngine]);
+
+    useEffect(() => {
+        const bank = sampler[activeSamplerBank];
+        if (!bank) return;
+        const expressiveness = bank.expressiveness;
+        const nextParams = {
+            ...samplerVoiceParamsRef.current,
+            rootNote: bank.rootNote ?? samplerVoiceParamsRef.current.rootNote,
+            coarseTune: bank.coarseTune ?? samplerVoiceParamsRef.current.coarseTune,
+            fineTune: bank.fineTune ?? samplerVoiceParamsRef.current.fineTune,
+            formantShift: bank.formantShift ?? samplerVoiceParamsRef.current.formantShift,
+            attack: bank.attack ?? samplerVoiceParamsRef.current.attack,
+            decay: bank.decay ?? samplerVoiceParamsRef.current.decay,
+            quality: bank.quality ?? samplerVoiceParamsRef.current.quality,
+            stretchMode: bank.stretchMode ?? samplerVoiceParamsRef.current.stretchMode,
+            lockToSequencer: bank.lockToSequencer ?? samplerVoiceParamsRef.current.lockToSequencer,
+            vibratoRate: expressiveness?.vibratoRate ?? samplerVoiceParamsRef.current.vibratoRate,
+            vibratoDepth: expressiveness?.vibratoDepth ?? bank.vibratoDepth ?? samplerVoiceParamsRef.current.vibratoDepth,
+            tremoloDepth: expressiveness?.tremoloDepth ?? bank.tremoloDepth ?? samplerVoiceParamsRef.current.tremoloDepth,
+            breathAmount: expressiveness?.breathAmount ?? bank.breathIntensity ?? samplerVoiceParamsRef.current.breathAmount,
+        };
+        samplerVoiceParamsRef.current = nextParams;
+        setSamplerVoiceParams(nextParams);
+    }, [sampler, activeSamplerBank]);
 
     const handleAutoMix = useCallback(() => {
         updateSynthA({ pan: -0.3 });
@@ -403,6 +483,7 @@ export function useAppState() {
         patternRef,
         lastFreqRef,
         lastSamplerMidiRef,
+        lastSamplerFormantRef,
         synthARef,
         synthBRef,
         bass2Ref,
@@ -702,6 +783,15 @@ const handleKeyboardPlay = useCallback((note: string) => {
             formantShift: voiceParams.formantShift,
             attack: voiceParams.attack,
             decay: voiceParams.decay,
+            vibratoDepth: voiceParams.vibratoDepth,
+            tremoloDepth: voiceParams.tremoloDepth,
+            breathIntensity: voiceParams.breathAmount,
+            expressiveness: {
+                vibratoRate: voiceParams.vibratoRate,
+                vibratoDepth: voiceParams.vibratoDepth,
+                tremoloDepth: voiceParams.tremoloDepth,
+                breathAmount: voiceParams.breathAmount,
+            },
             quality: voiceParams.quality,
             stretchMode: voiceParams.stretchMode,
             lockToSequencer: voiceParams.lockToSequencer,
@@ -957,8 +1047,9 @@ const handleNotePropertyChange = useCallback((
     key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 
          'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 
          'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
-         'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delaySend' | 'freezeEnvDepth' | 'pan' |
-         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate',
+         'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delayLfoRate' | 'delayLfoDepth' | 'delaySend' | 'freezeEnvDepth' | 'pan' |
+         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' |
+         'vowel' | 'portamento' | 'slideFormant',
     value: number | boolean | string
 ) => {
     if (!contextMenu) return;
@@ -1081,6 +1172,7 @@ const handleNotePropertyChange = useCallback((
         setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen,
+        setDrumKit: updateDrumKit,
     });
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal }); }, [updateSynthA, updateSynthB]);
@@ -1250,9 +1342,75 @@ const handleLyricApply = useCallback(async (text: string) => {
     const openHatControls = useStableKnobConfig(getOpenHatControls, openHat);
     const samplerControls = useStableKnobConfig(getSamplerControls, sampler[activeSamplerBank]);
 
-    const synthAChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" /></div>), [synthA.waveform, updateSynthA]);
-    const synthBChild = useMemo(() => (<div className="absolute top-4 right-6 pointer-events-auto"><WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" /></div>), [synthB.waveform, updateSynthB]);
-    const bass2Child = useMemo(() => (
+    const synthAChild = useMemo(() => {
+        const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
+        const isProphecy = synthA.waveform?.startsWith('prophecy-') ?? false;
+        const engine = synthA.engine303 ?? 'open303';
+        const handleSynthAEngineChange = (e: 'open303' | 'jc303') => {
+            updateSynthA({ engine303: e });
+            const mgr = audioEngine?.open303Engine;
+            if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(e);
+            engineTelemetry.registerResolution('synthA-engine303', e, 'user-initiated');
+        };
+        return (
+            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
+                <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
+                {is303 && (
+                    <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
+                )}
+                {isProphecy && (
+                    <ProphecyPanel
+                        vowel={synthA.vowel ?? 0}
+                        portamento={synthA.portamento ?? 0}
+                        formantShift={synthA.formantShift ?? 0}
+                        accentColor="cyan"
+                        onVowelChange={(v) => updateSynthA({ vowel: v })}
+                        onPortamentoChange={(v) => updateSynthA({ portamento: v })}
+                        onFormantShiftChange={(v) => updateSynthA({ formantShift: v })}
+                    />
+                )}
+            </div>
+        );
+    }, [synthA.waveform, synthA.engine303, synthA.vowel, synthA.portamento, synthA.formantShift, updateSynthA, audioEngine]);
+    const synthBChild = useMemo(() => {
+        const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
+        const isProphecy = synthB.waveform?.startsWith('prophecy-') ?? false;
+        const engine = synthB.engine303 ?? 'open303';
+        const handleSynthBEngineChange = (e: 'open303' | 'jc303') => {
+            updateSynthB({ engine303: e });
+            const mgr = audioEngine?.open303Engine;
+            if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(e);
+            engineTelemetry.registerResolution('synthB-engine303', e, 'user-initiated');
+        };
+        return (
+            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
+                <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
+                {is303 && (
+                    <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
+                )}
+                {isProphecy && (
+                    <ProphecyPanel
+                        vowel={synthB.vowel ?? 0}
+                        portamento={synthB.portamento ?? 0}
+                        formantShift={synthB.formantShift ?? 0}
+                        accentColor="pink"
+                        onVowelChange={(v) => updateSynthB({ vowel: v })}
+                        onPortamentoChange={(v) => updateSynthB({ portamento: v })}
+                        onFormantShiftChange={(v) => updateSynthB({ formantShift: v })}
+                    />
+                )}
+            </div>
+        );
+    }, [synthB.waveform, synthB.engine303, synthB.vowel, synthB.portamento, synthB.formantShift, updateSynthB, audioEngine]);
+    const bass2Child = useMemo(() => {
+        const engine = bass2.engine303 ?? 'open303';
+        const handleBass2EngineChange = (e: 'open303' | 'jc303') => {
+            updateBass2({ engine303: e });
+            const mgr = audioEngine?.open303Engine;
+            if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(e);
+            engineTelemetry.registerResolution('bass2-engine303', e, 'user-initiated');
+        };
+        return (
         <div className="absolute top-4 right-6 pointer-events-auto">
             <div className="flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
                 <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center">Waveform</span>
@@ -1276,9 +1434,11 @@ const handleLyricApply = useCallback(async (text: string) => {
                 >
                     SQR
                 </button>
+                <Engine303Selector engine={engine} onChange={handleBass2EngineChange} accentColor="pink" />
             </div>
         </div>
-    ), [bass2.waveform, updateBass2]);
+        );
+    }, [bass2.waveform, bass2.engine303, updateBass2, audioEngine]);
     const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} isVoiceEditorOpen={isVoiceEditorOpen} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} alignment={activeAlignment} onAlignmentChange={(newAlignment) => { audioEngine?.setAlignment?.(activeSamplerBank, newAlignment); setActiveAlignment(newAlignment); }} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, isVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment]);
 
     return {
@@ -1322,6 +1482,7 @@ const handleLyricApply = useCallback(async (text: string) => {
         melodicMode, setMelodicMode,
         activeAlignment, setActiveAlignment,
         lastSamplerMidiRef,
+        lastSamplerFormantRef,
         currentScale, setCurrentScale,
         sliceHighlightRef,
         selection, setSelection,
@@ -1363,6 +1524,9 @@ const handleLyricApply = useCallback(async (text: string) => {
         openHat, setOpenHat,
         openHatRef,
         updateOpenHat,
+        drumKit,
+        drumKitRef,
+        updateDrumKit,
         sampler, setSampler,
         samplerRef,
         updateSampler,

@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, memo, useCallback, useMemo } from 'react';
+import { LoadingButton } from './LoadingButton';
 import type { SamplerBankParams, SamplerParams, AudioEngine } from '../types';
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
@@ -152,6 +153,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         tremoloDepth: 0,
         tremoloRate: 0.1,
         breathIntensity: 0,
+        expressiveness: {
+            vibratoRate: 5.5,
+            vibratoDepth: 0,
+            tremoloDepth: 0,
+            breathAmount: 0,
+        },
         freeze: 0,
         grainPitchQuantize: 0,
         formantLfoRate: 0,
@@ -765,25 +772,20 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             className={`w-2 h-2 border border-black shadow-sm flex-shrink-0 rounded-full transition-colors ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}
                             title={ttsReady ? "TTS Engine Ready" : "TTS Engine Loading/Unavailable"}
                         />
-                        <button
+                        <LoadingButton
                             onClick={handleTTS}
-                            disabled={isGenerating || !ttsReady}
-                            className="flex items-center gap-1.5 px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all"
+                            disabled={!ttsReady}
+                            isLoading={isGenerating}
+                            loadingText="GEN"
+                            spinnerColor="text-purple-200"
+                            className="flex items-center justify-center gap-1.5 px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 transition-all"
                             aria-label={isGenerating ? "Generating Speech..." : "Generate Speech"}
-                            aria-busy={isGenerating}
                         >
-                            {isGenerating ? (
-                                <svg className="animate-spin h-2.5 w-2.5 text-purple-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                     <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1M12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clipRule="evenodd" />
-                                </svg>
-                            )}
+                            </svg>
                             GEN
-                        </button>
+                        </LoadingButton>
                         {onOpenEditor && (
                             <button
                                 onClick={onOpenEditor}
@@ -1165,7 +1167,9 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
     if (prev.audioEngine !== next.audioEngine) return false;
 
     // 5. Check if loaded banks status changed
-    if (JSON.stringify(prev.loadedBanks) !== JSON.stringify(next.loadedBanks)) return false;
+    const prevBanks = prev.loadedBanks || [];
+    const nextBanks = next.loadedBanks || [];
+    if (prevBanks.length !== nextBanks.length || prevBanks.some((val, i) => val !== nextBanks[i])) return false;
 
     // 6. Check sample buffer
     if (prev.sampleBuffer !== next.sampleBuffer) return false;

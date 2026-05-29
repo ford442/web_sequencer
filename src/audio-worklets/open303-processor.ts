@@ -28,6 +28,10 @@ const SynthState = {
 
 type SynthStateType = typeof SynthState[keyof typeof SynthState];
 
+/** Minimum WebAssembly memory pages for hyphon_native.wasm (threaded Emscripten build).
+ *  Must stay in sync with OPEN303_MIN_MEMORY_PAGES in Open303Oscillator.ts. */
+const OPEN303_MIN_MEMORY_PAGES = 8192;
+
 // Map from jc303_set* function name → open303 paramId
 // (keeps the existing message protocol while supporting the new native API)
 const JC303_PARAM_MAP: Record<string, number> = {
@@ -56,6 +60,17 @@ class Open303Processor extends AudioWorkletProcessor {
     // Caller-allocated output buffer pointer (malloc'd once, freed on cleanup)
     private nativeOutputPtr: number = 0;
     private nativeBufFrames: number = 128;
+
+    // Authentic rosic::Open303 multi-instance API (jc303_wrapper.cpp).
+    // Available alongside the custom open303_* API in hyphon_native.wasm.
+    private hasJc303MultiApi: boolean = false;
+    private jc303Handle: number = 0;
+
+    /** Which DSP engine is currently active for this processor instance.
+     *  'open303' = custom synthesizer (open303_* API, default)
+     *  'jc303'   = authentic rosic::Open303 (jc303_* multi-instance API)
+     */
+    private activeEngine: 'open303' | 'jc303' = 'open303';
 
     // Gain compensation for 303 output level matching.
     private static readonly OUTPUT_GAIN = 4.0;
@@ -103,12 +118,17 @@ class Open303Processor extends AudioWorkletProcessor {
                 this.handleNoteOn(data.note, data.velocity);
             } else if (type === 'noteOff') {
                 this.handleNoteOff(data.note);
+            } else if (type === 'set-engine') {
+                this.handleSetEngine(data.engine as 'open303' | 'jc303');
             } else if (type === 'param') {
                 if (this.isNativeApi) {
-                    // Native API: map jc303_set* name to paramId
                     const paramId = JC303_PARAM_MAP[data.func as string];
-                    if (paramId !== undefined && exports.open303_set_param) {
-                        exports.open303_set_param(this.instanceHandle, paramId, data.value);
+                    if (paramId !== undefined) {
+                        if (this.activeEngine === 'jc303' && this.hasJc303MultiApi && exports.jc303_set_param) {
+                            exports.jc303_set_param(this.jc303Handle, paramId, data.value);
+                        } else if (exports.open303_set_param) {
+                            exports.open303_set_param(this.instanceHandle, paramId, data.value);
+                        }
                     }
                 } else if (exports[data.func]) {
                     // Legacy jc303_* API
@@ -234,13 +254,19 @@ class Open303Processor extends AudioWorkletProcessor {
         // to succeed without spurious overflow calls.
         this.configureWasmStack(this.wasmInstance);
 
-        // 4. Verify exports
+        // 4. Verify exports — accept either the native multi-instance API
+        // (open303_create/open303_init, exported by hyphon_native.wasm) or the
+        // legacy single-instance jc303_init/jc303_process API.
         const exports = this.wasmInstance.exports as any;
-        const hasInit = typeof exports.jc303_init === 'function';
-        const hasProcess = typeof exports.jc303_process === 'function';
+        const hasNative = typeof exports.open303_create === 'function'
+                       && typeof exports.open303_init === 'function';
+        const hasLegacy = typeof exports.jc303_init === 'function'
+                       && typeof exports.jc303_process === 'function';
 
-        if (!hasInit || !hasProcess) {
-            throw new Error(`Missing required functions: jc303_init=${hasInit}, jc303_process=${hasProcess}`);
+        if (!hasNative && !hasLegacy) {
+            throw new Error(
+                `Missing required exports: neither open303_* (native) nor jc303_* (legacy) found`
+            );
         }
 
         // 5. Initialize the synth with stack protection
@@ -248,10 +274,13 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private createMemory(pages: number | undefined, shared: boolean): WebAssembly.Memory {
-        // CRITICAL FIX: Large initial memory to prevent stack overflow
-        // 32MB stack + 32MB heap minimum = 1024 pages (64MB)
-        const memoryImportPages = pages || 1024;
-        const maxMemoryPages = 4096; // 256MB max
+        // hyphon_native.wasm (threaded build with Open303 + Rubberband + ONNX shim)
+        // declares an initial memory of 8192 pages (512 MB). Anything smaller fails
+        // instantiation with "memory import has N pages which is smaller than the
+        // declared initial of 8192". Use that as the floor and allow growth up to 1 GB.
+        const HYPHON_NATIVE_MIN_PAGES = 8192;
+        const memoryImportPages = Math.max(pages ?? 0, HYPHON_NATIVE_MIN_PAGES);
+        const maxMemoryPages = 16384; // 1 GB ceiling
 
         if (shared) {
             try {
@@ -507,6 +536,11 @@ class Open303Processor extends AudioWorkletProcessor {
 
             this.isNativeApi = true;
             console.log(`[Open303] Native instance created: handle=${this.instanceHandle}`);
+
+            // Also initialise the authentic rosic::Open303 multi-instance (jc303_*)
+            // so that per-voice engine switching works without a full reinit.
+            this.initializeJc303MultiInstance(exports, sampleRate);
+
             return true;
         } catch (e) {
             console.error('[Open303] Native API init failed:', e);
@@ -514,6 +548,56 @@ class Open303Processor extends AudioWorkletProcessor {
             this.instanceHandle = 0;
             return false;
         }
+    }
+
+    /** Initialise the authentic rosic::Open303 multi-instance handle alongside
+     *  the custom open303 instance.  Failures are non-fatal — the custom engine
+     *  remains the default and engine switching will simply be unavailable. */
+    private initializeJc303MultiInstance(exports: any, sampleRate: number): void {
+        if (typeof exports.jc303_create !== 'function' ||
+            typeof exports.jc303_init_handle !== 'function') {
+            console.log('[Open303] jc303 multi-instance API not available in this WASM build');
+            return;
+        }
+        try {
+            this.jc303Handle = exports.jc303_create();
+            if (!this.jc303Handle) {
+                console.warn('[Open303] jc303_create() returned null handle');
+                return;
+            }
+            const res = exports.jc303_init_handle(this.jc303Handle, sampleRate, this.nativeBufFrames);
+            if (res !== 1) {
+                console.warn(`[Open303] jc303_init_handle() returned ${res}`);
+                if (exports.jc303_destroy) {
+                    exports.jc303_destroy(this.jc303Handle);
+                }
+                this.jc303Handle = 0;
+                return;
+            }
+            this.hasJc303MultiApi = true;
+            console.log(`[Open303] Authentic JC303 instance ready: handle=${this.jc303Handle}`);
+        } catch (e) {
+            console.warn('[Open303] JC303 multi-instance init failed (engine unavailable):', e);
+            this.jc303Handle = 0;
+            this.hasJc303MultiApi = false;
+        }
+    }
+
+    /** Switch the active DSP engine for this processor instance.
+     *  Clears any held notes before switching to avoid stuck notes. */
+    private handleSetEngine(engine: 'open303' | 'jc303'): void {
+        if (engine === this.activeEngine) return;
+
+        if (engine === 'jc303' && !this.hasJc303MultiApi) {
+            console.warn('[Open303] Authentic JC303 engine not available — ignoring set-engine request');
+            return;
+        }
+
+        // Release any held notes on the current engine before switching
+        this.clearAllNotes();
+
+        this.activeEngine = engine;
+        console.log(`[Open303] Engine switched to: ${engine}`);
     }
 
     private initializeLegacyApi(exports: any, sampleRate: number): boolean {
@@ -573,7 +657,9 @@ class Open303Processor extends AudioWorkletProcessor {
         const exports = this.wasmInstance.exports as any;
 
         try {
-            if (this.isNativeApi) {
+            if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+                exports.jc303_note_off(this.jc303Handle, note);
+            } else if (this.isNativeApi) {
                 exports.open303_note_off(this.instanceHandle, note);
             } else {
                 exports.jc303_noteOff(note);
@@ -590,7 +676,9 @@ class Open303Processor extends AudioWorkletProcessor {
         const exports = this.wasmInstance.exports as any;
 
         try {
-            if (this.isNativeApi) {
+            if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+                exports.jc303_all_notes_off(this.jc303Handle);
+            } else if (this.isNativeApi) {
                 exports.open303_all_notes_off(this.instanceHandle);
             } else if (exports.jc303_allNotesOff) {
                 exports.jc303_allNotesOff();
@@ -610,7 +698,9 @@ class Open303Processor extends AudioWorkletProcessor {
         const exports = this.wasmInstance.exports as any;
 
         try {
-            if (this.isNativeApi) {
+            if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+                exports.jc303_note_on(this.jc303Handle, note, velocity);
+            } else if (this.isNativeApi) {
                 exports.open303_note_on(this.instanceHandle, note, velocity);
             } else {
                 exports.jc303_noteOn(note, velocity);
@@ -679,8 +769,37 @@ class Open303Processor extends AudioWorkletProcessor {
             const numFrames = channelL ? channelL.length : 128;
             const gain = Open303Processor.OUTPUT_GAIN;
 
-            if (this.isNativeApi) {
-                // ── Native instance API ──────────────────────────────────────
+            if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+                // ── Authentic rosic::Open303 multi-instance API ───────────────
+                // jc303_process_handle returns a ptr to the instance's internal
+                // buffer — the caller must NOT free it.
+                const ptr = exports.jc303_process_handle(this.jc303Handle, numFrames);
+
+                if (ptr === 0 || ptr === undefined) {
+                    if (this.allocationErrorCount++ < 5) {
+                        console.error('[Open303] jc303_process_handle returned invalid pointer');
+                    }
+                    if (channelL) channelL.fill(0);
+                    if (channelR) channelR.fill(0);
+                    return true;
+                }
+
+                const offset = ptr >> 2;
+                if (offset >= 0 && offset + numFrames <= this.heapFloat32.length) {
+                    for (let i = 0; i < numFrames; i++) {
+                        const sample = this.heapFloat32[offset + i] * gain;
+                        if (channelL) channelL[i] = sample;
+                        if (channelR) channelR[i] = sample;
+                    }
+                } else {
+                    if (this.processErrorCount++ < 5) {
+                        console.error(`[Open303] Heap overflow (jc303): offset=${offset}, length=${this.heapFloat32.length}`);
+                    }
+                    if (channelL) channelL.fill(0);
+                    if (channelR) channelR.fill(0);
+                }
+            } else if (this.isNativeApi) {
+                // ── Custom open303 multi-instance API ────────────────────────
                 if (!this.nativeOutputPtr) {
                     if (channelL) channelL.fill(0);
                     if (channelR) channelR.fill(0);
@@ -762,7 +881,9 @@ class Open303Processor extends AudioWorkletProcessor {
                     console.warn(`[Open303] Stuck note detected: ${note} held for ${duration.toFixed(0)}ms, auto-releasing`);
                 }
                 try {
-                    if (this.isNativeApi) {
+                    if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+                        exports.jc303_note_off(this.jc303Handle, note);
+                    } else if (this.isNativeApi) {
                         exports.open303_note_off(this.instanceHandle, note);
                     } else {
                         exports.jc303_noteOff(note);

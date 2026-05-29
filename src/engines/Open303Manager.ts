@@ -4,26 +4,31 @@ import { engineTelemetry } from '../utils/engineTelemetry';
 import type { Open303Config } from './Open303Params';
 
 /**
- * Manages dual Open303 (TB-303) instances for independent bass tracks
- * - bass1: Used by partB (SYNTH B // BASS) 
+ * Manages three Open303 (TB-303) instances for independent synth tracks
+ * - bass1: Used by partB (SYNTH B // BASS)
  * - bass2: Independent second bass track
+ * - lead303: Used by partA (SYNTH A // LEAD) when a 303 waveform is selected
  */
 export class Open303Manager {
     private bass1: Open303Oscillator | null = null;
     private bass2: Open303Oscillator | null = null;
+    private lead303: Open303Oscillator | null = null;
     private audioContext: AudioContext | null = null;
     private workletUrl: string | undefined;
     
     // Mixer nodes for independent routing
     private bass1Gain: GainNode | null = null;
     private bass2Gain: GainNode | null = null;
+    private lead303Gain: GainNode | null = null;
     private bass1Panner: StereoPannerNode | null = null;
     private bass2Panner: StereoPannerNode | null = null;
+    private lead303Panner: StereoPannerNode | null = null;
     
     // State tracking
     public isReady: boolean = false;
     private bass1Ready: boolean = false;
     private bass2Ready: boolean = false;
+    private lead303Ready: boolean = false;
 
     /**
      * Initialize both Open303 instances
@@ -44,6 +49,9 @@ export class Open303Manager {
             this.bass2Gain = audioContext.createGain();
             this.bass2Gain.gain.value = 1.0;
 
+            this.lead303Gain = audioContext.createGain();
+            this.lead303Gain.gain.value = 1.0;
+
             // Create panners for stereo positioning
             if (audioContext.createStereoPanner) {
                 this.bass1Panner = audioContext.createStereoPanner();
@@ -53,43 +61,56 @@ export class Open303Manager {
                 this.bass2Panner = audioContext.createStereoPanner();
                 this.bass2Panner.pan.value = 0.2; // Slightly right
                 this.bass2Gain.connect(this.bass2Panner);
+
+                this.lead303Panner = audioContext.createStereoPanner();
+                this.lead303Panner.pan.value = 0.0; // Centre (LEAD)
+                this.lead303Gain.connect(this.lead303Panner);
             }
 
-            // Initialize bass1 and bass2 in parallel — each does a WASM fetch and
-            // worklet addModule. The browser dedupes the addModule call for the same URL,
-            // so running these concurrently halves the open303 init wall-clock.
+            // Initialize bass1, bass2 and lead303 in parallel — the browser dedupes
+            // the addModule call for the same URL so all three share one worklet load.
             this.bass1 = new Open303Oscillator();
             this.bass2 = new Open303Oscillator();
+            this.lead303 = new Open303Oscillator();
             const initConfig = {
                 ...config,
                 preferWorklet: true,
                 preferThreaded: false,
                 forceSingleThreaded: true
             };
-            const [bass1Ready, bass2Ready] = await Promise.all([
+            const results = await Promise.allSettled([
                 this.bass1.init(audioContext, workletUrl, initConfig),
                 this.bass2.init(audioContext, workletUrl, initConfig),
+                this.lead303.init(audioContext, workletUrl, initConfig),
             ]);
-            this.bass1Ready = bass1Ready;
-            this.bass2Ready = bass2Ready;
+            this.bass1Ready = results[0].status === 'fulfilled' ? results[0].value : false;
+            this.bass2Ready = results[1].status === 'fulfilled' ? results[1].value : false;
+            this.lead303Ready = results[2].status === 'fulfilled' ? results[2].value : false;
+
+            if (!this.lead303Ready) {
+                console.warn('[Open303Manager] lead303 (SYNTH A) failed to initialise — LEAD 303 waveforms will fall back to VoiceManager');
+            }
 
             if (this.bass1Ready) this.bass1.connect(this.bass1Gain);
             if (this.bass2Ready) this.bass2.connect(this.bass2Gain);
+            if (this.lead303Ready) this.lead303.connect(this.lead303Gain);
 
-            this.isReady = this.bass1Ready || this.bass2Ready;
+            this.isReady = this.bass1Ready || this.bass2Ready || this.lead303Ready;
             
             if (this.isReady) {
-                console.log('[Open303Manager] Dual 303 instances initialized:', {
+                console.log('[Open303Manager] Triple 303 instances initialized:', {
                     bass1: this.bass1Ready,
-                    bass2: this.bass2Ready
+                    bass2: this.bass2Ready,
+                    lead303: this.lead303Ready,
                 });
                 try {
                     const b1 = this.bass1?.isFallback ? 'js' : (this.bass1Ready ? 'wasm' : 'none');
                     const b2 = this.bass2?.isFallback ? 'js' : (this.bass2Ready ? 'wasm' : 'none');
+                    const lead = this.lead303?.isFallback ? 'js' : (this.lead303Ready ? 'wasm' : 'none');
                     let backend = 'none';
-                    if (b1 === b2) backend = b1;
+                    if (b1 === b2 && b2 === lead) backend = b1;
                     else backend = 'mixed';
-                    engineTelemetry.registerResolution('jc303', backend, `bass1:${b1},bass2:${b2}`);
+                    engineTelemetry.registerResolution('jc303', backend, `bass1:${b1},bass2:${b2},lead303:${lead}`);
                 } catch (_) {}
             }
 
@@ -103,7 +124,7 @@ export class Open303Manager {
     }
 
     /**
-     * Connect both bass instances to a destination
+     * Connect all three instances to a destination
      */
     connect(dest: AudioNode): void {
         if (this.bass1Panner) {
@@ -117,6 +138,12 @@ export class Open303Manager {
         } else if (this.bass2Gain) {
             this.bass2Gain.connect(dest);
         }
+
+        if (this.lead303Panner) {
+            this.lead303Panner.connect(dest);
+        } else if (this.lead303Gain) {
+            this.lead303Gain.connect(dest);
+        }
     }
 
     /**
@@ -128,6 +155,9 @@ export class Open303Manager {
         }
         if (this.bass2Panner) {
             this.bass2Panner.disconnect();
+        }
+        if (this.lead303Panner) {
+            this.lead303Panner.disconnect();
         }
     }
 
@@ -170,6 +200,25 @@ export class Open303Manager {
     }
 
     /**
+     * Apply parameters to lead303 (used by partA / SYNTH A LEAD).
+     * Shares the same SynthParams shape as applyBass1Params.
+     */
+    applyLead303Params(params: { filterCutoff: number; filterResonance: number; filterMode?: number; decay: number; volume: number; pan?: number }, waveform: 'saw' | 'sqr'): void {
+        if (!this.lead303Ready || !this.lead303) return;
+
+        this.lead303.setWaveform(waveform === 'sqr' ? 1.0 : 0.0);
+        this.lead303.setCutoff(Math.max(0, Math.min(1, params.filterCutoff / 8000)));
+        this.lead303.setResonance(Math.max(0, Math.min(1, params.filterResonance / 20)));
+        this.lead303.setFilterMode(Math.max(0, Math.min(1, params.filterMode ?? 0)));
+        this.lead303.setDecay(Math.max(0, Math.min(1, params.decay)));
+        this.lead303.setVolume(params.volume);
+
+        if (params.pan !== undefined) {
+            this.setLead303Pan(params.pan);
+        }
+    }
+
+    /**
      * Trigger note on bass1
      */
     noteOnBass1(midiNote: number, velocity: number = 100): void {
@@ -206,6 +255,24 @@ export class Open303Manager {
     }
 
     /**
+     * Trigger note on lead303 (partA / SYNTH A LEAD)
+     */
+    noteOnLead303(midiNote: number, velocity: number = 100): void {
+        if (this.lead303Ready && this.lead303) {
+            this.lead303.noteOn(midiNote, velocity);
+        }
+    }
+
+    /**
+     * Release note on lead303 (partA / SYNTH A LEAD)
+     */
+    noteOffLead303(midiNote: number): void {
+        if (this.lead303Ready && this.lead303) {
+            this.lead303.noteOff(midiNote);
+        }
+    }
+
+    /**
      * Set bass1 volume (mixer)
      */
     setBass1Volume(volume: number): void {
@@ -220,6 +287,15 @@ export class Open303Manager {
     setBass2Volume(volume: number): void {
         if (this.bass2Gain) {
             this.bass2Gain.gain.setValueAtTime(volume, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
+     * Set lead303 volume (mixer)
+     */
+    setLead303Volume(volume: number): void {
+        if (this.lead303Gain) {
+            this.lead303Gain.gain.setValueAtTime(volume, this.audioContext?.currentTime || 0);
         }
     }
 
@@ -242,6 +318,15 @@ export class Open303Manager {
     }
 
     /**
+     * Set lead303 pan (mixer)
+     */
+    setLead303Pan(pan: number): void {
+        if (this.lead303Panner) {
+            this.lead303Panner.pan.setValueAtTime(pan, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
      * Mute/unmute bass1
      */
     setBass1Mute(muted: boolean): void {
@@ -256,6 +341,15 @@ export class Open303Manager {
     setBass2Mute(muted: boolean): void {
         if (this.bass2Gain) {
             this.bass2Gain.gain.setValueAtTime(muted ? 0 : 1, this.audioContext?.currentTime || 0);
+        }
+    }
+
+    /**
+     * Mute/unmute lead303
+     */
+    setLead303Mute(muted: boolean): void {
+        if (this.lead303Gain) {
+            this.lead303Gain.gain.setValueAtTime(muted ? 0 : 1, this.audioContext?.currentTime || 0);
         }
     }
 
@@ -312,11 +406,19 @@ export class Open303Manager {
     }
 
     /**
-     * Cleanup both instances
+     * Get lead303 ready state (partA / SYNTH A LEAD)
+     */
+    isLead303Ready(): boolean {
+        return this.lead303Ready;
+    }
+
+    /**
+     * Cleanup all three instances
      */
     cleanup(): void {
         this.bass1?.cleanup();
         this.bass2?.cleanup();
+        this.lead303?.cleanup();
         
         if (this.bass1Gain) {
             this.bass1Gain.disconnect();
@@ -326,6 +428,10 @@ export class Open303Manager {
             this.bass2Gain.disconnect();
             this.bass2Gain = null;
         }
+        if (this.lead303Gain) {
+            this.lead303Gain.disconnect();
+            this.lead303Gain = null;
+        }
         if (this.bass1Panner) {
             this.bass1Panner.disconnect();
             this.bass1Panner = null;
@@ -334,11 +440,47 @@ export class Open303Manager {
             this.bass2Panner.disconnect();
             this.bass2Panner = null;
         }
+        if (this.lead303Panner) {
+            this.lead303Panner.disconnect();
+            this.lead303Panner = null;
+        }
         
         this.bass1 = null;
         this.bass2 = null;
+        this.lead303 = null;
         this.isReady = false;
         this.bass1Ready = false;
         this.bass2Ready = false;
+        this.lead303Ready = false;
+    }
+
+    /**
+     * Switch the DSP engine for the bass1 (SYNTH B / partB) voice.
+     *
+     * 'open303' — custom synthesizer (default)
+     * 'jc303'   — authentic rosic::Open303
+     */
+    setBass1Engine(engine: 'open303' | 'jc303'): void {
+        this.bass1?.setEngine303(engine);
+    }
+
+    /**
+     * Switch the DSP engine for the bass2 (BASS 2) voice.
+     *
+     * 'open303' — custom synthesizer (default)
+     * 'jc303'   — authentic rosic::Open303
+     */
+    setBass2Engine(engine: 'open303' | 'jc303'): void {
+        this.bass2?.setEngine303(engine);
+    }
+
+    /**
+     * Switch the DSP engine for the lead303 (SYNTH A / LEAD) voice.
+     *
+     * 'open303' — custom synthesizer (default)
+     * 'jc303'   — authentic rosic::Open303
+     */
+    setLead303Engine(engine: 'open303' | 'jc303'): void {
+        this.lead303?.setEngine303(engine);
     }
 }

@@ -137,7 +137,7 @@ export class RbsImporter {
 
     // Convert PCF to automation if enabled
     const automation: HyphonAutomationLane[] = [];
-    if (this.options.convertPcfToAutomation && raw.pcf.enabled) {
+    if (this.options.convertPcfToAutomation && raw.pcf.enabled && !this.options.importPcfAsFilter) {
       const pcfAutomation = this.convertPcfToAutomation(raw.pcf);
       automation.push(...pcfAutomation);
     }
@@ -162,6 +162,16 @@ export class RbsImporter {
       pattern,
       params,
       automation: automation.length > 0 ? automation : undefined,
+      pcfFilter: this.options.importPcfAsFilter && raw.pcf.enabled ? {
+        enabled: raw.pcf.enabled,
+        filterType: raw.pcf.filterType,
+        cutoff: raw.pcf.cutoff,
+        resonance: raw.pcf.resonance,
+        envAmount: raw.pcf.envAmount,
+        decay: raw.pcf.decay,
+        pattern: [...raw.pcf.pattern],
+        target: { ...raw.pcf.target },
+      } : undefined,
       rbsMetadata: {
         originalVersion: raw.version,
         pcfSettings: raw.pcf,
@@ -492,7 +502,8 @@ export class RbsImporter {
   ): HyphonSong['params'] {
     // Map TB-303 0-127 range to Hyphon parameters using exponential curves
     const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1 }, sourceName: string): SynthParams => {
-      const waveform: Waveform = tb303.waveform === 0 ? 'sawtooth' : 'square';
+      // Use 303-specific waveforms so Open303Manager is selected for playback
+      const waveform: Waveform = tb303.waveform === 0 ? '303-saw' : '303-sqr';
       
       // Cutoff: RBS 0-127 → Hyphon 100-8000 Hz (exponential curve)
       // Formula: 100 * 2^(rbsCutoff / 21.17) where 127 ≈ 8000Hz
@@ -577,6 +588,12 @@ export class RbsImporter {
     // Convert drum parameters based on kit type
     const { kick, snare, closedHat, openHat } = this.convertDrumParams(raw.drums, mappings);
 
+    // Determine final kit type for downstream consumers
+    let drumKit: '808' | '909' = raw.drums.kitType;
+    if (this.options.drumKitMapping !== 'auto') {
+      drumKit = this.options.drumKitMapping;
+    }
+
     return {
       synthA,
       synthB,
@@ -584,7 +601,8 @@ export class RbsImporter {
       kick,
       snare,
       closedHat,
-      openHat
+      openHat,
+      drumKit
     };
   }
 

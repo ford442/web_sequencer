@@ -25,6 +25,7 @@ import {
   type RbsParserError,
   DEFAULT_RBS_IMPORT_OPTIONS
 } from '../importers/rbs';
+import type { ImportReport } from '../importers/rbs/RbsImporter';
 import {
   formatFileSize,
   categorizeError,
@@ -74,6 +75,10 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
   
   // Importing state
   const [isImporting, setIsImporting] = useState(false);
+
+  // Import report state — populated after successful import
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const [importedSongName, setImportedSongName] = useState<string>('');
   
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +97,8 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
       setImportOptions(DEFAULT_RBS_IMPORT_OPTIONS);
       setShowOptions(false);
       setIsImporting(false);
+      setImportReport(null);
+      setImportedSongName('');
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -304,8 +311,17 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         
         if (result.success) {
           onImport(result.song);
-          onShowToast(`Imported "${result.song.metadata.name}" from RBS`, 'success');
-          onClose();
+          // Store report and song name to show in the success panel
+          setImportReport(result.report);
+          setImportedSongName(result.song.metadata.name);
+          setIsImporting(false);
+          // Show a brief summary in the toast
+          const warnCount = result.report.warnings.length;
+          const autoCount = result.report.automationLanesConverted;
+          const summaryParts: string[] = [`${result.report.stepsConverted} steps`];
+          if (autoCount > 0) summaryParts.push(`${autoCount} automation lane${autoCount !== 1 ? 's' : ''}`);
+          if (warnCount > 0) summaryParts.push(`${warnCount} warning${warnCount !== 1 ? 's' : ''}`);
+          onShowToast(`Imported "${result.song.metadata.name}" — ${summaryParts.join(', ')}`, 'success');
         } else {
           onShowToast('Import conversion failed', 'error');
           setIsImporting(false);
@@ -325,7 +341,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         }));
       }
     }, 300);
-  }, [parsedData, importOptions, onImport, onShowToast, onClose]);
+  }, [parsedData, importOptions, onImport, onShowToast]);
 
   // Update import option
   const updateOption = useCallback(<K extends keyof RbsImportOptions>(
@@ -420,8 +436,57 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-4 space-y-4">
+          {/* Import Report — shown after successful import */}
+          {importReport && (
+            <div className="p-4 bg-emerald-950/30 border border-emerald-700/50 rounded-lg" aria-live="polite">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-emerald-400 text-lg">✓</span>
+                <h3 className="text-sm font-semibold text-emerald-300">
+                  Loaded: {importedSongName}
+                </h3>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-xs mb-3">
+                <div className="p-2 bg-emerald-900/20 rounded text-center">
+                  <span className="block text-gray-400">Steps</span>
+                  <span className="text-white font-medium">{importReport.stepsConverted}</span>
+                </div>
+                <div className="p-2 bg-emerald-900/20 rounded text-center">
+                  <span className="block text-gray-400">Slides</span>
+                  <span className="text-white font-medium">{importReport.slideCount}</span>
+                </div>
+                <div className="p-2 bg-emerald-900/20 rounded text-center">
+                  <span className="block text-gray-400">Accents</span>
+                  <span className="text-white font-medium">{importReport.accentCount}</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs mb-3">
+                {importReport.pcfEnabled && (
+                  <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded border border-purple-500/30">PCF</span>
+                )}
+                {importReport.automationLanesConverted > 0 && (
+                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded border border-blue-500/30">
+                    {importReport.automationLanesConverted} automation lane{importReport.automationLanesConverted !== 1 ? 's' : ''}
+                  </span>
+                )}
+                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded border border-amber-500/30">
+                  Open303 wired
+                </span>
+              </div>
+              {importReport.warnings.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-yellow-400/80 hover:text-yellow-300 mb-1">
+                    {importReport.warnings.length} warning{importReport.warnings.length !== 1 ? 's' : ''}
+                  </summary>
+                  <ul className="pl-3 space-y-0.5 text-gray-400 list-disc list-inside">
+                    {importReport.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+
           {/* File Drop Zone */}
-          {!isComplete && !hasError && (
+          {!isComplete && !hasError && !importReport && (
             <div
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
@@ -528,8 +593,8 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
             </div>
           )}
 
-          {/* Success / Preview */}
-          {isComplete && parsedData && (
+          {/* Success / Preview — hidden once import is done */}
+          {isComplete && parsedData && !importReport && (
             <>
               {/* Song Metadata */}
               <div className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
@@ -883,44 +948,57 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-gray-800">
           <div className="text-xs text-gray-500">
-            {parseState.stage === 'idle' && 'Drop a .rbs file to begin'}
-            {parseState.stage === 'reading' && parseState.stageLabel}
-            {parseState.stage === 'parsing' && parseState.stageLabel}
-            {parseState.stage === 'converting' && 'Converting...'}
-            {parseState.stage === 'complete' && '✓ Ready to import'}
-            {parseState.stage === 'error' && `✗ ${parseState.category?.replace(/_/g, ' ')}`}
+            {importReport && `✓ Imported "${importedSongName}"`}
+            {!importReport && parseState.stage === 'idle' && 'Drop a .rbs file to begin'}
+            {!importReport && parseState.stage === 'reading' && parseState.stageLabel}
+            {!importReport && parseState.stage === 'parsing' && parseState.stageLabel}
+            {!importReport && parseState.stage === 'converting' && 'Converting...'}
+            {!importReport && parseState.stage === 'complete' && '✓ Ready to import'}
+            {!importReport && parseState.stage === 'error' && `✗ ${parseState.category?.replace(/_/g, ' ')}`}
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              disabled={isImporting}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50"
-              aria-label="Cancel Import"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleImport}
-              disabled={!isComplete || isImporting}
-              aria-busy={isImporting}
-              className={`px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 ${
-                isComplete && !isImporting
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              {isImporting ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <span>🎵</span>
-                  Import Song
-                </>
-              )}
-            </button>
+            {importReport ? (
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded transition-all"
+                aria-label="Close Import Modal"
+              >
+                ✓ Done
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={onClose}
+                  disabled={isImporting}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50"
+                  aria-label="Cancel Import"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={!isComplete || isImporting}
+                  aria-busy={isImporting}
+                  className={`px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 ${
+                    isComplete && !isImporting
+                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isImporting ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <span>🎵</span>
+                      Import Song
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

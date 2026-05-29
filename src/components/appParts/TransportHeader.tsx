@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { useAppStateContext } from '../../contexts/AppStateContext'
 import { TransportToolbar } from '../TransportToolbar'
+import { EngineStatusPill } from '../EngineStatusPill'
 
 export const TransportHeader = React.memo(() => {
   const {
@@ -24,7 +25,18 @@ export const TransportHeader = React.memo(() => {
     setIs3DMode,
     currentScale,
     setCurrentScale,
+    synthA,
+    synthB,
+    bass2,
   } = useAppStateContext()
+
+  const engineStatus = (
+    <EngineStatusPill
+      synthA={{ label: 'A', waveform: synthA.waveform, engine303: synthA.engine303 }}
+      synthB={{ label: 'B', waveform: synthB.waveform, engine303: synthB.engine303 }}
+      bass2={{ label: 'B2', waveform: bass2.waveform, engine303: bass2.engine303 }}
+    />
+  );
 
   return (
     <TransportToolbar
@@ -48,6 +60,7 @@ export const TransportHeader = React.memo(() => {
       setIs3DMode={setIs3DMode}
       currentScale={currentScale}
       setCurrentScale={setCurrentScale}
+      engineStatus={engineStatus}
     />
   )
 })

@@ -1,14 +1,18 @@
 
 import React, { memo, useCallback, useMemo, useRef, useEffect } from 'react';
-import type { AllDrumParams, DrumSound, KickParams, SnareParams, HatParams } from '../types';
+import type { AllDrumParams, DrumSound, KickParams, SnareParams, HatParams, DrumKitType } from '../types';
 import { Knob } from './Knob';
 
 interface DrumMachineProps {
   params: AllDrumParams;
   onParamsChange: (sound: DrumSound, newParams: KickParams | SnareParams | HatParams) => void;
+  /** Currently selected drum kit */
+  drumKit?: DrumKitType;
+  /** Callback to switch drum kits */
+  onDrumKitChange?: (kit: DrumKitType) => void;
 }
 
-export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange }) => {
+export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange, drumKit, onDrumKitChange }) => {
   // Use a ref to access latest params inside callbacks without causing them to update
   const paramsRef = useRef(params);
   useEffect(() => {
@@ -51,7 +55,45 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
 
   return (
     <div className="bg-gray-900/50 p-4 rounded-lg border-2 border-yellow-500 space-y-4">
-      <h2 className="font-orbitron text-xl font-bold text-yellow-400">Drum Machine</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="font-orbitron text-xl font-bold text-yellow-400">Drum Machine</h2>
+        {onDrumKitChange && (
+          <div className="flex items-center gap-2" role="radiogroup" aria-label="Drum Kit Selection">
+            <button
+              type="button"
+              className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
+                drumKit === '808'
+                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
+              }`}
+              onClick={() => onDrumKitChange('808')}
+              role="radio"
+              aria-checked={drumKit === '808'}
+              aria-label="TR-808 Kit"
+              title="Switch to TR-808 Kit"
+            >
+              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '808' ? 'bg-red-500 animate-pulse' : 'bg-gray-600'}`} />
+              808
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
+                drumKit === '909'
+                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
+              }`}
+              onClick={() => onDrumKitChange('909')}
+              role="radio"
+              aria-checked={drumKit === '909'}
+              aria-label="TR-909 Kit"
+              title="Switch to TR-909 Kit"
+            >
+              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '909' ? 'bg-blue-500 animate-pulse' : 'bg-gray-600'}`} />
+              909
+            </button>
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* KICK */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">

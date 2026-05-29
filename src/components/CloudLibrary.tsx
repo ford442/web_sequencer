@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CloudStorage } from '../services/CloudStorage';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { LoadingButton } from './LoadingButton';
 import type { CloudSongMeta, CloudItemType } from '../services/CloudStorage';
 
 interface CloudLibraryProps {
@@ -384,23 +385,23 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                 </div>
 
                                 <div className="pt-4" aria-live="polite">
-                                    <button
+                                    <LoadingButton
                                         type="submit"
-                                        disabled={uploadStatus === 'uploading' || uploadStatus === 'retrying' || uploadStatus === 'success'}
-                                        aria-busy={uploadStatus === 'uploading' || uploadStatus === 'retrying'}
-                                        className={`w-full py-3 rounded font-orbitron font-bold text-sm tracking-widest transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white
+                                        disabled={uploadStatus === 'success'}
+                                        isLoading={uploadStatus === 'uploading' || uploadStatus === 'retrying'}
+                                        loadingText={uploadStatus === 'uploading' ? 'UPLOADING...' : 'RETRYING...'}
+                                        spinnerColor="text-white"
+                                        className={`w-full py-3 rounded font-orbitron font-bold text-sm tracking-widest flex items-center justify-center
                                             ${uploadStatus === 'success' ? 'bg-green-600 text-white' :
                                               uploadStatus === 'error' ? 'bg-red-600 text-white' :
                                               uploadStatus === 'retrying' ? 'bg-yellow-600 text-white animate-pulse' :
                                               'bg-pink-700 text-white hover:bg-pink-600 border border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.3)]'}
                                         `}
                                     >
-                                        {uploadStatus === 'uploading' ? 'UPLOADING...' : 
-                                         uploadStatus === 'retrying' ? 'RETRYING...' :
-                                         uploadStatus === 'success' ? 'UPLOAD COMPLETE!' : 
+                                        {uploadStatus === 'success' ? 'UPLOAD COMPLETE!' :
                                          uploadStatus === 'error' ? 'FAILED - RETRY?' :
                                          `UPLOAD ${uploadType.toUpperCase()}`}
-                                    </button>
+                                    </LoadingButton>
                                     {uploadStatus === 'error' && errorMessage && (
                                         <div className="text-center mt-2 text-red-400 text-xs font-mono bg-red-900/20 p-2 rounded border border-red-900">
                                             ERROR: {errorMessage}

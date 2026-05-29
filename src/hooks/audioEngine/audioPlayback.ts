@@ -8,18 +8,22 @@ import type {
     SnareParams,
     SynthParams,
 } from '../../types';
-import { noteToMidi } from '../../utils/musicTheory';
+import { noteToMidi, type ScaleDefinition } from '../../utils/musicTheory';
 
 /** Reference MIDI note for drum pitch shifting (C3). A step with note C3 plays at unmodified pitch. */
 const DRUM_REF_MIDI = 48;
 import { Harmonizer, type HarmonizerConfig } from '../../engines/Harmonizer';
 import { Open303Manager } from '../../engines/Open303Manager';
+import { ProphecyManager } from '../../engines/ProphecyManager';
+import { PROPHECY_WAVEFORM_SUFFIX } from '../../engines/ProphecyParams';
 import type { VoiceManager, Voice } from '../../engines/VoiceManager';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
+import { DrumKitEngine } from '../../engines/DrumKitEngine';
 import { makeDistortionCurve } from './distortion';
 import { engineTelemetry } from '../../utils/engineTelemetry';
 
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
+
 export interface SynthNoteParams {
     pan?: number;
     timbre?: number;
@@ -31,6 +35,12 @@ export interface SynthNoteParams {
     reverbType?: 'room' | 'plate' | 'hall';
     envMod?: number;
     delaySend?: number;
+    /** Prophecy: Vowel formant preset override 0–4 */
+    vowel?: number;
+    /** Prophecy: Portamento rate override 0–1 */
+    portamento?: number;
+    /** Prophecy: Formant shift override 0–1 */
+    formantShift?: number;
 }
 
 export interface DrumNoteParams {
@@ -48,6 +58,7 @@ export type PlaySynthFn = (
     slideFromFreq?: number,
     track?: SynthTrack,
     noteParams?: SynthNoteParams,
+    tuning?: ScaleDefinition | null
 ) => void;
 
 export type NoteOnSynthFn = (
@@ -64,6 +75,8 @@ interface ActiveSynthNote {
 interface ActiveSamplerNote {
     source: AudioBufferSourceNode;
     envGain: GainNode;
+    expressiveNode?: AudioWorkletNode | null;
+    releaseTime?: number;
 }
 
 export interface PlaybackRefs {
@@ -78,6 +91,7 @@ export interface PlaybackRefs {
     masterPannerRef: MutableRefObject<StereoPannerNode | null>;
     noiseBufferRef: MutableRefObject<AudioBuffer | null>;
     open303ManagerRef: MutableRefObject<Open303Manager | null>;
+    prophecyManagerRef: MutableRefObject<ProphecyManager | null>;
     voiceManagerARef: MutableRefObject<VoiceManager | null>;
     voiceManagerBRef: MutableRefObject<VoiceManager | null>;
     nextSynthNoteId: MutableRefObject<number>;
@@ -90,20 +104,22 @@ export interface PlaybackRefs {
     harmonizerRef: MutableRefObject<Harmonizer | null>;
     bassSidechainEQBusRef: MutableRefObject<BiquadFilterNode | null>;
     sidechainBusRef: MutableRefObject<GainNode | null>;
+    drumKitEngineRef: MutableRefObject<DrumKitEngine | null>;
 }
 
 export function createPlaySynth(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'bassSidechainEQBusRef'>,
+    refs: Pick<PlaybackRefs, 'masterGainRef' | 'open303ManagerRef' | 'prophecyManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'bassSidechainEQBusRef'>,
 ): PlaySynthFn {
-    return (params, note, time, durationSteps = 1, stepTime = 0.2, slideFromFreq, track, noteParams) => {
+    return (params, note, time, durationSteps = 1, stepTime = 0.2, slideFromFreq, track, noteParams, tuning) => {
         if (!refs.masterGainRef.current) {
             return;
         }
 
         const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
         let effectiveParams = params;
-        if (noteParams?.pan !== undefined || noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined) {
+        if (noteParams?.pan !== undefined || noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined
+            || noteParams?.vowel !== undefined || noteParams?.portamento !== undefined || noteParams?.formantShift !== undefined) {
             effectiveParams = { ...params };
 
             if (noteParams?.timbre !== undefined) {
@@ -122,6 +138,15 @@ export function createPlaySynth(
             if (noteParams?.envMod !== undefined) {
                 // @ts-expect-error envMod may not exist on SynthParams directly, but gets mapped correctly to Bass2/Open303 overrides
                 effectiveParams.envMod = noteParams.envMod;
+            }
+            if (noteParams?.vowel !== undefined) {
+                effectiveParams.vowel = noteParams.vowel;
+            }
+            if (noteParams?.portamento !== undefined) {
+                effectiveParams.portamento = noteParams.portamento;
+            }
+            if (noteParams?.formantShift !== undefined) {
+                effectiveParams.formantShift = noteParams.formantShift;
             }
         }
 
@@ -194,6 +219,106 @@ export function createPlaySynth(
                             refs.open303ManagerRef.current?.noteOffBass1(midi);
                             const t1 = performance.now();
                             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+                        }
+                    }, (startDelay + noteDuration) * 1000);
+
+                    continue;
+                }
+            }
+
+            if (track === 'partA' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
+                if (refs.open303ManagerRef.current?.isLead303Ready()) {
+                    refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+
+                    const noteStr = Array.isArray(note) ? note[0] : note;
+                    if (!noteStr) {
+                        continue;
+                    }
+
+                    const midi = noteToMidi(noteStr);
+                    const now = context.currentTime;
+                    const startDelay = Math.max(0, noteTime - now);
+                    const noteDuration = subDuration;
+
+                    setTimeout(() => {
+                        const t0 = performance.now();
+                        refs.open303ManagerRef.current?.noteOnLead303(midi, 100);
+                        const t1 = performance.now();
+                        try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+                    }, startDelay * 1000);
+
+                    setTimeout(() => {
+                        if (slideFromFreq === undefined) {
+                            const t0 = performance.now();
+                            refs.open303ManagerRef.current?.noteOffLead303(midi);
+                            const t1 = performance.now();
+                            try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+                        }
+                    }, (startDelay + noteDuration) * 1000);
+
+                    continue;
+                }
+            }
+
+            // === Prophecy Routing ===
+            const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
+            if (track === 'partB' && prophecyWaveType !== undefined) {
+                if (refs.prophecyManagerRef?.current?.isPartBReady()) {
+                    refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
+
+                    const noteStr = Array.isArray(note) ? note[0] : note;
+                    if (!noteStr) {
+                        continue;
+                    }
+
+                    const midi = noteToMidi(noteStr);
+                    const now = context.currentTime;
+                    const startDelay = Math.max(0, noteTime - now);
+                    const noteDuration = subDuration;
+
+                    triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, noteTime, noteDuration);
+
+                    setTimeout(() => {
+                        const t0 = performance.now();
+                        refs.prophecyManagerRef?.current?.noteOnPartB(midi, 100);
+                        const t1 = performance.now();
+                        try { engineTelemetry.recordLatency('prophecy', t1 - t0); } catch (_) {}
+                    }, startDelay * 1000);
+
+                    setTimeout(() => {
+                        if (slideFromFreq === undefined) {
+                            refs.prophecyManagerRef?.current?.noteOffPartB(midi);
+                        }
+                    }, (startDelay + noteDuration) * 1000);
+
+                    continue;
+                }
+            }
+
+            if (track === 'partA' && prophecyWaveType !== undefined) {
+                if (refs.prophecyManagerRef?.current?.isPartAReady()) {
+                    refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
+
+                    const noteStr = Array.isArray(note) ? note[0] : note;
+                    if (!noteStr) {
+                        continue;
+                    }
+
+                    const midi = noteToMidi(noteStr);
+                    const now = context.currentTime;
+                    const startDelay = Math.max(0, noteTime - now);
+                    const noteDuration = subDuration;
+
+                    setTimeout(() => {
+                        const t0 = performance.now();
+                        refs.prophecyManagerRef?.current?.noteOnPartA(midi, 100);
+                        const t1 = performance.now();
+                        try { engineTelemetry.recordLatency('prophecy', t1 - t0); } catch (_) {}
+                    }, startDelay * 1000);
+
+                    setTimeout(() => {
+                        if (slideFromFreq === undefined) {
+                            refs.prophecyManagerRef?.current?.noteOffPartA(midi);
                         }
                     }, (startDelay + noteDuration) * 1000);
 
@@ -282,7 +407,7 @@ export const triggerBassEQDuck = (
 
 export function createPlayDrum(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef'>,
+    refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef' | 'drumKitEngineRef'>,
 ): AudioEngine['playDrum'] {
     return (sound, params, time, _tuning, stepTime = 0.125, note?: string | { note: string, pan?: number }) => {
         const noteStr = typeof note === 'string' ? note : note?.note;
@@ -302,6 +427,33 @@ export function createPlayDrum(
         for (let i = 0; i < retrigger; i++) {
             const now = time + (i * subStep);
 
+            // Use DrumKitEngine for authentic 808/909 synthesis when available
+            const kitEngine = refs.drumKitEngineRef?.current;
+            if (kitEngine) {
+                // Apply pitch ratio to params before passing to kit engine
+                let adjustedParams = params;
+                if (pitchRatio !== 1) {
+                    if (sound === 'kick') {
+                        const kp = params as KickParams;
+                        adjustedParams = { ...kp, pitch: kp.pitch * pitchRatio };
+                    } else if (sound === 'snare') {
+                        const sp = params as SnareParams;
+                        adjustedParams = { ...sp, tone: sp.tone * pitchRatio };
+                    } else {
+                        const hp = params as HatParams;
+                        adjustedParams = { ...hp, pitch: hp.pitch * pitchRatio };
+                    }
+                }
+
+                if (sound === 'kick' && refs.sidechainGainRef.current) {
+                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+                }
+
+                kitEngine.play(context, refs.masterGainRef.current, refs.noiseBufferRef.current, sound, adjustedParams, now);
+                continue;
+            }
+
+            // Legacy fallback (no kit engine)
             if (sound === 'kick') {
                 if (refs.sidechainGainRef.current) {
                     triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
@@ -411,7 +563,7 @@ export function createPlayDrum(
 
 export function createNoteOnSynth(
     context: AudioContext,
-    refs: Pick<PlaybackRefs, 'open303ManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'nextSynthNoteId' | 'activeSynthNotes' | 'bassSidechainEQBusRef'>,
+    refs: Pick<PlaybackRefs, 'open303ManagerRef' | 'prophecyManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'nextSynthNoteId' | 'activeSynthNotes' | 'bassSidechainEQBusRef'>,
 ): NoteOnSynthFn {
     return (params, note, time, track) => {
         const now = time || context.currentTime;
@@ -442,6 +594,51 @@ export function createNoteOnSynth(
                 try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                 const id = refs.nextSynthNoteId.current++;
                 refs.activeSynthNotes.current.set(id, { stop: () => refs.open303ManagerRef.current?.noteOffBass1(midi) });
+                return id;
+            }
+        }
+
+        if (track === 'partA' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
+            if (refs.open303ManagerRef.current?.isLead303Ready()) {
+                refs.open303ManagerRef.current.applyLead303Params(params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+                const midi = noteToMidi(note);
+                const t0 = performance.now();
+                refs.open303ManagerRef.current.noteOnLead303(midi, 100);
+                const t1 = performance.now();
+                try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+                const id = refs.nextSynthNoteId.current++;
+                refs.activeSynthNotes.current.set(id, { stop: () => refs.open303ManagerRef.current?.noteOffLead303(midi) });
+                return id;
+            }
+        }
+
+        // === Prophecy Routing (interactive noteOn) ===
+        const prophecyWaveTypeNoteOn = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
+        if (track === 'partB' && prophecyWaveTypeNoteOn !== undefined) {
+            if (refs.prophecyManagerRef?.current?.isPartBReady()) {
+                refs.prophecyManagerRef.current.applyPartBParams(params, prophecyWaveTypeNoteOn);
+                const midi = noteToMidi(note);
+                triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, now, 0.25);
+                const t0 = performance.now();
+                refs.prophecyManagerRef.current.noteOnPartB(midi, 100);
+                const t1 = performance.now();
+                try { engineTelemetry.recordLatency('prophecy', t1 - t0); } catch (_) {}
+                const id = refs.nextSynthNoteId.current++;
+                refs.activeSynthNotes.current.set(id, { stop: () => refs.prophecyManagerRef?.current?.noteOffPartB(midi) });
+                return id;
+            }
+        }
+
+        if (track === 'partA' && prophecyWaveTypeNoteOn !== undefined) {
+            if (refs.prophecyManagerRef?.current?.isPartAReady()) {
+                refs.prophecyManagerRef.current.applyPartAParams(params, prophecyWaveTypeNoteOn);
+                const midi = noteToMidi(note);
+                const t0 = performance.now();
+                refs.prophecyManagerRef.current.noteOnPartA(midi, 100);
+                const t1 = performance.now();
+                try { engineTelemetry.recordLatency('prophecy', t1 - t0); } catch (_) {}
+                const id = refs.nextSynthNoteId.current++;
+                refs.activeSynthNotes.current.set(id, { stop: () => refs.prophecyManagerRef?.current?.noteOffPartA(midi) });
                 return id;
             }
         }
@@ -495,6 +692,7 @@ export function createStopAllNotes(
         refs.singingVoiceManagerRef.current?.stopAll();
         refs.open303ManagerRef.current?.noteOffBass1(0);
         refs.open303ManagerRef.current?.noteOffBass2(0);
+        refs.open303ManagerRef.current?.noteOffLead303(0);
     };
 }
 

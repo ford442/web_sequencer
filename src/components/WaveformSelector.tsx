@@ -70,6 +70,15 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SAW</div>;
     case '303-sqr':
       return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SQR</div>;
+    // NEW: Prophecy formant icons
+    case 'prophecy-saw':
+      return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>SAW</div>;
+    case 'prophecy-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>SQR</div>;
+    case 'prophecy-tri':
+      return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>TRI</div>;
+    case 'prophecy-pulse':
+      return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>PLS</div>;
     default:
       // Always show at least the waveform name so unknown types are visible
       return <div className="font-bold text-[10px] leading-none text-center break-all">{type}</div>;
@@ -80,6 +89,7 @@ const OSCILLATOR_GROUPS = [
   { label: 'JavaScript', items: ['sawtooth', 'square', 'triangle', 'sine'] as Waveform[] },
   { label: 'PCM', items: ['wav-saw', 'wav-sqr'] as Waveform[] },
   { label: 'Open303', items: ['303-saw', '303-sqr'] as Waveform[] },
+  { label: 'Prophecy', items: ['prophecy-saw', 'prophecy-sqr', 'prophecy-tri', 'prophecy-pulse'] as Waveform[] },
   { label: 'Pyodide', items: ['pyodide-saw', 'pyodide-square', 'pyodide-sine'] as Waveform[] },
   { label: 'Rust', items: ['rust-saw', 'rust-sqr'] as Waveform[] },
   { label: 'WebGPU', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'] as Waveform[] },
