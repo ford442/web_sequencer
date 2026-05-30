@@ -502,7 +502,7 @@ export class Open303Manager {
             if (gain && this.audioContext) {
                 gain.gain.setValueAtTime(value, Math.max(this.audioContext.currentTime, audioTime));
             }
-            // Also inform the worklet so its internal volume state stays consistent.
+            // Also forward to the worklet so its internal gain state stays consistent with the GainNode.
         }
 
         // Worklet-routed params: schedule via wall-clock timeout.
@@ -575,7 +575,8 @@ export class Open303Manager {
                 gain.gain.setValueAtTime(fromValue, Math.max(this.audioContext.currentTime, startTime));
                 gain.gain.linearRampToValueAtTime(toValue, endTime);
             }
-            // Fall through to also inform the worklet (see note in scheduleParamAtTime).
+            // Also send interpolated snapshots to the worklet (same as the worklet path below)
+            // so its internal gain state mirrors the GainNode ramp.
         }
 
         // Worklet params: send interpolated snapshots.

@@ -90,6 +90,11 @@ const DEFAULT_RAMP_S = 0.05;
 /** Default pulses per quarter note (ReBirth native). */
 const DEFAULT_PPQ = 24;
 
+/** Clamp a value to the [0, 1] range. */
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
 /**
  * Called once per bar/song-measure when song mode is active so the app can
  * advance to the next pattern slot.
@@ -309,32 +314,34 @@ export class AutomationScheduler {
     value: number,
     _rampDuration: number
   ): void {
+    const v = clamp01(value);
+    const now = this.ctx.currentTime;
     switch (parameter) {
       case 'filterCutoff':
       case 'cutoff':
       case 'tb303Acutoff':
       case 'tb303Bcutoff':
-        mgr.scheduleParamAtTime(voice, 'setCutoff', Math.max(0, Math.min(1, value)), this.ctx.currentTime);
+        mgr.scheduleParamAtTime(voice, 'setCutoff', v, now);
         break;
       case 'filterResonance':
       case 'resonance':
       case 'tb303Aresonance':
       case 'tb303Bresonance':
-        mgr.scheduleParamAtTime(voice, 'setResonance', Math.max(0, Math.min(1, value)), this.ctx.currentTime);
+        mgr.scheduleParamAtTime(voice, 'setResonance', v, now);
         break;
       case 'decay':
       case 'tb303Adecay':
       case 'tb303Bdecay':
-        mgr.scheduleParamAtTime(voice, 'setDecay', Math.max(0, Math.min(1, value)), this.ctx.currentTime);
+        mgr.scheduleParamAtTime(voice, 'setDecay', v, now);
         break;
       case 'envMod':
-        mgr.scheduleParamAtTime(voice, 'setEnvMod', Math.max(0, Math.min(1, value)), this.ctx.currentTime);
+        mgr.scheduleParamAtTime(voice, 'setEnvMod', v, now);
         break;
       case 'accent':
-        mgr.scheduleParamAtTime(voice, 'setAccent', Math.max(0, Math.min(1, value)), this.ctx.currentTime);
+        mgr.scheduleParamAtTime(voice, 'setAccent', v, now);
         break;
       case 'volume':
-        mgr.scheduleParamAtTime(voice, 'setVolume', Math.max(0, Math.min(1, value)), this.ctx.currentTime);
+        mgr.scheduleParamAtTime(voice, 'setVolume', v, now);
         break;
       default:
         // Unknown parameter — no-op.

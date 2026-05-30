@@ -48,6 +48,26 @@ function makeOpen303Manager() {
 }
 
 // ---------------------------------------------------------------------------
+// Lane factory (mirrors automationStore.test.ts style)
+// ---------------------------------------------------------------------------
+
+function makeLane(overrides?: Partial<UnifiedAutomationLane>): UnifiedAutomationLane {
+  return {
+    id: generateLaneId(),
+    target: 'synthA',
+    parameter: 'filterCutoff',
+    name: 'Test Lane',
+    points: [{ step: 0, value: 0.5 }],
+    interpolation: 'linear',
+    source: 'recorded',
+    scope: 'pattern',
+    patternIndex: 0,
+    enabled: true,
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
@@ -162,16 +182,9 @@ describe('AutomationScheduler.cancelAll', () => {
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as any);
 
-    // Make a lane for synthA / filterCutoff
-    const lane: UnifiedAutomationLane = {
-      id: generateLaneId(),
-      target: 'synthA',
-      parameter: 'filterCutoff',
-      enabled: true,
-      points: [{ step: 0, value: 0.5 }],
-      source: 'recorded',
-    };
-    automationStore.addLane(0, lane);
+    // Make a lane for synthA / filterCutoff — schedule at 0.1s audio time
+    const lane = makeLane({ points: [{ step: 0, value: 0.5 }] });
+    automationStore.addLane(lane);
 
     // schedule 1 step ahead of audio time 0.1s (means setTimeout fires ~100ms away)
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0.1);
@@ -213,14 +226,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as any);
 
-    const lane: UnifiedAutomationLane = {
-      id: generateLaneId(),
-      target: 'synthA',
-      parameter: 'filterCutoff',
-      enabled: false,
-      points: [{ step: 0, value: 0.7 }],
-      source: 'recorded',
-    };
+    const lane = makeLane({ enabled: false, points: [{ step: 0, value: 0.7 }] });
 
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
     vi.runAllTimers();
@@ -232,14 +238,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as any);
 
-    const lane: UnifiedAutomationLane = {
-      id: generateLaneId(),
-      target: 'synthA',
-      parameter: 'filterCutoff',
-      enabled: true,
-      points: [{ step: 0, value: 0.75 }],
-      source: 'recorded',
-    };
+    const lane = makeLane({ target: 'synthA', parameter: 'filterCutoff', points: [{ step: 0, value: 0.75 }] });
 
     // schedule at audio time 0 (immediate) so setTimeout fires at 0 ms delay
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
@@ -252,14 +251,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as any);
 
-    const lane: UnifiedAutomationLane = {
-      id: generateLaneId(),
-      target: 'synthB',
-      parameter: 'filterResonance',
-      enabled: true,
-      points: [{ step: 0, value: 0.4 }],
-      source: 'recorded',
-    };
+    const lane = makeLane({ target: 'synthB', parameter: 'filterResonance', points: [{ step: 0, value: 0.4 }] });
 
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
     vi.runAllTimers();
@@ -271,14 +263,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as any);
 
-    const lane: UnifiedAutomationLane = {
-      id: generateLaneId(),
-      target: 'bass2',
-      parameter: 'decay',
-      enabled: true,
-      points: [{ step: 0, value: 0.6 }],
-      source: 'recorded',
-    };
+    const lane = makeLane({ target: 'bass2', parameter: 'decay', points: [{ step: 0, value: 0.6 }] });
 
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
     vi.runAllTimers();
@@ -290,15 +275,13 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as any);
 
-    const lane: UnifiedAutomationLane = {
-      id: generateLaneId(),
+    const lane = makeLane({
       target: 'synthA',
       parameter: 'filterCutoff',
-      enabled: true,
       points: [{ step: 0, value: 0.5 }],
       originalRange: [0, 2],
-      source: 'imported',
-    };
+      source: 'rbs',
+    });
 
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
     vi.runAllTimers();
@@ -310,14 +293,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     const ctx = makeAudioContext(0);
     const scheduler = new AutomationScheduler(ctx, null);
 
-    const lane: UnifiedAutomationLane = {
-      id: generateLaneId(),
-      target: 'synthA',
-      parameter: 'filterCutoff',
-      enabled: true,
-      points: [{ step: 0, value: 0.5 }],
-      source: 'recorded',
-    };
+    const lane = makeLane({ target: 'synthA', parameter: 'filterCutoff', points: [{ step: 0, value: 0.5 }] });
 
     expect(() => scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0)).not.toThrow();
     vi.runAllTimers();
