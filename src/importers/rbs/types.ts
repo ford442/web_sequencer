@@ -735,7 +735,7 @@ export interface DetailedParameterMapping {
  * playback, the AutomationScheduler converts active locks into time-stamped
  * parameter changes so each step receives the correct value independently.
  *
- * @see RbsImporter.generateParameterLocks
+ * @see RbsImporter.generateAccentSlideAutomation
  * @see AutomationScheduler._apply303Param
  */
 export interface RbsParameterLock {

@@ -544,9 +544,9 @@ export class Open303Manager {
      *                   effect.  Pass `audioContext.currentTime` for immediate.
      */
     scheduleSlideAtTime(
-        voice: 'bass1' | 'bass2' | 'lead303',
-        enabled: boolean,
-        audioTime: number
+        _voice: 'bass1' | 'bass2' | 'lead303',
+        _enabled: boolean,
+        _audioTime: number
     ): void {
         // The open303 / jc303 wasm builds do not yet expose a dedicated slide
         // parameter — portamento is triggered implicitly by sending a legato
@@ -557,8 +557,7 @@ export class Open303Manager {
         //
         // When the wasm build gains setSlide / setPortamento support, replace
         // this body with:
-        //   this.scheduleParamAtTime(voice, 'setSlide', enabled ? 1.0 : 0.0, audioTime);
-        void voice; void enabled; void audioTime;
+        //   this.scheduleParamAtTime(_voice, 'setSlide', _enabled ? 1.0 : 0.0, _audioTime);
     }
 
     /**
