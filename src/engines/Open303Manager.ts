@@ -454,6 +454,141 @@ export class Open303Manager {
         this.lead303Ready = false;
     }
 
+    // -------------------------------------------------------------------------
+    // Scheduled parameter API (used by AutomationScheduler)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Send a parameter change to an Open303 voice instance at the given
+     * AudioContext time.
+     *
+     * Because Open303 params are driven through AudioWorklet `postMessage`
+     * rather than native AudioParams, sample-accurate scheduling is not
+     * directly available.  This method fires the postMessage at the correct
+     * wall-clock time (derived from the AudioContext clock) so that the
+     * worklet receives the update with minimal jitter.
+     *
+     * For pan/gain nodes that do have native AudioParams, this delegates to
+     * the appropriate `setValueAtTime` call instead.
+     *
+     * @param voice     Which 303 instance to target ('bass1' | 'bass2' | 'lead303').
+     * @param func      Setter name (e.g. 'setCutoff', 'setResonance', 'setDecay').
+     * @param value     Normalised 0–1 value.
+     * @param audioTime AudioContext time at which the change should take effect.
+     *                  Pass `audioContext.currentTime` for an immediate change.
+     */
+    scheduleParamAtTime(
+        voice: 'bass1' | 'bass2' | 'lead303',
+        func: string,
+        value: number,
+        audioTime: number
+    ): void {
+        // Native AudioParam setters (pan, gain) — schedule ahead of time.
+        if (func === 'setPan') {
+            const panner =
+                voice === 'bass1' ? this.bass1Panner :
+                voice === 'bass2' ? this.bass2Panner :
+                this.lead303Panner;
+            if (panner && this.audioContext) {
+                panner.pan.setValueAtTime(value, Math.max(this.audioContext.currentTime, audioTime));
+            }
+            return;
+        }
+        if (func === 'setVolume') {
+            const gain =
+                voice === 'bass1' ? this.bass1Gain :
+                voice === 'bass2' ? this.bass2Gain :
+                this.lead303Gain;
+            if (gain && this.audioContext) {
+                gain.gain.setValueAtTime(value, Math.max(this.audioContext.currentTime, audioTime));
+            }
+            // Also forward to the worklet so its internal gain state stays consistent with the GainNode.
+        }
+
+        // Worklet-routed params: schedule via wall-clock timeout.
+        const osc =
+            voice === 'bass1' ? this.bass1 :
+            voice === 'bass2' ? this.bass2 :
+            this.lead303;
+        if (!osc) return;
+
+        const nowAudio = this.audioContext?.currentTime ?? 0;
+        const delayMs = Math.max(0, (audioTime - nowAudio) * 1000);
+
+        if (delayMs < 1) {
+            // Immediate — send now to avoid setTimeout overhead.
+            osc.setParam(func, value);
+        } else {
+            setTimeout(() => osc.setParam(func, value), delayMs);
+        }
+    }
+
+    /**
+     * Schedule a linear ramp for an Open303 worklet parameter from `fromValue`
+     * to `toValue` between `startTime` and `endTime` (AudioContext time).
+     *
+     * Implemented as a series of evenly-spaced `scheduleParamAtTime` calls so
+     * that the worklet receives smooth parameter updates even though it cannot
+     * use native AudioParam ramp methods.
+     *
+     * @param voice      Which 303 instance to target.
+     * @param func       Setter name (e.g. 'setCutoff').
+     * @param fromValue  Starting normalised value.
+     * @param toValue    Target normalised value.
+     * @param startTime  AudioContext time for `fromValue`.
+     * @param endTime    AudioContext time for `toValue`.
+     * @param steps      Number of intermediate interpolation steps (default 8).
+     */
+    scheduleParamRamp(
+        voice: 'bass1' | 'bass2' | 'lead303',
+        func: string,
+        fromValue: number,
+        toValue: number,
+        startTime: number,
+        endTime: number,
+        steps = 8
+    ): void {
+        if (steps < 1 || startTime >= endTime) {
+            this.scheduleParamAtTime(voice, func, toValue, endTime);
+            return;
+        }
+
+        // For native AudioParams (pan, gain) use a single linearRamp — it's
+        // sample-accurate and cheaper than many setValueAtTime calls.
+        if (func === 'setPan') {
+            const panner =
+                voice === 'bass1' ? this.bass1Panner :
+                voice === 'bass2' ? this.bass2Panner :
+                this.lead303Panner;
+            if (panner && this.audioContext) {
+                panner.pan.setValueAtTime(fromValue, Math.max(this.audioContext.currentTime, startTime));
+                panner.pan.linearRampToValueAtTime(toValue, endTime);
+            }
+            return;
+        }
+        if (func === 'setVolume') {
+            const gain =
+                voice === 'bass1' ? this.bass1Gain :
+                voice === 'bass2' ? this.bass2Gain :
+                this.lead303Gain;
+            if (gain && this.audioContext) {
+                gain.gain.setValueAtTime(fromValue, Math.max(this.audioContext.currentTime, startTime));
+                gain.gain.linearRampToValueAtTime(toValue, endTime);
+            }
+            // Also send interpolated snapshots to the worklet (same as the worklet path below)
+            // so its internal gain state mirrors the GainNode ramp.
+        }
+
+        // Worklet params: send interpolated snapshots.
+        const dur = endTime - startTime;
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const v = fromValue + t * (toValue - fromValue);
+            const at = startTime + t * dur;
+            this.scheduleParamAtTime(voice, func, v, at);
+        }
+    }
+
     /**
      * Switch the DSP engine for the bass1 (SYNTH B / partB) voice.
      *

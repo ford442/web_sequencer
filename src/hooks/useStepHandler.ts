@@ -15,6 +15,7 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
+import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const notesArray = Array.isArray(notes) ? notes : [notes];
@@ -75,6 +76,8 @@ export interface UseStepHandlerOptions {
     isFirstStepRef: React.MutableRefObject<boolean>;
     trackStorageRef: React.MutableRefObject<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>;
     setCurrentSongMeasure: (measure: number) => void;
+    /** Optional automation scheduler for AudioParam-scheduled 303/synth automation. */
+    automationSchedulerRef?: React.MutableRefObject<AutomationScheduler | null>;
 }
 
 export const useStepHandler = ({
@@ -105,6 +108,7 @@ export const useStepHandler = ({
     isFirstStepRef,
     trackStorageRef,
     setCurrentSongMeasure,
+    automationSchedulerRef,
 }: UseStepHandlerOptions) => {
     const onStep = useCallback((step: number) => {
         currentStepRef.current = step;
@@ -356,8 +360,40 @@ export const useStepHandler = ({
             const liveValues: Record<string, number> = {};
             let hasLiveValues = false;
 
+            // --- 303 / synth automation via AudioParam-aligned scheduler ---
+            // The AutomationScheduler sends worklet messages timed to the AudioContext
+            // clock, avoiding JS-callback jitter for continuous knob curves.
+            if (automationSchedulerRef?.current) {
+                const synth303Lanes = activeLanes.filter(
+                    (l) => l.target === 'synthA' || l.target === 'synthB' || l.target === 'bass2'
+                );
+                if (synth303Lanes.length > 0) {
+                    automationSchedulerRef.current.scheduleFromLanes(
+                        synth303Lanes,
+                        step,
+                        1,          // schedule one step ahead
+                        stepTime,
+                        now
+                    );
+                    // Collect live values from these lanes for UI indicators.
+                    for (const lane of synth303Lanes) {
+                        if (!lane.enabled) continue;
+                        const normVal = automationStore.getValueAtStep(lane, step);
+                        if (normVal === null) continue;
+                        liveValues[`${lane.target}:${lane.parameter}`] = normVal;
+                        hasLiveValues = true;
+                    }
+                }
+            }
+
             activeLanes.forEach((lane) => {
                 if (!lane.enabled) return;
+                // Skip 303/synth lanes already handled by the scheduler above.
+                if (automationSchedulerRef?.current &&
+                    (lane.target === 'synthA' || lane.target === 'synthB' || lane.target === 'bass2')) {
+                    return;
+                }
+
                 const normVal = automationStore.getValueAtStep(lane, step);
                 if (normVal === null) return;
 
@@ -389,8 +425,6 @@ export const useStepHandler = ({
                         onParamChange(activeSamplerBankRef.current, lane.parameter as any, realVal, rampDuration);
                     } catch (e) {}
                 }
-                // Future: add branches for synthA/synthB filterCutoff etc once ramping setters exist on engine
-                // e.g. if (lane.target === 'synthA' && lane.parameter === 'filterCutoff') { ... schedule on filter node }
             });
 
             // Notify UI with all live values in a single batched update (one re-render per step)
@@ -398,7 +432,7 @@ export const useStepHandler = ({
                 automationStore.setLiveValues(liveValues);
             }
         }
-    }, [audioEngine, tempo, onParamChange, currentScaleRef]);
+    }, [audioEngine, tempo, onParamChange, currentScaleRef, automationSchedulerRef]);
 
     return { onStep };
 };
