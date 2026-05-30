@@ -37,7 +37,7 @@ import {
     DEFAULT_SAMPLER_BANK_PARAMS,
     getKitDrumParams,
 } from '../constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType, AutomationTarget } from '../types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType, AutomationTarget, ResolvedTrakEvent } from '../types'
 import {
     INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
@@ -572,13 +572,16 @@ export function useAppState() {
     // AutomationScheduler: created/updated when the audio engine becomes ready.
     // Wires Open303Manager into AudioParam-aligned parameter scheduling for
     // zipper-free 303 automation during playback.
+    // ppq:192 matches the RBS TRAK event resolution (768 ticks/bar ÷ 4 beats = 192 PPQ).
     const automationSchedulerRef = useRef<AutomationScheduler | null>(null);
+    // Resolved TRAK events from an imported RBS song for sub-step automation scheduling.
+    const trakEventsRef = useRef<ResolvedTrakEvent[] | null>(null);
     useEffect(() => {
         const ctx = audioEngine?.context;
         const mgr = (audioEngine as any)?.open303Engine ?? null;
         if (ctx) {
             if (!automationSchedulerRef.current) {
-                automationSchedulerRef.current = new AutomationScheduler(ctx, mgr ?? null);
+                automationSchedulerRef.current = new AutomationScheduler(ctx, mgr ?? null, { ppq: 192 });
             } else {
                 automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
             }
@@ -617,6 +620,7 @@ export function useAppState() {
         trackStorageRef,
         setCurrentSongMeasure,
         automationSchedulerRef,
+        trakEventsRef,
     })
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
@@ -1292,6 +1296,8 @@ const handleNotePropertyChange = useCallback((
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen,
         setDrumKit: updateDrumKit,
+        setIsSongModeActive,
+        trakEventsRef,
     });
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal });

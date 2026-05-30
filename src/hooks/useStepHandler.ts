@@ -7,6 +7,7 @@ import type {
     AudioEngine,
     PartSequence,
     SamplerBankParams,
+    ResolvedTrakEvent,
 } from '../types';
 import type { MainSequencerHandle } from '../components/MainSequencer';
 import type { TrackKey } from '../constants/appDefaults';
@@ -16,6 +17,7 @@ import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
+import { TICKS_PER_BAR } from '../importers/rbs/types';
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const notesArray = Array.isArray(notes) ? notes : [notes];
@@ -78,6 +80,8 @@ export interface UseStepHandlerOptions {
     setCurrentSongMeasure: (measure: number) => void;
     /** Optional automation scheduler for AudioParam-scheduled 303/synth automation. */
     automationSchedulerRef?: React.MutableRefObject<AutomationScheduler | null>;
+    /** Resolved TRAK events from an imported RBS song for sub-step automation scheduling. */
+    trakEventsRef?: React.MutableRefObject<ResolvedTrakEvent[] | null>;
 }
 
 export const useStepHandler = ({
@@ -109,6 +113,7 @@ export const useStepHandler = ({
     trackStorageRef,
     setCurrentSongMeasure,
     automationSchedulerRef,
+    trakEventsRef,
 }: UseStepHandlerOptions) => {
     const onStep = useCallback((step: number) => {
         currentStepRef.current = step;
@@ -127,6 +132,20 @@ export const useStepHandler = ({
                     const nextM = songMeasureRef.current + 1;
                     songMeasureRef.current = nextM < songStructureRef.current.length ? nextM : 0;
                     setTimeout(() => setCurrentSongMeasure(songMeasureRef.current), 0);
+                }
+
+                // Schedule sub-step trakEvents for the current bar (RBS imported songs).
+                if (trakEventsRef?.current?.length && automationSchedulerRef?.current) {
+                    const mIdx = songMeasureRef.current;
+                    const fromTick = mIdx * TICKS_PER_BAR;
+                    const toTick = fromTick + TICKS_PER_BAR;
+                    automationSchedulerRef.current.scheduleFromTrakEvents(
+                        trakEventsRef.current,
+                        tempo,
+                        time,
+                        fromTick,
+                        toTick,
+                    );
                 }
             }
 
@@ -178,6 +197,7 @@ export const useStepHandler = ({
             // continues to use `tunedNoteToFrequency` below. VoiceManager handles scale tuning
             // independently when it plays the note string.
             const noteParams: SynthNoteParams = {};
+            if (stepData.velocity !== undefined) noteParams.velocity = stepData.velocity;
             if (stepData.timbre !== undefined) noteParams.timbre = stepData.timbre;
             if (stepData.microtiming !== undefined) noteParams.microtiming = stepData.microtiming;
             if (stepData.retrigger !== undefined) noteParams.retrigger = stepData.retrigger;
