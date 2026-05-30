@@ -515,6 +515,20 @@ interface Note {
 
 ---
 
+## Automation + RBS Import Architecture
+
+- Parser: `src/importers/rbs/RbsParser.ts` parses fixed-offset `.rbs` binary content into `RawRbsData`.
+- Importer: `src/importers/rbs/RbsImporter.ts` converts RBS patterns/params/automation into `HyphonSong`.
+  - PCF conversion is controlled by `convertPcfToAutomation` and `importPcfAsFilter`.
+  - TB-303 automation IDs map to Hyphon targets (`synthA`, `synthB`, `master`) with normalized values.
+- Scheduler: `src/audio/automation/AutomationScheduler.ts` schedules lane/TRAK events on the audio clock and routes Open303 parameter updates via `Open303Manager.scheduleParamAtTime`.
+- Focused tests:
+  - `src/__tests__/RbsParser.test.ts`
+  - `src/__tests__/RbsImporter.test.ts`
+  - `src/__tests__/AutomationScheduler.test.ts`
+
+---
+
 ## Common Pitfalls
 
 1. **"WASM not found" errors**: Check that all build steps completed and files exist in `public/`. Run `pnpm run build:wasm` and `pnpm run build:emcc`.
