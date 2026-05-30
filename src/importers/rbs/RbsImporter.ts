@@ -48,6 +48,17 @@ import type {
 
 import { noteToMidi, midiToNote } from '../../utils/musicTheory';
 
+/**
+ * Default slide-time raw value for authentic TB-303 hardware (0-127 range).
+ * Corresponds to ~60 ms portamento at nominal tempo (42/127 ≈ 0.331 normalized).
+ */
+const TB303_DEFAULT_SLIDE_TIME = 42;
+
+/** Clamp a value to the [0, 1] normalized range. */
+function clampNormalized(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
 /** Import result with detailed reporting */
 export interface RbsImportResult {
   success: true;
@@ -549,7 +560,7 @@ export class RbsImporter {
       // EnvMod: RBS 0-127 → Hyphon filterMode (0-1 normalized).
       // SynthParams stores envMod as filterMode (0-1) so the Open303 engine
       // can apply the correct envelope-modulation depth.
-      const filterMode = Math.max(0, Math.min(1, tb303.envMod / 127));
+      const filterMode = clampNormalized(tb303.envMod / 127);
 
       // Accent: RBS 0-127 → Hyphon velocity boost 0-0.4
       const accentBoost = this.convertAccentToBoost(tb303.accent);
@@ -558,8 +569,8 @@ export class RbsImporter {
       const volume = 0.6 + accentBoost;
 
       // Slide time: use raw value when available; TB-303 hardware default is ~42/127 ≈ 0.33.
-      const rawSlideTime = tb303.slideTime ?? 42;
-      const portamento = Math.max(0, Math.min(1, rawSlideTime / 127));
+      const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+      const portamento = clampNormalized(rawSlideTime / 127);
 
       // Record detailed mappings
       mappings.push({
@@ -676,8 +687,8 @@ export class RbsImporter {
 
     // Slide time: use the raw 0-127 value if provided; otherwise fall back to the
     // TB-303 hardware default (~42/127 ≈ 0.33 = 60 ms at nominal tempo).
-    const rawSlideTime = tb303.slideTime ?? 42;
-    const slideTime = Math.max(0, Math.min(1, rawSlideTime / 127));
+    const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+    const slideTime = clampNormalized(rawSlideTime / 127);
 
     if (mappings) {
       mappings.push({
@@ -994,7 +1005,7 @@ export class RbsImporter {
 
     for (const [stepIndex, value] of points) {
       // Normalize value to 0-1 range
-      const normalizedValue = Math.max(0, Math.min(1, (value - minVal) / rangeSpan));
+      const normalizedValue = clampNormalized((value - minVal) / rangeSpan);
       
       // Quantize if requested
       const finalStep = this.options.quantizeTo16th 
