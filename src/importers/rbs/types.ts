@@ -313,6 +313,9 @@ export interface Tb303PatternA {
   
   /** Delay send (0-127, if supported) */
   delaySend?: number;
+
+  /** Slide/portamento time (0-127, maps to Open303 slideTime 0-1) */
+  slideTime?: number;
 }
 
 /**
@@ -349,6 +352,9 @@ export interface Tb303PatternB {
   
   /** Transpose offset in semitones (-12 to +12) */
   transpose?: number;
+
+  /** Slide/portamento time (0-127, maps to Open303 slideTime 0-1) */
+  slideTime?: number;
 }
 
 /**
@@ -473,7 +479,19 @@ export interface PcfSettings {
  */
 export interface AutomationLane {
   /** Parameter being automated */
-  parameter: 'tempo' | 'swing' | 'tb303Acutoff' | 'tb303Bcutoff' | 'pcfCutoff' | 'masterVolume';
+  parameter:
+    | 'tempo'
+    | 'swing'
+    | 'tb303Acutoff'
+    | 'tb303Bcutoff'
+    | 'tb303Aresonance'
+    | 'tb303Bresonance'
+    | 'tb303Adecay'
+    | 'tb303Bdecay'
+    | 'pcfCutoff'
+    | 'pcfResonance'
+    | 'pcfEnvAmount'
+    | 'masterVolume';
   
   /** Human-readable name */
   name: string;

@@ -323,7 +323,7 @@ export class RbsImporter {
         velocity: step.accent ? 1.0 : 0.8,
         length: step.slide ? 2 : 1, // Slides extend to next step
         slide: step.slide,
-        timbre: 0.5 // Default timbre
+        timbre: step.accent ? 1.0 : 0.5 // timbre=1.0 signals TB-303 accent for the engine
       };
 
       // Track statistics
@@ -397,7 +397,7 @@ export class RbsImporter {
           velocity: velocity1,
           length: 2, // Spans both steps
           slide: true,
-          timbre: 0.5
+          timbre: sourceStep.accent ? 1.0 : 0.5
         };
         steps32[targetIndex2] = null; // Part of slide
       } else {
@@ -407,7 +407,7 @@ export class RbsImporter {
           velocity: velocity1,
           length: 1,
           slide: false,
-          timbre: 0.5
+          timbre: sourceStep.accent ? 1.0 : 0.5
         };
         // Second step is null (rest) unless it's a sustained note
         // Check if next step is a tie
@@ -532,7 +532,7 @@ export class RbsImporter {
     mappings: DetailedParameterMapping[]
   ): HyphonSong['params'] {
     // Map TB-303 0-127 range to Hyphon parameters using exponential curves
-    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1 }, sourceName: string): SynthParams => {
+    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1; slideTime?: number }, sourceName: string): SynthParams => {
       // Use 303-specific waveforms so Open303Manager is selected for playback
       const waveform: Waveform = tb303.waveform === 0 ? '303-saw' : '303-sqr';
       
@@ -551,6 +551,9 @@ export class RbsImporter {
       
       // Volume based on accent (0.6-1.0 range)
       const volume = 0.6 + accentBoost;
+
+      // slideTime: RBS 0-127 → 0-1 (linear)
+      const slideTime = tb303.slideTime !== undefined ? tb303.slideTime / 127 : undefined;
 
       // Record detailed mappings
       mappings.push({
@@ -587,6 +590,15 @@ export class RbsImporter {
         originalValue: tb303.waveform,
         convertedValue: waveform
       });
+      if (slideTime !== undefined) {
+        mappings.push({
+          source: `${sourceName}.slideTime`,
+          target: 'SynthParams.slideTime',
+          originalValue: tb303.slideTime!,
+          convertedValue: parseFloat(slideTime.toFixed(3)),
+          formula: 'slideTime / 127'
+        });
+      }
 
       return {
         waveform,
@@ -602,7 +614,8 @@ export class RbsImporter {
         volume: volume,
         delayTime: 0.3,
         delayFeedback: 0.2,
-        delayMix: 0.0
+        delayMix: 0.0,
+        ...(slideTime !== undefined ? { slideTime } : {}),
       };
     };
 
@@ -641,7 +654,7 @@ export class RbsImporter {
    * Convert TB-303 params to Bass2Params (Open303 format)
    */
   private convertToBass2Params(
-    tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1; envMod?: number },
+    tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1; envMod?: number; slideTime?: number },
     sourceName: string,
     mappings?: DetailedParameterMapping[]
   ): Bass2Params {
@@ -649,6 +662,8 @@ export class RbsImporter {
     const resonance = this.convertResonance(tb303.resonance);
     const decay = this.convertDecayToSeconds(tb303.decay);
     const accent = 0.5 + this.convertAccentToBoost(tb303.accent);
+    // slideTime: RBS 0-127 → 0-1 (linear)
+    const slideTime = tb303.slideTime !== undefined ? tb303.slideTime / 127 : undefined;
 
     if (mappings) {
       mappings.push({
@@ -658,6 +673,15 @@ export class RbsImporter {
         convertedValue: Math.round(cutoff),
         formula: '100 * 2^(cutoff / 21.17) Hz'
       });
+      if (slideTime !== undefined) {
+        mappings.push({
+          source: `${sourceName}.slideTime`,
+          target: 'Bass2Params.slideTime',
+          originalValue: tb303.slideTime!,
+          convertedValue: parseFloat(slideTime.toFixed(3)),
+          formula: 'slideTime / 127'
+        });
+      }
     }
 
     return {
@@ -669,7 +693,8 @@ export class RbsImporter {
       decay,
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
-      volume: 0.9
+      volume: 0.9,
+      ...(slideTime !== undefined ? { slideTime } : {}),
     };
   }
 
@@ -880,10 +905,40 @@ export class RbsImporter {
         parameter = 'filterCutoff';
         name = lane.name || 'TB-303 B Cutoff';
         break;
+      case 'tb303Aresonance':
+        target = 'synthA';
+        parameter = 'filterResonance';
+        name = lane.name || 'TB-303 A Resonance';
+        break;
+      case 'tb303Bresonance':
+        target = 'synthB';
+        parameter = 'filterResonance';
+        name = lane.name || 'TB-303 B Resonance';
+        break;
+      case 'tb303Adecay':
+        target = 'synthA';
+        parameter = 'decay';
+        name = lane.name || 'TB-303 A Decay';
+        break;
+      case 'tb303Bdecay':
+        target = 'synthB';
+        parameter = 'decay';
+        name = lane.name || 'TB-303 B Decay';
+        break;
       case 'pcfCutoff':
         target = 'master';
         parameter = 'pcfModulation';
         name = lane.name || 'PCF Modulation';
+        break;
+      case 'pcfResonance':
+        target = 'master';
+        parameter = 'pcfResonance';
+        name = lane.name || 'PCF Resonance';
+        break;
+      case 'pcfEnvAmount':
+        target = 'master';
+        parameter = 'pcfEnvAmount';
+        name = lane.name || 'PCF Env Amount';
         break;
       case 'masterVolume':
         target = 'master';
