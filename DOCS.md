@@ -75,6 +75,7 @@ Automated records from development sessions and build automation.
 - **For new contributors:** Start with [README.md](README.md), then [AGENTS.md](AGENTS.md)
 - **For Claude/Copilot agents:** See [claude.md](claude.md) and [AGENTS.md](AGENTS.md)
 - **For audio subsystem docs:** See [docs/audio-engine/](docs/audio-engine/)
+- **For automation + RBS import architecture:** See [docs/automation.md](docs/automation.md)
 - **For UI/UX docs:** See [docs/ui/](docs/ui/)
 - **For TTS docs:** See [docs/tts/](docs/tts/)
 - **For build/deployment:** See [docs/deployment/](docs/deployment/)

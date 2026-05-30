@@ -7,6 +7,14 @@ For a quick-start overview see the root [README.md](../README.md).
 
 ---
 
+## Top-Level Docs (`docs/`)
+
+| File | Summary |
+|------|---------|
+| [automation.md](automation.md) | Current automation scheduler + RBS import architecture and testing touchpoints |
+
+---
+
 ## Audio Engine (`audio-engine/`)
 
 | File | Summary |
