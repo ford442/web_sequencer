@@ -44,6 +44,7 @@ function makeOpen303Manager() {
     isLead303Ready: vi.fn(() => true),
     scheduleParamAtTime: vi.fn(),
     scheduleParamRamp: vi.fn(),
+    scheduleSlideAtTime: vi.fn(),
   };
 }
 
@@ -298,6 +299,62 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     expect(() => scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0)).not.toThrow();
     vi.runAllTimers();
     // No-op: no manager → no calls
+  });
+
+  it('calls scheduleParamAtTime with setAccent for an accent lane', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const scheduler = new AutomationScheduler(ctx, mgr as any);
+
+    const lane = makeLane({
+      target: 'synthA',
+      parameter: 'accent',
+      points: [{ step: 0, value: 0.8 }],
+    });
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+
+    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith(
+      'lead303', 'setAccent', expect.closeTo(0.8, 3), expect.any(Number)
+    );
+  });
+
+  it('calls scheduleSlideAtTime with enabled=true when slide lane value >= 0.5', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const scheduler = new AutomationScheduler(ctx, mgr as any);
+
+    const lane = makeLane({
+      target: 'synthA',
+      parameter: 'slide',
+      points: [{ step: 0, value: 1.0 }],
+    });
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+
+    expect(mgr.scheduleSlideAtTime).toHaveBeenCalledWith('lead303', true, expect.any(Number));
+  });
+
+  it('calls scheduleSlideAtTime with enabled=false when slide lane value < 0.5', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const scheduler = new AutomationScheduler(ctx, mgr as any);
+
+    const lane = makeLane({
+      target: 'synthA',
+      parameter: 'slide',
+      points: [{ step: 0, value: 0.0 }],
+    });
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+
+    expect(mgr.scheduleSlideAtTime).toHaveBeenCalledWith('lead303', false, expect.any(Number));
   });
 });
 

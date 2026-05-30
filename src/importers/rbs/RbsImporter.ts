@@ -172,6 +172,24 @@ export class RbsImporter {
     const convertedAutomation = this.convertAutomationLanes(raw.automation);
     automation.push(...convertedAutomation);
 
+    // Generate per-step accent and slide automation lanes from TB-303 step data.
+    // These capture the pattern-level on/off state for accent (velocity boost +
+    // filter envelope push) and slide (portamento/legato), so the playback
+    // scheduler can replicate exact TB-303 behaviour step-by-step.
+    const tb303ATarget = this.resolveTb303Target(this.options.tb303ATarget);
+    const tb303BTarget = this.resolveTb303Target(this.options.tb303BTarget);
+    const accentSlideA = this.generateAccentSlideAutomation(
+      raw.tb303PatternA.steps,
+      tb303ATarget,
+      raw.tb303PatternA.accent / 127
+    );
+    const accentSlideB = this.generateAccentSlideAutomation(
+      raw.tb303PatternB.steps,
+      tb303BTarget,
+      raw.tb303PatternB.accent / 127
+    );
+    automation.push(...accentSlideA, ...accentSlideB);
+
     // Build Hyphon song
     const song: HyphonSong = {
       version: 1,
@@ -874,6 +892,98 @@ export class RbsImporter {
     }
 
     return points;
+  }
+
+  /**
+   * Resolve a tb303ATarget / tb303BTarget option string to the corresponding
+   * HyphonAutomationLane target name.
+   */
+  private resolveTb303Target(
+    option: 'partA' | 'partB' | 'bass2'
+  ): HyphonAutomationLane['target'] {
+    switch (option) {
+      case 'bass2': return 'bass2';
+      case 'partB': return 'synthB';
+      case 'partA':
+      default:      return 'synthA';
+    }
+  }
+
+  /**
+   * Generate per-step accent and slide automation lanes from TB-303 step data.
+   *
+   * **Accent lane** (`parameter: 'accent'`):
+   *   - Value `1.0` on accented steps (velocity + filter-envelope boost, as on
+   *     authentic TB-303 hardware).
+   *   - Value equal to `baseAccentNorm` on non-accented steps, so the global
+   *     accent level is preserved between locked steps.
+   *
+   * **Slide lane** (`parameter: 'slide'`):
+   *   - Value `1.0` on slide-active steps (portamento/legato).
+   *   - Value `0.0` on all other steps.
+   *
+   * Both lanes use `'step'` interpolation so values snap at step boundaries,
+   * exactly matching the TB-303's digital switching behaviour.
+   *
+   * Lanes are only emitted when at least one step actually has the flag set,
+   * avoiding unnecessary overhead for patterns with no accent or no slide.
+   *
+   * @param steps          TB-303 step array (16 or 32 steps).
+   * @param target         Which automation target these lanes belong to.
+   * @param baseAccentNorm Normalised (0–1) base accent level from the pattern
+   *                       parameters; used as the "resting" accent value on
+   *                       non-accented steps.
+   * @returns              0, 1, or 2 `HyphonAutomationLane` objects.
+   */
+  private generateAccentSlideAutomation(
+    steps: Tb303Step[],
+    target: HyphonAutomationLane['target'],
+    baseAccentNorm: number
+  ): HyphonAutomationLane[] {
+    const numSteps = this.options.expandTo32Steps ? 32 : steps.length;
+    const accentPoints: [number, number][] = [];
+    const slidePoints: [number, number][] = [];
+    let hasAccent = false;
+    let hasSlide = false;
+
+    for (let i = 0; i < numSteps; i++) {
+      const src = steps[i % steps.length];
+      accentPoints.push([i, src.accent ? 1.0 : clampNormalized(baseAccentNorm)]);
+      slidePoints.push([i, src.slide ? 1.0 : 0.0]);
+      if (src.accent) hasAccent = true;
+      if (src.slide) hasSlide = true;
+    }
+
+    const trackLabel =
+      target === 'synthA' ? 'TB-303 A' :
+      target === 'synthB' ? 'TB-303 B' :
+      'Bass 2';
+
+    const lanes: HyphonAutomationLane[] = [];
+
+    if (hasAccent) {
+      lanes.push({
+        target,
+        parameter: 'accent',
+        name: `${trackLabel} Accent`,
+        points: accentPoints,
+        interpolation: 'step',
+        originalRange: [0, 1],
+      });
+    }
+
+    if (hasSlide) {
+      lanes.push({
+        target,
+        parameter: 'slide',
+        name: `${trackLabel} Slide`,
+        points: slidePoints,
+        interpolation: 'step',
+        originalRange: [0, 1],
+      });
+    }
+
+    return lanes;
   }
 
   /**

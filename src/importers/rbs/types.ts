@@ -718,3 +718,36 @@ export interface DetailedParameterMapping {
   convertedValue: number | string;
   formula?: string;
 }
+
+// ============================================================================
+// PARAMETER LOCKS
+// ============================================================================
+
+/**
+ * Per-step parameter lock — a one-off parameter override applied for exactly
+ * one sequencer step.
+ *
+ * Analogous to Elektron's "parameter lock" concept; in ReBirth this corresponds
+ * to per-step accent/slide flags and (when present) per-step PCF overrides.
+ *
+ * During import, `RbsImporter.generateParameterLocks()` converts these from
+ * per-step TB-303 and PCF data and stores them alongside the song.  At
+ * playback, the AutomationScheduler converts active locks into time-stamped
+ * parameter changes so each step receives the correct value independently.
+ *
+ * @see RbsImporter.generateAccentSlideAutomation
+ * @see AutomationScheduler._apply303Param
+ */
+export interface RbsParameterLock {
+  /** Target instrument/track. */
+  target: 'synthA' | 'synthB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'master';
+  /**
+   * Parameter name — matches the names used by AutomationScheduler
+   * (e.g. `'accent'`, `'slide'`, `'filterCutoff'`).
+   */
+  parameter: string;
+  /** 0-based step index within the pattern (0–31). */
+  step: number;
+  /** Locked value, normalised to the 0–1 range. */
+  value: number;
+}
