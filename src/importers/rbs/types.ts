@@ -91,6 +91,124 @@ export const AUTOMATION_PARAMETER_MAP: Record<number, string> = {
 };
 
 // ============================================================================
+// IFF CAT RB40 SONG DATA TYPES (per RBS42.txt + rbs.h from nsauzede/jsynth)
+// ============================================================================
+
+/**
+ * GLOB chunk data (512 bytes in v2.0 files).
+ * Contains global song settings: play mode, tempo, shuffle, loop points, vintage mode.
+ * Ref: RBS42.txt GLOB section, rbs.h struct glob_t.
+ */
+export interface RbsGlobData {
+  /** Play mode: 0 = pattern (single loop), 1 = song (arrangement) */
+  playMode: 0 | 1;
+  /** Tempo in BPM (40-250) */
+  tempo: number;
+  /** Shuffle/swing amount (0-127, 64 = no shuffle) */
+  shuffle: number;
+  /** Song loop start position (in pattern slots / bars) */
+  loopStart: number;
+  /** Song loop end position (in pattern slots / bars) */
+  loopEnd: number;
+  /** Vintage mode flag (0 = off, 1 = on) — affects sound character */
+  vintage: number;
+}
+
+/**
+ * Single TRAK event from TRKL catalog.
+ * Each event is (delta position in ticks, controller ID, value).
+ * Resolution: ~24 PPQ (768 ticks per bar for 4/4 at 32 steps).
+ * Ref: RBS42.txt TRAK section, rbs.h struct trak_event_t.
+ */
+export interface RbsTrakEvent {
+  /** Delta position in ticks from the last event (24 PPQ) */
+  deltaTicks: number;
+  /** Absolute tick position (computed during parsing) */
+  absoluteTicks: number;
+  /** Controller ID — identifies which parameter is being changed.
+   *  Controller 0 on most tracks = pattern select (value = pattern index 0-31).
+   *  Other controllers map to knob positions, mutes, etc. */
+  controllerId: number;
+  /** Value for this event (0-255 typically, interpretation depends on controller) */
+  value: number;
+}
+
+/**
+ * Single TRAK chunk — one track in the song arrangement.
+ * Tracks correspond to: Mixer, TB-303 #1, TB-303 #2, TR-808, TR-909, Effects.
+ * Ref: RBS42.txt TRAK chunk layout.
+ */
+export interface RbsTrakData {
+  /** Track index (0-based, order: mixer=0, 303-1=1, 303-2=2, 808=3, 909=4, fx=5+) */
+  trackIndex: number;
+  /** Human-readable track name */
+  trackName: string;
+  /** Number of events in this track */
+  eventCount: number;
+  /** List of events for this track */
+  events: RbsTrakEvent[];
+}
+
+/**
+ * Full song data extracted from IFF CAT RB40 structure.
+ * Represents the complete multi-pattern song arrangement.
+ */
+export interface RbsSongData {
+  /** GLOB settings (play mode, tempo, loop points) */
+  glob: RbsGlobData;
+  /** All pattern banks per device (up to 32 patterns each).
+   *  Index: [deviceIndex][patternIndex] */
+  patternBanks: {
+    tb303A: Tb303PatternA[];
+    tb303B: Tb303PatternB[];
+    drums808: DrumPattern[];
+    drums909: DrumPattern[];
+  };
+  /** TRKL track arrangement data (one per track) */
+  tracks: RbsTrakData[];
+  /** Total song length in ticks (computed from max event position) */
+  totalLengthTicks: number;
+  /** Total song length in bars (assuming 768 ticks per bar) */
+  totalLengthBars: number;
+  /** Number of patterns actually used in the song arrangement */
+  usedPatternCount: number;
+}
+
+/**
+ * TRAK controller ID constants for song arrangement.
+ * Ref: rbs.h controller enums.
+ */
+export const TRAK_CONTROLLER = {
+  /** Pattern select (value = pattern index 0-31) */
+  PATTERN_SELECT: 0,
+  /** Mute toggle (value: 0=unmute, 1=mute) */
+  MUTE: 1,
+  /** Volume (0-127) */
+  VOLUME: 2,
+  /** Pan (0-127, 64=center) */
+  PAN: 3,
+} as const;
+
+/**
+ * TRAK track index constants.
+ * Ref: RBS42.txt track ordering in TRKL catalog.
+ */
+export const TRAK_TRACK_INDEX = {
+  MIXER: 0,
+  TB303_1: 1,
+  TB303_2: 2,
+  TR808: 3,
+  TR909: 4,
+  EFFECTS: 5,
+} as const;
+
+/** Ticks per bar at 24 PPQ in 4/4 time (24 ticks/beat × 4 beats) — but ReBirth uses 768 ticks/bar */
+export const TICKS_PER_BAR = 768;
+
+/** Ticks per step (768 / 16 steps = 48 ticks per step) */
+export const TICKS_PER_STEP = 48;
+
+// ============================================================================
 // RAW RBS DATA (as read from file - closely mirrors RBS format)
 // ============================================================================
 
@@ -125,6 +243,11 @@ export interface RawRbsData {
   
   /** Original binary header for debugging */
   rawHeader?: RbsBinaryHeader;
+
+  /** Full IFF CAT RB40 song data (populated when file is a full song with GLOB + TRKL).
+   *  Contains multi-pattern banks, song arrangement tracks, and global settings.
+   *  When present, indicates the file is a full song (not just a single pattern). */
+  songData?: RbsSongData;
 }
 
 /**
@@ -447,6 +570,31 @@ export interface HyphonSong {
     automation: AutomationLane[];
     tb303AParams: Omit<Tb303PatternA, 'steps'>;
     tb303BParams: Omit<Tb303PatternB, 'steps'>;
+  };
+
+  /** Song arrangement data (populated when file contains full IFF song with GLOB + TRKL).
+   *  Contains multi-pattern banks + arrangement events for SongMode playback. */
+  songArrangement?: {
+    /** Play mode: 'pattern' (single loop) or 'song' (multi-pattern arrangement) */
+    mode: 'pattern' | 'song';
+    /** Pattern banks per track (up to 32 patterns each, mapped to Hyphon trackStorage slots) */
+    trackStorage: {
+      partA: (Pattern['partA'] | null)[];
+      partB: (Pattern['partB'] | null)[];
+      bass2: (Pattern['bass2'] | null)[];
+      kick: (Pattern['kick'] | null)[];
+      snare: (Pattern['snare'] | null)[];
+      closedHat: (Pattern['closedHat'] | null)[];
+      openHat: (Pattern['openHat'] | null)[];
+    };
+    /** Song structure (ordered pattern slot indices per track per measure) */
+    songStructure: Array<Record<string, number | null>>;
+    /** Loop start bar (0-based) */
+    loopStart?: number;
+    /** Loop end bar (0-based) */
+    loopEnd?: number;
+    /** Raw TRAK events preserved for sub-step automation scheduling */
+    trakEvents?: RbsTrakEvent[];
   };
 }
 

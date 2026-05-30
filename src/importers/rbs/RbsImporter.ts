@@ -27,10 +27,12 @@ import type {
   AutomationLane,
   HyphonAutomationLane,
   StepConversionStats,
-  DetailedParameterMapping
+  DetailedParameterMapping,
+  RbsSongData,
+  Tb303PatternA,
 } from './types';
 
-import { DEFAULT_RBS_IMPORT_OPTIONS } from './types';
+import { DEFAULT_RBS_IMPORT_OPTIONS, TICKS_PER_BAR, TRAK_TRACK_INDEX } from './types';
 
 import type { 
   Pattern, 
@@ -73,6 +75,19 @@ export interface ImportReport {
   accentCount: number;
   /** Step conversion statistics */
   stepStats?: StepConversionStats;
+  /** Song mode info (populated when file is a full song with GLOB + TRKL) */
+  songMode?: {
+    /** Whether the file is in song mode (multi-pattern arrangement) */
+    isSongMode: boolean;
+    /** Total pattern banks available */
+    patternBankCount: number;
+    /** Total TRAK arrangement events */
+    arrangementEventCount: number;
+    /** Song length in bars */
+    songLengthBars: number;
+    /** Number of distinct patterns used in arrangement */
+    usedPatternCount: number;
+  };
 }
 
 /** Import error types */
@@ -178,18 +193,33 @@ export class RbsImporter {
         automation: raw.automation,
         tb303AParams: this.extractTb303Params(raw.tb303PatternA),
         tb303BParams: this.extractTb303Params(raw.tb303PatternB)
-      }
+      },
+      songArrangement: raw.songData ? this.buildSongArrangement(raw, warnings) : undefined,
     };
 
     // Calculate conversion stats
     const stepsConverted = this.countSteps(raw);
+
+    // Build song mode report data if songData is present
+    const songModeReport = raw.songData ? {
+      isSongMode: raw.songData.glob.playMode === 1,
+      patternBankCount: Math.max(
+        raw.songData.patternBanks.tb303A.length,
+        raw.songData.patternBanks.tb303B.length,
+        raw.songData.patternBanks.drums808.length,
+        raw.songData.patternBanks.drums909.length,
+      ),
+      arrangementEventCount: raw.songData.tracks.reduce((sum, t) => sum + t.eventCount, 0),
+      songLengthBars: raw.songData.totalLengthBars,
+      usedPatternCount: raw.songData.usedPatternCount,
+    } : undefined;
 
     // Build enhanced report
     return {
       success: true,
       song,
       report: {
-        patternsConverted: 4, // 2x 303 + drums (kick/snare/hats counted as one)
+        patternsConverted: songModeReport ? songModeReport.patternBankCount : 4,
         stepsConverted,
         warnings,
         mappings,
@@ -197,7 +227,8 @@ export class RbsImporter {
         pcfEnabled: raw.pcf.enabled,
         slideCount: this.stepStats.slideCount,
         accentCount: this.stepStats.accentCount,
-        stepStats: this.stepStats
+        stepStats: this.stepStats,
+        songMode: songModeReport,
       }
     };
   }
@@ -968,6 +999,147 @@ export class RbsImporter {
   /**
    * Extract params object from TB-303 pattern (for metadata preservation)
    */
+  /**
+   * Build songArrangement data from parsed IFF song data.
+   * Populates trackStorage with pattern banks and creates songStructure from TRAK events.
+   * This enables SongMode playback with the correct pattern sequence.
+   */
+  private buildSongArrangement(raw: RawRbsData, warnings: string[]): HyphonSong['songArrangement'] {
+    const songData = raw.songData!;
+    const numSteps = this.options.expandTo32Steps ? 32 : raw.project.patternLength;
+    const isExpansion = numSteps === 32 && raw.project.patternLength === 16;
+
+    // Convert pattern banks to Hyphon track storage format (up to 8 slots)
+    const maxSlots = 8;
+    const partASlots: (Pattern['partA'] | null)[] = Array(maxSlots).fill(null);
+    const partBSlots: (Pattern['partB'] | null)[] = Array(maxSlots).fill(null);
+    const bass2Slots: (Pattern['bass2'] | null)[] = Array(maxSlots).fill(null);
+    const kickSlots: (Pattern['kick'] | null)[] = Array(maxSlots).fill(null);
+    const snareSlots: (Pattern['snare'] | null)[] = Array(maxSlots).fill(null);
+    const closedHatSlots: (Pattern['closedHat'] | null)[] = Array(maxSlots).fill(null);
+    const openHatSlots: (Pattern['openHat'] | null)[] = Array(maxSlots).fill(null);
+
+    // Map pattern banks to track storage (first 8 of up to 32)
+    const numA = Math.min(maxSlots, songData.patternBanks.tb303A.length);
+    for (let i = 0; i < numA; i++) {
+      const pat = songData.patternBanks.tb303A[i];
+      if (isExpansion) {
+        partASlots[i] = this.expandPattern16To32(pat.steps, false);
+      } else {
+        partASlots[i] = this.convertTb303ToPartSequence(pat, numSteps, false);
+      }
+    }
+
+    const numB = Math.min(maxSlots, songData.patternBanks.tb303B.length);
+    for (let i = 0; i < numB; i++) {
+      const pat = songData.patternBanks.tb303B[i];
+      if (isExpansion) {
+        partBSlots[i] = this.expandPattern16To32(pat.steps, false);
+      } else {
+        partBSlots[i] = this.convertTb303ToPartSequence(pat, numSteps, false);
+      }
+      // Also populate bass2 from 303B
+      if (this.options.tb303BTarget === 'bass2') {
+        if (isExpansion) {
+          bass2Slots[i] = this.expandPattern16To32(pat.steps, true);
+        } else {
+          bass2Slots[i] = this.convertTb303ToPartSequence(pat, numSteps, true);
+        }
+      }
+    }
+
+    // Drum patterns
+    const drumBank = songData.patternBanks.drums808.length > 0
+      ? songData.patternBanks.drums808
+      : songData.patternBanks.drums909;
+    const numDrums = Math.min(maxSlots, drumBank.length);
+    for (let i = 0; i < numDrums; i++) {
+      const dp = drumBank[i];
+      kickSlots[i] = this.convertDrumPattern(dp.kick, numSteps, 'kick');
+      snareSlots[i] = this.convertDrumPattern(dp.snare, numSteps, 'snare');
+      closedHatSlots[i] = this.convertDrumPattern(dp.closedHat, numSteps, 'closedHat');
+      openHatSlots[i] = this.convertDrumPattern(dp.openHat, numSteps, 'openHat');
+    }
+
+    // Build songStructure from TRAK events (pattern changes over time)
+    const songStructure: Array<Record<string, number | null>> = [];
+    const totalBars = Math.min(songData.totalLengthBars, 64); // cap at 64 measures
+
+    // Find the main track for pattern select events
+    const tb303_1Track = songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_1);
+    const tb303_2Track = songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_2);
+    const drumsTrack = songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TR808)
+      || songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TR909);
+
+    for (let bar = 0; bar < totalBars; bar++) {
+      const barStart = bar * TICKS_PER_BAR;
+      const barEnd = barStart + TICKS_PER_BAR;
+
+      // Find the active pattern for each track at this bar
+      const partAIdx = this.findActivePatternAtTick(tb303_1Track, barStart, maxSlots);
+      const partBIdx = this.findActivePatternAtTick(tb303_2Track, barStart, maxSlots);
+      const drumIdx = this.findActivePatternAtTick(drumsTrack, barStart, maxSlots);
+
+      songStructure.push({
+        partA: partAIdx,
+        partB: partBIdx,
+        bass2: this.options.tb303BTarget === 'bass2' ? partBIdx : null,
+        kick: drumIdx,
+        snare: drumIdx,
+        closedHat: drumIdx,
+        openHat: drumIdx,
+        sampler: null,
+      });
+    }
+
+    // Collect all TRAK events for sub-step automation scheduling
+    const allTrakEvents = songData.tracks.flatMap(t => t.events);
+
+    if (songData.usedPatternCount > maxSlots) {
+      warnings.push(`Song uses ${songData.usedPatternCount} patterns but Hyphon supports ${maxSlots} slots. Excess patterns truncated.`);
+    }
+
+    return {
+      mode: songData.glob.playMode === 1 ? 'song' : 'pattern',
+      trackStorage: {
+        partA: partASlots,
+        partB: partBSlots,
+        bass2: bass2Slots,
+        kick: kickSlots,
+        snare: snareSlots,
+        closedHat: closedHatSlots,
+        openHat: openHatSlots,
+      },
+      songStructure,
+      loopStart: songData.glob.loopStart || undefined,
+      loopEnd: songData.glob.loopEnd || undefined,
+      trakEvents: allTrakEvents.length > 0 ? allTrakEvents : undefined,
+    };
+  }
+
+  /**
+   * Find the active pattern index at a given tick position for a track.
+   * Scans pattern-select events (controller 0) and returns the last pattern set before `tick`.
+   */
+  private findActivePatternAtTick(
+    track: RbsSongData['tracks'][number] | undefined,
+    tick: number,
+    maxSlots: number
+  ): number | null {
+    if (!track || track.events.length === 0) return 0;
+
+    let activePattern = 0;
+    for (const evt of track.events) {
+      if (evt.absoluteTicks > tick) break;
+      if (evt.controllerId === 0) { // pattern select
+        activePattern = evt.value;
+      }
+    }
+
+    // Clamp to available slots
+    return activePattern < maxSlots ? activePattern : 0;
+  }
+
   private extractTb303Params(tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1; distortion?: number; delaySend?: number }) {
     const { ...params } = tb303;
     return params;
