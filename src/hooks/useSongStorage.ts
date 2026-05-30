@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane } from '../types';
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane, ResolvedTrakEvent } from '../types';
 import type { CloudItemType } from '../services/CloudStorage';
 import type { AISongData } from '../importers/ai-song';
 import type { TrackKey, SongSnapshot } from '../constants/appDefaults';
@@ -72,6 +72,10 @@ export interface SongStorageDeps {
 
     // Drum kit setter (optional for backwards compat)
     setDrumKit?: (kit: DrumKitType) => void;
+    /** Activates song mode after a full-song RBS import. */
+    setIsSongModeActive?: React.Dispatch<React.SetStateAction<boolean>>;
+    /** Ref populated with resolved TRAK events from the imported RBS song for sub-step automation. */
+    trakEventsRef?: MutableRefObject<ResolvedTrakEvent[] | null>;
 }
 
 export interface SongStorageReturn {
@@ -543,6 +547,20 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         }
 
         loadCloudData(savedSong, 'song');
+
+        // Activate song mode when the imported RBS song has a full arrangement.
+        if (arrangement?.mode === 'song') {
+            deps.setIsSongModeActive?.(true);
+        }
+
+        // Convert flat RBS trak events to ResolvedTrakEvent[] for sub-step automation scheduling.
+        if (arrangement?.trakEvents?.length && deps.trakEventsRef) {
+            deps.trakEventsRef.current = arrangement.trakEvents.map(ev => ({
+                tick: ev.absoluteTicks,
+                ctrlId: ev.controllerId,
+                value: ev.value,
+            }));
+        }
 
         // Wire imported 303 params to Open303Manager instances.
         // partB → bass1 (SYNTH B), partA → lead303 (SYNTH A LEAD), bass2 → bass2 instance.

@@ -41,6 +41,8 @@ export interface SynthNoteParams {
     portamento?: number;
     /** Prophecy: Formant shift override 0–1 */
     formantShift?: number;
+    /** Note velocity 0–1 (mapped to MIDI 0–127 for Open303 noteOn) */
+    velocity?: number;
 }
 
 export interface DrumNoteParams {
@@ -173,7 +175,7 @@ export function createPlaySynth(
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnBass2(midi, 100);
+                        refs.open303ManagerRef.current?.noteOnBass2(midi, Math.round((noteParams?.velocity ?? 0.8) * 127));
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
@@ -208,7 +210,7 @@ export function createPlaySynth(
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnBass1(midi, 100);
+                        refs.open303ManagerRef.current?.noteOnBass1(midi, Math.round((noteParams?.velocity ?? 0.8) * 127));
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
@@ -242,7 +244,7 @@ export function createPlaySynth(
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnLead303(midi, 100);
+                        refs.open303ManagerRef.current?.noteOnLead303(midi, Math.round((noteParams?.velocity ?? 0.8) * 127));
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
