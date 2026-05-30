@@ -41,7 +41,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
             createRenderPipeline: vi.fn().mockReturnValue({
                 getBindGroupLayout: vi.fn()
             }),
-            createBuffer: vi.fn().mockReturnValue({}),
+            createBuffer: vi.fn().mockReturnValue({ destroy: vi.fn() }),
             createBindGroup: vi.fn().mockReturnValue({}),
             createCommandEncoder: vi.fn().mockReturnValue({
                 beginRenderPass: vi.fn().mockReturnValue({

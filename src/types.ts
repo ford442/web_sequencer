@@ -163,6 +163,7 @@ export interface PhonemeData {
 
 export interface Note {
   note: string;
+  pan?: number;
   velocity: number;
   length?: number;
   slide?: boolean;
@@ -231,7 +232,7 @@ export interface AudioEngine {
     time: number,
     tuning?: ScaleDefinition | null,
     stepTime?: number,
-    note?: string
+    note?: string | { note: string, pan?: number }
   ) => void;
 
   playSampler: (

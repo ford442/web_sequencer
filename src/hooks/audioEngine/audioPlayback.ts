@@ -21,6 +21,7 @@ import { engineTelemetry } from '../../utils/engineTelemetry';
 
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
 export interface SynthNoteParams {
+    pan?: number;
     timbre?: number;
     microtiming?: number;
     retrigger?: number;
@@ -102,7 +103,7 @@ export function createPlaySynth(
 
         const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
         let effectiveParams = params;
-        if (noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined) {
+        if (noteParams?.pan !== undefined || noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined) {
             effectiveParams = { ...params };
 
             if (noteParams?.timbre !== undefined) {
@@ -114,6 +115,9 @@ export function createPlaySynth(
             }
             if (noteParams?.filterResonance !== undefined) {
                 effectiveParams.filterResonance = noteParams.filterResonance * 20;
+            }
+            if (noteParams?.pan !== undefined) {
+                effectiveParams.pan = noteParams.pan;
             }
             if (noteParams?.envMod !== undefined) {
                 // @ts-expect-error envMod may not exist on SynthParams directly, but gets mapped correctly to Bass2/Open303 overrides
@@ -280,7 +284,9 @@ export function createPlayDrum(
     context: AudioContext,
     refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef'>,
 ): AudioEngine['playDrum'] {
-    return (sound, params, time, _tuning, stepTime = 0.125, note?: string) => {
+    return (sound, params, time, _tuning, stepTime = 0.125, note?: string | { note: string, pan?: number }) => {
+        const noteStr = typeof note === 'string' ? note : note?.note;
+        const pan = typeof note === 'object' ? note.pan : undefined;
         if (!refs.masterGainRef.current) {
             return;
         }
@@ -314,9 +320,10 @@ export function createPlayDrum(
                 osc.connect(gain);
 
                 let finalDest: AudioNode = gain;
-                if (kickParams.pan !== undefined && kickParams.pan !== 0) {
+                if ((pan !== undefined && pan !== 0) || (kickParams.pan !== undefined && kickParams.pan !== 0)) {
+                    const activePan = pan !== undefined ? pan : kickParams.pan;
                     const panner = context.createStereoPanner();
-                    panner.pan.value = kickParams.pan;
+                    panner.pan.value = activePan;
                     finalDest.connect(panner);
                     finalDest = panner;
                 }
@@ -334,9 +341,10 @@ export function createPlayDrum(
                 oscGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
 
                 let finalDestOsc: AudioNode = oscGain;
-                if (snareParams.pan !== undefined && snareParams.pan !== 0) {
+                if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
+                    const activePan = pan !== undefined ? pan : snareParams.pan;
                     const panner = context.createStereoPanner();
-                    panner.pan.value = snareParams.pan;
+                    panner.pan.value = activePan;
                     finalDestOsc.connect(panner);
                     finalDestOsc = panner;
                 }
@@ -354,9 +362,10 @@ export function createPlayDrum(
                     noise.connect(noiseFilter);
                     noiseFilter.connect(noiseGain);
                     let finalDestNoise: AudioNode = noiseGain;
-                    if (snareParams.pan !== undefined && snareParams.pan !== 0) {
+                    if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
+                    const activePan = pan !== undefined ? pan : snareParams.pan;
                         const panner = context.createStereoPanner();
-                        panner.pan.value = snareParams.pan;
+                        panner.pan.value = activePan;
                         finalDestNoise.connect(panner);
                         finalDestNoise = panner;
                     }
@@ -384,9 +393,10 @@ export function createPlayDrum(
                     src.connect(filter);
                     filter.connect(gain);
                     let finalDest: AudioNode = gain;
-                    if (hatParams.pan !== undefined && hatParams.pan !== 0) {
+                    if ((pan !== undefined && pan !== 0) || (hatParams.pan !== undefined && hatParams.pan !== 0)) {
+                        const activePan = pan !== undefined ? pan : hatParams.pan;
                         const panner = context.createStereoPanner();
-                        panner.pan.value = hatParams.pan;
+                        panner.pan.value = activePan;
                         finalDest.connect(panner);
                         finalDest = panner;
                     }
