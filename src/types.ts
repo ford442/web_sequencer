@@ -459,6 +459,12 @@ export interface AutomationState {
   playbackStep: number;
   /** Whether global automation playback is enabled */
   playbackEnabled: boolean;
+  /**
+   * Live normalized (0–1) values currently being driven by automation lanes.
+   * Key format: "target:parameter" (e.g. "synthA:filterCutoff").
+   * Updated once per step tick; used by UI controls to show animated values.
+   */
+  liveAutomatedValues: Record<string, number>;
 }
 
 export interface SongStep {

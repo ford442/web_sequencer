@@ -94,6 +94,7 @@ function createInitialState(): AutomationState {
     recordingBuffers: [],
     playbackStep: 0,
     playbackEnabled: true,
+    liveAutomatedValues: {},
   };
 }
 
@@ -369,6 +370,27 @@ class AutomationStore {
   /** Toggle global automation playback */
   setPlaybackEnabled(enabled: boolean): void {
     this.state = { ...this.state, playbackEnabled: enabled };
+    this.notify();
+  }
+
+  /**
+   * Update live automated values for UI display.
+   * Called once per step tick with all values collected during that step.
+   * Merges into existing map so stale entries remain visible until cleared.
+   */
+  setLiveValues(values: Record<string, number>): void {
+    const merged = Object.assign({}, this.state.liveAutomatedValues, values);
+    this.state = { ...this.state, liveAutomatedValues: merged };
+    this.notify();
+  }
+
+  /**
+   * Clear all live automated values (e.g. when playback stops).
+   * No-op if already empty.
+   */
+  clearLiveValues(): void {
+    if (Object.keys(this.state.liveAutomatedValues).length === 0) return;
+    this.state = { ...this.state, liveAutomatedValues: {} };
     this.notify();
   }
 

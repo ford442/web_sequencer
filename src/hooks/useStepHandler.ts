@@ -352,10 +352,18 @@ export const useStepHandler = ({
             const now = audioEngine.context.currentTime;
             const rampDuration = Math.max(0.01, stepTime * 0.85);
 
+            // Collect live values for UI display (keyed "target:parameter")
+            const liveValues: Record<string, number> = {};
+            let hasLiveValues = false;
+
             activeLanes.forEach((lane) => {
                 if (!lane.enabled) return;
                 const normVal = automationStore.getValueAtStep(lane, step);
                 if (normVal === null) return;
+
+                // Track for UI automation indicators
+                liveValues[`${lane.target}:${lane.parameter}`] = normVal;
+                hasLiveValues = true;
 
                 // Denormalize using originalRange if present (from RBS import), else heuristics for voice params
                 let realVal = normVal;
@@ -384,6 +392,11 @@ export const useStepHandler = ({
                 // Future: add branches for synthA/synthB filterCutoff etc once ramping setters exist on engine
                 // e.g. if (lane.target === 'synthA' && lane.parameter === 'filterCutoff') { ... schedule on filter node }
             });
+
+            // Notify UI with all live values in a single batched update (one re-render per step)
+            if (hasLiveValues) {
+                automationStore.setLiveValues(liveValues);
+            }
         }
     }, [audioEngine, tempo, onParamChange, currentScaleRef]);
 

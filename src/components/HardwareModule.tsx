@@ -9,6 +9,10 @@ export interface KnobConfig {
     size: number;
     value: number;
     isRecording?: boolean;
+    /** True when an enabled automation lane is actively driving this parameter. */
+    isAutomated?: boolean;
+    /** Current normalized (0–1) automated value when isAutomated is true. */
+    automatedValue?: number;
     valueDisplay?: string;
 }
 
@@ -34,6 +38,8 @@ interface KnobOverlayProps {
     value: number;
     valueDisplay?: string;
     isRecording?: boolean;
+    isAutomated?: boolean;
+    automatedValue?: number;
     colorHex: [number, number, number];
     index: number;
     onParamChange: (id: string, value: number) => void;
@@ -42,10 +48,28 @@ interface KnobOverlayProps {
 }
 
 const KnobOverlay = memo(({
-    id, label, x, y, size, value, valueDisplay, isRecording, colorHex, index, onParamChange, onRecordToggle, onRegisterRef
+    id, label, x, y, size, value, valueDisplay, isRecording, isAutomated, automatedValue, colorHex, index, onParamChange, onRecordToggle, onRegisterRef
 }: KnobOverlayProps) => {
     return (
         <>
+            {/* Automation ring — cyan pulsing glow when an automation lane is active */}
+            {isAutomated && (
+                <div
+                    className="absolute rounded-full pointer-events-none animate-pulse"
+                    style={{
+                        left: `${x * 100}%`,
+                        top: `${y * 100}%`,
+                        width: `${size * 230}%`,
+                        height: `${size * 230}%`,
+                        transform: 'translate(-50%, -50%)',
+                        border: '2px solid #00e5ff',
+                        boxShadow: '0 0 8px #00e5ff, 0 0 16px #00e5ff60',
+                        zIndex: 5,
+                    }}
+                    aria-hidden="true"
+                />
+            )}
+
             {/* 1. Label and Value Display */}
             <div
                 className="absolute text-center transform -translate-x-1/2"
@@ -57,7 +81,22 @@ const KnobOverlay = memo(({
                 }}
             >
                 <span className="text-[10px] font-mono font-bold tracking-wider drop-shadow-md">{label}</span>
-                <div className="text-[9px] opacity-60 font-mono">{valueDisplay ?? Math.round(value * 100)}</div>
+                {/* When automated, show both the live automated value and an AUTO badge */}
+                {isAutomated && automatedValue !== undefined ? (
+                    <div className="text-[9px] font-mono leading-tight">
+                        <span
+                            className="text-[8px] font-bold uppercase tracking-widest px-0.5 rounded"
+                            style={{ color: '#00e5ff', textShadow: '0 0 6px #00e5ff' }}
+                        >
+                            AUTO
+                        </span>
+                        <div style={{ color: '#00e5ff', textShadow: '0 0 4px #00e5ff80' }}>
+                            {Math.round(automatedValue * 100)}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-[9px] opacity-60 font-mono">{valueDisplay ?? Math.round(value * 100)}</div>
+                )}
             </div>
 
             {/* 2. Record Button */}
@@ -84,11 +123,14 @@ const KnobOverlay = memo(({
             <div
                 ref={(el) => onRegisterRef(index, el)}
                 role="slider"
-                aria-label={label}
-                aria-valuetext={valueDisplay}
+                aria-label={isAutomated ? `${label} (automated)` : label}
+                aria-valuetext={isAutomated && automatedValue !== undefined
+                    ? `${Math.round(automatedValue * 100)} (automated)`
+                    : valueDisplay}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(value * 100)}
+                aria-description={isAutomated ? 'This parameter is currently driven by an automation lane' : undefined}
                 tabIndex={0}
                 className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:ring-2 focus:ring-white focus:outline-none pointer-events-none"
                 style={{
@@ -459,6 +501,8 @@ export const HardwareModule = memo(
                             value={c.value}
                             valueDisplay={c.valueDisplay}
                             isRecording={c.isRecording}
+                            isAutomated={c.isAutomated}
+                            automatedValue={c.automatedValue}
                             colorHex={colorHex}
                             index={i}
                             onParamChange={onParamChange}

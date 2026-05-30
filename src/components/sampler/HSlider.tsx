@@ -6,10 +6,12 @@ export interface HSliderProps {
     displayValue: string;
     onChange: (value: number) => void;
     colorHex: [number, number, number];
+    /** When true, shows a cyan border pulse to indicate an automation lane is active. */
+    isAutomated?: boolean;
 }
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
-export const HSlider: React.FC<HSliderProps> = React.memo(({ label, value, displayValue, onChange, colorHex }) => {
+export const HSlider: React.FC<HSliderProps> = React.memo(({ label, value, displayValue, onChange, colorHex, isAutomated = false }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const cachedRectRef = useRef<DOMRect | null>(null);
 
@@ -92,20 +94,30 @@ export const HSlider: React.FC<HSliderProps> = React.memo(({ label, value, displ
         <div className="flex flex-col gap-1.5 w-full">
             <div className="flex justify-between items-center">
                 <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">{label}</span>
-                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950/50 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}60` }}>{displayValue}</span>
+                {isAutomated ? (
+                    <span
+                        className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950/50 border animate-pulse"
+                        style={{ color: '#00e5ff', textShadow: '0 0 6px #00e5ff', borderColor: '#00e5ff60' }}
+                    >
+                        {displayValue}
+                    </span>
+                ) : (
+                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950/50 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}60` }}>{displayValue}</span>
+                )}
             </div>
             <div
                 ref={containerRef}
-                className="h-5 bg-zinc-900 rounded-md border border-zinc-700 cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)] focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className={`h-5 bg-zinc-900 rounded-md border cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)] focus:outline-none focus:ring-2 focus:ring-purple-400 ${isAutomated ? 'border-cyan-500/70 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),0_0_6px_rgba(0,229,255,0.3)]' : 'border-zinc-700'}`}
                 onMouseDown={handleMouseDown}
                 onKeyDown={handleKeyDown}
                 role="slider"
                 tabIndex={0}
-                aria-label={label}
+                aria-label={isAutomated ? `${label} (automated)` : label}
                 aria-valuemin={-1}
                 aria-valuemax={1}
                 aria-valuenow={value}
                 aria-valuetext={displayValue}
+                aria-description={isAutomated ? 'This parameter is currently driven by an automation lane' : undefined}
             >
                 {/* Track background with gradient */}
                 <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/30 to-transparent" />
@@ -117,8 +129,8 @@ export const HSlider: React.FC<HSliderProps> = React.memo(({ label, value, displ
                     style={{
                         left: value < 0 ? `${percent}%` : '50%',
                         right: value > 0 ? `${100 - percent}%` : '50%',
-                        background: `linear-gradient(to ${value < 0 ? 'left' : 'right'}, ${color}40 0%, ${color} 100%)`,
-                        boxShadow: `0 0 12px ${color}50, inset 0 1px 0 rgba(255,255,255,0.1)`
+                        background: `linear-gradient(to ${value < 0 ? 'left' : 'right'}, ${isAutomated ? '#00e5ff40' : `${color}40`} 0%, ${isAutomated ? '#00e5ff' : color} 100%)`,
+                        boxShadow: isAutomated ? '0 0 12px #00e5ff50, inset 0 1px 0 rgba(255,255,255,0.1)' : `0 0 12px ${color}50, inset 0 1px 0 rgba(255,255,255,0.1)`
                     }}
                 />
                 {/* Thumb with plastic look */}

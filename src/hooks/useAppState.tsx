@@ -608,6 +608,7 @@ export function useAppState() {
             isFirstStepRef.current = true;
             if (sequencerRef.current) sequencerRef.current.setHighlight(-1);
             currentStepRef.current = -1;
+            automationStore.clearLiveValues();
         }
     }, [schedPlaying]);
 
