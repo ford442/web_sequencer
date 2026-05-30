@@ -90,6 +90,18 @@ const STEP_SIZE = 15;
 /** Number of steps per pattern */
 const STEP_COUNT = 16;
 
+/** Special note value: rest (no note plays) */
+const NOTE_REST = 255;
+
+/** Special note value: tie (sustain previous note) */
+const NOTE_TIE = 254;
+
+/** Maximum number of TRAK events to parse (safety cap) */
+const MAX_TRAK_EVENTS = 100000;
+
+/** Maximum song length in measures for arrangement import */
+const MAX_SONG_BARS = 64;
+
 /**
  * RBS Parser class
  * 
@@ -996,9 +1008,9 @@ export class RbsParser {
 
         let note: number;
         let tie = false;
-        if (noteVal === 255) {
+        if (noteVal === NOTE_REST) {
           note = -1;
-        } else if (noteVal === 254) {
+        } else if (noteVal === NOTE_TIE) {
           note = -1;
           tie = true;
         } else {
@@ -1105,7 +1117,7 @@ export class RbsParser {
     let pos = offset + 4;
     let absoluteTicks = 0;
 
-    const maxEvents = Math.min(eventCount, 100000); // safety cap
+    const maxEvents = Math.min(eventCount, MAX_TRAK_EVENTS);
     for (let e = 0; e < maxEvents; e++) {
       if (pos + 4 > offset + chunk.size) break;
 

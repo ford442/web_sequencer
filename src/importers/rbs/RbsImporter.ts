@@ -1063,7 +1063,7 @@ export class RbsImporter {
 
     // Build songStructure from TRAK events (pattern changes over time)
     const songStructure: Array<Record<string, number | null>> = [];
-    const totalBars = Math.min(songData.totalLengthBars, 64); // cap at 64 measures
+    const totalBars = Math.min(songData.totalLengthBars, 64); // max arrangement measures
 
     // Find the main track for pattern select events
     const tb303_1Track = songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_1);

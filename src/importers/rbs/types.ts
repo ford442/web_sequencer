@@ -202,7 +202,7 @@ export const TRAK_TRACK_INDEX = {
   EFFECTS: 5,
 } as const;
 
-/** Ticks per bar at 24 PPQ in 4/4 time (24 ticks/beat × 4 beats) — but ReBirth uses 768 ticks/bar */
+/** Ticks per bar in ReBirth format (768 ticks/bar in 4/4 time) */
 export const TICKS_PER_BAR = 768;
 
 /** Ticks per step (768 / 16 steps = 48 ticks per step) */
