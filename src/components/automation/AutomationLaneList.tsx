@@ -49,7 +49,7 @@ const LaneRow = memo(({
 
   return (
     <div
-      role="row"
+      role="listitem"
       aria-selected={isSelected}
       className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs ${
         isSelected ? 'bg-cyan-900/40 border border-cyan-500/50' : 'bg-[#1a1d24] hover:bg-[#22262f]'
@@ -144,7 +144,7 @@ export const AutomationLaneList = memo(({ selectedLaneId, onSelectLane }: Automa
   }
 
   return (
-    <div role="grid" aria-label="Automation Lanes" className="flex flex-col gap-1 p-1 max-h-64 overflow-y-auto">
+    <div role="list" aria-label="Automation Lanes" className="flex flex-col gap-1 p-1 max-h-64 overflow-y-auto">
       {state.lanes.map((lane) => (
         <LaneRow
           key={lane.id}

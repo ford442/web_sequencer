@@ -102,7 +102,9 @@ export const CurveEditor = memo(({
     const y = clientY - rect.top - PAD.top;
     const step = Math.max(0, Math.min(totalSteps, x / xScale));
     const value = Math.max(0, Math.min(1, 1 - y / drawHeight));
-    return { step: Math.round(step * 6) / 6, value: Math.round(value * 1000) / 1000 };
+    // Quantize to 1/6 step increments (= 1 tick at 24 PPQ, since 6 ticks = 1 sixteenth-note step)
+    const TICKS_PER_STEP = 6;
+    return { step: Math.round(step * TICKS_PER_STEP) / TICKS_PER_STEP, value: Math.round(value * 1000) / 1000 };
   }, [totalSteps, xScale, drawHeight]);
 
   // Grid lines
@@ -140,14 +142,6 @@ export const CurveEditor = memo(({
     if (!lane) return '';
     return buildCurvePath(lane.points, lane.interpolation, totalSteps, drawWidth, drawHeight);
   }, [lane, totalSteps, drawWidth, drawHeight]);
-
-  // Translated path (offset by PAD)
-  const translatedPath = pathData
-    ? pathData.replace(/(\d+\.?\d*)/g, (match, _num, offset, str) => {
-        // Don't transform - we'll use a g element with transform
-        return match;
-      })
-    : '';
 
   const handleMouseDown = useCallback((e: React.MouseEvent, idx: number) => {
     if (readOnly) return;
