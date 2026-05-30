@@ -9,6 +9,7 @@ import { useSongStorage } from './useSongStorage'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
 import { automationStore } from '../stores/automationStore';
+import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { exportSongToXM } from '../utils/xmExport'
 import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import type { ScaleDefinition } from '../utils/musicTheory'
@@ -568,6 +569,25 @@ export function useAppState() {
     const currentScaleRef = useRef(currentScale);
     useEffect(() => { currentScaleRef.current = currentScale; }, [currentScale]);
 
+    // AutomationScheduler: created/updated when the audio engine becomes ready.
+    // Wires Open303Manager into AudioParam-aligned parameter scheduling for
+    // zipper-free 303 automation during playback.
+    const automationSchedulerRef = useRef<AutomationScheduler | null>(null);
+    useEffect(() => {
+        const ctx = audioEngine?.context;
+        const mgr = (audioEngine as any)?.open303Engine ?? null;
+        if (ctx) {
+            if (!automationSchedulerRef.current) {
+                automationSchedulerRef.current = new AutomationScheduler(ctx, mgr ?? null);
+            } else {
+                automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
+            }
+        }
+    }, [audioEngine]);
+
+    // Cancel pending automation events when playback stops.
+    // (handled in the schedPlaying useEffect below)
+
     const { onStep } = useStepHandler({
         audioEngine,
         tempo,
@@ -596,6 +616,7 @@ export function useAppState() {
         isFirstStepRef,
         trackStorageRef,
         setCurrentSongMeasure,
+        automationSchedulerRef,
     })
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
@@ -609,6 +630,7 @@ export function useAppState() {
             if (sequencerRef.current) sequencerRef.current.setHighlight(-1);
             currentStepRef.current = -1;
             automationStore.clearLiveValues();
+            automationSchedulerRef.current?.cancelAll();
         }
     }, [schedPlaying]);
 

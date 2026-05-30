@@ -505,3 +505,58 @@ export interface AmbianceTrack {
   name: string;
   url: string;
 }
+
+// ============================================================================
+// TRAK AUTOMATION EVENT TYPES (ReBirth TRKL/TRAK catalog, ~24 PPQ)
+// ============================================================================
+
+/**
+ * A single event from a TRAK event list as defined in the RBS42.txt spec.
+ * Stored in delta-tick form (ticks since the previous event).
+ * At 24 PPQ, one bar = 96 ticks; one 16th-note step = 6 ticks.
+ */
+export interface TrakEvent {
+  /** Ticks since the previous event (delta-time, ~24 PPQ). */
+  deltaTick: number;
+  /** Parameter / control ID (matches AUTOMATION_PARAMETER_MAP keys). */
+  ctrlId: number;
+  /** Raw parameter value as stored in the TRAK chunk. */
+  value: number;
+}
+
+/**
+ * A TRAK event with an absolute tick position already resolved from delta-times.
+ * Used internally by AutomationScheduler after pre-processing a raw event list.
+ */
+export interface ResolvedTrakEvent {
+  /** Absolute tick position from the beginning of the arrangement. */
+  tick: number;
+  /** Parameter / control ID. */
+  ctrlId: number;
+  /** Raw parameter value. */
+  value: number;
+}
+
+/**
+ * Configuration for the AutomationScheduler lookahead window.
+ */
+export interface AutomationSchedulerConfig {
+  /**
+   * How many seconds ahead to schedule automation events.
+   * Larger values reduce jitter at the cost of responsiveness to live edits.
+   * @default 0.1
+   */
+  lookaheadSeconds?: number;
+  /**
+   * Ramp duration for continuous parameter changes (seconds).
+   * Set to 0 for instant (stepped) changes.
+   * @default 0.05
+   */
+  rampDuration?: number;
+  /**
+   * Pulses per quarter-note used for TRAK tick → seconds conversion.
+   * ReBirth uses 24 PPQ (96 ticks per bar at 4/4).
+   * @default 24
+   */
+  ppq?: number;
+}
