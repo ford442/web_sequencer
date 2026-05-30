@@ -25,7 +25,10 @@ import type {
   Tb303PatternA,
   Tb303PatternB,
   AutomationLane,
+  RbsTrakEvent,
+  RbsSongData,
 } from './types';
+import { TRAK_TRACK_INDEX, TICKS_PER_BAR } from './types';
 import { RbsParser } from './RbsParser';
 import type { RbsParserError } from './RbsParser';
 
@@ -268,12 +271,49 @@ export class RebirthRBSParser {
 
   /**
    * Return all pattern data blocks for all devices.
-   * Each entry contains the steps array and the device identifier.
+   * When songData is present (full IFF file), returns patterns from all banks.
+   * Otherwise returns the single pattern from legacy extraction.
    */
   parsePatterns(): RbsPatternData[] {
     const raw = this.requireRawData('parsePatterns');
     const results: RbsPatternData[] = [];
 
+    if (raw.songData) {
+      // Multi-pattern: return all patterns from banks
+      const { patternBanks } = raw.songData;
+      
+      for (let i = 0; i < patternBanks.tb303A.length; i++) {
+        results.push({
+          patternIndex: i,
+          device: 'tb303A',
+          steps: patternBanks.tb303A[i].steps,
+          length: patternBanks.tb303A[i].steps.length,
+        });
+      }
+
+      for (let i = 0; i < patternBanks.tb303B.length; i++) {
+        results.push({
+          patternIndex: i,
+          device: 'tb303B',
+          steps: patternBanks.tb303B[i].steps,
+          length: patternBanks.tb303B[i].steps.length,
+        });
+      }
+
+      const drumBank = patternBanks.drums808.length > 0 ? patternBanks.drums808 : patternBanks.drums909;
+      for (let i = 0; i < drumBank.length; i++) {
+        results.push({
+          patternIndex: i,
+          device: 'drums',
+          steps: drumBank[i].kick,
+          length: drumBank[i].kick.length,
+        });
+      }
+
+      return results;
+    }
+
+    // Legacy single-pattern mode
     // TB-303 A
     results.push({
       patternIndex: 0,
@@ -290,9 +330,7 @@ export class RebirthRBSParser {
       length: raw.tb303PatternB.steps.length,
     });
 
-    // Drums (kick, snare, closedHat, openHat packed as individual boolean arrays)
-    // We expose kick as the representative drum pattern slot; callers can access
-    // the full DrumPattern through result.data.drums.
+    // Drums (kick as representative)
     results.push({
       patternIndex: 0,
       device: 'drums',
@@ -344,17 +382,63 @@ export class RebirthRBSParser {
   /**
    * Return song arrangement information.
    *
-   * The current RbsParser targets single-pattern files (the most common case for
-   * simple .rbs drops).  Full multi-pattern IFF CAT RB40 TRKL/TRAK parsing is a
-   * future enhancement (see GitHub #671).  Until then we return a safe pattern-mode
-   * placeholder so callers get a valid typed object.
+   * When the file contains full IFF CAT RB40 GLOB + TRKL data (songData present),
+   * this returns the actual arrangement with pattern slots derived from TRAK events.
+   * Otherwise returns a safe pattern-mode placeholder for single-pattern files.
    */
   parseSongArrangement(): RbsSongArrangement {
-    // Ensure rawData is populated (throws if parseFile not called first)
-    this.requireRawData('parseSongArrangement');
+    const raw = this.requireRawData('parseSongArrangement');
+
+    // If songData is present, extract real arrangement from GLOB + TRAK events
+    if (raw.songData) {
+      const { glob, tracks } = raw.songData;
+      const mode: 'pattern' | 'song' = glob.playMode === 1 ? 'song' : 'pattern';
+
+      // Extract pattern slots from TRAK events (controller 0 = pattern select)
+      const patternSlots: Array<{ patternIndex: number; repeats: number }> = [];
+      
+      // Look at TB-303 #1 track for pattern changes (representative track)
+      const mainTrack = tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_1) || tracks[0];
+      if (mainTrack) {
+        let lastPattern = 0;
+        let lastTick = 0;
+        
+        for (const evt of mainTrack.events) {
+          if (evt.controllerId === 0) { // pattern select
+            // If there's a gap, the previous pattern was playing for that duration
+            if (patternSlots.length > 0 || evt.absoluteTicks > 0) {
+              const durationTicks = evt.absoluteTicks - lastTick;
+              const repeats = Math.max(1, Math.round(durationTicks / TICKS_PER_BAR));
+              if (patternSlots.length === 0 && evt.absoluteTicks > 0) {
+                // There was an initial pattern playing before first change
+                patternSlots.push({ patternIndex: lastPattern, repeats });
+              } else if (patternSlots.length > 0) {
+                patternSlots[patternSlots.length - 1].repeats = repeats;
+              }
+            }
+            lastPattern = evt.value;
+            lastTick = evt.absoluteTicks;
+            patternSlots.push({ patternIndex: evt.value, repeats: 1 });
+          }
+        }
+
+        // If no pattern select events found, use pattern 0
+        if (patternSlots.length === 0) {
+          patternSlots.push({ patternIndex: 0, repeats: 1 });
+        }
+      } else {
+        patternSlots.push({ patternIndex: 0, repeats: 1 });
+      }
+
+      return {
+        mode,
+        patternSlots,
+        loopStart: glob.loopStart || undefined,
+        loopEnd: glob.loopEnd || undefined,
+      };
+    }
 
     // Placeholder: single-pattern arrangement (pattern 0, plays once).
-    // Will be extended when full IFF TRKL/GLOB parsing is implemented.
     return {
       mode: 'pattern',
       patternSlots: [{ patternIndex: 0, repeats: 1 }],

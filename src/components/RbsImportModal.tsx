@@ -468,6 +468,11 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                     {importReport.automationLanesConverted} automation lane{importReport.automationLanesConverted !== 1 ? 's' : ''}
                   </span>
                 )}
+                {importReport.songMode?.isSongMode && (
+                  <span className="px-2 py-0.5 bg-green-500/20 text-green-300 rounded border border-green-500/30">
+                    Song mode: {importReport.songMode.patternBankCount} patterns, {importReport.songMode.songLengthBars} bars, {importReport.songMode.arrangementEventCount} events
+                  </span>
+                )}
                 <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded border border-amber-500/30">
                   Open303 wired
                 </span>
