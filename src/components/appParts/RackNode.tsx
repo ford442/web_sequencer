@@ -7,15 +7,23 @@ import { COLOR_LEAD, COLOR_BASS, COLOR_BASS2, COLOR_KICK, COLOR_SNARE, COLOR_CH,
 import { useAutomationStore } from '../../stores/automationStore'
 import type { AutomationTarget, AutomationRecordArm } from '../../types'
 
-/** Stamp each KnobConfig with isRecording=true when the param is armed in the store. */
-function applyArmFlags(
+/** Stamp each KnobConfig with isRecording and isAutomated/automatedValue flags from the store. */
+function applyControlFlags(
   controls: KnobConfig[],
   target: AutomationTarget,
-  recordArms: AutomationRecordArm[]
+  recordArms: AutomationRecordArm[],
+  liveValues: Record<string, number>
 ): KnobConfig[] {
   return controls.map((c) => {
     const armed = recordArms.some((a) => a.target === target && a.parameter === c.id && a.armed);
-    return armed === c.isRecording ? c : { ...c, isRecording: armed };
+    const key = `${target}:${c.id}`;
+    const automatedValue = liveValues[key];
+    const isAutomated = automatedValue !== undefined;
+    // Return same reference when nothing changed (avoids downstream re-renders).
+    // Use explicit undefined equality to avoid edge cases with undefined comparisons.
+    const valueUnchanged = (automatedValue === undefined && c.automatedValue === undefined) || automatedValue === c.automatedValue;
+    if (armed === c.isRecording && isAutomated === c.isAutomated && valueUnchanged) return c;
+    return { ...c, isRecording: armed, isAutomated, automatedValue };
   });
 }
 
@@ -57,8 +65,8 @@ export const RackNode = React.memo(() => {
     updateDrumKit,
   } = useAppStateContext()
 
-  // Subscribe to record-arm state for live isRecording indicators on knobs
-  const { recordArms } = useAutomationStore()
+  // Subscribe to record-arm state and live automated values for knob indicators
+  const { recordArms, liveAutomatedValues } = useAutomationStore()
 
   // Per-target onRecordToggle callbacks (stable — only depends on handleKnobRecordToggle)
   const onRecordToggleSynthA = useCallback((id: string) => handleKnobRecordToggle('synthA', id), [handleKnobRecordToggle])
@@ -70,18 +78,18 @@ export const RackNode = React.memo(() => {
   const onRecordToggleOpenHat = useCallback((id: string) => handleKnobRecordToggle('openHat', id), [handleKnobRecordToggle])
   const onRecordToggleSampler = useCallback((id: string) => handleKnobRecordToggle('sampler', id), [handleKnobRecordToggle])
 
-  // Controls with live isRecording flags applied from automationStore — all targets in one memo
-  // so a single recordArms update doesn't trigger 8 separate reconciliations.
+  // Controls with live isRecording + isAutomated/automatedValue flags — all targets in one memo
+  // so a single store update doesn't trigger 8 separate reconciliations.
   const armedControlsMap = useMemo(() => ({
-    synthA:    applyArmFlags(synthAControls,    'synthA',    recordArms),
-    synthB:    applyArmFlags(synthBControls,    'synthB',    recordArms),
-    bass2:     applyArmFlags(bass2Controls,     'bass2',     recordArms),
-    kick:      applyArmFlags(kickControls,      'kick',      recordArms),
-    snare:     applyArmFlags(snareControls,     'snare',     recordArms),
-    closedHat: applyArmFlags(closedHatControls, 'closedHat', recordArms),
-    openHat:   applyArmFlags(openHatControls,   'openHat',   recordArms),
-    sampler:   applyArmFlags(samplerControls,   'sampler',   recordArms),
-  }), [synthAControls, synthBControls, bass2Controls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, recordArms])
+    synthA:    applyControlFlags(synthAControls,    'synthA',    recordArms, liveAutomatedValues),
+    synthB:    applyControlFlags(synthBControls,    'synthB',    recordArms, liveAutomatedValues),
+    bass2:     applyControlFlags(bass2Controls,     'bass2',     recordArms, liveAutomatedValues),
+    kick:      applyControlFlags(kickControls,      'kick',      recordArms, liveAutomatedValues),
+    snare:     applyControlFlags(snareControls,     'snare',     recordArms, liveAutomatedValues),
+    closedHat: applyControlFlags(closedHatControls, 'closedHat', recordArms, liveAutomatedValues),
+    openHat:   applyControlFlags(openHatControls,   'openHat',   recordArms, liveAutomatedValues),
+    sampler:   applyControlFlags(samplerControls,   'sampler',   recordArms, liveAutomatedValues),
+  }), [synthAControls, synthBControls, bass2Controls, kickControls, snareControls, closedHatControls, openHatControls, samplerControls, recordArms, liveAutomatedValues])
 
   /** JC303-active badge for the SYNTH B title bar (only when a 303 waveform and jc303 engine are active). */
   const synthBTitleBadge = useMemo(() => {

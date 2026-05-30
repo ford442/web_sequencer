@@ -11,9 +11,11 @@ interface KnobProps {
   unit?: string;
   logarithmic?: boolean;
   defaultValue?: number;
+  /** When true, shows a cyan pulsing automation indicator and updates aria label. */
+  isAutomated?: boolean;
 }
 
-export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, max, step = 1, color = 'cyan', unit = '', logarithmic = false, defaultValue }) => {
+export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, max, step = 1, color = 'cyan', unit = '', logarithmic = false, defaultValue, isAutomated = false }) => {
   const knobRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -164,72 +166,96 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
 
   return (
     <div className="flex flex-col items-center space-y-1">
-      <div
-        ref={knobRef}
-        className={`w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center cursor-pointer select-none border-2 border-gray-600 focus:outline-none ${focusBorderClasses[color]}`}
-        tabIndex={0}
-        title={label}
-        aria-label={label}
-        onKeyDown={(e) => {
-          let newVal = value;
-          let handled = false;
-          const isShift = e.shiftKey;
-          const isFine = e.altKey || e.ctrlKey || e.metaKey;
-          const effectiveStep = step * (isShift ? 10 : (isFine ? 0.1 : 1));
-
-          if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
-            newVal += effectiveStep;
-            handled = true;
-          } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
-            newVal -= effectiveStep;
-            handled = true;
-          } else if (e.key === 'PageUp') {
-            newVal += step * 5;
-            handled = true;
-          } else if (e.key === 'PageDown') {
-            newVal -= step * 5;
-            handled = true;
-          } else if (e.key === 'Home') {
-            newVal = min;
-            handled = true;
-          } else if (e.key === 'End') {
-            newVal = max;
-            handled = true;
-          }
-
-          if (handled) {
-            e.preventDefault();
-            if (!isFine) {
-               newVal = Math.round(newVal / step) * step;
-            }
-            onChange(Math.max(min, Math.min(max, newVal)));
-          }
-        }}
-        onMouseDown={handleMouseDown}
-        onWheel={handleWheel}
-        role="slider"
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-valuenow={value}
-        aria-valuetext={formatValue(value)}
-        aria-orientation="vertical"
-        onDoubleClick={() => {
-            const { onChange: currentOnChange, min: currentMin } = propsRef.current;
-            currentOnChange(defaultValue ?? currentMin);
-        }}
-      >
+      <div className="relative">
+        {/* Automation indicator: cyan pulsing ring outside the knob */}
+        {isAutomated && (
+          <div
+            className="absolute inset-0 rounded-full animate-pulse pointer-events-none"
+            style={{
+              boxShadow: '0 0 8px #00e5ff, 0 0 16px #00e5ff60',
+              border: '2px solid #00e5ff',
+              zIndex: 1,
+            }}
+            aria-hidden="true"
+          />
+        )}
         <div
-          className="w-12 h-12 bg-gray-800 rounded-full relative shadow-inner"
-          style={{
-            transform: `rotate(${rotation}deg)`,
-            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+          ref={knobRef}
+          className={`w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center cursor-pointer select-none border-2 border-gray-600 focus:outline-none ${focusBorderClasses[color]}`}
+          tabIndex={0}
+          title={label}
+          aria-label={isAutomated ? `${label} (automated)` : label}
+          onKeyDown={(e) => {
+            let newVal = value;
+            let handled = false;
+            const isShift = e.shiftKey;
+            const isFine = e.altKey || e.ctrlKey || e.metaKey;
+            const effectiveStep = step * (isShift ? 10 : (isFine ? 0.1 : 1));
+
+            if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+              newVal += effectiveStep;
+              handled = true;
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+              newVal -= effectiveStep;
+              handled = true;
+            } else if (e.key === 'PageUp') {
+              newVal += step * 5;
+              handled = true;
+            } else if (e.key === 'PageDown') {
+              newVal -= step * 5;
+              handled = true;
+            } else if (e.key === 'Home') {
+              newVal = min;
+              handled = true;
+            } else if (e.key === 'End') {
+              newVal = max;
+              handled = true;
+            }
+
+            if (handled) {
+              e.preventDefault();
+              if (!isFine) {
+                 newVal = Math.round(newVal / step) * step;
+              }
+              onChange(Math.max(min, Math.min(max, newVal)));
+            }
+          }}
+          onMouseDown={handleMouseDown}
+          onWheel={handleWheel}
+          role="slider"
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={value}
+          aria-valuetext={formatValue(value)}
+          aria-orientation="vertical"
+          aria-description={isAutomated ? 'This parameter is currently driven by an automation lane' : undefined}
+          onDoubleClick={() => {
+              const { onChange: currentOnChange, min: currentMin } = propsRef.current;
+              currentOnChange(defaultValue ?? currentMin);
           }}
         >
-          <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full ${colorClasses[color]}`}></div>
+          <div
+            className="w-12 h-12 bg-gray-800 rounded-full relative shadow-inner"
+            style={{
+              transform: `rotate(${rotation}deg)`,
+              transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+            }}
+          >
+            <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full ${colorClasses[color]}`}></div>
+          </div>
         </div>
       </div>
       <span className="text-xs text-gray-400 uppercase tracking-wider">{label}</span>
-      <span className="text-sm font-mono text-gray-300">{formatValue(value)}</span>
+      {isAutomated ? (
+        <span
+          className="text-sm font-mono animate-pulse"
+          style={{ color: '#00e5ff', textShadow: '0 0 6px #00e5ff' }}
+        >
+          {formatValue(value)}
+        </span>
+      ) : (
+        <span className="text-sm font-mono text-gray-300">{formatValue(value)}</span>
+      )}
     </div>
   );
 });

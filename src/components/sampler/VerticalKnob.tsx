@@ -5,10 +5,12 @@ export interface VerticalKnobProps {
     value: number; // 0-1
     onChange: (value: number) => void;
     colorHex: [number, number, number];
+    /** When true, shows a cyan glow to indicate an automation lane is active. */
+    isAutomated?: boolean;
 }
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
-export const VerticalKnob: React.FC<VerticalKnobProps> = React.memo(({ label, value, onChange, colorHex }) => {
+export const VerticalKnob: React.FC<VerticalKnobProps> = React.memo(({ label, value, onChange, colorHex, isAutomated = false }) => {
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         const startY = e.clientY;
@@ -70,18 +72,23 @@ export const VerticalKnob: React.FC<VerticalKnobProps> = React.memo(({ label, va
         <div className="flex flex-col items-center gap-1">
             <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">{label}</span>
             <div
-                className="w-6 rounded-full bg-zinc-900 border-2 border-zinc-600 cursor-ns-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className={`w-6 rounded-full bg-zinc-900 cursor-ns-resize relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+                    isAutomated
+                        ? 'border-2 border-cyan-500/70 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),0_0_8px_rgba(0,229,255,0.4)]'
+                        : 'border-2 border-zinc-600 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.05)]'
+                }`}
                 style={{ height: `${height}px` }}
                 onMouseDown={handleMouseDown}
                 onKeyDown={handleKeyDown}
                 role="slider"
                 tabIndex={0}
-                aria-label={label}
+                aria-label={isAutomated ? `${label} (automated)` : label}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(value * 100)}
                 aria-valuetext={`${Math.round(value * 100)}%`}
                 aria-orientation="vertical"
+                aria-description={isAutomated ? 'This parameter is currently driven by an automation lane' : undefined}
             >
                 {/* Bevel highlight */}
                 <div className="absolute inset-0 rounded-full border border-white/5 pointer-events-none" />
@@ -90,8 +97,12 @@ export const VerticalKnob: React.FC<VerticalKnobProps> = React.memo(({ label, va
                     className="absolute bottom-0 left-0 right-0 rounded-b-full transition-all"
                     style={{
                         height: `${fillHeight}px`,
-                        background: `linear-gradient(to top, ${color}, ${color}60 50%, ${color}30)`,
-                        boxShadow: `0 0 15px ${color}50, inset 0 -2px 4px rgba(0,0,0,0.3)`
+                        background: isAutomated
+                            ? `linear-gradient(to top, #00e5ff, #00e5ff60 50%, #00e5ff30)`
+                            : `linear-gradient(to top, ${color}, ${color}60 50%, ${color}30)`,
+                        boxShadow: isAutomated
+                            ? `0 0 15px #00e5ff50, inset 0 -2px 4px rgba(0,0,0,0.3)`
+                            : `0 0 15px ${color}50, inset 0 -2px 4px rgba(0,0,0,0.3)`
                     }}
                 />
                 {/* Center marker with LED style */}
@@ -105,7 +116,16 @@ export const VerticalKnob: React.FC<VerticalKnobProps> = React.memo(({ label, va
                     />
                 ))}
             </div>
-            <span className="text-[8px] font-mono text-cyan-400/60">{Math.round(value * 100)}%</span>
+            {isAutomated ? (
+                <span
+                    className="text-[8px] font-mono animate-pulse"
+                    style={{ color: '#00e5ff', textShadow: '0 0 4px #00e5ff' }}
+                >
+                    {Math.round(value * 100)}%
+                </span>
+            ) : (
+                <span className="text-[8px] font-mono text-cyan-400/60">{Math.round(value * 100)}%</span>
+            )}
         </div>
     );
 });
