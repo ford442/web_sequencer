@@ -313,6 +313,13 @@ export interface Tb303PatternA {
   
   /** Delay send (0-127, if supported) */
   delaySend?: number;
+
+  /**
+   * Slide/portamento time (0-127).
+   * Fixed at ~0x2A (42) on authentic TB-303 hardware (≈ 60 ms at nominal tempo).
+   * Only populated when the RBS file explicitly encodes a custom slide time.
+   */
+  slideTime?: number;
 }
 
 /**
@@ -349,6 +356,13 @@ export interface Tb303PatternB {
   
   /** Transpose offset in semitones (-12 to +12) */
   transpose?: number;
+
+  /**
+   * Slide/portamento time (0-127).
+   * Fixed at ~0x2A (42) on authentic TB-303 hardware (≈ 60 ms at nominal tempo).
+   * Only populated when the RBS file explicitly encodes a custom slide time.
+   */
+  slideTime?: number;
 }
 
 /**
@@ -473,7 +487,12 @@ export interface PcfSettings {
  */
 export interface AutomationLane {
   /** Parameter being automated */
-  parameter: 'tempo' | 'swing' | 'tb303Acutoff' | 'tb303Bcutoff' | 'pcfCutoff' | 'masterVolume';
+  parameter: 'tempo' | 'swing'
+    | 'tb303Acutoff' | 'tb303Bcutoff'
+    | 'tb303Aresonance' | 'tb303Bresonance'
+    | 'tb303Adecay' | 'tb303Bdecay'
+    | 'pcfCutoff' | 'pcfResonance' | 'pcfEnvAmount'
+    | 'masterVolume';
   
   /** Human-readable name */
   name: string;

@@ -464,6 +464,30 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             : undefined;
 
         // Convert HyphonSong to SavedSongData format
+        // When the importer produced a full song arrangement, use it; otherwise
+        // fall back to a single-slot arrangement from the primary pattern.
+        const arrangement = song.songArrangement;
+
+        const trackStorage: SavedSongData['trackStorage'] = arrangement
+            ? arrangement.trackStorage
+            : {
+                partA: [song.pattern.partA, ...Array(7).fill(null)],
+                partB: [song.pattern.partB, ...Array(7).fill(null)],
+                bass2: [song.pattern.bass2, ...Array(7).fill(null)],
+                kick: [song.pattern.kick, ...Array(7).fill(null)],
+                snare: [song.pattern.snare, ...Array(7).fill(null)],
+                closedHat: [song.pattern.closedHat, ...Array(7).fill(null)],
+                openHat: [song.pattern.openHat, ...Array(7).fill(null)],
+                sampler: [song.pattern.sampler, ...Array(7).fill(null)],
+            };
+
+        const songStructure: SavedSongData['songStructure'] = arrangement
+            ? arrangement.songStructure
+            : Array(16).fill(null).map(() => ({
+                partA: 0, partB: 0, bass2: 0, kick: 0,
+                snare: 0, closedHat: 0, openHat: 0, sampler: null,
+            }));
+
         const savedSong: SavedSongData = {
             version: 1,
             pattern: song.pattern,
@@ -473,7 +497,6 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             params: {
                 synthA: song.params.synthA,
                 synthB: song.params.synthB,
-                // @ts-expect-error - Auto-generated to fix CI build
                 bass2: song.params.bass2 ?? DEFAULT_BASS2_PARAMS,
                 kick: song.params.kick,
                 snare: song.params.snare,
@@ -498,24 +521,12 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                     },
                 })),
             },
-            trackStorage: {
-                partA: [song.pattern.partA, ...Array(7).fill(null)],
-                partB: [song.pattern.partB, ...Array(7).fill(null)],
-                bass2: [song.pattern.bass2, ...Array(7).fill(null)],
-                kick: [song.pattern.kick, ...Array(7).fill(null)],
-                snare: [song.pattern.snare, ...Array(7).fill(null)],
-                closedHat: [song.pattern.closedHat, ...Array(7).fill(null)],
-                openHat: [song.pattern.openHat, ...Array(7).fill(null)],
-                sampler: [song.pattern.sampler, ...Array(7).fill(null)],
-            },
+            trackStorage,
             activeTrackSlots: {
                 partA: 0, partB: 0, bass2: 0, kick: 0,
                 snare: 0, closedHat: 0, openHat: 0, sampler: 0,
             },
-            songStructure: Array(16).fill(null).map(() => ({
-                partA: 0, partB: 0, bass2: 0, kick: 0,
-                snare: 0, closedHat: 0, openHat: 0, sampler: null,
-            })),
+            songStructure,
             ttsPhrases: Array(8).fill('Hello World'),
             ...(automationLanes ? { automationLanes } : {}),
         };

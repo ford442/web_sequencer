@@ -48,6 +48,17 @@ import type {
 
 import { noteToMidi, midiToNote } from '../../utils/musicTheory';
 
+/**
+ * Default slide-time raw value for authentic TB-303 hardware (0-127 range).
+ * Corresponds to ~60 ms portamento at nominal tempo (42/127 ≈ 0.331 normalized).
+ */
+const TB303_DEFAULT_SLIDE_TIME = 42;
+
+/** Clamp a value to the [0, 1] normalized range. */
+function clampNormalized(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
 /** Import result with detailed reporting */
 export interface RbsImportResult {
   success: true;
@@ -532,7 +543,7 @@ export class RbsImporter {
     mappings: DetailedParameterMapping[]
   ): HyphonSong['params'] {
     // Map TB-303 0-127 range to Hyphon parameters using exponential curves
-    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1 }, sourceName: string): SynthParams => {
+    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1; slideTime?: number }, sourceName: string): SynthParams => {
       // Use 303-specific waveforms so Open303Manager is selected for playback
       const waveform: Waveform = tb303.waveform === 0 ? '303-saw' : '303-sqr';
       
@@ -546,11 +557,20 @@ export class RbsImporter {
       // Decay: RBS 0-127 → Hyphon 0.05-2.0s (exponential)
       const decaySeconds = this.convertDecayToSeconds(tb303.decay);
       
+      // EnvMod: RBS 0-127 → Hyphon filterMode (0-1 normalized).
+      // SynthParams stores envMod as filterMode (0-1) so the Open303 engine
+      // can apply the correct envelope-modulation depth.
+      const filterMode = clampNormalized(tb303.envMod / 127);
+
       // Accent: RBS 0-127 → Hyphon velocity boost 0-0.4
       const accentBoost = this.convertAccentToBoost(tb303.accent);
       
       // Volume based on accent (0.6-1.0 range)
       const volume = 0.6 + accentBoost;
+
+      // Slide time: use raw value when available; TB-303 hardware default is ~42/127 ≈ 0.33.
+      const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+      const portamento = clampNormalized(rawSlideTime / 127);
 
       // Record detailed mappings
       mappings.push({
@@ -566,6 +586,13 @@ export class RbsImporter {
         originalValue: tb303.resonance,
         convertedValue: parseFloat(resonance.toFixed(2)),
         formula: 'resonance / 6.35'
+      });
+      mappings.push({
+        source: `${sourceName}.envMod`,
+        target: 'SynthParams.filterMode',
+        originalValue: tb303.envMod,
+        convertedValue: parseFloat(filterMode.toFixed(3)),
+        formula: 'envMod / 127 (0-1 normalized)'
       });
       mappings.push({
         source: `${sourceName}.decay`,
@@ -587,13 +614,20 @@ export class RbsImporter {
         originalValue: tb303.waveform,
         convertedValue: waveform
       });
+      mappings.push({
+        source: `${sourceName}.slideTime`,
+        target: 'SynthParams.portamento',
+        originalValue: rawSlideTime,
+        convertedValue: parseFloat(portamento.toFixed(3)),
+        formula: 'slideTime / 127 (0-1 normalized, TB-303 default ≈ 0.33)'
+      });
 
       return {
         waveform,
         pitch: 0,
         filterCutoff: cutoffHz,
         filterResonance: resonance,
-        filterMode: tb303.envMod > 64 ? 1 : 0,
+        filterMode,
         attack: 0.01, // 303 has fast attack
         decay: decaySeconds,
         sustain: 0.5,
@@ -602,7 +636,8 @@ export class RbsImporter {
         volume: volume,
         delayTime: 0.3,
         delayFeedback: 0.2,
-        delayMix: 0.0
+        delayMix: 0.0,
+        portamento,
       };
     };
 
@@ -641,7 +676,7 @@ export class RbsImporter {
    * Convert TB-303 params to Bass2Params (Open303 format)
    */
   private convertToBass2Params(
-    tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1; envMod?: number },
+    tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1; envMod?: number; slideTime?: number },
     sourceName: string,
     mappings?: DetailedParameterMapping[]
   ): Bass2Params {
@@ -650,6 +685,11 @@ export class RbsImporter {
     const decay = this.convertDecayToSeconds(tb303.decay);
     const accent = 0.5 + this.convertAccentToBoost(tb303.accent);
 
+    // Slide time: use the raw 0-127 value if provided; otherwise fall back to the
+    // TB-303 hardware default (~42/127 ≈ 0.33 = 60 ms at nominal tempo).
+    const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+    const slideTime = clampNormalized(rawSlideTime / 127);
+
     if (mappings) {
       mappings.push({
         source: `${sourceName}.cutoff`,
@@ -657,6 +697,13 @@ export class RbsImporter {
         originalValue: tb303.cutoff,
         convertedValue: Math.round(cutoff),
         formula: '100 * 2^(cutoff / 21.17) Hz'
+      });
+      mappings.push({
+        source: `${sourceName}.slideTime`,
+        target: 'Bass2Params.slideTime',
+        originalValue: rawSlideTime,
+        convertedValue: parseFloat(slideTime.toFixed(3)),
+        formula: 'slideTime / 127 (0-1 normalized, TB-303 default ≈ 0.33)'
       });
     }
 
@@ -669,7 +716,8 @@ export class RbsImporter {
       decay,
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
-      volume: 0.9
+      volume: 0.9,
+      slideTime,
     };
   }
 
@@ -880,10 +928,40 @@ export class RbsImporter {
         parameter = 'filterCutoff';
         name = lane.name || 'TB-303 B Cutoff';
         break;
+      case 'tb303Aresonance':
+        target = 'synthA';
+        parameter = 'filterResonance';
+        name = lane.name || 'TB-303 A Resonance';
+        break;
+      case 'tb303Bresonance':
+        target = 'synthB';
+        parameter = 'filterResonance';
+        name = lane.name || 'TB-303 B Resonance';
+        break;
+      case 'tb303Adecay':
+        target = 'synthA';
+        parameter = 'decay';
+        name = lane.name || 'TB-303 A Decay';
+        break;
+      case 'tb303Bdecay':
+        target = 'synthB';
+        parameter = 'decay';
+        name = lane.name || 'TB-303 B Decay';
+        break;
       case 'pcfCutoff':
         target = 'master';
         parameter = 'pcfModulation';
         name = lane.name || 'PCF Modulation';
+        break;
+      case 'pcfResonance':
+        target = 'master';
+        parameter = 'pcfResonance';
+        name = lane.name || 'PCF Resonance';
+        break;
+      case 'pcfEnvAmount':
+        target = 'master';
+        parameter = 'pcfEnvAmount';
+        name = lane.name || 'PCF Env Amount';
         break;
       case 'masterVolume':
         target = 'master';
@@ -927,7 +1005,7 @@ export class RbsImporter {
 
     for (const [stepIndex, value] of points) {
       // Normalize value to 0-1 range
-      const normalizedValue = Math.max(0, Math.min(1, (value - minVal) / rangeSpan));
+      const normalizedValue = clampNormalized((value - minVal) / rangeSpan);
       
       // Quantize if requested
       const finalStep = this.options.quantizeTo16th 
