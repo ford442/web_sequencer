@@ -363,7 +363,9 @@ export interface KnobAutomation {
 export type AutomationTarget =
   | 'synthA' | 'synthB' | 'bass2'
   | 'kick' | 'snare' | 'closedHat' | 'openHat'
-  | 'sampler' | 'master';
+  | 'sampler' | 'master'
+  | 'sampler0' | 'sampler1' | 'sampler2' | 'sampler3'
+  | 'sampler4' | 'sampler5' | 'sampler6' | 'sampler7';
 
 /** Where the automation data originated */
 export type AutomationSource = 'rbs' | 'recorded' | 'ai' | 'manual';
@@ -379,12 +381,26 @@ export type AutomationScope = 'pattern' | 'song';
  * Uses normalized 0–1 values for portability across parameter ranges.
  */
 export interface AutomationLanePoint {
-  /** Step index (0-based, relative to pattern or song position) */
+  /**
+   * Step position (0-based, relative to pattern or song position).
+   * Supports sub-step (fractional) values for 24-PPQ TRAK event resolution.
+   * E.g. step 2.5 = halfway between step 2 and step 3.
+   */
   step: number;
   /** Normalized value 0–1 */
   value: number;
   /** Optional: interpolation override for this segment */
   interpolation?: AutomationInterpolation;
+  /**
+   * Per-step accent flag (TB-303 style).
+   * When true, the step should be played with accent emphasis.
+   */
+  accent?: boolean;
+  /**
+   * Per-step slide flag (TB-303 style).
+   * When true, the note slides (portamento) from the previous step.
+   */
+  slide?: boolean;
 }
 
 /**
@@ -414,6 +430,12 @@ export interface UnifiedAutomationLane {
   enabled: boolean;
   /** Original value range (for display/conversion), defaults to [0, 1] */
   originalRange?: [number, number];
+  /**
+   * Sampler bank index (0–7) for per-bank targeting.
+   * Only applicable when target is 'sampler' (legacy) or 'sampler0'–'sampler7'.
+   * When target is 'samplerN', this is redundant but kept for clarity.
+   */
+  samplerBank?: number;
 }
 
 /**
