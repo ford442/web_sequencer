@@ -139,4 +139,165 @@ describe('RbsImporter', () => {
     expect(result.song.automation).toBeUndefined();
     expect(result.report.automationLanesConverted).toBe(0);
   });
+
+  it('maps additional automation parameters (resonance, decay, pcfResonance, pcfEnvAmount)', () => {
+    const importer = new RbsImporter({ convertPcfToAutomation: false });
+    const result = importer.convertToHyphonSong(
+      makeRawData({
+        pcf: {
+          enabled: false,
+          filterType: 'lp',
+          cutoff: 0,
+          resonance: 0,
+          envAmount: 0,
+          decay: 0,
+          pattern: Array(16).fill(0),
+          target: { tb303A: false, tb303B: false, drums: false },
+        },
+        automation: [
+          {
+            parameter: 'tb303Aresonance',
+            name: 'Resonance A',
+            points: [[0, 64], [8, 127]],
+            interpolation: 'step',
+            range: [0, 127],
+          },
+          {
+            parameter: 'tb303Bresonance',
+            name: 'Resonance B',
+            points: [[0, 32]],
+            interpolation: 'step',
+            range: [0, 127],
+          },
+          {
+            parameter: 'tb303Adecay',
+            name: 'Decay A',
+            points: [[0, 80]],
+            interpolation: 'step',
+            range: [0, 127],
+          },
+          {
+            parameter: 'tb303Bdecay',
+            name: 'Decay B',
+            points: [[0, 60]],
+            interpolation: 'step',
+            range: [0, 127],
+          },
+          {
+            parameter: 'pcfResonance',
+            name: 'PCF Res',
+            points: [[0, 100]],
+            interpolation: 'step',
+            range: [0, 127],
+          },
+          {
+            parameter: 'pcfEnvAmount',
+            name: 'PCF Env',
+            points: [[0, 50]],
+            interpolation: 'step',
+            range: [0, 127],
+          },
+        ],
+      })
+    );
+
+    const lanes = result.song.automation ?? [];
+
+    const resA = lanes.find((l) => l.name === 'Resonance A');
+    expect(resA).toBeDefined();
+    expect(resA?.target).toBe('synthA');
+    expect(resA?.parameter).toBe('filterResonance');
+
+    const resB = lanes.find((l) => l.name === 'Resonance B');
+    expect(resB).toBeDefined();
+    expect(resB?.target).toBe('synthB');
+    expect(resB?.parameter).toBe('filterResonance');
+
+    const decayA = lanes.find((l) => l.name === 'Decay A');
+    expect(decayA).toBeDefined();
+    expect(decayA?.target).toBe('synthA');
+    expect(decayA?.parameter).toBe('decay');
+
+    const decayB = lanes.find((l) => l.name === 'Decay B');
+    expect(decayB).toBeDefined();
+    expect(decayB?.target).toBe('synthB');
+    expect(decayB?.parameter).toBe('decay');
+
+    const pcfRes = lanes.find((l) => l.name === 'PCF Res');
+    expect(pcfRes).toBeDefined();
+    expect(pcfRes?.target).toBe('master');
+    expect(pcfRes?.parameter).toBe('pcfResonance');
+
+    const pcfEnv = lanes.find((l) => l.name === 'PCF Env');
+    expect(pcfEnv).toBeDefined();
+    expect(pcfEnv?.target).toBe('master');
+    expect(pcfEnv?.parameter).toBe('pcfEnvAmount');
+  });
+
+  it('normalizes slideTime in Bass2Params (default ≈ 0.33 when not provided)', () => {
+    const importer = new RbsImporter({ tb303BTarget: 'bass2' });
+    const result = importer.convertToHyphonSong(makeRawData());
+
+    expect(result.success).toBe(true);
+    const bass2 = result.song.params.bass2;
+    expect(bass2).toBeDefined();
+    // Default raw slideTime = 42; 42/127 ≈ 0.3307
+    expect(bass2?.slideTime).toBeCloseTo(42 / 127, 3);
+  });
+
+  it('normalizes an explicit slideTime value from TB-303 pattern', () => {
+    const importer = new RbsImporter({ tb303BTarget: 'bass2' });
+    const result = importer.convertToHyphonSong(
+      makeRawData({
+        tb303PatternB: {
+          steps: makeSteps(),
+          cutoff: 90,
+          resonance: 48,
+          envMod: 70,
+          decay: 70,
+          accent: 80,
+          waveform: 1,
+          distortion: 0,
+          delaySend: 0,
+          transpose: 0,
+          slideTime: 63,
+        },
+      })
+    );
+
+    const bass2 = result.song.params.bass2;
+    expect(bass2).toBeDefined();
+    expect(bass2?.slideTime).toBeCloseTo(63 / 127, 3);
+  });
+
+  it('maps envMod as normalized filterMode (0-1) in SynthParams', () => {
+    const importer = new RbsImporter();
+    const result = importer.convertToHyphonSong(makeRawData());
+
+    expect(result.success).toBe(true);
+    // envMod = 80 for tb303PatternA → filterMode = 80/127 ≈ 0.630
+    expect(result.song.params.synthA?.filterMode).toBeCloseTo(80 / 127, 3);
+  });
+
+  it('maps portamento (slideTime) into SynthParams', () => {
+    const importer = new RbsImporter();
+    const result = importer.convertToHyphonSong(
+      makeRawData({
+        tb303PatternA: {
+          steps: makeSteps(),
+          cutoff: 100,
+          resonance: 64,
+          envMod: 80,
+          decay: 90,
+          accent: 96,
+          waveform: 0,
+          distortion: 0,
+          delaySend: 0,
+          slideTime: 42,
+        },
+      })
+    );
+
+    expect(result.song.params.synthA?.portamento).toBeCloseTo(42 / 127, 3);
+  });
 });

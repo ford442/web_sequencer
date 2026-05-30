@@ -164,6 +164,11 @@ export interface Bass2Params {
   pan?: number;
   /** Which DSP engine to use for this voice. Defaults to 'open303'. */
   engine303?: Engine303;
+  /**
+   * Slide/portamento time (0–1 normalized, where 0.33 ≈ 60 ms TB-303 default).
+   * Maps to Open303Params.slideTime for the Devil Fish MOD.
+   */
+  slideTime?: number;
 }
 
 export interface AllDrumParams {
@@ -505,6 +510,7 @@ export interface SavedSongData {
   params: {
     synthA: SynthParams;
     synthB: SynthParams;
+    bass2?: Bass2Params;
     kick: KickParams;
     snare: SnareParams;
     closedHat: HatParams;
