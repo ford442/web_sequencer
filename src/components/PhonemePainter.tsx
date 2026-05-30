@@ -407,6 +407,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
       role="dialog"
       aria-modal="true"
       aria-labelledby="phoneme-painter-title"
+      tabIndex={-1}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
