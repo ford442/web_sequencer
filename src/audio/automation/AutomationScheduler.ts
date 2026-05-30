@@ -340,6 +340,12 @@ export class AutomationScheduler {
       case 'accent':
         mgr.scheduleParamAtTime(voice, 'setAccent', v, now);
         break;
+      case 'slide':
+        // Schedule per-step slide (portamento/legato) enable or disable.
+        // Delegates to Open303Manager.scheduleSlideAtTime(), which establishes
+        // the API contract; actual glide behaviour depends on engine support.
+        mgr.scheduleSlideAtTime(voice, v > 0.5, now);
+        break;
       case 'volume':
         mgr.scheduleParamAtTime(voice, 'setVolume', v, now);
         break;

@@ -118,8 +118,17 @@ describe('RbsImporter', () => {
     expect(result.song.automation?.some((lane) => lane.name.startsWith('PCF'))).toBe(false);
   });
 
-  it('omits automation when source has no lanes and PCF automation is disabled', () => {
+  it('omits automation when source has no lanes, PCF automation is disabled, and no accent/slide steps', () => {
     const importer = new RbsImporter({ convertPcfToAutomation: false });
+    const noAccentSlideSteps = Array.from({ length: 16 }, (_, i) => ({
+      index: i,
+      note: i % 12,
+      octave: 3,
+      accent: false,
+      slide: false,
+      tie: false,
+      gate: 80,
+    }));
     const result = importer.convertToHyphonSong(
       makeRawData({
         pcf: {
@@ -133,6 +142,8 @@ describe('RbsImporter', () => {
           target: { tb303A: false, tb303B: false, drums: false },
         },
         automation: [],
+        tb303PatternA: { ...makeRawData().tb303PatternA, steps: noAccentSlideSteps },
+        tb303PatternB: { ...makeRawData().tb303PatternB, steps: noAccentSlideSteps },
       })
     );
 
@@ -299,5 +310,155 @@ describe('RbsImporter', () => {
     );
 
     expect(result.song.params.synthA?.portamento).toBeCloseTo(42 / 127, 3);
+  });
+});
+
+// =============================================================================
+// Per-step accent and slide automation lane generation
+// =============================================================================
+
+describe('RbsImporter – per-step accent/slide automation lanes', () => {
+  it('generates an accent automation lane for synthA when steps have accent', () => {
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(makeRawData());
+    expect(result.success).toBe(true);
+
+    const accentLane = result.song.automation?.find(
+      (l) => l.target === 'synthA' && l.parameter === 'accent'
+    );
+    expect(accentLane).toBeDefined();
+    expect(accentLane?.interpolation).toBe('step');
+    // makeSteps() produces 16 steps → 16 points (expandTo32Steps=false)
+    expect(accentLane?.points).toHaveLength(16);
+  });
+
+  it('generates a slide automation lane for synthA when steps have slide', () => {
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(makeRawData());
+    expect(result.success).toBe(true);
+
+    const slideLane = result.song.automation?.find(
+      (l) => l.target === 'synthA' && l.parameter === 'slide'
+    );
+    expect(slideLane).toBeDefined();
+    expect(slideLane?.interpolation).toBe('step');
+    expect(slideLane?.points).toHaveLength(16);
+  });
+
+  it('sets accent lane value to 1.0 on accented steps and baseAccentNorm elsewhere', () => {
+    // makeSteps(): accent at indices 0, 4, 8, 12
+    // tb303PatternA.accent = 96 → baseAccentNorm = 96/127 ≈ 0.756
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(makeRawData());
+
+    const accentLane = result.song.automation?.find(
+      (l) => l.target === 'synthA' && l.parameter === 'accent'
+    );
+    expect(accentLane).toBeDefined();
+    const pts = accentLane!.points;
+    // Step 0: accented → 1.0
+    expect(pts[0][1]).toBeCloseTo(1.0, 5);
+    // Step 1: not accented → 96/127
+    expect(pts[1][1]).toBeCloseTo(96 / 127, 5);
+    // Step 4: accented → 1.0
+    expect(pts[4][1]).toBeCloseTo(1.0, 5);
+  });
+
+  it('sets slide lane value to 1.0 on slide steps and 0.0 elsewhere', () => {
+    // makeSteps(): slide at indices 0, 8
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(makeRawData());
+
+    const slideLane = result.song.automation?.find(
+      (l) => l.target === 'synthA' && l.parameter === 'slide'
+    );
+    expect(slideLane).toBeDefined();
+    const pts = slideLane!.points;
+    expect(pts[0][1]).toBeCloseTo(1.0, 5);  // step 0: slide active
+    expect(pts[1][1]).toBeCloseTo(0.0, 5);  // step 1: no slide
+    expect(pts[8][1]).toBeCloseTo(1.0, 5);  // step 8: slide active
+    expect(pts[7][1]).toBeCloseTo(0.0, 5);  // step 7: no slide
+  });
+
+  it('expands accent/slide lanes to 32 steps when expandTo32Steps is true', () => {
+    const importer = new RbsImporter({ expandTo32Steps: true });
+    const result = importer.convertToHyphonSong(makeRawData());
+
+    const accentLane = result.song.automation?.find(
+      (l) => l.target === 'synthA' && l.parameter === 'accent'
+    );
+    expect(accentLane?.points).toHaveLength(32);
+
+    const slideLane = result.song.automation?.find(
+      (l) => l.target === 'synthA' && l.parameter === 'slide'
+    );
+    expect(slideLane?.points).toHaveLength(32);
+  });
+
+  it('does not generate an accent lane when no steps are accented', () => {
+    const steps: Tb303Step[] = Array.from({ length: 16 }, (_, i) => ({
+      index: i,
+      note: i % 12,
+      octave: 3,
+      accent: false,
+      slide: true,
+      tie: false,
+      gate: 80,
+    }));
+    const raw = makeRawData({
+      tb303PatternA: { ...makeRawData().tb303PatternA, steps },
+    });
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(raw);
+
+    const accentLane = result.song.automation?.find(
+      (l) => l.target === 'synthA' && l.parameter === 'accent'
+    );
+    expect(accentLane).toBeUndefined();
+  });
+
+  it('does not generate a slide lane when no steps have slide', () => {
+    const steps: Tb303Step[] = Array.from({ length: 16 }, (_, i) => ({
+      index: i,
+      note: i % 12,
+      octave: 3,
+      accent: true,
+      slide: false,
+      tie: false,
+      gate: 80,
+    }));
+    const raw = makeRawData({
+      tb303PatternA: { ...makeRawData().tb303PatternA, steps },
+    });
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(raw);
+
+    const slideLane = result.song.automation?.find(
+      (l) => l.target === 'synthA' && l.parameter === 'slide'
+    );
+    expect(slideLane).toBeUndefined();
+  });
+
+  it('generates lanes for synthB (tb303PatternB) as well', () => {
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(makeRawData());
+
+    const accentB = result.song.automation?.find(
+      (l) => l.target === 'bass2' && l.parameter === 'accent'
+    );
+    // Default tb303BTarget is 'bass2', so the lane target should be 'bass2'
+    expect(accentB).toBeDefined();
+    expect(accentB?.name).toContain('Bass 2');
+  });
+
+  it('uses synthB target when tb303BTarget is partB', () => {
+    const importer = new RbsImporter({ tb303BTarget: 'partB', expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(makeRawData());
+
+    const accentB = result.song.automation?.find(
+      (l) => l.target === 'synthB' && l.parameter === 'accent'
+    );
+    expect(accentB).toBeDefined();
+    expect(accentB?.name).toContain('TB-303 B');
   });
 });
