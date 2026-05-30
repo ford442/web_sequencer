@@ -49,7 +49,14 @@ export type { RbsParserResult, RbsParserError } from './RbsParser';
 
 // New spec-driven Rebirth parser (recommended API per technical spec)
 export { RebirthRBSParser, parseRebirthRBSFile } from './RebirthRBSParser';
-export type { RebirthParseResult } from './RebirthRBSParser';
+export type {
+  RebirthParseResult,
+  RbsHeaderData,
+  RbsPatternData,
+  RbsSynthParameters,
+  RbsSongArrangement,
+  RbsAutomationData,
+} from './RebirthRBSParser';
 
 // Importer
 export { RbsImporter, convertToHyphonSong } from './RbsImporter';
