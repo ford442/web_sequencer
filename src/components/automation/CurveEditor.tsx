@@ -87,6 +87,7 @@ export const CurveEditor = memo(({
 }: CurveEditorProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
 
   const drawWidth = width - PAD.left - PAD.right;
   const drawHeight = height - PAD.top - PAD.bottom;
@@ -155,6 +156,52 @@ export const CurveEditor = memo(({
     }
     setDraggingIdx(idx);
   }, [readOnly, lane]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent, idx: number) => {
+    if (readOnly || !lane) return;
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      const newPoints = lane.points.filter((_, i) => i !== idx);
+      automationStore.updateLanePoints(lane.id, newPoints);
+      return;
+    }
+
+    const currentPoint = lane.points[idx];
+    const TICKS_PER_STEP = 6;
+    const stepIncrement = 1 / TICKS_PER_STEP;
+    const valueIncrement = 0.01;
+
+    let newStep = currentPoint.step;
+    let newValue = currentPoint.value;
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      newValue = Math.min(1, newValue + valueIncrement);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      newValue = Math.max(0, newValue - valueIncrement);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      newStep = Math.max(0, newStep - stepIncrement);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      newStep = Math.min(totalSteps, newStep + stepIncrement);
+    } else {
+      return;
+    }
+
+    newStep = Math.round(newStep * TICKS_PER_STEP) / TICKS_PER_STEP;
+    newValue = Math.round(newValue * 1000) / 1000;
+
+    const newPoints = [...lane.points];
+    newPoints[idx] = {
+      ...newPoints[idx],
+      step: newStep,
+      value: newValue,
+    };
+    automationStore.updateLanePoints(lane.id, newPoints);
+  }, [readOnly, lane, totalSteps]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (draggingIdx === null || !lane || readOnly) return;
@@ -246,8 +293,14 @@ export const CurveEditor = memo(({
         return (
           <g
             key={idx}
-            className="curve-point"
+            className="curve-point outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-full"
             onMouseDown={(e) => handleMouseDown(e, idx)}
+            onKeyDown={(e) => handleKeyDown(e, idx)}
+            onFocus={() => setFocusedIdx(idx)}
+            onBlur={() => setFocusedIdx(null)}
+            tabIndex={readOnly ? -1 : 0}
+            role="button"
+            aria-label={`Automation point at step ${point.step}, value ${point.value.toFixed(2)}`}
             style={{ cursor: readOnly ? 'default' : 'grab' }}
           >
             {/* Point circle */}
@@ -257,7 +310,7 @@ export const CurveEditor = memo(({
               r={isSubStep ? 3 : 4}
               fill={point.accent ? '#ef4444' : point.slide ? '#22c55e' : '#06b6d4'}
               stroke="#fff"
-              strokeWidth={draggingIdx === idx ? 2 : 1}
+              strokeWidth={draggingIdx === idx || focusedIdx === idx ? 2 : 1}
               opacity={0.9}
             />
             {/* Accent indicator (triangle above) */}
