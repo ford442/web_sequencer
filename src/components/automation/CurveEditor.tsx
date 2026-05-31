@@ -256,19 +256,20 @@ export const CurveEditor = memo(({
               if (readOnly) return;
               if (e.key === 'Delete' || e.key === 'Backspace') {
                 e.preventDefault();
-                onDeletePoint?.(idx);
+                const newPoints = lane.points.filter((_, i) => i !== idx);
+                automationStore.updateLanePoints(lane.id, newPoints);
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                onUpdatePoint?.(idx, { value: Math.min(1, point.value + 0.05) });
+                const newPoints = [...lane.points]; newPoints[idx] = { ...point, value: Math.min(1, point.value + 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
               } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                onUpdatePoint?.(idx, { value: Math.max(0, point.value - 0.05) });
+                const newPoints = [...lane.points]; newPoints[idx] = { ...point, value: Math.max(0, point.value - 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
               } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
-                onUpdatePoint?.(idx, { step: Math.max(0, point.step - 0.25) });
+                const newPoints = [...lane.points]; newPoints[idx] = { ...point, step: Math.max(0, point.step - 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
               } else if (e.key === 'ArrowRight') {
                 e.preventDefault();
-                onUpdatePoint?.(idx, { step: Math.min(numSteps || 16, point.step + 0.25) });
+                const newPoints = [...lane.points]; newPoints[idx] = { ...point, step: Math.min(totalSteps || 16, point.step + 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
               }
             }}
           >
