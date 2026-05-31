@@ -55,6 +55,7 @@ interface NoteSelectorProps {
     /** Prophecy: current portamento rate 0–1 */
     currentPortamento?: number;
     onPropertyChange?: (key:
+        | 'pan'
         | 'timbre'
         | 'velocity'
         | 'probability'

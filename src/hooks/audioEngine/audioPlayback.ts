@@ -417,8 +417,8 @@ export function createPlayDrum(
         }
 
         // Compute pitch multiplier from note relative to reference C3
-        const pitchRatio = note
-            ? Math.pow(2, (noteToMidi(note) - DRUM_REF_MIDI) / 12)
+        const pitchRatio = noteStr
+            ? Math.pow(2, (noteToMidi(noteStr) - DRUM_REF_MIDI) / 12)
             : 1;
 
         const retrigger = 1;
@@ -473,7 +473,7 @@ export function createPlayDrum(
 
                 let finalDest: AudioNode = gain;
                 if ((pan !== undefined && pan !== 0) || (kickParams.pan !== undefined && kickParams.pan !== 0)) {
-                    const activePan = pan !== undefined ? pan : kickParams.pan;
+                    const activePan = pan !== undefined ? pan : (kickParams.pan || 0);
                     const panner = context.createStereoPanner();
                     panner.pan.value = activePan;
                     finalDest.connect(panner);
@@ -494,7 +494,7 @@ export function createPlayDrum(
 
                 let finalDestOsc: AudioNode = oscGain;
                 if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
-                    const activePan = pan !== undefined ? pan : snareParams.pan;
+                    const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
                     const panner = context.createStereoPanner();
                     panner.pan.value = activePan;
                     finalDestOsc.connect(panner);
@@ -515,7 +515,7 @@ export function createPlayDrum(
                     noiseFilter.connect(noiseGain);
                     let finalDestNoise: AudioNode = noiseGain;
                     if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
-                    const activePan = pan !== undefined ? pan : snareParams.pan;
+                    const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
                         const panner = context.createStereoPanner();
                         panner.pan.value = activePan;
                         finalDestNoise.connect(panner);
@@ -546,7 +546,7 @@ export function createPlayDrum(
                     filter.connect(gain);
                     let finalDest: AudioNode = gain;
                     if ((pan !== undefined && pan !== 0) || (hatParams.pan !== undefined && hatParams.pan !== 0)) {
-                        const activePan = pan !== undefined ? pan : hatParams.pan;
+                        const activePan = pan !== undefined ? pan : (hatParams.pan || 0);
                         const panner = context.createStereoPanner();
                         panner.pan.value = activePan;
                         finalDest.connect(panner);
