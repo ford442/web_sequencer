@@ -7,6 +7,7 @@ import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Manager } from '../engines/Open303Manager';
 import { ProphecyManager } from '../engines/ProphecyManager';
+import { PcfEffect } from '../engines/PcfEffect';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
@@ -121,6 +122,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
     const open303ManagerRef = useRef<Open303Manager | null>(null);
     const prophecyManagerRef = useRef<ProphecyManager | null>(null);
+    const pcfEffectRef = useRef<PcfEffect | null>(null);
 
     // Voice Managers
     const voiceManagerARef = useRef<VoiceManager | null>(null);
@@ -321,12 +323,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     forceSingleThreaded: true
                 });
                 
-                if (open303Ready) {
-                    open303Manager.connect(masterBusInput);
-                    open303ManagerRef.current = open303Manager;
-                    console.log('[useAudioEngine] Open303Manager Ready');
-                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
-                } else {
+                if (!open303Ready) {
                     console.warn('[useAudioEngine] Open303Manager failed to initialize');
                     try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
                 }
@@ -339,6 +336,39 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
             }
             loadingProgressStore.completeStep('open303Engine');
+
+            // Initialize PCF (Pattern Controlled Filter) — inserted between 303 and master bus.
+            // Enables ReBirth-style pattern-driven filter automation on the 303 output.
+            {
+                const pcf = new PcfEffect(context);
+                let pcfReady = false;
+                try {
+                    await pcf.init();
+                    pcfReady = true;
+                    pcfEffectRef.current = pcf;
+                    console.log('[useAudioEngine] PcfEffect Ready');
+                } catch (e) {
+                    console.warn(
+                        '[useAudioEngine] PcfEffect failed to initialize; bypassing PCF.' +
+                        ' Possible causes: AudioWorklet registration failed (check CORS / module' +
+                        ' loading), or AudioContext was suspended at init time.',
+                        e
+                    );
+                }
+                // Connect 303 through PCF (if ready) or directly to master bus.
+                // open303ManagerRef is set here, after routing is fully established.
+                if (open303Ready) {
+                    if (pcfReady) {
+                        open303Manager.connect(pcf.input);
+                        pcf.output.connect(masterBusInput);
+                    } else {
+                        open303Manager.connect(masterBusInput);
+                    }
+                    open303ManagerRef.current = open303Manager;
+                    console.log('[useAudioEngine] Open303Manager Ready');
+                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
+                }
+            }
 
             // Initialize Prophecy Formant Engine
             loadingProgressStore.startStep('prophecyEngine');
@@ -1575,6 +1605,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303ManagerRef.current as any,
+                pcfEffect: pcfEffectRef.current,
                 singingVoice: undefined,
                 playSynth,
                 playDrum,

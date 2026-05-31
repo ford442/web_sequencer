@@ -34,6 +34,7 @@ import type {
 } from '../../types';
 import { automationStore } from '../../stores/automationStore';
 import type { Open303Manager } from '../../engines/Open303Manager';
+import type { PcfEffect } from '../../engines/PcfEffect';
 import { AUTOMATION_PARAMETER_MAP } from '../../importers/rbs/types';
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,28 @@ function clamp01(v: number): number {
 }
 
 /**
+ * Convert a normalised MIDI value to Hz using an exponential curve that
+ * spans the human-audible range: `normMidi = 0` → 20 Hz, `normMidi = 1`
+ * → 20 000 Hz.  The formula is `20 × 1000^normMidi`.
+ *
+ * This mirrors the identical `midiToHz` implementation inside the PCF
+ * AudioWorklet.  AudioWorklet scope is isolated (no shared imports), so the
+ * formula must exist in both places; this named helper avoids scattering
+ * the magic constants across multiple call-sites in the scheduler.
+ *
+ * @param normMidi - Linear normalised value in [0, 1] (0 = lowest cutoff,
+ *   1 = highest cutoff).
+ * @returns Frequency in Hz.
+ * @example
+ * pcfMidiNormToHz(0)   // → 20 Hz   (lowest cutoff)
+ * pcfMidiNormToHz(0.5) // → ≈ 632 Hz (mid cutoff)
+ * pcfMidiNormToHz(1)   // → 20 000 Hz (highest cutoff)
+ */
+function pcfMidiNormToHz(normMidi: number): number {
+  return 20 * Math.pow(1000, normMidi);
+}
+
+/**
  * Called once per bar/song-measure when song mode is active so the app can
  * advance to the next pattern slot.
  */
@@ -103,7 +126,15 @@ export type SongAdvanceFn = (nextMeasureIndex: number) => void;
 
 export class AutomationScheduler {
   private readonly ctx: AudioContext;
+  /**
+   * Reference to the Open303Manager used for 303 parameter scheduling.
+   * May be `null` at construction time (the manager is created
+   * asynchronously after the scheduler) and updated via
+   * {@link setOpen303Manager}.  All switch-case branches that touch this
+   * field guard against `null` before use.
+   */
   private open303Manager: Open303Manager | null;
+  private pcfEffect: PcfEffect | null = null;
 
   private readonly lookaheadSeconds: number;
   private readonly rampDuration: number;
@@ -134,6 +165,14 @@ export class AutomationScheduler {
    */
   setOpen303Manager(manager: Open303Manager | null): void {
     this.open303Manager = manager;
+  }
+
+  /**
+   * Update the PcfEffect reference (useful if the effect is created/destroyed
+   * dynamically).  Set to null to disable PCF automation scheduling.
+   */
+  setPcfEffect(effect: PcfEffect | null): void {
+    this.pcfEffect = effect;
   }
 
   /**
@@ -258,8 +297,6 @@ export class AutomationScheduler {
     audioTime: number,
     rampDuration: number
   ): void {
-    if (!this.open303Manager) return;
-
     const mgr = this.open303Manager;
     const nowAudio = this.ctx.currentTime;
     const delayMs = Math.max(0, (audioTime - nowAudio) * 1000);
@@ -267,7 +304,7 @@ export class AutomationScheduler {
     switch (target) {
       case 'synthA': {
         // lead303 instance (partA / SYNTH A LEAD)
-        if (!mgr.isLead303Ready()) return;
+        if (!mgr || !mgr.isLead303Ready()) return;
         const id = setTimeout(() => {
           this._apply303Param(mgr, 'lead303', parameter, value, rampDuration);
         }, delayMs);
@@ -276,7 +313,7 @@ export class AutomationScheduler {
       }
       case 'synthB': {
         // bass1 instance (partB / SYNTH B)
-        if (!mgr.isBass1Ready()) return;
+        if (!mgr || !mgr.isBass1Ready()) return;
         const id = setTimeout(() => {
           this._apply303Param(mgr, 'bass1', parameter, value, rampDuration);
         }, delayMs);
@@ -285,16 +322,27 @@ export class AutomationScheduler {
       }
       case 'bass2': {
         // bass2 instance
-        if (!mgr.isBass2Ready()) return;
+        if (!mgr || !mgr.isBass2Ready()) return;
         const id = setTimeout(() => {
           this._apply303Param(mgr, 'bass2', parameter, value, rampDuration);
         }, delayMs);
         this.pendingTimeouts.push(id);
         break;
       }
+      case 'master': {
+        // PCF and master-bus parameters.
+        if (this.pcfEffect) {
+          const pcf = this.pcfEffect;
+          const id = setTimeout(() => {
+            this._applyPcfParam(pcf, parameter, value);
+          }, delayMs);
+          this.pendingTimeouts.push(id);
+        }
+        break;
+      }
       default:
-        // Other targets (master, drums, sampler) are handled by the step-handler
-        // and/or dedicated mixers — not the 303 manager.
+        // Other targets (drums, sampler) are handled by the step-handler
+        // and/or dedicated mixers — not the 303 manager or PCF.
         break;
     }
   }
@@ -354,6 +402,33 @@ export class AutomationScheduler {
         break;
     }
   }
+
+  /**
+   * Apply a single PCF parameter change using the PcfEffect automation API.
+   *
+   * @param pcf       The active PcfEffect instance.
+   * @param parameter RBS/automation parameter name (pcfCutoff | pcfResonance | pcfEnvAmount).
+   * @param value     Normalised 0–1 value (from automation lane or TRAK event).
+   */
+  private _applyPcfParam(pcf: PcfEffect, parameter: string, value: number): void {
+    const v = clamp01(value);
+    switch (parameter) {
+      case 'pcfCutoff':
+        // Convert normalised 0-1 to Hz using the helper that mirrors the worklet.
+        pcf.setAutomationCutoff(pcfMidiNormToHz(v));
+        break;
+      case 'pcfResonance':
+        // 0-1 normalised → 0-127 MIDI range.
+        pcf.setAutomationResonance(v * 127);
+        break;
+      case 'pcfEnvAmount':
+        pcf.setAutomationEnvAmount(v);
+        break;
+      default:
+        // Unknown PCF parameter — no-op.
+        break;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -374,7 +449,9 @@ function trakCtrlToTargetParam(paramName: string): TargetParam | null {
     case 'tb303Adecay':      return { target: 'synthA', parameter: 'decay' };
     case 'tb303Bdecay':      return { target: 'synthB', parameter: 'decay' };
     case 'masterVolume':     return { target: 'master', parameter: 'volume' };
-    // pcfCutoff, pcfResonance, pcfEnvAmount: future
+    case 'pcfCutoff':        return { target: 'master', parameter: 'pcfCutoff' };
+    case 'pcfResonance':     return { target: 'master', parameter: 'pcfResonance' };
+    case 'pcfEnvAmount':     return { target: 'master', parameter: 'pcfEnvAmount' };
     default:                 return null;
   }
 }

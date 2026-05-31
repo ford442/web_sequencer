@@ -10,6 +10,7 @@ import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
+import type { PcfEffect } from '../engines/PcfEffect';
 import { exportSongToXM } from '../utils/xmExport'
 import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import type { ScaleDefinition } from '../utils/musicTheory'
@@ -579,12 +580,14 @@ export function useAppState() {
     useEffect(() => {
         const ctx = audioEngine?.context;
         const mgr = (audioEngine as any)?.open303Engine ?? null;
+        const pcf: PcfEffect | null = (audioEngine as any)?.pcfEffect ?? null;
         if (ctx) {
             if (!automationSchedulerRef.current) {
                 automationSchedulerRef.current = new AutomationScheduler(ctx, mgr ?? null, { ppq: 192 });
             } else {
                 automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
             }
+            automationSchedulerRef.current.setPcfEffect(pcf);
         }
     }, [audioEngine]);
 

@@ -256,6 +256,8 @@ export interface AudioEngine {
   webGpuEngine?: WebGpuOscillator | null;
   wasmEngine?: WasmOscillator | null;
   open303Engine?: Open303Oscillator | Open303Manager | null;
+  /** PcfEffect instance for PCF automation wiring; set after init. */
+  pcfEffect?: import('./engines/PcfEffect').PcfEffect | null;
   singingVoice?: SingingVoice;
 
   // === Playback Methods (with microtonal support) ===
