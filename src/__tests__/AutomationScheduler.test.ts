@@ -457,7 +457,7 @@ const testPcfMidiNormToHz = (norm: number) => 20 * Math.pow(1000, norm);
 describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    automationStore.clearAll?.();
+    automationStore.clearAllLanes?.();
     resetLaneIdCounter();
   });
   afterEach(() => {
@@ -555,7 +555,7 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
 describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    automationStore.clearAll?.();
+    automationStore.clearAllLanes?.();
     resetLaneIdCounter();
   });
   afterEach(() => {

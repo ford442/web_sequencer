@@ -109,7 +109,7 @@ export const CurveEditor = memo(({
 
   // Grid lines
   const gridLines = useMemo(() => {
-    const lines: JSX.Element[] = [];
+    const lines: React.JSX.Element[] = [];
     for (let i = 0; i <= totalSteps; i++) {
       const x = toX(i);
       const isBeat = i % 4 === 0;
