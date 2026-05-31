@@ -1,14 +1,15 @@
-1. **Identify Performance Bottleneck**: The global application state manager `useAppState.tsx` frequently calls `JSON.parse(JSON.stringify(prev))` to perform deep clones of the entire 256+ step sequence structure on hot-path actions like adding/removing notes, editing parameters, copying/pasting, and clearing sequences. This completely breaks React.memo for sequencer rows because it generates new memory references for untouched tracks and steps, causing widespread UI thrashing.
-
-2. **Implement Shallow Cloning Optimization**:
-   - Replaced all instances of `JSON.parse(JSON.stringify(prev))` with efficient ES6 spread operators to shallow clone only the modified tracks, banks, and specific steps in `useAppState.tsx` state update methods.
-   - Preserved references for untouched tracks and steps so React.memo can do its job.
-
-3. **Handle Edge Cases Properly**:
-   - Fixed handling of array updates to guarantee correct typing.
-   - Refactored `handleDrawEnter` to prevent painting neighboring steps improperly by reading the updated pattern layout appropriately without raising a "Cannot read properties of undefined" error.
-   - Refactored `handleStepToggle` so it still creates a selection appropriately if `!isActive` but doesn't override the `setSelection` or toggling logic inadvertently.
-
-4. **Verify Correctness**:
-   - Run `pnpm test` successfully. Tests confirm that the optimizations maintain expected behavior for sequence drawing, length changes, pattern clearing, clipboard copy/paste, property changes, and TTS apply steps without regressions.
-   - Checked that `eslint` also passes.
+1. **Create Vocal Overdrive Worklet**
+   - Create a new AudioWorkletProcessor in `src/audio-worklets/vocal-overdrive-processor.ts`.
+   - Implement nonlinear tube distortion directly inside the `process` loop. A simple formula like `Math.tanh(input * drive) / Math.tanh(drive)` or foldback distortion.
+   - Expose `drive` and `tone` (simple lowpass filter) parameters.
+2. **Register the Worklet**
+   - Add the worklet to Vite build via `?worker&url` in `src/hooks/audioEngine/initialization.ts`.
+   - Wait for `audioContext.audioWorklet.addModule()` to load it during initialization.
+3. **Integrate into `useAudioEngine.ts`**
+   - We will replace the standard Web Audio API `WaveShaperNode` used for `drive` on voices in `useAudioEngine.ts` with our custom `AudioWorkletNode('vocal-overdrive-processor')`!
+   - Ensure the new node handles the `driveAmount` parameter. The tone parameter can be fixed or exposed globally.
+4. **Update `agent_plan.md`**
+   - Check off the "Vocal Overdrive Worklet" idea.
+   - Add progress entry to the top of the Changelog.
+5. **Pre-commit checks**
+   - Run type checks and tests.
