@@ -256,19 +256,19 @@ export const CurveEditor = memo(({
               if (readOnly) return;
               if (e.key === 'Delete' || e.key === 'Backspace') {
                 e.preventDefault();
-                onDeletePoint(idx);
+                onDeletePoint?.(idx);
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                onUpdatePoint(idx, { value: Math.min(1, point.value + 0.05) });
+                onUpdatePoint?.(idx, { value: Math.min(1, point.value + 0.05) });
               } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                onUpdatePoint(idx, { value: Math.max(0, point.value - 0.05) });
+                onUpdatePoint?.(idx, { value: Math.max(0, point.value - 0.05) });
               } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
-                onUpdatePoint(idx, { step: Math.max(0, point.step - 0.25) });
+                onUpdatePoint?.(idx, { step: Math.max(0, point.step - 0.25) });
               } else if (e.key === 'ArrowRight') {
                 e.preventDefault();
-                onUpdatePoint(idx, { step: Math.min(numSteps, point.step + 0.25) });
+                onUpdatePoint?.(idx, { step: Math.min(numSteps || 16, point.step + 0.25) });
               }
             }}
           >
