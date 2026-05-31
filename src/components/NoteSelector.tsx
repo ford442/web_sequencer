@@ -23,6 +23,8 @@ interface NoteSelectorProps {
     currentReverse?: boolean;
     currentRetrigger?: number;
     currentFreeze?: number;
+    currentBitcrush?: number;
+    currentDownsample?: number;
     currentFormantShift?: number;
     currentSlideFormant?: boolean;
     currentFilterCutoff?: number;
@@ -126,6 +128,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchQuantize = 0,
+    currentBitcrush = 0,
+    currentDownsample = 1,
     currentChoir,
     currentTranceGate = 0, // from jules branch
 
@@ -356,7 +360,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 <div className="flex justify-between items-center text-xs px-1">
                                     <span className="text-gray-400 font-medium tracking-wide">Bitcrush</span>
                                     <span className="text-indigo-400 font-mono bg-indigo-500/10 px-1.5 py-0.5 rounded shadow-inner border border-indigo-500/20">
-                                        {((currentNote?.bitcrush ?? 0) * 100).toFixed(0)}%
+                                        {((currentBitcrush ?? 0) * 100).toFixed(0)}%
                                     </span>
                                 </div>
                                 <input
@@ -364,10 +368,10 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     min="0"
                                     max="1"
                                     step="0.01"
-                                    value={currentNote?.bitcrush ?? 0}
+                                    value={currentBitcrush ?? 0}
                                     onChange={(e) => onPropertyChange?.("bitcrush", parseFloat(e.target.value))}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
-                                    aria-valuetext={`${((currentNote?.bitcrush ?? 0) * 100).toFixed(0)} percent`}
+                                    aria-valuetext={`${((currentBitcrush ?? 0) * 100).toFixed(0)} percent`}
                                     aria-label="Bitcrush Amount"
                                 />
                             </div>
@@ -376,7 +380,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 <div className="flex justify-between items-center text-xs px-1">
                                     <span className="text-gray-400 font-medium tracking-wide">Downsample</span>
                                     <span className="text-indigo-400 font-mono bg-indigo-500/10 px-1.5 py-0.5 rounded shadow-inner border border-indigo-500/20">
-                                        {currentNote?.downsample ?? 1}x
+                                        {currentDownsample ?? 1}x
                                     </span>
                                 </div>
                                 <input
@@ -384,10 +388,10 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     min="1"
                                     max="32"
                                     step="1"
-                                    value={currentNote?.downsample ?? 1}
+                                    value={currentDownsample ?? 1}
                                     onChange={(e) => onPropertyChange?.("downsample", parseFloat(e.target.value))}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
-                                    aria-valuetext={`${currentNote?.downsample ?? 1} times downsampled`}
+                                    aria-valuetext={`${currentDownsample ?? 1} times downsampled`}
                                     aria-label="Downsample Factor"
                                 />
                             </div>
