@@ -438,3 +438,210 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
     expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// AutomationScheduler: PCF parameter automation
+// ---------------------------------------------------------------------------
+
+function makePcfEffect() {
+  return {
+    setAutomationCutoff: vi.fn(),
+    setAutomationResonance: vi.fn(),
+    setAutomationEnvAmount: vi.fn(),
+  };
+}
+
+describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    automationStore.clearAll?.();
+    resetLaneIdCounter();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('calls setAutomationCutoff on pcfEffect for a master pcfCutoff lane', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    scheduler.setPcfEffect(pcf as any);
+
+    const lane = makeLane({
+      target: 'master' as any,
+      parameter: 'pcfCutoff',
+      points: [{ step: 0, value: 0.5 }],
+    });
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledOnce();
+    // value 0.5 → midi 63.5 → Hz = 20 * 1000^(63.5/127) ≈ 632 Hz
+    const [hz] = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(hz).toBeGreaterThan(0);
+  });
+
+  it('calls setAutomationResonance on pcfEffect for a master pcfResonance lane', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    scheduler.setPcfEffect(pcf as any);
+
+    const lane = makeLane({
+      target: 'master' as any,
+      parameter: 'pcfResonance',
+      points: [{ step: 0, value: 1.0 }],
+    });
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+
+    expect(pcf.setAutomationResonance).toHaveBeenCalledWith(
+      expect.closeTo(127, 1)
+    );
+  });
+
+  it('calls setAutomationEnvAmount on pcfEffect for a master pcfEnvAmount lane', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    scheduler.setPcfEffect(pcf as any);
+
+    const lane = makeLane({
+      target: 'master' as any,
+      parameter: 'pcfEnvAmount',
+      points: [{ step: 0, value: 0.75 }],
+    });
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+
+    expect(pcf.setAutomationEnvAmount).toHaveBeenCalledWith(
+      expect.closeTo(0.75, 3)
+    );
+  });
+
+  it('does not call PCF methods when no pcfEffect is attached', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    // intentionally NOT calling setPcfEffect
+
+    const lane = makeLane({
+      target: 'master' as any,
+      parameter: 'pcfCutoff',
+      points: [{ step: 0, value: 0.5 }],
+    });
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+
+    expect(pcf.setAutomationCutoff).not.toHaveBeenCalled();
+  });
+});
+
+describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    automationStore.clearAll?.();
+    resetLaneIdCounter();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('routes pcfCutoff TRAK event (0x04) to setAutomationCutoff', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    scheduler.setPcfEffect(pcf as any);
+
+    // ctrl ID 0x04 = pcfCutoff
+    const events = [{ tick: 24, ctrlId: 0x04, value: 64 }];
+    scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
+    vi.runAllTimers();
+
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledOnce();
+    const [hz] = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(hz).toBeGreaterThan(0);
+  });
+
+  it('routes pcfResonance TRAK event (0x0A) to setAutomationResonance', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    scheduler.setPcfEffect(pcf as any);
+
+    // ctrl ID 0x0A = pcfResonance
+    const events = [{ tick: 12, ctrlId: 0x0A, value: 100 }];
+    scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
+    vi.runAllTimers();
+
+    expect(pcf.setAutomationResonance).toHaveBeenCalledOnce();
+    const [midi] = (pcf.setAutomationResonance as ReturnType<typeof vi.fn>).mock.calls[0];
+    // 100/127 * 127 ≈ 100
+    expect(midi).toBeCloseTo(100, 0);
+  });
+
+  it('routes pcfEnvAmount TRAK event (0x0B) to setAutomationEnvAmount', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    scheduler.setPcfEffect(pcf as any);
+
+    // ctrl ID 0x0B = pcfEnvAmount
+    const events = [{ tick: 6, ctrlId: 0x0B, value: 64 }];
+    scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
+    vi.runAllTimers();
+
+    expect(pcf.setAutomationEnvAmount).toHaveBeenCalledOnce();
+    const [norm] = (pcf.setAutomationEnvAmount as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(norm).toBeCloseTo(64 / 127, 3);
+  });
+
+  it('does not call PCF methods when pcfEffect is null', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    scheduler.setPcfEffect(null); // explicitly null
+
+    const events = [{ tick: 6, ctrlId: 0x04, value: 64 }];
+    scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
+    vi.runAllTimers();
+
+    expect(pcf.setAutomationCutoff).not.toHaveBeenCalled();
+  });
+
+  it('does not break 303 scheduling when PCF events are present alongside 303 events', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    scheduler.setPcfEffect(pcf as any);
+
+    const events = [
+      { tick: 6,  ctrlId: 0x02, value: 80 },  // tb303Acutoff
+      { tick: 12, ctrlId: 0x04, value: 64 },  // pcfCutoff
+    ];
+    scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
+    vi.runAllTimers();
+
+    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith(
+      'lead303', 'setCutoff', expect.any(Number), expect.any(Number)
+    );
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledOnce();
+  });
+});

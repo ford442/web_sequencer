@@ -31,7 +31,7 @@ const MAX_PATTERN_STEPS = 32;
  *  - { type: 'set-pattern', data: number[] }  (0-127 per step)
  *  - { type: 'set-transport', data: { playing, bpm, stepIndex } }
  *  - { type: 'set-enabled', data: boolean }
- *  - { type: 'set-automation', data: { stepIndex, cutoffHz } }
+ *  - { type: 'set-automation', data: { stepIndex, cutoffHz, resonanceMidi?, envAmountNorm? } }
  */
 class PcfProcessor extends AudioWorkletProcessor {
     // Filter state (Direct Form II Transposed)
@@ -79,8 +79,10 @@ class PcfProcessor extends AudioWorkletProcessor {
     // Enable/disable
     private enabled = true;
 
-    // Automation override (external cutoff value, bypasses pattern)
-    private automationCutoffHz = -1; // -1 means no automation override
+    // Automation overrides (external values, bypass pattern/params)
+    private automationCutoffHz = -1;      // -1 means no override (Hz)
+    private automationResonanceMidi = -1; // -1 means no override (0-127)
+    private automationEnvAmountNorm = -1; // -1 means no override (0-1)
 
     constructor() {
         super();
@@ -137,11 +139,24 @@ class PcfProcessor extends AudioWorkletProcessor {
                 break;
             }
             case 'set-automation': {
-                // External automation drives cutoff directly
+                // External automation drives cutoff, resonance, and envAmount directly.
+                // Each field is independently optional: passing -1 clears that override.
                 if (data && typeof data.cutoffHz === 'number') {
                     this.automationCutoffHz = data.cutoffHz;
+                } else if (data && !('cutoffHz' in data)) {
+                    // no change to cutoffHz
                 } else {
                     this.automationCutoffHz = -1;
+                }
+                if (data && typeof data.resonanceMidi === 'number') {
+                    this.automationResonanceMidi = Math.max(0, Math.min(127, data.resonanceMidi));
+                } else if (data && data.resonanceMidi === null) {
+                    this.automationResonanceMidi = -1;
+                }
+                if (data && typeof data.envAmountNorm === 'number') {
+                    this.automationEnvAmountNorm = Math.max(0, Math.min(1, data.envAmountNorm));
+                } else if (data && data.envAmountNorm === null) {
+                    this.automationEnvAmountNorm = -1;
                 }
                 break;
             }
@@ -195,8 +210,11 @@ class PcfProcessor extends AudioWorkletProcessor {
      */
     private triggerStep(): void {
         const stepValue = this.pattern[this.currentStep % this.patternLength] || 0;
-        // Envelope starts at pattern value scaled by envAmount
-        this.envelopeLevel = (stepValue / 127) * (this.envAmount / 127);
+        // Envelope amplitude: automation override takes priority over the base envAmount.
+        const envScale = this.automationEnvAmountNorm >= 0
+            ? this.automationEnvAmountNorm
+            : this.envAmount / 127;
+        this.envelopeLevel = (stepValue / 127) * envScale;
     }
 
     /**
@@ -305,7 +323,11 @@ class PcfProcessor extends AudioWorkletProcessor {
         this.currentCutoffHz += (targetHz - this.currentCutoffHz) * this.smoothingCoeff * blockSize;
         if (Math.abs(this.currentCutoffHz - this.targetCutoffHz) > 0.5) {
             this.targetCutoffHz = this.currentCutoffHz;
-            this.computeCoefficients(this.currentCutoffHz, this.resonance);
+            // Use automation resonance override when active, else the base resonance.
+            const resonanceForCoeffs = this.automationResonanceMidi >= 0
+                ? this.automationResonanceMidi
+                : this.resonance;
+            this.computeCoefficients(this.currentCutoffHz, resonanceForCoeffs);
         }
 
         // Apply biquad filter (Direct Form II Transposed)

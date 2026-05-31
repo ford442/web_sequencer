@@ -383,20 +383,23 @@ export const useStepHandler = ({
             // --- 303 / synth automation via AudioParam-aligned scheduler ---
             // The AutomationScheduler sends worklet messages timed to the AudioContext
             // clock, avoiding JS-callback jitter for continuous knob curves.
+            // Master-target PCF lanes are also routed through the scheduler so that
+            // TRAK-event precision is preserved for filter sweeps.
             if (automationSchedulerRef?.current) {
-                const synth303Lanes = activeLanes.filter(
+                const schedulerLanes = activeLanes.filter(
                     (l) => l.target === 'synthA' || l.target === 'synthB' || l.target === 'bass2'
+                        || l.target === 'master'
                 );
-                if (synth303Lanes.length > 0) {
+                if (schedulerLanes.length > 0) {
                     automationSchedulerRef.current.scheduleFromLanes(
-                        synth303Lanes,
+                        schedulerLanes,
                         step,
                         1,          // schedule one step ahead
                         stepTime,
                         now
                     );
                     // Collect live values from these lanes for UI indicators.
-                    for (const lane of synth303Lanes) {
+                    for (const lane of schedulerLanes) {
                         if (!lane.enabled) continue;
                         const normVal = automationStore.getValueAtStep(lane, step);
                         if (normVal === null) continue;
@@ -408,9 +411,10 @@ export const useStepHandler = ({
 
             activeLanes.forEach((lane) => {
                 if (!lane.enabled) return;
-                // Skip 303/synth lanes already handled by the scheduler above.
+                // Skip 303/synth/master lanes already handled by the scheduler above.
                 if (automationSchedulerRef?.current &&
-                    (lane.target === 'synthA' || lane.target === 'synthB' || lane.target === 'bass2')) {
+                    (lane.target === 'synthA' || lane.target === 'synthB' || lane.target === 'bass2'
+                        || lane.target === 'master')) {
                     return;
                 }
 
