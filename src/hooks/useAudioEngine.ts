@@ -348,7 +348,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     pcfEffectRef.current = pcf;
                     console.log('[useAudioEngine] PcfEffect Ready');
                 } catch (e) {
-                    console.warn('[useAudioEngine] PcfEffect failed to initialize; bypassing PCF', e);
+                    console.warn(
+                        '[useAudioEngine] PcfEffect failed to initialize; bypassing PCF.' +
+                        ' Possible causes: AudioWorklet registration failed (check CORS / module' +
+                        ' loading), or AudioContext was suspended at init time.',
+                        e
+                    );
                 }
                 // Connect 303 through PCF (if ready) or directly to master bus.
                 // open303ManagerRef is set here, after routing is fully established.

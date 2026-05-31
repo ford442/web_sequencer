@@ -109,6 +109,10 @@ function clamp01(v: number): number {
  * @param normMidi - Linear normalised value in [0, 1] (0 = lowest cutoff,
  *   1 = highest cutoff).
  * @returns Frequency in Hz.
+ * @example
+ * pcfMidiNormToHz(0)   // → 20 Hz   (lowest cutoff)
+ * pcfMidiNormToHz(0.5) // → ≈ 632 Hz (mid cutoff)
+ * pcfMidiNormToHz(1)   // → 20 000 Hz (highest cutoff)
  */
 function pcfMidiNormToHz(normMidi: number): number {
   return 20 * Math.pow(1000, normMidi);

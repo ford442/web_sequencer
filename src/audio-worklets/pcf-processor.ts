@@ -24,6 +24,24 @@ const PCF_FILTER_HP = 2;
 const MAX_PATTERN_STEPS = 32;
 
 /**
+ * Payload for the `set-automation` port message.
+ *
+ * Each field is independently optional; the presence/absence of a key
+ * controls whether the corresponding automation override is modified:
+ *  - `key present, value is number`  → activate/update that override
+ *  - `key present, value is null`    → clear (deactivate) that override
+ *  - `key absent`                    → leave the override unchanged
+ */
+interface PcfAutomationData {
+  /** Absolute cutoff frequency in Hz (overrides pattern-driven cutoff). */
+  cutoffHz?: number | null;
+  /** Resonance as a MIDI value 0–127 (overrides base resonance). */
+  resonanceMidi?: number | null;
+  /** Envelope amount as a normalised 0–1 value (overrides base envAmount). */
+  envAmountNorm?: number | null;
+}
+
+/**
  * PCF Processor - Pattern Controlled Filter
  *
  * Implements a biquad filter (LP/BP/HP) whose cutoff frequency is modulated
@@ -36,7 +54,7 @@ const MAX_PATTERN_STEPS = 32;
  *  - { type: 'set-pattern', data: number[] }  (0-127 per step)
  *  - { type: 'set-transport', data: { playing, bpm, stepIndex } }
  *  - { type: 'set-enabled', data: boolean }
- *  - { type: 'set-automation', data: { stepIndex, cutoffHz, resonanceMidi?, envAmountNorm? } }
+ *  - { type: 'set-automation', data: PcfAutomationData }
  */
 class PcfProcessor extends AudioWorkletProcessor {
     // Filter state (Direct Form II Transposed)
@@ -144,24 +162,22 @@ class PcfProcessor extends AudioWorkletProcessor {
                 break;
             }
             case 'set-automation': {
-                // External automation drives cutoff, resonance, and envAmount directly.
-                // Convention for every field: number → set override, null → clear override,
-                // absent (key not present) → leave unchanged.
-                if (!data) break;
-                if ('cutoffHz' in data) {
+                const automation = data as PcfAutomationData | null;
+                if (!automation) break;
+                if ('cutoffHz' in automation) {
                     this.automationCutoffHz =
-                        typeof data.cutoffHz === 'number' ? data.cutoffHz : -1;
+                        typeof automation.cutoffHz === 'number' ? automation.cutoffHz : -1;
                 }
-                if ('resonanceMidi' in data) {
+                if ('resonanceMidi' in automation) {
                     this.automationResonanceMidi =
-                        typeof data.resonanceMidi === 'number'
-                            ? clampMidi(data.resonanceMidi)
+                        typeof automation.resonanceMidi === 'number'
+                            ? clampMidi(automation.resonanceMidi)
                             : -1;
                 }
-                if ('envAmountNorm' in data) {
+                if ('envAmountNorm' in automation) {
                     this.automationEnvAmountNorm =
-                        typeof data.envAmountNorm === 'number'
-                            ? clamp01(data.envAmountNorm)
+                        typeof automation.envAmountNorm === 'number'
+                            ? clamp01(automation.envAmountNorm)
                             : -1;
                 }
                 break;
