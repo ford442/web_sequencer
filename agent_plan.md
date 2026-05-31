@@ -115,7 +115,6 @@
 ---
 
 * [x] **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
-* **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
 * [x] **Idea:** "Vocal Harmony Parallel Bus" - Implement a dedicated bus to process all harmony vocal tracks together (e.g., glue compression, joint EQ) independently from the main lead vocal track.
 * [x] **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
 * [x] **Idea:** "Harmony Panning & Routing Fix" - Fix the master saturation bypass for harmony voices that prevented proper panning. Ensure pan parameters add up and clamp correctly.
@@ -129,6 +128,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-07-15] - Implemented TTS Consonant Emphasis: Added `consonantEmphasis` parameter to `SamplerBankParams` and `Note` interface. Exposed in `SamplerPanel` and `NoteSelector`. Plumbed through `useAudioEngine` down to `SingingVoice` and `rubberband-processor.ts` to multiply gain dynamically for plosive and fricative phonemes. Fulfills the "TTS Consonant Emphasis" Innovation Lab idea.
 * [2026-07-08] - Implemented Per-Step Panning: Added `pan` to `Note` interface and Audio Engine parameter blocks. Exposed a Pan slider in `NoteSelector.tsx` and wired it into `ContextMenuNode.tsx`. Updated `useAppState.tsx` to handle note property overrides for 'pan'. Modified `audioPlayback.ts` and `useStepHandler.ts` to merge per-step panning overrides during playback orchestration (handling Synth, Bass2, Sampler, and Drum routes).
 * [2026-05-27] - Implemented Formant Glide: Added `slideFormant` parameter to `Note` interface and `NoteSelector` UI. Plumbed parameter through `useStepHandler` to track `lastSamplerFormantRef` and passed `slideFromFormant` down to `useAudioEngine`. Extended `SingingVoice` and `FormantShifter` to accept `setFormantGlide` scheduling via `linearRampToValueAtTime`. Fulfills the "Formant Glide" Innovation Lab idea.
 * [2026-07-08] - Implemented Harmony Panning & Routing Fix: Fixed an issue where the panner node was routed back to `masterSaturation` instead of its intended spectral final destination, bypassing the `isHarmonyVoice` logic. Updated harmony voice parameter calculation to correctly sum and clamp (-1 to 1) panning between base sample settings and harmony settings to allow true wide stereo spread. Fulfills the "Harmony Panning & Routing Fix" Innovation Lab idea.
@@ -211,3 +211,5 @@
 * [2026-07-01] - Implemented Microtonal Scale Mapping: Added `TuningSystem` types (12-TET, 24-TET, Just Intonation, Pythagorean, Bohlen-Pierce) to `musicTheory.ts` and `ScaleSelector`. Pushed tuning state through `NoteParams` down to `VoiceManager`, `synthPlayback`, `samplerPlayback` and Web Worker for correct tuning rendering offline.
 * [2026-05-08] - Implemented AI Auto-EQ Assistant: Added a `bassSidechainEQBus` (peaking filter at 250Hz) to `initializeMasterOutput`. Implemented `triggerBassEQDuck` to dynamically duck this EQ band on the master synth bus whenever a Bass note (303 or synth bass) triggers, preventing low-mid frequency masking and fulfilling the AI Auto-EQ Assistant Innovation Lab idea. Added new ideas: "Vocal Overdrive Worklet" and "Rhythmic Gating".
 * [2026-05-12] - Implemented Performance Fixes for CI and TS Types: Cleaned up mismatched properties between `SamplerBankParams` UI and internal type definitions (`coarseTune`, `fineTune`, `formantShift`, `quality`, `lockToSequencer`). Cleaned up custom sequencer optimization patch.
+
+* [x] **Idea:** "TTS Consonant Emphasis" - Allow scaling the volume or drive of unvoiced consonants separately from vowels to add punch to TTS syllables. (Implemented via `sliceGain` in `rubberband-processor.ts` and `currentConsonantEmphasis` in `SingingVoice.ts`, exposed in `SamplerPanel` and `NoteSelector`!)

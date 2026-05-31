@@ -137,6 +137,7 @@ export class SingingVoice {
     /** Envelope Baseline Tracker for Phoneme-Aware Velocity */
     private currentAttack: number = 0.05;
     private currentDecay: number = 0.1;
+    private currentConsonantEmphasis: number = 1.0;
 
     /** Phoneme aligner for Section 3 implementation */
     private phonemeAligner: PhonemeAligner | null = null;
@@ -603,13 +604,17 @@ export class SingingVoice {
         let scaledAttack = this.currentAttack;
         let scaledDecay = this.currentDecay;
 
+        let sliceGain = 1.0;
+
         switch (phoneme.category) {
             case 'plosive':
                 scaledAttack = Math.max(0.001, this.currentAttack * 0.1); // Extremely fast attack
                 scaledDecay = Math.max(0.001, this.currentDecay * 0.5);   // Faster decay
+                sliceGain = this.currentConsonantEmphasis;
                 break;
             case 'fricative':
                 scaledAttack = Math.max(0.001, this.currentAttack * 0.5); // Fast attack
+                sliceGain = this.currentConsonantEmphasis;
                 break;
             case 'liquid':
             case 'nasal':
@@ -626,6 +631,7 @@ export class SingingVoice {
         if (this.workletNode) {
             this.workletNode.parameters.get('attack')?.setValueAtTime(scaledAttack, this.audioContext.currentTime);
             this.workletNode.parameters.get('decay')?.setValueAtTime(scaledDecay, this.audioContext.currentTime);
+            this.workletNode.parameters.get('sliceGain')?.setValueAtTime(sliceGain, this.audioContext.currentTime);
         }
 
         this.setPitch(pitch);
@@ -1088,6 +1094,14 @@ export class SingingVoice {
         if (this.workletNode) {
             this.workletNode.parameters.get('grainEnvDepth')?.setValueAtTime(depth, time || this.audioContext.currentTime);
         }
+    }
+
+    /**
+     * Set the volume multiplier for consonant phonemes (plosives, fricatives).
+     * @param emphasis Multiplier (default 1.0)
+     */
+    setConsonantEmphasis(emphasis: number): void {
+        this.currentConsonantEmphasis = Math.max(0.5, Math.min(2.5, emphasis));
     }
 
     /**

@@ -946,6 +946,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
                             }
 
+                            if (noteParams?.consonantEmphasis !== undefined) {
+                                voice.setConsonantEmphasis(noteParams.consonantEmphasis);
+                            } else if (params.consonantEmphasis !== undefined) {
+                                voice.setConsonantEmphasis(params.consonantEmphasis);
+                            }
+
                             if (noteParams?.tranceGate !== undefined) {
                                 voice.setTranceGate(noteParams.tranceGate, triggerTime);
                             }

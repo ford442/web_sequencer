@@ -42,6 +42,7 @@ interface NoteSelectorProps {
     currentFreezeEnvDepth?: number;
     currentGrainEnvDepth?: number;
     currentGrainPitchQuantize?: number;
+    currentConsonantEmphasis?: number;
     currentTranceGate?: number;
     currentDelaySend?: number;
     currentChoir?: number;
@@ -64,6 +65,7 @@ interface NoteSelectorProps {
         | 'freezeEnvDepth'
         | 'grainEnvDepth'
         | 'grainPitchQuantize'
+        | 'consonantEmphasis'
         | 'tranceGate'
         | 'formantShift'
         | 'filterCutoff'
@@ -124,6 +126,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchQuantize = 0,
+    currentConsonantEmphasis = 1.0,
     currentChoir,
     currentTranceGate = 0, // from jules branch
 
@@ -350,6 +353,25 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     aria-label="Granular Pitch Quantization"
                                 />
                             </div>
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                    <label htmlFor="note-consonant-emphasis">Consonant Emp</label>
+                                    <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentConsonantEmphasis.toFixed(2)}x</span>
+                                </div>
+                                <input
+                                    id="note-consonant-emphasis"
+                                    type="range"
+                                    min="0.5"
+                                    max="2.5"
+                                    step="0.05"
+                                    value={currentConsonantEmphasis}
+                                    onChange={(e) => onPropertyChange?.("consonantEmphasis", parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                    aria-valuetext={`${currentConsonantEmphasis.toFixed(2)}x`}
+                                    aria-label="Consonant Emphasis"
+                                />
+                            </div>
+
 
                             <div className="flex flex-col gap-1">
                                 <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">

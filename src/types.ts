@@ -100,6 +100,7 @@ export interface SamplerBankParams {
   freezeEnvDepth?: number;
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
+  consonantEmphasis?: number;
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
@@ -222,6 +223,7 @@ export interface Note {
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
+  consonantEmphasis?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   vowel?: number;

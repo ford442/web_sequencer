@@ -201,7 +201,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'grainEnvDepth', 'grainPitchQuantize',
+            'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'grainEnvDepth', 'grainPitchQuantize', 'consonantEmphasis',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
             'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth'
         ] as const;
@@ -232,6 +232,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFreezeEnvDepthChange = paramHandlers.freezeEnvDepth;
     const handleGrainEnvDepthChange = paramHandlers.grainEnvDepth;
     const handleGrainPitchQuantizeChange = paramHandlers.grainPitchQuantize;
+    const handleConsonantEmphasisChange = paramHandlers.consonantEmphasis;
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
     const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
     const handleFormantLfoShapeChange = paramHandlers.formantLfoShape;
@@ -1087,6 +1088,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth || 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
+                            <Knob label="Consonant" value={currentParams.consonantEmphasis ?? 1.0} onChange={handleConsonantEmphasisChange} min={0.5} max={2.5} step={0.05} color="cyan" unit="x" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Reverb LFO Rate" value={currentParams.reverbLfoRate ?? 0.1} onChange={handleReverbLfoRateChange} min={0.1} max={10.0} step={0.1} color="indigo" unit="Hz" />

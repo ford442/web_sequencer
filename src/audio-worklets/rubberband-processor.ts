@@ -72,7 +72,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
-      { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'sliceGain', defaultValue: 1.0, minValue: 0.0, maxValue: 5.0 }
     ];
   }
 
@@ -458,6 +459,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           outputChannel[i] *= gateMultiplier;
         }
       }
+
+      const sliceGain = parameters.sliceGain ? parameters.sliceGain[0] : 1.0;
+      if (sliceGain !== 1.0) {
+        for (let i = 0; i < outputChannel.length; i++) {
+          outputChannel[i] *= sliceGain;
+        }
+      }
+
         // Check for completion when no output is available but we're still marked as playing
         if (this.isReverse) {
           if (this.currentSamplePtr < this.startSamplePtr) this.isPlaying = false;
