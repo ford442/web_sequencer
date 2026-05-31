@@ -69,6 +69,8 @@ interface NoteSelectorProps {
         | 'bitcrush'
         | 'downsample'
         | 'tranceGate'
+        | 'bitcrush'
+        | 'downsample'
         | 'formantShift'
         | 'filterCutoff'
         | 'filterResonance'
