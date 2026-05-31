@@ -478,10 +478,10 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
     vi.runAllTimers();
 
-    expect(pcf.setAutomationCutoff).toHaveBeenCalledOnce();
-    // value 0.5 → midi 63.5 → Hz = 20 * 1000^(63.5/127) ≈ 632 Hz
-    const [hz] = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(hz).toBeGreaterThan(0);
+    // value 0.5 → pcfMidiNormToHz(0.5) = 20 * 1000^0.5 ≈ 632 Hz
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number));
+    const actualHz = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0][0] as number;
+    expect(actualHz).toBeCloseTo(20 * Math.pow(1000, 0.5), 1); // ≈ 632 Hz
   });
 
   it('calls setAutomationResonance on pcfEffect for a master pcfResonance lane', () => {
@@ -571,9 +571,10 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
     vi.runAllTimers();
 
-    expect(pcf.setAutomationCutoff).toHaveBeenCalledOnce();
-    const [hz] = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(hz).toBeGreaterThan(0);
+    // ctrl=0x04 value=64 → norm=64/127 → pcfMidiNormToHz(64/127) ≈ 635 Hz
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number));
+    const actualHz = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0][0] as number;
+    expect(actualHz).toBeCloseTo(20 * Math.pow(1000, 64 / 127), 1);
   });
 
   it('routes pcfResonance TRAK event (0x0A) to setAutomationResonance', () => {
@@ -588,10 +589,8 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
     vi.runAllTimers();
 
-    expect(pcf.setAutomationResonance).toHaveBeenCalledOnce();
-    const [midi] = (pcf.setAutomationResonance as ReturnType<typeof vi.fn>).mock.calls[0];
-    // 100/127 * 127 ≈ 100
-    expect(midi).toBeCloseTo(100, 0);
+    // 100/127 normalised → 100/127 * 127 = 100
+    expect(pcf.setAutomationResonance).toHaveBeenCalledWith(expect.closeTo(100, 0));
   });
 
   it('routes pcfEnvAmount TRAK event (0x0B) to setAutomationEnvAmount', () => {
@@ -606,9 +605,7 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
     vi.runAllTimers();
 
-    expect(pcf.setAutomationEnvAmount).toHaveBeenCalledOnce();
-    const [norm] = (pcf.setAutomationEnvAmount as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(norm).toBeCloseTo(64 / 127, 3);
+    expect(pcf.setAutomationEnvAmount).toHaveBeenCalledWith(expect.closeTo(64 / 127, 3));
   });
 
   it('does not call PCF methods when pcfEffect is null', () => {

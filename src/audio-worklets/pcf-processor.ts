@@ -10,6 +10,11 @@ declare class AudioWorkletProcessor {
 declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
 declare const sampleRate: number;
 
+/** Clamp a value to the [0, 1] range. */
+function clamp01(v: number): number { return v < 0 ? 0 : v > 1 ? 1 : v; }
+/** Clamp a value to the [0, 127] MIDI range. */
+function clampMidi(v: number): number { return v < 0 ? 0 : v > 127 ? 127 : v; }
+
 /** Filter types matching ReBirth PCF */
 const PCF_FILTER_LP = 0;
 const PCF_FILTER_BP = 1;
@@ -99,11 +104,11 @@ class PcfProcessor extends AudioWorkletProcessor {
         switch (type) {
             case 'set-params': {
                 if (data.filterType !== undefined) this.filterType = data.filterType;
-                if (data.cutoff !== undefined) this.baseCutoff = Math.max(0, Math.min(127, data.cutoff));
-                if (data.resonance !== undefined) this.resonance = Math.max(0, Math.min(127, data.resonance));
-                if (data.envAmount !== undefined) this.envAmount = Math.max(0, Math.min(127, data.envAmount));
+                if (data.cutoff !== undefined) this.baseCutoff = clampMidi(data.cutoff);
+                if (data.resonance !== undefined) this.resonance = clampMidi(data.resonance);
+                if (data.envAmount !== undefined) this.envAmount = clampMidi(data.envAmount);
                 if (data.decay !== undefined) {
-                    this.decay = Math.max(0, Math.min(127, data.decay));
+                    this.decay = clampMidi(data.decay);
                     this.updateEnvelopeDecayRate();
                 }
                 break;
@@ -111,7 +116,7 @@ class PcfProcessor extends AudioWorkletProcessor {
             case 'set-pattern': {
                 if (Array.isArray(data)) {
                     this.pattern = data.slice(0, MAX_PATTERN_STEPS).map(
-                        (v: number) => Math.max(0, Math.min(127, v))
+                        (v: number) => clampMidi(v)
                     );
                     this.patternLength = this.pattern.length;
                 }
@@ -140,23 +145,24 @@ class PcfProcessor extends AudioWorkletProcessor {
             }
             case 'set-automation': {
                 // External automation drives cutoff, resonance, and envAmount directly.
-                // Each field is independently optional: passing -1 clears that override.
-                if (data && typeof data.cutoffHz === 'number') {
-                    this.automationCutoffHz = data.cutoffHz;
-                } else if (data && !('cutoffHz' in data)) {
-                    // no change to cutoffHz
-                } else {
-                    this.automationCutoffHz = -1;
+                // Convention for every field: number → set override, null → clear override,
+                // absent (key not present) → leave unchanged.
+                if (!data) break;
+                if ('cutoffHz' in data) {
+                    this.automationCutoffHz =
+                        typeof data.cutoffHz === 'number' ? data.cutoffHz : -1;
                 }
-                if (data && typeof data.resonanceMidi === 'number') {
-                    this.automationResonanceMidi = Math.max(0, Math.min(127, data.resonanceMidi));
-                } else if (data && data.resonanceMidi === null) {
-                    this.automationResonanceMidi = -1;
+                if ('resonanceMidi' in data) {
+                    this.automationResonanceMidi =
+                        typeof data.resonanceMidi === 'number'
+                            ? clampMidi(data.resonanceMidi)
+                            : -1;
                 }
-                if (data && typeof data.envAmountNorm === 'number') {
-                    this.automationEnvAmountNorm = Math.max(0, Math.min(1, data.envAmountNorm));
-                } else if (data && data.envAmountNorm === null) {
-                    this.automationEnvAmountNorm = -1;
+                if ('envAmountNorm' in data) {
+                    this.automationEnvAmountNorm =
+                        typeof data.envAmountNorm === 'number'
+                            ? clamp01(data.envAmountNorm)
+                            : -1;
                 }
                 break;
             }

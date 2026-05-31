@@ -323,11 +323,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     forceSingleThreaded: true
                 });
                 
-                if (open303Ready) {
-                    open303ManagerRef.current = open303Manager;
-                    console.log('[useAudioEngine] Open303Manager Ready');
-                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
-                } else {
+                if (!open303Ready) {
                     console.warn('[useAudioEngine] Open303Manager failed to initialize');
                     try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
                 }
@@ -355,6 +351,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     console.warn('[useAudioEngine] PcfEffect failed to initialize; bypassing PCF', e);
                 }
                 // Connect 303 through PCF (if ready) or directly to master bus.
+                // open303ManagerRef is set here, after routing is fully established.
                 if (open303Ready) {
                     if (pcfReady) {
                         open303Manager.connect(pcf.input);
@@ -362,6 +359,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     } else {
                         open303Manager.connect(masterBusInput);
                     }
+                    open303ManagerRef.current = open303Manager;
+                    console.log('[useAudioEngine] Open303Manager Ready');
+                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
                 }
             }
 

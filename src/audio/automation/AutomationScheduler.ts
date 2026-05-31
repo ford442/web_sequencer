@@ -97,6 +97,24 @@ function clamp01(v: number): number {
 }
 
 /**
+ * Convert a normalised MIDI value to Hz using an exponential curve that
+ * spans the human-audible range: `normMidi = 0` → 20 Hz, `normMidi = 1`
+ * → 20 000 Hz.  The formula is `20 × 1000^normMidi`.
+ *
+ * This mirrors the identical `midiToHz` implementation inside the PCF
+ * AudioWorklet.  AudioWorklet scope is isolated (no shared imports), so the
+ * formula must exist in both places; this named helper avoids scattering
+ * the magic constants across multiple call-sites in the scheduler.
+ *
+ * @param normMidi - Linear normalised value in [0, 1] (0 = lowest cutoff,
+ *   1 = highest cutoff).
+ * @returns Frequency in Hz.
+ */
+function pcfMidiNormToHz(normMidi: number): number {
+  return 20 * Math.pow(1000, normMidi);
+}
+
+/**
  * Called once per bar/song-measure when song mode is active so the app can
  * advance to the next pattern slot.
  */
@@ -104,6 +122,13 @@ export type SongAdvanceFn = (nextMeasureIndex: number) => void;
 
 export class AutomationScheduler {
   private readonly ctx: AudioContext;
+  /**
+   * Reference to the Open303Manager used for 303 parameter scheduling.
+   * May be `null` at construction time (the manager is created
+   * asynchronously after the scheduler) and updated via
+   * {@link setOpen303Manager}.  All switch-case branches that touch this
+   * field guard against `null` before use.
+   */
   private open303Manager: Open303Manager | null;
   private pcfEffect: PcfEffect | null = null;
 
@@ -384,16 +409,12 @@ export class AutomationScheduler {
   private _applyPcfParam(pcf: PcfEffect, parameter: string, value: number): void {
     const v = clamp01(value);
     switch (parameter) {
-      case 'pcfCutoff': {
-        // Convert normalised 0-1 to Hz using the same exponential mapping as the
-        // PCF worklet's midiToHz function (0→20 Hz, 127→20 000 Hz).
-        const midi = v * 127;
-        const cutoffHz = 20 * Math.pow(1000, midi / 127);
-        pcf.setAutomationCutoff(cutoffHz);
+      case 'pcfCutoff':
+        // Convert normalised 0-1 to Hz using the helper that mirrors the worklet.
+        pcf.setAutomationCutoff(pcfMidiNormToHz(v));
         break;
-      }
       case 'pcfResonance':
-        // 0-1 → 0-127 MIDI range.
+        // 0-1 normalised → 0-127 MIDI range.
         pcf.setAutomationResonance(v * 127);
         break;
       case 'pcfEnvAmount':
