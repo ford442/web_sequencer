@@ -1,5 +1,6 @@
 import React, { memo, useRef, useEffect, useCallback } from 'react';
 import { KnobGPUContext, type SlotHandle } from './KnobGPUContext';
+import { KNOB_MATERIAL, rgbToHex, wgslAngleToCanvas } from './knobMaterial';
 
 export interface KnobConfig {
     id: string;
@@ -181,8 +182,8 @@ const KnobOverlay = memo(({
 /**
  * Renders a single knob using the Canvas 2D API.
  * Called when WebGPU is unavailable so knobs remain visible.
- * Visual contract: dark background, cyan outer ring, cyan-to-teal arc,
- * white needle. Approximates the shared WGSL holographic look.
+ * Every color, geometry, and bloom value is read from KNOB_MATERIAL so
+ * this path cannot drift from the WGSL shader path.
  */
 function renderWith2D(canvas: HTMLCanvasElement, value: number): void {
     const ctx = canvas.getContext('2d');
@@ -202,33 +203,36 @@ function renderWith2D(canvas: HTMLCanvasElement, value: number): void {
     const h = rect.height;
     const cx = w / 2;
     const cy = h / 2;
-    const radius = Math.min(w, h) / 2 * 0.9;
+    const bodyRadius = Math.min(w, h) / 2;
 
     // Background
-    ctx.fillStyle = '#0d0f13';
+    ctx.fillStyle = rgbToHex(KNOB_MATERIAL.palette.background);
     ctx.fillRect(0, 0, w, h);
 
-    // Outer ring at ~55% radius
+    const outerRingRadius = bodyRadius * KNOB_MATERIAL.geometry.outerRingRadius;
+    const arcRadius = bodyRadius * KNOB_MATERIAL.geometry.arcRadius;
+    const needleLength = bodyRadius * KNOB_MATERIAL.geometry.needleLength;
+
+    // Outer ring
     ctx.beginPath();
-    ctx.arc(cx, cy, radius * 0.55, 0, Math.PI * 2);
-    ctx.strokeStyle = '#00e5ff';
+    ctx.arc(cx, cy, outerRingRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = rgbToHex(KNOB_MATERIAL.palette.ring);
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Value arc (270° sweep) with cyan-to-teal gradient
-    const startAngle = -0.75 * Math.PI;
-    const endAngle = startAngle + value * 1.5 * Math.PI;
-    const arcRadius = radius * 0.75;
+    // Value arc (270° sweep) with arcMin→arcMax gradient
+    const sweepStart = wgslAngleToCanvas(KNOB_MATERIAL.geometry.sweepStartAngle);
+    const endAngle = sweepStart + value * KNOB_MATERIAL.geometry.sweepTotal;
     const grad = ctx.createLinearGradient(
-        cx + Math.cos(startAngle) * arcRadius,
-        cy + Math.sin(startAngle) * arcRadius,
+        cx + Math.cos(sweepStart) * arcRadius,
+        cy + Math.sin(sweepStart) * arcRadius,
         cx + Math.cos(endAngle) * arcRadius,
         cy + Math.sin(endAngle) * arcRadius
     );
-    grad.addColorStop(0, '#00e5ff');
-    grad.addColorStop(1, '#00897b');
+    grad.addColorStop(0, rgbToHex(KNOB_MATERIAL.palette.arcMin));
+    grad.addColorStop(1, rgbToHex(KNOB_MATERIAL.palette.arcMax));
     ctx.beginPath();
-    ctx.arc(cx, cy, arcRadius, startAngle, endAngle);
+    ctx.arc(cx, cy, arcRadius, sweepStart, endAngle);
     ctx.strokeStyle = grad;
     ctx.lineWidth = 3;
     ctx.stroke();
@@ -237,10 +241,10 @@ function renderWith2D(canvas: HTMLCanvasElement, value: number): void {
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(
-        cx + Math.cos(endAngle) * radius * 0.55,
-        cy + Math.sin(endAngle) * radius * 0.55
+        cx + Math.cos(endAngle) * needleLength,
+        cy + Math.sin(endAngle) * needleLength
     );
-    ctx.strokeStyle = '#ffffff';
+    ctx.strokeStyle = rgbToHex(KNOB_MATERIAL.palette.needle);
     ctx.lineWidth = 2;
     ctx.stroke();
 

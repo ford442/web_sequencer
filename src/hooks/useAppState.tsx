@@ -21,6 +21,7 @@ import { type HarmonizerConfig } from '../engines/Harmonizer'
 import { WaveformSelector } from '../components/WaveformSelector'
 import { Engine303Selector } from '../components/Engine303Selector'
 import { ProphecyPanel } from '../components/ProphecyPanel'
+import { OscillatorTypeSelector } from '../components/OscillatorTypeSelector'
 import { SamplerPanel } from '../components/SamplerPanel'
 import { engineTelemetry } from '../utils/engineTelemetry'
 
@@ -38,7 +39,8 @@ import {
     DEFAULT_SAMPLER_BANK_PARAMS,
     getKitDrumParams,
 } from '../constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType, AutomationTarget, ResolvedTrakEvent } from '../types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType, AutomationTarget, ResolvedTrakEvent, OscillatorType } from '../types'
+import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses, OSCILLATOR_THEMES } from '../types'
 import {
     INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
@@ -1545,14 +1547,40 @@ const handleLyricApply = useCallback(async (text: string) => {
         const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
         const isProphecy = synthA.waveform?.startsWith('prophecy-') ?? false;
         const engine = synthA.engine303 ?? 'open303';
+        const currentTypeA: OscillatorType = waveformToOscillatorType(synthA.waveform, synthA.engine303);
+        const panelClassesA = getOscillatorPanelClasses(currentTypeA);
+
         const handleSynthAEngineChange = (e: 'open303' | 'jc303') => {
             updateSynthA({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(e);
             engineTelemetry.registerResolution('synthA-engine303', e, 'user-initiated');
         };
+
+        const handleSynthATypeChange = (newType: OscillatorType) => {
+            const nextWave = getDefaultWaveformForType(newType);
+            const nextEngine = (newType === 'jc303') ? 'jc303' : (newType === 'open303' ? 'open303' : undefined);
+            const update: any = { waveform: nextWave };
+            if (nextEngine) update.engine303 = nextEngine;
+            updateSynthA(update);
+            // If switching to/from 303 family, notify the audio manager
+            if (newType === 'open303' || newType === 'jc303') {
+                const mgr = audioEngine?.open303Engine;
+                if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(nextEngine ?? 'open303');
+            }
+            engineTelemetry.registerResolution('synthA-oscType', newType, 'user-initiated');
+        };
+
         return (
-            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
+            <div className={`absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesA}`}>
+                {/* New Oscillator Type selector (themed) — primary control per the refactor plan */}
+                <OscillatorTypeSelector
+                    type={currentTypeA}
+                    onChange={handleSynthATypeChange}
+                    accentColor="cyan"
+                    compact
+                />
+                {/* Keep existing detailed waveform selector for now (can be collapsed or moved inside type in phase 2) */}
                 <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
@@ -1575,14 +1603,37 @@ const handleLyricApply = useCallback(async (text: string) => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
         const isProphecy = synthB.waveform?.startsWith('prophecy-') ?? false;
         const engine = synthB.engine303 ?? 'open303';
+        const currentTypeB: OscillatorType = waveformToOscillatorType(synthB.waveform, synthB.engine303);
+        const panelClassesB = getOscillatorPanelClasses(currentTypeB);
+
         const handleSynthBEngineChange = (e: 'open303' | 'jc303') => {
             updateSynthB({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(e);
             engineTelemetry.registerResolution('synthB-engine303', e, 'user-initiated');
         };
+
+        const handleSynthBTypeChange = (newType: OscillatorType) => {
+            const nextWave = getDefaultWaveformForType(newType);
+            const nextEngine = (newType === 'jc303') ? 'jc303' : (newType === 'open303' ? 'open303' : undefined);
+            const update: any = { waveform: nextWave };
+            if (nextEngine) update.engine303 = nextEngine;
+            updateSynthB(update);
+            if (newType === 'open303' || newType === 'jc303') {
+                const mgr = audioEngine?.open303Engine;
+                if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(nextEngine ?? 'open303');
+            }
+            engineTelemetry.registerResolution('synthB-oscType', newType, 'user-initiated');
+        };
+
         return (
-            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
+            <div className={`absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesB}`}>
+                <OscillatorTypeSelector
+                    type={currentTypeB}
+                    onChange={handleSynthBTypeChange}
+                    accentColor="pink"
+                    compact
+                />
                 <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
