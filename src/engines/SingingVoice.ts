@@ -1175,6 +1175,28 @@ export class SingingVoice {
         }
     }
 
+    /**
+     * Set bitcrush amount.
+     * @param amount Bitcrush amount (0-1)
+     * @param time Optional time to apply the change
+     */
+    setBitcrush(amount: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('bitcrush')?.setValueAtTime(amount, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set downsample factor.
+     * @param factor Downsample factor (1-32)
+     * @param time Optional time to apply the change
+     */
+    setDownsample(factor: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('downsample')?.setValueAtTime(factor, time || this.audioContext.currentTime);
+        }
+    }
+
     // === SAMPLER VOICE PARAMETER METHODS ===
 
     /**
