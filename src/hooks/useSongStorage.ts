@@ -380,19 +380,18 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             try {
                 const { CloudStorage } = await import('../services/CloudStorage');
                 const cloud = CloudStorage;
-                if (cloud.isAvailable()) {
-                    await cloud.save('song', {
-                        name: aiData.meta.title,
-                        data: song,
-                        metadata: {
-                            title: aiData.meta.title,
-                            author: aiData.meta.author,
-                            generator: aiData.meta.generator,
-                            importedAt: new Date().toISOString(),
-                        },
-                    });
-                    setAiImportProgress(80);
-                }
+                await cloud.uploadItem({
+                    name: aiData.meta.title,
+                    data: song,
+                    type: 'song',
+                    metadata: {
+                        title: aiData.meta.title,
+                        author: aiData.meta.author,
+                        generator: aiData.meta.generator,
+                        importedAt: new Date().toISOString(),
+                    },
+                });
+                setAiImportProgress(80);
             } catch (cloudError) {
                 // Cloud upload failed but we'll continue with local import
                 console.warn('Cloud upload failed:', cloudError);

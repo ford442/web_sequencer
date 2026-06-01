@@ -78,6 +78,7 @@ interface NoteSelectorProps {
         | 'vibratoDepth'
         | 'gateDepth'
         | 'gateRate'
+        | 'pan'
         | 'drive'
         | 'characterMorph'
         | 'reverbSend'
