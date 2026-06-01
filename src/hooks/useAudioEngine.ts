@@ -975,6 +975,18 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             } else if (params.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
                             }
+                            if (noteParams?.bitcrush !== undefined) {
+                                voice.setBitcrush(noteParams.bitcrush, triggerTime);
+                            } else if (params.bitcrush !== undefined) {
+                                voice.setBitcrush(params.bitcrush, triggerTime);
+                            }
+
+                            if (noteParams?.downsample !== undefined) {
+                                voice.setDownsample(noteParams.downsample, triggerTime);
+                            } else if (params.downsample !== undefined) {
+                                voice.setDownsample(params.downsample, triggerTime);
+                            }
+
 
                             if (noteParams?.tranceGate !== undefined) {
                                 voice.setTranceGate(noteParams.tranceGate, triggerTime);

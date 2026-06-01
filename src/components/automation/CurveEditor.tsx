@@ -246,9 +246,32 @@ export const CurveEditor = memo(({
         return (
           <g
             key={idx}
-            className="curve-point"
+            className="curve-point outline-none focus:stroke-cyan-200 focus:stroke-[2px]"
             onMouseDown={(e) => handleMouseDown(e, idx)}
             style={{ cursor: readOnly ? 'default' : 'grab' }}
+            tabIndex={readOnly ? -1 : 0}
+            role="button"
+            aria-label={`Automation point ${idx + 1}, step ${point.step.toFixed(2)}, value ${point.value.toFixed(2)}`}
+            onKeyDown={(e) => {
+              if (readOnly) return;
+              if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                const newPoints = lane.points.filter((_, i) => i !== idx);
+                automationStore.updateLanePoints(lane.id, newPoints);
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const newPoints = [...lane.points]; newPoints[idx] = { ...point, value: Math.min(1, point.value + 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
+              } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const newPoints = [...lane.points]; newPoints[idx] = { ...point, value: Math.max(0, point.value - 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
+              } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const newPoints = [...lane.points]; newPoints[idx] = { ...point, step: Math.max(0, point.step - 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
+              } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                const newPoints = [...lane.points]; newPoints[idx] = { ...point, step: Math.min(totalSteps || 16, point.step + 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
+              }
+            }}
           >
             {/* Point circle */}
             <circle
