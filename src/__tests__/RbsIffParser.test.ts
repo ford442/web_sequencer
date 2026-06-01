@@ -19,7 +19,7 @@ function buildSyntheticIffFile(options: {
   loopStart?: number;
   loopEnd?: number;
   trakEvents?: Array<{ delta: number; ctrl: number; value: number }>;
-} = {}): Uint8Array {
+} = {}): Uint8Array<ArrayBuffer> {
   const {
     playMode = 1,
     tempo = 1350, // 135.0 BPM × 10
