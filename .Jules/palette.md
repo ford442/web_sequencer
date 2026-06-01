@@ -24,3 +24,6 @@
 ## 2024-05-28 - Icon-Only Button ARIA Labels
 **Learning:** Initial grep searches for missing `aria-label` attributes on `<button>` elements with `title` attributes were misleading due to JSX formatting (attributes spread across multiple lines). A thorough manual inspection confirmed that core components (PhonemePainter, VoiceEditor, LiveKeyboard, NoteSelector, BottomBar) already have robust `aria-label` implementations for their icon-only buttons.
 **Action:** Always verify regex/grep results with manual file inspection when analyzing JSX for accessibility attributes. Avoid redundant work on this specific pattern in these components.
+## 2024-05-31 - Interactive SVG Element Accessibility
+**Learning:** Data visualization components (like automation curves) often render interactive points as basic SVG `<circle>` or `<g>` tags relying solely on pointer events (`onMouseDown`). This completely excludes keyboard users from interacting with the data.
+**Action:** When rendering interactive nodes inside SVGs, always add `tabIndex={0}`, `role="button"`, an informative `aria-label`, visible focus styling (e.g., `outline-none focus:stroke-cyan-200 focus:stroke-[2px]`), and an explicit `onKeyDown` handler that replicates the pointer drag functionality (using Arrow keys) and deletion (using Delete/Backspace).
