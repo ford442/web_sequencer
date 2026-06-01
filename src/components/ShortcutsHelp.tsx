@@ -85,7 +85,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = React.memo(({ onClose
                 </div>
 
                 {/* Content */}
-                <div id="shortcuts-desc" className="p-6 overflow-y-auto custom-scrollbar" aria-label="List of available keyboard shortcuts grouped by section">
+                <div id="shortcuts-desc" className="p-6 overflow-y-auto custom-scrollbar" role="region" aria-label="List of available keyboard shortcuts grouped by section">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {sections.map((section) => (
                             <div key={section.title} className="bg-gray-800/20 rounded-lg p-4 border border-gray-800">
