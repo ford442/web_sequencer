@@ -74,6 +74,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
       { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
@@ -301,6 +302,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (this.phonemeData && this.phonemeRatios) {
           ratio = this.getPhonemeStretchRatio(this.currentSamplePtr);
         }
+
+        // Apply Time-Stretch Envelope modulation
+        const timeStretchEnvDepth = parameters.timeStretchEnvDepth ? parameters.timeStretchEnvDepth[0] : 0.0;
+        const timeModulation = timeStretchEnvDepth * envelopeValue * 3.0; // scale factor
+        ratio = Math.max(0.1, Math.min(4.0, ratio + timeModulation));
+
         this.rubberBand.setTimeRatio(ratio);
 
         const samplesRequired = this.rubberBand.getSamplesRequired();
