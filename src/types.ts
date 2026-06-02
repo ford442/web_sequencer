@@ -300,6 +300,22 @@ export function getDefaultWaveformForType(type: OscillatorType): Waveform {
   }
 }
 
+/** Return the concrete Waveform choices available for a given high-level OscillatorType (used by per-type variant picker). */
+export function getWaveformsForType(type: OscillatorType): Waveform[] {
+  switch (type) {
+    case 'javascript': return ['sawtooth', 'square', 'triangle', 'sine'];
+    case 'pcm': return ['wav-saw', 'wav-sqr'];
+    case 'open303':
+    case 'jc303': return ['303-saw', '303-sqr'];
+    case 'prophecy': return ['prophecy-saw', 'prophecy-sqr', 'prophecy-tri', 'prophecy-pulse'];
+    case 'pyodide': return ['pyodide-saw', 'pyodide-square', 'pyodide-sine'];
+    case 'rust': return ['rust-saw', 'rust-sqr'];
+    case 'webgpu': return ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'];
+    case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
+    default: return ['sawtooth'];
+  }
+}
+
 export interface Bass2Params {
   waveform: '303-saw' | '303-sqr';
   cutoff: number;

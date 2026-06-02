@@ -18,10 +18,10 @@ import { copySteps, pasteSteps } from '../utils/clipboardUtils'
 import type { MainSequencerHandle } from '../components/MainSequencer'
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner'
 import { type HarmonizerConfig } from '../engines/Harmonizer'
-import { WaveformSelector } from '../components/WaveformSelector'
 import { Engine303Selector } from '../components/Engine303Selector'
 import { ProphecyPanel } from '../components/ProphecyPanel'
 import { OscillatorTypeSelector } from '../components/OscillatorTypeSelector'
+import { OscillatorVariantSelector } from '../components/OscillatorVariantSelector'
 import { SamplerPanel } from '../components/SamplerPanel'
 import { engineTelemetry } from '../utils/engineTelemetry'
 
@@ -1580,8 +1580,14 @@ const handleLyricApply = useCallback(async (text: string) => {
                     accentColor="cyan"
                     compact
                 />
-                {/* Keep existing detailed waveform selector for now (can be collapsed or moved inside type in phase 2) */}
-                <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
+                {/* Per-type waveform variant selector (Phase 2): replaces the full legacy WaveformSelector popup.
+                    Only offers shapes that belong to the chosen oscillator family; keeps the panel theme stable. */}
+                <OscillatorVariantSelector
+                    type={currentTypeA}
+                    selected={synthA.waveform}
+                    onChange={(w) => updateSynthA({ waveform: w })}
+                    accentColor="cyan"
+                />
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
                 )}
@@ -1634,7 +1640,13 @@ const handleLyricApply = useCallback(async (text: string) => {
                     accentColor="pink"
                     compact
                 />
-                <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
+                {/* Per-type waveform variant selector (Phase 2) */}
+                <OscillatorVariantSelector
+                    type={currentTypeB}
+                    selected={synthB.waveform}
+                    onChange={(w) => updateSynthB({ waveform: w })}
+                    accentColor="pink"
+                />
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
                 )}
@@ -1660,30 +1672,18 @@ const handleLyricApply = useCallback(async (text: string) => {
             if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(e);
             engineTelemetry.registerResolution('bass2-engine303', e, 'user-initiated');
         };
+        const bass2Type: OscillatorType = engine === 'jc303' ? 'jc303' : 'open303';
         return (
         <div className="absolute top-4 right-6 pointer-events-auto">
             <div className="flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
-                <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center">Waveform</span>
-                <button 
-                    onClick={() => updateBass2({ waveform: '303-saw' })} 
-                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                        bass2.waveform === '303-saw' 
-                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]' 
-                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    }`}
-                >
-                    SAW
-                </button>
-                <button 
-                    onClick={() => updateBass2({ waveform: '303-sqr' })} 
-                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                        bass2.waveform === '303-sqr' 
-                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]' 
-                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    }`}
-                >
-                    SQR
-                </button>
+                {/* Use the shared per-type variant picker (303 family only) for consistency with synth panels.
+                    Active styling will be emerald/teal per engine family. */}
+                <OscillatorVariantSelector
+                    type={bass2Type}
+                    selected={bass2.waveform}
+                    onChange={(w) => updateBass2({ waveform: w as '303-saw' | '303-sqr' })}
+                    accentColor="pink"
+                />
                 <Engine303Selector engine={engine} onChange={handleBass2EngineChange} accentColor="pink" />
             </div>
         </div>
