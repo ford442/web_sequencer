@@ -98,6 +98,7 @@ export interface SamplerBankParams {
   freezeLfoSync?: boolean;
   freezeLfoDepth?: number;
   freezeEnvDepth?: number;
+  timeStretchEnvDepth?: number;
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
   formantLfoSync?: boolean;
@@ -105,6 +106,7 @@ export interface SamplerBankParams {
   formantLfoDepth?: number;
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
+  timeStretchEnvDepth?: number;
   bitcrush?: number;
   downsample?: number;
   delayLfoRate?: number;
