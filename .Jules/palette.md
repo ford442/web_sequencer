@@ -28,3 +28,6 @@
 ## 2024-05-31 - Interactive SVG Element Accessibility
 **Learning:** Data visualization components (like automation curves) often render interactive points as basic SVG `<circle>` or `<g>` tags relying solely on pointer events (`onMouseDown`). This completely excludes keyboard users from interacting with the data.
 **Action:** When rendering interactive nodes inside SVGs, always add `tabIndex={0}`, `role="button"`, an informative `aria-label`, visible focus styling (e.g., `outline-none focus:stroke-cyan-200 focus:stroke-[2px]`), and an explicit `onKeyDown` handler that replicates the pointer drag functionality (using Arrow keys) and deletion (using Delete/Backspace).
+## 2026-05-26 - Engine303Selector Keyboard Navigation and Screen Reader Labels
+**Learning:** The Engine303Selector's engine toggle buttons only relied on plain text labels without explicit screen reader context, and lacked focus-visible states for keyboard navigation, making them difficult to use for non-mouse users.
+**Action:** Added `focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2` to make keyboard focus visible, and explicit `aria-label`s ("Select Custom Open303 engine", "Select Authentic JC303 engine") to provide screen readers with better context on what the buttons do.
