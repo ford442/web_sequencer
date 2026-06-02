@@ -106,7 +106,6 @@ export interface SamplerBankParams {
   formantLfoDepth?: number;
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
-  timeStretchEnvDepth?: number;
   bitcrush?: number;
   downsample?: number;
   delayLfoRate?: number;
