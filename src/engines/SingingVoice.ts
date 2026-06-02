@@ -496,7 +496,7 @@ export class SingingVoice {
 
         this.workletNode.port.postMessage({
             type: 'loadBuffer',
-            data: { buffer: audio.buffer.slice(0) } // Copy buffer
+            data: { buffer: audio.buffer } // Let structured clone handle it natively
         });
     }
 
