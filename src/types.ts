@@ -421,6 +421,8 @@ export interface Pattern {
 
 export interface AudioEngine {
   context: AudioContext;
+  /** Passive monitor tap on the master output — use for level meters and visualisers. */
+  analyserNode?: AnalyserNode | null;
   webGpuEngine?: WebGpuOscillator | null;
   wasmEngine?: WasmOscillator | null;
   open303Engine?: Open303Oscillator | Open303Manager | null;

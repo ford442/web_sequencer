@@ -3,6 +3,7 @@ import { useAudioEngine } from './useAudioEngine'
 import { usePyodideEngine } from './usePyodideEngine'
 import { useScheduler } from './useScheduler'
 import { useStepHandler } from './useStepHandler'
+import { useUndoRedo } from './useUndoRedo'
 import { useGamepad } from './useGamepad'
 import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
@@ -134,6 +135,7 @@ export function useAppState() {
     }, []);
 
     const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
+    const [swing, setSwing] = useState<number>(0) // 0 = straight, 1 = max shuffle
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
     const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef } = useAudioEngine(pyodide, tempo)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
@@ -168,6 +170,7 @@ export function useAppState() {
     };
 
     const [pattern, setPattern] = useState<Pattern>(UPDATED_INITIAL_PATTERN)
+    const undoRedo = useUndoRedo<Pattern>(50)
     const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
@@ -628,7 +631,7 @@ export function useAppState() {
         trakEventsRef,
     })
 
-    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
+    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, audioEngine?.context ?? null, swing)
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
 
     useEffect(() => {
@@ -679,16 +682,38 @@ export function useAppState() {
 
     useEffect(() => {
         const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            const inTextField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
             if (e.code === 'Space') {
-                const target = e.target as HTMLElement;
-                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+                if (inTextField) return;
                 e.preventDefault();
                 handlePlayToggle();
+                return;
+            }
+
+            // Undo: Ctrl/Cmd+Z
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+                if (inTextField) return;
+                e.preventDefault();
+                const prev = undoRedo.undo();
+                if (prev) setPattern(prev);
+                return;
+            }
+
+            // Redo: Ctrl/Cmd+Shift+Z  or  Ctrl/Cmd+Y
+            if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') ||
+                ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')) {
+                if (inTextField) return;
+                e.preventDefault();
+                const next = undoRedo.redo();
+                if (next) setPattern(next);
+                return;
             }
         };
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [handlePlayToggle]);
+    }, [handlePlayToggle, undoRedo]);
 
     const handleMasterVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v);
         if (automationStore.isParameterArmed('master', 'volume')) {
@@ -732,6 +757,7 @@ export function useAppState() {
         } else {
              if (!window.confirm(`Paste from clipboard to start of ${targetTrack}?`)) return;
         }
+        undoRedo.push(patternRef.current);
         const newPattern = pasteSteps(patternRef.current, clipboard, targetTrack, targetStep, activeSamplerBankRef.current);
         setPattern(newPattern);
         let changedSequence;
@@ -814,6 +840,7 @@ export function useAppState() {
     }, [updateStorageForTrack]);
 
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[], sliceIndex?: number }) => {
+        undoRedo.push(patternRef.current); // snapshot before edit
         const prev = patternRef.current;
         const copy = { ...prev };
         let changedSequence;
@@ -1711,6 +1738,9 @@ const handleLyricApply = useCallback(async (text: string) => {
         isEngineReady,
         pattern, setPattern,
         tempo, setTempo,
+        swing, setSwing,
+        undoRedo,
+        currentStepRef,
         isInitialized, setIsInitialized,
         isPlaying, setIsPlaying,
         isRecording, setIsRecording,

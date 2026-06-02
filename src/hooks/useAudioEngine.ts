@@ -5,6 +5,7 @@ import type {
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
+import { RustOscillator } from '../engines/RustOscillator';
 import { Open303Manager } from '../engines/Open303Manager';
 import { ProphecyManager } from '../engines/ProphecyManager';
 import { PcfEffect } from '../engines/PcfEffect';
@@ -120,6 +121,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const loadedAmbianceBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
+    const rustEngineRef = useRef<RustOscillator | null>(null);
+    const analyserNodeRef = useRef<AnalyserNode | null>(null);
     const open303ManagerRef = useRef<Open303Manager | null>(null);
     const prophecyManagerRef = useRef<ProphecyManager | null>(null);
     const pcfEffectRef = useRef<PcfEffect | null>(null);
@@ -224,7 +227,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             loadingProgressStore.completeStep('audioContext');
 
             loadingProgressStore.startStep('masterChain');
-            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef);
+            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef, analyserNodeRef);
 
             // Initialize Vocal Harmony Parallel Bus
             const harmonyGain = context.createGain();
@@ -310,6 +313,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
             wasmEngineRef.current = wasmEngine;
             loadingProgressStore.completeStep('wasmEngine');
+
+            const rustEngine = new RustOscillator();
+            await rustEngine.init().catch(e => console.warn("Rust Engine init failed", e));
+            rustEngineRef.current = rustEngine;
 
             // Initialize Open303 Manager
             loadingProgressStore.startStep('open303Engine');
@@ -438,7 +445,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 }));
             }
 
-            const voiceEngineDeps = { wasmEngine: wasmEngineRef.current, wgslBuffers };
+            const voiceEngineDeps = { wasmEngine: wasmEngineRef.current, rustEngine: rustEngineRef.current, wgslBuffers };
 
             // Initialize Voice Managers
             voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
@@ -1616,6 +1623,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             // Re-assign to state
             setAudioEngine({
                 context,
+                analyserNode: analyserNodeRef.current,
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303ManagerRef.current as any,

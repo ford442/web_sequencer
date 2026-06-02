@@ -3,7 +3,7 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { LoadingButton } from './LoadingButton';
 import type { SynthParams } from '../types';
 import { Knob } from './Knob';
-import { WaveformSelector } from './WaveformSelector';
+import { OscillatorModuleSelector } from './OscillatorModuleSelector';
 
 const FILTER_MODE_18_DB = 18;
 const FILTER_MODE_24_DB = 24;
@@ -74,7 +74,7 @@ export const SynthPart: React.FC<SynthPartProps> = memo(({ title, accentColor, p
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
             <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Oscillator</legend>
-            <WaveformSelector selected={params.waveform} onChange={handlers.waveform} accentColor={accentColor} />
+            <OscillatorModuleSelector selected={params.waveform} onChange={handlers.waveform} accentColor={accentColor} />
             <Knob label="Pitch" value={params.pitch} onChange={handlers.pitch} min={-24} max={24} step={1} color={accentClasses[accentColor].knob} unit="st" />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">

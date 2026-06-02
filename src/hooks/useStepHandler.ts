@@ -115,12 +115,15 @@ export const useStepHandler = ({
     automationSchedulerRef,
     trakEventsRef,
 }: UseStepHandlerOptions) => {
-    const onStep = useCallback((step: number) => {
+    const onStep = useCallback((step: number, audioTime?: number) => {
         currentStepRef.current = step;
         if (sequencerRef.current) sequencerRef.current.setHighlight(step);
         if (!audioEngine) return;
 
-        const time = audioEngine.context.currentTime;
+        // Use the sample-accurate audioTime from the AudioWorklet clock when available.
+        // This ensures notes are scheduled at the exact moment the step fires on the
+        // audio thread, not at the moment the main-thread message is processed (~1-5ms later).
+        const time = audioTime ?? audioEngine.context.currentTime;
         let activePattern = patternRef.current;
 
         // Song Mode Measure Handling

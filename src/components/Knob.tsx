@@ -47,8 +47,12 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
 
   const rotation = valueToRotation(value);
 
-  // Stable callbacks that read from refs — never need to be recreated
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  // Stable callbacks that read from refs — never need to be recreated.
+  // Using PointerEvent instead of MouseEvent so the same handlers work for
+  // both mouse and touch input. setPointerCapture (called in handlePointerDown)
+  // routes all subsequent pointer events to this element even when the pointer
+  // moves outside, eliminating the need for document-level listeners.
+  const handlePointerMove = useCallback((e: PointerEvent) => {
     if (!isDraggingRef.current) return;
     const dy = dragStartYRef.current - e.clientY;
     const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep, logarithmic: currentLogarithmic } = propsRef.current;
@@ -78,30 +82,37 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
       const sensitivity = range / 200; // 200px drag for full range
       newValue = dragStartValueRef.current + (dy * sensitivity * modifier);
     }
-    
+
     newValue = Math.round(newValue / currentStep) * currentStep;
     newValue = Math.max(currentMin, Math.min(currentMax, newValue));
-    
+
     currentOnChange(newValue);
   }, []); // stable — reads all state from refs
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     isDraggingRef.current = false; // stop move handler immediately (no re-render needed)
     setIsDragging(false); // update state to re-enable CSS transition on knob rotation
     document.body.style.cursor = 'default';
   }, []);
 
-  // Attach listeners once on mount; they stay stable because they use refs.
+  // Attach once on mount; stable because they use refs.
   useEffect(() => {
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [handleMouseMove, handleMouseUp]);
+  }, [handlePointerMove, handlePointerUp]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Capture the pointer so pointermove/pointerup continue routing to this
+    // element even when the finger/cursor leaves it — essential for touch.
+    // Guard: setPointerCapture may not exist in all test environments.
+    const target = e.currentTarget as Element;
+    if (typeof target.setPointerCapture === 'function') {
+      target.setPointerCapture(e.pointerId);
+    }
     e.preventDefault();
     knobRef.current?.focus();
     isDraggingRef.current = true;
@@ -220,7 +231,8 @@ export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, ma
               onChange(Math.max(min, Math.min(max, newVal)));
             }
           }}
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
+          style={{ touchAction: 'none' }}  // prevent browser scroll/zoom on touch
           onWheel={handleWheel}
           role="slider"
           aria-valuemin={min}
