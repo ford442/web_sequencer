@@ -300,7 +300,7 @@ describe('applyGrooveTemplate', () => {
 describe('GROOVE_TEMPLATES', () => {
     it('all templates have exactly 16 steps', () => {
         for (const [key, tmpl] of Object.entries(GROOVE_TEMPLATES)) {
-            expect(tmpl.steps).toHaveLength(16), `${key} should have 16 steps`;
+            expect(tmpl.steps).toHaveLength(16);
         }
     });
 
