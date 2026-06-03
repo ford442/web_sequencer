@@ -42,6 +42,8 @@ export interface SynthParams {
   portamento?: number;
   /** Prophecy: Formant frequency shift 0–1 */
   formantShift?: number;
+  /** TB-303 slide/portamento time 0–1 (maps to Open303Params.slideTime). Only used with '303-saw'/'303-sqr' waveforms. */
+  slideTime?: number;
 }
 
 export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
@@ -330,6 +332,7 @@ export interface Bass2Params {
   pan?: number;
   /** Which DSP engine to use for this voice. Defaults to 'open303'. */
   engine303?: Engine303;
+  /** TB-303 slide/portamento time 0–1 (maps to Open303Params.slideTime). */
   /**
    * Slide/portamento time (0–1 normalized, where 0.33 ≈ 60 ms TB-303 default).
    * Maps to Open303Params.slideTime for the Devil Fish MOD.

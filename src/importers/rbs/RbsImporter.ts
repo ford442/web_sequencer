@@ -352,7 +352,7 @@ export class RbsImporter {
         velocity: step.accent ? 1.0 : 0.8,
         length: step.slide ? 2 : 1, // Slides extend to next step
         slide: step.slide,
-        timbre: 0.5 // Default timbre
+        timbre: step.accent ? 1.0 : 0.5 // timbre=1.0 signals TB-303 accent for the engine
       };
 
       // Track statistics
@@ -426,7 +426,7 @@ export class RbsImporter {
           velocity: velocity1,
           length: 2, // Spans both steps
           slide: true,
-          timbre: 0.5
+          timbre: sourceStep.accent ? 1.0 : 0.5
         };
         steps32[targetIndex2] = null; // Part of slide
       } else {
@@ -436,7 +436,7 @@ export class RbsImporter {
           velocity: velocity1,
           length: 1,
           slide: false,
-          timbre: 0.5
+          timbre: sourceStep.accent ? 1.0 : 0.5
         };
         // Second step is null (rest) unless it's a sustained note
         // Check if next step is a tie
@@ -586,6 +586,8 @@ export class RbsImporter {
       // Volume based on accent (0.6-1.0 range)
       const volume = 0.6 + accentBoost;
 
+      // slideTime: RBS 0-127 → 0-1 (linear)
+      const slideTime = tb303.slideTime !== undefined ? tb303.slideTime / 127 : undefined;
       // Slide time: use raw value when available; TB-303 hardware default is ~42/127 ≈ 0.33.
       const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
       const portamento = clampNormalized(rawSlideTime / 127);
@@ -632,13 +634,15 @@ export class RbsImporter {
         originalValue: tb303.waveform,
         convertedValue: waveform
       });
-      mappings.push({
-        source: `${sourceName}.slideTime`,
-        target: 'SynthParams.portamento',
-        originalValue: rawSlideTime,
-        convertedValue: parseFloat(portamento.toFixed(3)),
-        formula: 'slideTime / 127 (0-1 normalized, TB-303 default ≈ 0.33)'
-      });
+      if (slideTime !== undefined) {
+        mappings.push({
+          source: `${sourceName}.slideTime`,
+          target: 'SynthParams.slideTime',
+          originalValue: tb303.slideTime!,
+          convertedValue: parseFloat(slideTime.toFixed(3)),
+          formula: 'slideTime / 127'
+        });
+      }
 
       return {
         waveform,
@@ -655,6 +659,7 @@ export class RbsImporter {
         delayTime: 0.3,
         delayFeedback: 0.2,
         delayMix: 0.0,
+        ...(slideTime !== undefined ? { slideTime } : {}),
         portamento,
       };
     };
@@ -702,6 +707,8 @@ export class RbsImporter {
     const resonance = this.convertResonance(tb303.resonance);
     const decay = this.convertDecayToSeconds(tb303.decay);
     const accent = 0.5 + this.convertAccentToBoost(tb303.accent);
+    // slideTime: RBS 0-127 → 0-1 (linear)
+    const slideTime = tb303.slideTime !== undefined ? tb303.slideTime / 127 : undefined;
 
     // Slide time: use the raw 0-127 value if provided; otherwise fall back to the
     // TB-303 hardware default (~42/127 ≈ 0.33 = 60 ms at nominal tempo).
@@ -716,13 +723,15 @@ export class RbsImporter {
         convertedValue: Math.round(cutoff),
         formula: '100 * 2^(cutoff / 21.17) Hz'
       });
-      mappings.push({
-        source: `${sourceName}.slideTime`,
-        target: 'Bass2Params.slideTime',
-        originalValue: rawSlideTime,
-        convertedValue: parseFloat(slideTime.toFixed(3)),
-        formula: 'slideTime / 127 (0-1 normalized, TB-303 default ≈ 0.33)'
-      });
+      if (slideTime !== undefined) {
+        mappings.push({
+          source: `${sourceName}.slideTime`,
+          target: 'Bass2Params.slideTime',
+          originalValue: tb303.slideTime!,
+          convertedValue: parseFloat(slideTime.toFixed(3)),
+          formula: 'slideTime / 127'
+        });
+      }
     }
 
     return {
@@ -735,7 +744,7 @@ export class RbsImporter {
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
       volume: 0.9,
-      slideTime,
+      ...(slideTime !== undefined ? { slideTime } : {}),
     };
   }
 
