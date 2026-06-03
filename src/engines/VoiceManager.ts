@@ -3,10 +3,15 @@ import { tunedNoteToFrequency } from '../constants';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/waveformParser';
 import type { WasmOscillator } from './WasmOscillator';
+import type { RustOscillator } from './RustOscillator';
 
 export interface VoiceEngineDeps {
     wasmEngine?: WasmOscillator | null;
     wgslBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
+    rustEngine?: RustOscillator | null;
+    // Pyodide live playback is not supported (generate_wave is async). Present here
+    // only so Voice can emit a clear warning when a pyodide-* waveform is requested.
+    pyodideEngine?: unknown;
 }
 
 export class Voice {
@@ -142,47 +147,95 @@ export class Voice {
 
             let createdSource: OscillatorNode | AudioBufferSourceNode | null = null;
 
+            const REF_FREQ = 261.63; // C4 — all pre-rendered buffers use this reference
+
             if (isWav) {
-                const src = this.context.createBufferSource();
-                src.buffer = (parsed.shape === 'sqr' ? this.wavSqrBuffer : this.wavSawBuffer) ?? null;
-                src.loop = true;
-                src.playbackRate.value = freq / 261.63; // C4 base
-                createdSource = src;
-            } else if (parsed.engine === 'wasm' && this.engineDeps?.wasmEngine?.isReady) {
-                // Render a ~2s buffer at C4 reference frequency, then retune via playbackRate.
-                const REF_FREQ = 261.63;
-                const float = this.engineDeps.wasmEngine.generate(
-                    REF_FREQ,
-                    2.0,
-                    this.context.sampleRate,
-                    parsed.shape,
-                    Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
-                    Math.max(0.1, params.filterResonance),
-                );
-                if (float && float.length > 0) {
-                    const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
-                    buf.getChannelData(0).set(float);
+                // PCM/WAV: use preloaded buffer. If the buffer hasn't loaded yet,
+                // warn and fall through to the JS oscillator (avoids silent note).
+                const buf = parsed.shape === 'sqr' ? this.wavSqrBuffer : this.wavSawBuffer;
+                if (buf) {
                     const src = this.context.createBufferSource();
                     src.buffer = buf;
                     src.loop = true;
                     src.playbackRate.value = freq / REF_FREQ;
                     createdSource = src;
+                } else {
+                    console.warn(`[Voice] wav-${parsed.shape}: PCM buffer not loaded yet — falling back to JS oscillator`);
+                }
+            } else if (parsed.engine === 'wam') {
+                // WAM (AssemblyScript/WASM oscillator). Bug fix: was checking 'wasm' but
+                // parseWaveform returns 'wam' for wam-* prefixes. Now checks 'wam'.
+                if (this.engineDeps?.wasmEngine?.isReady) {
+                    const float = this.engineDeps.wasmEngine.generate(
+                        REF_FREQ,
+                        2.0,
+                        this.context.sampleRate,
+                        parsed.shape,
+                        Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
+                        Math.max(0.1, params.filterResonance),
+                    );
+                    if (float && float.length > 0) {
+                        const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
+                        buf.getChannelData(0).set(float);
+                        const src = this.context.createBufferSource();
+                        src.buffer = buf;
+                        src.loop = true;
+                        src.playbackRate.value = freq / REF_FREQ;
+                        createdSource = src;
+                    } else {
+                        console.warn(`[Voice] wam-${parsed.shape}: WasmOscillator.generate() returned empty — falling back to JS oscillator`);
+                    }
+                } else {
+                    console.warn(`[Voice] wam-${parsed.shape}: WasmOscillator not ready — falling back to JS oscillator`);
+                }
+            } else if (parsed.engine === 'rust') {
+                // Rust/WASM oscillator. Supports saw and sqr only; tri/sin are not
+                // defined as valid Rust waveforms in types.ts so this is a guard.
+                if (this.engineDeps?.rustEngine?.isReady) {
+                    const rustShape = (parsed.shape === 'tri' || parsed.shape === 'sin') ? 'saw' : parsed.shape as 'saw' | 'sqr';
+                    const float = this.engineDeps.rustEngine.generate(
+                        REF_FREQ,
+                        2.0,
+                        this.context.sampleRate,
+                        rustShape,
+                        Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
+                        Math.max(0.1, params.filterResonance),
+                    );
+                    if (float && float.length > 0) {
+                        const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
+                        buf.getChannelData(0).set(float);
+                        const src = this.context.createBufferSource();
+                        src.buffer = buf;
+                        src.loop = true;
+                        src.playbackRate.value = freq / REF_FREQ;
+                        createdSource = src;
+                    } else {
+                        console.warn(`[Voice] rust-${parsed.shape}: RustOscillator.generate() returned empty — falling back to JS oscillator`);
+                    }
+                } else {
+                    console.warn(`[Voice] rust-${parsed.shape}: RustOscillator not in engineDeps or not ready — falling back to JS oscillator`);
                 }
             } else if (parsed.engine === 'wgsl') {
+                // WebGPU: use pre-rendered buffer. Buffers are only populated when
+                // gpuEngine.isSupported; when unavailable we fall through to JS.
                 const buf = this.engineDeps?.wgslBuffers?.[parsed.shape];
                 if (buf) {
                     const src = this.context.createBufferSource();
                     src.buffer = buf;
                     src.loop = true;
-                    // wgsl buffers are pre-rendered at C4 reference
-                    src.playbackRate.value = freq / 261.63;
+                    src.playbackRate.value = freq / REF_FREQ;
                     createdSource = src;
+                } else {
+                    console.warn(`[Voice] wgsl-${parsed.shape}: WebGPU buffer unavailable (GPU unsupported or still rendering) — falling back to JS oscillator`);
                 }
+            } else if (parsed.engine === 'pyodide') {
+                // Pyodide generate_wave() is async and cannot be called from the
+                // synchronous startNote path. This engine is export-only (renderAudio.ts).
+                console.warn(`[Voice] pyodide-${parsed.shape}: Pyodide live playback is not supported (async API) — use audio export for Pyodide output. Falling back to JS oscillator.`);
             }
 
-            // Fallback: JS oscillator using the parsed base shape so the user at
-            // least hears the right wave family for engines we haven't wired up
-            // (pyodide, wam, rust) or that failed to initialise.
+            // Final fallback: JS oscillator using the correct wave family so the
+            // user at least hears the right harmonic character while the engine is absent.
             if (!createdSource) {
                 const osc = this.context.createOscillator();
                 osc.type = shapeToOscillatorType(parsed.shape);

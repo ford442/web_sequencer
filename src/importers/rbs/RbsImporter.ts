@@ -48,6 +48,17 @@ import type {
 
 import { noteToMidi, midiToNote } from '../../utils/musicTheory';
 
+/**
+ * Default slide-time raw value for authentic TB-303 hardware (0-127 range).
+ * Corresponds to ~60 ms portamento at nominal tempo (42/127 ≈ 0.331 normalized).
+ */
+const TB303_DEFAULT_SLIDE_TIME = 42;
+
+/** Clamp a value to the [0, 1] normalized range. */
+function clampNormalized(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
 /** Import result with detailed reporting */
 export interface RbsImportResult {
   success: true;
@@ -160,6 +171,24 @@ export class RbsImporter {
     // Convert automation lanes
     const convertedAutomation = this.convertAutomationLanes(raw.automation);
     automation.push(...convertedAutomation);
+
+    // Generate per-step accent and slide automation lanes from TB-303 step data.
+    // These capture the pattern-level on/off state for accent (velocity boost +
+    // filter envelope push) and slide (portamento/legato), so the playback
+    // scheduler can replicate exact TB-303 behaviour step-by-step.
+    const tb303ATarget = this.resolveTb303Target(this.options.tb303ATarget);
+    const tb303BTarget = this.resolveTb303Target(this.options.tb303BTarget);
+    const accentSlideA = this.generateAccentSlideAutomation(
+      raw.tb303PatternA.steps,
+      tb303ATarget,
+      raw.tb303PatternA.accent / 127
+    );
+    const accentSlideB = this.generateAccentSlideAutomation(
+      raw.tb303PatternB.steps,
+      tb303BTarget,
+      raw.tb303PatternB.accent / 127
+    );
+    automation.push(...accentSlideA, ...accentSlideB);
 
     // Build Hyphon song
     const song: HyphonSong = {
@@ -546,6 +575,11 @@ export class RbsImporter {
       // Decay: RBS 0-127 → Hyphon 0.05-2.0s (exponential)
       const decaySeconds = this.convertDecayToSeconds(tb303.decay);
       
+      // EnvMod: RBS 0-127 → Hyphon filterMode (0-1 normalized).
+      // SynthParams stores envMod as filterMode (0-1) so the Open303 engine
+      // can apply the correct envelope-modulation depth.
+      const filterMode = clampNormalized(tb303.envMod / 127);
+
       // Accent: RBS 0-127 → Hyphon velocity boost 0-0.4
       const accentBoost = this.convertAccentToBoost(tb303.accent);
       
@@ -554,6 +588,9 @@ export class RbsImporter {
 
       // slideTime: RBS 0-127 → 0-1 (linear)
       const slideTime = tb303.slideTime !== undefined ? tb303.slideTime / 127 : undefined;
+      // Slide time: use raw value when available; TB-303 hardware default is ~42/127 ≈ 0.33.
+      const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+      const portamento = clampNormalized(rawSlideTime / 127);
 
       // Record detailed mappings
       mappings.push({
@@ -569,6 +606,13 @@ export class RbsImporter {
         originalValue: tb303.resonance,
         convertedValue: parseFloat(resonance.toFixed(2)),
         formula: 'resonance / 6.35'
+      });
+      mappings.push({
+        source: `${sourceName}.envMod`,
+        target: 'SynthParams.filterMode',
+        originalValue: tb303.envMod,
+        convertedValue: parseFloat(filterMode.toFixed(3)),
+        formula: 'envMod / 127 (0-1 normalized)'
       });
       mappings.push({
         source: `${sourceName}.decay`,
@@ -605,7 +649,7 @@ export class RbsImporter {
         pitch: 0,
         filterCutoff: cutoffHz,
         filterResonance: resonance,
-        filterMode: tb303.envMod > 64 ? 1 : 0,
+        filterMode,
         attack: 0.01, // 303 has fast attack
         decay: decaySeconds,
         sustain: 0.5,
@@ -616,6 +660,7 @@ export class RbsImporter {
         delayFeedback: 0.2,
         delayMix: 0.0,
         ...(slideTime !== undefined ? { slideTime } : {}),
+        portamento,
       };
     };
 
@@ -664,6 +709,11 @@ export class RbsImporter {
     const accent = 0.5 + this.convertAccentToBoost(tb303.accent);
     // slideTime: RBS 0-127 → 0-1 (linear)
     const slideTime = tb303.slideTime !== undefined ? tb303.slideTime / 127 : undefined;
+
+    // Slide time: use the raw 0-127 value if provided; otherwise fall back to the
+    // TB-303 hardware default (~42/127 ≈ 0.33 = 60 ms at nominal tempo).
+    const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+    const slideTime = clampNormalized(rawSlideTime / 127);
 
     if (mappings) {
       mappings.push({
@@ -854,6 +904,98 @@ export class RbsImporter {
   }
 
   /**
+   * Resolve a tb303ATarget / tb303BTarget option string to the corresponding
+   * HyphonAutomationLane target name.
+   */
+  private resolveTb303Target(
+    option: 'partA' | 'partB' | 'bass2'
+  ): HyphonAutomationLane['target'] {
+    switch (option) {
+      case 'bass2': return 'bass2';
+      case 'partB': return 'synthB';
+      case 'partA':
+      default:      return 'synthA';
+    }
+  }
+
+  /**
+   * Generate per-step accent and slide automation lanes from TB-303 step data.
+   *
+   * **Accent lane** (`parameter: 'accent'`):
+   *   - Value `1.0` on accented steps (velocity + filter-envelope boost, as on
+   *     authentic TB-303 hardware).
+   *   - Value equal to `baseAccentNorm` on non-accented steps, so the global
+   *     accent level is preserved between locked steps.
+   *
+   * **Slide lane** (`parameter: 'slide'`):
+   *   - Value `1.0` on slide-active steps (portamento/legato).
+   *   - Value `0.0` on all other steps.
+   *
+   * Both lanes use `'step'` interpolation so values snap at step boundaries,
+   * exactly matching the TB-303's digital switching behaviour.
+   *
+   * Lanes are only emitted when at least one step actually has the flag set,
+   * avoiding unnecessary overhead for patterns with no accent or no slide.
+   *
+   * @param steps          TB-303 step array (16 or 32 steps).
+   * @param target         Which automation target these lanes belong to.
+   * @param baseAccentNorm Normalised (0–1) base accent level from the pattern
+   *                       parameters; used as the "resting" accent value on
+   *                       non-accented steps.
+   * @returns              0, 1, or 2 `HyphonAutomationLane` objects.
+   */
+  private generateAccentSlideAutomation(
+    steps: Tb303Step[],
+    target: HyphonAutomationLane['target'],
+    baseAccentNorm: number
+  ): HyphonAutomationLane[] {
+    const numSteps = this.options.expandTo32Steps ? 32 : steps.length;
+    const accentPoints: [number, number][] = [];
+    const slidePoints: [number, number][] = [];
+    let hasAccent = false;
+    let hasSlide = false;
+
+    for (let i = 0; i < numSteps; i++) {
+      const src = steps[i % steps.length];
+      accentPoints.push([i, src.accent ? 1.0 : clampNormalized(baseAccentNorm)]);
+      slidePoints.push([i, src.slide ? 1.0 : 0.0]);
+      if (src.accent) hasAccent = true;
+      if (src.slide) hasSlide = true;
+    }
+
+    const trackLabel =
+      target === 'synthA' ? 'TB-303 A' :
+      target === 'synthB' ? 'TB-303 B' :
+      'Bass 2';
+
+    const lanes: HyphonAutomationLane[] = [];
+
+    if (hasAccent) {
+      lanes.push({
+        target,
+        parameter: 'accent',
+        name: `${trackLabel} Accent`,
+        points: accentPoints,
+        interpolation: 'step',
+        originalRange: [0, 1],
+      });
+    }
+
+    if (hasSlide) {
+      lanes.push({
+        target,
+        parameter: 'slide',
+        name: `${trackLabel} Slide`,
+        points: slidePoints,
+        interpolation: 'step',
+        originalRange: [0, 1],
+      });
+    }
+
+    return lanes;
+  }
+
+  /**
    * Convert RBS automation lanes to Hyphon format
    * 
    * Supports:
@@ -982,7 +1124,7 @@ export class RbsImporter {
 
     for (const [stepIndex, value] of points) {
       // Normalize value to 0-1 range
-      const normalizedValue = Math.max(0, Math.min(1, (value - minVal) / rangeSpan));
+      const normalizedValue = clampNormalized((value - minVal) / rangeSpan);
       
       // Quantize if requested
       const finalStep = this.options.quantizeTo16th 

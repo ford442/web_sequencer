@@ -524,6 +524,43 @@ export class Open303Manager {
     }
 
     /**
+     * Schedule per-step slide (portamento/legato) enable or disable at the
+     * given AudioContext time.
+     *
+     * On authentic TB-303 hardware, when a step has the slide flag set, the
+     * oscillator glides from the previous pitch to the new one rather than
+     * re-triggering the envelope.  The Open303 / jc303 engines model this
+     * internally via a slide detector that is primed by the note-triggering
+     * sequence — a legato noteOn (without a preceding noteOff) activates the
+     * portamento path.
+     *
+     * This method establishes the API contract used by AutomationScheduler so
+     * that slide automation lanes generated from per-step RBS data can flow
+     * through the same scheduling pipeline as all other parameter changes.
+     *
+     * @param voice      Which 303 voice to target.
+     * @param enabled    `true` = slide is active for the upcoming note.
+     * @param audioTime  AudioContext time at which the change should take
+     *                   effect.  Pass `audioContext.currentTime` for immediate.
+     */
+    scheduleSlideAtTime(
+        _voice: 'bass1' | 'bass2' | 'lead303',
+        _enabled: boolean,
+        _audioTime: number
+    ): void {
+        // The open303 / jc303 wasm builds do not yet expose a dedicated slide
+        // parameter — portamento is triggered implicitly by sending a legato
+        // noteOn (without a preceding noteOff) at the step handler level.
+        // This method is intentionally a no-op today: it documents the
+        // intended API and allows AutomationScheduler callers to schedule slide
+        // state without code changes once a native setSlide API is available.
+        //
+        // When the wasm build gains setSlide / setPortamento support, replace
+        // this body with:
+        //   this.scheduleParamAtTime(_voice, 'setSlide', _enabled ? 1.0 : 0.0, _audioTime);
+    }
+
+    /**
      * Schedule a linear ramp for an Open303 worklet parameter from `fromValue`
      * to `toValue` between `startTime` and `endTime` (AudioContext time).
      *

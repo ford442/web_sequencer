@@ -11,6 +11,7 @@ export function initializeMasterOutput(
     masterCompressorRef: MutableRefObject<DynamicsCompressorNode | null>,
     sidechainGainRef: MutableRefObject<BiquadFilterNode | null>,
     bassSidechainEQBusRef: MutableRefObject<BiquadFilterNode | null>,
+    analyserNodeRef?: MutableRefObject<AnalyserNode | null>,
 ): WaveShaperNode {
     const masterSaturation = context.createWaveShaper();
     masterSaturation.curve = makeDistortionCurve(0);
@@ -58,6 +59,16 @@ export function initializeMasterOutput(
         masterPanner.connect(context.destination);
     } else {
         masterGain.connect(context.destination);
+    }
+
+    // Passive analyser tap: connects after masterGain so it monitors the full
+    // output mix. The analyser is not connected to destination — it only reads.
+    if (analyserNodeRef) {
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.6;
+        masterGain.connect(analyser);
+        analyserNodeRef.current = analyser;
     }
 
     return masterSaturation;

@@ -201,9 +201,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'grainEnvDepth', 'grainPitchQuantize',
+            'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchQuantize',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
-            'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth'
+            'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'downsample'
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
             if (onParamChange) onParamChange(activeBankIdx, p, v);
@@ -230,8 +230,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFreezeLfoDepthChange = paramHandlers.freezeLfoDepth;
     const handleFormantLfoSyncChange = paramHandlers.formantLfoSync;
     const handleFreezeEnvDepthChange = paramHandlers.freezeEnvDepth;
+    const handleTimeStretchEnvDepthChange = paramHandlers.timeStretchEnvDepth;
     const handleGrainEnvDepthChange = paramHandlers.grainEnvDepth;
     const handleGrainPitchQuantizeChange = paramHandlers.grainPitchQuantize;
+    const handleBitcrushChange = paramHandlers.bitcrush;
+    const handleDownsampleChange = paramHandlers.downsample;
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
     const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
     const handleFormantLfoShapeChange = paramHandlers.formantLfoShape;
@@ -1085,8 +1088,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             </div>
 
                             <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth || 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Env → Time" value={currentParams.timeStretchEnvDepth || 0} onChange={handleTimeStretchEnvDepthChange} min={-1.0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
+                            <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handleBitcrushChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Downsample" value={currentParams.downsample || 1} onChange={handleDownsampleChange} min={1} max={32} step={1} color="indigo" unit="x" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Reverb LFO Rate" value={currentParams.reverbLfoRate ?? 0.1} onChange={handleReverbLfoRateChange} min={0.1} max={10.0} step={0.1} color="indigo" unit="Hz" />

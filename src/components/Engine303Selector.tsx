@@ -26,10 +26,10 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
 }) => {
     const isJc303 = engine === 'jc303';
 
-    const activeStyle = accentColor === 'cyan'
-        ? 'bg-gradient-to-b from-cyan-500 to-cyan-600 text-white border-cyan-400 shadow-[0_0_12px_rgba(0,229,255,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]'
-        : 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]';
-
+    // Themed by 303 engine family (open303 = emerald, jc303 = teal) for osc-type visual treatment.
+    // Part accent (cyan/pink) still used for header badge/labels.
+    const openActive = 'bg-gradient-to-b from-emerald-500 to-emerald-600 text-white border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]';
+    const jcActive = 'bg-gradient-to-b from-teal-500 to-teal-600 text-white border-teal-400 shadow-[0_0_12px_rgba(20,184,166,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]';
     const inactiveStyle = 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]';
 
     const badgeColorStyle = accentColor === 'cyan'
@@ -71,8 +71,9 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
                 onClick={() => onChange('open303')}
                 title="Custom Open303 synthesizer — uses the built-in open303_* WASM API in hyphon_native.wasm"
                 aria-pressed={!isJc303}
-                className={`px-3 py-1.5 text-[9px] font-bold rounded-md transition-all border ${
-                    !isJc303 ? activeStyle : inactiveStyle
+                aria-label="Select Custom Open303 engine"
+                className={`px-3 py-1.5 text-[9px] font-bold rounded-md transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 ${
+                    !isJc303 ? openActive : inactiveStyle
                 }`}
             >
                 Custom Open303
@@ -83,8 +84,9 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
                 onClick={() => onChange('jc303')}
                 title="Authentic rosic::Open303 — per-voice JC303 engine from the jc303_wasm submodule (rosic_Open303). Enables the accurate TB-303 DSP introduced in the May 2026 per-voice engine update."
                 aria-pressed={isJc303}
-                className={`px-3 py-1.5 text-[9px] font-bold rounded-md transition-all border ${
-                    isJc303 ? activeStyle : inactiveStyle
+                aria-label="Select Authentic JC303 engine"
+                className={`px-3 py-1.5 text-[9px] font-bold rounded-md transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 ${
+                    isJc303 ? jcActive : inactiveStyle
                 }`}
             >
                 Authentic JC303

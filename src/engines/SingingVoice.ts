@@ -496,7 +496,7 @@ export class SingingVoice {
 
         this.workletNode.port.postMessage({
             type: 'loadBuffer',
-            data: { buffer: audio.buffer.slice(0) } // Copy buffer
+            data: { buffer: audio.buffer } // Let structured clone handle it natively
         });
     }
 
@@ -1172,6 +1172,28 @@ export class SingingVoice {
                     time: time || this.audioContext.currentTime
                 }
             });
+        }
+    }
+
+    /**
+     * Set bitcrush amount.
+     * @param amount Bitcrush amount (0-1)
+     * @param time Optional time to apply the change
+     */
+    setBitcrush(amount: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('bitcrush')?.setValueAtTime(amount, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set downsample factor.
+     * @param factor Downsample factor (1-32)
+     * @param time Optional time to apply the change
+     */
+    setDownsample(factor: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('downsample')?.setValueAtTime(factor, time || this.audioContext.currentTime);
         }
     }
 

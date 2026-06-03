@@ -12,9 +12,14 @@ interface Slot {
     height: number;
 }
 
+import { KNOB_MATERIAL, rgbToWgsl } from './knobMaterial';
+
 // --- HOLOGRAPHIC SHADER ---
 // Features: Scanlines, Rim Glow, Data Ring, "Projected" floating feel
-// Preserved exactly from MagicKnob.tsx; shared across all knob instances.
+// Material values are baked in at module load time via string interpolation so
+// the existing per-knob uniform buffer (time, value, resolution) does not need
+// to grow.  This keeps the buffer at 4 floats (32 bytes) and avoids re-creating
+// the shader module per knob.
 const SHADER_CODE = `
     struct Uniforms {
       time: f32,
@@ -64,13 +69,13 @@ const SHADER_CODE = `
       let angle = atan2(uv.y, uv.x);
       
       // Base Color (Cyan/Teal Hologram)
-      var color = vec3f(0.0, 0.9, 1.0);
+      var color = ${rgbToWgsl(KNOB_MATERIAL.palette.ring)};
       var alpha = 0.0;
 
       // 1. Outer Data Ring
       // Rotating dashed ring
       let rot_uv = rotate(u.time * 0.2) * uv;
-      let ring_dist = abs(length(rot_uv) - 0.55);
+      let ring_dist = abs(length(rot_uv) - ${(KNOB_MATERIAL.geometry.outerRingRadius * 0.5).toFixed(4)});
       let dash = sin(atan2(rot_uv.y, rot_uv.x) * 20.0);
       if (ring_dist < 0.02 && dash > 0.5) {
           alpha += 0.6 * smoothstep(0.02, 0.0, ring_dist);
@@ -79,7 +84,7 @@ const SHADER_CODE = `
       // 2. Value Arc (The "Level" Indicator)
       // Map value 0..1 to angle range [-max_angle, +max_angle]
       // Knob starts at bottom-left, sweeps clockwise to bottom-right.
-      let max_angle = 2.4;
+      let max_angle = ${(KNOB_MATERIAL.geometry.sweepTotal / 2.0).toFixed(4)};
       let val_mapped = mix(-max_angle, max_angle, u.value);
 
       // Needle direction: rotate standard "up" (+Y) by val_mapped
@@ -88,14 +93,14 @@ const SHADER_CODE = `
       // Value arc: light the inner ring where the pixel angle <= val_mapped
       // atan2 gives [-\u03c0, \u03c0]; we shift so 0 = straight up (matches needle_vec above)
       let pixel_angle = atan2(uv.x, uv.y); // note: swapped args for "up = 0" convention
-      let arc_radius = 0.42;
+      let arc_radius = ${(KNOB_MATERIAL.geometry.arcRadius * 0.5).toFixed(4)};
       let arc_dist = abs(length(uv) - arc_radius);
       // Only draw arc within the \u00b1max_angle sweep and up to the current value
       if (arc_dist < 0.03 && pixel_angle >= -max_angle && pixel_angle <= val_mapped) {
           let arc_brightness = smoothstep(0.03, 0.0, arc_dist);
           // Color shifts from teal at min to bright cyan at current value
           let arc_t = (pixel_angle + max_angle) / (val_mapped + max_angle + 0.001);
-          color = mix(vec3f(0.0, 0.6, 0.5), vec3f(0.2, 1.0, 0.8), arc_t);
+          color = mix(${rgbToWgsl(KNOB_MATERIAL.palette.arcMin)}, ${rgbToWgsl(KNOB_MATERIAL.palette.arcMax)}, arc_t);
           alpha += arc_brightness * 0.85;
       }
 
@@ -117,9 +122,9 @@ const SHADER_CODE = `
       let proj = dot(uv, needle_vec);
       let perp = length(uv - needle_vec * proj);
       // Guard against perp \u2248 0 to avoid Inf bloom
-      if (proj > 0.0 && proj < 0.5 && perp < 0.02 && perp > 0.0005) {
+      if (proj > 0.0 && proj < ${(KNOB_MATERIAL.geometry.needleLength * 0.5).toFixed(4)} && perp < 0.02 && perp > 0.0005) {
           alpha += min(1.0 / (perp * 100.0), 8.0); // Bloom needle, clamped
-          color = vec3f(1.0, 1.0, 1.0); // White hot center
+          color = ${rgbToWgsl(KNOB_MATERIAL.palette.needle)}; // White hot center
       }
 
       // 5. Fresnel / Glitch Effect
@@ -132,7 +137,7 @@ const SHADER_CODE = `
       // Vignette / Falloff at edges of canvas
       alpha *= smoothstep(0.8, 0.6, len);
 
-      return vec4f(color * alpha * 1.5, alpha);
+      return vec4f(color * alpha * ${KNOB_MATERIAL.bloom.intensity.toFixed(4)}, alpha);
     }
 `;
 

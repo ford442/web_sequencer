@@ -27,6 +27,7 @@ import type {
   AutomationLane,
   RbsTrakEvent,
   RbsSongData,
+  Tb303Step,
 } from './types';
 import { TRAK_TRACK_INDEX, TICKS_PER_BAR } from './types';
 import { RbsParser } from './RbsParser';

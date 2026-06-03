@@ -1,16 +1,26 @@
-// @ts-expect-error - The wasm-bindgen generated JS file is in public/ and resolved at runtime, but TS doesn't see it.
-import init, { generate_rust_wave } from '/rust-wasm/rust_audio.js';
+// The wasm-bindgen generated JS lives in /public/rust-wasm/ and is only
+// available at runtime (not a bundled module). We use a dynamic import inside
+// init() so Vite's static import-analysis never touches the public-asset path.
 import { engineTelemetry } from '../utils/engineTelemetry';
+
+type RustGenerateFn = (rate: number, freq: number, dur: number, typeId: number, cutoff: number, resonance: number) => Float32Array;
 
 export class RustOscillator {
     isReady: boolean = false;
+    private generateFn: RustGenerateFn | null = null;
 
     async init() {
         try {
-            // Initialize the WASM module
-            await init();
+            // Dynamic import keeps the public-asset path out of Vite's static
+            // analysis (and therefore out of test compilation paths).
+            // Using a variable (not a string literal) keeps Vite's static import-analysis
+            // from checking the public-directory path at compile/test time.
+            const rustPath = '/rust-wasm/rust_audio.js';
+            const mod = await import(/* @vite-ignore */ rustPath) as { default: () => Promise<void>; generate_rust_wave: RustGenerateFn };
+            await mod.default();
+            this.generateFn = mod.generate_rust_wave;
             this.isReady = true;
-            try { engineTelemetry.registerResolution('rust', 'wasm', 'loaded'); } catch (err) {}
+            try { engineTelemetry.registerResolution('rust', 'wasm', 'loaded'); } catch (_) {}
             console.log("Rust Engine Ready");
         } catch (e) {
             try { engineTelemetry.registerResolution('rust', 'fallback', 'init-failed'); engineTelemetry.recordError('rust', e); } catch (_) {}
@@ -26,20 +36,18 @@ export class RustOscillator {
         cutoff: number,
         resonance: number
     ): Float32Array | null {
-        if (!this.isReady) return null;
+        if (!this.isReady || !this.generateFn) return null;
 
-        // Map type string to integer for Rust
         const typeId = type === 'saw' ? 0 : 1;
 
         try {
-            // Call the exported Rust function
             const t0 = performance.now();
-            const res = generate_rust_wave(rate, freq, dur, typeId, cutoff, resonance);
+            const res = this.generateFn(rate, freq, dur, typeId, cutoff, resonance);
             const t1 = performance.now();
-            try { engineTelemetry.recordLatency('rust', t1 - t0); } catch (err) {}
+            try { engineTelemetry.recordLatency('rust', t1 - t0); } catch (_) {}
             return res;
         } catch (e) {
-            try { engineTelemetry.recordError('rust', e); } catch (err) {}
+            try { engineTelemetry.recordError('rust', e); } catch (_) {}
             console.error("Rust Render Error", e);
             return null;
         }

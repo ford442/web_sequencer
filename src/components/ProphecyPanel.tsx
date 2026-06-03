@@ -38,10 +38,9 @@ export const ProphecyPanel: React.FC<ProphecyPanelProps> = memo(({
 }) => {
     const isActive = (v: number) => Math.round(vowel) === v;
 
-    const activeStyle = accentColor === 'cyan'
-        ? 'bg-gradient-to-b from-cyan-500 to-cyan-600 text-white border-cyan-400 shadow-[0_0_10px_rgba(0,229,255,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]'
-        : 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_10px_rgba(255,0,102,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]';
-
+    // Use Prophecy family violet for the vowel buttons (themed per oscillator type).
+    // The outer panel tint + part accent (cyan/pink labels) provide the voice + family mix.
+    const activeStyle = 'bg-gradient-to-b from-violet-500 to-violet-600 text-white border-violet-400 shadow-[0_0_10px_rgba(139,92,246,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]';
     const inactiveStyle = 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]';
 
     const borderColorStyle = accentColor === 'cyan' ? 'border-cyan-500/20' : 'border-pink-500/20';
