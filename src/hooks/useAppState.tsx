@@ -1918,7 +1918,6 @@ const handleLyricApply = useCallback(async (text: string) => {
         songMeasureRef,
         isFirstStepRef,
         sequencerRef,
-        currentStepRef,
         tempoRef,
         tempoHoldIntervalRef,
         tempoHoldTimeoutRef,

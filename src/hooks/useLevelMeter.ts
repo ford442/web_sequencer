@@ -52,7 +52,7 @@ export function useLevelMeter(
                 dataRef.current = new Float32Array(analyserNode.fftSize);
             }
 
-            analyserNode.getFloatTimeDomainData(dataRef.current);
+            analyserNode.getFloatTimeDomainData(dataRef.current as Float32Array<ArrayBuffer>);
             reading.level = computeRms(dataRef.current);
             reading.peak = Math.max(reading.level, reading.peak - peakDecayPerFrame);
 
@@ -75,7 +75,7 @@ export function useLevelMeter(
  * Compute RMS amplitude of a Float32Array of PCM samples.
  * Returns a value in [0, 1] (assumes samples are in the –1…+1 range).
  */
-export function computeRms(samples: Float32Array): number {
+export function computeRms(samples: Float32Array | Float32Array<ArrayBufferLike>): number {
     if (samples.length === 0) return 0;
     let sum = 0;
     for (let i = 0; i < samples.length; i++) {
