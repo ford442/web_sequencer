@@ -705,8 +705,8 @@ export class RbsImporter {
 
     // Slide time: use the raw 0-127 value if provided; otherwise fall back to the
     // TB-303 hardware default (~42/127 ≈ 0.33 = 60 ms at nominal tempo).
-    const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
-    const slideTime = clampNormalized(rawSlideTime / 127);
+    const rawSlideTimeValue = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+    const slideTimeValue = clampNormalized(rawSlideTimeValue / 127);
 
     if (mappings) {
       mappings.push({
@@ -719,8 +719,8 @@ export class RbsImporter {
       mappings.push({
         source: `${sourceName}.slideTime`,
         target: 'Bass2Params.slideTime',
-        originalValue: rawSlideTime,
-        convertedValue: parseFloat(slideTime.toFixed(3)),
+        originalValue: rawSlideTimeValue,
+        convertedValue: parseFloat(slideTimeValue.toFixed(3)),
         formula: 'slideTime / 127 (0-1 normalized, TB-303 default ≈ 0.33)'
       });
     }
@@ -735,7 +735,7 @@ export class RbsImporter {
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
       volume: 0.9,
-      slideTime,
+      slideTime: slideTimeValue,
     };
   }
 
