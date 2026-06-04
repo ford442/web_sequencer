@@ -43,6 +43,7 @@ const JC303_PARAM_MAP: Record<string, number> = {
     jc303_setAccent:     6,  // OPEN303_ACCENT
     jc303_setVolume:     7,  // OPEN303_VOLUME
     jc303_setFilterMode: 8,  // OPEN303_FILTER_MODE
+    jc303_setSlideTime:  11, // OPEN303_SLIDE_TIME (portamento speed 0-1)
 };
 
 class Open303Processor extends AudioWorkletProcessor {

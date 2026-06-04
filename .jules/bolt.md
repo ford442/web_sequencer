@@ -49,3 +49,7 @@
 ## 2024-05-28 - React Memo Comparator Deep Clone Pitfalls
 **Learning:** Using `JSON.stringify(prev.props) !== JSON.stringify(next.props)` inside a `React.memo` custom `areEqual` function for small arrays (like a `loadedBanks` boolean array) forces expensive memory allocation and serialization on *every single render cycle*. Even though it "works" to check array content, it adds unnecessary CPU overhead for components that evaluate frequently.
 **Action:** Replace `JSON.stringify` comparisons inside memo comparators with a simple array shallow equality check: `prev.arr.length !== next.arr.length || prev.arr.some((val, i) => val !== next.arr[i])`. This achieves the exact same value comparison with significantly lower CPU cost and no garbage collection pressure.
+
+## 2024-05-30 - AudioWorklet GC Thrashes via Object Allocation
+**Learning:** Calling `updateConfig({ nested: { value } })` inside an `AudioWorkletProcessor.process()` loop creates new objects every ~3ms (128 samples). This produces intense garbage collection pressure on the audio thread, risking audio dropouts and general CPU bloat, particularly when scaling polyphony or FX instances. Object spreading (`...`) compound this by churning through allocations.
+**Action:** Always implement direct setter methods (`setVibrato(rate, depth)`, `setEnvelope()`, etc.) that directly mutate the inner configuration state in high-frequency contexts like AudioWorklets, avoiding fresh objects and deep merges entirely on the hot path.
