@@ -634,15 +634,14 @@ export class RbsImporter {
         originalValue: tb303.waveform,
         convertedValue: waveform
       });
-      if (slideTime !== undefined) {
-        mappings.push({
-          source: `${sourceName}.slideTime`,
-          target: 'SynthParams.slideTime',
-          originalValue: tb303.slideTime!,
-          convertedValue: parseFloat(slideTime.toFixed(3)),
-          formula: 'slideTime / 127'
-        });
-      }
+
+      mappings.push({
+        source: `${sourceName}.slideTime`,
+        target: 'SynthParams.slideTime',
+        originalValue: tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME,
+        convertedValue: parseFloat(portamento.toFixed(3)),
+        formula: 'slideTime / 127'
+      });
 
       return {
         waveform,
@@ -659,7 +658,7 @@ export class RbsImporter {
         delayTime: 0.3,
         delayFeedback: 0.2,
         delayMix: 0.0,
-        ...(slideTime !== undefined ? { slideTime } : {}),
+        slideTime: portamento,
         portamento,
       };
     };
