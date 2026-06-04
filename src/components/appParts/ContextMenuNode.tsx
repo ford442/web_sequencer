@@ -44,10 +44,15 @@ export const ContextMenuNode = React.memo(() => {
           currentVibratoDepth={stepData?.vibratoDepth ?? 0}
           currentGateDepth={stepData?.gateDepth}
           currentGateRate={stepData?.gateRate}
+          currentTimeStretchEnvDepth={stepData?.timeStretchEnvDepth}
+          currentSpectralPanRate={stepData?.spectralPanRate}
+          currentSpectralPanDepth={stepData?.spectralPanDepth}
           currentDrive={stepData?.drive}
           currentCharacterMorph={stepData?.characterMorph}
           currentReverbSend={stepData?.reverbSend}
           currentReverbType={stepData?.reverbType}
+          currentReverbLfoRate={stepData?.reverbLfoRate}
+          currentReverbLfoDepth={stepData?.reverbLfoDepth}
           currentDelayLfoRate={stepData?.delayLfoRate}
           currentDelayLfoDepth={stepData?.delayLfoDepth}
           currentDelaySend={stepData?.delaySend}
