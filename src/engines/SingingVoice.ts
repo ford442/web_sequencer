@@ -137,7 +137,6 @@ export class SingingVoice {
     /** Envelope Baseline Tracker for Phoneme-Aware Velocity */
     private currentAttack: number = 0.05;
     private currentDecay: number = 0.1;
-    private currentConsonantEmphasis: number = 1.0;
 
     /** Phoneme aligner for Section 3 implementation */
     private phonemeAligner: PhonemeAligner | null = null;
@@ -497,7 +496,7 @@ export class SingingVoice {
 
         this.workletNode.port.postMessage({
             type: 'loadBuffer',
-            data: { buffer: audio.buffer.slice(0) } // Copy buffer
+            data: { buffer: audio.buffer } // Let structured clone handle it natively
         });
     }
 
@@ -604,17 +603,13 @@ export class SingingVoice {
         let scaledAttack = this.currentAttack;
         let scaledDecay = this.currentDecay;
 
-        let sliceGain = 1.0;
-
         switch (phoneme.category) {
             case 'plosive':
                 scaledAttack = Math.max(0.001, this.currentAttack * 0.1); // Extremely fast attack
                 scaledDecay = Math.max(0.001, this.currentDecay * 0.5);   // Faster decay
-                sliceGain = this.currentConsonantEmphasis;
                 break;
             case 'fricative':
                 scaledAttack = Math.max(0.001, this.currentAttack * 0.5); // Fast attack
-                sliceGain = this.currentConsonantEmphasis;
                 break;
             case 'liquid':
             case 'nasal':
@@ -631,7 +626,6 @@ export class SingingVoice {
         if (this.workletNode) {
             this.workletNode.parameters.get('attack')?.setValueAtTime(scaledAttack, this.audioContext.currentTime);
             this.workletNode.parameters.get('decay')?.setValueAtTime(scaledDecay, this.audioContext.currentTime);
-            this.workletNode.parameters.get('sliceGain')?.setValueAtTime(sliceGain, this.audioContext.currentTime);
         }
 
         this.setPitch(pitch);
@@ -1097,14 +1091,6 @@ export class SingingVoice {
     }
 
     /**
-     * Set the volume multiplier for consonant phonemes (plosives, fricatives).
-     * @param emphasis Multiplier (default 1.0)
-     */
-    setConsonantEmphasis(emphasis: number): void {
-        this.currentConsonantEmphasis = Math.max(0.5, Math.min(2.5, emphasis));
-    }
-
-    /**
      * Set granular pitch quantization interval in semitones.
      * 0 = off, 1 = chromatic, 3 = minor third, 4 = major third,
      * 5 = fourth, 7 = fifth, 12 = octave.
@@ -1186,6 +1172,28 @@ export class SingingVoice {
                     time: time || this.audioContext.currentTime
                 }
             });
+        }
+    }
+
+    /**
+     * Set bitcrush amount.
+     * @param amount Bitcrush amount (0-1)
+     * @param time Optional time to apply the change
+     */
+    setBitcrush(amount: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('bitcrush')?.setValueAtTime(amount, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Set downsample factor.
+     * @param factor Downsample factor (1-32)
+     * @param time Optional time to apply the change
+     */
+    setDownsample(factor: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('downsample')?.setValueAtTime(factor, time || this.audioContext.currentTime);
         }
     }
 

@@ -38,10 +38,22 @@ export type {
   RbsBinaryHeader,
   RbsRawStep,
   RbsRawAutomationPoint,
-  RbsRawAutomationLane
+  RbsRawAutomationLane,
+  // IFF CAT RB40 song types
+  RbsGlobData,
+  RbsTrakEvent,
+  RbsTrakData,
+  RbsSongData,
 } from './types';
 
-export { DEFAULT_RBS_IMPORT_OPTIONS, AUTOMATION_PARAMETER_MAP } from './types';
+export {
+  DEFAULT_RBS_IMPORT_OPTIONS,
+  AUTOMATION_PARAMETER_MAP,
+  TRAK_CONTROLLER,
+  TRAK_TRACK_INDEX,
+  TICKS_PER_BAR,
+  TICKS_PER_STEP,
+} from './types';
 
 // Parser
 export { RbsParser, parseRbsFile } from './RbsParser';
@@ -49,7 +61,14 @@ export type { RbsParserResult, RbsParserError } from './RbsParser';
 
 // New spec-driven Rebirth parser (recommended API per technical spec)
 export { RebirthRBSParser, parseRebirthRBSFile } from './RebirthRBSParser';
-export type { RebirthParseResult } from './RebirthRBSParser';
+export type {
+  RebirthParseResult,
+  RbsHeaderData,
+  RbsPatternData,
+  RbsSynthParameters,
+  RbsSongArrangement,
+  RbsAutomationData,
+} from './RebirthRBSParser';
 
 // Importer
 export { RbsImporter, convertToHyphonSong } from './RbsImporter';

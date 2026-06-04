@@ -27,10 +27,12 @@ import type {
   AutomationLane,
   HyphonAutomationLane,
   StepConversionStats,
-  DetailedParameterMapping
+  DetailedParameterMapping,
+  RbsSongData,
+  Tb303PatternA,
 } from './types';
 
-import { DEFAULT_RBS_IMPORT_OPTIONS } from './types';
+import { DEFAULT_RBS_IMPORT_OPTIONS, TICKS_PER_BAR, TRAK_TRACK_INDEX } from './types';
 
 import type { 
   Pattern, 
@@ -45,6 +47,17 @@ import type {
 } from '../../types';
 
 import { noteToMidi, midiToNote } from '../../utils/musicTheory';
+
+/**
+ * Default slide-time raw value for authentic TB-303 hardware (0-127 range).
+ * Corresponds to ~60 ms portamento at nominal tempo (42/127 ≈ 0.331 normalized).
+ */
+const TB303_DEFAULT_SLIDE_TIME = 42;
+
+/** Clamp a value to the [0, 1] normalized range. */
+function clampNormalized(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
 
 /** Import result with detailed reporting */
 export interface RbsImportResult {
@@ -73,6 +86,19 @@ export interface ImportReport {
   accentCount: number;
   /** Step conversion statistics */
   stepStats?: StepConversionStats;
+  /** Song mode info (populated when file is a full song with GLOB + TRKL) */
+  songMode?: {
+    /** Whether the file is in song mode (multi-pattern arrangement) */
+    isSongMode: boolean;
+    /** Total pattern banks available */
+    patternBankCount: number;
+    /** Total TRAK arrangement events */
+    arrangementEventCount: number;
+    /** Song length in bars */
+    songLengthBars: number;
+    /** Number of distinct patterns used in arrangement */
+    usedPatternCount: number;
+  };
 }
 
 /** Import error types */
@@ -146,6 +172,24 @@ export class RbsImporter {
     const convertedAutomation = this.convertAutomationLanes(raw.automation);
     automation.push(...convertedAutomation);
 
+    // Generate per-step accent and slide automation lanes from TB-303 step data.
+    // These capture the pattern-level on/off state for accent (velocity boost +
+    // filter envelope push) and slide (portamento/legato), so the playback
+    // scheduler can replicate exact TB-303 behaviour step-by-step.
+    const tb303ATarget = this.resolveTb303Target(this.options.tb303ATarget);
+    const tb303BTarget = this.resolveTb303Target(this.options.tb303BTarget);
+    const accentSlideA = this.generateAccentSlideAutomation(
+      raw.tb303PatternA.steps,
+      tb303ATarget,
+      raw.tb303PatternA.accent / 127
+    );
+    const accentSlideB = this.generateAccentSlideAutomation(
+      raw.tb303PatternB.steps,
+      tb303BTarget,
+      raw.tb303PatternB.accent / 127
+    );
+    automation.push(...accentSlideA, ...accentSlideB);
+
     // Build Hyphon song
     const song: HyphonSong = {
       version: 1,
@@ -178,18 +222,33 @@ export class RbsImporter {
         automation: raw.automation,
         tb303AParams: this.extractTb303Params(raw.tb303PatternA),
         tb303BParams: this.extractTb303Params(raw.tb303PatternB)
-      }
+      },
+      songArrangement: raw.songData ? this.buildSongArrangement(raw, warnings) : undefined,
     };
 
     // Calculate conversion stats
     const stepsConverted = this.countSteps(raw);
+
+    // Build song mode report data if songData is present
+    const songModeReport = raw.songData ? {
+      isSongMode: raw.songData.glob.playMode === 1,
+      patternBankCount: Math.max(
+        raw.songData.patternBanks.tb303A.length,
+        raw.songData.patternBanks.tb303B.length,
+        raw.songData.patternBanks.drums808.length,
+        raw.songData.patternBanks.drums909.length,
+      ),
+      arrangementEventCount: raw.songData.tracks.reduce((sum, t) => sum + t.eventCount, 0),
+      songLengthBars: raw.songData.totalLengthBars,
+      usedPatternCount: raw.songData.usedPatternCount,
+    } : undefined;
 
     // Build enhanced report
     return {
       success: true,
       song,
       report: {
-        patternsConverted: 4, // 2x 303 + drums (kick/snare/hats counted as one)
+        patternsConverted: songModeReport ? songModeReport.patternBankCount : 4,
         stepsConverted,
         warnings,
         mappings,
@@ -197,7 +256,8 @@ export class RbsImporter {
         pcfEnabled: raw.pcf.enabled,
         slideCount: this.stepStats.slideCount,
         accentCount: this.stepStats.accentCount,
-        stepStats: this.stepStats
+        stepStats: this.stepStats,
+        songMode: songModeReport,
       }
     };
   }
@@ -501,7 +561,7 @@ export class RbsImporter {
     mappings: DetailedParameterMapping[]
   ): HyphonSong['params'] {
     // Map TB-303 0-127 range to Hyphon parameters using exponential curves
-    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1 }, sourceName: string): SynthParams => {
+    const map303ToSynthParams = (tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1; slideTime?: number }, sourceName: string): SynthParams => {
       // Use 303-specific waveforms so Open303Manager is selected for playback
       const waveform: Waveform = tb303.waveform === 0 ? '303-saw' : '303-sqr';
       
@@ -515,11 +575,20 @@ export class RbsImporter {
       // Decay: RBS 0-127 → Hyphon 0.05-2.0s (exponential)
       const decaySeconds = this.convertDecayToSeconds(tb303.decay);
       
+      // EnvMod: RBS 0-127 → Hyphon filterMode (0-1 normalized).
+      // SynthParams stores envMod as filterMode (0-1) so the Open303 engine
+      // can apply the correct envelope-modulation depth.
+      const filterMode = clampNormalized(tb303.envMod / 127);
+
       // Accent: RBS 0-127 → Hyphon velocity boost 0-0.4
       const accentBoost = this.convertAccentToBoost(tb303.accent);
       
       // Volume based on accent (0.6-1.0 range)
       const volume = 0.6 + accentBoost;
+
+      // Slide time: use raw value when available; TB-303 hardware default is ~42/127 ≈ 0.33.
+      const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+      const portamento = clampNormalized(rawSlideTime / 127);
 
       // Record detailed mappings
       mappings.push({
@@ -535,6 +604,13 @@ export class RbsImporter {
         originalValue: tb303.resonance,
         convertedValue: parseFloat(resonance.toFixed(2)),
         formula: 'resonance / 6.35'
+      });
+      mappings.push({
+        source: `${sourceName}.envMod`,
+        target: 'SynthParams.filterMode',
+        originalValue: tb303.envMod,
+        convertedValue: parseFloat(filterMode.toFixed(3)),
+        formula: 'envMod / 127 (0-1 normalized)'
       });
       mappings.push({
         source: `${sourceName}.decay`,
@@ -556,13 +632,20 @@ export class RbsImporter {
         originalValue: tb303.waveform,
         convertedValue: waveform
       });
+      mappings.push({
+        source: `${sourceName}.slideTime`,
+        target: 'SynthParams.portamento',
+        originalValue: rawSlideTime,
+        convertedValue: parseFloat(portamento.toFixed(3)),
+        formula: 'slideTime / 127 (0-1 normalized, TB-303 default ≈ 0.33)'
+      });
 
       return {
         waveform,
         pitch: 0,
         filterCutoff: cutoffHz,
         filterResonance: resonance,
-        filterMode: tb303.envMod > 64 ? 1 : 0,
+        filterMode,
         attack: 0.01, // 303 has fast attack
         decay: decaySeconds,
         sustain: 0.5,
@@ -571,7 +654,8 @@ export class RbsImporter {
         volume: volume,
         delayTime: 0.3,
         delayFeedback: 0.2,
-        delayMix: 0.0
+        delayMix: 0.0,
+        portamento,
       };
     };
 
@@ -610,7 +694,7 @@ export class RbsImporter {
    * Convert TB-303 params to Bass2Params (Open303 format)
    */
   private convertToBass2Params(
-    tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1; envMod?: number },
+    tb303: { cutoff: number; resonance: number; decay: number; accent: number; waveform: 0 | 1; envMod?: number; slideTime?: number },
     sourceName: string,
     mappings?: DetailedParameterMapping[]
   ): Bass2Params {
@@ -619,6 +703,11 @@ export class RbsImporter {
     const decay = this.convertDecayToSeconds(tb303.decay);
     const accent = 0.5 + this.convertAccentToBoost(tb303.accent);
 
+    // Slide time: use the raw 0-127 value if provided; otherwise fall back to the
+    // TB-303 hardware default (~42/127 ≈ 0.33 = 60 ms at nominal tempo).
+    const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+    const slideTime = clampNormalized(rawSlideTime / 127);
+
     if (mappings) {
       mappings.push({
         source: `${sourceName}.cutoff`,
@@ -626,6 +715,13 @@ export class RbsImporter {
         originalValue: tb303.cutoff,
         convertedValue: Math.round(cutoff),
         formula: '100 * 2^(cutoff / 21.17) Hz'
+      });
+      mappings.push({
+        source: `${sourceName}.slideTime`,
+        target: 'Bass2Params.slideTime',
+        originalValue: rawSlideTime,
+        convertedValue: parseFloat(slideTime.toFixed(3)),
+        formula: 'slideTime / 127 (0-1 normalized, TB-303 default ≈ 0.33)'
       });
     }
 
@@ -638,7 +734,8 @@ export class RbsImporter {
       decay,
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
-      volume: 0.9
+      volume: 0.9,
+      slideTime,
     };
   }
 
@@ -798,6 +895,98 @@ export class RbsImporter {
   }
 
   /**
+   * Resolve a tb303ATarget / tb303BTarget option string to the corresponding
+   * HyphonAutomationLane target name.
+   */
+  private resolveTb303Target(
+    option: 'partA' | 'partB' | 'bass2'
+  ): HyphonAutomationLane['target'] {
+    switch (option) {
+      case 'bass2': return 'bass2';
+      case 'partB': return 'synthB';
+      case 'partA':
+      default:      return 'synthA';
+    }
+  }
+
+  /**
+   * Generate per-step accent and slide automation lanes from TB-303 step data.
+   *
+   * **Accent lane** (`parameter: 'accent'`):
+   *   - Value `1.0` on accented steps (velocity + filter-envelope boost, as on
+   *     authentic TB-303 hardware).
+   *   - Value equal to `baseAccentNorm` on non-accented steps, so the global
+   *     accent level is preserved between locked steps.
+   *
+   * **Slide lane** (`parameter: 'slide'`):
+   *   - Value `1.0` on slide-active steps (portamento/legato).
+   *   - Value `0.0` on all other steps.
+   *
+   * Both lanes use `'step'` interpolation so values snap at step boundaries,
+   * exactly matching the TB-303's digital switching behaviour.
+   *
+   * Lanes are only emitted when at least one step actually has the flag set,
+   * avoiding unnecessary overhead for patterns with no accent or no slide.
+   *
+   * @param steps          TB-303 step array (16 or 32 steps).
+   * @param target         Which automation target these lanes belong to.
+   * @param baseAccentNorm Normalised (0–1) base accent level from the pattern
+   *                       parameters; used as the "resting" accent value on
+   *                       non-accented steps.
+   * @returns              0, 1, or 2 `HyphonAutomationLane` objects.
+   */
+  private generateAccentSlideAutomation(
+    steps: Tb303Step[],
+    target: HyphonAutomationLane['target'],
+    baseAccentNorm: number
+  ): HyphonAutomationLane[] {
+    const numSteps = this.options.expandTo32Steps ? 32 : steps.length;
+    const accentPoints: [number, number][] = [];
+    const slidePoints: [number, number][] = [];
+    let hasAccent = false;
+    let hasSlide = false;
+
+    for (let i = 0; i < numSteps; i++) {
+      const src = steps[i % steps.length];
+      accentPoints.push([i, src.accent ? 1.0 : clampNormalized(baseAccentNorm)]);
+      slidePoints.push([i, src.slide ? 1.0 : 0.0]);
+      if (src.accent) hasAccent = true;
+      if (src.slide) hasSlide = true;
+    }
+
+    const trackLabel =
+      target === 'synthA' ? 'TB-303 A' :
+      target === 'synthB' ? 'TB-303 B' :
+      'Bass 2';
+
+    const lanes: HyphonAutomationLane[] = [];
+
+    if (hasAccent) {
+      lanes.push({
+        target,
+        parameter: 'accent',
+        name: `${trackLabel} Accent`,
+        points: accentPoints,
+        interpolation: 'step',
+        originalRange: [0, 1],
+      });
+    }
+
+    if (hasSlide) {
+      lanes.push({
+        target,
+        parameter: 'slide',
+        name: `${trackLabel} Slide`,
+        points: slidePoints,
+        interpolation: 'step',
+        originalRange: [0, 1],
+      });
+    }
+
+    return lanes;
+  }
+
+  /**
    * Convert RBS automation lanes to Hyphon format
    * 
    * Supports:
@@ -849,10 +1038,40 @@ export class RbsImporter {
         parameter = 'filterCutoff';
         name = lane.name || 'TB-303 B Cutoff';
         break;
+      case 'tb303Aresonance':
+        target = 'synthA';
+        parameter = 'filterResonance';
+        name = lane.name || 'TB-303 A Resonance';
+        break;
+      case 'tb303Bresonance':
+        target = 'synthB';
+        parameter = 'filterResonance';
+        name = lane.name || 'TB-303 B Resonance';
+        break;
+      case 'tb303Adecay':
+        target = 'synthA';
+        parameter = 'decay';
+        name = lane.name || 'TB-303 A Decay';
+        break;
+      case 'tb303Bdecay':
+        target = 'synthB';
+        parameter = 'decay';
+        name = lane.name || 'TB-303 B Decay';
+        break;
       case 'pcfCutoff':
         target = 'master';
         parameter = 'pcfModulation';
         name = lane.name || 'PCF Modulation';
+        break;
+      case 'pcfResonance':
+        target = 'master';
+        parameter = 'pcfResonance';
+        name = lane.name || 'PCF Resonance';
+        break;
+      case 'pcfEnvAmount':
+        target = 'master';
+        parameter = 'pcfEnvAmount';
+        name = lane.name || 'PCF Env Amount';
         break;
       case 'masterVolume':
         target = 'master';
@@ -896,7 +1115,7 @@ export class RbsImporter {
 
     for (const [stepIndex, value] of points) {
       // Normalize value to 0-1 range
-      const normalizedValue = Math.max(0, Math.min(1, (value - minVal) / rangeSpan));
+      const normalizedValue = clampNormalized((value - minVal) / rangeSpan);
       
       // Quantize if requested
       const finalStep = this.options.quantizeTo16th 
@@ -968,6 +1187,147 @@ export class RbsImporter {
   /**
    * Extract params object from TB-303 pattern (for metadata preservation)
    */
+  /**
+   * Build songArrangement data from parsed IFF song data.
+   * Populates trackStorage with pattern banks and creates songStructure from TRAK events.
+   * This enables SongMode playback with the correct pattern sequence.
+   */
+  private buildSongArrangement(raw: RawRbsData, warnings: string[]): HyphonSong['songArrangement'] {
+    const songData = raw.songData!;
+    const numSteps = this.options.expandTo32Steps ? 32 : raw.project.patternLength;
+    const isExpansion = numSteps === 32 && raw.project.patternLength === 16;
+
+    // Convert pattern banks to Hyphon track storage format (up to 8 slots)
+    const maxSlots = 8;
+    const partASlots: (Pattern['partA'] | null)[] = Array(maxSlots).fill(null);
+    const partBSlots: (Pattern['partB'] | null)[] = Array(maxSlots).fill(null);
+    const bass2Slots: (Pattern['bass2'] | null)[] = Array(maxSlots).fill(null);
+    const kickSlots: (Pattern['kick'] | null)[] = Array(maxSlots).fill(null);
+    const snareSlots: (Pattern['snare'] | null)[] = Array(maxSlots).fill(null);
+    const closedHatSlots: (Pattern['closedHat'] | null)[] = Array(maxSlots).fill(null);
+    const openHatSlots: (Pattern['openHat'] | null)[] = Array(maxSlots).fill(null);
+
+    // Map pattern banks to track storage (first 8 of up to 32)
+    const numA = Math.min(maxSlots, songData.patternBanks.tb303A.length);
+    for (let i = 0; i < numA; i++) {
+      const pat = songData.patternBanks.tb303A[i];
+      if (isExpansion) {
+        partASlots[i] = this.expandPattern16To32(pat.steps, false);
+      } else {
+        partASlots[i] = this.convertTb303ToPartSequence(pat, numSteps, false);
+      }
+    }
+
+    const numB = Math.min(maxSlots, songData.patternBanks.tb303B.length);
+    for (let i = 0; i < numB; i++) {
+      const pat = songData.patternBanks.tb303B[i];
+      if (isExpansion) {
+        partBSlots[i] = this.expandPattern16To32(pat.steps, false);
+      } else {
+        partBSlots[i] = this.convertTb303ToPartSequence(pat, numSteps, false);
+      }
+      // Also populate bass2 from 303B
+      if (this.options.tb303BTarget === 'bass2') {
+        if (isExpansion) {
+          bass2Slots[i] = this.expandPattern16To32(pat.steps, true);
+        } else {
+          bass2Slots[i] = this.convertTb303ToPartSequence(pat, numSteps, true);
+        }
+      }
+    }
+
+    // Drum patterns
+    const drumBank = songData.patternBanks.drums808.length > 0
+      ? songData.patternBanks.drums808
+      : songData.patternBanks.drums909;
+    const numDrums = Math.min(maxSlots, drumBank.length);
+    for (let i = 0; i < numDrums; i++) {
+      const dp = drumBank[i];
+      kickSlots[i] = this.convertDrumPattern(dp.kick, numSteps, 'kick');
+      snareSlots[i] = this.convertDrumPattern(dp.snare, numSteps, 'snare');
+      closedHatSlots[i] = this.convertDrumPattern(dp.closedHat, numSteps, 'closedHat');
+      openHatSlots[i] = this.convertDrumPattern(dp.openHat, numSteps, 'openHat');
+    }
+
+    // Build songStructure from TRAK events (pattern changes over time)
+    const songStructure: Array<Record<string, number | null>> = [];
+    const totalBars = Math.min(songData.totalLengthBars, 64); // max arrangement measures
+
+    // Find the main track for pattern select events
+    const tb303_1Track = songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_1);
+    const tb303_2Track = songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_2);
+    const drumsTrack = songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TR808)
+      || songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TR909);
+
+    for (let bar = 0; bar < totalBars; bar++) {
+      const barStart = bar * TICKS_PER_BAR;
+      const barEnd = barStart + TICKS_PER_BAR;
+
+      // Find the active pattern for each track at this bar
+      const partAIdx = this.findActivePatternAtTick(tb303_1Track, barStart, maxSlots);
+      const partBIdx = this.findActivePatternAtTick(tb303_2Track, barStart, maxSlots);
+      const drumIdx = this.findActivePatternAtTick(drumsTrack, barStart, maxSlots);
+
+      songStructure.push({
+        partA: partAIdx,
+        partB: partBIdx,
+        bass2: this.options.tb303BTarget === 'bass2' ? partBIdx : null,
+        kick: drumIdx,
+        snare: drumIdx,
+        closedHat: drumIdx,
+        openHat: drumIdx,
+        sampler: null,
+      });
+    }
+
+    // Collect all TRAK events for sub-step automation scheduling
+    const allTrakEvents = songData.tracks.flatMap(t => t.events);
+
+    if (songData.usedPatternCount > maxSlots) {
+      warnings.push(`Song uses ${songData.usedPatternCount} patterns but Hyphon supports ${maxSlots} slots. Excess patterns truncated.`);
+    }
+
+    return {
+      mode: songData.glob.playMode === 1 ? 'song' : 'pattern',
+      trackStorage: {
+        partA: partASlots,
+        partB: partBSlots,
+        bass2: bass2Slots,
+        kick: kickSlots,
+        snare: snareSlots,
+        closedHat: closedHatSlots,
+        openHat: openHatSlots,
+      },
+      songStructure,
+      loopStart: songData.glob.loopStart || undefined,
+      loopEnd: songData.glob.loopEnd || undefined,
+      trakEvents: allTrakEvents.length > 0 ? allTrakEvents : undefined,
+    };
+  }
+
+  /**
+   * Find the active pattern index at a given tick position for a track.
+   * Scans pattern-select events (controller 0) and returns the last pattern set before `tick`.
+   */
+  private findActivePatternAtTick(
+    track: RbsSongData['tracks'][number] | undefined,
+    tick: number,
+    maxSlots: number
+  ): number | null {
+    if (!track || track.events.length === 0) return 0;
+
+    let activePattern = 0;
+    for (const evt of track.events) {
+      if (evt.absoluteTicks > tick) break;
+      if (evt.controllerId === 0) { // pattern select
+        activePattern = evt.value;
+      }
+    }
+
+    // Clamp to available slots
+    return activePattern < maxSlots ? activePattern : 0;
+  }
+
   private extractTb303Params(tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1; distortion?: number; delaySend?: number }) {
     const { ...params } = tb303;
     return params;

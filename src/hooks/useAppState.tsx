@@ -3,6 +3,7 @@ import { useAudioEngine } from './useAudioEngine'
 import { usePyodideEngine } from './usePyodideEngine'
 import { useScheduler } from './useScheduler'
 import { useStepHandler } from './useStepHandler'
+import { useUndoRedo } from './useUndoRedo'
 import { useGamepad } from './useGamepad'
 import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
@@ -10,6 +11,7 @@ import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
+import type { PcfEffect } from '../engines/PcfEffect';
 import { exportSongToXM } from '../utils/xmExport'
 import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import type { ScaleDefinition } from '../utils/musicTheory'
@@ -17,9 +19,10 @@ import { copySteps, pasteSteps } from '../utils/clipboardUtils'
 import type { MainSequencerHandle } from '../components/MainSequencer'
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner'
 import { type HarmonizerConfig } from '../engines/Harmonizer'
-import { WaveformSelector } from '../components/WaveformSelector'
 import { Engine303Selector } from '../components/Engine303Selector'
 import { ProphecyPanel } from '../components/ProphecyPanel'
+import { OscillatorTypeSelector } from '../components/OscillatorTypeSelector'
+import { OscillatorVariantSelector } from '../components/OscillatorVariantSelector'
 import { SamplerPanel } from '../components/SamplerPanel'
 import { engineTelemetry } from '../utils/engineTelemetry'
 
@@ -37,7 +40,8 @@ import {
     DEFAULT_SAMPLER_BANK_PARAMS,
     getKitDrumParams,
 } from '../constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType, AutomationTarget } from '../types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType, AutomationTarget, ResolvedTrakEvent, OscillatorType } from '../types'
+import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses, OSCILLATOR_THEMES } from '../types'
 import {
     INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
     type TrackKey, type SongSnapshot,
@@ -131,6 +135,7 @@ export function useAppState() {
     }, []);
 
     const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
+    const [swing, setSwing] = useState<number>(0) // 0 = straight, 1 = max shuffle
     const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
     const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef } = useAudioEngine(pyodide, tempo)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
@@ -165,6 +170,7 @@ export function useAppState() {
     };
 
     const [pattern, setPattern] = useState<Pattern>(UPDATED_INITIAL_PATTERN)
+    const undoRedo = useUndoRedo<Pattern>(50)
     const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
@@ -572,16 +578,21 @@ export function useAppState() {
     // AutomationScheduler: created/updated when the audio engine becomes ready.
     // Wires Open303Manager into AudioParam-aligned parameter scheduling for
     // zipper-free 303 automation during playback.
+    // ppq:192 matches the RBS TRAK event resolution (768 ticks/bar ÷ 4 beats = 192 PPQ).
     const automationSchedulerRef = useRef<AutomationScheduler | null>(null);
+    // Resolved TRAK events from an imported RBS song for sub-step automation scheduling.
+    const trakEventsRef = useRef<ResolvedTrakEvent[] | null>(null);
     useEffect(() => {
         const ctx = audioEngine?.context;
         const mgr = (audioEngine as any)?.open303Engine ?? null;
+        const pcf: PcfEffect | null = (audioEngine as any)?.pcfEffect ?? null;
         if (ctx) {
             if (!automationSchedulerRef.current) {
-                automationSchedulerRef.current = new AutomationScheduler(ctx, mgr ?? null);
+                automationSchedulerRef.current = new AutomationScheduler(ctx, mgr ?? null, { ppq: 192 });
             } else {
                 automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
             }
+            automationSchedulerRef.current.setPcfEffect(pcf);
         }
     }, [audioEngine]);
 
@@ -617,9 +628,10 @@ export function useAppState() {
         trackStorageRef,
         setCurrentSongMeasure,
         automationSchedulerRef,
+        trakEventsRef,
     })
 
-    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady)
+    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, audioEngine?.context ?? null, swing)
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
 
     useEffect(() => {
@@ -670,16 +682,38 @@ export function useAppState() {
 
     useEffect(() => {
         const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            const inTextField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
             if (e.code === 'Space') {
-                const target = e.target as HTMLElement;
-                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+                if (inTextField) return;
                 e.preventDefault();
                 handlePlayToggle();
+                return;
+            }
+
+            // Undo: Ctrl/Cmd+Z
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+                if (inTextField) return;
+                e.preventDefault();
+                const prev = undoRedo.undo();
+                if (prev) setPattern(prev);
+                return;
+            }
+
+            // Redo: Ctrl/Cmd+Shift+Z  or  Ctrl/Cmd+Y
+            if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') ||
+                ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')) {
+                if (inTextField) return;
+                e.preventDefault();
+                const next = undoRedo.redo();
+                if (next) setPattern(next);
+                return;
             }
         };
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [handlePlayToggle]);
+    }, [handlePlayToggle, undoRedo]);
 
     const handleMasterVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v);
         if (automationStore.isParameterArmed('master', 'volume')) {
@@ -723,6 +757,7 @@ export function useAppState() {
         } else {
              if (!window.confirm(`Paste from clipboard to start of ${targetTrack}?`)) return;
         }
+        undoRedo.push(patternRef.current);
         const newPattern = pasteSteps(patternRef.current, clipboard, targetTrack, targetStep, activeSamplerBankRef.current);
         setPattern(newPattern);
         let changedSequence;
@@ -736,48 +771,49 @@ export function useAppState() {
     }, [clipboard, selection, selectedTrack, showToast, updateStorageForTrack]);
 
     const handleAutomationChange = useCallback((trackKey: TrackKey, step: number, value: number) => {
-        setPattern(prev => {
-            const nextPattern = { ...prev };
-            if (trackKey === 'sampler') {
-                const bankIdx = activeSamplerBankRef.current;
-                const nextSampler = [...nextPattern.sampler];
-                const nextBank = { ...nextSampler[bankIdx] };
-                const nextAutomation = nextBank.automation ? { ...nextBank.automation } : {};
-                const nextParamArray = nextAutomation[automationParam]
-                    ? [...nextAutomation[automationParam]]
-                    : Array(NUM_STEPS).fill(null);
-                nextParamArray[step] = value;
-                nextAutomation[automationParam] = nextParamArray;
-                nextBank.automation = nextAutomation;
-                nextSampler[bankIdx] = nextBank;
-                nextPattern.sampler = nextSampler;
-                updateStorageForTrack(trackKey, nextSampler);
-            } else {
-                 const nextTrack = { ...nextPattern[trackKey] } as any;
-                 const nextAutomation = nextTrack.automation ? { ...nextTrack.automation } : {};
-                 const nextParamArray = nextAutomation[automationParam]
-                    ? [...nextAutomation[automationParam]]
-                    : Array(NUM_STEPS).fill(null);
-                 nextParamArray[step] = value;
-                 nextAutomation[automationParam] = nextParamArray;
-                 nextTrack.automation = nextAutomation;
-                 nextPattern[trackKey] = nextTrack;
-                 updateStorageForTrack(trackKey, nextTrack);
-            }
-            return nextPattern;
-        });
+        const prev = patternRef.current;
+        let newPattern = prev;
+
+        if (trackKey === 'sampler') {
+            const bankIdx = activeSamplerBankRef.current;
+            newPattern = updateSamplerStep(prev, bankIdx, -1, () => null); // Force bank clone without affecting steps
+
+            const nextSampler = [...newPattern.sampler];
+            const nextBank = { ...nextSampler[bankIdx] };
+            const nextAutomation = nextBank.automation ? { ...nextBank.automation } : {};
+            const nextParamArray = nextAutomation[automationParam]
+                ? [...nextAutomation[automationParam]]
+                : Array(NUM_STEPS).fill(null);
+            nextParamArray[step] = value;
+            nextAutomation[automationParam] = nextParamArray;
+            nextBank.automation = nextAutomation;
+            nextSampler[bankIdx] = nextBank;
+            newPattern = { ...newPattern, sampler: nextSampler };
+            updateStorageForTrack(trackKey, newPattern.sampler);
+        } else {
+            const nextTrack = { ...(prev[trackKey] as any) };
+            const nextAutomation = nextTrack.automation ? { ...nextTrack.automation } : {};
+            const nextParamArray = nextAutomation[automationParam]
+               ? [...nextAutomation[automationParam]]
+               : Array(NUM_STEPS).fill(null);
+            nextParamArray[step] = value;
+            nextAutomation[automationParam] = nextParamArray;
+            nextTrack.automation = nextAutomation;
+            newPattern = { ...newPattern, [trackKey]: nextTrack };
+            updateStorageForTrack(trackKey, newPattern[trackKey]);
+        }
+        setPattern(newPattern);
     }, [automationParam, updateStorageForTrack]);
 
     const handlePitchChange = useCallback((trackKey: TrackKey, step: number, pitch: number) => {
         if (trackKey !== 'sampler') return;
         const note = midiToNote(pitch);
-        setPattern(prev => {
-            const bankIdx = activeSamplerBankRef.current;
-            const updater = (stepData: any) => stepData ? { ...stepData, note } : { note, velocity: 1, length: 1 };
-            const newPattern = updateSamplerStep(prev, bankIdx, step, updater);
-            updateStorageForTrack('sampler', newPattern.sampler);
-            return newPattern;
-        });
+        const prev = patternRef.current;
+        const bankIdx = activeSamplerBankRef.current;
+        const updater = (stepData: any) => stepData ? { ...stepData, note } : { note, velocity: 1, length: 1 };
+        const newPattern = updateSamplerStep(prev, bankIdx, step, updater);
+        updateStorageForTrack('sampler', newPattern.sampler);
+        setPattern(newPattern);
     }, [updateStorageForTrack]);
 
     const handlePhonemeUpdate = useCallback((
@@ -787,64 +823,72 @@ export function useAppState() {
         phonemes: PhonemeData[] | undefined
     ) => {
         if (trackKey !== 'sampler') return;
-        setPattern(prev => {
-            const newPattern = { ...prev };
-            const newSampler = [...newPattern.sampler];
-            const newBank = { ...newSampler[bankIndex] };
-            newBank.steps = [...newBank.steps];
-            if (newBank.steps[step]) {
-                newBank.steps[step] = { ...newBank.steps[step]!, phonemes };
-            } else {
-                newBank.steps[step] = { note: 'C4', velocity: 1, length: 1, phonemes };
-            }
-            newSampler[bankIndex] = newBank;
-            newPattern.sampler = newSampler;
-            updateStorageForTrack('sampler', newSampler);
-            return newPattern;
-        });
+
+        const prev = patternRef.current;
+        const updater = (stepData: any) => stepData ? { ...stepData, phonemes } : { note: 'C4', velocity: 1, length: 1, phonemes };
+        const newPattern = updateSamplerStep(prev, bankIndex, step, updater);
+
+        updateStorageForTrack('sampler', newPattern.sampler);
+        setPattern(newPattern);
     }, [updateStorageForTrack]);
 
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[], sliceIndex?: number }) => {
+        undoRedo.push(patternRef.current); // snapshot before edit
         const prev = patternRef.current;
-        const copy = { ...prev };
         let changedSequence;
+        let newPattern = prev;
+
         if (rowKey === 'sampler') {
             const bankIndex = activeSamplerBankRef.current;
-            const newSampler = [...prev.sampler];
-            newSampler[bankIndex] = { ...newSampler[bankIndex], steps: [...newSampler[bankIndex].steps] };
-            const steps = newSampler[bankIndex].steps;
-            const existing = steps[i];
-            if (updates) {
-                if (existing) {
-                    const newStep = { ...existing };
-                    if (updates.length !== undefined) newStep.length = updates.length;
-                    if (updates.slide !== undefined) newStep.slide = updates.slide;
-                    if (updates.chord !== undefined) newStep.chord = updates.chord;
-                    if (updates.sliceIndex !== undefined) newStep.sliceIndex = updates.sliceIndex;
-                    steps[i] = newStep;
-                    if (updates.length !== undefined) { for (let k = 1; k < updates.length; k++) { const nextStepIdx = i + k; if (nextStepIdx < steps.length) { steps[nextStepIdx] = null; } } }
+
+            const updater = (stepData: any, isLengthClear?: boolean) => {
+                if (isLengthClear) return null;
+                if (updates) {
+                    if (stepData) return { ...stepData, ...updates };
+                    return stepData; // no existing step
                 }
-            } else { if (existing) { steps[i] = null; } else { steps[i] = { note: 'C4', velocity: 1, length: 1, slide: false }; } }
-            copy.sampler = newSampler;
-            changedSequence = newSampler;
+                if (stepData) return null;
+                return { note: 'C4', velocity: 1, length: 1, slide: false };
+            };
+
+            newPattern = updateSamplerStep(newPattern, bankIndex, i, (s) => updater(s, false));
+            if (updates?.length !== undefined && updater(prev.sampler[bankIndex].steps[i], false)) {
+                for (let k = 1; k < updates.length; k++) {
+                    const nextStepIdx = i + k;
+                    if (nextStepIdx < prev.sampler[bankIndex].steps.length) {
+                         newPattern = updateSamplerStep(newPattern, bankIndex, nextStepIdx, () => null);
+                    }
+                }
+            }
+
+            changedSequence = newPattern.sampler;
         } else {
-            copy[rowKey] = { ...prev[rowKey], steps: [...prev[rowKey].steps] };
-            const steps = copy[rowKey].steps;
-            const existing = steps[i];
-            if (updates) {
-                if (existing) {
-                    const newStep = { ...existing };
-                    if (updates.length !== undefined) newStep.length = updates.length;
-                    if (updates.slide !== undefined) newStep.slide = updates.slide;
-                    if (updates.chord !== undefined) newStep.chord = updates.chord;
-                    steps[i] = newStep;
-                    if (updates.length !== undefined) { for (let k = 1; k < updates.length; k++) { const nextStepIdx = i + k; if (nextStepIdx < steps.length) { steps[nextStepIdx] = null; } } }
+            const updater = (stepData: any, isLengthClear?: boolean) => {
+                if (isLengthClear) return null;
+                if (updates) {
+                    if (stepData) return { ...stepData, ...updates };
+                    return stepData; // no existing step
                 }
-            } else { if (existing) { steps[i] = null; } else { const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4'; steps[i] = { note: defaultNote, velocity: 1, length: 1, slide: false }; } }
-            changedSequence = copy[rowKey];
+                if (stepData) return null;
+                const defaultNote = rowKey.startsWith('part') ? (rowKey === 'partA' ? 'C4' : 'C3') : 'C4';
+                return { note: defaultNote, velocity: 1, length: 1, slide: false };
+            };
+
+            newPattern = updateTrackStep(newPattern, rowKey, i, (s) => updater(s, false));
+            if (updates?.length !== undefined && updater((prev[rowKey] as any).steps[i], false)) {
+                 for (let k = 1; k < updates.length; k++) {
+                    const nextStepIdx = i + k;
+                    if (nextStepIdx < (prev[rowKey] as any).steps.length) {
+                         newPattern = updateTrackStep(newPattern, rowKey, nextStepIdx, () => null);
+                    }
+                 }
+            }
+
+            changedSequence = newPattern[rowKey];
         }
-        setPattern(copy);
+
         updateStorageForTrack(rowKey, changedSequence);
+        setPattern(newPattern);
     }, [updateStorageForTrack]);
 
     const handleStepToggle = useCallback((rowKey: TrackKey, index: number, e: any) => {
@@ -988,20 +1032,19 @@ const handleKeyboardPlay = useCallback((note: string) => {
             if (clampedMidi !== noteDragRef.current.lastMidi) {
                 noteDragRef.current.lastMidi = clampedMidi;
                 const newNote = midiToNote(clampedMidi);
-                setPattern(prev => {
-                    const updater = (stepData: any) => stepData ? { ...stepData, note: newNote } : { note: newNote, velocity: 1, length: 1 };
-                    let newPattern;
+                const prev = patternRef.current;
+                const updater = (stepData: any) => stepData ? { ...stepData, note: newNote } : { note: newNote, velocity: 1, length: 1 };
+                let newPattern;
 
-                    if (track === 'sampler') {
-                        const bankIndex = activeSamplerBank;
-                        newPattern = updateSamplerStep(prev, bankIndex, step, updater);
-                        if (noteDragRef.current) noteDragRef.current.pendingSequence = newPattern.sampler;
-                    } else {
-                        newPattern = updateTrackStep(prev, track, step, updater);
-                        if (noteDragRef.current) noteDragRef.current.pendingSequence = newPattern[track];
-                    }
-                    return newPattern;
-                });
+                if (track === 'sampler') {
+                    const bankIndex = activeSamplerBank;
+                    newPattern = updateSamplerStep(prev, bankIndex, step, updater);
+                    if (noteDragRef.current) noteDragRef.current.pendingSequence = newPattern.sampler;
+                } else {
+                    newPattern = updateTrackStep(prev, track, step, updater);
+                    if (noteDragRef.current) noteDragRef.current.pendingSequence = newPattern[track];
+                }
+                setPattern(newPattern);
             }
         }
     }, [isNoteDragging, activeSamplerBank]);
@@ -1100,24 +1143,23 @@ const handleNoteSelect = useCallback((note: string) => {
     const trackKey = contextMenu.track as TrackKey;
     const stepIndex = contextMenu.step;
 
-    setPattern(prev => {
-        const updater = (stepData: any) => stepData ? { ...stepData, note } : { note, velocity: 1, length: 1 };
+    const prev = patternRef.current;
+    const updater = (stepData: any) => stepData ? { ...stepData, note } : { note, velocity: 1, length: 1 };
 
-        let newPattern;
-        let changedSequence;
+    let newPattern;
+    let changedSequence;
 
-        if (trackKey === 'sampler') {
-            const bankIdx = activeSamplerBankRef.current;
-            newPattern = updateSamplerStep(prev, bankIdx, stepIndex, updater);
-            changedSequence = newPattern.sampler;
-        } else {
-            newPattern = updateTrackStep(prev, trackKey, stepIndex, updater);
-            changedSequence = newPattern[trackKey];
-        }
+    if (trackKey === 'sampler') {
+        const bankIdx = activeSamplerBankRef.current;
+        newPattern = updateSamplerStep(prev, bankIdx, stepIndex, updater);
+        changedSequence = newPattern.sampler;
+    } else {
+        newPattern = updateTrackStep(prev, trackKey, stepIndex, updater);
+        changedSequence = newPattern[trackKey];
+    }
 
-        updateStorageForTrack(trackKey, changedSequence);
-        return newPattern;
-    });
+    updateStorageForTrack(trackKey, changedSequence);
+    setPattern(newPattern);
 
     setContextMenu(null);
 }, [contextMenu, updateStorageForTrack]);
@@ -1125,58 +1167,48 @@ const handleNoteLengthChange = useCallback((newLength: number) => {
     if (!contextMenu) return;
 
     const prev = patternRef.current;
-    const copy = { ...prev };
     const trackKey = contextMenu.track;
     const stepIndex = contextMenu.step;
 
+    let newPattern = prev;
+
     if (trackKey === 'sampler') {
         const bankIdx = activeSamplerBankRef.current;
-        const newSampler = [...copy.sampler];
-        const newBank = { ...newSampler[bankIdx] };
-        newBank.steps = [...newBank.steps];
 
         // Update the length of the current step
-        const currentStep = newBank.steps[stepIndex];
-        if (currentStep) {
-            newBank.steps[stepIndex] = { ...currentStep, length: newLength };
-        }
+        newPattern = updateSamplerStep(newPattern, bankIdx, stepIndex, (step) => {
+            if (step) return { ...step, length: newLength };
+            return step;
+        });
 
         // Nullify subsequent steps covered by the new length
         for (let i = 1; i < newLength; i++) {
             const targetIndex = stepIndex + i;
             if (targetIndex < 256) {
-                newBank.steps[targetIndex] = null;
+                newPattern = updateSamplerStep(newPattern, bankIdx, targetIndex, () => null);
             }
         }
 
-        newSampler[bankIdx] = newBank;
-        copy.sampler = newSampler;
-
-        setPattern(copy);
-        updateStorageForTrack(trackKey, newSampler);
+        updateStorageForTrack(trackKey, newPattern.sampler);
     } else {
-        const newTrack = { ...(copy[trackKey] as any) };
-        newTrack.steps = [...newTrack.steps];
-
         // Update the length of the current step
-        const currentStep = newTrack.steps[stepIndex];
-        if (currentStep) {
-            newTrack.steps[stepIndex] = { ...currentStep, length: newLength };
-        }
+        newPattern = updateTrackStep(newPattern, trackKey, stepIndex, (step) => {
+            if (step) return { ...step, length: newLength };
+            return step;
+        });
 
         // Nullify subsequent steps covered by the new length
         for (let i = 1; i < newLength; i++) {
             const targetIndex = stepIndex + i;
             if (targetIndex < 256) {
-                newTrack.steps[targetIndex] = null;
+                newPattern = updateTrackStep(newPattern, trackKey, targetIndex, () => null);
             }
         }
 
-        copy[trackKey] = newTrack;
-
-        setPattern(copy);
-        updateStorageForTrack(trackKey, newTrack);
+        updateStorageForTrack(trackKey, newPattern[trackKey]);
     }
+
+    setPattern(newPattern);
 
     setContextMenu(null);
 }, [contextMenu, updateStorageForTrack]);
@@ -1186,7 +1218,7 @@ const handleNotePropertyChange = useCallback((
          'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 
          'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
          'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delayLfoRate' | 'delayLfoDepth' | 'delaySend' | 'freezeEnvDepth' | 'pan' |
-         'grainEnvDepth' | 'grainPitchQuantize' | 'consonantEmphasis' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' |
+         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
          'vowel' | 'portamento' | 'slideFormant',
     value: number | boolean | string
 ) => {
@@ -1195,35 +1227,34 @@ const handleNotePropertyChange = useCallback((
     const trackKey = contextMenu.track;
     const stepIndex = contextMenu.step;
 
-    setPattern(prev => {
-        const updater = (stepData: any) => {
-            if (!stepData) return stepData;
-            const newStep = { ...stepData };
-            if (key === 'reverse') {
-                if (typeof value === 'boolean') newStep.reverse = value;
-            } else if (key === 'reverbType') {
-                if (typeof value === 'string') newStep[key] = value;
-            } else {
-                if (typeof value === 'number') newStep[key] = value;
-            }
-            return newStep;
-        };
-
-        let newPattern;
-        let changedSequence;
-
-        if (trackKey === 'sampler') {
-            const bankIdx = activeSamplerBankRef.current;
-            newPattern = updateSamplerStep(prev, bankIdx, stepIndex, updater);
-            changedSequence = newPattern.sampler;
+    const prev = patternRef.current;
+    const updater = (stepData: any) => {
+        if (!stepData) return stepData;
+        const newStep = { ...stepData };
+        if (key === 'reverse') {
+            if (typeof value === 'boolean') newStep.reverse = value;
+        } else if (key === 'reverbType') {
+            if (typeof value === 'string') newStep[key] = value;
         } else {
-            newPattern = updateTrackStep(prev, trackKey, stepIndex, updater);
-            changedSequence = newPattern[trackKey];
+            if (typeof value === 'number') newStep[key] = value;
         }
+        return newStep;
+    };
 
-        updateStorageForTrack(trackKey, changedSequence);
-        return newPattern;
-    });
+    let newPattern;
+    let changedSequence;
+
+    if (trackKey === 'sampler') {
+        const bankIdx = activeSamplerBankRef.current;
+        newPattern = updateSamplerStep(prev, bankIdx, stepIndex, updater);
+        changedSequence = newPattern.sampler;
+    } else {
+        newPattern = updateTrackStep(prev, trackKey, stepIndex, updater);
+        changedSequence = newPattern[trackKey];
+    }
+
+    updateStorageForTrack(trackKey, changedSequence);
+    setPattern(newPattern);
 }, [contextMenu, updateStorageForTrack]);
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {
@@ -1292,6 +1323,8 @@ const handleNotePropertyChange = useCallback((
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen,
         setDrumKit: updateDrumKit,
+        setIsSongModeActive,
+        trakEventsRef,
     });
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal });
@@ -1475,27 +1508,20 @@ const handleLyricApply = useCallback(async (text: string) => {
         setTtsPhrases(newPhrases);
 
         const prev = patternRef.current;
-        const copy = { ...prev };
         const bankIdx = activeSamplerBankRef.current;
-
-        const newSampler = [...copy.sampler];
-        const newBank = { ...newSampler[bankIdx] };
-        newBank.steps = [...newBank.steps];
-
         let noteIndex = 0;
+
+        let newPattern = prev;
         for (let i = 0; i < 32; i++) {
-            const step = newBank.steps[i];
+            const step = prev.sampler[bankIdx].steps[i];
             if (step && step.velocity > 0) {
-                newBank.steps[i] = { ...step, sliceIndex: noteIndex };
+                newPattern = updateSamplerStep(newPattern, bankIdx, i, (s) => ({ ...s, sliceIndex: noteIndex }));
                 noteIndex++;
             }
         }
 
-        newSampler[bankIdx] = newBank;
-        copy.sampler = newSampler;
-
-        setPattern(copy);
-        updateStorageForTrack('sampler', newSampler);
+        updateStorageForTrack('sampler', newPattern.sampler);
+        setPattern(newPattern);
 
         setSampler(prevParams => {
             const next = [...prevParams];
@@ -1536,15 +1562,47 @@ const handleLyricApply = useCallback(async (text: string) => {
         const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
         const isProphecy = synthA.waveform?.startsWith('prophecy-') ?? false;
         const engine = synthA.engine303 ?? 'open303';
+        const currentTypeA: OscillatorType = waveformToOscillatorType(synthA.waveform, synthA.engine303);
+        const panelClassesA = getOscillatorPanelClasses(currentTypeA);
+
         const handleSynthAEngineChange = (e: 'open303' | 'jc303') => {
             updateSynthA({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(e);
             engineTelemetry.registerResolution('synthA-engine303', e, 'user-initiated');
         };
+
+        const handleSynthATypeChange = (newType: OscillatorType) => {
+            const nextWave = getDefaultWaveformForType(newType);
+            const nextEngine = (newType === 'jc303') ? 'jc303' : (newType === 'open303' ? 'open303' : undefined);
+            const update: any = { waveform: nextWave };
+            if (nextEngine) update.engine303 = nextEngine;
+            updateSynthA(update);
+            // If switching to/from 303 family, notify the audio manager
+            if (newType === 'open303' || newType === 'jc303') {
+                const mgr = audioEngine?.open303Engine;
+                if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(nextEngine ?? 'open303');
+            }
+            engineTelemetry.registerResolution('synthA-oscType', newType, 'user-initiated');
+        };
+
         return (
-            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
-                <WaveformSelector selected={synthA.waveform} onChange={(w) => updateSynthA({ waveform: w })} accentColor="cyan" />
+            <div className={`absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesA}`}>
+                {/* New Oscillator Type selector (themed) — primary control per the refactor plan */}
+                <OscillatorTypeSelector
+                    type={currentTypeA}
+                    onChange={handleSynthATypeChange}
+                    accentColor="cyan"
+                    compact
+                />
+                {/* Per-type waveform variant selector (Phase 2): replaces the full legacy WaveformSelector popup.
+                    Only offers shapes that belong to the chosen oscillator family; keeps the panel theme stable. */}
+                <OscillatorVariantSelector
+                    type={currentTypeA}
+                    selected={synthA.waveform}
+                    onChange={(w) => updateSynthA({ waveform: w })}
+                    accentColor="cyan"
+                />
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
                 )}
@@ -1566,15 +1624,44 @@ const handleLyricApply = useCallback(async (text: string) => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
         const isProphecy = synthB.waveform?.startsWith('prophecy-') ?? false;
         const engine = synthB.engine303 ?? 'open303';
+        const currentTypeB: OscillatorType = waveformToOscillatorType(synthB.waveform, synthB.engine303);
+        const panelClassesB = getOscillatorPanelClasses(currentTypeB);
+
         const handleSynthBEngineChange = (e: 'open303' | 'jc303') => {
             updateSynthB({ engine303: e });
             const mgr = audioEngine?.open303Engine;
             if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(e);
             engineTelemetry.registerResolution('synthB-engine303', e, 'user-initiated');
         };
+
+        const handleSynthBTypeChange = (newType: OscillatorType) => {
+            const nextWave = getDefaultWaveformForType(newType);
+            const nextEngine = (newType === 'jc303') ? 'jc303' : (newType === 'open303' ? 'open303' : undefined);
+            const update: any = { waveform: nextWave };
+            if (nextEngine) update.engine303 = nextEngine;
+            updateSynthB(update);
+            if (newType === 'open303' || newType === 'jc303') {
+                const mgr = audioEngine?.open303Engine;
+                if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(nextEngine ?? 'open303');
+            }
+            engineTelemetry.registerResolution('synthB-oscType', newType, 'user-initiated');
+        };
+
         return (
-            <div className="absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2">
-                <WaveformSelector selected={synthB.waveform} onChange={(w) => updateSynthB({ waveform: w })} accentColor="pink" />
+            <div className={`absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesB}`}>
+                <OscillatorTypeSelector
+                    type={currentTypeB}
+                    onChange={handleSynthBTypeChange}
+                    accentColor="pink"
+                    compact
+                />
+                {/* Per-type waveform variant selector (Phase 2) */}
+                <OscillatorVariantSelector
+                    type={currentTypeB}
+                    selected={synthB.waveform}
+                    onChange={(w) => updateSynthB({ waveform: w })}
+                    accentColor="pink"
+                />
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
                 )}
@@ -1600,30 +1687,18 @@ const handleLyricApply = useCallback(async (text: string) => {
             if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(e);
             engineTelemetry.registerResolution('bass2-engine303', e, 'user-initiated');
         };
+        const bass2Type: OscillatorType = engine === 'jc303' ? 'jc303' : 'open303';
         return (
         <div className="absolute top-4 right-6 pointer-events-auto">
             <div className="flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
-                <span className="text-[8px] font-mono text-pink-400/60 uppercase tracking-wider text-center">Waveform</span>
-                <button 
-                    onClick={() => updateBass2({ waveform: '303-saw' })} 
-                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                        bass2.waveform === '303-saw' 
-                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]' 
-                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    }`}
-                >
-                    SAW
-                </button>
-                <button 
-                    onClick={() => updateBass2({ waveform: '303-sqr' })} 
-                    className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all border ${
-                        bass2.waveform === '303-sqr' 
-                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400 shadow-[0_0_12px_rgba(255,0,102,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]' 
-                            : 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    }`}
-                >
-                    SQR
-                </button>
+                {/* Use the shared per-type variant picker (303 family only) for consistency with synth panels.
+                    Active styling will be emerald/teal per engine family. */}
+                <OscillatorVariantSelector
+                    type={bass2Type}
+                    selected={bass2.waveform}
+                    onChange={(w) => updateBass2({ waveform: w as '303-saw' | '303-sqr' })}
+                    accentColor="pink"
+                />
                 <Engine303Selector engine={engine} onChange={handleBass2EngineChange} accentColor="pink" />
             </div>
         </div>
@@ -1651,6 +1726,9 @@ const handleLyricApply = useCallback(async (text: string) => {
         isEngineReady,
         pattern, setPattern,
         tempo, setTempo,
+        swing, setSwing,
+        undoRedo,
+        currentStepRef,
         isInitialized, setIsInitialized,
         isPlaying, setIsPlaying,
         isRecording, setIsRecording,
@@ -1828,7 +1906,6 @@ const handleLyricApply = useCallback(async (text: string) => {
         songMeasureRef,
         isFirstStepRef,
         sequencerRef,
-        currentStepRef,
         tempoRef,
         tempoHoldIntervalRef,
         tempoHoldTimeoutRef,

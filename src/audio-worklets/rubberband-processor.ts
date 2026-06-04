@@ -47,6 +47,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private freezeLfoPhase: number = 0;
   private gatePhase: number = 0;
   private currentGateLfo: number = 1.0;
+
+  // Bitcrusher states
+  private downsamplePhase: number[] = [0, 0];
+  private lastSampleValue: number[] = [0, 0];
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -70,10 +74,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
       { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'sliceGain', defaultValue: 1.0, minValue: 0.0, maxValue: 5.0 }
+      { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 }
     ];
   }
 
@@ -257,6 +263,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
     const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0;
     const gateRate = parameters.gateRate ? parameters.gateRate[0] : 4.0;
+    const tranceGateAmt = parameters.tranceGate ? parameters.tranceGate[0] : 0.0;
+    const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
+    const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
     const attack = parameters.attack ? parameters.attack[0] : 0.05;
     const decay = parameters.decay ? parameters.decay[0] : 0.1;
@@ -293,6 +302,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (this.phonemeData && this.phonemeRatios) {
           ratio = this.getPhonemeStretchRatio(this.currentSamplePtr);
         }
+
+        // Apply Time-Stretch Envelope modulation
+        const timeStretchEnvDepth = parameters.timeStretchEnvDepth ? parameters.timeStretchEnvDepth[0] : 0.0;
+        const timeModulation = timeStretchEnvDepth * envelopeValue * 3.0; // scale factor
+        ratio = Math.max(0.1, Math.min(4.0, ratio + timeModulation));
+
         this.rubberBand.setTimeRatio(ratio);
 
         const samplesRequired = this.rubberBand.getSamplesRequired();
@@ -460,13 +475,32 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
       }
 
-      const sliceGain = parameters.sliceGain ? parameters.sliceGain[0] : 1.0;
-      if (sliceGain !== 1.0) {
-        for (let i = 0; i < outputChannel.length; i++) {
-          outputChannel[i] *= sliceGain;
+      // Apply Bitcrush & Downsample
+      if (bitcrushAmount > 0 || downsampleFactor > 1.0) {
+        for (let channel = 0; channel < outputs[0].length; channel++) {
+          const outCh = outputs[0][channel];
+          if (!outCh) continue;
+
+          for (let i = 0; i < outCh.length; i++) {
+            this.downsamplePhase[channel] += 1.0;
+            if (this.downsamplePhase[channel] >= downsampleFactor) {
+              this.downsamplePhase[channel] -= downsampleFactor;
+
+              // Bitcrush
+              if (bitcrushAmount > 0) {
+                  // bitcrushAmount 0.0 -> 16 bits, 1.0 -> 2 bits
+                  // Map 0-1 to 16-2 bits linearly
+                  const bits = 16 - (bitcrushAmount * 14);
+                  const steps = Math.pow(2, bits);
+                  this.lastSampleValue[channel] = Math.floor(outCh[i] * steps) / steps;
+              } else {
+                  this.lastSampleValue[channel] = outCh[i];
+              }
+            }
+            outCh[i] = this.lastSampleValue[channel];
+          }
         }
       }
-
         // Check for completion when no output is available but we're still marked as playing
         if (this.isReverse) {
           if (this.currentSamplePtr < this.startSamplePtr) this.isPlaying = false;

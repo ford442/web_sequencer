@@ -5,8 +5,10 @@ import type {
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
+import { RustOscillator } from '../engines/RustOscillator';
 import { Open303Manager } from '../engines/Open303Manager';
 import { ProphecyManager } from '../engines/ProphecyManager';
+import { PcfEffect } from '../engines/PcfEffect';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
@@ -119,8 +121,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const loadedAmbianceBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
+    const rustEngineRef = useRef<RustOscillator | null>(null);
+    const analyserNodeRef = useRef<AnalyserNode | null>(null);
     const open303ManagerRef = useRef<Open303Manager | null>(null);
     const prophecyManagerRef = useRef<ProphecyManager | null>(null);
+    const pcfEffectRef = useRef<PcfEffect | null>(null);
 
     // Voice Managers
     const voiceManagerARef = useRef<VoiceManager | null>(null);
@@ -222,7 +227,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             loadingProgressStore.completeStep('audioContext');
 
             loadingProgressStore.startStep('masterChain');
-            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef);
+            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef, analyserNodeRef);
 
             // Initialize Vocal Harmony Parallel Bus
             const harmonyGain = context.createGain();
@@ -309,6 +314,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             wasmEngineRef.current = wasmEngine;
             loadingProgressStore.completeStep('wasmEngine');
 
+            const rustEngine = new RustOscillator();
+            await rustEngine.init().catch(e => console.warn("Rust Engine init failed", e));
+            rustEngineRef.current = rustEngine;
+
             // Initialize Open303 Manager
             loadingProgressStore.startStep('open303Engine');
             const open303Manager = new Open303Manager();
@@ -321,12 +330,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     forceSingleThreaded: true
                 });
                 
-                if (open303Ready) {
-                    open303Manager.connect(masterBusInput);
-                    open303ManagerRef.current = open303Manager;
-                    console.log('[useAudioEngine] Open303Manager Ready');
-                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
-                } else {
+                if (!open303Ready) {
                     console.warn('[useAudioEngine] Open303Manager failed to initialize');
                     try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
                 }
@@ -339,6 +343,39 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
             }
             loadingProgressStore.completeStep('open303Engine');
+
+            // Initialize PCF (Pattern Controlled Filter) — inserted between 303 and master bus.
+            // Enables ReBirth-style pattern-driven filter automation on the 303 output.
+            {
+                const pcf = new PcfEffect(context);
+                let pcfReady = false;
+                try {
+                    await pcf.init();
+                    pcfReady = true;
+                    pcfEffectRef.current = pcf;
+                    console.log('[useAudioEngine] PcfEffect Ready');
+                } catch (e) {
+                    console.warn(
+                        '[useAudioEngine] PcfEffect failed to initialize; bypassing PCF.' +
+                        ' Possible causes: AudioWorklet registration failed (check CORS / module' +
+                        ' loading), or AudioContext was suspended at init time.',
+                        e
+                    );
+                }
+                // Connect 303 through PCF (if ready) or directly to master bus.
+                // open303ManagerRef is set here, after routing is fully established.
+                if (open303Ready) {
+                    if (pcfReady) {
+                        open303Manager.connect(pcf.input);
+                        pcf.output.connect(masterBusInput);
+                    } else {
+                        open303Manager.connect(masterBusInput);
+                    }
+                    open303ManagerRef.current = open303Manager;
+                    console.log('[useAudioEngine] Open303Manager Ready');
+                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
+                }
+            }
 
             // Initialize Prophecy Formant Engine
             loadingProgressStore.startStep('prophecyEngine');
@@ -408,7 +445,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 }));
             }
 
-            const voiceEngineDeps = { wasmEngine: wasmEngineRef.current, wgslBuffers };
+            const voiceEngineDeps = { wasmEngine: wasmEngineRef.current, rustEngine: rustEngineRef.current, wgslBuffers };
 
             // Initialize Voice Managers
             voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
@@ -587,6 +624,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     breathIntensity?: number,
                     formantShift?: number,
                     grainPitchQuantize?: number,
+                    bitcrush?: number,
+                    downsample?: number,
                     tranceGate?: number,
                     gateRate?: number,
                     gateDepth?: number,
@@ -594,7 +633,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     spectralPanDepth?: number,
                     reverbLfoRate?: number,
                     reverbLfoDepth?: number,
-                    consonantEmphasis?: number,
                     isHarmonyVoice?: boolean
                 },
                 pitchOffsetSemitones: number = 0,
@@ -946,12 +984,18 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             } else if (params.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
                             }
-
-                            if (noteParams?.consonantEmphasis !== undefined) {
-                                voice.setConsonantEmphasis(noteParams.consonantEmphasis);
-                            } else if (params.consonantEmphasis !== undefined) {
-                                voice.setConsonantEmphasis(params.consonantEmphasis);
+                            if (noteParams?.bitcrush !== undefined) {
+                                voice.setBitcrush(noteParams.bitcrush, triggerTime);
+                            } else if (params.bitcrush !== undefined) {
+                                voice.setBitcrush(params.bitcrush, triggerTime);
                             }
+
+                            if (noteParams?.downsample !== undefined) {
+                                voice.setDownsample(noteParams.downsample, triggerTime);
+                            } else if (params.downsample !== undefined) {
+                                voice.setDownsample(params.downsample, triggerTime);
+                            }
+
 
                             if (noteParams?.tranceGate !== undefined) {
                                 voice.setTranceGate(noteParams.tranceGate, triggerTime);
@@ -1579,9 +1623,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             // Re-assign to state
             setAudioEngine({
                 context,
+                analyserNode: analyserNodeRef.current,
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303ManagerRef.current as any,
+                pcfEffect: pcfEffectRef.current,
                 singingVoice: undefined,
                 playSynth,
                 playDrum,

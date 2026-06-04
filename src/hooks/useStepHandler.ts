@@ -7,6 +7,7 @@ import type {
     AudioEngine,
     PartSequence,
     SamplerBankParams,
+    ResolvedTrakEvent,
 } from '../types';
 import type { MainSequencerHandle } from '../components/MainSequencer';
 import type { TrackKey } from '../constants/appDefaults';
@@ -16,6 +17,7 @@ import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
+import { TICKS_PER_BAR } from '../importers/rbs/types';
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const notesArray = Array.isArray(notes) ? notes : [notes];
@@ -78,6 +80,8 @@ export interface UseStepHandlerOptions {
     setCurrentSongMeasure: (measure: number) => void;
     /** Optional automation scheduler for AudioParam-scheduled 303/synth automation. */
     automationSchedulerRef?: React.MutableRefObject<AutomationScheduler | null>;
+    /** Resolved TRAK events from an imported RBS song for sub-step automation scheduling. */
+    trakEventsRef?: React.MutableRefObject<ResolvedTrakEvent[] | null>;
 }
 
 export const useStepHandler = ({
@@ -109,13 +113,17 @@ export const useStepHandler = ({
     trackStorageRef,
     setCurrentSongMeasure,
     automationSchedulerRef,
+    trakEventsRef,
 }: UseStepHandlerOptions) => {
-    const onStep = useCallback((step: number) => {
+    const onStep = useCallback((step: number, audioTime?: number) => {
         currentStepRef.current = step;
         if (sequencerRef.current) sequencerRef.current.setHighlight(step);
         if (!audioEngine) return;
 
-        const time = audioEngine.context.currentTime;
+        // Use the sample-accurate audioTime from the AudioWorklet clock when available.
+        // This ensures notes are scheduled at the exact moment the step fires on the
+        // audio thread, not at the moment the main-thread message is processed (~1-5ms later).
+        const time = audioTime ?? audioEngine.context.currentTime;
         let activePattern = patternRef.current;
 
         // Song Mode Measure Handling
@@ -127,6 +135,20 @@ export const useStepHandler = ({
                     const nextM = songMeasureRef.current + 1;
                     songMeasureRef.current = nextM < songStructureRef.current.length ? nextM : 0;
                     setTimeout(() => setCurrentSongMeasure(songMeasureRef.current), 0);
+                }
+
+                // Schedule sub-step trakEvents for the current bar (RBS imported songs).
+                if (trakEventsRef?.current?.length && automationSchedulerRef?.current) {
+                    const mIdx = songMeasureRef.current;
+                    const fromTick = mIdx * TICKS_PER_BAR;
+                    const toTick = fromTick + TICKS_PER_BAR;
+                    automationSchedulerRef.current.scheduleFromTrakEvents(
+                        trakEventsRef.current,
+                        tempo,
+                        time,
+                        fromTick,
+                        toTick,
+                    );
                 }
             }
 
@@ -178,6 +200,7 @@ export const useStepHandler = ({
             // continues to use `tunedNoteToFrequency` below. VoiceManager handles scale tuning
             // independently when it plays the note string.
             const noteParams: SynthNoteParams = {};
+            if (stepData.velocity !== undefined) noteParams.velocity = stepData.velocity;
             if (stepData.timbre !== undefined) noteParams.timbre = stepData.timbre;
             if (stepData.microtiming !== undefined) noteParams.microtiming = stepData.microtiming;
             if (stepData.retrigger !== undefined) noteParams.retrigger = stepData.retrigger;
@@ -363,20 +386,23 @@ export const useStepHandler = ({
             // --- 303 / synth automation via AudioParam-aligned scheduler ---
             // The AutomationScheduler sends worklet messages timed to the AudioContext
             // clock, avoiding JS-callback jitter for continuous knob curves.
+            // Master-target PCF lanes are also routed through the scheduler so that
+            // TRAK-event precision is preserved for filter sweeps.
             if (automationSchedulerRef?.current) {
-                const synth303Lanes = activeLanes.filter(
+                const schedulerLanes = activeLanes.filter(
                     (l) => l.target === 'synthA' || l.target === 'synthB' || l.target === 'bass2'
+                        || l.target === 'master'
                 );
-                if (synth303Lanes.length > 0) {
+                if (schedulerLanes.length > 0) {
                     automationSchedulerRef.current.scheduleFromLanes(
-                        synth303Lanes,
+                        schedulerLanes,
                         step,
                         1,          // schedule one step ahead
                         stepTime,
                         now
                     );
                     // Collect live values from these lanes for UI indicators.
-                    for (const lane of synth303Lanes) {
+                    for (const lane of schedulerLanes) {
                         if (!lane.enabled) continue;
                         const normVal = automationStore.getValueAtStep(lane, step);
                         if (normVal === null) continue;
@@ -388,9 +414,10 @@ export const useStepHandler = ({
 
             activeLanes.forEach((lane) => {
                 if (!lane.enabled) return;
-                // Skip 303/synth lanes already handled by the scheduler above.
+                // Skip 303/synth/master lanes already handled by the scheduler above.
                 if (automationSchedulerRef?.current &&
-                    (lane.target === 'synthA' || lane.target === 'synthB' || lane.target === 'bass2')) {
+                    (lane.target === 'synthA' || lane.target === 'synthB' || lane.target === 'bass2'
+                        || lane.target === 'master')) {
                     return;
                 }
 

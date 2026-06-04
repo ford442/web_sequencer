@@ -168,6 +168,28 @@ class AutomationStore {
     this.notify();
   }
 
+  /** Update a lane's interpolation mode */
+  updateLaneInterpolation(laneId: string, interpolation: AutomationInterpolation): void {
+    this.state = {
+      ...this.state,
+      lanes: this.state.lanes.map((l) =>
+        l.id === laneId ? { ...l, interpolation } : l
+      ),
+    };
+    this.notify();
+  }
+
+  /** Update a lane's name */
+  updateLaneName(laneId: string, name: string): void {
+    this.state = {
+      ...this.state,
+      lanes: this.state.lanes.map((l) =>
+        l.id === laneId ? { ...l, name } : l
+      ),
+    };
+    this.notify();
+  }
+
   /** Toggle lane enabled state */
   toggleLaneEnabled(laneId: string): void {
     this.state = {
@@ -184,6 +206,19 @@ class AutomationStore {
     return this.state.lanes.filter(
       (l) => l.target === target && l.parameter === parameter
     );
+  }
+
+  /** Get lanes targeting a specific sampler bank (0–7) */
+  getLanesForSamplerBank(bankIndex: number, parameter?: string): UnifiedAutomationLane[] {
+    const bankTarget = `sampler${bankIndex}` as AutomationTarget;
+    return this.state.lanes.filter((l) => {
+      // Match explicit per-bank target (e.g. 'sampler0')
+      const matchesTarget = l.target === bankTarget ||
+        (l.target === 'sampler' && l.samplerBank === bankIndex);
+      if (!matchesTarget) return false;
+      if (parameter) return l.parameter === parameter;
+      return true;
+    });
   }
 
   /** Get all enabled lanes for a given pattern index */

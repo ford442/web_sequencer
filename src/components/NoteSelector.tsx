@@ -23,6 +23,8 @@ interface NoteSelectorProps {
     currentReverse?: boolean;
     currentRetrigger?: number;
     currentFreeze?: number;
+    currentBitcrush?: number;
+    currentDownsample?: number;
     currentFormantShift?: number;
     currentSlideFormant?: boolean;
     currentFilterCutoff?: number;
@@ -42,7 +44,6 @@ interface NoteSelectorProps {
     currentFreezeEnvDepth?: number;
     currentGrainEnvDepth?: number;
     currentGrainPitchQuantize?: number;
-    currentConsonantEmphasis?: number;
     currentTranceGate?: number;
     currentDelaySend?: number;
     currentChoir?: number;
@@ -55,7 +56,6 @@ interface NoteSelectorProps {
     /** Prophecy: current portamento rate 0–1 */
     currentPortamento?: number;
     onPropertyChange?: (key:
-        | 'pan'
         | 'timbre'
         | 'velocity'
         | 'probability'
@@ -66,8 +66,11 @@ interface NoteSelectorProps {
         | 'freezeEnvDepth'
         | 'grainEnvDepth'
         | 'grainPitchQuantize'
-        | 'consonantEmphasis'
+        | 'bitcrush'
+        | 'downsample'
         | 'tranceGate'
+        | 'bitcrush'
+        | 'downsample'
         | 'formantShift'
         | 'filterCutoff'
         | 'filterResonance'
@@ -81,6 +84,7 @@ interface NoteSelectorProps {
         | 'vibratoDepth'
         | 'gateDepth'
         | 'gateRate'
+        | 'pan'
         | 'drive'
         | 'characterMorph'
         | 'reverbSend'
@@ -127,7 +131,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchQuantize = 0,
-    currentConsonantEmphasis = 1.0,
+    currentBitcrush = 0,
+    currentDownsample = 1,
     currentChoir,
     currentTranceGate = 0, // from jules branch
 
@@ -352,27 +357,47 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`${currentGrainPitchQuantize} semitones`}
                                     aria-label="Granular Pitch Quantization"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                                    <label htmlFor="note-consonant-emphasis">Consonant Emp</label>
-                                    <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentConsonantEmphasis.toFixed(2)}x</span>
+                                />                            </div>
+
+                            <div className="flex flex-col gap-1.5" role="group" aria-label="Bitcrush Override">
+                                <div className="flex justify-between items-center text-xs px-1">
+                                    <span className="text-gray-400 font-medium tracking-wide">Bitcrush</span>
+                                    <span className="text-indigo-400 font-mono bg-indigo-500/10 px-1.5 py-0.5 rounded shadow-inner border border-indigo-500/20">
+                                        {((currentBitcrush ?? 0) * 100).toFixed(0)}%
+                                    </span>
                                 </div>
                                 <input
-                                    id="note-consonant-emphasis"
                                     type="range"
-                                    min="0.5"
-                                    max="2.5"
-                                    step="0.05"
-                                    value={currentConsonantEmphasis}
-                                    onChange={(e) => onPropertyChange?.("consonantEmphasis", parseFloat(e.target.value))}
-                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-                                    aria-valuetext={`${currentConsonantEmphasis.toFixed(2)}x`}
-                                    aria-label="Consonant Emphasis"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={currentBitcrush ?? 0}
+                                    onChange={(e) => onPropertyChange?.("bitcrush", parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                    aria-valuetext={`${((currentBitcrush ?? 0) * 100).toFixed(0)} percent`}
+                                    aria-label="Bitcrush Amount"
                                 />
                             </div>
 
+                            <div className="flex flex-col gap-1.5" role="group" aria-label="Downsample Override">
+                                <div className="flex justify-between items-center text-xs px-1">
+                                    <span className="text-gray-400 font-medium tracking-wide">Downsample</span>
+                                    <span className="text-indigo-400 font-mono bg-indigo-500/10 px-1.5 py-0.5 rounded shadow-inner border border-indigo-500/20">
+                                        {currentDownsample ?? 1}x
+                                    </span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max="32"
+                                    step="1"
+                                    value={currentDownsample ?? 1}
+                                    onChange={(e) => onPropertyChange?.("downsample", parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                    aria-valuetext={`${currentDownsample ?? 1} times downsampled`}
+                                    aria-label="Downsample Factor"
+                                />
+                            </div>
 
                             <div className="flex flex-col gap-1">
                                 <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">

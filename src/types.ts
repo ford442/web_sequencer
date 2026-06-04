@@ -98,14 +98,16 @@ export interface SamplerBankParams {
   freezeLfoSync?: boolean;
   freezeLfoDepth?: number;
   freezeEnvDepth?: number;
+  timeStretchEnvDepth?: number;
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
-  consonantEmphasis?: number;
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
+  bitcrush?: number;
+  downsample?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   formantLfoShape?: number[];
@@ -152,6 +154,169 @@ export type SamplerParams = SamplerBankParams[];
  */
 export type Engine303 = 'open303' | 'jc303';
 
+/**
+ * High-level oscillator family / "engine type" for theming and UI grouping.
+ * Replaces/augments the flat waveform buttons with a themed selector.
+ * Each type maps to a group of waveforms and carries visual theme data.
+ */
+export type OscillatorType =
+  | 'javascript'   // Native Web Audio OscillatorNode (saw/sqr/tri/sin)
+  | 'pcm'          // Pre-rendered WAV samples
+  | 'open303'      // Custom Open303 TB-303 engine (WASM)
+  | 'jc303'        // Authentic JC303 / rosic::Open303 (per-voice)
+  | 'prophecy'     // Korg Prophecy formant engine
+  | 'pyodide'      // Python/Pyodide software oscillators
+  | 'rust'         // Rust/WASM high-precision synth
+  | 'webgpu'       // WGSL/WebGPU GPU oscillators
+  | 'wam'          // Web Audio Modules (WAM) plugins
+;
+
+/** Visual theme applied to the oscillator panel / overlay when this type is active. */
+export interface OscillatorTheme {
+  /** Human label for the type (shown in selector / badge). */
+  label: string;
+  /** Tailwind color key used for active accents (e.g. 'emerald', 'violet'). */
+  accent: string;
+  /** Subtle background treatment for the oscillator control container. */
+  panelBg: string;
+  /** Border / ring treatment for the panel. */
+  panelBorder: string;
+  /** Text / icon tint. */
+  text: string;
+  /** Optional short badge text or emoji hint. */
+  badge?: string;
+}
+
+/** Static theme map for all oscillator types. Keep colors subtle so they compose with cyan/pink part accents. */
+export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
+  javascript: {
+    label: 'JavaScript',
+    accent: 'sky',
+    panelBg: 'bg-sky-950/30',
+    panelBorder: 'border-sky-500/30',
+    text: 'text-sky-300',
+    badge: 'JS',
+  },
+  pcm: {
+    label: 'PCM / WAV',
+    accent: 'stone',
+    panelBg: 'bg-stone-950/30',
+    panelBorder: 'border-stone-500/30',
+    text: 'text-stone-300',
+    badge: 'WAV',
+  },
+  open303: {
+    label: 'Open303',
+    accent: 'emerald',
+    panelBg: 'bg-emerald-950/30',
+    panelBorder: 'border-emerald-500/30',
+    text: 'text-emerald-300',
+    badge: '303',
+  },
+  jc303: {
+    label: 'JC303',
+    accent: 'teal',
+    panelBg: 'bg-teal-950/30',
+    panelBorder: 'border-teal-500/30',
+    text: 'text-teal-300',
+    badge: 'JC',
+  },
+  prophecy: {
+    label: 'Prophecy',
+    accent: 'violet',
+    panelBg: 'bg-violet-950/30',
+    panelBorder: 'border-violet-500/30',
+    text: 'text-violet-300',
+    badge: 'PRO',
+  },
+  pyodide: {
+    label: 'Pyodide',
+    accent: 'yellow',
+    panelBg: 'bg-yellow-950/30',
+    panelBorder: 'border-yellow-500/30',
+    text: 'text-yellow-300',
+    badge: 'PY',
+  },
+  rust: {
+    label: 'Rust',
+    accent: 'orange',
+    panelBg: 'bg-orange-950/30',
+    panelBorder: 'border-orange-500/30',
+    text: 'text-orange-300',
+    badge: 'RS',
+  },
+  webgpu: {
+    label: 'WebGPU',
+    accent: 'fuchsia',
+    panelBg: 'bg-fuchsia-950/30',
+    panelBorder: 'border-fuchsia-500/30',
+    text: 'text-fuchsia-300',
+    badge: 'GPU',
+  },
+  wam: {
+    label: 'WAM',
+    accent: 'amber',
+    panelBg: 'bg-amber-950/30',
+    panelBorder: 'border-amber-500/30',
+    text: 'text-amber-300',
+    badge: 'WAM',
+  },
+};
+
+/** Derive the OscillatorType from a concrete Waveform + optional engine303 override. */
+export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine303): OscillatorType {
+  const w = waveform as string;
+  if (['sawtooth', 'square', 'triangle', 'sine'].includes(w)) return 'javascript';
+  if (w.startsWith('wav-')) return 'pcm';
+  if (w.startsWith('303-')) {
+    return engine303 === 'jc303' ? 'jc303' : 'open303';
+  }
+  if (w.startsWith('prophecy-')) return 'prophecy';
+  if (w.startsWith('pyodide-')) return 'pyodide';
+  if (w.startsWith('rust-')) return 'rust';
+  if (w.startsWith('wgsl-')) return 'webgpu';
+  if (w.startsWith('wam-')) return 'wam';
+  return 'javascript';
+}
+
+/** Returns Tailwind classes for a subtle themed container around the oscillator controls. */
+export function getOscillatorPanelClasses(type: OscillatorType): string {
+  const t = OSCILLATOR_THEMES[type];
+  return `${t.panelBg} ${t.panelBorder} ${t.text}`;
+}
+
+/** Pick a representative default waveform when the user switches OscillatorType. */
+export function getDefaultWaveformForType(type: OscillatorType): Waveform {
+  switch (type) {
+    case 'javascript': return 'sawtooth';
+    case 'pcm': return 'wav-saw';
+    case 'open303': return '303-saw';
+    case 'jc303': return '303-saw';
+    case 'prophecy': return 'prophecy-saw';
+    case 'pyodide': return 'pyodide-saw';
+    case 'rust': return 'rust-saw';
+    case 'webgpu': return 'wgsl-saw';
+    case 'wam': return 'wam-saw';
+    default: return 'sawtooth';
+  }
+}
+
+/** Return the concrete Waveform choices available for a given high-level OscillatorType (used by per-type variant picker). */
+export function getWaveformsForType(type: OscillatorType): Waveform[] {
+  switch (type) {
+    case 'javascript': return ['sawtooth', 'square', 'triangle', 'sine'];
+    case 'pcm': return ['wav-saw', 'wav-sqr'];
+    case 'open303':
+    case 'jc303': return ['303-saw', '303-sqr'];
+    case 'prophecy': return ['prophecy-saw', 'prophecy-sqr', 'prophecy-tri', 'prophecy-pulse'];
+    case 'pyodide': return ['pyodide-saw', 'pyodide-square', 'pyodide-sine'];
+    case 'rust': return ['rust-saw', 'rust-sqr'];
+    case 'webgpu': return ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'];
+    case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
+    default: return ['sawtooth'];
+  }
+}
+
 export interface Bass2Params {
   waveform: '303-saw' | '303-sqr';
   cutoff: number;
@@ -165,6 +330,11 @@ export interface Bass2Params {
   pan?: number;
   /** Which DSP engine to use for this voice. Defaults to 'open303'. */
   engine303?: Engine303;
+  /**
+   * Slide/portamento time (0–1 normalized, where 0.33 ≈ 60 ms TB-303 default).
+   * Maps to Open303Params.slideTime for the Devil Fish MOD.
+   */
+  slideTime?: number;
 }
 
 export interface AllDrumParams {
@@ -213,6 +383,8 @@ export interface Note {
   reverbType?: ReverbType;
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
+  bitcrush?: number;
+  downsample?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   delaySend?: number;
@@ -223,7 +395,6 @@ export interface Note {
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
-  consonantEmphasis?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   vowel?: number;
@@ -250,9 +421,13 @@ export interface Pattern {
 
 export interface AudioEngine {
   context: AudioContext;
+  /** Passive monitor tap on the master output — use for level meters and visualisers. */
+  analyserNode?: AnalyserNode | null;
   webGpuEngine?: WebGpuOscillator | null;
   wasmEngine?: WasmOscillator | null;
   open303Engine?: Open303Oscillator | Open303Manager | null;
+  /** PcfEffect instance for PCF automation wiring; set after init. */
+  pcfEffect?: import('./engines/PcfEffect').PcfEffect | null;
   singingVoice?: SingingVoice;
 
   // === Playback Methods (with microtonal support) ===
@@ -365,7 +540,9 @@ export interface KnobAutomation {
 export type AutomationTarget =
   | 'synthA' | 'synthB' | 'bass2'
   | 'kick' | 'snare' | 'closedHat' | 'openHat'
-  | 'sampler' | 'master';
+  | 'sampler' | 'master'
+  | 'sampler0' | 'sampler1' | 'sampler2' | 'sampler3'
+  | 'sampler4' | 'sampler5' | 'sampler6' | 'sampler7';
 
 /** Where the automation data originated */
 export type AutomationSource = 'rbs' | 'recorded' | 'ai' | 'manual';
@@ -381,12 +558,26 @@ export type AutomationScope = 'pattern' | 'song';
  * Uses normalized 0–1 values for portability across parameter ranges.
  */
 export interface AutomationLanePoint {
-  /** Step index (0-based, relative to pattern or song position) */
+  /**
+   * Step position (0-based, relative to pattern or song position).
+   * Supports sub-step (fractional) values for 24-PPQ TRAK event resolution.
+   * E.g. step 2.5 = halfway between step 2 and step 3.
+   */
   step: number;
   /** Normalized value 0–1 */
   value: number;
   /** Optional: interpolation override for this segment */
   interpolation?: AutomationInterpolation;
+  /**
+   * Per-step accent flag (TB-303 style).
+   * When true, the step should be played with accent emphasis.
+   */
+  accent?: boolean;
+  /**
+   * Per-step slide flag (TB-303 style).
+   * When true, the note slides (portamento) from the previous step.
+   */
+  slide?: boolean;
 }
 
 /**
@@ -416,6 +607,12 @@ export interface UnifiedAutomationLane {
   enabled: boolean;
   /** Original value range (for display/conversion), defaults to [0, 1] */
   originalRange?: [number, number];
+  /**
+   * Sampler bank index (0–7) for per-bank targeting.
+   * Only applicable when target is 'sampler' (legacy) or 'sampler0'–'sampler7'.
+   * When target is 'samplerN', this is redundant but kept for clarity.
+   */
+  samplerBank?: number;
 }
 
 /**
@@ -485,6 +682,7 @@ export interface SavedSongData {
   params: {
     synthA: SynthParams;
     synthB: SynthParams;
+    bass2?: Bass2Params;
     kick: KickParams;
     snare: SnareParams;
     closedHat: HatParams;

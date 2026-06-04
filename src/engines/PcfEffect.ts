@@ -204,6 +204,30 @@ export class PcfEffect {
     }
 
     /**
+     * Set automation-driven resonance (overrides the base resonance param).
+     * @param resonanceMidi 0-127 MIDI-range resonance; pass null/undefined to clear override.
+     */
+    setAutomationResonance(resonanceMidi: number | null | undefined): void {
+        if (resonanceMidi === null || resonanceMidi === undefined) {
+            this.sendMessage('set-automation', { resonanceMidi: null });
+        } else {
+            this.sendMessage('set-automation', { resonanceMidi: Math.max(0, Math.min(127, resonanceMidi)) });
+        }
+    }
+
+    /**
+     * Set automation-driven envelope amount (overrides the base envAmount param).
+     * @param envAmountNorm 0-1 normalised envelope amount; pass null/undefined to clear override.
+     */
+    setAutomationEnvAmount(envAmountNorm: number | null | undefined): void {
+        if (envAmountNorm === null || envAmountNorm === undefined) {
+            this.sendMessage('set-automation', { envAmountNorm: null });
+        } else {
+            this.sendMessage('set-automation', { envAmountNorm: Math.max(0, Math.min(1, envAmountNorm)) });
+        }
+    }
+
+    /**
      * Enable or disable the effect.
      */
     setEnabled(enabled: boolean): void {

@@ -406,7 +406,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         onClick={onClose}
         aria-hidden="true"
       />
-      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" aria-describedby="rbs-import-desc" className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div role="dialog" tabIndex={-1} aria-modal="true" aria-labelledby="rbs-import-title" aria-describedby="rbs-import-desc" className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
@@ -466,6 +466,11 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 {importReport.automationLanesConverted > 0 && (
                   <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded border border-blue-500/30">
                     {importReport.automationLanesConverted} automation lane{importReport.automationLanesConverted !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {importReport.songMode?.isSongMode && (
+                  <span className="px-2 py-0.5 bg-green-500/20 text-green-300 rounded border border-green-500/30">
+                    Song mode: {importReport.songMode.patternBankCount} patterns, {importReport.songMode.songLengthBars} bars, {importReport.songMode.arrangementEventCount} events
                   </span>
                 )}
                 <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded border border-amber-500/30">
