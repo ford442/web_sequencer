@@ -11,7 +11,7 @@
 
 ### Domain A: Audio Engine (Synth & Sampler)
 - [x] **Step-Sequenced Bitcrusher / Decimator:** Add per-step bit reduction and downsampling to `rubberband-processor.ts` for rhythmically evolving lo-fi crunch textures on TTS vocals.
-- [ ] **Time-Stretch Envelope:** Use an ADSR envelope to dynamically modulate the `timeRatio` of the granular engine, allowing vocals to rhythmically slow down or speed up over a single step.
+- [x] **Time-Stretch Envelope:** Use an ADSR envelope to dynamically modulate the `timeRatio` of the granular engine, allowing vocals to rhythmically slow down or speed up over a single step.
 - [x] **Refactor SingingVoice State:** Expose alignment state setters in `SingingVoice` to avoid type casting hacks and improve multi-bank alignment handling.
 - [x] **TTS Slice Triggering:** Implement a logic where a MIDI Note NoteOn event can trigger a specific *slice* or *word* from the TTS buffer (e.g., Note C3 = "Hello", Note D3 = "World").
 - [x] **Hybrid Polyphony:** Finalize `VoiceManager` to handle 8-voice polyphony for `synth-1` while keeping `synth-2` strictly monophonic (legato priority).
@@ -215,3 +215,4 @@
 * [2026-07-01] - Implemented Microtonal Scale Mapping: Added `TuningSystem` types (12-TET, 24-TET, Just Intonation, Pythagorean, Bohlen-Pierce) to `musicTheory.ts` and `ScaleSelector`. Pushed tuning state through `NoteParams` down to `VoiceManager`, `synthPlayback`, `samplerPlayback` and Web Worker for correct tuning rendering offline.
 * [2026-05-08] - Implemented AI Auto-EQ Assistant: Added a `bassSidechainEQBus` (peaking filter at 250Hz) to `initializeMasterOutput`. Implemented `triggerBassEQDuck` to dynamically duck this EQ band on the master synth bus whenever a Bass note (303 or synth bass) triggers, preventing low-mid frequency masking and fulfilling the AI Auto-EQ Assistant Innovation Lab idea. Added new ideas: "Vocal Overdrive Worklet" and "Rhythmic Gating".
 * [2026-05-12] - Implemented Performance Fixes for CI and TS Types: Cleaned up mismatched properties between `SamplerBankParams` UI and internal type definitions (`coarseTune`, `fineTune`, `formantShift`, `quality`, `lockToSequencer`). Cleaned up custom sequencer optimization patch.
+* [2026-08-01] - Implemented Time-Stretch Envelope: Added `timeStretchEnvDepth` to `Note` and `SamplerBankParams` interfaces. Wired the parameter through `NoteSelector` and `SamplerPanel` UI down to `useAudioEngine.ts` and `SingingVoice.ts`, and finally applied the dynamic time stretch modulation via the `envelopeValue` inside `rubberband-processor.ts`. Fulfills the "Time-Stretch Envelope" Innovation Lab idea. Added new idea: "Granular Pitch Shifter".

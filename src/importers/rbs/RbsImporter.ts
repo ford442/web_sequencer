@@ -712,8 +712,8 @@ export class RbsImporter {
 
     // Slide time: use the raw 0-127 value if provided; otherwise fall back to the
     // TB-303 hardware default (~42/127 ≈ 0.33 = 60 ms at nominal tempo).
-    const rawSlideTime = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
-    const slideTime = clampNormalized(rawSlideTime / 127);
+    const rawSlideTimeValue = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
+    const slideTimeValue = clampNormalized(rawSlideTimeValue / 127);
 
     if (mappings) {
       mappings.push({
