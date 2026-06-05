@@ -744,7 +744,7 @@ export class RbsImporter {
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
       volume: 0.9,
-      ...(slideTime !== undefined ? { slideTime } : {}),
+      slideTime: slideTimeValue,
     };
   }
 
