@@ -634,15 +634,14 @@ export class RbsImporter {
         originalValue: tb303.waveform,
         convertedValue: waveform
       });
-      if (slideTime !== undefined) {
-        mappings.push({
-          source: `${sourceName}.slideTime`,
-          target: 'SynthParams.slideTime',
-          originalValue: tb303.slideTime!,
-          convertedValue: parseFloat(slideTime.toFixed(3)),
-          formula: 'slideTime / 127'
-        });
-      }
+
+      mappings.push({
+        source: `${sourceName}.slideTime`,
+        target: 'SynthParams.slideTime',
+        originalValue: tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME,
+        convertedValue: parseFloat(portamento.toFixed(3)),
+        formula: 'slideTime / 127'
+      });
 
       return {
         waveform,
@@ -659,7 +658,7 @@ export class RbsImporter {
         delayTime: 0.3,
         delayFeedback: 0.2,
         delayMix: 0.0,
-        ...(slideTime !== undefined ? { slideTime } : {}),
+        slideTime: portamento,
         portamento,
       };
     };
@@ -707,9 +706,6 @@ export class RbsImporter {
     const resonance = this.convertResonance(tb303.resonance);
     const decay = this.convertDecayToSeconds(tb303.decay);
     const accent = 0.5 + this.convertAccentToBoost(tb303.accent);
-    // slideTime: RBS 0-127 → 0-1 (linear)
-    const slideTime = tb303.slideTime !== undefined ? tb303.slideTime / 127 : undefined;
-
     // Slide time: use the raw 0-127 value if provided; otherwise fall back to the
     // TB-303 hardware default (~42/127 ≈ 0.33 = 60 ms at nominal tempo).
     const rawSlideTimeValue = tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME;
@@ -723,15 +719,13 @@ export class RbsImporter {
         convertedValue: Math.round(cutoff),
         formula: '100 * 2^(cutoff / 21.17) Hz'
       });
-      if (slideTime !== undefined) {
-        mappings.push({
-          source: `${sourceName}.slideTime`,
-          target: 'Bass2Params.slideTime',
-          originalValue: tb303.slideTime!,
-          convertedValue: parseFloat(slideTime.toFixed(3)),
-          formula: 'slideTime / 127'
-        });
-      }
+      mappings.push({
+        source: `${sourceName}.slideTime`,
+        target: 'Bass2Params.slideTime',
+        originalValue: tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME,
+        convertedValue: parseFloat(slideTime.toFixed(3)),
+        formula: 'slideTime / 127'
+      });
     }
 
     return {
@@ -744,7 +738,7 @@ export class RbsImporter {
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
       volume: 0.9,
-      ...(slideTime !== undefined ? { slideTime } : {}),
+      slideTime,
     };
   }
 
