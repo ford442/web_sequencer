@@ -1,9 +1,15 @@
-1.  **Refactor `useAppState.tsx` hot paths:**
-    -   The file `src/hooks/useAppState.tsx` contains several state updater functions (e.g., `handleNoteLengthChange`, `handleKeyboardPlay`, `handleNoteSelect`, keyboard/mouse event handlers, etc.) that manually clone array parts, particularly `[...copy.sampler]`, `[...copy.sampler[bankIdx].steps]`, `[...copy[trackKey].steps]`.
-    -   We will replace these manual inline spread updates with the structurally shared, memo-safe pure helper functions already available at the top of the file: `updateSamplerStep` and `updateTrackStep`.
-    -   For ranges (like in `handleNoteLengthChange` and the delete functionality in `handleKeyDown`), we'll either create range updater helpers or adjust the loop to only create one clone using a helper, then mutate the single new object instead of spreading arrays in the component's body.
-    -   Specifically, target: `handlePatternChange`, `handleKeyboardPlay`/`handleKeyboardStop` recording loop, `handleKeyDown` deletion loop, `handleNoteLengthChange`, `handleLyricApply` looping, and `handlePhonemeUpdate`.
-
-2.  **Pre-commit checks**: Run `npm run lint` and `npm run test`. Ensure all tests pass.
-
-3.  **Journal the learning**: Write the performance tip regarding pure structural-sharing update helpers vs inline spreading arrays into `.jules/bolt.md`.
+1. **Create Vocal Overdrive Worklet**
+   - Create a new AudioWorkletProcessor in `src/audio-worklets/vocal-overdrive-processor.ts`.
+   - Implement nonlinear tube distortion directly inside the `process` loop. A simple formula like `Math.tanh(input * drive) / Math.tanh(drive)` or foldback distortion.
+   - Expose `drive` and `tone` (simple lowpass filter) parameters.
+2. **Register the Worklet**
+   - Add the worklet to Vite build via `?worker&url` in `src/hooks/audioEngine/initialization.ts`.
+   - Wait for `audioContext.audioWorklet.addModule()` to load it during initialization.
+3. **Integrate into `useAudioEngine.ts`**
+   - We will replace the standard Web Audio API `WaveShaperNode` used for `drive` on voices in `useAudioEngine.ts` with our custom `AudioWorkletNode('vocal-overdrive-processor')`!
+   - Ensure the new node handles the `driveAmount` parameter. The tone parameter can be fixed or exposed globally.
+4. **Update `agent_plan.md`**
+   - Check off the "Vocal Overdrive Worklet" idea.
+   - Add progress entry to the top of the Changelog.
+5. **Pre-commit checks**
+   - Run type checks and tests.

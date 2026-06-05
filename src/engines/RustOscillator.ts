@@ -15,6 +15,7 @@ export class RustOscillator {
             // analysis (and therefore out of test compilation paths).
             // Using a variable (not a string literal) keeps Vite's static import-analysis
             // from checking the public-directory path at compile/test time.
+            // @ts-expect-error — wasm-bindgen output in public/, TS can't resolve it
             const rustPath = '/rust-wasm/rust_audio.js';
             const mod = await import(/* @vite-ignore */ rustPath) as { default: () => Promise<void>; generate_rust_wave: RustGenerateFn };
             await mod.default();

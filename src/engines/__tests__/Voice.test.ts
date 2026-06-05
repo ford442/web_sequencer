@@ -9,7 +9,6 @@ import type { SynthParams } from '../../types';
 // ── Minimal SynthParams fixture ──────────────────────────────────────────────
 
 const BASE_PARAMS: SynthParams = {
-    length: 1,
     waveform: 'sawtooth',
     pitch: 0,
     filterCutoff: 2000,

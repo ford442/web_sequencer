@@ -112,11 +112,12 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
         ? globalThis.currentTime
         : (typeof currentFrame === 'number' ? currentFrame / (globalThis.sampleRate || 44100) : 0);
     this.expressiveProcessor.setCurrentTime(now);
-
-    this.expressiveProcessor.setVibrato(vibratoRate, vibratoDepth, vibratoDepth > 0);
-    this.expressiveProcessor.setTremolo(tremoloRate, tremoloDepth, tremoloDepth > 0);
-    this.expressiveProcessor.setBreath(breathAmount, 2000, breathAmount > 0);
-    this.expressiveProcessor.setEnvelope(attack, decay, sustain, release);
+    this.expressiveProcessor.updateConfig({
+      vibrato: { rate: vibratoRate, depth: vibratoDepth, enabled: vibratoDepth > 0 },
+      tremolo: { rate: tremoloRate, depth: tremoloDepth, enabled: tremoloDepth > 0 },
+      breath: { amount: breathAmount, filterCutoff: 2000, enabled: breathAmount > 0 },
+      envelope: { attack, decay, sustain, release },
+    });
 
     this.expressiveProcessor.process(output, output);
     return true;
