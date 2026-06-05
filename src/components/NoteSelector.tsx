@@ -66,6 +66,7 @@ interface NoteSelectorProps {
         | 'freezeEnvDepth'
         | 'grainEnvDepth'
         | 'grainPitchQuantize'
+        | 'granularPitchShift'
         | 'bitcrush'
         | 'downsample'
         | 'tranceGate'
@@ -358,6 +359,25 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     aria-valuetext={`${currentGrainPitchQuantize} semitones`}
                                     aria-label="Granular Pitch Quantization"
                                 />                            </div>
+
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                    <label htmlFor="note-gran-pitch">Gran Pitch Shift</label>
+                                    <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentNote?.granularPitchShift ?? 0} st</span>
+                                </div>
+                                <input
+                                    id="note-gran-pitch"
+                                    type="range"
+                                    min="-24"
+                                    max="24"
+                                    step="1"
+                                    value={currentNote?.granularPitchShift ?? 0}
+                                    onChange={(e) => onPropertyChange?.("granularPitchShift", parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                    aria-valuetext={`${currentNote?.granularPitchShift ?? 0} semitones`}
+                                    aria-label="Granular Pitch Shift Override"
+                                />
+                            </div>
 
                             <div className="flex flex-col gap-1.5" role="group" aria-label="Bitcrush Override">
                                 <div className="flex justify-between items-center text-xs px-1">
