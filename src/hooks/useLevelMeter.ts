@@ -52,7 +52,7 @@ export function useLevelMeter(
                 dataRef.current = new Float32Array(analyserNode.fftSize);
             }
 
-            analyserNode.getFloatTimeDomainData(dataRef.current);
+            analyserNode.getFloatTimeDomainData(dataRef.current as Float32Array<ArrayBuffer>);
             reading.level = computeRms(dataRef.current);
             reading.peak = Math.max(reading.level, reading.peak - peakDecayPerFrame);
 

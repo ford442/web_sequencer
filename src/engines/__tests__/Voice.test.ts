@@ -18,6 +18,7 @@ const BASE_PARAMS: SynthParams = {
     sustain: 0.7,
     release: 0.3,
     volume: 0.8,
+    length: 1,
     delayTime: 0,
     delayFeedback: 0,
     delayMix: 0,
