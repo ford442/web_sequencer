@@ -1,3 +1,4 @@
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 import React, { memo } from 'react';
 import type { OscillatorType, OscillatorTheme } from '../types';
 import { OSCILLATOR_THEMES } from '../types';
