@@ -6,7 +6,8 @@ interface LoadingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
     spinnerColor?: string; // Optional custom color for the spinner
 }
 
-export const LoadingButton: React.FC<LoadingButtonProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const LoadingButton: React.FC<LoadingButtonProps> = React.memo(({
     isLoading = false,
     loadingText,
     spinnerColor = 'text-current',
@@ -44,4 +45,4 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
             {isLoading && loadingText ? loadingText : children}
         </button>
     );
-};
+});
