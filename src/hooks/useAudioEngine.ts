@@ -654,7 +654,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const subDurationSteps = durationSteps / retrigger;
 
                 // --- GLITCH LOGIC START ---
-                const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
+                const effectiveGlitchChance = noteParams?.glitchChance ?? params.glitchChance ?? 0;
+                const shouldGlitch = retrigger === 1 && effectiveGlitchChance > 0 && Math.random() < effectiveGlitchChance;
                 // --- GLITCH LOGIC END ---
 
                 // Handle Polyphony (Chords)
