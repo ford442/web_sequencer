@@ -532,7 +532,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                         </fieldset>
 
                                 {/* Delay Send Control */}
-                        {onPropertyChange && (
+                        {(
                             <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
                                 <legend className="sr-only">Delay Send Control</legend>
                                 <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
@@ -600,7 +600,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                             </div>
                         )}
                         {/* Reverb Send Control */}
-                        {onPropertyChange && (
+                        {(
                             <>
                                 <div className="flex flex-col gap-1 mt-2">
                                     <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
@@ -873,7 +873,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                         )}
 
                         {/* ── Prophecy-specific controls ─────────────────────── */}
-                        {isProphecy && onPropertyChange && (
+                        {isProphecy && (
                             <>
                                 {/* Vowel Select */}
                                 <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
@@ -926,7 +926,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                         )}
 
                         {/* Morph Override */}
-                        {onPropertyChange && currentCharacterMorph !== undefined && (
+                        {currentCharacterMorph !== undefined && (
                             <div className="flex flex-col gap-1">
                                 <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                                     <label htmlFor="note-morph">Character Morph</label>
