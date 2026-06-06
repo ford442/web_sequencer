@@ -723,7 +723,7 @@ export class RbsImporter {
         source: `${sourceName}.slideTime`,
         target: 'Bass2Params.slideTime',
         originalValue: tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME,
-        convertedValue: parseFloat(slideTime.toFixed(3)),
+        convertedValue: parseFloat((tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME).toFixed(3)),
         formula: 'slideTime / 127'
       });
     }
@@ -738,7 +738,7 @@ export class RbsImporter {
       accent,
       envMod: (tb303.envMod ?? 64) / 127,
       volume: 0.9,
-      slideTime,
+      slideTime: (tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME) / 127,
     };
   }
 
