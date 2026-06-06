@@ -152,6 +152,53 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
 
     const dialogRef = useFocusTrap(true, onClose);
 
+    const handleSliderChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const key = e.target.dataset.property;
+        if (key && onPropertyChange) {
+            onPropertyChange(key as any, parseFloat(e.target.value));
+        }
+    }, [onPropertyChange]);
+
+    const handleSelectChange = React.useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+        const key = e.target.dataset.property;
+        if (key && onPropertyChange) {
+            onPropertyChange(key as any, e.target.value);
+        }
+    }, [onPropertyChange]);
+
+    const handleButtonToggle = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+        const target = e.currentTarget;
+        const key = target.dataset.property;
+        if (key && onPropertyChange) {
+            let value: any = target.dataset.value;
+            // parse to boolean or number if needed
+            if (value === 'true') value = true;
+            else if (value === 'false') value = false;
+            else if (!isNaN(parseFloat(value))) value = parseFloat(value);
+
+            // special toggle case where we want to invert current value, we can use an 'invert' dataset property
+            if (target.dataset.invert === 'true') {
+                value = !value;
+            }
+            onPropertyChange(key as any, value);
+        }
+    }, [onPropertyChange]);
+
+    const handleNoteSelect = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+        const target = e.currentTarget;
+        const note = target.dataset.note;
+        if (note && onSelect) {
+            onSelect(note);
+        }
+    }, [onSelect]);
+
+    const handleLengthChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        if (onLengthChange) {
+            onLengthChange(parseInt(e.target.value));
+        }
+    }, [onLengthChange]);
+
+
     return (
         <>
             {/* Backdrop for click-outside */}
@@ -191,7 +238,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                         min="1"
                         max="16"
                         value={currentLength || 1}
-                        onChange={(e) => onLengthChange(parseInt(e.target.value))}
+                        onChange={handleLengthChange}
                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                         aria-valuetext={`${currentLength} Steps`}
                         aria-label="Duration"
@@ -214,7 +261,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="1"
                                 step="0.01"
                                 value={currentVelocity}
-                                onChange={(e) => onPropertyChange('velocity', parseFloat(e.target.value))}
+                                data-property="velocity" onChange={handleSliderChange}
                                 className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 border border-cyan-900/30 hover:accent-emerald-300 transition-all"
                                 aria-valuetext={`${Math.round((currentVelocity + 0.0001) * 100)}%`}
                                 aria-label="Velocity"
@@ -235,7 +282,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="1"
                                 step="0.01"
                                 value={currentTimbre}
-                                onChange={(e) => onPropertyChange('timbre', parseFloat(e.target.value))}
+                                data-property="timbre" onChange={handleSliderChange}
                                 className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-400 border border-pink-900/30 hover:accent-pink-300 transition-all"
                                 aria-valuetext={`${Math.round((currentTimbre + 0.0001) * 100)}%`}
                                 aria-label="Expression"
@@ -256,7 +303,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="1"
                                 step="0.01"
                                 value={currentProbability}
-                                onChange={(e) => onPropertyChange('probability', parseFloat(e.target.value))}
+                                data-property="probability" onChange={handleSliderChange}
                                 className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-yellow-400 border border-yellow-900/30 hover:accent-yellow-300 transition-all"
                                 aria-valuetext={`${Math.round((currentProbability + 0.0001) * 100)}%`}
                                 aria-label="Probability"
@@ -277,7 +324,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="0.5"
                                 step="0.01"
                                 value={currentMicrotiming}
-                                onChange={(e) => onPropertyChange('microtiming', parseFloat(e.target.value))}
+                                data-property="microtiming" onChange={handleSliderChange}
                                 className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-purple-400 border border-purple-900/30 hover:accent-purple-300 transition-all"
                                 aria-valuetext={`${currentMicrotiming > 0 ? '+' : ''}${currentMicrotiming.toFixed(2)} steps`}
                                 aria-label="Microtiming"
@@ -299,7 +346,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentFreeze}
-                                    onChange={(e) => onPropertyChange?.("freeze", parseFloat(e.target.value))}
+                                    data-property="freeze" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`\${Math.round((currentFreeze + 0.0001) * 100)}%`}
                                     aria-label="Freeze"
@@ -318,7 +365,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentFreezeEnvDepth}
-                                    onChange={(e) => onPropertyChange?.("freezeEnvDepth", parseFloat(e.target.value))}
+                                    data-property="freezeEnvDepth" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`\${Math.round((currentFreezeEnvDepth + 0.0001) * 100)}%`}
                                     aria-label="Envelope to Freeze Depth"
@@ -337,7 +384,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentGrainEnvDepth}
-                                    onChange={(e) => onPropertyChange?.("grainEnvDepth", parseFloat(e.target.value))}
+                                    data-property="grainEnvDepth" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`\${Math.round((currentGrainEnvDepth + 0.0001) * 100)}%`}
                                     aria-label="Envelope to Grain Size Depth"
@@ -356,7 +403,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="12"
                                     step="1"
                                     value={currentGrainPitchQuantize}
-                                    onChange={(e) => onPropertyChange?.("grainPitchQuantize", parseFloat(e.target.value))}
+                                    data-property="grainPitchQuantize" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`${currentGrainPitchQuantize} semitones`}
                                     aria-label="Granular Pitch Quantization"
@@ -394,7 +441,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentBitcrush ?? 0}
-                                    onChange={(e) => onPropertyChange?.("bitcrush", parseFloat(e.target.value))}
+                                    data-property="bitcrush" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                     aria-valuetext={`${((currentBitcrush ?? 0) * 100).toFixed(0)} percent`}
                                     aria-label="Bitcrush Amount"
@@ -414,7 +461,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="32"
                                     step="1"
                                     value={currentDownsample ?? 1}
-                                    onChange={(e) => onPropertyChange?.("downsample", parseFloat(e.target.value))}
+                                    data-property="downsample" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                     aria-valuetext={`${currentDownsample ?? 1} times downsampled`}
                                     aria-label="Downsample Factor"
@@ -433,7 +480,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentTranceGate}
-                                    onChange={(e) => onPropertyChange?.("tranceGate", parseFloat(e.target.value))}
+                                    data-property="tranceGate" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`\${Math.round((currentTranceGate + 0.0001) * 100)}%`}
                                     aria-label="Trance Gate"
@@ -457,7 +504,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="1"
                                 step="0.05"
                                 value={currentPan !== undefined ? currentPan : 0}
-                                onChange={(e) => onPropertyChange?.('pan', parseFloat(e.target.value))}
+                                data-property="pan" onChange={handleSliderChange}
                                 className="w-24 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]"
                                 aria-label="Pan"
                             />
@@ -478,7 +525,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="1"
                                 step="0.05"
                                 value={currentPan !== undefined ? currentPan : 0}
-                                onChange={(e) => onPropertyChange?.('pan', parseFloat(e.target.value))}
+                                data-property="pan" onChange={handleSliderChange}
                                 className="w-24 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]"
                                 aria-label="Pan"
                             />
@@ -499,7 +546,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentDelaySend !== undefined ? currentDelaySend : 0}
-                                    onChange={(e) => onPropertyChange('delaySend', parseFloat(e.target.value))}
+                                    data-property="delaySend" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                     aria-valuetext={`${currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%`}
                                     aria-label="Delay Send"
@@ -524,7 +571,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="1"
                                         step="0.01"
                                         value={currentGateDepth ?? 0}
-                                        onChange={(e) => onPropertyChange('gateDepth', parseFloat(e.target.value))}
+                                        data-property="gateDepth" onChange={handleSliderChange}
                                         className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                         aria-label="Gate Depth"
                                     />
@@ -545,7 +592,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="32"
                                         step="0.1"
                                         value={currentGateRate ?? 8}
-                                        onChange={(e) => onPropertyChange('gateRate', parseFloat(e.target.value))}
+                                        data-property="gateRate" onChange={handleSliderChange}
                                         className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                         aria-label="Gate Rate"
                                     />
@@ -567,7 +614,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="1"
                                         step="0.01"
                                         value={currentReverbSend !== undefined ? currentReverbSend : 0}
-                                        onChange={(e) => onPropertyChange?.('reverbSend', parseFloat(e.target.value))}
+                                        data-property="reverbSend" onChange={handleSliderChange}
                                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                         aria-valuetext={`${currentReverbSend !== undefined ? Math.round(currentReverbSend * 100) : 0}%`}
                                         aria-label="Reverb Send"
@@ -576,7 +623,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         <span className="text-[9px] text-indigo-200/50 uppercase font-bold">Space</span>
                                         <select
                                             value={currentReverbType || ''}
-                                            onChange={(e) => onPropertyChange?.('reverbType', e.target.value)}
+                                            data-property="reverbType" onChange={handleSelectChange}
                                             className="bg-gray-800/80 text-[10px] text-indigo-200 rounded border border-indigo-900/30 px-1 py-0.5 outline-none focus:border-indigo-500 transition-colors"
                                             aria-label="Reverb Type Override"
                                         >
@@ -598,7 +645,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="10"
                                         step="0.1"
                                         value={currentReverbLfoRate !== undefined ? currentReverbLfoRate : 0}
-                                        onChange={(e) => onPropertyChange?.('reverbLfoRate', parseFloat(e.target.value))}
+                                        data-property="reverbLfoRate" onChange={handleSliderChange}
                                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                         aria-valuetext={`${currentReverbLfoRate !== undefined ? currentReverbLfoRate.toFixed(1) : 0} Hz`}
                                         aria-label="Reverb LFO Rate"
@@ -615,7 +662,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="1"
                                         step="0.01"
                                         value={currentReverbLfoDepth !== undefined ? currentReverbLfoDepth : 0}
-                                        onChange={(e) => onPropertyChange?.('reverbLfoDepth', parseFloat(e.target.value))}
+                                        data-property="reverbLfoDepth" onChange={handleSliderChange}
                                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                         aria-valuetext={`${currentReverbLfoDepth !== undefined ? Math.round(currentReverbLfoDepth * 100) : 0}%`}
                                         aria-label="Reverb LFO Depth"
@@ -634,7 +681,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             max="10"
                                             step="0.1"
                                             value={currentDelayLfoRate !== undefined ? currentDelayLfoRate : 0}
-                                            onChange={(e) => onPropertyChange?.('delayLfoRate', parseFloat(e.target.value))}
+                                            data-property="delayLfoRate" onChange={handleSliderChange}
                                             className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                             aria-valuetext={`${currentDelayLfoRate !== undefined ? currentDelayLfoRate.toFixed(1) : 0} Hz`}
                                             aria-label="Delay LFO Rate"
@@ -651,7 +698,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             max="1"
                                             step="0.01"
                                             value={currentDelayLfoDepth !== undefined ? currentDelayLfoDepth : 0}
-                                            onChange={(e) => onPropertyChange?.('delayLfoDepth', parseFloat(e.target.value))}
+                                            data-property="delayLfoDepth" onChange={handleSliderChange}
                                             className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                             aria-valuetext={`${currentDelayLfoDepth !== undefined ? Math.round(currentDelayLfoDepth * 100) : 0}%`}
                                             aria-label="Delay LFO Depth"
@@ -673,7 +720,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="1"
                                         step="0.01"
                                         value={currentDelaySend !== undefined ? currentDelaySend : 0}
-                                        onChange={(e) => onPropertyChange('delaySend', parseFloat(e.target.value))}
+                                        data-property="delaySend" onChange={handleSliderChange}
                                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-400 border border-pink-900/30 hover:accent-pink-300 transition-all"
                                         aria-valuetext={`${currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%`}
                                         aria-label="Delay Send"
@@ -692,7 +739,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="1"
                                         step="0.01"
                                         value={currentChoir !== undefined ? currentChoir : 0}
-                                        onChange={(e) => onPropertyChange('choir', parseFloat(e.target.value))}
+                                        data-property="choir" onChange={handleSliderChange}
                                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                         aria-valuetext={`${currentChoir !== undefined ? Math.round(currentChoir * 100) : 0}%`}
                                         aria-label="Chorus Detune Spread"
@@ -716,14 +763,14 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
             max="12"
             step="1"
             value={currentFormantShift}
-            onChange={(e) => onPropertyChange('formantShift', parseFloat(e.target.value))}
+            data-property="formantShift" onChange={handleSliderChange}
             className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
             aria-valuetext={`${currentFormantShift > 0 ? '+' : ''}${currentFormantShift} st`}
         />
         <div className="flex items-center gap-2 mt-1">
             <button
                 className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-zinc-900 border-zinc-700 text-gray-500'} hover:bg-zinc-800 transition-colors`}
-                onClick={() => onPropertyChange('slideFormant', !currentSlideFormant)}
+                data-property="slideFormant" data-value={!currentSlideFormant} onClick={handleButtonToggle}
                 title="Glide Formant from Previous Step"
                 aria-label="Toggle Formant Glide"
                 aria-pressed={currentSlideFormant}
@@ -751,7 +798,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="20"
                                     step="0.1"
                                     value={currentFormantLfoRate}
-                                    onChange={(e) => onPropertyChange('formantLfoRate', parseFloat(e.target.value))}
+                                    data-property="formantLfoRate" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                     aria-valuetext={`${currentFormantLfoRate.toFixed(1)} Hz`}
                                     aria-label="Formant LFO Rate"
@@ -773,7 +820,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentFormantLfoDepth}
-                                    onChange={(e) => onPropertyChange('formantLfoDepth', parseFloat(e.target.value))}
+                                    data-property="formantLfoDepth" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                     aria-valuetext={`${Math.round((currentFormantLfoDepth + 0.0001) * 100)}%`}
                                     aria-label="Formant LFO Depth"
@@ -795,7 +842,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentDrive !== undefined ? currentDrive : 0}
-                                    onChange={(e) => onPropertyChange('drive', parseFloat(e.target.value))}
+                                    data-property="drive" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-red-400 border border-red-900/30 hover:accent-red-300 transition-all"
                                     aria-valuetext={`${currentDrive !== undefined ? Math.round(currentDrive * 100) : 0}%`}
                                     aria-label="Distortion"
@@ -817,7 +864,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentVibratoDepth}
-                                    onChange={(e) => onPropertyChange('vibratoDepth', parseFloat(e.target.value))}
+                                    data-property="vibratoDepth" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`${Math.round((currentVibratoDepth + 0.0001) * 100)}%`}
                                     aria-label="Vibrato Depth"
@@ -841,7 +888,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         {(['A', 'E', 'I', 'O', 'U'] as const).map((label, idx) => (
                                             <button
                                                 key={label}
-                                                onClick={() => onPropertyChange('vowel', idx)}
+                                                data-property="vowel" data-value={idx} onClick={handleButtonToggle}
                                                 aria-pressed={Math.round(currentVowel) === idx}
                                                 aria-label={`Vowel ${label}`}
                                                 className={`flex-1 py-1 text-[10px] font-bold rounded transition-all ${
@@ -869,7 +916,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="1"
                                         step="0.01"
                                         value={currentPortamento}
-                                        onChange={(e) => onPropertyChange('portamento', parseFloat(e.target.value))}
+                                        data-property="portamento" onChange={handleSliderChange}
                                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                         aria-valuetext={`${Math.round(currentPortamento * 100)}%`}
                                         aria-label="Portamento"
@@ -892,7 +939,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     max="1"
                                     step="0.01"
                                     value={currentCharacterMorph}
-                                    onChange={(e) => onPropertyChange('characterMorph', parseFloat(e.target.value))}
+                                    data-property="characterMorph" onChange={handleSliderChange}
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`${Math.round((currentCharacterMorph + 0.0001) * 100)}%`}
                                     aria-label="Character Morph"
@@ -914,7 +961,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="1"
                                 step="0.01"
                                 value={currentFilterCutoff !== undefined ? currentFilterCutoff : 1.0}
-                                onChange={(e) => onPropertyChange('filterCutoff', parseFloat(e.target.value))}
+                                data-property="filterCutoff" onChange={handleSliderChange}
                                 className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                 aria-valuetext={`${currentFilterCutoff !== undefined ? Math.round(currentFilterCutoff * 100) : 100}%`}
                                 aria-label="Filter Cutoff"
@@ -935,7 +982,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="1"
                                 step="0.01"
                                 value={currentFilterResonance || 0}
-                                onChange={(e) => onPropertyChange('filterResonance', parseFloat(e.target.value))}
+                                data-property="filterResonance" onChange={handleSliderChange}
                                 className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                 aria-valuetext={`${currentFilterResonance !== undefined ? Math.round(currentFilterResonance * 100) : 0}%`}
                                 aria-label="Filter Resonance"
@@ -956,7 +1003,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 max="1"
                                 step="0.01"
                                 value={currentEnvMod !== undefined ? currentEnvMod : 0.5}
-                                onChange={(e) => onPropertyChange('envMod', parseFloat(e.target.value))}
+                                data-property="envMod" onChange={handleSliderChange}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                                 aria-valuetext={`${currentEnvMod !== undefined ? Math.round(currentEnvMod * 100) : 50}%`}
                                 aria-label="Envelope Modulation"
@@ -978,7 +1025,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 {[1, 2, 3, 4].map(val => (
                                     <button
                                         key={val}
-                                        onClick={() => onPropertyChange('retrigger', val)}
+                                        data-property="retrigger" data-value={val} onClick={handleButtonToggle}
                                         className={`flex-1 py-1 text-[10px] font-bold rounded transition-all ${currentRetrigger === val ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.3)]' : 'bg-gray-800/80 text-cyan-200/70 hover:bg-gray-700 hover:text-white border border-gray-700/50'}`}
                                         aria-pressed={currentRetrigger === val}
                                         aria-label={val === 1 ? 'No retrigger' : `Retrigger ${val} times`}
@@ -994,7 +1041,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                             <label htmlFor="note-reverse">Reverse Sample</label>
                             <button
                                 id="note-reverse"
-                                onClick={() => onPropertyChange('reverse', !currentReverse)}
+                                data-property="reverse" data-value={!currentReverse} onClick={handleButtonToggle}
                                 className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${currentReverse ? 'bg-cyan-500 justify-end shadow-[0_0_8px_rgba(6,182,212,0.4)]' : 'bg-gray-700 justify-start border border-gray-600'}`}
                                 aria-checked={currentReverse}
                                 role="switch"
@@ -1019,7 +1066,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                  return (
                                      <button
                                         key={fullNote}
-                                        onClick={() => isInScale && onSelect(fullNote)}
+                                        data-note={fullNote} onClick={isInScale ? handleNoteSelect : undefined}
                                         aria-label={`Select ${fullNote}`}
                                         aria-pressed={isSelected}
                                         aria-disabled={!isInScale}
