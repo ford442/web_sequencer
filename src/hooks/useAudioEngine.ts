@@ -635,6 +635,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     spectralPanDepth?: number,
                     reverbLfoRate?: number,
                     reverbLfoDepth?: number,
+                    glitchChance?: number,
                     isHarmonyVoice?: boolean
                 },
                 pitchOffsetSemitones: number = 0,
