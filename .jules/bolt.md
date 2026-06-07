@@ -53,3 +53,7 @@
 ## 2024-05-30 - AudioWorklet GC Thrashes via Object Allocation
 **Learning:** Calling `updateConfig({ nested: { value } })` inside an `AudioWorkletProcessor.process()` loop creates new objects every ~3ms (128 samples). This produces intense garbage collection pressure on the audio thread, risking audio dropouts and general CPU bloat, particularly when scaling polyphony or FX instances. Object spreading (`...`) compound this by churning through allocations.
 **Action:** Always implement direct setter methods (`setVibrato(rate, depth)`, `setEnvelope()`, etc.) that directly mutate the inner configuration state in high-frequency contexts like AudioWorklets, avoiding fresh objects and deep merges entirely on the hot path.
+
+## 2024-05-30 - Deep Array Comparison in React Memo
+**Learning:** Using deep array comparison inside a custom `areEqual` comparator for `React.memo` (like `prevBanks.some((val, i) => val !== nextBanks[i])`) when the parent state management already guarantees immutable updates (via shallow cloning) is redundant and expensive. It adds massive CPU overhead on every render cycle for large components like `SamplerPanel`.
+**Action:** Replace custom deep array checks inside `React.memo` comparators with simple reference equality (`prev.loadedBanks !== next.loadedBanks`) when the parent state management correctly creates new array references for mutations.
