@@ -22,6 +22,7 @@ interface NoteSelectorProps {
     currentMicrotiming?: number;
     currentReverse?: boolean;
     currentRetrigger?: number;
+    currentGlitchChance?: number;
     currentFreeze?: number;
     currentBitcrush?: number;
     currentDownsample?: number;
@@ -63,6 +64,7 @@ interface NoteSelectorProps {
         | 'microtiming'
         | 'reverse'
         | 'retrigger'
+        | 'glitchChance'
         | 'freeze'
         | 'freezeEnvDepth'
         | 'grainEnvDepth'
@@ -112,6 +114,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentMicrotiming = 0,
     currentReverse = false,
     currentRetrigger = 1,
+    currentGlitchChance = 0,
     currentFreeze = 0,
     currentFormantShift,
     currentSlideFormant = false,
@@ -599,6 +602,33 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                 </div>
                             </div>
                         )}
+
+                        {/* Glitch Chance Control */}
+                        {trackType === 'voice' && (
+                            <div className="flex flex-col gap-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30 mt-2">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
+                                    <span>Glitch</span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-[10px] text-gray-400">
+                                        <label htmlFor="note-glitchChance">Glitch Chance</label>
+                                        <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentGlitchChance !== undefined ? Math.round(currentGlitchChance * 100) : 0}%</span>
+                                    </div>
+                                    <input
+                                        id="note-glitchChance"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentGlitchChance || 0}
+                                        data-property="glitchChance" onChange={handleSliderChange}
+                                        className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-label="Glitch Chance"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         {/* Reverb Send Control */}
                         {(
                             <>
