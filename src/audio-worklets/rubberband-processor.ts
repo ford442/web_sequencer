@@ -77,6 +77,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
+      { name: 'grainPitchShift', defaultValue: 0.0, minValue: -36.0, maxValue: 36.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 }
@@ -282,6 +283,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     // Combine note pitch with parameter modulation
     let finalPitch = this.isPlaying ? this.basePitch * pitch : pitch;
+
+    // Granular Pitch Shift: adjust pitch ratio independently of base sequencer tracking
+    const grainPitchShift = parameters.grainPitchShift ? parameters.grainPitchShift[0] : 0.0;
+    if (grainPitchShift !== 0.0 && finalPitch > 0.0) {
+      finalPitch *= Math.pow(2.0, grainPitchShift / 12.0);
+    }
 
     // Granular Pitch Quantization: snap pitch to intervals when active
     const grainPitchQuantize = parameters.grainPitchQuantize ? parameters.grainPitchQuantize[0] : 0.0;

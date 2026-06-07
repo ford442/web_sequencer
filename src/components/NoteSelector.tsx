@@ -44,6 +44,7 @@ interface NoteSelectorProps {
     currentFreezeEnvDepth?: number;
     currentGrainEnvDepth?: number;
     currentGrainPitchQuantize?: number;
+    currentGrainPitchShift?: number;
     currentTranceGate?: number;
     currentDelaySend?: number;
     currentChoir?: number;
@@ -66,6 +67,7 @@ interface NoteSelectorProps {
         | 'freezeEnvDepth'
         | 'grainEnvDepth'
         | 'grainPitchQuantize'
+        | 'grainPitchShift'
         | 'bitcrush'
         | 'downsample'
         | 'tranceGate'
@@ -131,6 +133,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchQuantize = 0,
+    currentGrainPitchShift = 0,
     currentBitcrush = 0,
     currentDownsample = 1,
     currentChoir,
@@ -357,6 +360,22 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`${currentGrainPitchQuantize} semitones`}
                                     aria-label="Granular Pitch Quantization"
+                                />                            </div>
+                            <div className="flex flex-col gap-1 w-full mt-2">
+                                <div className="flex justify-between w-full text-[10px] text-cyan-500/70 font-mono tracking-wider">
+                                    <span>PITCH SHIFT</span>
+                                    <span>{currentGrainPitchShift > 0 ? '+' : ''}{currentGrainPitchShift.toFixed(0)} st</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="-36"
+                                    max="36"
+                                    step="1"
+                                    value={currentGrainPitchShift}
+                                    onChange={(e) => onPropertyChange?.("grainPitchShift", parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                    aria-valuetext={`${currentGrainPitchShift} semitones`}
+                                    aria-label="Granular Pitch Shift"
                                 />                            </div>
 
                             <div className="flex flex-col gap-1.5" role="group" aria-label="Bitcrush Override">

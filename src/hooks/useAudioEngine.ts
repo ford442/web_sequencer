@@ -625,6 +625,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantShift?: number,
                     timeStretchEnvDepth?: number,
                     grainPitchQuantize?: number,
+                    grainPitchShift?: number,
                     bitcrush?: number,
                     downsample?: number,
                     tranceGate?: number,
@@ -984,6 +985,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
                             } else if (params.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
+                            }
+                            if (noteParams?.grainPitchShift !== undefined) {
+                                voice.setGrainPitchShift(noteParams.grainPitchShift, triggerTime);
+                            } else if (params.grainPitchShift !== undefined) {
+                                voice.setGrainPitchShift(params.grainPitchShift, triggerTime);
                             }
                             if (noteParams?.bitcrush !== undefined) {
                                 voice.setBitcrush(noteParams.bitcrush, triggerTime);

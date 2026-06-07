@@ -103,6 +103,7 @@ export interface SamplerBankParams {
   timeStretchEnvDepth?: number;
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
+  grainPitchShift?: number;
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
