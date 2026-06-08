@@ -764,10 +764,15 @@ globalThis.initPyodideSystem = async function() {
         console.log("[C++ -> JS] Pyodide Ready.");
 
     } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
         console.error("[C++ -> JS] Pyodide Load Failed:", e);
-        // Mark as "ready" even on failure so the app doesn't hang
         globalThis.hyphonPyodideReady = false;
         globalThis.hyphonPyodideLoading = false;
+        if (globalThis.window) {
+            window.dispatchEvent(new CustomEvent('hyphon-pyodide-error', {
+                detail: { reason: 'Pyodide bootstrap failed', error: message },
+            }));
+        }
     }
 };
 

@@ -1,10 +1,10 @@
 import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
 import { FallbackBassSynth } from './FallbackBassSynth';
-import { engineTelemetry } from '../utils/engineTelemetry';
+import { engineTelemetry, logEngineFallback, resolvePublicAsset } from '../utils/engineTelemetry';
 // Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
-const HYPHON_NATIVE_WASM_URL = new URL('/hyphon_native.wasm', import.meta.url).href;
+const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
 
 /** Minimum WebAssembly memory pages required by the threaded hyphon_native.wasm build.
  *  The module declares initial: 8192 (512 MB). Must stay in sync with
@@ -42,8 +42,7 @@ export class Open303Oscillator {
                 const wasmResponse = await fetch(HYPHON_NATIVE_WASM_URL);
 
                 if (!wasmResponse.ok) {
-                    console.warn(`[Open303] hyphon_native.wasm fetch failed (${wasmResponse.status}), activating fallback`);
-                    try { engineTelemetry.registerResolution('jc303', 'fallback', 'wasm-fetch-failed'); } catch (_) {}
+                    logEngineFallback('open303', 'wasm-worklet', `hyphon_native.wasm fetch HTTP ${wasmResponse.status} (${HYPHON_NATIVE_WASM_URL})`);
                     this.activateFallback();
                     return true;
                 }
@@ -54,15 +53,17 @@ export class Open303Oscillator {
                 return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, true);
 
             } catch (e) {
-                try { engineTelemetry.recordError('jc303', e); engineTelemetry.registerResolution('jc303', 'fallback', 'exception'); } catch (_) {}
-                console.error("Open303 Init Failure:", e);
-                console.warn('[Open303] Activating fallback synth');
+                logEngineFallback('open303', 'wasm-worklet', 'init exception before worklet load', e);
                 this.activateFallback();
                 return true; // Return true so audio doesn't die
             }
         }
-        
-        // No worklet support - use fallback
+
+        logEngineFallback(
+            'open303',
+            'wasm-worklet',
+            !audioContext.audioWorklet ? 'AudioWorklet unavailable' : 'worklet URL missing',
+        );
         this.activateFallback();
         return true;
     }
@@ -125,8 +126,7 @@ export class Open303Oscillator {
                         try { engineTelemetry.registerResolution('jc303', backend, 'worklet-ready'); } catch (_) {}
                         resolve(true);
                     } else if (e.data.type === 'error') {
-                        console.error("[Open303] Worklet Error:", e.data.error);
-                        try { engineTelemetry.recordError('jc303', e.data.error); engineTelemetry.registerResolution('jc303', 'fallback', 'worklet-error'); } catch (_) {}
+                        logEngineFallback('open303', 'wasm-worklet', 'worklet init-wasm error', e.data.error);
                         resolve(false);
                     }
                 };
@@ -136,15 +136,14 @@ export class Open303Oscillator {
                 // when the first one failed (both share a Promise.allSettled budget).
                 setTimeout(() => {
                     if (!readyReceived) {
-                        console.error(`[Open303] Initialization timeout (${OPEN303_INIT_TIMEOUT_MS}ms)`);
+                        logEngineFallback('open303', 'wasm-worklet', `worklet ready timeout (${OPEN303_INIT_TIMEOUT_MS}ms)`);
                         resolve(false);
                     }
                 }, OPEN303_INIT_TIMEOUT_MS);
             });
 
             if (!initSuccess) {
-                console.warn('[Open303] WASM failed, activating fallback synth');
-                try { engineTelemetry.registerResolution('jc303', 'fallback', 'wasm-init-failed'); } catch (_) {}
+                logEngineFallback('open303', 'wasm-worklet', 'worklet never reached ready state');
                 this.cleanupWorklet();
                 this.activateFallback();
                 return true; // Return true so audio doesn't die
@@ -153,11 +152,11 @@ export class Open303Oscillator {
             this.isReady = true;
             this.isFallback = false;
             this.applyAllParameters();
+            try { engineTelemetry.registerResolution('open303', isNative ? 'wasm-native' : 'wasm', 'worklet-ready'); } catch (_) {}
             return true;
 
         } catch (e) {
-            try { engineTelemetry.recordError('jc303', e); engineTelemetry.registerResolution('jc303', 'fallback', 'exception'); } catch (_) {}
-            console.error("Open303 _initWithWasmBytes Failure:", e);
+            logEngineFallback('open303', 'wasm-worklet', 'AudioWorklet.addModule or node creation failed', e);
             this.activateFallback();
             return true;
         }
@@ -166,8 +165,8 @@ export class Open303Oscillator {
     private activateFallback(): void {
         if (!this.audioContext || !this.outputNode) return;
         
-        console.log('[Open303] Activating FallbackBassSynth');
-        try { engineTelemetry.registerResolution('jc303','js','fallback-synth'); } catch (_) {}
+        console.warn('[Open303] Activating FallbackBassSynth (JS voice)');
+        try { engineTelemetry.registerResolution('open303', 'js', 'fallback-synth-active'); } catch (_) {}
         this.fallbackSynth = new FallbackBassSynth(this.audioContext);
         this.fallbackSynth.connect(this.outputNode);
         this.isReady = true;

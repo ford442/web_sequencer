@@ -1,6 +1,6 @@
 import type { Bass2Params } from '../types';
 import { Open303Oscillator } from './Open303Oscillator';
-import { engineTelemetry } from '../utils/engineTelemetry';
+import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import type { Open303Config } from './Open303Params';
 
 /**
@@ -88,7 +88,13 @@ export class Open303Manager {
             this.lead303Ready = results[2].status === 'fulfilled' ? results[2].value : false;
 
             if (!this.lead303Ready) {
-                console.warn('[Open303Manager] lead303 (SYNTH A) failed to initialise — LEAD 303 waveforms will fall back to VoiceManager');
+                logEngineFallback('open303', 'wasm-worklet', 'lead303 voice failed to initialise');
+            }
+            if (!this.bass1Ready) {
+                logEngineFallback('open303', 'wasm-worklet', 'bass1 (SYNTH B) voice failed to initialise');
+            }
+            if (!this.bass2Ready) {
+                logEngineFallback('open303', 'wasm-worklet', 'bass2 voice failed to initialise');
             }
 
             if (this.bass1Ready) this.bass1.connect(this.bass1Gain);
@@ -117,7 +123,7 @@ export class Open303Manager {
             return this.isReady;
 
         } catch (e) {
-            console.error('[Open303Manager] Initialization failed:', e);
+            logEngineFallback('open303', 'wasm-worklet', 'Open303Manager initialization threw', e);
             this.isReady = false;
             return false;
         }

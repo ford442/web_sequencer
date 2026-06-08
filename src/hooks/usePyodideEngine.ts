@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { engineTelemetry } from '../utils/engineTelemetry';
+import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
+
+const PYODIDE_BOOTSTRAP_TIMEOUT_MS = 60_000;
 
 // This hook encapsulates the "Spectral Puppet" engine
 export const usePyodideEngine = () => {
@@ -17,14 +19,36 @@ export const usePyodideEngine = () => {
             setPyodide(globalThis.hyphonPyodide);
             setIsPyodideReady(true);
             setPyodideStatus('Python Engine Ready!');
-            try { engineTelemetry.registerResolution('pyodide','pyodide','ready'); } catch (e) { /* noop */ }
+            try { engineTelemetry.registerResolution('pyodide', 'pyodide', 'bootstrap-ready'); } catch (e) { /* noop */ }
         };
 
-        // Listen for the event dispatched by our emscripten post-js
-        window.addEventListener('hyphon-pyodide-ready', handleReady);
+        const handleError = (ev: Event) => {
+            const detail = (ev as CustomEvent<{ reason?: string; error?: string }>).detail;
+            const reason = detail?.reason ?? 'hyphon-pyodide-error event';
+            const err = detail?.error ? new Error(detail.error) : undefined;
+            logEngineFallback('pyodide', 'pyodide', reason, err);
+            setPyodideStatus(`Python engine failed: ${reason}`);
+        };
 
-        // Cleanup
-        return () => window.removeEventListener('hyphon-pyodide-ready', handleReady);
+        const timeoutId = window.setTimeout(() => {
+            if (!globalThis.hyphonPyodideReady) {
+                logEngineFallback(
+                    'pyodide',
+                    'pyodide',
+                    `bootstrap timeout (${PYODIDE_BOOTSTRAP_TIMEOUT_MS}ms) — hyphon_native.js may not have loaded`,
+                );
+                setPyodideStatus('Python engine timed out (check hyphon_native.js + CDN)');
+            }
+        }, PYODIDE_BOOTSTRAP_TIMEOUT_MS);
+
+        window.addEventListener('hyphon-pyodide-ready', handleReady);
+        window.addEventListener('hyphon-pyodide-error', handleError);
+
+        return () => {
+            window.clearTimeout(timeoutId);
+            window.removeEventListener('hyphon-pyodide-ready', handleReady);
+            window.removeEventListener('hyphon-pyodide-error', handleError);
+        };
     }, [isPyodideReady]);
 
     useEffect(() => {

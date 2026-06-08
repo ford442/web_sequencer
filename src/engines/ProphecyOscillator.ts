@@ -15,8 +15,10 @@
 import type { ProphecyParams } from './ProphecyParams';
 import { ProphecyParam, DEFAULT_PROPHECY_PARAMS } from './ProphecyParams';
 
+import { engineTelemetry, logEngineFallback, resolvePublicAsset } from '../utils/engineTelemetry';
+
 // hyphon_native.wasm bundles all engines (Open303, JC303, Prophecy, Rubberband)
-const HYPHON_NATIVE_WASM_URL = new URL('/hyphon_native.wasm', import.meta.url).href;
+const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
 
 /** Minimum WebAssembly memory pages for the threaded hyphon_native.wasm build (512 MB).
  *  Must stay in sync with PROPHECY_MIN_MEMORY_PAGES in prophecy-processor.ts. */
@@ -54,7 +56,11 @@ export class ProphecyOscillator {
         this.gainNode.connect(this.outputNode);
 
         if (!audioContext.audioWorklet || !workletUrl) {
-            console.error('[ProphecyOscillator] AudioWorklet not supported or no workletUrl provided');
+            logEngineFallback(
+                'prophecy',
+                'wasm-worklet',
+                !audioContext.audioWorklet ? 'AudioWorklet unavailable' : 'worklet URL missing',
+            );
             return false;
         }
 
@@ -62,7 +68,7 @@ export class ProphecyOscillator {
             console.log(`[ProphecyOscillator] Fetching WASM: ${HYPHON_NATIVE_WASM_URL}`);
             const response = await fetch(HYPHON_NATIVE_WASM_URL);
             if (!response.ok) {
-                console.error(`[ProphecyOscillator] WASM fetch failed (${response.status})`);
+                logEngineFallback('prophecy', 'wasm-worklet', `hyphon_native.wasm fetch HTTP ${response.status} (${HYPHON_NATIVE_WASM_URL})`);
                 return false;
             }
 
@@ -72,7 +78,7 @@ export class ProphecyOscillator {
             return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes);
 
         } catch (e) {
-            console.error('[ProphecyOscillator] Init error:', e);
+            logEngineFallback('prophecy', 'wasm-worklet', 'init exception before worklet load', e);
             return false;
         }
     }
@@ -124,30 +130,32 @@ export class ProphecyOscillator {
                         console.log('[ProphecyOscillator] Engine ready');
                         resolve(true);
                     } else if (e.data.type === 'error') {
-                        console.error('[ProphecyOscillator] Worklet error:', e.data.error);
+                        logEngineFallback('prophecy', 'wasm-worklet', 'worklet init-wasm error', e.data.error);
                         resolve(false);
                     }
                 };
 
                 setTimeout(() => {
                     if (!readyReceived) {
-                        console.error(`[ProphecyOscillator] Init timeout (${PROPHECY_INIT_TIMEOUT_MS}ms)`);
+                        logEngineFallback('prophecy', 'wasm-worklet', `worklet ready timeout (${PROPHECY_INIT_TIMEOUT_MS}ms)`);
                         resolve(false);
                     }
                 }, PROPHECY_INIT_TIMEOUT_MS);
             });
 
             if (!initSuccess) {
+                logEngineFallback('prophecy', 'wasm-worklet', 'worklet never reached ready state');
                 this.cleanupWorklet();
                 return false;
             }
 
             this.isReady = true;
             this.applyAllParameters();
+            try { engineTelemetry.registerResolution('prophecy', 'wasm-worklet', 'worklet-ready'); } catch (_) {}
             return true;
 
         } catch (e) {
-            console.error('[ProphecyOscillator] _initWithWasmBytes error:', e);
+            logEngineFallback('prophecy', 'wasm-worklet', 'AudioWorklet.addModule or node creation failed', e);
             this.cleanupWorklet();
             return false;
         }

@@ -4,6 +4,7 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/waveformParser';
 import type { WasmOscillator } from './WasmOscillator';
 import type { RustOscillator } from './RustOscillator';
+import { logEngineFallback } from '../utils/engineTelemetry';
 
 export interface VoiceEngineDeps {
     wasmEngine?: WasmOscillator | null;
@@ -160,7 +161,7 @@ export class Voice {
                     src.playbackRate.value = freq / REF_FREQ;
                     createdSource = src;
                 } else {
-                    console.warn(`[Voice] wav-${parsed.shape}: PCM buffer not loaded yet — falling back to JS oscillator`);
+                    logEngineFallback('wav', 'pcm', `wav-${parsed.shape} buffer not loaded yet`);
                 }
             } else if (parsed.engine === 'wam') {
                 // WAM (AssemblyScript/WASM oscillator). Bug fix: was checking 'wasm' but
@@ -183,10 +184,10 @@ export class Voice {
                         src.playbackRate.value = freq / REF_FREQ;
                         createdSource = src;
                     } else {
-                        console.warn(`[Voice] wam-${parsed.shape}: WasmOscillator.generate() returned empty — falling back to JS oscillator`);
+                        logEngineFallback('wam', 'wasm', `WasmOscillator.generate() returned empty for wam-${parsed.shape}`);
                     }
                 } else {
-                    console.warn(`[Voice] wam-${parsed.shape}: WasmOscillator not ready — falling back to JS oscillator`);
+                    logEngineFallback('wam', 'wasm', `WasmOscillator not ready for wam-${parsed.shape}`);
                 }
             } else if (parsed.engine === 'rust') {
                 // Rust/WASM oscillator. Supports saw and sqr only; tri/sin are not
@@ -210,10 +211,10 @@ export class Voice {
                         src.playbackRate.value = freq / REF_FREQ;
                         createdSource = src;
                     } else {
-                        console.warn(`[Voice] rust-${parsed.shape}: RustOscillator.generate() returned empty — falling back to JS oscillator`);
+                        logEngineFallback('rust', 'wasm', `RustOscillator.generate() returned empty for rust-${parsed.shape}`);
                     }
                 } else {
-                    console.warn(`[Voice] rust-${parsed.shape}: RustOscillator not in engineDeps or not ready — falling back to JS oscillator`);
+                    logEngineFallback('rust', 'wasm', `RustOscillator not ready for rust-${parsed.shape}`);
                 }
             } else if (parsed.engine === 'wgsl') {
                 // WebGPU: use pre-rendered buffer. Buffers are only populated when
@@ -226,12 +227,20 @@ export class Voice {
                     src.playbackRate.value = freq / REF_FREQ;
                     createdSource = src;
                 } else {
-                    console.warn(`[Voice] wgsl-${parsed.shape}: WebGPU buffer unavailable (GPU unsupported or still rendering) — falling back to JS oscillator`);
+                    logEngineFallback(
+                        'webgpu',
+                        'webgpu',
+                        `wgsl-${parsed.shape} buffer unavailable (GPU unsupported or pre-render pending)`,
+                    );
                 }
             } else if (parsed.engine === 'pyodide') {
                 // Pyodide generate_wave() is async and cannot be called from the
                 // synchronous startNote path. This engine is export-only (renderAudio.ts).
-                console.warn(`[Voice] pyodide-${parsed.shape}: Pyodide live playback is not supported (async API) — use audio export for Pyodide output. Falling back to JS oscillator.`);
+                logEngineFallback(
+                    'pyodide',
+                    'pyodide',
+                    `pyodide-${parsed.shape} live playback unsupported (async generate_wave — use audio export)`,
+                );
             }
 
             // Final fallback: JS oscillator using the correct wave family so the

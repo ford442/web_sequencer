@@ -15,7 +15,7 @@ describe('SingingVoice - Slice & Granular Features', () => {
         mockWorkletNode = {
             parameters: new Map([
                 ['grainPitchQuantize', { setValueAtTime: vi.fn() }],
-                ['grainPitchShift', { setValueAtTime: vi.fn() }],
+                ['granularPitchShift', { setValueAtTime: vi.fn() }],
                 ['freeze', { setValueAtTime: vi.fn() }]
             ]),
             connect: vi.fn()
@@ -30,8 +30,8 @@ describe('SingingVoice - Slice & Granular Features', () => {
         expect(mockWorkletNode.parameters.get('grainPitchQuantize').setValueAtTime).toHaveBeenCalledWith(7.0, 0);
     });
 
-    it('sets grainPitchShift correctly', () => {
-        voice.setGrainPitchShift(-12.0);
-        expect(mockWorkletNode.parameters.get('grainPitchShift').setValueAtTime).toHaveBeenCalledWith(-12.0, 0);
+    it('sets granularPitchShift correctly', () => {
+        voice.setGranularPitchShift(-12.0);
+        expect(mockWorkletNode.parameters.get('granularPitchShift').setValueAtTime).toHaveBeenCalledWith(-12.0, 0);
     });
 });
