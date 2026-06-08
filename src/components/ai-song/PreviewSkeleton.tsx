@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function PreviewSkeleton() {
+export const PreviewSkeleton = React.memo(function PreviewSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
       {/* Song Info Skeleton */}
@@ -54,4 +54,4 @@ export function PreviewSkeleton() {
       </div>
     </div>
   );
-}
+});

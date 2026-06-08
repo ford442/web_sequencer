@@ -625,7 +625,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantShift?: number,
                     timeStretchEnvDepth?: number,
                     grainPitchQuantize?: number,
-                    grainPitchShift?: number,
+                    granularPitchShift?: number,
                     bitcrush?: number,
                     downsample?: number,
                     tranceGate?: number,
@@ -635,6 +635,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     spectralPanDepth?: number,
                     reverbLfoRate?: number,
                     reverbLfoDepth?: number,
+                    glitchChance?: number,
                     isHarmonyVoice?: boolean
                 },
                 pitchOffsetSemitones: number = 0,
@@ -654,7 +655,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const subDurationSteps = durationSteps / retrigger;
 
                 // --- GLITCH LOGIC START ---
-                const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
+                const effectiveGlitchChance = noteParams?.glitchChance ?? params.glitchChance ?? 0;
+                const shouldGlitch = retrigger === 1 && effectiveGlitchChance > 0 && Math.random() < effectiveGlitchChance;
                 // --- GLITCH LOGIC END ---
 
                 // Handle Polyphony (Chords)
@@ -986,10 +988,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             } else if (params.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
                             }
-                            if (noteParams?.grainPitchShift !== undefined) {
-                                voice.setGrainPitchShift(noteParams.grainPitchShift, triggerTime);
-                            } else if (params.grainPitchShift !== undefined) {
-                                voice.setGrainPitchShift(params.grainPitchShift, triggerTime);
+
+                            if (noteParams?.granularPitchShift !== undefined) {
+                                voice.setGranularPitchShift(noteParams.granularPitchShift, triggerTime);
+                            } else if (params.granularPitchShift !== undefined) {
+                                voice.setGranularPitchShift(params.granularPitchShift, triggerTime);
                             }
                             if (noteParams?.bitcrush !== undefined) {
                                 voice.setBitcrush(noteParams.bitcrush, triggerTime);

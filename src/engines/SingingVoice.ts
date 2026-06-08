@@ -1104,14 +1104,13 @@ export class SingingVoice {
     }
 
     /**
-     * Set granular pitch shift in semitones.
-     * Modulates pitchScale independently of the base sequencer tracking.
-     * @param semitones Shift in semitones (-36 to 36)
+     * Set the granular pitch shift amount.
+     * @param semitones The amount to pitch shift in semitones (-24.0 to 24.0)
      * @param time Optional time to apply the change (default: now)
      */
-    setGrainPitchShift(semitones: number, time?: number): void {
+    setGranularPitchShift(semitones: number, time?: number): void {
         if (this.workletNode) {
-            this.workletNode.parameters.get('grainPitchShift')?.setValueAtTime(semitones, time || this.audioContext.currentTime);
+            this.workletNode.parameters.get('granularPitchShift')?.setValueAtTime(semitones, time || this.audioContext.currentTime);
         }
     }
 

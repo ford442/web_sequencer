@@ -50,7 +50,7 @@ describe('SamplerPanel Memoization', () => {
     it('re-renders children when active bank params change', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
-        // Initial render: 41 knobs (Added timeStretchEnvDepth, grainPitchShift)
+        // Initial render: 41 knobs (Added timeStretchEnvDepth and granularPitchShift)
         expect(Knob).toHaveBeenCalledTimes(41);
         vi.clearAllMocks();
 
