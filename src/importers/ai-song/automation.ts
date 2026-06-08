@@ -25,7 +25,7 @@ import type {
   AITargetedParameter, 
   AIInterpolationMode,
   AISongData 
-} from './AISongImporter';
+} from './types';
 import type { AutomationPoint } from '../../types';
 
 // ============================================================================
