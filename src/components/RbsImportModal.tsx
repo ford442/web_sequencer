@@ -425,7 +425,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
+            className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
             title="Close (Esc)"
             aria-label="Close modal"
           ><span aria-hidden="true">✕</span></button>
@@ -618,7 +618,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
             {importReport ? (
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded transition-all"
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Close Import Modal"
               >
                 ✓ Done
@@ -628,7 +628,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 <button
                   onClick={onClose}
                   disabled={isImporting}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50"
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                   aria-label="Cancel Import"
                 >
                   Cancel

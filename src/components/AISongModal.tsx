@@ -767,7 +767,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           <Tooltip text="Close (Esc)" position="bottom">
             <button 
               onClick={handleClose}
-              className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
+              className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
               aria-label="Close modal"
               title="Close modal"
             ><span aria-hidden="true">✕</span></button>
@@ -789,14 +789,14 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
             <div className="flex gap-2">
               <button
                 onClick={() => setShowCloseConfirm(false)}
-                className="px-2 py-1 text-xs text-gray-400 hover:text-white transition-colors"
+                className="px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Cancel closing modal"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmClose}
-                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Confirm close modal"
               >
                 Close
