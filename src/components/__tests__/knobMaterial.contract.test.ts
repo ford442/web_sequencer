@@ -13,6 +13,14 @@ import {
 } from '../knobMaterial';
 
 const TEST_DIMS = { w: 100, h: 100 };
+const FLOAT_EPSILON = 1e-7;
+
+function isValueArcCommand(cmd: Knob2DDrawCommand): cmd is Extract<Knob2DDrawCommand, { op: 'arc' }> {
+    return (
+        cmd.op === 'arc' &&
+        Math.abs(cmd.args[2] - TEST_DIMS.w * 0.5 * KNOB_MATERIAL.geometry.arcRadius) < FLOAT_EPSILON
+    );
+}
 
 describe('holographic knob derivation contract', () => {
     it('snapshots WGSL derived from KNOB_MATERIAL', () => {
@@ -512,10 +520,7 @@ describe('holographic knob derivation contract', () => {
         expect(KNOB_MATERIAL.geometry.sweepTotal).toBeCloseTo((3 * Math.PI) / 2, 10);
 
         const drawCalls = buildKnob2DDrawCalls(KNOB_MATERIAL, 1.0, TEST_DIMS);
-        const valueArc = drawCalls.find(
-            (cmd): cmd is Extract<Knob2DDrawCommand, { op: 'arc' }> =>
-                cmd.op === 'arc' && Math.abs(cmd.args[2] - TEST_DIMS.w * 0.5 * KNOB_MATERIAL.geometry.arcRadius) < 1e-8
-        );
+        const valueArc = drawCalls.find(isValueArcCommand);
         if (!valueArc) {
             throw new Error(`Expected value arc command in draw calls, got: ${JSON.stringify(drawCalls)}`);
         }

@@ -3,6 +3,8 @@ import { KnobGPUContext, type SlotHandle } from './KnobGPUContext';
 import { KNOB_MATERIAL, rgbToHex, wgslAngleToCanvas } from './knobMaterial';
 import type { KnobMaterial } from './knobMaterial';
 
+const KNOB_TEST_ID_SANITIZE_PATTERN = /[^A-Za-z0-9_-]/g;
+
 export interface KnobConfig {
     id: string;
     label: string;
@@ -575,7 +577,7 @@ export const HardwareModule = memo(
                     <canvas
                         key={c.id}
                         ref={setKnobCanvasRef(i)}
-                        data-testid={`hardware-knob-canvas-${c.id}`}
+                        data-testid={`hardware-knob-canvas-${String(c.id).replace(KNOB_TEST_ID_SANITIZE_PATTERN, '_')}`}
                         className="block"
                         style={{ position: 'absolute', pointerEvents: 'none' }}
                     />
