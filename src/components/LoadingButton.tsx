@@ -22,7 +22,7 @@ export const LoadingButton: React.FC<LoadingButtonProps> = React.memo(({
             disabled={disabled || isLoading}
             aria-busy={isLoading}
             className={`transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-                isLoading ? 'opacity-70 cursor-wait' : ''
+                isLoading ? 'opacity-70 cursor-wait' : disabled ? 'opacity-50 cursor-not-allowed' : ''
             } ${className}`}
         >
             {isLoading && (

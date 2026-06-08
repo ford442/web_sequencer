@@ -19,7 +19,8 @@ class MockAudioWorkletNode {
         ['tremoloDepth', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
         ['tremoloRate', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
         ['breathIntensity', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
-        ['grainPitchQuantize', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }]
+        ['grainPitchQuantize', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
+        ['grainPitchShift', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }]
     ]);
 
     connect = vi.fn().mockReturnThis();
@@ -181,6 +182,11 @@ describe('SingingVoice Slice Triggering', () => {
     it('should set grainPitchQuantize on the worklet parameter', () => {
         voice.setGrainPitchQuantize(7);
         expect(mockWorkletNode.parameters.get('grainPitchQuantize').setValueAtTime).toHaveBeenCalledWith(7, 0);
+    });
+
+    it('should set grainPitchShift on the worklet parameter', () => {
+        voice.setGrainPitchShift(-12);
+        expect(mockWorkletNode.parameters.get('grainPitchShift').setValueAtTime).toHaveBeenCalledWith(-12, 0);
     });
 });
 

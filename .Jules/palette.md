@@ -34,3 +34,6 @@
 ## 2026-06-06 - Add Progressbar ARIA Attributes
 **Learning:** Custom UI components that act as progress bars need explicit 'progressbar' role, 'aria-valuenow', 'aria-valuemin', and 'aria-valuemax' attributes for screen reader support. 'aria-label' or 'aria-labelledby' should also be included.
 **Action:** Always verify custom progress indicators implement standard WAI-ARIA progressbar patterns.
+## 2026-06-07 - Consolidate disabled UX states in reusable components
+**Learning:** Hardcoding 'disabled:cursor-not-allowed' inline across the application causes inconsistency and code duplication.
+**Action:** Always place generic interactive visual affordances (like disabled opacity and cursor states) directly into core reusable components like LoadingButton.

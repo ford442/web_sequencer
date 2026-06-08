@@ -1070,9 +1070,9 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
     if (prev.audioEngine !== next.audioEngine) return false;
 
     // 5. Check if loaded banks status changed
-    const prevBanks = prev.loadedBanks || [];
-    const nextBanks = next.loadedBanks || [];
-    if (prevBanks.length !== nextBanks.length || prevBanks.some((val, i) => val !== nextBanks[i])) return false;
+    // Using reference equality only. useAppState performs immutable shallow updates,
+    // so new references are created only when data actually changes.
+    if (prev.loadedBanks !== next.loadedBanks) return false;
 
     // 6. Check sample buffer
     if (prev.sampleBuffer !== next.sampleBuffer) return false;

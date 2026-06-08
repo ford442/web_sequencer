@@ -378,6 +378,7 @@ export interface Note {
   probability?: number;
   microtiming?: number;
   retrigger?: number;
+  glitchChance?: number;
   reverse?: boolean;
   sliceIndex?: number;
   freeze?: number;
