@@ -5,14 +5,18 @@ import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/w
 import type { WasmOscillator } from './WasmOscillator';
 import type { RustOscillator } from './RustOscillator';
 import { logEngineFallback } from '../utils/engineTelemetry';
+import {
+    PYODIDE_REF_FREQ,
+    generatePyodideLoopBuffer,
+    type PyodideLike,
+} from '../utils/pyodideBuffers';
 
 export interface VoiceEngineDeps {
     wasmEngine?: WasmOscillator | null;
     wgslBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
     rustEngine?: RustOscillator | null;
-    // Pyodide live playback is not supported (generate_wave is async). Present here
-    // only so Voice can emit a clear warning when a pyodide-* waveform is requested.
-    pyodideEngine?: unknown;
+    pyodideEngine?: PyodideLike | null;
+    pyodideBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
 }
 
 export class Voice {
@@ -43,6 +47,10 @@ export class Voice {
     private globalDelaySendGain?: GainNode;
 
     private engineDeps?: VoiceEngineDeps;
+
+    updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
+        this.engineDeps = { ...this.engineDeps, ...deps };
+    }
 
     constructor(
         context: AudioContext,
@@ -234,13 +242,43 @@ export class Voice {
                     );
                 }
             } else if (parsed.engine === 'pyodide') {
-                // Pyodide generate_wave() is async and cannot be called from the
-                // synchronous startNote path. This engine is export-only (renderAudio.ts).
-                logEngineFallback(
-                    'pyodide',
-                    'pyodide',
-                    `pyodide-${parsed.shape} live playback unsupported (async generate_wave — use audio export)`,
-                );
+                const pyodide = this.engineDeps?.pyodideEngine;
+                if (pyodide) {
+                    let buf =
+                        this.engineDeps?.pyodideBuffers?.[parsed.shape] ?? null;
+                    if (!buf) {
+                        buf = generatePyodideLoopBuffer(
+                            pyodide,
+                            this.context,
+                            parsed.shape,
+                            params.filterCutoff,
+                            params.filterResonance,
+                        );
+                    }
+                    if (buf) {
+                        const src = this.context.createBufferSource();
+                        src.buffer = buf;
+                        src.loop = true;
+                        src.playbackRate.value = freq / PYODIDE_REF_FREQ;
+                        createdSource = src;
+                        this.filter.frequency.setValueAtTime(
+                            Math.min(params.filterCutoff, 20000),
+                            now,
+                        );
+                    } else {
+                        logEngineFallback(
+                            'pyodide',
+                            'pyodide',
+                            `generate_loop_buffer returned empty for pyodide-${parsed.shape}`,
+                        );
+                    }
+                } else {
+                    logEngineFallback(
+                        'pyodide',
+                        'pyodide',
+                        `Pyodide not ready for pyodide-${parsed.shape}`,
+                    );
+                }
             }
 
             // Final fallback: JS oscillator using the correct wave family so the
@@ -408,5 +446,11 @@ export class VoiceManager {
 
     stopAll(time?: number): void {
         this.voices.forEach(v => v.stop(time ?? v.context.currentTime));
+    }
+
+    updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
+        for (const voice of this.voices) {
+            voice.updateEngineDeps(deps);
+        }
     }
 }

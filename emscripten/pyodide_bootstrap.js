@@ -343,6 +343,13 @@ def generate_wave(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
 
     return final_wave
 
+def generate_loop_buffer(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
+    """
+    Short loop buffer for real-time Web Audio playback (VoiceManager).
+    Same DSP as generate_wave(); JS pre-renders C4 reference cycles at init.
+    """
+    return generate_wave(note_freq, duration_sec, osc_type, cutoff_hz, resonance)
+
 def generate_kick(pitch, decay, tone, volume):
     """
     Generates a kick drum sound.

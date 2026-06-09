@@ -47,6 +47,7 @@ import {
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
+import { prerenderPyodideBuffers, type PyodideLike } from '../utils/pyodideBuffers';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
 
 // URLs for worklets
@@ -203,6 +204,31 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     useEffect(() => {
         pyodideRef.current = pyodide;
     }, [pyodide]);
+
+    useEffect(() => {
+        if (!pyodide || !audioEngine?.context) return;
+
+        let cancelled = false;
+        void (async () => {
+            try {
+                const buffers = await prerenderPyodideBuffers(pyodide as PyodideLike, audioEngine.context);
+                if (cancelled) return;
+                const deps = {
+                    pyodideEngine: pyodide as PyodideLike,
+                    pyodideBuffers: buffers,
+                };
+                voiceManagerARef.current?.updateEngineDeps(deps);
+                voiceManagerBRef.current?.updateEngineDeps(deps);
+                engineTelemetry.registerResolution('pyodide', 'pyodide', 'live-loop-buffers-ready');
+            } catch (e) {
+                logEngineFallback('pyodide', 'pyodide', 'live buffer pre-render failed', e);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [pyodide, audioEngine]);
 
     const initializeAudio = useCallback(async () => {
         if (audioEngine || isInitializing.current) return;
@@ -460,7 +486,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 }));
             }
 
-            const voiceEngineDeps = { wasmEngine: wasmEngineRef.current, rustEngine: rustEngineRef.current, wgslBuffers };
+            const voiceEngineDeps = {
+                wasmEngine: wasmEngineRef.current,
+                rustEngine: rustEngineRef.current,
+                wgslBuffers,
+                pyodideEngine: pyodideRef.current as PyodideLike | null,
+            };
 
             // Initialize Voice Managers
             voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);

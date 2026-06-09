@@ -312,21 +312,20 @@ describe('Voice.startNote — WGSL engine', () => {
 // ── Pyodide tests ────────────────────────────────────────────────────────────
 
 describe('Voice.startNote — Pyodide engine', () => {
-    it('warns that live playback is unsupported and falls back to JS', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const oscMock = makeOscillatorMock();
-        const ctx = makeContext(oscMock);
-        const voice = makeVoice({ pyodideEngine: {} }, undefined, undefined, ctx);
+    it('uses pre-rendered loop buffer when pyodideBuffers are available', () => {
+        const buf = makeAudioBuffer();
+        const bufSrc = makeBufferSourceMock();
+        const ctx = makeContext(makeOscillatorMock(), bufSrc);
+        const voice = makeVoice({ pyodideEngine: { globals: { get: vi.fn() } }, pyodideBuffers: { saw: buf } }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'pyodide-saw' }, 'C4', 0);
 
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('pyodide-saw'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('live playback unsupported'));
-        expect(ctx.createOscillator).toHaveBeenCalled();
-        warn.mockRestore();
+        expect(ctx.createBufferSource).toHaveBeenCalled();
+        expect(ctx.createOscillator).not.toHaveBeenCalled();
+        expect(bufSrc.loop).toBe(true);
     });
 
-    it('falls back to the correct JS wave shape (sine)', () => {
+    it('falls back to JS when pyodide is not ready', () => {
         const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const oscMock = makeOscillatorMock();
         const ctx = makeContext(oscMock);
@@ -334,7 +333,8 @@ describe('Voice.startNote — Pyodide engine', () => {
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'pyodide-sine' }, 'C4', 0);
 
-        expect(oscMock.type).toBe('sine');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Pyodide not ready'));
+        expect(ctx.createOscillator).toHaveBeenCalled();
         warn.mockRestore();
     });
 });
