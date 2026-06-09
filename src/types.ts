@@ -383,6 +383,12 @@ export interface Note {
   sliceIndex?: number;
   freeze?: number;
   formantShift?: number;
+  formantLfoRate?: number;
+  formantLfoDepth?: number;
+  formantLfoSync?: boolean;
+  freezeLfoRate?: number;
+  freezeLfoDepth?: number;
+  freezeLfoSync?: boolean;
   vibratoDepth?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
