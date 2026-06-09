@@ -31,6 +31,15 @@ import {
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
 import { makeDistortionCurve } from './audioEngine/distortion';
+
+export function getSyncedLfoHz(bars: number, bpm: number): number {
+    // bars is the subdivision value from the UI (e.g., 0.25 for 1/4 bar)
+    // 1 bar = 4 beats. So duration in seconds = bars * 4 * (60 / bpm)
+    // Hz = 1 / duration = bpm / (240 * bars)
+    if (!bars || bars <= 0) return 0;
+    return bpm / (240 * bars);
+}
+
 import {
     applySamplerVoiceParamUpdate,
     applyVoiceParamUpdate,
@@ -664,9 +673,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     freeze?: number,
                     filterCutoff?: number,
                     filterResonance?: number,
+                    formantLfoSync?: boolean,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     formantLfoShape?: number[],
+                    freezeLfoSync?: boolean,
+                    freezeLfoRate?: number,
+                    freezeLfoDepth?: number,
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
@@ -1033,6 +1046,21 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setFreeze(params.freeze, triggerTime);
                             }
 
+                            // Apply Freeze LFO
+                            const freezeRateSync = noteParams?.freezeLfoSync !== undefined ? noteParams.freezeLfoSync : params.freezeLfoSync;
+                            if (noteParams?.freezeLfoRate !== undefined) {
+                                const rate = freezeRateSync ? getSyncedLfoHz(noteParams.freezeLfoRate, tempo) : noteParams.freezeLfoRate;
+                                voice.setFreezeLfoRate(rate, triggerTime);
+                            } else if (params.freezeLfoRate !== undefined) {
+                                const rate = freezeRateSync ? getSyncedLfoHz(params.freezeLfoRate, tempo) : params.freezeLfoRate;
+                                voice.setFreezeLfoRate(rate, triggerTime);
+                            }
+                            if (noteParams?.freezeLfoDepth !== undefined) {
+                                voice.setFreezeLfoDepth(noteParams.freezeLfoDepth, triggerTime);
+                            } else if (params.freezeLfoDepth !== undefined) {
+                                voice.setFreezeLfoDepth(params.freezeLfoDepth, triggerTime);
+                            }
+
                             // Apply Envelope Follower depths (global only)
                             if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
                             if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
@@ -1065,10 +1093,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Formant LFO
+                            const fRateSync = noteParams?.formantLfoSync !== undefined ? noteParams.formantLfoSync : params.formantLfoSync;
                             if (noteParams?.formantLfoRate !== undefined) {
-                                voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);
+                                const rate = fRateSync ? getSyncedLfoHz(noteParams.formantLfoRate, tempo) : noteParams.formantLfoRate;
+                                voice.setFormantLfoRate(rate, triggerTime);
                             } else if (params.formantLfoRate !== undefined) {
-                                voice.setFormantLfoRate(params.formantLfoRate, triggerTime);
+                                const rate = fRateSync ? getSyncedLfoHz(params.formantLfoRate, tempo) : params.formantLfoRate;
+                                voice.setFormantLfoRate(rate, triggerTime);
                             }
                             if (noteParams?.formantLfoDepth !== undefined) {
                                 voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);

@@ -57,6 +57,7 @@ describe('holographic knob derivation contract', () => {
               fn sdCircle(p: vec2f, r: f32) -> f32 {
                   return length(p) - r;
               }
+
               
               // Helper: Rotation Matrix
               fn rotate(angle: f32) -> mat2x2f {

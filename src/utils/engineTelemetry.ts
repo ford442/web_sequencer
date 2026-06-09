@@ -232,12 +232,17 @@ export function resolvePublicAsset(relativePath: string): string {
     typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
       : './';
-  // Resolve from the page URL so paths work when the app is hosted in a
-  // subdirectory (e.g. /hyphon/) and when callers live in assets/ bundles.
+  const normalized = relativePath.replace(/^\//, '');
+
   if (typeof window !== 'undefined' && window.location?.href) {
-    const root = new URL(base, window.location.href).href;
-    return new URL(normalized, root.endsWith('/') ? root : `${root}/`).href;
+    try {
+      const assetRoot = new URL(base, window.location.href);
+      return new URL(normalized, assetRoot).href;
+    } catch {
+      // fall through to relative path
+    }
   }
+
   return `${base}${normalized}`;
 }
 

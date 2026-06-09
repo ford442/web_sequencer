@@ -32,8 +32,12 @@ interface NoteSelectorProps {
     currentFilterCutoff?: number;
     currentFilterResonance?: number;
     currentEnvMod?: number;
+    currentFormantLfoSync?: boolean;
     currentFormantLfoRate?: number;
     currentFormantLfoDepth?: number;
+    currentFreezeLfoSync?: boolean;
+    currentFreezeLfoRate?: number;
+    currentFreezeLfoDepth?: number;
     currentVibratoDepth?: number;
     currentDrive?: number;
     currentCharacterMorph?: number;
@@ -80,8 +84,12 @@ interface NoteSelectorProps {
         | 'filterResonance'
         | 'envMod'
         | 'slideFormant'
+        | 'formantLfoSync'
         | 'formantLfoRate'
         | 'formantLfoDepth'
+        | 'freezeLfoSync'
+        | 'freezeLfoRate'
+        | 'freezeLfoDepth'
         | 'formantEnvAttack'
         | 'formantEnvDecay'
         | 'formantEnvAmount'
@@ -120,8 +128,12 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFilterCutoff,
     currentFilterResonance,
     currentEnvMod,
+    currentFormantLfoSync = false,
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
+    currentFreezeLfoSync = false,
+    currentFreezeLfoRate = 0,
+    currentFreezeLfoDepth = 0,
     currentVibratoDepth = 0,
     currentDrive,
     currentCharacterMorph = 0,
@@ -216,6 +228,77 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                                     aria-valuetext={`\${Math.round((currentFreeze + 0.0001) * 100)}%`}
                                     aria-label="Freeze"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1 mt-2 p-2 bg-gray-800/40 rounded border border-cyan-900/30">
+                                <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
+                                    <label htmlFor="note-freeze-rate">Frz LFO Rate</label>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={currentFreezeLfoSync}
+                                            aria-label="Sync Freeze LFO Rate to BPM"
+                                            onClick={() => onPropertyChange?.('freezeLfoSync', !currentFreezeLfoSync)}
+                                            className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${currentFreezeLfoSync ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                        >
+                                            SYNC
+                                        </button>
+                                        {!currentFreezeLfoSync && (
+                                            <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
+                                                {currentFreezeLfoRate.toFixed(1)} Hz
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                {currentFreezeLfoSync ? (
+                                    <select
+                                        id="note-freeze-rate-sync"
+                                        value={currentFreezeLfoRate}
+                                        onChange={(e) => onPropertyChange?.('freezeLfoRate', parseFloat(e.target.value))}
+                                        aria-label="Freeze LFO Rate (Synced)"
+                                        className="w-full bg-gray-900 text-cyan-400 text-xs font-mono rounded border border-cyan-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
+                                    >
+                                        <option value={2}>2 Bars</option>
+                                        <option value={1}>1 Bar</option>
+                                        <option value={0.5}>1/2</option>
+                                        <option value={0.25}>1/4</option>
+                                        <option value={0.125}>1/8</option>
+                                        <option value={0.0625}>1/16</option>
+                                    </select>
+                                ) : (
+                                    <input
+                                        id="note-freeze-rate"
+                                        type="range"
+                                        min="0"
+                                        max="20"
+                                        step="0.1"
+                                        value={currentFreezeLfoRate}
+                                        onChange={(e) => onPropertyChange?.('freezeLfoRate', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                        aria-valuetext={`${currentFreezeLfoRate.toFixed(1)} Hz`}
+                                        aria-label="Freeze LFO Rate"
+                                    />
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                    <label htmlFor="note-freeze-depth">Frz LFO Depth</label>
+                                    <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{Math.round((currentFreezeLfoDepth + 0.0001) * 100)}%</span>
+                                </div>
+                                <input
+                                    id="note-freeze-depth"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={currentFreezeLfoDepth}
+                                    onChange={(e) => onPropertyChange?.('freezeLfoDepth', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                    aria-valuetext={`${Math.round((currentFreezeLfoDepth + 0.0001) * 100)}%`}
+                                    aria-label="Freeze LFO Depth"
                                 />
                             </div>
 
@@ -564,23 +647,56 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
 )}
                         {/* Formant LFO Rate Control */}
                         {trackType === 'synth' && (
-                            <div className="flex flex-col gap-1">
-                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                            <div className="flex flex-col gap-1 mt-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30">
+                                <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
                                     <label htmlFor="note-fmt-rate">Fmt LFO Rate</label>
-                                    <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentFormantLfoRate.toFixed(1)} Hz</span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={currentFormantLfoSync}
+                                            aria-label="Sync Formant LFO Rate to BPM"
+                                            onClick={() => onPropertyChange('formantLfoSync', !currentFormantLfoSync)}
+                                            className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                        >
+                                            SYNC
+                                        </button>
+                                        {!currentFormantLfoSync && (
+                                            <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">
+                                                {currentFormantLfoRate.toFixed(1)} Hz
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                <input
-                                    id="note-fmt-rate"
-                                    type="range"
-                                    min="0"
-                                    max="20"
-                                    step="0.1"
-                                    value={currentFormantLfoRate}
-                                    onChange={(e) => onPropertyChange('formantLfoRate', parseFloat(e.target.value))}
-                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
-                                    aria-valuetext={`${currentFormantLfoRate.toFixed(1)} Hz`}
-                                    aria-label="Formant LFO Rate"
-                                />
+                                {currentFormantLfoSync ? (
+                                    <select
+                                        id="note-fmt-rate-sync"
+                                        value={currentFormantLfoRate}
+                                        onChange={(e) => onPropertyChange('formantLfoRate', parseFloat(e.target.value))}
+                                        aria-label="Formant LFO Rate (Synced)"
+                                        className="w-full bg-gray-900 text-indigo-400 text-xs font-mono rounded border border-indigo-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                    >
+                                        <option value={2}>2 Bars</option>
+                                        <option value={1}>1 Bar</option>
+                                        <option value={0.5}>1/2</option>
+                                        <option value={0.25}>1/4</option>
+                                        <option value={0.125}>1/8</option>
+                                        <option value={0.0625}>1/16</option>
+                                    </select>
+                                ) : (
+                                    <input
+                                        id="note-fmt-rate"
+                                        type="range"
+                                        min="0"
+                                        max="20"
+                                        step="0.1"
+                                        value={currentFormantLfoRate}
+                                        onChange={(e) => onPropertyChange('formantLfoRate', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-valuetext={`${currentFormantLfoRate.toFixed(1)} Hz`}
+                                        aria-label="Formant LFO Rate"
+                                    />
+                                )}
                             </div>
                         )}
 
