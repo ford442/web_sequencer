@@ -222,19 +222,19 @@ export function resolvePublicAsset(relativePath: string): string {
   const base =
     typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
-      : '/';
+      : './';
   const normalized = relativePath.replace(/^\//, '');
-  const combined = `${base}${normalized}`;
 
   if (typeof window !== 'undefined' && window.location?.href) {
     try {
-      return new URL(combined, window.location.href).href;
+      const assetRoot = new URL(base, window.location.href);
+      return new URL(normalized, assetRoot).href;
     } catch {
       // fall through to relative path
     }
   }
 
-  return combined;
+  return `${base}${normalized}`;
 }
 
 /**
