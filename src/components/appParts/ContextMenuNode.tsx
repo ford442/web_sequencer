@@ -39,6 +39,7 @@ export const ContextMenuNode = React.memo(() => {
           currentFilterCutoff={stepData?.filterCutoff}
           currentFilterResonance={stepData?.filterResonance}
           currentEnvMod={stepData?.envMod}
+          currentFormantLfoSync={stepData?.formantLfoSync}
           currentFormantLfoRate={stepData?.formantLfoRate ?? 0}
           currentFormantLfoDepth={stepData?.formantLfoDepth ?? 0}
           currentVibratoDepth={stepData?.vibratoDepth ?? 0}

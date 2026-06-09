@@ -31,6 +31,7 @@ interface NoteSelectorProps {
     currentFilterCutoff?: number;
     currentFilterResonance?: number;
     currentEnvMod?: number;
+    currentFormantLfoSync?: boolean;
     currentFormantLfoRate?: number;
     currentFormantLfoDepth?: number;
     currentVibratoDepth?: number;
@@ -80,6 +81,7 @@ interface NoteSelectorProps {
         | 'filterResonance'
         | 'envMod'
         | 'slideFormant'
+        | 'formantLfoSync'
         | 'formantLfoRate'
         | 'formantLfoDepth'
         | 'formantEnvAttack'
@@ -121,6 +123,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFilterCutoff,
     currentFilterResonance,
     currentEnvMod,
+    currentFormantLfoSync,
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
     currentVibratoDepth = 0,
@@ -817,22 +820,53 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                         {/* Formant LFO Rate Control */}
                         {trackType === 'synth' && (
                             <div className="flex flex-col gap-1">
-                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase items-center">
                                     <label htmlFor="note-fmt-rate">Fmt LFO Rate</label>
-                                    <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentFormantLfoRate.toFixed(1)} Hz</span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={currentFormantLfoSync || false}
+                                            aria-label="Sync Formant LFO Rate to BPM"
+                                            onClick={() => update('formantLfoSync', !currentFormantLfoSync)}
+                                            className={`px-1.5 py-0 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                        >
+                                            SYNC
+                                        </button>
+                                        <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">
+                                            {currentFormantLfoSync ? '' : `${currentFormantLfoRate.toFixed(1)} Hz`}
+                                        </span>
+                                    </div>
                                 </div>
-                                <input
-                                    id="note-fmt-rate"
-                                    type="range"
-                                    min="0"
-                                    max="20"
-                                    step="0.1"
-                                    value={currentFormantLfoRate}
-                                    data-property="formantLfoRate" onChange={handleSliderChange}
-                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
-                                    aria-valuetext={`${currentFormantLfoRate.toFixed(1)} Hz`}
-                                    aria-label="Formant LFO Rate"
-                                />
+                                {currentFormantLfoSync ? (
+                                    <select
+                                        id="note-fmt-rate"
+                                        value={currentFormantLfoRate}
+                                        data-property="formantLfoRate" onChange={handleSliderChange}
+                                        aria-label="Formant LFO Rate Subdivision"
+                                        className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                    >
+                                        <option value={2}>2 Bars</option>
+                                        <option value={1}>1 Bar</option>
+                                        <option value={0.5}>1/2</option>
+                                        <option value={0.25}>1/4</option>
+                                        <option value={0.125}>1/8</option>
+                                        <option value={0.0625}>1/16</option>
+                                    </select>
+                                ) : (
+                                    <input
+                                        id="note-fmt-rate"
+                                        type="range"
+                                        min="0"
+                                        max="20"
+                                        step="0.1"
+                                        value={currentFormantLfoRate}
+                                        data-property="formantLfoRate" onChange={handleSliderChange}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-valuetext={`${currentFormantLfoRate.toFixed(1)} Hz`}
+                                        aria-label="Formant LFO Rate"
+                                    />
+                                )}
                             </div>
                         )}
 

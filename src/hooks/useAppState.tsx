@@ -1215,7 +1215,7 @@ const handleNoteLengthChange = useCallback((newLength: number) => {
 
 const handleNotePropertyChange = useCallback((
     key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 
-         'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 
+         'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
          'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
          'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delayLfoRate' | 'delayLfoDepth' | 'delaySend' | 'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
