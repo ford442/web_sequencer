@@ -4,6 +4,7 @@
 import {
     HYPHON_NATIVE_MIN_MEMORY_PAGES,
     buildHyphonWasmImports,
+    normalizeWasmExports,
 } from './hyphonNativeImports';
 
 // Definitions for the AudioWorklet scope
@@ -53,6 +54,7 @@ const JC303_PARAM_MAP: Record<string, number> = {
 
 class Open303Processor extends AudioWorkletProcessor {
     private wasmInstance: WebAssembly.Instance | null = null;
+    private normalizedExports: Record<string, unknown> | null = null;
     private importedMemory: WebAssembly.Memory | null = null;
     private heapFloat32: Float32Array | null = null;
     private synthState: SynthStateType = SynthState.UNINITIALIZED;
@@ -118,7 +120,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
         // Handle messages only if ready
         if (this.synthState === SynthState.READY && this.wasmInstance) {
-            const exports = this.wasmInstance.exports as any;
+            const exports = this.getExports();
 
             if (type === 'noteOn') {
                 this.handleNoteOn(data.note, data.velocity);
@@ -231,6 +233,7 @@ class Open303Processor extends AudioWorkletProcessor {
         });
 
         this.wasmInstance = await Promise.race([instantiatePromise, timeoutPromise]);
+        this.normalizedExports = normalizeWasmExports(this.wasmInstance.exports, data.exportMap ?? {});
         console.log('[Open303] WASM instantiated successfully');
 
         this.updateHeap();
@@ -242,12 +245,12 @@ class Open303Processor extends AudioWorkletProcessor {
         // emscripten_stack_init() sets up the stack tracking, and __set_stack_limits with
         // stackEnd=0 disables the false check (sp < 0 is always false), allowing jc303_init
         // to succeed without spurious overflow calls.
-        this.configureWasmStack(this.wasmInstance);
+        this.configureWasmStack();
 
         // 4. Verify exports — accept either the native multi-instance API
         // (open303_create/open303_init, exported by hyphon_native.wasm) or the
         // legacy single-instance jc303_init/jc303_process API.
-        const exports = this.wasmInstance.exports as any;
+        const exports = this.getExports();
         const hasNative = typeof exports.open303_create === 'function'
                        && typeof exports.open303_init === 'function';
         const hasLegacy = typeof exports.jc303_init === 'function'
@@ -261,6 +264,10 @@ class Open303Processor extends AudioWorkletProcessor {
 
         // 5. Initialize the synth with stack protection
         return this.initializeSynth(exports, data.sampleRate || 44100);
+    }
+
+    private getExports(): Record<string, any> {
+        return (this.normalizedExports ?? {}) as Record<string, any>;
     }
 
     private inspectModuleImports(module: WebAssembly.Module) {
@@ -430,7 +437,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
     private handleNoteOff(note: number): void {
         if (!this.wasmInstance) return;
-        const exports = this.wasmInstance.exports as any;
+        const exports = this.getExports();
 
         try {
             if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
@@ -449,7 +456,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
     private clearAllNotes(): void {
         if (!this.wasmInstance) return;
-        const exports = this.wasmInstance.exports as any;
+        const exports = this.getExports();
 
         try {
             if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
@@ -471,7 +478,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
     private triggerNoteOn(note: number, velocity: number): void {
         if (!this.wasmInstance) return;
-        const exports = this.wasmInstance.exports as any;
+        const exports = this.getExports();
 
         try {
             if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
@@ -497,8 +504,8 @@ class Open303Processor extends AudioWorkletProcessor {
         }
     }
 
-    private configureWasmStack(instance: WebAssembly.Instance): void {
-        const exports = instance.exports as any;
+    private configureWasmStack(): void {
+        const exports = this.getExports();
 
         // Initialize Emscripten stack tracking
         if (typeof exports.emscripten_stack_init === 'function') {
@@ -541,7 +548,7 @@ class Open303Processor extends AudioWorkletProcessor {
         }
 
         try {
-            const exports = this.wasmInstance.exports as any;
+            const exports = this.getExports();
             const numFrames = channelL ? channelL.length : 128;
             const gain = Open303Processor.OUTPUT_GAIN;
 

@@ -6,6 +6,7 @@
 import {
     HYPHON_NATIVE_MIN_MEMORY_PAGES,
     buildHyphonWasmImports,
+    normalizeWasmExports,
 } from './hyphonNativeImports';
 
 // Definitions for the AudioWorklet scope
@@ -31,6 +32,7 @@ const PROPHECY_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
 
 class ProphecyProcessor extends AudioWorkletProcessor {
     private wasmInstance:   WebAssembly.Instance | null = null;
+    private normalizedExports: Record<string, unknown> | null = null;
     private importedMemory: WebAssembly.Memory   | null = null;
     private heapFloat32:    Float32Array         | null = null;
 
@@ -64,7 +66,7 @@ class ProphecyProcessor extends AudioWorkletProcessor {
 
         if (this.synthState !== ProphecyState.READY || !this.wasmInstance) return;
 
-        const exports = this.wasmInstance.exports as any;
+        const exports = this.getExports();
 
         switch (type) {
             case 'noteOn':
@@ -112,12 +114,13 @@ class ProphecyProcessor extends AudioWorkletProcessor {
         isThreaded:  boolean;
         variant?:    string;
         memoryPages?: number;
+        exportMap?:  Record<string, string>;
     }): Promise<void> {
         if (this.synthState === ProphecyState.INITIALIZING) return;
         this.synthState = ProphecyState.INITIALIZING;
 
         try {
-            const { wasmBytes, sampleRate, isThreaded, memoryPages } = data;
+            const { wasmBytes, sampleRate, isThreaded, memoryPages, exportMap } = data;
             this.isThreaded = !!isThreaded;
 
             const module = await WebAssembly.compile(wasmBytes);
@@ -139,9 +142,10 @@ class ProphecyProcessor extends AudioWorkletProcessor {
 
             const instance = await WebAssembly.instantiate(module, imports);
             this.wasmInstance = instance;
-            this.configureWasmStack(instance);
+            this.normalizedExports = normalizeWasmExports(instance.exports, exportMap ?? {});
+            this.configureWasmStack();
 
-            const exp = instance.exports as Record<string, unknown>;
+            const exp = this.getExports();
             const mem: WebAssembly.Memory =
                 memory ??
                 (exp.memory as WebAssembly.Memory) ??
@@ -174,6 +178,10 @@ class ProphecyProcessor extends AudioWorkletProcessor {
         }
     }
 
+    private getExports(): Record<string, any> {
+        return (this.normalizedExports ?? {}) as Record<string, any>;
+    }
+
     private updateHeap(): void {
         const memory =
             (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory ??
@@ -183,8 +191,8 @@ class ProphecyProcessor extends AudioWorkletProcessor {
         }
     }
 
-    private configureWasmStack(instance: WebAssembly.Instance): void {
-        const exports = instance.exports as Record<string, (...args: number[]) => number>;
+    private configureWasmStack(): void {
+        const exports = this.getExports() as Record<string, (...args: number[]) => number>;
         if (typeof exports.emscripten_stack_init === 'function') {
             exports.emscripten_stack_init();
         }
@@ -215,7 +223,7 @@ class ProphecyProcessor extends AudioWorkletProcessor {
         }
 
         try {
-            const exports = this.wasmInstance.exports as any;
+            const exports = this.getExports();
             const numFrames = channelL?.length ?? this.bufFrames;
 
             // Refresh heap view when memory grows (SharedArrayBuffer may be detached)

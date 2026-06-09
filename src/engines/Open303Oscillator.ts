@@ -5,6 +5,7 @@ import { engineTelemetry, logEngineFallback, resolvePublicAsset } from '../utils
 // Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
+const HYPHON_WASM_EXPORT_MAP_URL = resolvePublicAsset('hyphon_wasm_export_map.json');
 
 /** Minimum WebAssembly memory pages required by the threaded hyphon_native.wasm build.
  *  The module declares initial: 8192 (512 MB). Must stay in sync with
@@ -50,7 +51,8 @@ export class Open303Oscillator {
                 const wasmBytes = await wasmResponse.arrayBuffer();
                 console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-                return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, true);
+                const exportMap = await this.fetchExportMap();
+                return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, true, exportMap);
 
             } catch (e) {
                 logEngineFallback('open303', 'wasm-worklet', 'init exception before worklet load', e);
@@ -72,11 +74,26 @@ export class Open303Oscillator {
      * Complete the worklet init given pre-fetched WASM bytes.
      * Extracted so that the native/legacy retry path can reuse it.
      */
+    private async fetchExportMap(): Promise<Record<string, string>> {
+        try {
+            const response = await fetch(HYPHON_WASM_EXPORT_MAP_URL);
+            if (!response.ok) {
+                console.warn(`[Open303Oscillator] Export map fetch HTTP ${response.status} (${HYPHON_WASM_EXPORT_MAP_URL})`);
+                return {};
+            }
+            return await response.json() as Record<string, string>;
+        } catch (e) {
+            console.warn('[Open303Oscillator] Export map fetch failed:', e);
+            return {};
+        }
+    }
+
     private async _initWithWasmBytes(
         audioContext: AudioContext,
         workletUrl: string,
         wasmBytes: ArrayBuffer,
-        isNative: boolean
+        isNative: boolean,
+        exportMap: Record<string, string> = {}
     ): Promise<boolean> {
         try {
             // Add the Worklet Module and create the node
@@ -106,7 +123,8 @@ export class Open303Oscillator {
                     sampleRate: audioContext.sampleRate,
                     isThreaded,
                     variant,
-                    memoryPages
+                    memoryPages,
+                    exportMap,
                 }
             });
 

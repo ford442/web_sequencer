@@ -184,6 +184,10 @@ em++ $OBJECTS "$SCRIPT_DIR/libomp.a" -o "$OUTPUT_JS" \
   -s EXPORTED_FUNCTIONS="$EXPORTS"
 
 if [ $? -eq 0 ]; then
+    echo "Extracting WASM export name map for AudioWorklets..."
+    node "$REPO_ROOT/tools/extract_wasm_export_map.mjs" \
+        "$OUTPUT_JS" \
+        "$REPO_ROOT/public/hyphon_wasm_export_map.json"
     echo "Build successful!"
     echo "Generated: public/hyphon_native.js (and .wasm/.worker.js)"
     rm -rf "$TEMP_DIR"

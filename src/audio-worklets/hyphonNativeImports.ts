@@ -4,6 +4,38 @@
 
 export const HYPHON_NATIVE_MIN_MEMORY_PAGES = 8192;
 
+export type WasmExportMap = Record<string, string>;
+
+/**
+ * Map minified WASM export names to the bare API names worklets use.
+ * When wasm-opt minifies exports, `hyphon_wasm_export_map.json` (built from
+ * hyphon_native.js) supplies the minified key for each logical export.
+ */
+export function normalizeWasmExports(
+  exports: WebAssembly.Exports,
+  map: WasmExportMap = {},
+): Record<string, unknown> {
+  const raw = exports as Record<string, unknown>;
+  const normalized: Record<string, unknown> = { ...raw };
+
+  for (const [bare, minified] of Object.entries(map)) {
+    const fn = raw[minified];
+    if (typeof fn === 'function') {
+      normalized[bare] = fn;
+      normalized[`_${bare}`] = fn;
+    }
+  }
+
+  for (const [key, val] of Object.entries(raw)) {
+    if (key.startsWith('_') && typeof val === 'function') {
+      const bare = key.slice(1);
+      if (normalized[bare] === undefined) normalized[bare] = val;
+    }
+  }
+
+  return normalized;
+}
+
 export interface HyphonNativeImportContext {
   getWasmInstance: () => WebAssembly.Instance | null;
   getImportedMemory: () => WebAssembly.Memory | null;
