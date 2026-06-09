@@ -124,6 +124,10 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             this.isThreaded = !!isThreaded;
 
             const module = await WebAssembly.compile(wasmBytes);
+            const { imports, memory } = buildHyphonNativeImports(module, {
+                memoryPages,
+                preferShared: this.isThreaded,
+            });
 
             const importCtx = {
                 getWasmInstance: () => this.wasmInstance,
@@ -155,6 +159,7 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             this.heapFloat32 = new Float32Array(mem.buffer);
 
             // Verify the Prophecy API is present
+            const exp = instance.exports as any;
             if (typeof exp.prophecy_create !== 'function' ||
                 typeof exp.prophecy_init   !== 'function') {
                 throw new Error('[Prophecy] prophecy_* API not found in WASM exports');

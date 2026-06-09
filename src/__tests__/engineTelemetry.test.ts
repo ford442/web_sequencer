@@ -7,9 +7,14 @@ import {
 } from '../utils/engineTelemetry';
 
 describe('resolvePublicAsset', () => {
-  it('prefixes paths with Vite BASE_URL', () => {
-    expect(resolvePublicAsset('hyphon_native.wasm')).toMatch(/hyphon_native\.wasm$/);
-    expect(resolvePublicAsset('/rust-wasm/rust_audio.js')).toMatch(/rust-wasm\/rust_audio\.js$/);
+  it('returns absolute URLs rooted at BASE_URL', () => {
+    const wasmUrl = resolvePublicAsset('hyphon_native.wasm');
+    const rustUrl = resolvePublicAsset('/rust-wasm/rust_audio.js');
+
+    expect(wasmUrl).toMatch(/^https?:\/\//);
+    expect(wasmUrl).toMatch(/hyphon_native\.wasm$/);
+    expect(rustUrl).toMatch(/^https?:\/\//);
+    expect(new URL(rustUrl).pathname).toMatch(/rust-wasm\/rust_audio\.js$/);
   });
 
   it('returns an absolute URL when window.location is available', () => {
