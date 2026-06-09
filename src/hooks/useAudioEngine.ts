@@ -55,7 +55,8 @@ import {
     loadWavBuffer,
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
-import { engineTelemetry } from '../utils/engineTelemetry';
+import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
+import { prerenderPyodideBuffers, type PyodideLike } from '../utils/pyodideBuffers';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
 
 // URLs for worklets
@@ -100,6 +101,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
+    const initPromiseRef = useRef<Promise<void> | null>(null);
 
     // Polyphonic TTS Manager
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
@@ -213,8 +215,39 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         pyodideRef.current = pyodide;
     }, [pyodide]);
 
+    useEffect(() => {
+        if (!pyodide || !audioEngine?.context) return;
+
+        let cancelled = false;
+        void (async () => {
+            try {
+                const buffers = await prerenderPyodideBuffers(pyodide as PyodideLike, audioEngine.context);
+                if (cancelled) return;
+                const deps = {
+                    pyodideEngine: pyodide as PyodideLike,
+                    pyodideBuffers: buffers,
+                };
+                voiceManagerARef.current?.updateEngineDeps(deps);
+                voiceManagerBRef.current?.updateEngineDeps(deps);
+                engineTelemetry.registerResolution('pyodide', 'pyodide', 'live-loop-buffers-ready');
+            } catch (e) {
+                logEngineFallback('pyodide', 'pyodide', 'live buffer pre-render failed', e);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [pyodide, audioEngine]);
+
     const initializeAudio = useCallback(async () => {
-        if (audioEngine || isInitializing.current) return;
+        if (audioEngine) return;
+        if (initPromiseRef.current) {
+            await initPromiseRef.current;
+            return;
+        }
+
+        const runInit = async () => {
         isInitializing.current = true;
         loadingProgressStore.startLoading();
 
@@ -313,18 +346,30 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             // Initialize Engines
             loadingProgressStore.startStep('webGpuEngine');
             const gpuEngine = new WebGpuOscillator();
-            await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
+            try {
+                await gpuEngine.init();
+            } catch (e) {
+                logEngineFallback('webgpu', 'webgpu', 'WebGpuOscillator.init() threw', e);
+            }
             gpuEngineRef.current = gpuEngine;
             loadingProgressStore.completeStep('webGpuEngine');
 
             loadingProgressStore.startStep('wasmEngine');
             const wasmEngine = new WasmOscillator();
-            await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
+            try {
+                await wasmEngine.init();
+            } catch (e) {
+                logEngineFallback('wam', 'wasm', 'WasmOscillator.init() threw', e);
+            }
             wasmEngineRef.current = wasmEngine;
             loadingProgressStore.completeStep('wasmEngine');
 
             const rustEngine = new RustOscillator();
-            await rustEngine.init().catch(e => console.warn("Rust Engine init failed", e));
+            try {
+                await rustEngine.init();
+            } catch (e) {
+                logEngineFallback('rust', 'wasm', 'RustOscillator.init() threw', e);
+            }
             rustEngineRef.current = rustEngine;
 
             // Initialize Open303 Manager
@@ -340,16 +385,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 });
                 
                 if (!open303Ready) {
-                    console.warn('[useAudioEngine] Open303Manager failed to initialize');
-                    try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
+                    logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
                 }
             } catch (e) {
-                console.error('[useAudioEngine] Open303Manager crashed during init:', e);
+                logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() threw', e);
                 open303Ready = false;
-            }
-            
-            if (!open303Ready) {
-                console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
             }
             loadingProgressStore.completeStep('open303Engine');
 
@@ -382,7 +422,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     }
                     open303ManagerRef.current = open303Manager;
                     console.log('[useAudioEngine] Open303Manager Ready');
-                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
+                    try { engineTelemetry.registerResolution('open303', 'wasm-worklet', 'manager-ready'); } catch (e) { /* noop */ }
                 }
             }
 
@@ -400,16 +440,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     console.log('[useAudioEngine] ProphecyManager Ready');
                     try { engineTelemetry.registerResolution('prophecy', 'prophecy', 'ready'); } catch (e) { /* noop */ }
                 } else {
-                    console.warn('[useAudioEngine] ProphecyManager failed to initialize');
-                    try { engineTelemetry.registerResolution('prophecy', 'fallback', 'notReady'); } catch (e) { /* noop */ }
+                    logEngineFallback('prophecy', 'wasm-worklet', 'ProphecyManager.init() returned false');
                 }
             } catch (e) {
-                console.error('[useAudioEngine] ProphecyManager crashed during init:', e);
+                logEngineFallback('prophecy', 'wasm-worklet', 'ProphecyManager.init() threw', e);
                 prophecyReady = false;
-            }
-
-            if (!prophecyReady) {
-                console.log('[useAudioEngine] Prophecy bypassed - formant waveforms will fall back to standard oscillators');
             }
             loadingProgressStore.completeStep('prophecyEngine');
 
@@ -422,13 +457,26 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             wavSqrBufferRef.current = sqrBuf;
             loadingProgressStore.completeStep('wavFiles');
 
-            // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
+            // Register oscillator backend decision (webgpu -> wam -> rust -> wav -> js)
             try {
                 let oscillatorBackend = 'js';
-                if (gpuEngine && (gpuEngine as any).isSupported) oscillatorBackend = 'webgpu';
-                else if (wasmEngine && (wasmEngine as any).isReady) oscillatorBackend = 'wasm';
-                else if (sawBuf || sqrBuf) oscillatorBackend = 'wav';
-                engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
+                let decisionReason = 'no specialised engine ready';
+                if (gpuEngine.isSupported) {
+                    oscillatorBackend = 'webgpu';
+                    decisionReason = 'WebGPU device + pipeline ready';
+                } else if (wasmEngine.isReady) {
+                    oscillatorBackend = 'wam';
+                    decisionReason = 'AssemblyScript oscillators.wasm ready';
+                } else if (rustEngine.isReady) {
+                    oscillatorBackend = 'rust';
+                    decisionReason = 'rust-wasm module ready';
+                } else if (sawBuf || sqrBuf) {
+                    oscillatorBackend = 'wav';
+                    decisionReason = 'PCM wav buffers loaded';
+                } else {
+                    logEngineFallback('oscillators', 'hybrid-chain', decisionReason);
+                }
+                engineTelemetry.registerResolution('oscillators', oscillatorBackend, decisionReason);
             } catch (e) {
                 console.warn('Engine telemetry registration failed for oscillators', e);
             }
@@ -436,7 +484,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             // Pre-render WebGPU oscillator cycles at C4 reference so they can be
             // looped synchronously per-note (gpuEngine.generate is async).
             const wgslBuffers: Partial<Record<'saw' | 'sqr' | 'tri' | 'sin', AudioBuffer | null>> = {};
-            if ((gpuEngine as any).isSupported) {
+            if (gpuEngine.isSupported) {
                 const REF_FREQ = 261.63;
                 const REF_DUR = 2.0;
                 const shapes: Array<'saw' | 'sqr' | 'tri' | 'sin'> = ['saw', 'sqr', 'tri', 'sin'];
@@ -449,12 +497,17 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             wgslBuffers[shape] = buf;
                         }
                     } catch (e) {
-                        console.warn(`WebGPU pre-render for ${shape} failed`, e);
+                        logEngineFallback('webgpu', 'webgpu', `pre-render buffer failed for wgsl-${shape}`, e);
                     }
                 }));
             }
 
-            const voiceEngineDeps = { wasmEngine: wasmEngineRef.current, rustEngine: rustEngineRef.current, wgslBuffers };
+            const voiceEngineDeps = {
+                wasmEngine: wasmEngineRef.current,
+                rustEngine: rustEngineRef.current,
+                wgslBuffers,
+                pyodideEngine: pyodideRef.current as PyodideLike | null,
+            };
 
             // Initialize Voice Managers
             voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
@@ -1706,14 +1759,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             loadingProgressStore.completeStep('complete');
             loadingProgressStore.finishLoading();
             setIsReady(true);
-            isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             loadingProgressStore.addError(e instanceof Error ? e.message : String(e));
             loadingProgressStore.finishLoading();
             setIsReady(true);
+        } finally {
             isInitializing.current = false;
         }
+        };
+
+        initPromiseRef.current = runInit().finally(() => {
+            initPromiseRef.current = null;
+        });
+        await initPromiseRef.current;
     }, [audioEngine, playbackRefs]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {

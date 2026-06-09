@@ -36,6 +36,17 @@ npm run dev
 npm test
 ```
 
+Knob rendering drift is guarded by contract tests that snapshot the pure derivations from
+`KNOB_MATERIAL`:
+- `buildKnobShaderCode()` (WGSL source)
+- `buildKnob2DDrawCalls()` (Canvas2D draw-command sequence)
+
+If you intentionally change `src/components/knobMaterial.ts`, run the relevant Vitest file with
+snapshot update and review the inline snapshot diff before committing.
+
+A separate Playwright smoke test (`tests/knob-canvas-smoke.spec.ts`) forces the Canvas2D fallback and
+checks that knob canvases render non-blank output (no screenshot comparisons).
+
 ## Build
 ```powershell
 npm run build

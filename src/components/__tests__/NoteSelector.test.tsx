@@ -69,7 +69,7 @@ describe('NoteSelector', () => {
         expect(mockOnPropertyChange).toHaveBeenCalledWith('grainPitchQuantize', 12);
     });
 
-    it('handles grainPitchShift changes', () => {
+    it('handles granularPitchShift changes', () => {
         render(<NoteSelector {...defaultProps} />);
         const shiftSlider = screen.getByLabelText('Granular Pitch Shift Override');
         expect(shiftSlider).toBeInTheDocument();
