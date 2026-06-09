@@ -776,30 +776,29 @@ export function useAppState() {
 
         if (trackKey === 'sampler') {
             const bankIdx = activeSamplerBankRef.current;
-            newPattern = updateSamplerStep(prev, bankIdx, -1, () => null); // Force bank clone without affecting steps
-
-            const nextSampler = [...newPattern.sampler];
-            const nextBank = { ...nextSampler[bankIdx] };
-            const nextAutomation = nextBank.automation ? { ...nextBank.automation } : {};
+            const bank = prev.sampler[bankIdx];
+            const nextAutomation = bank.automation ? { ...bank.automation } : {};
             const nextParamArray = nextAutomation[automationParam]
                 ? [...nextAutomation[automationParam]]
                 : Array(NUM_STEPS).fill(null);
             nextParamArray[step] = value;
             nextAutomation[automationParam] = nextParamArray;
-            nextBank.automation = nextAutomation;
-            nextSampler[bankIdx] = nextBank;
-            newPattern = { ...newPattern, sampler: nextSampler };
+
+            newPattern = {
+                ...prev,
+                sampler: prev.sampler.map((b, i) => i === bankIdx ? { ...b, automation: nextAutomation } : b)
+            };
             updateStorageForTrack(trackKey, newPattern.sampler);
         } else {
-            const nextTrack = { ...(prev[trackKey] as any) };
-            const nextAutomation = nextTrack.automation ? { ...nextTrack.automation } : {};
+            const track = prev[trackKey] as any;
+            const nextAutomation = track.automation ? { ...track.automation } : {};
             const nextParamArray = nextAutomation[automationParam]
                ? [...nextAutomation[automationParam]]
                : Array(NUM_STEPS).fill(null);
             nextParamArray[step] = value;
             nextAutomation[automationParam] = nextParamArray;
-            nextTrack.automation = nextAutomation;
-            newPattern = { ...newPattern, [trackKey]: nextTrack };
+            const nextTrack = { ...track, automation: nextAutomation };
+            newPattern = { ...prev, [trackKey]: nextTrack };
             updateStorageForTrack(trackKey, newPattern[trackKey]);
         }
         setPattern(newPattern);
