@@ -58,6 +58,7 @@ describe('holographic knob derivation contract', () => {
                   return length(p) - r;
               }
 
+              
               // Helper: Rotation Matrix
               fn rotate(angle: f32) -> mat2x2f {
                   let c = cos(angle);
@@ -70,10 +71,10 @@ describe('holographic knob derivation contract', () => {
                 var uv = in.uv;
                 // Center UVs properly assuming canvas is square-ish
                 // Standardize coordinate system to -1.0 to 1.0
-
+                
                 let len = length(uv);
                 let angle = atan2(uv.y, uv.x);
-
+                
                 // Base Color (Cyan/Teal Hologram)
                 var color = vec3f(0.0000, 0.8980, 1.0000);
                 var alpha = 0.0;
