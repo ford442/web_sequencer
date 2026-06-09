@@ -23,6 +23,8 @@ export class Open303Oscillator {
     private audioContext: AudioContext | null = null;
 
     private params: Open303Params = { ...DEFAULT_303_PARAMS };
+    /** Persisted engine choice — applied once the worklet is ready. */
+    private engine303: 'open303' | 'jc303' = 'open303';
     public isReady: boolean = false;
     public isFallback: boolean = false;
 
@@ -169,6 +171,7 @@ export class Open303Oscillator {
 
             this.isReady = true;
             this.isFallback = false;
+            this.applyEngine303();
             this.applyAllParameters();
             try { engineTelemetry.registerResolution('open303', isNative ? 'wasm-native' : 'wasm', 'worklet-ready'); } catch (_) {}
             return true;
@@ -256,8 +259,16 @@ export class Open303Oscillator {
      * not available in the loaded WASM build.
      */
     setEngine303(engine: 'open303' | 'jc303'): void {
-        if (this.workletNode) {
-            this.workletNode.port.postMessage({ type: 'set-engine', data: { engine } });
+        this.engine303 = engine;
+        this.applyEngine303();
+    }
+
+    private applyEngine303(): void {
+        if (!this.workletNode) return;
+        this.workletNode.port.postMessage({ type: 'set-engine', data: { engine: this.engine303 } });
+        if (this.isReady) {
+            // Params were routed to the previous engine — push them to the new one.
+            this.applyAllParameters();
         }
     }
 

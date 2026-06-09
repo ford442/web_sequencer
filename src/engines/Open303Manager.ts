@@ -661,4 +661,18 @@ export class Open303Manager {
     setLead303Engine(engine: 'open303' | 'jc303'): void {
         this.lead303?.setEngine303(engine);
     }
+
+    /**
+     * Apply persisted per-voice engine303 settings after audio init or song load.
+     * Without this, jc303 stays inactive until the user toggles the engine selector.
+     */
+    syncEngine303Settings(settings: {
+        lead?: 'open303' | 'jc303';
+        bass1?: 'open303' | 'jc303';
+        bass2?: 'open303' | 'jc303';
+    }): void {
+        if (settings.lead) this.setLead303Engine(settings.lead);
+        if (settings.bass1) this.setBass1Engine(settings.bass1);
+        if (settings.bass2) this.setBass2Engine(settings.bass2);
+    }
 }

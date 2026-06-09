@@ -64,15 +64,15 @@ class Open303Processor extends AudioWorkletProcessor {
     // (hyphon_native.wasm with open303_wrapper.cpp).  When false the legacy
     // jc303_* single-instance API is used (standalone jc303-single.wasm).
     private isNativeApi: boolean = false;
-    private instanceHandle: number = 0;
+    private instanceHandle: number | bigint = 0;
     // Caller-allocated output buffer pointer (malloc'd once, freed on cleanup)
-    private nativeOutputPtr: number = 0;
+    private nativeOutputPtr: number | bigint = 0;
     private nativeBufFrames: number = 128;
 
     // Authentic rosic::Open303 multi-instance API (jc303_wrapper.cpp).
     // Available alongside the custom open303_* API in hyphon_native.wasm.
     private hasJc303MultiApi: boolean = false;
-    private jc303Handle: number = 0;
+    private jc303Handle: number | bigint = 0;
 
     /** Which DSP engine is currently active for this processor instance.
      *  'open303' = custom synthesizer (open303_* API, default)
@@ -80,8 +80,8 @@ class Open303Processor extends AudioWorkletProcessor {
      */
     private activeEngine: 'open303' | 'jc303' = 'open303';
 
-    // Gain compensation for 303 output level matching.
-    private static readonly OUTPUT_GAIN = 4.0;
+    // Mild makeup gain — hyphon_native 303 engines already run near full scale.
+    private static readonly OUTPUT_GAIN = 1.0;
 
     // Stuck note protection
     private activeNotes: Map<number, number> = new Map(); // note -> startTime (ms)
@@ -105,6 +105,9 @@ class Open303Processor extends AudioWorkletProcessor {
     private allocationErrorCount = 0;
     private lastErrorMessage: string = '';
 
+    /** Params/engine messages received before the worklet reaches READY. */
+    private pendingMessages: Array<{ type: string; data: any }> = [];
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
@@ -118,31 +121,50 @@ class Open303Processor extends AudioWorkletProcessor {
             return;
         }
 
-        // Handle messages only if ready
-        if (this.synthState === SynthState.READY && this.wasmInstance) {
-            const exports = this.getExports();
+        if (this.synthState !== SynthState.READY || !this.wasmInstance) {
+            if (type === 'set-engine' || type === 'param') {
+                this.pendingMessages.push({ type, data });
+            }
+            return;
+        }
 
-            if (type === 'noteOn') {
-                this.handleNoteOn(data.note, data.velocity);
-            } else if (type === 'noteOff') {
-                this.handleNoteOff(data.note);
-            } else if (type === 'set-engine') {
-                this.handleSetEngine(data.engine as 'open303' | 'jc303');
-            } else if (type === 'param') {
-                if (this.isNativeApi) {
-                    const paramId = JC303_PARAM_MAP[data.func as string];
-                    if (paramId !== undefined) {
-                        if (this.activeEngine === 'jc303' && this.hasJc303MultiApi && exports.jc303_set_param) {
-                            exports.jc303_set_param(this.jc303Handle, paramId, data.value);
-                        } else if (exports.open303_set_param) {
-                            exports.open303_set_param(this.instanceHandle, paramId, data.value);
-                        }
-                    }
-                } else if (exports[data.func]) {
-                    // Legacy jc303_* API
-                    exports[data.func](data.value);
+        this.dispatchMessage(type, data);
+    }
+
+    private dispatchMessage(type: string, data: any): void {
+        const exports = this.getExports();
+
+        if (type === 'noteOn') {
+            this.handleNoteOn(data.note, data.velocity);
+        } else if (type === 'noteOff') {
+            this.handleNoteOff(data.note);
+        } else if (type === 'set-engine') {
+            this.handleSetEngine(data.engine as 'open303' | 'jc303');
+        } else if (type === 'param') {
+            this.applyParamMessage(exports, data);
+        }
+    }
+
+    private applyParamMessage(exports: Record<string, any>, data: { func: string; value: number }): void {
+        if (this.isNativeApi) {
+            const paramId = JC303_PARAM_MAP[data.func as string];
+            if (paramId !== undefined) {
+                if (this.activeEngine === 'jc303' && this.hasJc303MultiApi && exports.jc303_set_param) {
+                    exports.jc303_set_param(this.toWasmHandle(this.jc303Handle), paramId, data.value);
+                } else if (exports.open303_set_param) {
+                    exports.open303_set_param(this.toWasmHandle(this.instanceHandle), paramId, data.value);
                 }
             }
+        } else if (exports[data.func]) {
+            exports[data.func](data.value);
+        }
+    }
+
+    private flushPendingMessages(): void {
+        const queue = this.pendingMessages;
+        this.pendingMessages = [];
+        for (const msg of queue) {
+            this.dispatchMessage(msg.type, msg.data);
         }
     }
 
@@ -164,6 +186,7 @@ class Open303Processor extends AudioWorkletProcessor {
                 if (success) {
                     this.synthState = SynthState.READY;
                     console.log('[Open303] WASM initialized successfully');
+                    this.flushPendingMessages();
                     this.port.postMessage({ type: 'ready' });
                     return;
                 }
@@ -270,6 +293,58 @@ class Open303Processor extends AudioWorkletProcessor {
         return (this.normalizedExports ?? {}) as Record<string, any>;
     }
 
+    /** hyphon_native.wasm is built with WASM_BIGINT — preserve bigint handles/pointers. */
+    private toWasmHandle(handle: number | bigint): number | bigint {
+        return typeof handle === 'bigint' ? handle : BigInt(handle);
+    }
+
+    private isInvalidHandle(handle: number | bigint | null | undefined): boolean {
+        if (handle == null) return true;
+        if (typeof handle === 'bigint') return handle <= 0n;
+        return !Number.isFinite(handle) || handle <= 0;
+    }
+
+    /** Convert a WASM heap pointer (number or bigint) to a Float32Array index. */
+    private wasmPtrToOffset(ptr: number | bigint | null | undefined): number {
+        if (ptr == null) return -1;
+        const n = typeof ptr === 'bigint' ? Number(ptr) : ptr;
+        if (!Number.isFinite(n) || n <= 0) return -1;
+        return n >>> 2;
+    }
+
+    /** Read a WASM heap float buffer using a fresh view (safe after memory growth). */
+    private readWasmSamples(ptr: number | bigint, numFrames: number): Float32Array | null {
+        this.updateHeap();
+        const memory =
+            (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory
+            ?? this.importedMemory;
+        if (!memory?.buffer) return null;
+
+        const byteOffset = typeof ptr === 'bigint' ? Number(ptr) : ptr;
+        if (!Number.isFinite(byteOffset) || byteOffset <= 0) return null;
+        if (byteOffset + numFrames * 4 > memory.buffer.byteLength) return null;
+
+        try {
+            return new Float32Array(memory.buffer, byteOffset, numFrames);
+        } catch {
+            return null;
+        }
+    }
+
+    private writeOutputSamples(
+        samples: Float32Array,
+        numFrames: number,
+        channelL: Float32Array | undefined,
+        channelR: Float32Array | undefined,
+        gain: number,
+    ): void {
+        for (let i = 0; i < numFrames; i++) {
+            const sample = samples[i] * gain;
+            if (channelL) channelL[i] = sample;
+            if (channelR) channelR[i] = sample;
+        }
+    }
+
     private inspectModuleImports(module: WebAssembly.Module) {
         try {
             const importDescriptors = WebAssembly.Module.imports(module);
@@ -299,20 +374,25 @@ class Open303Processor extends AudioWorkletProcessor {
         try {
             // Create instance
             this.instanceHandle = exports.open303_create();
-            if (!this.instanceHandle) {
+            if (this.isInvalidHandle(this.instanceHandle)) {
                 throw new Error('open303_create() returned null handle');
             }
 
-            const result = exports.open303_init(this.instanceHandle, sampleRate, this.nativeBufFrames);
+            const result = exports.open303_init(
+                this.toWasmHandle(this.instanceHandle),
+                sampleRate,
+                this.nativeBufFrames,
+            );
             if (result !== 1) {
                 throw new Error(`open303_init() returned ${result}`);
             }
 
             // Allocate the output buffer on the WASM heap (owned by the worklet)
-            if (exports._malloc) {
+            const mallocFn = exports._malloc ?? exports.malloc;
+            if (mallocFn) {
                 // 4 bytes per sample (Float32)
-                this.nativeOutputPtr = exports._malloc(this.nativeBufFrames * 4);
-                if (!this.nativeOutputPtr) {
+                this.nativeOutputPtr = mallocFn(this.nativeBufFrames * 4);
+                if (this.isInvalidHandle(this.nativeOutputPtr)) {
                     throw new Error('Failed to allocate native output buffer');
                 }
             }
@@ -344,15 +424,19 @@ class Open303Processor extends AudioWorkletProcessor {
         }
         try {
             this.jc303Handle = exports.jc303_create();
-            if (!this.jc303Handle) {
+            if (this.isInvalidHandle(this.jc303Handle)) {
                 console.warn('[Open303] jc303_create() returned null handle');
                 return;
             }
-            const res = exports.jc303_init_handle(this.jc303Handle, sampleRate, this.nativeBufFrames);
+            const res = exports.jc303_init_handle(
+                this.toWasmHandle(this.jc303Handle),
+                sampleRate,
+                this.nativeBufFrames,
+            );
             if (res !== 1) {
                 console.warn(`[Open303] jc303_init_handle() returned ${res}`);
                 if (exports.jc303_destroy) {
-                    exports.jc303_destroy(this.jc303Handle);
+                    exports.jc303_destroy(this.toWasmHandle(this.jc303Handle));
                 }
                 this.jc303Handle = 0;
                 return;
@@ -381,6 +465,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
         this.activeEngine = engine;
         console.log(`[Open303] Engine switched to: ${engine}`);
+        this.port.postMessage({ type: 'engine-changed', data: { engine } });
     }
 
     private initializeLegacyApi(exports: any, sampleRate: number): boolean {
@@ -441,9 +526,9 @@ class Open303Processor extends AudioWorkletProcessor {
 
         try {
             if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
-                exports.jc303_note_off(this.jc303Handle, note);
+                exports.jc303_note_off(this.toWasmHandle(this.jc303Handle), note);
             } else if (this.isNativeApi) {
-                exports.open303_note_off(this.instanceHandle, note);
+                exports.open303_note_off(this.toWasmHandle(this.instanceHandle), note);
             } else {
                 exports.jc303_noteOff(note);
             }
@@ -460,9 +545,9 @@ class Open303Processor extends AudioWorkletProcessor {
 
         try {
             if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
-                exports.jc303_all_notes_off(this.jc303Handle);
+                exports.jc303_all_notes_off(this.toWasmHandle(this.jc303Handle));
             } else if (this.isNativeApi) {
-                exports.open303_all_notes_off(this.instanceHandle);
+                exports.open303_all_notes_off(this.toWasmHandle(this.instanceHandle));
             } else if (exports.jc303_allNotesOff) {
                 exports.jc303_allNotesOff();
             } else {
@@ -482,9 +567,9 @@ class Open303Processor extends AudioWorkletProcessor {
 
         try {
             if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
-                exports.jc303_note_on(this.jc303Handle, note, velocity);
+                exports.jc303_note_on(this.toWasmHandle(this.jc303Handle), note, velocity);
             } else if (this.isNativeApi) {
-                exports.open303_note_on(this.instanceHandle, note, velocity);
+                exports.open303_note_on(this.toWasmHandle(this.instanceHandle), note, velocity);
             } else {
                 exports.jc303_noteOn(note, velocity);
             }
@@ -554,11 +639,12 @@ class Open303Processor extends AudioWorkletProcessor {
 
             if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
                 // ── Authentic rosic::Open303 multi-instance API ───────────────
-                // jc303_process_handle returns a ptr to the instance's internal
-                // buffer — the caller must NOT free it.
-                const ptr = exports.jc303_process_handle(this.jc303Handle, numFrames);
-
-                if (ptr === 0 || ptr === undefined) {
+                const ptr = exports.jc303_process_handle(
+                    this.toWasmHandle(this.jc303Handle),
+                    numFrames,
+                );
+                const samples = this.readWasmSamples(ptr, numFrames);
+                if (!samples) {
                     if (this.allocationErrorCount++ < 5) {
                         console.error('[Open303] jc303_process_handle returned invalid pointer');
                     }
@@ -566,50 +652,36 @@ class Open303Processor extends AudioWorkletProcessor {
                     if (channelR) channelR.fill(0);
                     return true;
                 }
-
-                const offset = ptr >> 2;
-                if (offset >= 0 && offset + numFrames <= this.heapFloat32.length) {
-                    for (let i = 0; i < numFrames; i++) {
-                        const sample = this.heapFloat32[offset + i] * gain;
-                        if (channelL) channelL[i] = sample;
-                        if (channelR) channelR[i] = sample;
-                    }
-                } else {
-                    if (this.processErrorCount++ < 5) {
-                        console.error(`[Open303] Heap overflow (jc303): offset=${offset}, length=${this.heapFloat32.length}`);
-                    }
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                }
+                this.writeOutputSamples(samples, numFrames, channelL, channelR, gain);
             } else if (this.isNativeApi) {
                 // ── Custom open303 multi-instance API ────────────────────────
-                if (!this.nativeOutputPtr) {
+                if (this.isInvalidHandle(this.nativeOutputPtr)) {
                     if (channelL) channelL.fill(0);
                     if (channelR) channelR.fill(0);
                     return true;
                 }
 
-                exports.open303_process(this.instanceHandle, this.nativeOutputPtr, numFrames);
+                exports.open303_process(
+                    this.toWasmHandle(this.instanceHandle),
+                    this.toWasmHandle(this.nativeOutputPtr),
+                    numFrames,
+                );
 
-                const offset = this.nativeOutputPtr >> 2;
-                if (offset >= 0 && offset + numFrames <= this.heapFloat32.length) {
-                    for (let i = 0; i < numFrames; i++) {
-                        const sample = this.heapFloat32[offset + i] * gain;
-                        if (channelL) channelL[i] = sample;
-                        if (channelR) channelR[i] = sample;
-                    }
-                } else {
+                const samples = this.readWasmSamples(this.nativeOutputPtr, numFrames);
+                if (!samples) {
                     if (this.processErrorCount++ < 5) {
-                        console.error(`[Open303] Heap overflow (native): offset=${offset}, length=${this.heapFloat32.length}`);
+                        console.error('[Open303] open303_process output buffer unreadable');
                     }
                     if (channelL) channelL.fill(0);
                     if (channelR) channelR.fill(0);
+                    return true;
                 }
+                this.writeOutputSamples(samples, numFrames, channelL, channelR, gain);
             } else {
                 // ── Legacy jc303_* API ───────────────────────────────────────
                 const ptr = exports.jc303_process(numFrames);
 
-                if (ptr === 0 || ptr === undefined) {
+                if (this.wasmPtrToOffset(ptr) < 0) {
                     if (this.allocationErrorCount++ < 5) {
                         console.error('[Open303] jc303_process returned invalid pointer');
                     }
@@ -618,24 +690,17 @@ class Open303Processor extends AudioWorkletProcessor {
                     return true;
                 }
 
-                const offset = ptr >> 2;
-
-                if (offset >= 0 && offset + numFrames <= this.heapFloat32.length) {
-                    for (let i = 0; i < numFrames; i++) {
-                        const sample = this.heapFloat32[offset + i] * gain;
-                        if (channelL) channelL[i] = sample;
-                        if (channelR) channelR[i] = sample;
-                    }
-                } else {
+                const samples = this.readWasmSamples(ptr, numFrames);
+                if (!samples) {
                     if (this.processErrorCount++ < 5) {
-                        console.error(`[Open303] Heap overflow: offset=${offset}, length=${this.heapFloat32.length}`);
+                        console.error('[Open303] jc303_process buffer unreadable');
                     }
                     if (channelL) channelL.fill(0);
                     if (channelR) channelR.fill(0);
+                    return true;
                 }
+                this.writeOutputSamples(samples, numFrames, channelL, channelR, gain);
 
-                // Free the buffer returned by the legacy API.
-                // The WASM exports `free` (no underscore prefix).
                 if (exports.free) {
                     exports.free(ptr);
                 }

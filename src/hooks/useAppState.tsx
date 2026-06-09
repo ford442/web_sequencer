@@ -596,6 +596,17 @@ export function useAppState() {
         }
     }, [audioEngine]);
 
+    // Restore saved engine303 voice selection (jc303 vs open303) once the manager exists.
+    useEffect(() => {
+        const mgr = (audioEngine as any)?.open303Engine;
+        if (!mgr || typeof mgr.syncEngine303Settings !== 'function') return;
+        mgr.syncEngine303Settings({
+            lead: synthA.engine303 ?? 'open303',
+            bass1: synthB.engine303 ?? 'open303',
+            bass2: bass2.engine303 ?? 'open303',
+        });
+    }, [audioEngine, synthA.engine303, synthB.engine303, bass2.engine303]);
+
     // Cancel pending automation events when playback stops.
     // (handled in the schedPlaying useEffect below)
 
