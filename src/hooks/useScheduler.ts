@@ -84,10 +84,21 @@ export const useScheduler = (
     const startClock = useCallback(async () => {
         if (!context || !isAudioReady) return;
 
+        if (context.state === 'suspended') {
+            try {
+                await context.resume();
+            } catch (err) {
+                console.error('[useScheduler] AudioContext.resume() failed:', err);
+                setIsPlaying(false);
+                return;
+            }
+        }
+
         try {
             await ensureClockModule(context);
         } catch (err) {
             console.error('[useScheduler] Clock worklet failed to load:', err);
+            setIsPlaying(false);
             return;
         }
 

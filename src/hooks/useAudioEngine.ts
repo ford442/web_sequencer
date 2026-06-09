@@ -92,6 +92,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
+    const initPromiseRef = useRef<Promise<void> | null>(null);
 
     // Polyphonic TTS Manager
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
@@ -231,7 +232,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     }, [pyodide, audioEngine]);
 
     const initializeAudio = useCallback(async () => {
-        if (audioEngine || isInitializing.current) return;
+        if (audioEngine) return;
+        if (initPromiseRef.current) {
+            await initPromiseRef.current;
+            return;
+        }
+
+        const runInit = async () => {
         isInitializing.current = true;
         loadingProgressStore.startLoading();
 
@@ -1721,14 +1728,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             loadingProgressStore.completeStep('complete');
             loadingProgressStore.finishLoading();
             setIsReady(true);
-            isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             loadingProgressStore.addError(e instanceof Error ? e.message : String(e));
             loadingProgressStore.finishLoading();
             setIsReady(true);
+        } finally {
             isInitializing.current = false;
         }
+        };
+
+        initPromiseRef.current = runInit().finally(() => {
+            initPromiseRef.current = null;
+        });
+        await initPromiseRef.current;
     }, [audioEngine, playbackRefs]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
