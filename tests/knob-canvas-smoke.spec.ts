@@ -27,7 +27,7 @@ test('hardware knob renders on forced Canvas2D fallback', async ({ page }) => {
     await expect
         .poll(
             async () =>
-                knobCanvas.evaluate((canvas, { backgroundRgb, deltaTolerance }) => {
+                knobCanvas.evaluate((canvas, { backgroundRgb, deltaTolerance, PIXEL_SAMPLE_GRID_DIVISOR }) => {
                     const ctx = canvas.getContext('2d');
                     if (!ctx) return 0;
                     let nonBgCount = 0;
@@ -46,7 +46,7 @@ test('hardware knob renders on forced Canvas2D fallback', async ({ page }) => {
                         }
                     }
                     return nonBgCount;
-                }, { backgroundRgb: KNOB_BACKGROUND_RGB, deltaTolerance: NON_BACKGROUND_DELTA_TOLERANCE }),
+                }, { backgroundRgb: KNOB_BACKGROUND_RGB, deltaTolerance: NON_BACKGROUND_DELTA_TOLERANCE, PIXEL_SAMPLE_GRID_DIVISOR }),
             { timeout: 10000 }
         )
         .toBeGreaterThan(0);
