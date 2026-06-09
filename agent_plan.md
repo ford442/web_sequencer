@@ -1,3 +1,5 @@
+## 2026-08-03 - Implemented Formant LFO Sync Subdivisions: Added `formantLfoSync` to `Note` interface and UI. Mapped parameters to `useAudioEngine.ts` to allow step-sequenced formant LFO rate sync to tempo subdivisions. Fulfills "Formant LFO Sync Subdivisions" Innovation Lab idea. Added new idea: "Formant Envelope Sync".
+
 # Web Sequencer: Living Roadmap
 
 **Mission:** Build the ultimate browser-based DAW, fusing classic MIDI workflow (Cubase-style) with next-generation AI Vocal Synthesis (TTS Sampling).
@@ -64,6 +66,8 @@
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
 ## 🧠 Innovation Lab (The "Dream" Log)
 * [x] **Idea:** "Step-Sequenced Glitch Density" - Allow individual sequencer steps to override the global `glitchChance` parameter, enabling targeted stutter effects on specific syllables. (Implemented in `NoteSelector`, `useAppState`, and `useAudioEngine`!)
+* [x] **Idea:** "Formant LFO Sync Subdivisions" - Extend the Formant LFO sync feature to allow selecting specific note subdivisions (1/4, 1/8, 1/16, 1/32) rather than just syncing to a generic tempo rate. (Implemented via formantLfoSync in NoteSelector and useAudioEngine!)
+* [ ] **Idea:** "Formant Envelope Sync" - Sync the formant envelope to BPM subdivisions for rhythmic sweeps.
 * [x] **Idea:** "Formant LFO Sync Subdivisions" - Extend the Formant LFO sync feature to allow selecting specific note subdivisions (1/4, 1/8, 1/16, 1/32) rather than just syncing to a generic tempo rate. (Implemented in `NoteSelector`, `useAudioEngine.ts` and `types.ts` for Formant and Freeze LFOs globally and per-step!)
 * [x] **Idea:** "Step-Sequenced Bitcrusher / Decimator" - Add per-step bit reduction and downsampling to the sampler for rhythmically evolving lo-fi crunch textures on TTS vocals.
 * [x] **Idea:** "Time-Stretch Envelope" - Use an ADSR envelope to dynamically modulate the `timeRatio` of the granular engine, allowing vocals to rhythmically slow down or speed up over a single step. (Implemented in `rubberband-processor.ts` via envelope value modulation, wired to UI in `SamplerPanel` and `NoteSelector`!)

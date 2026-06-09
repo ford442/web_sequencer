@@ -1095,14 +1095,21 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Formant LFO
-                            const fRateSync = noteParams?.formantLfoSync !== undefined ? noteParams.formantLfoSync : params.formantLfoSync;
+                            const useFmtLfoSync = noteParams?.formantLfoSync ?? params.formantLfoSync ?? false;
+                            let fmtLfoRate = params.formantLfoRate;
                             if (noteParams?.formantLfoRate !== undefined) {
-                                const rate = fRateSync ? getSyncedLfoHz(noteParams.formantLfoRate, tempo) : noteParams.formantLfoRate;
-                                voice.setFormantLfoRate(rate, triggerTime);
-                            } else if (params.formantLfoRate !== undefined) {
-                                const rate = fRateSync ? getSyncedLfoHz(params.formantLfoRate, tempo) : params.formantLfoRate;
-                                voice.setFormantLfoRate(rate, triggerTime);
+                                fmtLfoRate = noteParams.formantLfoRate;
                             }
+
+                            if (fmtLfoRate !== undefined) {
+                                if (useFmtLfoSync) {
+                                    const rateHz = (tempo / 60) / (fmtLfoRate * 4);
+                                    voice.setFormantLfoRate(rateHz, triggerTime);
+                                } else {
+                                    voice.setFormantLfoRate(fmtLfoRate, triggerTime);
+                                }
+                            }
+
                             if (noteParams?.formantLfoDepth !== undefined) {
                                 voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
                             } else if (params.formantLfoDepth !== undefined) {

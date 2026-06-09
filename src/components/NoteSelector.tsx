@@ -128,7 +128,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFilterCutoff,
     currentFilterResonance,
     currentEnvMod,
-    currentFormantLfoSync = false,
+    currentFormantLfoSync,
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
     currentFreezeLfoSync = false,
@@ -647,34 +647,32 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
 )}
                         {/* Formant LFO Rate Control */}
                         {trackType === 'synth' && (
-                            <div className="flex flex-col gap-1 mt-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30">
-                                <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase items-center">
                                     <label htmlFor="note-fmt-rate">Fmt LFO Rate</label>
                                     <div className="flex items-center gap-2">
                                         <button
                                             type="button"
                                             role="switch"
-                                            aria-checked={currentFormantLfoSync}
+                                            aria-checked={currentFormantLfoSync || false}
                                             aria-label="Sync Formant LFO Rate to BPM"
-                                            onClick={() => onPropertyChange('formantLfoSync', !currentFormantLfoSync)}
-                                            className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                            onClick={() => update('formantLfoSync', !currentFormantLfoSync)}
+                                            className={`px-1.5 py-0 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                         >
                                             SYNC
                                         </button>
-                                        {!currentFormantLfoSync && (
-                                            <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">
-                                                {currentFormantLfoRate.toFixed(1)} Hz
-                                            </span>
-                                        )}
+                                        <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">
+                                            {currentFormantLfoSync ? '' : `${currentFormantLfoRate.toFixed(1)} Hz`}
+                                        </span>
                                     </div>
                                 </div>
                                 {currentFormantLfoSync ? (
                                     <select
-                                        id="note-fmt-rate-sync"
+                                        id="note-fmt-rate"
                                         value={currentFormantLfoRate}
-                                        onChange={(e) => onPropertyChange('formantLfoRate', parseFloat(e.target.value))}
-                                        aria-label="Formant LFO Rate (Synced)"
-                                        className="w-full bg-gray-900 text-indigo-400 text-xs font-mono rounded border border-indigo-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                        data-property="formantLfoRate" onChange={handleSliderChange}
+                                        aria-label="Formant LFO Rate Subdivision"
+                                        className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
                                     >
                                         <option value={2}>2 Bars</option>
                                         <option value={1}>1 Bar</option>
@@ -691,8 +689,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="20"
                                         step="0.1"
                                         value={currentFormantLfoRate}
-                                        onChange={(e) => onPropertyChange('formantLfoRate', parseFloat(e.target.value))}
-                                        className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        data-property="formantLfoRate" onChange={handleSliderChange}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                         aria-valuetext={`${currentFormantLfoRate.toFixed(1)} Hz`}
                                         aria-label="Formant LFO Rate"
                                     />
