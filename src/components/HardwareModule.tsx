@@ -76,7 +76,7 @@ const KnobOverlay = memo(({
 
             {/* 1. Label and Value Display */}
             <div
-                className="absolute text-center transform -translate-x-1/2"
+                className="absolute text-center transform -translate-x-1/2 pointer-events-none"
                 style={{
                     left: `${x * 100}%`,
                     top: `${(y + size * 0.8) * 100}%`,
@@ -410,10 +410,15 @@ export const HardwareModule = memo(
                 return controlsRef.current.findIndex(k => {
                     const kNormX = k.x * rect.width / scale;
                     const kNormY = k.y * rect.height / scale;
+                    const kSizeNorm = k.size * Math.min(rect.width, rect.height) / scale;
+                    const hitRadius = kSizeNorm * 2.0;
                     const dx = kNormX - normX;
                     const dy = kNormY - normY;
-                    const kSizeNorm = k.size * Math.min(rect.width, rect.height) / scale;
-                    return Math.sqrt(dx * dx + dy * dy) < (kSizeNorm * 1.2);
+                    if (Math.sqrt(dx * dx + dy * dy) < hitRadius) return true;
+                    // Label/value sits below the knob — include it in the hit zone.
+                    const labelNormY = (k.y + k.size * 0.8) * rect.height / scale;
+                    const labelDy = labelNormY - normY;
+                    return Math.sqrt(dx * dx + labelDy * labelDy) < hitRadius;
                 });
             };
 
@@ -424,16 +429,18 @@ export const HardwareModule = memo(
                 sliderRefs.current[hitIndex]?.focus();
             };
 
-            const handleMouseDown = (e: MouseEvent) => {
+            const handlePointerDown = (e: PointerEvent) => {
+                if (e.button !== 0) return;
                 const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex !== -1) {
+                    container.setPointerCapture(e.pointerId);
                     activateKnob(hitIndex, e.clientY);
                     document.body.style.cursor = 'ns-resize';
                     e.preventDefault();
                 }
             };
 
-            const handleMouseMove = (e: MouseEvent) => {
+            const handlePointerMove = (e: PointerEvent) => {
                 if (activeKnobIndex.current === null) return;
                 const dy = startY.current - e.clientY;
                 let newVal = startVal.current + (dy * 0.005);
@@ -441,32 +448,13 @@ export const HardwareModule = memo(
                 onParamChange(controlsRef.current[activeKnobIndex.current].id, newVal);
             };
 
-            const handleMouseUp = () => {
+            const handlePointerUp = (e: PointerEvent) => {
+                if (activeKnobIndex.current === null) return;
+                try {
+                    container.releasePointerCapture(e.pointerId);
+                } catch { /* already released */ }
                 activeKnobIndex.current = null;
                 document.body.style.cursor = 'default';
-            };
-
-            const handleTouchStart = (e: TouchEvent) => {
-                const touch = e.touches[0];
-                const hitIndex = findHitKnob(touch.clientX, touch.clientY);
-                if (hitIndex !== -1) {
-                    activateKnob(hitIndex, touch.clientY);
-                    e.preventDefault();
-                }
-            };
-
-            const handleTouchMove = (e: TouchEvent) => {
-                if (activeKnobIndex.current === null) return;
-                const touch = e.touches[0];
-                const dy = startY.current - touch.clientY;
-                let newVal = startVal.current + (dy * 0.005);
-                newVal = Math.max(0, Math.min(1, newVal));
-                onParamChange(controlsRef.current[activeKnobIndex.current].id, newVal);
-                e.preventDefault();
-            };
-
-            const handleTouchEnd = () => {
-                activeKnobIndex.current = null;
             };
 
             const handleWheel = (e: WheelEvent) => {
@@ -480,22 +468,18 @@ export const HardwareModule = memo(
                 onParamChange(knob.id, newVal);
             };
 
-            container.addEventListener('mousedown', handleMouseDown);
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-            container.addEventListener('touchstart', handleTouchStart, { passive: false });
-            window.addEventListener('touchmove', handleTouchMove, { passive: false });
-            window.addEventListener('touchend', handleTouchEnd);
+            container.addEventListener('pointerdown', handlePointerDown);
+            container.addEventListener('pointermove', handlePointerMove);
+            container.addEventListener('pointerup', handlePointerUp);
+            container.addEventListener('pointercancel', handlePointerUp);
             container.addEventListener('wheel', handleWheel, { passive: false });
 
             return () => {
                 observer.disconnect();
-                container.removeEventListener('mousedown', handleMouseDown);
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
-                container.removeEventListener('touchstart', handleTouchStart);
-                window.removeEventListener('touchmove', handleTouchMove);
-                window.removeEventListener('touchend', handleTouchEnd);
+                container.removeEventListener('pointerdown', handlePointerDown);
+                container.removeEventListener('pointermove', handlePointerMove);
+                container.removeEventListener('pointerup', handlePointerUp);
+                container.removeEventListener('pointercancel', handlePointerUp);
                 container.removeEventListener('wheel', handleWheel);
             };
         }, [onParamChange]);
@@ -572,7 +556,7 @@ export const HardwareModule = memo(
         }, []);
 
         return (
-            <div ref={containerRef} className={`relative rounded-lg shadow-xl bg-gray-900 border border-gray-700 ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: '220px' }}>
+            <div ref={containerRef} className={`relative rounded-lg shadow-xl bg-gray-900 border border-gray-700 touch-none ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: '220px' }}>
                 {controls.map((c, i) => (
                     <canvas
                         key={c.id}

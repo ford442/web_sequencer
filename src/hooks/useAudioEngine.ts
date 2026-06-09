@@ -47,6 +47,7 @@ import {
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
+import { prerenderPyodideBuffers, type PyodideLike } from '../utils/pyodideBuffers';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
 
 // URLs for worklets
@@ -91,6 +92,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
+    const initPromiseRef = useRef<Promise<void> | null>(null);
 
     // Polyphonic TTS Manager
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
@@ -204,8 +206,39 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         pyodideRef.current = pyodide;
     }, [pyodide]);
 
+    useEffect(() => {
+        if (!pyodide || !audioEngine?.context) return;
+
+        let cancelled = false;
+        void (async () => {
+            try {
+                const buffers = await prerenderPyodideBuffers(pyodide as PyodideLike, audioEngine.context);
+                if (cancelled) return;
+                const deps = {
+                    pyodideEngine: pyodide as PyodideLike,
+                    pyodideBuffers: buffers,
+                };
+                voiceManagerARef.current?.updateEngineDeps(deps);
+                voiceManagerBRef.current?.updateEngineDeps(deps);
+                engineTelemetry.registerResolution('pyodide', 'pyodide', 'live-loop-buffers-ready');
+            } catch (e) {
+                logEngineFallback('pyodide', 'pyodide', 'live buffer pre-render failed', e);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [pyodide, audioEngine]);
+
     const initializeAudio = useCallback(async () => {
-        if (audioEngine || isInitializing.current) return;
+        if (audioEngine) return;
+        if (initPromiseRef.current) {
+            await initPromiseRef.current;
+            return;
+        }
+
+        const runInit = async () => {
         isInitializing.current = true;
         loadingProgressStore.startLoading();
 
@@ -460,7 +493,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 }));
             }
 
-            const voiceEngineDeps = { wasmEngine: wasmEngineRef.current, rustEngine: rustEngineRef.current, wgslBuffers };
+            const voiceEngineDeps = {
+                wasmEngine: wasmEngineRef.current,
+                rustEngine: rustEngineRef.current,
+                wgslBuffers,
+                pyodideEngine: pyodideRef.current as PyodideLike | null,
+            };
 
             // Initialize Voice Managers
             voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
@@ -1690,14 +1728,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             loadingProgressStore.completeStep('complete');
             loadingProgressStore.finishLoading();
             setIsReady(true);
-            isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             loadingProgressStore.addError(e instanceof Error ? e.message : String(e));
             loadingProgressStore.finishLoading();
             setIsReady(true);
+        } finally {
             isInitializing.current = false;
         }
+        };
+
+        initPromiseRef.current = runInit().finally(() => {
+            initPromiseRef.current = null;
+        });
+        await initPromiseRef.current;
     }, [audioEngine, playbackRefs]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {

@@ -33,24 +33,28 @@ describe('Open303Oscillator.setEngine303()', () => {
         (oscillator as any).isReady = true;
     });
 
-    it('posts a set-engine message with engine="jc303"', () => {
+    it('posts a set-engine message with engine="jc303" and re-pushes params', () => {
         oscillator.setEngine303('jc303');
 
-        expect(mockPostMessage).toHaveBeenCalledOnce();
         expect(mockPostMessage).toHaveBeenCalledWith({
             type: 'set-engine',
             data: { engine: 'jc303' },
         });
+        expect(mockPostMessage.mock.calls.some(
+            (call) => call[0]?.type === 'param' && call[0]?.data?.func === 'jc303_setCutoff',
+        )).toBe(true);
     });
 
-    it('posts a set-engine message with engine="open303"', () => {
+    it('posts a set-engine message with engine="open303" and re-pushes params', () => {
         oscillator.setEngine303('open303');
 
-        expect(mockPostMessage).toHaveBeenCalledOnce();
         expect(mockPostMessage).toHaveBeenCalledWith({
             type: 'set-engine',
             data: { engine: 'open303' },
         });
+        expect(mockPostMessage.mock.calls.some(
+            (call) => call[0]?.type === 'param',
+        )).toBe(true);
     });
 
     it('does nothing when workletNode is null (not yet initialised)', () => {

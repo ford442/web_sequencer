@@ -596,6 +596,17 @@ export function useAppState() {
         }
     }, [audioEngine]);
 
+    // Restore saved engine303 voice selection (jc303 vs open303) once the manager exists.
+    useEffect(() => {
+        const mgr = (audioEngine as any)?.open303Engine;
+        if (!mgr || typeof mgr.syncEngine303Settings !== 'function') return;
+        mgr.syncEngine303Settings({
+            lead: synthA.engine303 ?? 'open303',
+            bass1: synthB.engine303 ?? 'open303',
+            bass2: bass2.engine303 ?? 'open303',
+        });
+    }, [audioEngine, synthA.engine303, synthB.engine303, bass2.engine303]);
+
     // Cancel pending automation events when playback stops.
     // (handled in the schedPlaying useEffect below)
 
@@ -676,9 +687,23 @@ export function useAppState() {
     }, [isAutomationRecording, schedPlaying, isSongModeActive]);
 
     const handlePlayToggle = useCallback(async () => {
-        if (!isInitialized) { await initializeAudio(); setIsInitialized(true); }
-        setSchedPlaying(prev => !prev)
-    }, [isInitialized, initializeAudio, setSchedPlaying]);
+        if (!isInitialized) {
+            await initializeAudio();
+            setIsInitialized(true);
+        }
+        const ctx = audioEngine?.context;
+        if (ctx?.state === 'suspended') {
+            try {
+                await ctx.resume();
+            } catch (e) {
+                console.warn('[transport] AudioContext.resume() failed:', e);
+            }
+        }
+        if (!isReady) {
+            console.warn('[transport] Audio engine not ready yet — playback may not start');
+        }
+        setSchedPlaying(prev => !prev);
+    }, [isInitialized, initializeAudio, audioEngine, isReady, setSchedPlaying]);
 
     useEffect(() => {
         const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -1586,7 +1611,8 @@ const handleLyricApply = useCallback(async (text: string) => {
         };
 
         return (
-            <div className={`absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesA}`}>
+            <div className={`absolute top-4 right-6 pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesA}`}>
+                <div className="pointer-events-auto flex flex-col items-end gap-2 w-fit">
                 {/* New Oscillator Type selector (themed) — primary control per the refactor plan */}
                 <OscillatorTypeSelector
                     type={currentTypeA}
@@ -1616,6 +1642,7 @@ const handleLyricApply = useCallback(async (text: string) => {
                         onFormantShiftChange={(v) => updateSynthA({ formantShift: v })}
                     />
                 )}
+                </div>
             </div>
         );
     }, [synthA.waveform, synthA.engine303, synthA.vowel, synthA.portamento, synthA.formantShift, updateSynthA, audioEngine]);
@@ -1647,7 +1674,8 @@ const handleLyricApply = useCallback(async (text: string) => {
         };
 
         return (
-            <div className={`absolute top-4 right-6 pointer-events-auto flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesB}`}>
+            <div className={`absolute top-4 right-6 pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesB}`}>
+                <div className="pointer-events-auto flex flex-col items-end gap-2 w-fit">
                 <OscillatorTypeSelector
                     type={currentTypeB}
                     onChange={handleSynthBTypeChange}
@@ -1675,6 +1703,7 @@ const handleLyricApply = useCallback(async (text: string) => {
                         onFormantShiftChange={(v) => updateSynthB({ formantShift: v })}
                     />
                 )}
+                </div>
             </div>
         );
     }, [synthB.waveform, synthB.engine303, synthB.vowel, synthB.portamento, synthB.formantShift, updateSynthB, audioEngine]);
@@ -1688,8 +1717,8 @@ const handleLyricApply = useCallback(async (text: string) => {
         };
         const bass2Type: OscillatorType = engine === 'jc303' ? 'jc303' : 'open303';
         return (
-        <div className="absolute top-4 right-6 pointer-events-auto">
-            <div className="flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20">
+        <div className="absolute top-4 right-6 pointer-events-none">
+            <div className="pointer-events-auto flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20 w-fit">
                 {/* Use the shared per-type variant picker (303 family only) for consistency with synth panels.
                     Active styling will be emerald/teal per engine family. */}
                 <OscillatorVariantSelector
@@ -1703,7 +1732,7 @@ const handleLyricApply = useCallback(async (text: string) => {
         </div>
         );
     }, [bass2.waveform, bass2.engine303, updateBass2, audioEngine]);
-    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[25%] w-[50%] max-h-[280px] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-hidden"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} isVoiceEditorOpen={isVoiceEditorOpen} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} alignment={activeAlignment} onAlignmentChange={(newAlignment) => { audioEngine?.setAlignment?.(activeSamplerBank, newAlignment); setActiveAlignment(newAlignment); }} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, isVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment]);
+    const samplerChild = useMemo(() => (<div className="absolute top-2 left-[10%] right-[10%] max-h-[38%] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-y-auto"><SamplerPanel params={sampler} onChange={(u) => updateSampler(u)} onParamChange={handleSamplerParamChange} onLoadSample={handleLoadSample} audioContext={audioEngine?.context!} audioEngine={audioEngine || undefined} activeBankIdx={activeSamplerBank} onBankChange={setActiveSamplerBank} onOpenEditor={() => setIsVoiceEditorOpen(true)} isVoiceEditorOpen={isVoiceEditorOpen} ttsPhrases={ttsPhrases} onTtsPhraseChange={handleTtsPhraseChange} onGenerateTTS={handleGenerateTTS} loadedBanks={loadedBanks} sampleBuffer={sampleBuffers[activeSamplerBank]} sliceHighlightRef={sliceHighlightRef} melodicMode={melodicMode} onMelodicModeChange={setMelodicMode} multisampleReady={multisampleReady} multisampleProcessing={multisampleProcessing} alignment={activeAlignment} onAlignmentChange={(newAlignment) => { audioEngine?.setAlignment?.(activeSamplerBank, newAlignment); setActiveAlignment(newAlignment); }} /></div>), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, isVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment]);
 
     return {
         isVoiceEditorOpen, setIsVoiceEditorOpen,
