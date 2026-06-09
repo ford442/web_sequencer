@@ -57,7 +57,7 @@ export {
 
 // Parser
 export { RbsParser, parseRbsFile } from './RbsParser';
-export type { RbsParserResult, RbsParserError } from './RbsParser';
+export type { RbsParserResult, RbsParserError } from './parser-types';
 
 // New spec-driven Rebirth parser (recommended API per technical spec)
 export { RebirthRBSParser, parseRebirthRBSFile } from './RebirthRBSParser';
@@ -72,4 +72,4 @@ export type {
 
 // Importer
 export { RbsImporter, convertToHyphonSong } from './RbsImporter';
-export type { RbsImportResult, ImportReport, RbsImportError } from './RbsImporter';
+export type { RbsImportResult, ImportReport, RbsImportError } from './importer-types';

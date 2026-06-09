@@ -31,7 +31,7 @@ import type {
 } from './types';
 import { TRAK_TRACK_INDEX, TICKS_PER_BAR } from './types';
 import { RbsParser } from './RbsParser';
-import type { RbsParserError } from './RbsParser';
+import type { RbsParserError } from './parser-types';
 
 // ============================================================================
 // Public return-type interfaces for each spec method

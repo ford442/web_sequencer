@@ -49,3 +49,5 @@ public/*.wasm
 src/wasm/*.js
 src/wasm/*.wasm
 src/wasm/*.d.ts
+public/audio-worklets/
+public/utils/

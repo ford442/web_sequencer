@@ -1,6 +1,6 @@
 // Tests for Voice.startNote engine-routing and fallback behaviour.
 // Every specialised engine path must be taken when the engine is available,
-// and must emit a console.warn + fall back to a JS OscillatorNode when it isn't.
+// and must emit a loud console.error (logEngineFallback) + fall back to JS when it isn't.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Voice, type VoiceEngineDeps } from '../VoiceManager';
@@ -123,7 +123,7 @@ describe('Voice.startNote — WAV engine', () => {
     });
 
     it('warns and falls back to JS oscillator when saw buffer is null', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const oscMock = makeOscillatorMock();
         const ctx = makeContext(oscMock);
         const voice = makeVoice({}, undefined, undefined, ctx); // no wav buffers
@@ -131,13 +131,13 @@ describe('Voice.startNote — WAV engine', () => {
         voice.startNote({ ...BASE_PARAMS, waveform: 'wav-saw' }, 'C4', 0);
 
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('wav-saw'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('falling back'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('JS fallback'));
         expect(ctx.createOscillator).toHaveBeenCalled();
         warn.mockRestore();
     });
 
     it('warns and falls back when sqr buffer is null', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const ctx = makeContext();
         const voice = makeVoice({}, undefined, undefined, ctx);
 
@@ -168,7 +168,7 @@ describe('Voice.startNote — WAM engine', () => {
     });
 
     it('warns and falls back when WasmOscillator is not ready', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const wasmEngine = { isReady: false, generate: vi.fn() };
         const oscMock = makeOscillatorMock();
         const ctx = makeContext(oscMock);
@@ -178,13 +178,13 @@ describe('Voice.startNote — WAM engine', () => {
 
         expect(wasmEngine.generate).not.toHaveBeenCalled();
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('wam-sqr'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('not ready'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('not ready for'));
         expect(ctx.createOscillator).toHaveBeenCalled();
         warn.mockRestore();
     });
 
     it('warns and falls back when generate() returns empty', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const wasmEngine = { isReady: true, generate: vi.fn(() => new Float32Array(0)) };
         const ctx = makeContext();
         const voice = makeVoice({ wasmEngine: wasmEngine as any }, undefined, undefined, ctx);
@@ -198,7 +198,7 @@ describe('Voice.startNote — WAM engine', () => {
     });
 
     it('warns and falls back when no wasmEngine in deps', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const ctx = makeContext();
         const voice = makeVoice({}, undefined, undefined, ctx);
 
@@ -229,7 +229,7 @@ describe('Voice.startNote — Rust engine', () => {
     });
 
     it('warns and falls back when RustOscillator is not ready', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const rustEngine = { isReady: false, generate: vi.fn() };
         const ctx = makeContext();
         const voice = makeVoice({ rustEngine: rustEngine as any }, undefined, undefined, ctx);
@@ -238,13 +238,13 @@ describe('Voice.startNote — Rust engine', () => {
 
         expect(rustEngine.generate).not.toHaveBeenCalled();
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('rust-sqr'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('not ready'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('not ready for'));
         expect(ctx.createOscillator).toHaveBeenCalled();
         warn.mockRestore();
     });
 
     it('warns and falls back when no rustEngine in deps', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const ctx = makeContext();
         const voice = makeVoice({}, undefined, undefined, ctx);
 
@@ -255,7 +255,7 @@ describe('Voice.startNote — Rust engine', () => {
     });
 
     it('warns and falls back when generate() returns empty', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const rustEngine = { isReady: true, generate: vi.fn(() => new Float32Array(0)) };
         const ctx = makeContext();
         const voice = makeVoice({ rustEngine: rustEngine as any }, undefined, undefined, ctx);
@@ -284,20 +284,20 @@ describe('Voice.startNote — WGSL engine', () => {
     });
 
     it('warns and falls back when the buffer is missing (GPU unavailable)', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const ctx = makeContext();
         const voice = makeVoice({ wgslBuffers: {} }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'wgsl-saw' }, 'C4', 0);
 
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('wgsl-saw'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('WebGPU buffer unavailable'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('buffer unavailable'));
         expect(ctx.createOscillator).toHaveBeenCalled();
         warn.mockRestore();
     });
 
     it('falls back to the correct JS wave shape (sqr)', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const oscMock = makeOscillatorMock();
         const ctx = makeContext(oscMock);
         const voice = makeVoice({ wgslBuffers: {} }, undefined, undefined, ctx);
@@ -312,29 +312,29 @@ describe('Voice.startNote — WGSL engine', () => {
 // ── Pyodide tests ────────────────────────────────────────────────────────────
 
 describe('Voice.startNote — Pyodide engine', () => {
-    it('warns that live playback is unsupported and falls back to JS', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        const oscMock = makeOscillatorMock();
-        const ctx = makeContext(oscMock);
-        const voice = makeVoice({ pyodideEngine: {} }, undefined, undefined, ctx);
+    it('uses pre-rendered loop buffer when pyodideBuffers are available', () => {
+        const buf = makeAudioBuffer();
+        const bufSrc = makeBufferSourceMock();
+        const ctx = makeContext(makeOscillatorMock(), bufSrc);
+        const voice = makeVoice({ pyodideEngine: { globals: { get: vi.fn() } }, pyodideBuffers: { saw: buf } }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'pyodide-saw' }, 'C4', 0);
 
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('pyodide-saw'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('async API'));
-        expect(ctx.createOscillator).toHaveBeenCalled();
-        warn.mockRestore();
+        expect(ctx.createBufferSource).toHaveBeenCalled();
+        expect(ctx.createOscillator).not.toHaveBeenCalled();
+        expect(bufSrc.loop).toBe(true);
     });
 
-    it('falls back to the correct JS wave shape (sine)', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    it('falls back to JS when pyodide is not ready', () => {
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const oscMock = makeOscillatorMock();
         const ctx = makeContext(oscMock);
         const voice = makeVoice({}, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'pyodide-sine' }, 'C4', 0);
 
-        expect(oscMock.type).toBe('sine');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Pyodide not ready'));
+        expect(ctx.createOscillator).toHaveBeenCalled();
         warn.mockRestore();
     });
 });
@@ -343,7 +343,7 @@ describe('Voice.startNote — Pyodide engine', () => {
 
 describe('Voice.startNote — JS native oscillator', () => {
     it('uses createOscillator for sawtooth without warnings', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const oscMock = makeOscillatorMock();
         const ctx = makeContext(oscMock);
         const voice = makeVoice({}, undefined, undefined, ctx);
