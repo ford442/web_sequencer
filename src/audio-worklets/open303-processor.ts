@@ -1,6 +1,11 @@
 // src/audio-worklets/open303-processor.ts
 // Hardened version with stack overflow protection and graceful degradation
 
+import {
+    HYPHON_NATIVE_MIN_MEMORY_PAGES,
+    buildHyphonWasmImports,
+} from './hyphonNativeImports';
+
 // Definitions for the AudioWorklet scope
 declare class AudioWorkletProcessor {
     readonly port: MessagePort;
@@ -30,7 +35,7 @@ type SynthStateType = typeof SynthState[keyof typeof SynthState];
 
 /** Minimum WebAssembly memory pages for hyphon_native.wasm (threaded Emscripten build).
  *  Must stay in sync with OPEN303_MIN_MEMORY_PAGES in Open303Oscillator.ts. */
-const OPEN303_MIN_MEMORY_PAGES = 8192;
+const OPEN303_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
 
 // Map from jc303_set* function name → open303 paramId
 // (keeps the existing message protocol while supporting the new native API)
@@ -202,36 +207,20 @@ class Open303Processor extends AudioWorkletProcessor {
         // Debug: Inspect imports
         this.inspectModuleImports(module);
 
-        // 2. Prepare Environment Imports
-        const env = this.createEnvironmentImports();
-        const wasiImports = this.createWASIImports();
-
-        // Construct the imports object
-        const importsObject: any = {
-            env: env,
-            a: env,
-            wasi_snapshot_preview1: wasiImports,
-            wasi_unstable: wasiImports,
-            "": env
+        const importCtx = {
+            getWasmInstance: () => this.wasmInstance,
+            getImportedMemory: () => this.importedMemory,
+            setImportedMemory: (m: WebAssembly.Memory) => {
+                this.importedMemory = m;
+            },
+            onHeapUpdate: () => this.updateHeap(),
+            logPrefix: '[Open303]',
         };
 
-        // Dynamic import mapping
-        const imports = WebAssembly.Module.imports(module);
-        const uniqueModules = new Set(imports.map((i: any) => i.module));
-        for (const mod of uniqueModules) {
-            if (!importsObject[mod]) {
-                console.log(`[Open303] Adding dynamic import namespace: ${mod}`);
-                importsObject[mod] = env;
-            }
-        }
-
-        // Check for memory import
-        const memoryImport = imports.find((i: any) => i.kind === 'memory');
-        if (memoryImport) {
-            this.importedMemory = this.createMemory(data.memoryPages, this.isThreaded);
-            if (!importsObject[memoryImport.module]) importsObject[memoryImport.module] = {};
-            importsObject[memoryImport.module][memoryImport.name] = this.importedMemory;
-        }
+        const { imports: importsObject } = buildHyphonWasmImports(module, importCtx, {
+            memoryPages: data.memoryPages,
+            isThreaded: this.isThreaded,
+        });
 
         console.log('[Open303] Instantiating WASM module...');
 
@@ -272,220 +261,6 @@ class Open303Processor extends AudioWorkletProcessor {
 
         // 5. Initialize the synth with stack protection
         return this.initializeSynth(exports, data.sampleRate || 44100);
-    }
-
-    private createMemory(pages: number | undefined, shared: boolean): WebAssembly.Memory {
-        // hyphon_native.wasm (threaded build with Open303 + Rubberband + ONNX shim)
-        // declares an initial memory of 8192 pages (512 MB). Anything smaller fails
-        // instantiation with "memory import has N pages which is smaller than the
-        // declared initial of 8192". Use that as the floor and allow growth up to 1 GB.
-        const HYPHON_NATIVE_MIN_PAGES = 8192;
-        const memoryImportPages = Math.max(pages ?? 0, HYPHON_NATIVE_MIN_PAGES);
-        const maxMemoryPages = 16384; // 1 GB ceiling
-
-        if (shared) {
-            try {
-                return new WebAssembly.Memory({
-                    initial: memoryImportPages,
-                    maximum: maxMemoryPages,
-                    shared: true
-                });
-            } catch (e) {
-                throw new Error('SharedArrayBuffer not available. Ensure COOP/COEP headers are configured.');
-            }
-        } else {
-            return new WebAssembly.Memory({
-                initial: memoryImportPages,
-                maximum: maxMemoryPages
-            });
-        }
-    }
-
-    private createEnvironmentImports(): any {
-        const resizeHeap = (size: number) => {
-            const memory = this.wasmInstance?.exports?.memory as WebAssembly.Memory || this.importedMemory;
-            if (!memory) {
-                console.warn('[Open303] emscripten_resize_heap called but no memory available yet');
-                return 0;
-            }
-            const currentPages = memory.buffer.byteLength / (64 * 1024);
-            const targetPages = Math.ceil(size / (64 * 1024));
-            const deltaPages = targetPages - currentPages;
-            if (deltaPages > 0) {
-                try {
-                    memory.grow(deltaPages);
-                    console.log(`[Open303] Heap grown from ${currentPages} to ${currentPages + deltaPages} pages`);
-                    this.updateHeap();
-                    return 1;
-                } catch (e) {
-                    console.error('[Open303] Failed to grow heap:', e);
-                    return 0;
-                }
-            }
-            return 1;
-        };
-
-        // Stack overflow handler: throw to properly abort WASM execution.
-        // With configureWasmStack() setting stackEnd=0, this handler should not be
-        // called during normal operation. If it is called, it indicates a genuine
-        // overflow and we must throw to abort and let the retry logic handle it.
-        const handleStackOverflow = () => {
-            const err = new Error("[Open303] Stack overflow detected in WASM");
-            console.error(err.message);
-            throw err;
-        };
-
-        const env: any = {
-            // Core runtime
-            _abort_js: () => console.error("WASM Abort"),
-            abort: () => console.error("WASM Abort"),
-
-            // Stack overflow and fault handlers
-            __handle_stack_overflow: handleStackOverflow,
-            segfault: () => {
-                console.error("[Open303] Segmentation fault");
-                return 0;
-            },
-            alignfault: () => {
-                console.error("[Open303] Alignment fault");
-                return 0;
-            },
-
-            // Memory management
-            emscripten_resize_heap: resizeHeap,
-            _emscripten_resize_heap: resizeHeap,
-            emscripten_notify_memory_growth: () => this.updateHeap(),
-
-            // Math functions
-            exp: Math.exp,
-            pow: Math.pow,
-            sin: Math.sin,
-            cos: Math.cos,
-            fmod: (x: number, y: number) => x % y,
-
-            // ASYNCIFY invoke functions (required by embind for indirect calls)
-            // These dispatch calls through the WASM function table
-            // The table is exported automatically by Emscripten with --export-table
-            invoke_ii: (index: number, a1: number): number => {
-                const exports = this.wasmInstance?.exports as any;
-                // The table is exported as 'wasmTable' in newer Emscripten, or 'table'
-                const tbl = exports.wasmTable || exports.table;
-                if (!tbl) {
-                    console.error('[Open303] invoke_ii: function table not available');
-                    return 0;
-                }
-                const fn = tbl.get(index);
-                return fn ? fn(a1) : 0;
-            },
-            invoke_vi: (index: number, a1: number): void => {
-                const exports = this.wasmInstance?.exports as any;
-                const tbl = exports.wasmTable || exports.table;
-                if (!tbl) return;
-                const fn = tbl.get(index);
-                if (fn) fn(a1);
-            },
-            invoke_vii: (index: number, a1: number, a2: number): void => {
-                const exports = this.wasmInstance?.exports as any;
-                const tbl = exports.wasmTable || exports.table;
-                if (!tbl) return;
-                const fn = tbl.get(index);
-                if (fn) fn(a1, a2);
-            },
-            invoke_vid: (index: number, a1: number, a2: number): void => {
-                const exports = this.wasmInstance?.exports as any;
-                const tbl = exports.wasmTable || exports.table;
-                if (!tbl) return;
-                const fn = tbl.get(index);
-                if (fn) fn(a1, a2);
-            },
-            invoke_dddddd: (index: number, a1: number, a2: number, a3: number, a4: number, a5: number): number => {
-                const exports = this.wasmInstance?.exports as any;
-                const tbl = exports.wasmTable || exports.table;
-                if (!tbl) return 0;
-                const fn = tbl.get(index);
-                return fn ? fn(a1, a2, a3, a4, a5) : 0;
-            },
-
-            // Threading (stubs for single-threaded)
-            _emscripten_thread_set_strongref: () => { },
-            emscripten_exit_with_live_runtime: () => { },
-            _emscripten_notify_mailbox_postmessage: () => { },
-            emscripten_check_blocking_allowed: () => { },
-            _emscripten_receive_on_main_thread_js: () => { },
-            _emscripten_init_main_thread_js: () => { },
-            _emscripten_thread_mailbox_await: () => { },
-            _emscripten_thread_cleanup: () => { },
-            _setitimer_js: () => { },
-            _emscripten_runtime_keepalive_clear: () => { },
-
-            // Time
-            clock_time_get: () => Date.now() * 1000000,
-            emscripten_get_now: () => performance.now(),
-
-            // Embind stubs
-            _embind_register_function: () => { },
-            _embind_register_void: () => { },
-            _embind_register_bool: () => { },
-            _embind_register_std_string: () => { },
-            _embind_register_std_wstring: () => { },
-            _embind_register_emval: () => { },
-            _embind_register_integer: () => { },
-            _embind_register_bigint: () => { },
-            _embind_register_float: () => { },
-            _embind_register_memory_view: () => { },
-        };
-
-        // Add minified aliases (a-z, A-F)
-        const aliases: Record<string, any> = {
-            'a': () => console.error("WASM Abort"),
-            'b': () => console.error("WASM Abort"),
-            'c': resizeHeap,
-            'd': resizeHeap,
-            'e': () => this.updateHeap(),
-            'f': Math.exp,
-            'g': Math.pow,
-            'h': Math.sin,
-            'i': Math.cos,
-            'j': (x: number, y: number) => x % y,
-        };
-        for (let i = 0; i < 26; i++) {
-            const key = String.fromCharCode(97 + i); // a-z
-            if (!env[key]) env[key] = aliases[key] || (() => { });
-        }
-
-        return env;
-    }
-
-    private createWASIImports(): any {
-        return {
-            proc_exit: () => { },
-            fd_close: () => 0,
-            fd_write: () => 0,
-            fd_seek: () => 0,
-            fd_read: () => 0,
-            path_open: () => 0,
-            path_filestat_get: () => 0,
-            path_unlink_file: () => 0,
-            path_create_directory: () => 0,
-            path_remove_directory: () => 0,
-            path_rename: () => 0,
-            path_symlink: () => 0,
-            path_readlink: () => 0,
-            path_link: () => 0,
-            path_filestat_set_times: () => 0,
-            fd_fdstat_get: () => 0,
-            fd_prestat_get: () => 0,
-            fd_prestat_dir_name: () => 0,
-            environ_sizes_get: () => 0,
-            environ_get: () => 0,
-            args_sizes_get: () => 0,
-            args_get: () => 0,
-            clock_res_get: () => 0,
-            clock_time_get: () => 0,
-            random_get: () => 0,
-            sched_yield: () => 0,
-            poll_oneoff: () => 0,
-        };
     }
 
     private inspectModuleImports(module: WebAssembly.Module) {

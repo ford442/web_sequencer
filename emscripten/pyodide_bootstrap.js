@@ -740,6 +740,7 @@ globalThis.initPyodideSystem = async function() {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
+                script.crossOrigin = "anonymous";
                 script.onload = resolve;
                 script.onerror = reject;
                 document.head.appendChild(script);

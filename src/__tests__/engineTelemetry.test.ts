@@ -11,6 +11,20 @@ describe('resolvePublicAsset', () => {
     expect(resolvePublicAsset('hyphon_native.wasm')).toMatch(/hyphon_native\.wasm$/);
     expect(resolvePublicAsset('/rust-wasm/rust_audio.js')).toMatch(/rust-wasm\/rust_audio\.js$/);
   });
+
+  it('returns an absolute URL when window.location is available', () => {
+    const original = window.location.href;
+    Object.defineProperty(window, 'location', {
+      value: { href: 'https://test.1ink.us/hyphon/index.html' },
+      configurable: true,
+    });
+    const url = resolvePublicAsset('rust-wasm/rust_audio.js');
+    expect(url).toBe('https://test.1ink.us/hyphon/rust-wasm/rust_audio.js');
+    Object.defineProperty(window, 'location', {
+      value: { href: original },
+      configurable: true,
+    });
+  });
 });
 
 describe('logEngineFallback', () => {

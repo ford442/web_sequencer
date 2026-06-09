@@ -3,6 +3,11 @@
 // Uses the prophecy_* multi-instance C API exposed by prophecy_wrapper.cpp
 // inside hyphon_native.wasm.
 
+import {
+    HYPHON_NATIVE_MIN_MEMORY_PAGES,
+    buildHyphonWasmImports,
+} from './hyphonNativeImports';
+
 // Definitions for the AudioWorklet scope
 declare class AudioWorkletProcessor {
     readonly port: MessagePort;
@@ -22,7 +27,7 @@ const ProphecyState = {
 type ProphecyStateType = typeof ProphecyState[keyof typeof ProphecyState];
 
 /** Minimum pages for the shared hyphon_native.wasm threaded build (512 MB). */
-const PROPHECY_MIN_MEMORY_PAGES = 8192;
+const PROPHECY_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
 
 class ProphecyProcessor extends AudioWorkletProcessor {
     private wasmInstance:   WebAssembly.Instance | null = null;
@@ -115,50 +120,35 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             const { wasmBytes, sampleRate, isThreaded, memoryPages } = data;
             this.isThreaded = !!isThreaded;
 
-            let memory: WebAssembly.Memory | undefined;
-            let importObject: WebAssembly.Imports;
-
-            if (isThreaded) {
-                const pages = memoryPages ?? PROPHECY_MIN_MEMORY_PAGES;
-                memory = new WebAssembly.Memory({
-                    initial:   pages,
-                    maximum:   pages,
-                    shared:    true,
-                } as WebAssembly.MemoryDescriptor & { shared: boolean });
-
-                importObject = { env: { memory } };
-            } else {
-                importObject = {};
-            }
-
             const module = await WebAssembly.compile(wasmBytes);
 
-            // Fill in all required imports from the module descriptor so the
-            // instantiation does not fail due to missing symbols.
-            const requiredImports = WebAssembly.Module.imports(module);
-            for (const imp of requiredImports) {
-                const ns = imp.module as string;
-                const nm = imp.name   as string;
-                if (!importObject[ns]) (importObject as any)[ns] = {};
-                if ((importObject as any)[ns][nm] === undefined) {
-                    switch (imp.kind) {
-                        case 'function': (importObject as any)[ns][nm] = () => {}; break;
-                        case 'global':   (importObject as any)[ns][nm] = new WebAssembly.Global({ value: 'i32', mutable: true }, 0); break;
-                        case 'table':    (importObject as any)[ns][nm] = new WebAssembly.Table({ element: 'anyfunc', initial: 0 }); break;
-                        default: break;
-                    }
-                }
-            }
+            const importCtx = {
+                getWasmInstance: () => this.wasmInstance,
+                getImportedMemory: () => this.importedMemory,
+                setImportedMemory: (m: WebAssembly.Memory) => {
+                    this.importedMemory = m;
+                },
+                onHeapUpdate: () => this.updateHeap(),
+                logPrefix: '[Prophecy]',
+            };
 
-            const instance = await WebAssembly.instantiate(module, importObject);
+            const { imports, memory } = buildHyphonWasmImports(module, importCtx, {
+                memoryPages: memoryPages ?? PROPHECY_MIN_MEMORY_PAGES,
+                isThreaded: this.isThreaded,
+            });
+
+            const instance = await WebAssembly.instantiate(module, imports);
             this.wasmInstance = instance;
+            this.configureWasmStack(instance);
 
-            // Obtain the heap view
-            const exp = instance.exports as any;
-            const mem: WebAssembly.Memory = memory ?? (exp.memory as WebAssembly.Memory);
+            const exp = instance.exports as Record<string, unknown>;
+            const mem: WebAssembly.Memory =
+                memory ??
+                (exp.memory as WebAssembly.Memory) ??
+                this.importedMemory;
             if (!mem) throw new Error('[Prophecy] No memory export/import found');
             this.importedMemory = mem;
-            this.heapFloat32    = new Float32Array(mem.buffer);
+            this.heapFloat32 = new Float32Array(mem.buffer);
 
             // Verify the Prophecy API is present
             if (typeof exp.prophecy_create !== 'function' ||
@@ -181,6 +171,31 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             this.synthState = ProphecyState.FAILED;
             console.error('[Prophecy] WASM init failed:', e);
             this.port.postMessage({ type: 'error', error: String(e?.message ?? e) });
+        }
+    }
+
+    private updateHeap(): void {
+        const memory =
+            (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory ??
+            this.importedMemory;
+        if (memory) {
+            this.heapFloat32 = new Float32Array(memory.buffer);
+        }
+    }
+
+    private configureWasmStack(instance: WebAssembly.Instance): void {
+        const exports = instance.exports as Record<string, (...args: number[]) => number>;
+        if (typeof exports.emscripten_stack_init === 'function') {
+            exports.emscripten_stack_init();
+        }
+        if (
+            typeof exports.__set_stack_limits === 'function' &&
+            typeof exports.emscripten_stack_get_base === 'function'
+        ) {
+            const stackBase = exports.emscripten_stack_get_base();
+            if (stackBase > 0) {
+                exports.__set_stack_limits(stackBase, 0);
+            }
         }
     }
 

@@ -217,14 +217,24 @@ export class EngineTelemetry {
 
 export const engineTelemetry = new EngineTelemetry();
 
-/** Resolve a path under Vite's `public/` directory (respects `base`). */
+/** Resolve an absolute URL for a `public/` asset (respects Vite `base`). */
 export function resolvePublicAsset(relativePath: string): string {
   const base =
     typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
       : '/';
   const normalized = relativePath.replace(/^\//, '');
-  return `${base}${normalized}`;
+  const combined = `${base}${normalized}`;
+
+  if (typeof window !== 'undefined' && window.location?.href) {
+    try {
+      return new URL(combined, window.location.href).href;
+    } catch {
+      // fall through to relative path
+    }
+  }
+
+  return combined;
 }
 
 /**
