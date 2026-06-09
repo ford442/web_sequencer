@@ -51,15 +51,22 @@ const LaneRow = memo(({
     <div
       role="listitem"
       aria-selected={isSelected}
-      className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs ${
+      tabIndex={0}
+      className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] ${
         isSelected ? 'bg-cyan-900/40 border border-cyan-500/50' : 'bg-[#1a1d24] hover:bg-[#22262f]'
       }`}
       onClick={() => onSelect(lane.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(lane.id);
+        }
+      }}
     >
       {/* Enable/Disable toggle */}
       <button
         aria-label={`${lane.enabled ? 'Disable' : 'Enable'} lane ${lane.name}`}
-        className={`w-4 h-4 rounded-sm border flex-shrink-0 ${
+        className={`w-4 h-4 rounded-sm border flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] ${
           lane.enabled ? 'bg-cyan-500 border-cyan-400' : 'bg-transparent border-gray-500'
         }`}
         aria-pressed={lane.enabled}
@@ -84,7 +91,7 @@ const LaneRow = memo(({
       {/* Interpolation selector */}
       <select
         aria-label={`Interpolation mode for ${lane.name}`}
-        className="bg-[#2a2d36] text-gray-300 text-[10px] rounded px-1 py-0.5 border border-gray-600"
+        className="bg-[#2a2d36] text-gray-300 text-[10px] rounded px-1 py-0.5 border border-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24]"
         value={lane.interpolation}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => onInterpolationChange(lane.id, e.target.value as AutomationInterpolation)}
@@ -107,7 +114,7 @@ const LaneRow = memo(({
       {/* Remove button */}
       <button
         aria-label={`Remove lane ${lane.name}`}
-        className="text-gray-500 hover:text-red-400 flex-shrink-0"
+        className="text-gray-500 hover:text-red-400 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] rounded"
         onClick={(e) => { e.stopPropagation(); onRemove(lane.id); }}
       >
         ✕

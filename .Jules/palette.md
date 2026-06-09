@@ -37,3 +37,6 @@
 ## 2026-06-07 - Consolidate disabled UX states in reusable components
 **Learning:** Hardcoding 'disabled:cursor-not-allowed' inline across the application causes inconsistency and code duplication.
 **Action:** Always place generic interactive visual affordances (like disabled opacity and cursor states) directly into core reusable components like LoadingButton.
+## 2026-06-08 - Keyboard Navigation in Custom List Items
+**Learning:** Custom interactive rows (like `LaneRow` in the Automation lane list) that rely solely on `div` wrappers and `onClick` are unreachable via keyboard. Furthermore, native focus styling on `button` and `select` elements often clashes or is invisible against custom dark backgrounds.
+**Action:** Always add `tabIndex={0}` and map `onKeyDown` ('Enter', ' ') to custom row items. Explicitly apply `focus-visible:ring-2 focus-visible:ring-[color]` with matching `ring-offset` colors across all interactive elements (buttons, selects, rows) in custom lists to ensure unified and visible keyboard navigation.
