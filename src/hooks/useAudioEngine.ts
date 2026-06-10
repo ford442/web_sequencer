@@ -40,6 +40,13 @@ export function getSyncedLfoHz(bars: number, bpm: number): number {
     return bpm / (240 * bars);
 }
 
+export function getSyncedSeconds(bars: number, bpm: number): number {
+    // bars is the subdivision value from the UI (e.g., 0.25 for 1/4 bar)
+    // 1 bar = 4 beats. So duration in seconds = bars * 4 * (60 / bpm)
+    if (!bars || bars <= 0) return 0;
+    return bars * 4 * (60 / bpm);
+}
+
 import {
     applySamplerVoiceParamUpdate,
     applyVoiceParamUpdate,
@@ -1124,10 +1131,15 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Formant Envelope
-                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
-                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            const envSync = noteParams?.formantEnvSync ?? params.formantEnvSync ?? false;
+                            let envAttack = noteParams?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            let envDecay = noteParams?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envAmount = noteParams?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
                             if (envAmount !== 0) {
+                                if (envSync) {
+                                    envAttack = getSyncedSeconds(envAttack, tempo);
+                                    envDecay = getSyncedSeconds(envDecay, tempo);
+                                }
                                 voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
                             }
                             if (noteParams?.customLfoShape !== undefined) {
