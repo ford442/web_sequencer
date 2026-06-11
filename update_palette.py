@@ -1,0 +1,2 @@
+with open('.Jules/palette.md', 'a') as f:
+    f.write("\n## 2026-06-09 - Invalid ARIA state on Switch role\n**Learning:** When using `role=\"switch\"` on toggle buttons, `aria-pressed` is invalid ARIA. Switches must strictly use `aria-checked` to represent their state to screen readers.\n**Action:** Always check the ARIA role of a toggle button. Use `aria-checked` for `role=\"switch\"` or `role=\"checkbox\"`, and reserve `aria-pressed` for generic toggle `role=\"button\"` elements.")
