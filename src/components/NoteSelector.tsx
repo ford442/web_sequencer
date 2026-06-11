@@ -665,7 +665,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             role="switch"
                                             aria-checked={currentFormantLfoSync || false}
                                             aria-label="Sync Formant LFO Rate to BPM"
-                                            onClick={() => update('formantLfoSync', !currentFormantLfoSync)}
+                                            onClick={() => onPropertyChange('formantLfoSync', !currentFormantLfoSync)}
                                             className={`px-1.5 py-0 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                         >
                                             SYNC

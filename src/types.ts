@@ -405,7 +405,6 @@ export interface Note {
   choir?: number;
   drive?: number;
   tranceGate?: number;
-  formantLfoSync?: boolean;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;

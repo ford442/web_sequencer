@@ -247,7 +247,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
     const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
     const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
-    const handleFormantEnvSyncChange = (v: boolean) => { updateParam('formantEnvSync', v); };
+    const handleFormantEnvSyncChange = (v: boolean) => { updateParam('formantEnvSync', v as any); };
     const handleCharacterMorphChange = paramHandlers.characterMorph;
     const handleAttackChange = paramHandlers.attack;
     const handleDecayChange = paramHandlers.decay;

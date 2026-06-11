@@ -1,3 +1,4 @@
+import { AudioNodePool } from '../utils/AudioNodePool';
 import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
@@ -753,7 +754,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Ensure voice connected to correct output
                             voice.disconnectOutput();
-                            let finalDest = destination;
+                            let finalDest: AudioNode = destination as AudioNode;
                             // Track any ExpressiveVoiceProcessor node created for this voice
                             // so it can be torn down when the voice ends.
                             let expressiveVoiceNode: AudioWorkletNode | null = null;
@@ -1131,10 +1132,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Formant Envelope
-                            const envSync = noteParams?.formantEnvSync ?? params.formantEnvSync ?? false;
-                            let envAttack = noteParams?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            let envDecay = noteParams?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
-                            const envAmount = noteParams?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            const envSync = (noteParams as any)?.formantEnvSync ?? (params as any).formantEnvSync ?? false;
+                            let envAttack = (noteParams as any)?.formantEnvAttack ?? (params as any).formantEnvAttack ?? 0;
+                            let envDecay = (noteParams as any)?.formantEnvDecay ?? (params as any).formantEnvDecay ?? 0;
+                            const envAmount = (noteParams as any)?.formantEnvAmount ?? (params as any).formantEnvAmount ?? 0;
                             if (envAmount !== 0) {
                                 if (envSync) {
                                     envAttack = getSyncedSeconds(envAttack, tempo);
@@ -1355,7 +1356,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     // the formant shift introduced by playbackRate-based pitch transposition.
                     // `parameterData` sets the initial AudioParam value per spec
                     // (Web Audio API §AudioWorkletNodeOptions.parameterData).
-                    let finalDestination: AudioNode;
+                    let finalDestination: AudioNode = masterSaturationRef.current as unknown as AudioNode;
                     if (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) {
                         try {
                             const expressiveNode = expressiveVoiceProcessorPoolRef.current?.acquire({ pitchShift: pitchOffsetSemitones }) || new AudioWorkletNode(context, 'expressive-voice-processor', {
@@ -1367,7 +1368,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 expressiveNode.port.postMessage({ type: 'TEARDOWN' });
                                 expressiveVoiceProcessorPoolRef.current?.release(expressiveNode);
                             });
-                            finalDestination = expressiveNode;
+                            if (expressiveNode) { finalDestination = expressiveNode as unknown as AudioNode; }
                         } catch (_err) {
                             // Worklet not yet registered — fall back to direct harmony bus.
                             finalDestination = harmonyBusGainRef.current;
@@ -1407,8 +1408,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                     gate: 1,
                                 }
                             });
-                        expressiveNode.connect(finalDestination);
-                        finalDestination = expressiveNode;
+                        if (expressiveNode) { expressiveNode.connect(finalDestination); }
+                        if (expressiveNode) { finalDestination = expressiveNode as unknown as AudioNode; }
                     } catch (_err) {
                         expressiveNode = null;
                     }
