@@ -6,7 +6,8 @@ interface TrackStatisticsPanelProps {
   trackStatisticsRows: React.ReactNode[];
 }
 
-export const TrackStatisticsPanel: React.FC<TrackStatisticsPanelProps> = ({ trackStats, trackStatisticsRows }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const TrackStatisticsPanel: React.FC<TrackStatisticsPanelProps> = React.memo(({ trackStats, trackStatisticsRows }) => {
   if (!trackStats) return null;
 
   return (
@@ -29,4 +30,4 @@ export const TrackStatisticsPanel: React.FC<TrackStatisticsPanelProps> = ({ trac
       </div>
     </div>
   );
-};
+});
