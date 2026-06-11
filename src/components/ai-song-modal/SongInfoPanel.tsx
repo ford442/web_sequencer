@@ -7,7 +7,8 @@ interface SongInfoPanelProps {
   trackStats: TrackStats;
 }
 
-export const SongInfoPanel: React.FC<SongInfoPanelProps> = ({ parsedData, trackStats }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const SongInfoPanel: React.FC<SongInfoPanelProps> = React.memo(({ parsedData, trackStats }) => {
   return (
     <div className="p-4 bg-gray-900/50 rounded-lg">
       <h3 className="text-sm font-medium text-emerald-400 mb-3">{String(parsedData.meta.title)}</h3>
@@ -35,4 +36,4 @@ export const SongInfoPanel: React.FC<SongInfoPanelProps> = ({ parsedData, trackS
       </div>
     </div>
   );
-};
+});
