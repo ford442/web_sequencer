@@ -17,6 +17,7 @@ import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
+import { AudioNodePool } from '../utils/AudioNodePool';
 import {
     createAmbianceControls,
     createNoteOnSynth,
@@ -263,6 +264,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             }
             const context = new AudioContextCtor();
             audioWindow.audioContext = context;
+
+            expressiveVoicePoolRef.current = new AudioNodePool(context, 'expressive-voice', undefined, 12);
+            vocalOverdrivePoolRef.current = new AudioNodePool(context, 'vocal-overdrive-processor', undefined, 12);
+            expressiveVoiceProcessorPoolRef.current = new AudioNodePool(context, 'expressive-voice-processor', undefined, 12);
 
             // --- CRITICAL FIX: Ensure AudioContext is running ---
             if (context.state === 'suspended') {
@@ -1687,7 +1692,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     // Keep source alive a tiny bit longer so gate-release tails can render cleanly.
                     note.source.stop(now + releaseTime + EXPRESSIVE_STOP_BUFFER_SECONDS);
                     note.source.addEventListener('ended', () => {
-                        try { note.expressiveNode?.disconnect(); } catch { /* noop */ }
+                        try { if (note.expressiveNode) {
+                            note.expressiveNode.disconnect();
+                            note.expressiveNode.port.postMessage({ type: 'TEARDOWN' });
+                            expressiveVoicePoolRef.current?.release(note.expressiveNode);
+                        } } catch { /* noop */ }
                     }, { once: true });
                     activeSamplerNotes.current.delete(id);
                 }
