@@ -40,6 +40,9 @@
 ## 2026-06-08 - Keyboard Navigation in Custom List Items
 **Learning:** Custom interactive rows (like `LaneRow` in the Automation lane list) that rely solely on `div` wrappers and `onClick` are unreachable via keyboard. Furthermore, native focus styling on `button` and `select` elements often clashes or is invisible against custom dark backgrounds.
 **Action:** Always add `tabIndex={0}` and map `onKeyDown` ('Enter', ' ') to custom row items. Explicitly apply `focus-visible:ring-2 focus-visible:ring-[color]` with matching `ring-offset` colors across all interactive elements (buttons, selects, rows) in custom lists to ensure unified and visible keyboard navigation.
+## 2026-06-10 - Screen Reader Accessibility in Parameter Groups
+**Learning:** Components like SynthPart and DrumMachine group parameters visually using fieldsets but originally used a standard visible `<legend>` which can sometimes be styled inconsistently. Furthermore, when using `<fieldset>` in dense control areas, if the visual label is just text styled as a header but without a `<legend>`, screen readers won't group the items logically.
+**Action:** Always ensure that `<fieldset>` tags contain a `<legend>` element. When specific complex styling is needed for the group's title that cannot be achieved gracefully on a standard `<legend>`, use `<legend className="sr-only">` for screen readers and a separate `<div aria-hidden="true">` for the visual header.
 
 ## 2026-06-09 - Invalid ARIA state on Switch role
 **Learning:** When using `role="switch"` on toggle buttons, `aria-pressed` is invalid ARIA. Switches must strictly use `aria-checked` to represent their state to screen readers.
