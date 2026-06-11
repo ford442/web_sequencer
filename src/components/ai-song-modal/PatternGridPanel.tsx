@@ -8,7 +8,8 @@ interface PatternGridPanelProps {
   };
 }
 
-export const PatternGridPanel: React.FC<PatternGridPanelProps> = ({ patternGrid }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const PatternGridPanel: React.FC<PatternGridPanelProps> = React.memo(({ patternGrid }) => {
   return (
     <div className="p-4 bg-gray-900/50 rounded-lg">
       <h3 className="text-sm font-medium text-gray-300 mb-3">Pattern Preview (8 tracks × 32 steps)</h3>
@@ -40,4 +41,4 @@ export const PatternGridPanel: React.FC<PatternGridPanelProps> = ({ patternGrid 
       </div>
     </div>
   );
-};
+});

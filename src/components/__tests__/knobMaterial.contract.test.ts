@@ -147,6 +147,7 @@ describe('holographic knob derivation contract', () => {
               }
           "
         `);
+        expect(shader).toMatchSnapshot();
     });
 
     it('snapshots Canvas2D draw-call sequence for value 0.0', () => {

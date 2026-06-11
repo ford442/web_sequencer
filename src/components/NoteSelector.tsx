@@ -35,6 +35,10 @@ interface NoteSelectorProps {
     currentFormantLfoSync?: boolean;
     currentFormantLfoRate?: number;
     currentFormantLfoDepth?: number;
+    currentFormantEnvSync?: boolean;
+    currentFormantEnvAttack?: number;
+    currentFormantEnvDecay?: number;
+    currentFormantEnvAmount?: number;
     currentFreezeLfoSync?: boolean;
     currentFreezeLfoRate?: number;
     currentFreezeLfoDepth?: number;
@@ -132,6 +136,10 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFormantLfoSync,
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
+    currentFormantEnvSync,
+    currentFormantEnvAttack = 0,
+    currentFormantEnvDecay = 0,
+    currentFormantEnvAmount = 0,
     currentFreezeLfoSync = false,
     currentFreezeLfoRate = 0,
     currentFreezeLfoDepth = 0,
@@ -246,7 +254,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             aria-checked={currentFreezeLfoSync}
                                             aria-label="Sync Freeze LFO Rate to BPM"
                                             onClick={() => onPropertyChange?.('freezeLfoSync', !currentFreezeLfoSync)}
-                                            className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${currentFreezeLfoSync ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                            className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${currentFreezeLfoSync ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                         >
                                             SYNC
                                         </button>
@@ -262,8 +270,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         id="note-freeze-rate-sync"
                                         value={currentFreezeLfoRate}
                                         onChange={(e) => onPropertyChange?.('freezeLfoRate', parseFloat(e.target.value))}
-                                        aria-label="Freeze LFO Rate (Synced)"
-                                        className="w-full bg-gray-900 text-cyan-400 text-xs font-mono rounded border border-cyan-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
+                                        aria-label="Freeze LFO Rate (Synced to BPM)"
+                                        className="w-full bg-gray-900 text-cyan-400 text-xs font-mono rounded border border-cyan-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900"
                                     >
                                         <option value={2}>2 Bars</option>
                                         <option value={1}>1 Bar</option>
