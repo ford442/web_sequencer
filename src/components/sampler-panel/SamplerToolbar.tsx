@@ -20,7 +20,8 @@ interface SamplerToolbarProps {
   onHarmonize?: boolean;
 }
 
-export const SamplerToolbar: React.FC<SamplerToolbarProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
   fileInputRef,
   handleFileChange,
   isRecording,
@@ -165,4 +166,4 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = ({
       </div>
     </div>
   );
-};
+});

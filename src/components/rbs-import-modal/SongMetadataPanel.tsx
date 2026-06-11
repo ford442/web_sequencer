@@ -12,7 +12,8 @@ interface SongMetadataPanelProps {
   version: number | string;
 }
 
-export const SongMetadataPanel: React.FC<SongMetadataPanelProps> = ({ project, version }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const SongMetadataPanel: React.FC<SongMetadataPanelProps> = React.memo(({ project, version }) => {
   return (
     <div className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
       <div className="flex items-center justify-between mb-3">
@@ -39,4 +40,4 @@ export const SongMetadataPanel: React.FC<SongMetadataPanelProps> = ({ project, v
       </div>
     </div>
   );
-};
+});

@@ -8,7 +8,8 @@ export interface PropertyToggleProps {
   accentColor?: string;
 }
 
-export const PropertyToggle: React.FC<PropertyToggleProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const PropertyToggle: React.FC<PropertyToggleProps> = React.memo(({
   label,
   checked,
   onChange,
@@ -35,4 +36,4 @@ export const PropertyToggle: React.FC<PropertyToggleProps> = ({
       </button>
     </div>
   );
-};
+});
