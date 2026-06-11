@@ -232,7 +232,6 @@ export function resolvePublicAsset(relativePath: string): string {
     typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
       : './';
-  const normalized = relativePath.replace(/^\//, '');
 
   if (typeof window !== 'undefined' && window.location?.href) {
     try {
