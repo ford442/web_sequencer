@@ -143,6 +143,10 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFreezeLfoSync = false,
     currentFreezeLfoRate = 0,
     currentFreezeLfoDepth = 0,
+    currentFormantEnvSync = false,
+    currentFormantEnvAttack = 0.1,
+    currentFormantEnvDecay = 0.5,
+    currentFormantEnvAmount = 0,
     currentVibratoDepth = 0,
     currentDrive,
     currentCharacterMorph = 0,
@@ -665,8 +669,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             role="switch"
                                             aria-checked={currentFormantLfoSync || false}
                                             aria-label="Sync Formant LFO Rate to BPM"
-                                            onClick={() => update('formantLfoSync', !currentFormantLfoSync)}
-                                            className={`px-1.5 py-0 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                            onClick={() => onPropertyChange?.('formantLfoSync', !currentFormantLfoSync)}
+                                            className={`px-1.5 py-0 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                         >
                                             SYNC
                                         </button>
@@ -729,53 +733,116 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                             </div>
                         )}
 
-                        {/* Formant Envelope Controls */}
-                        {trackType === 'synth' && (
-                            <div className="flex flex-col gap-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30">
-                                <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
-                                    <span>Formant Env</span>
+                        {/* Formant Envelope Details */}
+                        <div className="flex flex-col gap-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30 w-full sm:w-48 shrink-0">
+                            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider mb-1 px-1">Fmt Envelope</span>
+
+                            <div className="flex flex-col gap-1 px-1">
+                                <div className="flex justify-between items-center w-full px-1">
+                                    <span className="text-[10px] text-gray-400">Atk:</span>
                                     <button
                                         type="button"
                                         role="switch"
                                         aria-checked={currentFormantEnvSync || false}
                                         aria-label="Sync Formant Envelope to BPM"
                                         onClick={() => onPropertyChange?.('formantEnvSync', !currentFormantEnvSync)}
-                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantEnvSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                        className={`px-1.5 py-0 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantEnvSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                     >
                                         SYNC
                                     </button>
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex justify-between text-[9px] text-indigo-200/70">
-                                        <label htmlFor="note-fmt-env-atk">Attack</label>
-                                        <span className="text-indigo-400 font-mono">{currentFormantEnvSync ? '' : `${currentFormantEnvAttack.toFixed(2)} s`}</span>
-                                    </div>
-                                    {currentFormantEnvSync ? (
-                                        <select id="note-fmt-env-atk" value={currentFormantEnvAttack} onChange={(e) => onPropertyChange?.('formantEnvAttack', parseFloat(e.target.value))} aria-label="Formant Env Attack Subdivision" className="w-full bg-gray-900 text-indigo-400 text-xs font-mono rounded border border-indigo-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"><option value={2}>2 Bars</option><option value={1}>1 Bar</option><option value={0.5}>1/2</option><option value={0.25}>1/4</option><option value={0.125}>1/8</option><option value={0.0625}>1/16</option></select>
-                                    ) : (
-                                        <input id="note-fmt-env-atk" type="range" min="0.01" max="5.0" step="0.01" value={currentFormantEnvAttack} onChange={(e) => onPropertyChange?.('formantEnvAttack', parseFloat(e.target.value))} className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all" />
-                                    )}
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex justify-between text-[9px] text-indigo-200/70">
-                                        <label htmlFor="note-fmt-env-dec">Decay</label>
-                                        <span className="text-indigo-400 font-mono">{currentFormantEnvSync ? '' : `${currentFormantEnvDecay.toFixed(2)} s`}</span>
-                                    </div>
-                                    {currentFormantEnvSync ? (
-                                        <select id="note-fmt-env-dec" value={currentFormantEnvDecay} onChange={(e) => onPropertyChange?.('formantEnvDecay', parseFloat(e.target.value))} aria-label="Formant Env Decay Subdivision" className="w-full bg-gray-900 text-indigo-400 text-xs font-mono rounded border border-indigo-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"><option value={2}>2 Bars</option><option value={1}>1 Bar</option><option value={0.5}>1/2</option><option value={0.25}>1/4</option><option value={0.125}>1/8</option><option value={0.0625}>1/16</option></select>
-                                    ) : (
-                                        <input id="note-fmt-env-dec" type="range" min="0.01" max="5.0" step="0.01" value={currentFormantEnvDecay} onChange={(e) => onPropertyChange?.('formantEnvDecay', parseFloat(e.target.value))} className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all" />
-                                    )}
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex justify-between text-[9px] text-indigo-200/70">
-                                        <label htmlFor="note-fmt-env-amt">Amount</label>
-                                        <span className="text-indigo-400 font-mono">{currentFormantEnvAmount} st</span>
-                                    </div>
-                                    <input id="note-fmt-env-amt" type="range" min="-24" max="24" step="1" value={currentFormantEnvAmount} onChange={(e) => onPropertyChange?.('formantEnvAmount', parseFloat(e.target.value))} className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all" />
-                                </div>
+
+                                {currentFormantEnvSync ? (
+                                    <select
+                                        id="note-fmt-env-atk"
+                                        value={currentFormantEnvAttack}
+                                        onChange={(e) => onPropertyChange?.('formantEnvAttack', parseFloat(e.target.value))}
+                                        aria-label="Formant Env Attack Subdivision"
+                                        className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                    >
+                                        <option value={2}>2 Bars</option>
+                                        <option value={1}>1 Bar</option>
+                                        <option value={0.5}>1/2</option>
+                                        <option value={0.25}>1/4</option>
+                                        <option value={0.125}>1/8</option>
+                                        <option value={0.0625}>1/16</option>
+                                    </select>
+                                ) : (
+                                    <>
+                                        <div className="flex justify-between w-full px-1">
+                                            <span className="text-[10px] text-gray-200">{currentFormantEnvAttack.toFixed(2)} s</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0.01"
+                                            max="5.0"
+                                            step="0.01"
+                                            value={currentFormantEnvAttack}
+                                            onChange={(e) => onPropertyChange?.('formantEnvAttack', parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                            aria-valuetext={`${currentFormantEnvAttack.toFixed(2)} s`}
+                                            aria-label="Formant Envelope Attack"
+                                        />
+                                    </>
+                                )}
                             </div>
-                        )}
+
+                            <div className="flex flex-col gap-1 px-1">
+                                <div className="flex justify-between items-center w-full px-1">
+                                    <span className="text-[10px] text-gray-400">Dec:</span>
+                                </div>
+                                {currentFormantEnvSync ? (
+                                    <select
+                                        id="note-fmt-env-dec"
+                                        value={currentFormantEnvDecay}
+                                        onChange={(e) => onPropertyChange?.('formantEnvDecay', parseFloat(e.target.value))}
+                                        aria-label="Formant Env Decay Subdivision"
+                                        className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                    >
+                                        <option value={2}>2 Bars</option>
+                                        <option value={1}>1 Bar</option>
+                                        <option value={0.5}>1/2</option>
+                                        <option value={0.25}>1/4</option>
+                                        <option value={0.125}>1/8</option>
+                                        <option value={0.0625}>1/16</option>
+                                    </select>
+                                ) : (
+                                    <>
+                                        <div className="flex justify-between w-full px-1">
+                                            <span className="text-[10px] text-gray-200">{currentFormantEnvDecay.toFixed(2)} s</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0.01"
+                                            max="5.0"
+                                            step="0.01"
+                                            value={currentFormantEnvDecay}
+                                            onChange={(e) => onPropertyChange?.('formantEnvDecay', parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                            aria-valuetext={`${currentFormantEnvDecay.toFixed(2)} s`}
+                                            aria-label="Formant Envelope Decay"
+                                        />
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-1 px-1">
+                                <div className="flex justify-between w-full px-1">
+                                    <span className="text-[10px] text-gray-400">Amt: <span className="text-gray-200">{currentFormantEnvAmount > 0 ? '+' : ''}{currentFormantEnvAmount} st</span></span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="-24"
+                                    max="24"
+                                    step="1"
+                                    value={currentFormantEnvAmount}
+                                    onChange={(e) => onPropertyChange('formantEnvAmount', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                    aria-valuetext={`${currentFormantEnvAmount > 0 ? '+' : ''}${currentFormantEnvAmount} st`}
+                                    aria-label="Formant Envelope Amount"
+                                />
+                            </div>
+                        </div>
 
                         {/* Drive / Distortion Control */}
                         {trackType === 'synth' && (
