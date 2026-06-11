@@ -11,7 +11,8 @@ interface ParameterSummaryPanelProps {
   paramSummary: ParameterSummary | null;
 }
 
-export const ParameterSummaryPanel: React.FC<ParameterSummaryPanelProps> = ({ paramSummary }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const ParameterSummaryPanel: React.FC<ParameterSummaryPanelProps> = React.memo(({ paramSummary }) => {
   if (!paramSummary) return null;
 
   return (
@@ -80,4 +81,4 @@ export const ParameterSummaryPanel: React.FC<ParameterSummaryPanelProps> = ({ pa
       )}
     </div>
   );
-};
+});

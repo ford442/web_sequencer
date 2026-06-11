@@ -6,7 +6,8 @@ interface ImportReportPanelProps {
   importedSongName: string;
 }
 
-export const ImportReportPanel: React.FC<ImportReportPanelProps> = ({ importReport, importedSongName }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const ImportReportPanel: React.FC<ImportReportPanelProps> = React.memo(({ importReport, importedSongName }) => {
   return (
     <div className="p-4 bg-emerald-950/30 border border-emerald-700/50 rounded-lg" aria-live="polite">
       <div className="flex items-center gap-2 mb-3">
@@ -59,4 +60,4 @@ export const ImportReportPanel: React.FC<ImportReportPanelProps> = ({ importRepo
       )}
     </div>
   );
-};
+});
