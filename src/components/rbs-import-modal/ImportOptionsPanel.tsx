@@ -8,7 +8,8 @@ interface ImportOptionsPanelProps {
   setShowOptions: (show: boolean) => void;
 }
 
-export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(({
   importOptions,
   updateOption,
   showOptions,
@@ -163,4 +164,4 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = ({
       )}
     </div>
   );
-};
+});

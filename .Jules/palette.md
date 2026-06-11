@@ -43,3 +43,7 @@
 ## 2026-06-10 - Screen Reader Accessibility in Parameter Groups
 **Learning:** Components like SynthPart and DrumMachine group parameters visually using fieldsets but originally used a standard visible `<legend>` which can sometimes be styled inconsistently. Furthermore, when using `<fieldset>` in dense control areas, if the visual label is just text styled as a header but without a `<legend>`, screen readers won't group the items logically.
 **Action:** Always ensure that `<fieldset>` tags contain a `<legend>` element. When specific complex styling is needed for the group's title that cannot be achieved gracefully on a standard `<legend>`, use `<legend className="sr-only">` for screen readers and a separate `<div aria-hidden="true">` for the visual header.
+
+## 2026-06-09 - Invalid ARIA state on Switch role
+**Learning:** When using `role="switch"` on toggle buttons, `aria-pressed` is invalid ARIA. Switches must strictly use `aria-checked` to represent their state to screen readers.
+**Action:** Always check the ARIA role of a toggle button. Use `aria-checked` for `role="switch"` or `role="checkbox"`, and reserve `aria-pressed` for generic toggle `role="button"` elements.

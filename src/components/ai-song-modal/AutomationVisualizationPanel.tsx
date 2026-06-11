@@ -8,7 +8,8 @@ interface AutomationVisualizationPanelProps {
   parsedAutomationRows: React.ReactNode[] | null;
 }
 
-export const AutomationVisualizationPanel: React.FC<AutomationVisualizationPanelProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const AutomationVisualizationPanel: React.FC<AutomationVisualizationPanelProps> = React.memo(({
   trackStats,
   parsedData,
   parsedAutomationRows
@@ -40,4 +41,4 @@ export const AutomationVisualizationPanel: React.FC<AutomationVisualizationPanel
       </div>
     </div>
   );
-};
+});

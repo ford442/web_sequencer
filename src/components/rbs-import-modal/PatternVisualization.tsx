@@ -17,7 +17,8 @@ interface PatternVisualizationProps {
   };
 }
 
-export const PatternVisualization: React.FC<PatternVisualizationProps> = ({ tb303A, tb303B, drums }) => {
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const PatternVisualization: React.FC<PatternVisualizationProps> = React.memo(({ tb303A, tb303B, drums }) => {
   const drumPatterns = useMemo(() => [
     { name: 'Kick', pattern: drums.kick, color: 'bg-orange-500' },
     { name: 'Snare', pattern: drums.snare, color: 'bg-green-500' },
@@ -99,4 +100,4 @@ export const PatternVisualization: React.FC<PatternVisualizationProps> = ({ tb30
       </div>
     </>
   );
-};
+});

@@ -227,7 +227,6 @@ export const engineTelemetry = new EngineTelemetry();
  * a stable absolute URL in every context.
  */
 export function resolvePublicAsset(relativePath: string): string {
-  const normalized = relativePath.replace(/^\//, '');
   const base =
     typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
