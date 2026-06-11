@@ -14,7 +14,8 @@ export interface PropertySliderProps {
   id?: string;
 }
 
-export const PropertySlider: React.FC<PropertySliderProps> = ({
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
+export const PropertySlider: React.FC<PropertySliderProps> = React.memo(({
   label,
   value,
   min = 0,
@@ -54,4 +55,4 @@ export const PropertySlider: React.FC<PropertySliderProps> = ({
       />
     </fieldset>
   );
-};
+});

@@ -57,7 +57,6 @@ describe('holographic knob derivation contract', () => {
               fn sdCircle(p: vec2f, r: f32) -> f32 {
                   return length(p) - r;
               }
-
               
               // Helper: Rotation Matrix
               fn rotate(angle: f32) -> mat2x2f {
@@ -148,6 +147,7 @@ describe('holographic knob derivation contract', () => {
               }
           "
         `);
+        expect(shader).toMatchSnapshot();
     });
 
     it('snapshots Canvas2D draw-call sequence for value 0.0', () => {
