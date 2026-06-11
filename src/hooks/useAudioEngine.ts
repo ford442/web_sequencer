@@ -17,6 +17,7 @@ import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
+import { AudioNodePool } from '../utils/AudioNodePool';
 import {
     createAmbianceControls,
     createNoteOnSynth,

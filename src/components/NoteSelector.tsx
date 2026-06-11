@@ -670,7 +670,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     <select
                                         id="note-fmt-rate"
                                         value={currentFormantLfoRate}
-                                        data-property="formantLfoRate" onChange={handleSliderChange}
+                                        onChange={(e) => onPropertyChange?.('formantLfoRate', parseFloat(e.target.value))}
                                         aria-label="Formant LFO Rate Subdivision"
                                         className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
                                     >
@@ -689,7 +689,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         max="20"
                                         step="0.1"
                                         value={currentFormantLfoRate}
-                                        data-property="formantLfoRate" onChange={handleSliderChange}
+                                        onChange={(e) => onPropertyChange?.('formantLfoRate', parseFloat(e.target.value))}
                                         className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
                                         aria-valuetext={`${currentFormantLfoRate.toFixed(1)} Hz`}
                                         aria-label="Formant LFO Rate"
