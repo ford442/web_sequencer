@@ -1066,8 +1066,8 @@ const handleKeyboardPlay = useCallback((note: string) => {
     }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
 
     const handleDrawEnter = useCallback(() => {}, []);
-useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+
+    const handleKeyDown = useCallback((e: KeyboardEvent) => {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
         // Copy
@@ -1089,34 +1089,18 @@ useEffect(() => {
             const high = Math.max(startStep, endStep);
 
             setPattern(prev => {
-                const copy = { ...prev };
+                let newPattern = prev;
 
                 if (trackKey === 'sampler') {
                     const bankIdx = activeSamplerBankRef.current;
-                    const newSampler = [...copy.sampler];
-                    const newBank = { ...newSampler[bankIdx] };
-
-                    newBank.steps = [...newBank.steps];
-                    for (let i = low; i <= high; i++) {
-                        newBank.steps[i] = null;
-                    }
-
-                    newSampler[bankIdx] = newBank;
-                    copy.sampler = newSampler;
-
-                    updateStorageForTrack(trackKey, newSampler);
+                    newPattern = updateSamplerRange(newPattern, bankIdx, low, high, () => null);
+                    updateStorageForTrack(trackKey, newPattern.sampler);
                 } else {
-                    const newTrack = { ...(copy[trackKey] as any) };
-                    newTrack.steps = [...newTrack.steps];
-                    for (let i = low; i <= high; i++) {
-                        newTrack.steps[i] = null;
-                    }
-
-                    copy[trackKey] = newTrack;
-                    updateStorageForTrack(trackKey, newTrack);
+                    newPattern = updateTrackRange(newPattern, trackKey, low, high, () => null);
+                    updateStorageForTrack(trackKey, newPattern[trackKey]);
                 }
 
-                return copy;
+                return newPattern;
             });
 
             setSelection(null);
@@ -1127,16 +1111,17 @@ useEffect(() => {
             e.preventDefault();
             audioEngine?.triggerTapeStop?.(2.0);
         }
-    };
+    }, [selection, handleCopy, handlePaste, updateStorageForTrack, audioEngine]);
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('mouseup', handleSelectionEnd);
+    useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('mouseup', handleSelectionEnd);
 
-    return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-        window.removeEventListener('mouseup', handleSelectionEnd);
-    };
-}, [selection, handleSelectionEnd, updateStorageForTrack, handleCopy, handlePaste]);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('mouseup', handleSelectionEnd);
+        };
+    }, [handleKeyDown, handleSelectionEnd]);
 const handleNoteSelect = useCallback((note: string) => {
     if (!contextMenu) return;
 
