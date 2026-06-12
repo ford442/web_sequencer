@@ -139,13 +139,13 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFormantEnvSync,
     currentFormantEnvAttack = 0,
     currentFormantEnvDecay = 0,
-    currentFormantEnvAmount = 0,
+
     currentFreezeLfoSync = false,
     currentFreezeLfoRate = 0,
     currentFreezeLfoDepth = 0,
-    currentFormantEnvSync = false,
-    currentFormantEnvAttack = 0.1,
-    currentFormantEnvDecay = 0.5,
+
+
+
     currentFormantEnvAmount = 0,
     currentVibratoDepth = 0,
     currentDrive,

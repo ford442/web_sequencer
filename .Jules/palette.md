@@ -47,3 +47,6 @@
 ## 2026-06-09 - Invalid ARIA state on Switch role
 **Learning:** When using `role="switch"` on toggle buttons, `aria-pressed` is invalid ARIA. Switches must strictly use `aria-checked` to represent their state to screen readers.
 **Action:** Always check the ARIA role of a toggle button. Use `aria-checked` for `role="switch"` or `role="checkbox"`, and reserve `aria-pressed` for generic toggle `role="button"` elements.
+## 2026-06-12 - Added keyboard focus to dynamically generated oscillator type buttons
+**Learning:** Dynamically mapped `<button>` elements in tight container components (like `OscillatorTypeSelector`) frequently miss focus-visible attributes, causing a loss of keyboard navigability within deep menus. Setting focus indicators based on accent colors (`accentColor` prop) keeps the focus styles in line with the UI's specific modular coloring.
+**Action:** Always verify `types.map()` logic that produces buttons or interactive elements to ensure they include explicit `focus-visible:ring-2` and `focus-visible:ring-offset-2` attributes.
