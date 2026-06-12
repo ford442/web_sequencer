@@ -191,9 +191,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
     const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
-    const expressiveVoicePoolRef = useRef<AudioNodePool<AudioWorkletNode> | null>(null);
-    const vocalOverdrivePoolRef = useRef<AudioNodePool<AudioWorkletNode> | null>(null);
-    const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool<AudioWorkletNode> | null>(null);
+    const expressiveVoicePoolRef = useRef<AudioNodePool | null>(null);
+    const vocalOverdrivePoolRef = useRef<AudioNodePool | null>(null);
+    const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool | null>(null);
     
     // Multisample Generator
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);

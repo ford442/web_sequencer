@@ -124,11 +124,6 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             this.isThreaded = !!isThreaded;
 
             const module = await WebAssembly.compile(wasmBytes);
-            const { imports, memory } = buildHyphonNativeImports(module, {
-                memoryPages,
-                preferShared: this.isThreaded,
-            });
-
             const importCtx = {
                 getWasmInstance: () => this.wasmInstance,
                 getImportedMemory: () => this.importedMemory,
@@ -150,18 +145,26 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             this.configureWasmStack();
 
             const exp = this.getExports();
+
+            const instanceExp = instance.exports as Record<string, any>;
+            this.exports = {
+                memory:           memory,
+                prophecy_init:    instanceExp[exportMap?.prophecy_init ?? 'prophecy_init'] as CallableFunction,
+                prophecy_process: instanceExp[exportMap?.prophecy_process ?? 'prophecy_process'] as CallableFunction,
+                prophecy_free:    instanceExp[exportMap?.prophecy_free ?? 'prophecy_free'] as CallableFunction,
+            };
+
             const mem: WebAssembly.Memory =
                 memory ??
-                (exp.memory as WebAssembly.Memory) ??
+                (instanceExp.memory as WebAssembly.Memory) ??
                 this.importedMemory;
             if (!mem) throw new Error('[Prophecy] No memory export/import found');
             this.importedMemory = mem;
             this.heapFloat32 = new Float32Array(mem.buffer);
 
             // Verify the Prophecy API is present
-            const exp = instance.exports as any;
-            if (typeof exp.prophecy_create !== 'function' ||
-                typeof exp.prophecy_init   !== 'function') {
+            if (typeof instanceExp.prophecy_create !== 'function' ||
+                typeof instanceExp.prophecy_init   !== 'function') {
                 throw new Error('[Prophecy] prophecy_* API not found in WASM exports');
             }
 

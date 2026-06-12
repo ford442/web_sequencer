@@ -489,18 +489,11 @@ export interface PcfSettings {
  */
 export interface AutomationLane {
   /** Parameter being automated */
-  parameter:
-    | 'tempo'
-    | 'swing'
-    | 'tb303Acutoff'
-    | 'tb303Bcutoff'
-    | 'tb303Aresonance'
-    | 'tb303Bresonance'
-    | 'tb303Adecay'
-    | 'tb303Bdecay'
-    | 'pcfCutoff'
-    | 'pcfResonance'
-    | 'pcfEnvAmount'
+  parameter: 'tempo' | 'swing'
+    | 'tb303Acutoff' | 'tb303Bcutoff'
+    | 'tb303Aresonance' | 'tb303Bresonance'
+    | 'tb303Adecay' | 'tb303Bdecay'
+    | 'pcfCutoff' | 'pcfResonance' | 'pcfEnvAmount'
     | 'masterVolume';
   
   /** Human-readable name */

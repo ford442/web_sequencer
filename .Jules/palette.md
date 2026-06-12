@@ -31,12 +31,3 @@
 ## 2026-05-26 - Engine303Selector Keyboard Navigation and Screen Reader Labels
 **Learning:** The Engine303Selector's engine toggle buttons only relied on plain text labels without explicit screen reader context, and lacked focus-visible states for keyboard navigation, making them difficult to use for non-mouse users.
 **Action:** Added `focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2` to make keyboard focus visible, and explicit `aria-label`s ("Select Custom Open303 engine", "Select Authentic JC303 engine") to provide screen readers with better context on what the buttons do.
-## 2026-06-06 - Add Progressbar ARIA Attributes
-**Learning:** Custom UI components that act as progress bars need explicit 'progressbar' role, 'aria-valuenow', 'aria-valuemin', and 'aria-valuemax' attributes for screen reader support. 'aria-label' or 'aria-labelledby' should also be included.
-**Action:** Always verify custom progress indicators implement standard WAI-ARIA progressbar patterns.
-## 2026-06-07 - Consolidate disabled UX states in reusable components
-**Learning:** Hardcoding 'disabled:cursor-not-allowed' inline across the application causes inconsistency and code duplication.
-**Action:** Always place generic interactive visual affordances (like disabled opacity and cursor states) directly into core reusable components like LoadingButton.
-## 2026-06-08 - Keyboard Navigation in Custom List Items
-**Learning:** Custom interactive rows (like `LaneRow` in the Automation lane list) that rely solely on `div` wrappers and `onClick` are unreachable via keyboard. Furthermore, native focus styling on `button` and `select` elements often clashes or is invisible against custom dark backgrounds.
-**Action:** Always add `tabIndex={0}` and map `onKeyDown` ('Enter', ' ') to custom row items. Explicitly apply `focus-visible:ring-2 focus-visible:ring-[color]` with matching `ring-offset` colors across all interactive elements (buttons, selects, rows) in custom lists to ensure unified and visible keyboard navigation.
