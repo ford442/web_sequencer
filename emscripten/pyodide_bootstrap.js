@@ -343,6 +343,13 @@ def generate_wave(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
 
     return final_wave
 
+def generate_loop_buffer(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
+    """
+    Short loop buffer for real-time Web Audio playback (VoiceManager).
+    Same DSP as generate_wave(); JS pre-renders C4 reference cycles at init.
+    """
+    return generate_wave(note_freq, duration_sec, osc_type, cutoff_hz, resonance)
+
 def generate_kick(pitch, decay, tone, volume):
     """
     Generates a kick drum sound.
@@ -740,6 +747,7 @@ globalThis.initPyodideSystem = async function() {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
+                script.crossOrigin = "anonymous";
                 script.onload = resolve;
                 script.onerror = reject;
                 document.head.appendChild(script);
@@ -764,10 +772,15 @@ globalThis.initPyodideSystem = async function() {
         console.log("[C++ -> JS] Pyodide Ready.");
 
     } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
         console.error("[C++ -> JS] Pyodide Load Failed:", e);
-        // Mark as "ready" even on failure so the app doesn't hang
         globalThis.hyphonPyodideReady = false;
         globalThis.hyphonPyodideLoading = false;
+        if (globalThis.window) {
+            window.dispatchEvent(new CustomEvent('hyphon-pyodide-error', {
+                detail: { reason: 'Pyodide bootstrap failed', error: message },
+            }));
+        }
     }
 };
 

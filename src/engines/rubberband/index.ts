@@ -55,7 +55,7 @@ export * from './ExpressiveVoiceProcessor';
 export * from './HybridNeuralPipeline';
 
 // Section 7: Real-Time Performance Optimizations
-export * from './PerformanceOptimizer';
+export * from './performance';
 
 // Section 8: Advanced Concatenative Hybrid
 export * from './ConcatenativeHybrid';

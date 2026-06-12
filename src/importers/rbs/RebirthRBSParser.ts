@@ -31,7 +31,7 @@ import type {
 } from './types';
 import { TRAK_TRACK_INDEX, TICKS_PER_BAR } from './types';
 import { RbsParser } from './RbsParser';
-import type { RbsParserError } from './RbsParser';
+import type { RbsParserError } from './parser-types';
 
 // ============================================================================
 // Public return-type interfaces for each spec method
@@ -282,7 +282,7 @@ export class RebirthRBSParser {
     if (raw.songData) {
       // Multi-pattern: return all patterns from banks
       const { patternBanks } = raw.songData;
-
+      
       for (let i = 0; i < patternBanks.tb303A.length; i++) {
         results.push({
           patternIndex: i,
@@ -397,13 +397,13 @@ export class RebirthRBSParser {
 
       // Extract pattern slots from TRAK events (controller 0 = pattern select)
       const patternSlots: Array<{ patternIndex: number; repeats: number }> = [];
-
+      
       // Look at TB-303 #1 track for pattern changes (representative track)
       const mainTrack = tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_1) || tracks[0];
       if (mainTrack) {
         let lastPattern = 0;
         let lastTick = 0;
-
+        
         for (const evt of mainTrack.events) {
           if (evt.controllerId === 0) { // pattern select
             // If there's a gap, the previous pattern was playing for that duration

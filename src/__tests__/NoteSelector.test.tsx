@@ -110,7 +110,7 @@ describe('NoteSelector', () => {
         // Check Microtiming input
         const microInput = screen.getByLabelText('Microtiming');
         expect(microInput).toHaveAttribute('type', 'range');
-        expect(microInput).toHaveAttribute('aria-valuetext', '-0.15 steps');
+        expect(microInput).toHaveAttribute('aria-valuetext', '-15%');
 
         // Check Retrigger group
         const retriggerGroup = screen.getByRole('group', { name: 'Retrigger' });

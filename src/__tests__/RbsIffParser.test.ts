@@ -105,7 +105,7 @@ function buildSyntheticIffFile(options: {
   const trakSizeBuf = writeU32BE(trakPayload.length);
   trakChunkWithHeader.set(trakSizeBuf, 4);
   trakChunkWithHeader.set(trakPayload, 8);
-
+  
   const trklInnerSize = 4 + trakChunkWithHeader.length; // formType + TRAK chunk
   const trklChunk = new Uint8Array(8 + trklInnerSize);
   trklChunk.set(new TextEncoder().encode('CAT '), 0);

@@ -648,7 +648,16 @@ const SequencerRowWrapper = memo(({
         prev.automation === next.automation &&
         prev.trackSlots === next.trackSlots &&
         prev.alignment === next.alignment &&
-        prev.activeSamplerBank === next.activeSamplerBank
+        prev.activeSamplerBank === next.activeSamplerBank &&
+        // ⚡ Bolt: Ensure callback props are checked to avoid stale closures inside the row.
+        prev.handleStepPointerDown === next.handleStepPointerDown &&
+        prev.onRightMouseDown === next.onRightMouseDown &&
+        prev.onEditLength === next.onEditLength &&
+        prev.onSelectRow === next.onSelectRow &&
+        prev.onSelectSlot === next.onSelectSlot &&
+        prev.onSelectionStart === next.onSelectionStart &&
+        prev.onSelectionEnter === next.onSelectionEnter &&
+        prev.onAutomationChange === next.onAutomationChange
     );
 });
 

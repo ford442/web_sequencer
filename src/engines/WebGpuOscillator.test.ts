@@ -98,12 +98,14 @@ describe('WebGpuOscillator', () => {
     // @ts-ignore
     global.navigator.gpu = undefined;
 
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await engine.init();
 
     expect(engine.isSupported).toBe(false);
-    expect(consoleSpy).toHaveBeenCalledWith("WebGPU not supported in this browser.");
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[EngineFallback] webgpu'),
+    );
   });
 
   it('should generate audio data', async () => {
