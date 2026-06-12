@@ -11,6 +11,7 @@ export class SingingVoiceManager {
     private audioContext: AudioContext;
     private voices: SingingVoice[] = [];
     private activeVoices: Map<number, ActiveVoice> = new Map();
+    private loadedBanks: Map<number, string> = new Map();
     private config: SingingVoiceConfig;
     private maxVoices: number;
 
@@ -50,18 +51,28 @@ export class SingingVoiceManager {
 
     /**
      * Acquire a free voice or steal the oldest one.
-     * @returns The allocated SingingVoice and its index
+     * Prioritizes voices that already have the requested bank loaded to avoid redundant buffer transfers.
+     * @returns The allocated SingingVoice, its index, and whether a new bank load is required.
      */
-    acquireVoice(): { voice: SingingVoice; index: number } {
-        // 1. Find a free voice (not in activeVoices)
+    acquireVoiceForBank(bankId: string): { voice: SingingVoice; index: number; isNewBank: boolean } {
         const activeIndices = new Set(this.activeVoices.keys());
+
+        // 1. Find a free voice that already has this bank loaded
         for (let i = 0; i < this.maxVoices; i++) {
-            if (!activeIndices.has(i)) {
-                return { voice: this.voices[i], index: i };
+            if (!activeIndices.has(i) && this.loadedBanks.get(i) === bankId) {
+                return { voice: this.voices[i], index: i, isNewBank: false };
             }
         }
 
-        // 2. Steal oldest voice
+        // 2. Find any free voice
+        for (let i = 0; i < this.maxVoices; i++) {
+            if (!activeIndices.has(i)) {
+                this.loadedBanks.set(i, bankId);
+                return { voice: this.voices[i], index: i, isNewBank: true };
+            }
+        }
+
+        // 3. Steal oldest voice
         let oldestTime = Infinity;
         let oldestIndex = -1;
 
@@ -73,13 +84,21 @@ export class SingingVoiceManager {
         });
 
         if (oldestIndex !== -1) {
-            // Force disconnect/reset? Or just return it and let caller override
-            // Ideally we might want to fade it out, but for now we hard steal
-            return { voice: this.voices[oldestIndex], index: oldestIndex };
+            this.loadedBanks.set(oldestIndex, bankId);
+            return { voice: this.voices[oldestIndex], index: oldestIndex, isNewBank: true };
         }
 
-        // Fallback (shouldn't happen with correct logic)
-        return { voice: this.voices[0], index: 0 };
+        // Fallback
+        this.loadedBanks.set(0, bankId);
+        return { voice: this.voices[0], index: 0, isNewBank: true };
+    }
+
+    /**
+     * Backward compatibility wrapper for old acquireVoice calls.
+     */
+    acquireVoice(): { voice: SingingVoice; index: number } {
+        const result = this.acquireVoiceForBank('__unknown__');
+        return { voice: result.voice, index: result.index };
     }
 
     /**

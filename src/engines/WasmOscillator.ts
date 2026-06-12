@@ -6,6 +6,7 @@
 // - Error handling and fallback paths
 
 import initOscillators from '../wasm/oscillators.wasm?init';
+import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 
 export class WasmOscillator {
     private instance: WebAssembly.Instance | null = null;
@@ -25,7 +26,10 @@ export class WasmOscillator {
             this.memory = this.instance.exports.memory as WebAssembly.Memory;
 
             this.isReady = true;
-        } catch (e) { console.error("Wasm Init Failed", e); }
+            try { engineTelemetry.registerResolution('wam', 'wasm', 'loaded'); } catch (_) {}
+        } catch (e) {
+            logEngineFallback('wam', 'wasm', 'AssemblyScript oscillators.wasm instantiation failed', e);
+        }
     }
 
     generate(

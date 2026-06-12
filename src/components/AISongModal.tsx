@@ -16,6 +16,10 @@
  * - Mobile-responsive design
  */
 
+import { TrackStatisticsPanel } from './ai-song-modal/TrackStatisticsPanel';
+import { AutomationVisualizationPanel } from './ai-song-modal/AutomationVisualizationPanel';
+import { SongInfoPanel } from './ai-song-modal/SongInfoPanel';
+import { PatternGridPanel } from './ai-song-modal/PatternGridPanel';
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   AISongImporter,
@@ -30,7 +34,7 @@ import type { TabType, ValidationStage, ErrorCategory, ImportStage, TrackStats, 
 import { PROMPT_TEMPLATE, EXAMPLES } from '../constants/aiSongExamples';
 import { generateId, fixCommonJsonIssues, categorizeError, getErrorSuggestions, getValidationColor, getTextareaBorderColor, formatFileSize, getFileIcon } from '../utils/aiSongUtils';
 import { PreviewSkeleton } from './ai-song/PreviewSkeleton';
-import { Tooltip } from './ai-song/Tooltip';
+import { Tooltip } from './ai-song-modal/Tooltip';
 
 
 
@@ -762,7 +766,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           <Tooltip text="Close (Esc)" position="bottom">
             <button 
               onClick={handleClose}
-              className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
+              className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
               aria-label="Close modal"
               title="Close modal"
             ><span aria-hidden="true">✕</span></button>
@@ -784,14 +788,14 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
             <div className="flex gap-2">
               <button
                 onClick={() => setShowCloseConfirm(false)}
-                className="px-2 py-1 text-xs text-gray-400 hover:text-white transition-colors"
+                className="px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Cancel closing modal"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmClose}
-                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Confirm close modal"
               >
                 Close
@@ -1154,109 +1158,16 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
               ) : parsedData && trackStats && patternGrid ? (
                 <div className="animate-in fade-in duration-300">
                   {/* Song Info */}
-                  <div className="p-4 bg-gray-900/50 rounded-lg">
-                    <h3 className="text-sm font-medium text-emerald-400 mb-3">{String(parsedData.meta.title)}</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
-                      <div>
-                        <span className="text-gray-500 block">Tempo</span>
-                        <span className="text-white">{String(parsedData.globals.tempo)} BPM</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Time Signature</span>
-                        <span className="text-white">{String((parsedData.globals.timeSignature as any[]).join('/'))}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Swing</span>
-                        <span className="text-white">{String(parsedData.globals?.swing ?? 0)}%</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Est. Duration</span>
-                        <span className="text-white">{String(trackStats.duration.toFixed(1))}s</span>
-                      </div>
-                      <div className="col-span-2 sm:col-span-1">
-                        <span className="text-gray-500 block">Total Notes</span>
-                        <span className="text-white">{String(trackStats.totalNotes ?? 0)}</span>
-                      </div>
-                    </div>
-                  </div>
+                  <SongInfoPanel parsedData={parsedData} trackStats={trackStats} />
 
                   {/* Pattern Grid */}
-                  <div className="p-4 bg-gray-900/50 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-300 mb-3">Pattern Preview (8 tracks × 32 steps)</h3>
-                    <div className="overflow-x-auto">
-                      <div className="inline-block min-w-full">
-                        {patternGrid.grid.map((row, trackIdx) => (
-                          <div key={String(trackIdx)} className="flex items-center gap-1 mb-1">
-                            <span className="w-16 sm:w-20 text-[10px] sm:text-xs text-gray-500 text-right mr-2 shrink-0">
-                              {String(patternGrid.tracks[trackIdx])}
-                            </span>
-                            <div className="flex gap-0.5">
-                              {row.map((active, stepIdx) => (
-                                <Tooltip key={stepIdx} text={String(`Step ${stepIdx}`)} position="top">
-                                  <div
-                                    className={`w-1.5 h-3 sm:w-2 sm:h-4 rounded-sm transition-colors ${
-                                      active 
-                                        ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' 
-                                        : stepIdx % 4 === 0 
-                                          ? 'bg-gray-700' 
-                                          : 'bg-gray-800'
-                                    }`}
-                                  />
-                                </Tooltip>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <PatternGridPanel patternGrid={patternGrid} />
 
                   {/* Track Statistics */}
-                  {trackStats ? (
-                    <div className="p-4 bg-gray-900/50 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-300 mb-3">{String("Track Statistics")}</h3>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div className="text-xs">
-                          <span className="text-gray-500">{String("Total Events:")}</span>
-                          <span className="text-white ml-2">{String(trackStats.totalNotes)}</span>
-                        </div>
-                        <div className="text-xs">
-                          <span className="text-gray-500">{String("Avg Velocity:")}</span>
-                          <span className="text-white ml-2">{String(Number.isNaN(Number(trackStats.avgVelocity)) ? '0' : (Number(trackStats.avgVelocity) * 100).toFixed(0))}%</span>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        {trackStatisticsRows.length > 0 && (trackStatisticsRows as React.ReactNode)}
-                      </div>
-                    </div>
-                  ) : null}
+                  <TrackStatisticsPanel trackStats={trackStats} trackStatisticsRows={trackStatisticsRows} />
 
                   {/* Automation Visualization */}
-                  {trackStats.automationLaneCount > 0 && parsedData?.automation && (
-                    <div className="p-4 bg-gray-900/50 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-300 mb-3">
-                        Automation ({trackStats.automationLaneCount} lanes, {trackStats.automationPointCount} points)
-                      </h3>
-                      <div className="space-y-3">
-                        {parsedAutomationRows}
-                      </div>
-                      
-                      {/* Automated Parameters Summary */}
-                      <div className="mt-3 pt-3 border-t border-gray-800">
-                        <p className="text-[10px] text-gray-500 mb-2">Automated Parameters:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {trackStats.automatedParams.map((param, idx) => (
-                            <span 
-                              key={idx} 
-                              className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded text-[10px] text-cyan-400"
-                            >
-                              {param}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <AutomationVisualizationPanel trackStats={trackStats} parsedData={parsedData} parsedAutomationRows={parsedAutomationRows} />
 
                   {/* Audio Preview */}
                   {audioEngine && (

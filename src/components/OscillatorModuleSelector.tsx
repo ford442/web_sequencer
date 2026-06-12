@@ -1,3 +1,4 @@
+// ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 // Character-driven oscillator module selector.
 // Replaces the flat WaveformSelector in SynthPart with 5 personality-driven cards,
 // each with a distinct SVG waveform icon and colour theme.

@@ -49,3 +49,17 @@
 ## 2024-05-28 - React Memo Comparator Deep Clone Pitfalls
 **Learning:** Using `JSON.stringify(prev.props) !== JSON.stringify(next.props)` inside a `React.memo` custom `areEqual` function for small arrays (like a `loadedBanks` boolean array) forces expensive memory allocation and serialization on *every single render cycle*. Even though it "works" to check array content, it adds unnecessary CPU overhead for components that evaluate frequently.
 **Action:** Replace `JSON.stringify` comparisons inside memo comparators with a simple array shallow equality check: `prev.arr.length !== next.arr.length || prev.arr.some((val, i) => val !== next.arr[i])`. This achieves the exact same value comparison with significantly lower CPU cost and no garbage collection pressure.
+<<<<<<< HEAD
+=======
+
+## 2024-05-30 - AudioWorklet GC Thrashes via Object Allocation
+**Learning:** Calling `updateConfig({ nested: { value } })` inside an `AudioWorkletProcessor.process()` loop creates new objects every ~3ms (128 samples). This produces intense garbage collection pressure on the audio thread, risking audio dropouts and general CPU bloat, particularly when scaling polyphony or FX instances. Object spreading (`...`) compound this by churning through allocations.
+**Action:** Always implement direct setter methods (`setVibrato(rate, depth)`, `setEnvelope()`, etc.) that directly mutate the inner configuration state in high-frequency contexts like AudioWorklets, avoiding fresh objects and deep merges entirely on the hot path.
+
+## 2024-05-31 - Stale Closures in Empty `useEffect` and `React.memo` Comparators
+**Learning:** Using an empty dependency array `[]` in a `useEffect` that sets up global event listeners (like keyboard shortcuts) traps the event handler in a stale closure. If the handler needs access to the latest state or context, it will act on initial or outdated values, leading to silent bugs or data loss. Furthermore, when writing custom `areEqual` functions for `React.memo`, entirely omitting callback props is extremely dangerous. While relying on strict reference equality for data arrays (like `prev.steps === next.steps`) is a powerful optimization when paired with structural sharing, omitting callbacks guarantees that if a parent recreates a handler, the child will hold onto the old one forever.
+**Action:** Always wrap event handlers in `useCallback` with complete dependency arrays, and include the memoized handler itself in the `useEffect` dependencies `[handleEvent]`. In custom `React.memo` comparators, explicitly check callback props (`prev.onClick === next.onClick`) to ensure the child updates if the parent issues new function references.
+## 2026-06-11 - AudioWorkletNode Allocation in Hot Paths
+**Learning:** Initializing new `AudioWorkletNode` instances directly inside high-frequency note-triggering functions (like `playSamplerVoice`) causes significant GC pressure and potential audio dropouts, as it requires allocating not just JS wrapper objects but full Web Audio graph nodes and background processing structures.
+**Action:** Implement and use an `AudioNodePool` to pre-allocate and reuse `AudioWorkletNode` instances (e.g. for distortion and expressive processing). When a note triggers, acquire a node, apply parameters via `parameterData` updates, and safely return it to the pool (with `disconnect` and a `TEARDOWN` message) in the `noteOff` or `setTimeout` handlers.
+>>>>>>> origin/main

@@ -216,3 +216,56 @@ export class EngineTelemetry {
 }
 
 export const engineTelemetry = new EngineTelemetry();
+
+/**
+ * Resolve a path under Vite's `public/` directory to an absolute URL.
+ *
+ * Public assets live at the deployment root (e.g. dist/hyphon_native.wasm), but
+ * application code is bundled under assets/. A bare `./foo` string breaks both
+ * dynamic import() (resolved relative to assets/index.js) and subdirectory
+ * deploys (e.g. https://host/hyphon/). Using document.baseURI + BASE_URL yields
+ * a stable absolute URL in every context.
+ */
+export function resolvePublicAsset(relativePath: string): string {
+  const base =
+    typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
+      ? import.meta.env.BASE_URL
+      : './';
+
+  const normalized = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+
+  if (typeof window !== 'undefined' && window.location?.href) {
+    try {
+      const assetRoot = new URL(base, window.location.href);
+      return new URL(normalized, assetRoot).href;
+    } catch {
+      // fall through to relative path
+    }
+  }
+
+  return `${base}${normalized}`;
+}
+
+/**
+ * Loud fallback signal: always logs a concrete reason to the console and
+ * records it in engineTelemetry before any JS-voice fallback is used.
+ */
+export function logEngineFallback(
+  subsystem: string,
+  requestedBackend: string,
+  reason: string,
+  err?: unknown,
+): void {
+  const errMsg =
+    err instanceof Error ? err.message : err != null ? String(err) : undefined;
+  const fullReason = errMsg ? `${reason}: ${errMsg}` : reason;
+  console.error(
+    `[EngineFallback] ${subsystem}: requested "${requestedBackend}" → JS fallback (${fullReason})`,
+  );
+  try {
+    engineTelemetry.registerResolution(subsystem, 'fallback', fullReason);
+    if (err != null) engineTelemetry.recordError(subsystem, err);
+  } catch {
+    /* telemetry must never break audio init */
+  }
+}

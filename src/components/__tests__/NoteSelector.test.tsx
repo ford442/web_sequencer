@@ -69,6 +69,15 @@ describe('NoteSelector', () => {
         expect(mockOnPropertyChange).toHaveBeenCalledWith('grainPitchQuantize', 12);
     });
 
+    it('handles granularPitchShift changes', () => {
+        render(<NoteSelector {...defaultProps} />);
+        const shiftSlider = screen.getByLabelText('Granular Pitch Shift Override');
+        expect(shiftSlider).toBeInTheDocument();
+
+        fireEvent.change(shiftSlider, { target: { value: '-12' } });
+        expect(mockOnPropertyChange).toHaveBeenCalledWith('granularPitchShift', -12);
+    });
+
     it('traps focus inside the dialog', () => {
         render(<NoteSelector {...defaultProps} />);
         const dialog = screen.getByRole('dialog');

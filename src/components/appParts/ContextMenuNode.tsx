@@ -39,8 +39,13 @@ export const ContextMenuNode = React.memo(() => {
           currentFilterCutoff={stepData?.filterCutoff}
           currentFilterResonance={stepData?.filterResonance}
           currentEnvMod={stepData?.envMod}
+          currentFormantLfoSync={stepData?.formantLfoSync}
           currentFormantLfoRate={stepData?.formantLfoRate ?? 0}
           currentFormantLfoDepth={stepData?.formantLfoDepth ?? 0}
+          currentFormantEnvSync={stepData?.formantEnvSync}
+          currentFormantEnvAttack={stepData?.formantEnvAttack}
+          currentFormantEnvDecay={stepData?.formantEnvDecay}
+          currentFormantEnvAmount={stepData?.formantEnvAmount}
           currentVibratoDepth={stepData?.vibratoDepth ?? 0}
           currentGateDepth={stepData?.gateDepth}
           currentGateRate={stepData?.gateRate}
@@ -53,6 +58,7 @@ export const ContextMenuNode = React.memo(() => {
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
           currentTranceGate={stepData?.tranceGate}
+          currentGranularPitchShift={stepData?.granularPitchShift}
           isProphecy={isProphecy}
           currentVowel={stepData?.vowel ?? 0}
           currentPortamento={stepData?.portamento ?? 0}

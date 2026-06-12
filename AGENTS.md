@@ -549,6 +549,55 @@ interface Note {
 
 ---
 
+## Cursor Cloud specific instructions
+
+### One-time toolchain setup (not in the VM update script)
+
+WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchain install before the first dev session:
+
+1. **Emscripten 3.1.51** (matches CI): clone to `$HOME/emsdk`, run `./emsdk install 3.1.51 && ./emsdk activate 3.1.51`, then `source "$HOME/emsdk/emsdk_env.sh"` in each shell that builds WASM.
+2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (wasm-pack ships via `pnpm`; use `pnpm exec wasm-pack`).
+3. **Git submodule**: `git submodule update --init --recursive` (required for `jc303_wasm`).
+
+### First WASM build per workspace
+
+After `pnpm install`, with Emscripten sourced:
+
+```bash
+pnpm run build:wasm    # AssemblyScript + Rust + JC-303 (~1–2 min)
+pnpm run build:emcc    # hyphon_native.js + Rubberband/Open303 (~30s)
+```
+
+Re-run only after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_wasm/` sources.
+
+### Running the main DAW locally
+
+| Task | Command |
+|------|---------|
+| Dev server (fast restart) | `pnpm exec vite --host 0.0.0.0 --port 5173` |
+| Dev server (rebuilds WASM every start) | `pnpm run dev` |
+| Unit tests | `CI=true pnpm exec vitest run --pool forks` |
+| Lint | `pnpm run lint` |
+| Production build | `pnpm run build` |
+
+Only the **Vite dev server on port 5173** is required for interactive development. The FastAPI cloud API (`app.py`, port 7860) and remote storage are optional.
+
+### Hello-world smoke test
+
+1. Open http://localhost:5173
+2. Click **INITIALIZE SYSTEM** (user gesture required for Web Audio)
+3. Program a kick on step 1 in the sequencer grid
+4. Click **▶ PLAY** — playhead should advance and the kick should trigger
+
+### Gotchas
+
+- **`pnpm run dev` is slow**: it always runs `build:wasm` and `build:emcc` before Vite. Prefer `pnpm exec vite` after WASM is already built.
+- **COOP/COEP headers**: Vite sets these automatically; required for threaded WASM (`SharedArrayBuffer`).
+- **pnpm ignored build scripts**: if `wasm-pack` is missing, use `pnpm exec wasm-pack` (bundled in devDependencies).
+- **Rust audio import warning**: a console warning about `/rust-wasm/rust_audio.js` may appear in dev; core sequencer/audio still works. Use `public/rust-wasm/` paths if debugging the Rust engine.
+
+---
+
 ## Resources
 
 - **Supertonic TTS**: https://github.com/supertone-inc/supertonic

@@ -1,6 +1,9 @@
 import React, { memo, useRef, useEffect, useCallback } from 'react';
 import { KnobGPUContext, type SlotHandle } from './KnobGPUContext';
 import { KNOB_MATERIAL, rgbToHex, wgslAngleToCanvas } from './knobMaterial';
+import type { KnobMaterial } from './knobMaterial';
+
+const KNOB_TEST_ID_SANITIZE_PATTERN = /[^A-Za-z0-9_-]/g;
 
 export interface KnobConfig {
     id: string;
@@ -73,7 +76,7 @@ const KnobOverlay = memo(({
 
             {/* 1. Label and Value Display */}
             <div
-                className="absolute text-center transform -translate-x-1/2"
+                className="absolute text-center transform -translate-x-1/2 pointer-events-none"
                 style={{
                     left: `${x * 100}%`,
                     top: `${(y + size * 0.8) * 100}%`,
@@ -179,6 +182,138 @@ const KnobOverlay = memo(({
     );
 });
 
+export interface Knob2DDimensions {
+    w: number;
+    h: number;
+}
+
+export type Knob2DDrawCommand =
+    | { op: 'fillStyle'; value: string }
+    | { op: 'fillRect'; args: [number, number, number, number] }
+    | { op: 'beginPath' }
+    | { op: 'arc'; args: [number, number, number, number, number] }
+    | { op: 'strokeStyle'; value: string }
+    | { op: 'lineWidth'; value: number }
+    | { op: 'stroke' }
+    | { op: 'moveTo'; args: [number, number] }
+    | { op: 'lineTo'; args: [number, number] }
+    | { op: 'createLinearGradient'; id: string; args: [number, number, number, number] }
+    | { op: 'addColorStop'; id: string; args: [number, string] }
+    | { op: 'strokeStyleGradient'; id: string };
+
+export function buildKnob2DDrawCalls(
+    material: KnobMaterial,
+    value: number,
+    dims: Knob2DDimensions
+): Knob2DDrawCommand[] {
+    const cx = dims.w / 2;
+    const cy = dims.h / 2;
+    const bodyRadius = Math.min(dims.w, dims.h) / 2;
+    const outerRingRadius = bodyRadius * material.geometry.outerRingRadius;
+    const arcRadius = bodyRadius * material.geometry.arcRadius;
+    const needleLength = bodyRadius * material.geometry.needleLength;
+    const sweepStart = wgslAngleToCanvas(material.geometry.sweepStartAngle);
+    const endAngle = sweepStart + value * material.geometry.sweepTotal;
+    const gradientId = 'valueArc';
+
+    return [
+        { op: 'fillStyle', value: rgbToHex(material.palette.background) },
+        { op: 'fillRect', args: [0, 0, dims.w, dims.h] },
+
+        { op: 'beginPath' },
+        { op: 'arc', args: [cx, cy, outerRingRadius, 0, Math.PI * 2] },
+        { op: 'strokeStyle', value: rgbToHex(material.palette.ring) },
+        { op: 'lineWidth', value: 2 },
+        { op: 'stroke' },
+
+        {
+            op: 'createLinearGradient',
+            id: gradientId,
+            args: [
+                cx + Math.cos(sweepStart) * arcRadius,
+                cy + Math.sin(sweepStart) * arcRadius,
+                cx + Math.cos(endAngle) * arcRadius,
+                cy + Math.sin(endAngle) * arcRadius,
+            ],
+        },
+        { op: 'addColorStop', id: gradientId, args: [0, rgbToHex(material.palette.arcMin)] },
+        { op: 'addColorStop', id: gradientId, args: [1, rgbToHex(material.palette.arcMax)] },
+        { op: 'beginPath' },
+        { op: 'arc', args: [cx, cy, arcRadius, sweepStart, endAngle] },
+        { op: 'strokeStyleGradient', id: gradientId },
+        { op: 'lineWidth', value: 3 },
+        { op: 'stroke' },
+
+        { op: 'beginPath' },
+        { op: 'moveTo', args: [cx, cy] },
+        {
+            op: 'lineTo',
+            args: [
+                cx + Math.cos(endAngle) * needleLength,
+                cy + Math.sin(endAngle) * needleLength,
+            ],
+        },
+        { op: 'strokeStyle', value: rgbToHex(material.palette.needle) },
+        { op: 'lineWidth', value: 2 },
+        { op: 'stroke' },
+    ];
+}
+
+function replayKnob2DDrawCalls(
+    ctx: CanvasRenderingContext2D,
+    drawCalls: Knob2DDrawCommand[]
+): void {
+    const gradients = new Map<string, CanvasGradient>();
+    for (const cmd of drawCalls) {
+        switch (cmd.op) {
+            case 'fillStyle':
+                ctx.fillStyle = cmd.value;
+                break;
+            case 'fillRect':
+                ctx.fillRect(...cmd.args);
+                break;
+            case 'beginPath':
+                ctx.beginPath();
+                break;
+            case 'arc':
+                ctx.arc(...cmd.args);
+                break;
+            case 'strokeStyle':
+                ctx.strokeStyle = cmd.value;
+                break;
+            case 'lineWidth':
+                ctx.lineWidth = cmd.value;
+                break;
+            case 'stroke':
+                ctx.stroke();
+                break;
+            case 'moveTo':
+                ctx.moveTo(...cmd.args);
+                break;
+            case 'lineTo':
+                ctx.lineTo(...cmd.args);
+                break;
+            case 'createLinearGradient':
+                gradients.set(cmd.id, ctx.createLinearGradient(...cmd.args));
+                break;
+            case 'addColorStop': {
+                const gradient = gradients.get(cmd.id);
+                if (gradient) {
+                    gradient.addColorStop(...cmd.args);
+                }
+                break;
+            }
+            case 'strokeStyleGradient': {
+                const gradient = gradients.get(cmd.id);
+                if (gradient) {
+                    ctx.strokeStyle = gradient;
+                }
+                break;
+            }
+        }
+    }
+}
+
 /**
  * Renders a single knob using the Canvas 2D API.
  * Called when WebGPU is unavailable so knobs remain visible.
@@ -201,52 +336,10 @@ function renderWith2D(canvas: HTMLCanvasElement, value: number): void {
     ctx.scale(dpr, dpr);
     const w = rect.width;
     const h = rect.height;
-    const cx = w / 2;
-    const cy = h / 2;
-    const bodyRadius = Math.min(w, h) / 2;
-
-    // Background
-    ctx.fillStyle = rgbToHex(KNOB_MATERIAL.palette.background);
-    ctx.fillRect(0, 0, w, h);
-
-    const outerRingRadius = bodyRadius * KNOB_MATERIAL.geometry.outerRingRadius;
-    const arcRadius = bodyRadius * KNOB_MATERIAL.geometry.arcRadius;
-    const needleLength = bodyRadius * KNOB_MATERIAL.geometry.needleLength;
-
-    // Outer ring
-    ctx.beginPath();
-    ctx.arc(cx, cy, outerRingRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = rgbToHex(KNOB_MATERIAL.palette.ring);
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Value arc (270° sweep) with arcMin→arcMax gradient
-    const sweepStart = wgslAngleToCanvas(KNOB_MATERIAL.geometry.sweepStartAngle);
-    const endAngle = sweepStart + value * KNOB_MATERIAL.geometry.sweepTotal;
-    const grad = ctx.createLinearGradient(
-        cx + Math.cos(sweepStart) * arcRadius,
-        cy + Math.sin(sweepStart) * arcRadius,
-        cx + Math.cos(endAngle) * arcRadius,
-        cy + Math.sin(endAngle) * arcRadius
+    replayKnob2DDrawCalls(
+        ctx,
+        buildKnob2DDrawCalls(KNOB_MATERIAL, value, { w, h })
     );
-    grad.addColorStop(0, rgbToHex(KNOB_MATERIAL.palette.arcMin));
-    grad.addColorStop(1, rgbToHex(KNOB_MATERIAL.palette.arcMax));
-    ctx.beginPath();
-    ctx.arc(cx, cy, arcRadius, sweepStart, endAngle);
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Needle
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(
-        cx + Math.cos(endAngle) * needleLength,
-        cy + Math.sin(endAngle) * needleLength
-    );
-    ctx.strokeStyle = rgbToHex(KNOB_MATERIAL.palette.needle);
-    ctx.lineWidth = 2;
-    ctx.stroke();
 
     ctx.restore();
 }
@@ -317,10 +410,15 @@ export const HardwareModule = memo(
                 return controlsRef.current.findIndex(k => {
                     const kNormX = k.x * rect.width / scale;
                     const kNormY = k.y * rect.height / scale;
+                    const kSizeNorm = k.size * Math.min(rect.width, rect.height) / scale;
+                    const hitRadius = kSizeNorm * 2.0;
                     const dx = kNormX - normX;
                     const dy = kNormY - normY;
-                    const kSizeNorm = k.size * Math.min(rect.width, rect.height) / scale;
-                    return Math.sqrt(dx * dx + dy * dy) < (kSizeNorm * 1.2);
+                    if (Math.sqrt(dx * dx + dy * dy) < hitRadius) return true;
+                    // Label/value sits below the knob — include it in the hit zone.
+                    const labelNormY = (k.y + k.size * 0.8) * rect.height / scale;
+                    const labelDy = labelNormY - normY;
+                    return Math.sqrt(dx * dx + labelDy * labelDy) < hitRadius;
                 });
             };
 
@@ -331,16 +429,18 @@ export const HardwareModule = memo(
                 sliderRefs.current[hitIndex]?.focus();
             };
 
-            const handleMouseDown = (e: MouseEvent) => {
+            const handlePointerDown = (e: PointerEvent) => {
+                if (e.button !== 0) return;
                 const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex !== -1) {
+                    container.setPointerCapture(e.pointerId);
                     activateKnob(hitIndex, e.clientY);
                     document.body.style.cursor = 'ns-resize';
                     e.preventDefault();
                 }
             };
 
-            const handleMouseMove = (e: MouseEvent) => {
+            const handlePointerMove = (e: PointerEvent) => {
                 if (activeKnobIndex.current === null) return;
                 const dy = startY.current - e.clientY;
                 let newVal = startVal.current + (dy * 0.005);
@@ -348,32 +448,13 @@ export const HardwareModule = memo(
                 onParamChange(controlsRef.current[activeKnobIndex.current].id, newVal);
             };
 
-            const handleMouseUp = () => {
+            const handlePointerUp = (e: PointerEvent) => {
+                if (activeKnobIndex.current === null) return;
+                try {
+                    container.releasePointerCapture(e.pointerId);
+                } catch { /* already released */ }
                 activeKnobIndex.current = null;
                 document.body.style.cursor = 'default';
-            };
-
-            const handleTouchStart = (e: TouchEvent) => {
-                const touch = e.touches[0];
-                const hitIndex = findHitKnob(touch.clientX, touch.clientY);
-                if (hitIndex !== -1) {
-                    activateKnob(hitIndex, touch.clientY);
-                    e.preventDefault();
-                }
-            };
-
-            const handleTouchMove = (e: TouchEvent) => {
-                if (activeKnobIndex.current === null) return;
-                const touch = e.touches[0];
-                const dy = startY.current - touch.clientY;
-                let newVal = startVal.current + (dy * 0.005);
-                newVal = Math.max(0, Math.min(1, newVal));
-                onParamChange(controlsRef.current[activeKnobIndex.current].id, newVal);
-                e.preventDefault();
-            };
-
-            const handleTouchEnd = () => {
-                activeKnobIndex.current = null;
             };
 
             const handleWheel = (e: WheelEvent) => {
@@ -387,22 +468,18 @@ export const HardwareModule = memo(
                 onParamChange(knob.id, newVal);
             };
 
-            container.addEventListener('mousedown', handleMouseDown);
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-            container.addEventListener('touchstart', handleTouchStart, { passive: false });
-            window.addEventListener('touchmove', handleTouchMove, { passive: false });
-            window.addEventListener('touchend', handleTouchEnd);
+            container.addEventListener('pointerdown', handlePointerDown);
+            container.addEventListener('pointermove', handlePointerMove);
+            container.addEventListener('pointerup', handlePointerUp);
+            container.addEventListener('pointercancel', handlePointerUp);
             container.addEventListener('wheel', handleWheel, { passive: false });
 
             return () => {
                 observer.disconnect();
-                container.removeEventListener('mousedown', handleMouseDown);
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
-                container.removeEventListener('touchstart', handleTouchStart);
-                window.removeEventListener('touchmove', handleTouchMove);
-                window.removeEventListener('touchend', handleTouchEnd);
+                container.removeEventListener('pointerdown', handlePointerDown);
+                container.removeEventListener('pointermove', handlePointerMove);
+                container.removeEventListener('pointerup', handlePointerUp);
+                container.removeEventListener('pointercancel', handlePointerUp);
                 container.removeEventListener('wheel', handleWheel);
             };
         }, [onParamChange]);
@@ -479,11 +556,12 @@ export const HardwareModule = memo(
         }, []);
 
         return (
-            <div ref={containerRef} className={`relative rounded-lg shadow-xl bg-gray-900 border border-gray-700 ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: '220px' }}>
+            <div ref={containerRef} className={`relative rounded-lg shadow-xl bg-gray-900 border border-gray-700 touch-none ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: '220px' }}>
                 {controls.map((c, i) => (
                     <canvas
                         key={c.id}
                         ref={setKnobCanvasRef(i)}
+                        data-testid={`hardware-knob-canvas-${String(c.id).replace(KNOB_TEST_ID_SANITIZE_PATTERN, '_')}`}
                         className="block"
                         style={{ position: 'absolute', pointerEvents: 'none' }}
                     />
