@@ -69,7 +69,6 @@ const LaneRow = memo(({
         className={`w-4 h-4 rounded-sm border flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] ${
           lane.enabled ? 'bg-cyan-500 border-cyan-400' : 'bg-transparent border-gray-500'
         }`}
-        aria-pressed={lane.enabled}
         onClick={(e) => { e.stopPropagation(); onToggle(lane.id); }}
       />
 

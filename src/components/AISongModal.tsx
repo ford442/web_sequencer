@@ -744,7 +744,6 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
       />
       <div 
         role="dialog"
-        tabIndex={-1}
         aria-modal="true"
         aria-labelledby="ai-song-modal-title" aria-describedby="ai-song-modal-desc"
         className="relative z-10 bg-[#0f1115] border border-emerald-500/30 rounded-xl shadow-[0_0_60px_rgba(16,185,129,0.2)] w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"

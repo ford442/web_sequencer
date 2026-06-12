@@ -391,53 +391,27 @@ export class ExpressiveVoiceProcessor {
     
     /**
      * Update configuration parameters dynamically.
-     * Note: Prefer direct setters for high-frequency updates to avoid object allocation.
      */
     updateConfig(newConfig: Partial<ExpressiveConfig>): void {
+        // Deep merge logic simplified for specific nested objects
         if (newConfig.vibrato) {
-            Object.assign(this.config.vibrato, newConfig.vibrato);
+            this.config.vibrato = { ...this.config.vibrato, ...newConfig.vibrato };
         }
         if (newConfig.tremolo) {
-            Object.assign(this.config.tremolo, newConfig.tremolo);
+            this.config.tremolo = { ...this.config.tremolo, ...newConfig.tremolo };
         }
         if (newConfig.breath) {
-            Object.assign(this.config.breath, newConfig.breath);
+            this.config.breath = { ...this.config.breath, ...newConfig.breath };
         }
         if (newConfig.envelope) {
-            Object.assign(this.config.envelope, newConfig.envelope);
+            this.config.envelope = { ...this.config.envelope, ...newConfig.envelope };
         }
         if (newConfig.gate) {
-            Object.assign(this.config.gate, newConfig.gate);
+            this.config.gate = { ...this.config.gate, ...newConfig.gate };
         }
-        if (newConfig.sampleRate !== undefined) {
+        if (newConfig.sampleRate) {
             this.config.sampleRate = newConfig.sampleRate;
         }
-    }
-
-    // Direct setters for AudioWorklet hot-paths to prevent GC thrash from object allocation
-    setVibrato(rate: number, depth: number, enabled: boolean): void {
-        this.config.vibrato.rate = rate;
-        this.config.vibrato.depth = depth;
-        this.config.vibrato.enabled = enabled;
-    }
-
-    setTremolo(rate: number, depth: number, enabled: boolean): void {
-        this.config.tremolo.rate = rate;
-        this.config.tremolo.depth = depth;
-        this.config.tremolo.enabled = enabled;
-    }
-
-    setBreath(amount: number, filterCutoff: number, enabled: boolean): void {
-        this.config.breath.amount = amount;
-        this.config.breath.filterCutoff = filterCutoff;
-        this.config.breath.enabled = enabled;
-    }
-
-    setEnvelope(attack: number, decay: number, sustain: number, release: number): void {
-        this.config.envelope.attack = attack;
-        this.config.envelope.decay = decay;
-        this.config.envelope.sustain = sustain;
-        this.config.envelope.release = release;
     }
     
     /**

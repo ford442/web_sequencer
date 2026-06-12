@@ -281,7 +281,6 @@ export class Open303Oscillator {
     setEnvMod(v: number) { this.params.envMod = v; this.setParam('setEnvMod', v); }
     setAccent(v: number) { this.params.accent = v; this.setParam('setAccent', v); }
     setVolume(v: number) { this.params.volume = v; this.setParam('setVolume', v); }
-    setSlideTime(v: number) { this.params.slideTime = v; this.setParam('setSlideTime', v); }
 
     // Helper to sync state
     private applyAllParameters() {

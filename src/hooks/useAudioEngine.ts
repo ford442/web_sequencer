@@ -708,7 +708,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     characterMorph?: number,
                     breathIntensity?: number,
                     formantShift?: number,
-                    timeStretchEnvDepth?: number,
                     grainPitchQuantize?: number,
                     granularPitchShift?: number,
                     bitcrush?: number,
