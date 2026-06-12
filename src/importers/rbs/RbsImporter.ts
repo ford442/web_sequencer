@@ -627,15 +627,9 @@ export class RbsImporter {
       mappings.push({
         source: `${sourceName}.slideTime`,
         target: 'Bass2Params.slideTime',
-<<<<<<< HEAD
         originalValue: rawSlideTime,
         convertedValue: parseFloat(slideTime.toFixed(3)),
         formula: 'slideTime / 127 (0-1 normalized, TB-303 default ≈ 0.33)'
-=======
-        originalValue: tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME,
-        convertedValue: parseFloat((tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME).toFixed(3)),
-        formula: 'slideTime / 127'
->>>>>>> origin/main
       });
     }
 

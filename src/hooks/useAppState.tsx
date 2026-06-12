@@ -796,38 +796,6 @@ export function useAppState() {
     }, [clipboard, selection, selectedTrack, showToast, updateStorageForTrack]);
 
     const handleAutomationChange = useCallback((trackKey: TrackKey, step: number, value: number) => {
-<<<<<<< HEAD
-        setPattern(prev => {
-            const nextPattern = { ...prev };
-            if (trackKey === 'sampler') {
-                const bankIdx = activeSamplerBankRef.current;
-                const nextSampler = [...nextPattern.sampler];
-                const nextBank = { ...nextSampler[bankIdx] };
-                const nextAutomation = nextBank.automation ? { ...nextBank.automation } : {};
-                const nextParamArray = nextAutomation[automationParam]
-                    ? [...nextAutomation[automationParam]]
-                    : Array(NUM_STEPS).fill(null);
-                nextParamArray[step] = value;
-                nextAutomation[automationParam] = nextParamArray;
-                nextBank.automation = nextAutomation;
-                nextSampler[bankIdx] = nextBank;
-                nextPattern.sampler = nextSampler;
-                updateStorageForTrack(trackKey, nextSampler);
-            } else {
-                 const nextTrack = { ...nextPattern[trackKey] } as any;
-                 const nextAutomation = nextTrack.automation ? { ...nextTrack.automation } : {};
-                 const nextParamArray = nextAutomation[automationParam]
-                    ? [...nextAutomation[automationParam]]
-                    : Array(NUM_STEPS).fill(null);
-                 nextParamArray[step] = value;
-                 nextAutomation[automationParam] = nextParamArray;
-                 nextTrack.automation = nextAutomation;
-                 nextPattern[trackKey] = nextTrack;
-                 updateStorageForTrack(trackKey, nextTrack);
-            }
-            return nextPattern;
-        });
-=======
         const prev = patternRef.current;
         let newPattern = prev;
 
@@ -859,7 +827,6 @@ export function useAppState() {
             updateStorageForTrack(trackKey, newPattern[trackKey]);
         }
         setPattern(newPattern);
->>>>>>> origin/main
     }, [automationParam, updateStorageForTrack]);
 
     const handlePitchChange = useCallback((trackKey: TrackKey, step: number, pitch: number) => {
@@ -1278,18 +1245,11 @@ const handleNoteLengthChange = useCallback((newLength: number) => {
 
 const handleNotePropertyChange = useCallback((
     key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 
-<<<<<<< HEAD
-         'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoRate' | 'formantLfoDepth' | 
-         'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
-         'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delayLfoRate' | 'delayLfoDepth' | 'delaySend' | 'freezeEnvDepth' | 'pan' |
-         'grainEnvDepth' | 'grainPitchQuantize' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
-=======
          'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
          'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' |
          'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvSync' | 'vibratoDepth' | 'drive' |
          'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delayLfoRate' | 'delayLfoDepth' | 'delaySend' | 'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
->>>>>>> origin/main
          'vowel' | 'portamento' | 'slideFormant',
     value: number | boolean | string
 ) => {
