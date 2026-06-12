@@ -18,7 +18,6 @@ import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
-import { AudioNodePool } from '../utils/AudioNodePool';
 import {
     createAmbianceControls,
     createNoteOnSynth,
@@ -1084,7 +1083,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             } else if (params.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
                             }
-
                             if (noteParams?.granularPitchShift !== undefined) {
                                 voice.setGranularPitchShift(noteParams.granularPitchShift, triggerTime);
                             } else if (params.granularPitchShift !== undefined) {
@@ -1101,7 +1099,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             } else if (params.downsample !== undefined) {
                                 voice.setDownsample(params.downsample, triggerTime);
                             }
-
 
                             if (noteParams?.tranceGate !== undefined) {
                                 voice.setTranceGate(noteParams.tranceGate, triggerTime);
