@@ -1,0 +1,3 @@
+1. We've verified all the code logic in `SingingVoiceManager.ts` and `useAudioEngine.ts`. The implementation matches the user's requirements exactly.
+2. I need to make sure to run `initiate_memory_recording` to document this, which was the last part of `pre_commit_instructions`.
+3. Submit the PR using the title and description provided.
