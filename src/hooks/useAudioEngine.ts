@@ -744,6 +744,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // Handle Polyphony (Chords)
                 const notes = Array.isArray(note) ? note : [note];
 
+                // Performance: Hoist expressive config resolution to avoid recalculating per note/retrigger.
+                const expressiveConfig = resolveExpressiveness(params);
+
                 // If Singing/Stretch Mode
                 if (params.mode === 'stretch' && singingVoiceManagerRef.current) {
                     const manager = singingVoiceManagerRef.current;
@@ -752,7 +755,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     // For each note in the chord
                     notes.forEach((noteStr, _noteIndex) => {
 
-                        const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode) => {
+                        const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
                             const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
@@ -1006,7 +1009,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
 
                             // Sync other params
-                            const expressiveConfig = resolveExpressiveness(params);
                             if (noteParams?.vibratoDepth !== undefined) {
                                 voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
                             } else {
@@ -1156,8 +1158,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setFormantLfoShape(undefined);
                             }
 
-                            // Load buffer
-                            voice.loadBuffer(buffer.getChannelData(0));
+                            // Load buffer only if the voice doesn't already have it
+                            if (isNewBank) {
+                                voice.loadBuffer(buffer.getChannelData(0));
+                            }
 
                             // CHECK FOR SLICE TRIGGER MODE
                             if (params.sliceMode === 'phoneme' && alignment) {
@@ -1249,9 +1253,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         const runVoices = (timeOffset: number, duration: number) => {
                             const t = actualTime + timeOffset;
 
-                            const mainVoiceData = manager.acquireVoice();
+                            const mainVoiceData = manager.acquireVoiceForBank(params.sampleName);
                             manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
-                            triggerVoice(mainVoiceData.voice, 0, t, duration);
+                            triggerVoice(mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
 
                             const effectiveChoir = noteParams?.choir !== undefined ? noteParams.choir : (params.choir || 0);
 
@@ -1262,16 +1266,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
 
-                                const leftVoiceData = manager.acquireVoice();
+                                const leftVoiceData = manager.acquireVoiceForBank(params.sampleName);
                                 if (leftVoiceData.index !== mainVoiceData.index) {
                                     manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
-                                    triggerVoice(leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!);
+                                    triggerVoice(leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
                                 }
 
-                                const rightVoiceData = manager.acquireVoice();
+                                const rightVoiceData = manager.acquireVoiceForBank(params.sampleName);
                                 if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
                                     manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
-                                    triggerVoice(rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!);
+                                    triggerVoice(rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
                                 }
                             } else if (pitchOffsetSemitones === 0) {
                                 if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
@@ -1382,7 +1386,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         finalDestination = masterSaturationRef.current!;
                     }
 
-                    const expressiveConfig = resolveExpressiveness(params);
                     let expressiveNode: AudioWorkletNode | null = null;
                     try {
                         expressiveNode = expressiveVoicePoolRef.current?.acquire({
@@ -1640,7 +1643,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const gain = context.createGain();
                 gain.gain.value = params.volume;
 
-                const expressiveConfig = resolveExpressiveness(params);
                 let expressiveNode: AudioWorkletNode | null = null;
                 try {
                     expressiveNode = expressiveVoicePoolRef.current?.acquire({
