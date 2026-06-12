@@ -203,7 +203,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchQuantize', 'granularPitchShift',
+            'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchQuantize', 'granularPitchShift',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
             'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'downsample'
         ] as const;
@@ -243,6 +243,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFormantLfoShapeChange = paramHandlers.formantLfoShape;
     const handleReverbLfoRateChange = paramHandlers.reverbLfoRate;
     const handleReverbLfoDepthChange = paramHandlers.reverbLfoDepth;
+    const handleFormantEnvSyncChange = paramHandlers.formantEnvSync;
     const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
     const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
     const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
@@ -994,9 +995,66 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Reverb LFO Rate" value={currentParams.reverbLfoRate ?? 0.1} onChange={handleReverbLfoRateChange} min={0.1} max={10.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Reverb LFO Depth" value={currentParams.reverbLfoDepth ?? 0} onChange={handleReverbLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
-                            <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
-                            <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+
+                            {/* Formant Envelope */}
+                            <fieldset className="flex items-start gap-1 col-span-2 border border-indigo-900/30 p-1 rounded bg-gray-800/20">
+                                <legend className="sr-only">Formant Envelope</legend>
+                                <div className="flex flex-col items-center gap-1 min-w-[3rem] justify-center mt-4 border-r border-indigo-900/50 pr-1">
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={currentParams.formantEnvSync || false}
+                                        aria-label="Sync Formant Envelope to BPM"
+                                        onClick={() => handleFormantEnvSyncChange(!currentParams.formantEnvSync)}
+                                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${currentParams.formantEnvSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                    >
+                                        SYNC
+                                    </button>
+                                </div>
+                                <div className="flex gap-1">
+                                    {currentParams.formantEnvSync ? (
+                                        <div className="flex flex-col items-center min-w-[3rem]">
+                                            <span className="text-xs text-gray-400 uppercase tracking-wider mb-1">Fmt Atk</span>
+                                            <select
+                                                value={currentParams.formantEnvAttack ?? 0.1}
+                                                onChange={(e) => handleFormantEnvAttackChange(parseFloat(e.target.value))}
+                                                aria-label="Formant Envelope Attack Subdivision"
+                                                className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                            >
+                                                <option value={2}>2 Bars</option>
+                                                <option value={1}>1 Bar</option>
+                                                <option value={0.5}>1/2</option>
+                                                <option value={0.25}>1/4</option>
+                                                <option value={0.125}>1/8</option>
+                                                <option value={0.0625}>1/16</option>
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
+                                    )}
+                                    {currentParams.formantEnvSync ? (
+                                        <div className="flex flex-col items-center min-w-[3rem]">
+                                            <span className="text-xs text-gray-400 uppercase tracking-wider mb-1">Fmt Dec</span>
+                                            <select
+                                                value={currentParams.formantEnvDecay ?? 0.5}
+                                                onChange={(e) => handleFormantEnvDecayChange(parseFloat(e.target.value))}
+                                                aria-label="Formant Envelope Decay Subdivision"
+                                                className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                            >
+                                                <option value={2}>2 Bars</option>
+                                                <option value={1}>1 Bar</option>
+                                                <option value={0.5}>1/2</option>
+                                                <option value={0.25}>1/4</option>
+                                                <option value={0.125}>1/8</option>
+                                                <option value={0.0625}>1/16</option>
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
+                                    )}
+                                    <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+                                </div>
+                            </fieldset>
 
                             {/* Custom LFO Shape */}
                             <div className="flex flex-col items-center justify-start gap-1 col-span-2">

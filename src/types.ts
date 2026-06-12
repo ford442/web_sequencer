@@ -117,6 +117,7 @@ export interface SamplerBankParams {
   formantEnvAttack?: number;
   formantEnvDecay?: number;
   formantEnvAmount?: number;
+  formantEnvSync?: boolean;
   customLfoShape?: number[];
   characterMorph?: number;
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright';
@@ -404,6 +405,7 @@ export interface Note {
   drive?: number;
   tranceGate?: number;
   formantLfoSync?: boolean;
+  formantEnvSync?: boolean;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;

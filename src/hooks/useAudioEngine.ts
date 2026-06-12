@@ -31,6 +31,22 @@ import {
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
 import { makeDistortionCurve } from './audioEngine/distortion';
+import { AudioNodePool } from '../utils/AudioNodePool';
+
+export function safeConnect(source: AudioNode | undefined | null, destination: AudioNode | AudioParam | undefined | null) {
+    if (source && destination) {
+        if (destination instanceof AudioNode) {
+            source.connect(destination);
+        } else {
+            source.connect(destination);
+        }
+    }
+}
+
+export function getSyncedSeconds(bars: number, bpm: number): number {
+    if (!bars || bars <= 0) return 0;
+    return bars * 4 * (60 / bpm);
+}
 
 export function getSyncedLfoHz(bars: number, bpm: number): number {
     // bars is the subdivision value from the UI (e.g., 0.25 for 1/4 bar)
@@ -175,9 +191,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
     const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
-    const expressiveVoicePoolRef = useRef<AudioNodePool | null>(null);
-    const vocalOverdrivePoolRef = useRef<AudioNodePool | null>(null);
-    const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool | null>(null);
+    const expressiveVoicePoolRef = useRef<AudioNodePool<AudioWorkletNode> | null>(null);
+    const vocalOverdrivePoolRef = useRef<AudioNodePool<AudioWorkletNode> | null>(null);
+    const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool<AudioWorkletNode> | null>(null);
     
     // Multisample Generator
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
@@ -1124,9 +1140,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Formant Envelope
-                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envSync = (noteParams as any)?.formantEnvSync ?? (params as any).formantEnvSync ?? false;
+                            let envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            let envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
                             const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+
+                            if (envSync) {
+                                envAttack = getSyncedSeconds(envAttack as number, tempo);
+                                envDecay = getSyncedSeconds(envDecay as number, tempo);
+                            }
+
                             if (envAmount !== 0) {
                                 voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
                             }

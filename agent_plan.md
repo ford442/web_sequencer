@@ -1,3 +1,5 @@
+## 2026-08-05 - Implemented Formant Envelope Sync Subdivisions: Added `formantEnvSync` to `Note` and `SamplerBankParams` interfaces and UI. Mapped parameters to `useAudioEngine.ts` to allow step-sequenced and global formant envelope sync to tempo subdivisions using `getSyncedSeconds`. Fulfills "Formant Envelope Sync" Innovation Lab idea. Added new idea: "Spectral Resynthesis Mode".
+
 ## 2026-08-03 - Implemented Formant LFO Sync Subdivisions: Added `formantLfoSync` to `Note` interface and UI. Mapped parameters to `useAudioEngine.ts` to allow step-sequenced formant LFO rate sync to tempo subdivisions. Fulfills "Formant LFO Sync Subdivisions" Innovation Lab idea. Added new idea: "Formant Envelope Sync".
 
 # Web Sequencer: Living Roadmap
@@ -67,7 +69,7 @@
 ## 🧠 Innovation Lab (The "Dream" Log)
 * [x] **Idea:** "Step-Sequenced Glitch Density" - Allow individual sequencer steps to override the global `glitchChance` parameter, enabling targeted stutter effects on specific syllables. (Implemented in `NoteSelector`, `useAppState`, and `useAudioEngine`!)
 * [x] **Idea:** "Formant LFO Sync Subdivisions" - Extend the Formant LFO sync feature to allow selecting specific note subdivisions (1/4, 1/8, 1/16, 1/32) rather than just syncing to a generic tempo rate. (Implemented via formantLfoSync in NoteSelector and useAudioEngine!)
-* [ ] **Idea:** "Formant Envelope Sync" - Sync the formant envelope to BPM subdivisions for rhythmic sweeps.
+* [x] **Idea:** "Formant Envelope Sync" - Sync the formant envelope to BPM subdivisions for rhythmic sweeps. (Implemented in `NoteSelector`, `SamplerPanel`, `useAudioEngine.ts`, and `types.ts` globally and per-step!)
 * [x] **Idea:** "Formant LFO Sync Subdivisions" - Extend the Formant LFO sync feature to allow selecting specific note subdivisions (1/4, 1/8, 1/16, 1/32) rather than just syncing to a generic tempo rate. (Implemented in `NoteSelector`, `useAudioEngine.ts` and `types.ts` for Formant and Freeze LFOs globally and per-step!)
 * [x] **Idea:** "Step-Sequenced Bitcrusher / Decimator" - Add per-step bit reduction and downsampling to the sampler for rhythmically evolving lo-fi crunch textures on TTS vocals.
 * [x] **Idea:** "Time-Stretch Envelope" - Use an ADSR envelope to dynamically modulate the `timeRatio` of the granular engine, allowing vocals to rhythmically slow down or speed up over a single step. (Implemented in `rubberband-processor.ts` via envelope value modulation, wired to UI in `SamplerPanel` and `NoteSelector`!)
@@ -227,4 +229,5 @@
 * [2026-08-02] - Implemented Granular Pitch Shifter: Added `granularPitchShift` to `Note` and `SamplerBankParams` interfaces. Mapped parameters to `rubberband-processor.ts` via `SingingVoice.ts` and `useAudioEngine.ts` to allow independent granular pitch transposition logic via ratio scaling, decoupled from sample duration, fulfilling the "Granular Pitch Shifter" Innovation Lab idea. Added new idea: "Vocal Overdrive Worklet".
 * [2026-08-02] - Implemented Granular Pitch Shifter (grain-level): Added `grainPitchShift` to `Note` and `SamplerBankParams` interfaces. Modulated `pitchScale` inside `rubberband-processor.ts` independently of basic tracking. Exposed to global `SamplerPanel` and per-step `NoteSelector` UI. Added new idea: "Formant Preserving Vocoder".
 * **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently.
+* **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
 * [2026-05-19] - Refactored Large Files: Successfully split 10 out of 12 files that were over 1000 lines into multiple smaller files under 700 lines each. Extracted structural UI repetition into sub-components for NoteSelector, RbsImportModal, AISongModal, and SamplerPanel. Deferred splitting AISongStorage.ts and useAudioEngine.ts due to tightly coupled cyclic dependencies. These should be tackled incrementally in the future.
