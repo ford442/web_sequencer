@@ -58,6 +58,9 @@ export const ContextMenuNode = React.memo(() => {
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
           currentTranceGate={stepData?.tranceGate}
+          currentTimeStretchEnvDepth={stepData?.timeStretchEnvDepth}
+          currentSpectralPanRate={stepData?.spectralPanRate ?? 0}
+          currentSpectralPanDepth={stepData?.spectralPanDepth ?? 0}
           currentGranularPitchShift={stepData?.granularPitchShift}
           isProphecy={isProphecy}
           currentVowel={stepData?.vowel ?? 0}
