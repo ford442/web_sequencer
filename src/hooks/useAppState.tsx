@@ -795,39 +795,45 @@ export function useAppState() {
         showToast("Pasted from clipboard!", "success");
     }, [clipboard, selection, selectedTrack, showToast, updateStorageForTrack]);
 
-    const handleAutomationChange = useCallback((trackKey: TrackKey, step: number, value: number) => {
-        const prev = patternRef.current;
-        let newPattern = prev;
+const handleAutomationChange = useCallback((trackKey: TrackKey, step: number, value: number | boolean) => {
+    const prev = patternRef.current;
+    let newPattern = prev;
 
-        if (trackKey === 'sampler') {
-            const bankIdx = activeSamplerBankRef.current;
-            const bank = prev.sampler[bankIdx];
-            const nextAutomation = bank.automation ? { ...bank.automation } : {};
-            const nextParamArray = nextAutomation[automationParam]
-                ? [...nextAutomation[automationParam]]
-                : Array(NUM_STEPS).fill(null);
-            nextParamArray[step] = value;
-            nextAutomation[automationParam] = nextParamArray;
+    if (trackKey === 'sampler') {
+        const bankIdx = activeSamplerBankRef.current;
+        const bank = prev.sampler[bankIdx];
+        const nextAutomation = bank.automation ? { ...bank.automation } : {};
+        const nextParamArray = nextAutomation[automationParam]
+            ? [...nextAutomation[automationParam]]
+            : Array(NUM_STEPS).fill(null);
 
-            newPattern = {
-                ...prev,
-                sampler: prev.sampler.map((b, i) => i === bankIdx ? { ...b, automation: nextAutomation } : b)
-            };
-            updateStorageForTrack(trackKey, newPattern.sampler);
-        } else {
-            const track = prev[trackKey] as any;
-            const nextAutomation = track.automation ? { ...track.automation } : {};
-            const nextParamArray = nextAutomation[automationParam]
-               ? [...nextAutomation[automationParam]]
-               : Array(NUM_STEPS).fill(null);
-            nextParamArray[step] = value;
-            nextAutomation[automationParam] = nextParamArray;
-            const nextTrack = { ...track, automation: nextAutomation };
-            newPattern = { ...prev, [trackKey]: nextTrack };
-            updateStorageForTrack(trackKey, newPattern[trackKey]);
-        }
-        setPattern(newPattern);
-    }, [automationParam, updateStorageForTrack]);
+        nextParamArray[step] = value;                    // ← supports boolean (formantEnvSync etc.)
+
+        nextAutomation[automationParam] = nextParamArray;
+        newPattern = {
+            ...prev,
+            sampler: prev.sampler.map((b, i) => 
+                i === bankIdx ? { ...b, automation: nextAutomation } : b
+            )
+        };
+        updateStorageForTrack(trackKey, newPattern.sampler);
+    } else {
+        const track = prev[trackKey] as any;
+        const nextAutomation = track.automation ? { ...track.automation } : {};
+        const nextParamArray = nextAutomation[automationParam]
+            ? [...nextAutomation[automationParam]]
+            : Array(NUM_STEPS).fill(null);
+
+        nextParamArray[step] = value;                    // ← supports boolean
+
+        nextAutomation[automationParam] = nextParamArray;
+        const nextTrack = { ...track, automation: nextAutomation };
+        newPattern = { ...prev, [trackKey]: nextTrack };
+        updateStorageForTrack(trackKey, newPattern[trackKey]);
+    }
+
+    setPattern(newPattern);
+}, [automationParam, updateStorageForTrack, activeSamplerBankRef]);
 
     const handlePitchChange = useCallback((trackKey: TrackKey, step: number, pitch: number) => {
         if (trackKey !== 'sampler') return;
@@ -1244,12 +1250,17 @@ const handleNoteLengthChange = useCallback((newLength: number) => {
 }, [contextMenu, updateStorageForTrack]);
 
 const handleNotePropertyChange = useCallback((
-    key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 
-         'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
+    key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' |
+         'filterCutoff' | 'filterResonance' | 'envMod' |
+         'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
          'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' |
-         'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvSync' | 'vibratoDepth' | 'drive' |
-         'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delayLfoRate' | 'delayLfoDepth' | 'delaySend' | 'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
-         'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
+         'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvSync' |
+         'vibratoDepth' | 'drive' | 'characterMorph' |
+         'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
+         'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
+         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
+         'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' |
+         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
          'vowel' | 'portamento' | 'slideFormant',
     value: number | boolean | string
 ) => {
@@ -1257,37 +1268,82 @@ const handleNotePropertyChange = useCallback((
 
     const trackKey = contextMenu.track;
     const stepIndex = contextMenu.step;
+    const prev = patternRef.current;
 
-    setPattern(prev => {
-        const updater = (stepData: any) => {
-            if (!stepData) return stepData;
-            const newStep = { ...stepData };
-            if (key === 'reverse') {
-                if (typeof value === 'boolean') newStep.reverse = value;
-            } else if (key === 'reverbType') {
-                if (typeof value === 'string') newStep[key] = value;
-            } else {
-                if (typeof value === 'number') newStep[key] = value;
-            }
-            return newStep;
-        };
+    const updater = (stepData: any) => {
+        if (!stepData) return stepData;
+        const newStep = { ...stepData };
 
-        let newPattern;
-        let changedSequence;
-
-        if (trackKey === 'sampler') {
-            const bankIdx = activeSamplerBankRef.current;
-            newPattern = updateSamplerStep(prev, bankIdx, stepIndex, updater);
-            changedSequence = newPattern.sampler;
-        } else {
-            newPattern = updateTrackStep(prev, trackKey, stepIndex, updater);
-            changedSequence = newPattern[trackKey];
+        // Boolean params (sync toggles + existing flags)
+        if (key === 'reverse' || 
+            key === 'formantEnvSync' || 
+            key === 'formantLfoSync' || 
+            key === 'freezeLfoSync') {
+            if (typeof value === 'boolean') newStep[key] = value;
+        } 
+        // String params
+        else if (key === 'reverbType') {
+            if (typeof value === 'string') newStep[key] = value;
+        } 
+        // Numeric params (including new formant envelope controls)
+        else {
+            if (typeof value === 'number') newStep[key] = value;
         }
 
-        updateStorageForTrack(trackKey, changedSequence);
+        return newStep;
+    };
+
+    let newPattern;
+    let changedSequence;
+    if (trackKey === 'sampler') {
+        const bankIdx = activeSamplerBankRef.current;
+        newPattern = updateSamplerStep(prev, bankIdx, stepIndex, updater);
+        changedSequence = newPattern.sampler;
+    } else {
+        newPattern = updateTrackStep(prev, trackKey, stepIndex, updater);
+        changedSequence = newPattern[trackKey];
+    }
+
+    updateStorageForTrack(trackKey, changedSequence);
+    setPattern(newPattern);
+}, [contextMenu, updateStorageForTrack, activeSamplerBankRef]);
         return newPattern;
     });
 }, [contextMenu, updateStorageForTrack]);
+
+const prev = patternRef.current;
+
+    const updater = (stepData: any) => {
+        if (!stepData) return stepData;
+        const newStep = { ...stepData };
+
+        if (key === 'reverse' || key === 'formantEnvSync' || key === 'formantLfoSync' || key === 'freezeLfoSync') {
+            if (typeof value === 'boolean') newStep[key] = value;
+        } else if (key === 'reverbType') {
+            if (typeof value === 'string') newStep[key] = value;
+        } else {
+            // numeric params (including new formantEnvAttack/Decay/Amount etc.)
+            if (typeof value === 'number') newStep[key] = value;
+        }
+
+        return newStep;
+    };
+
+    let newPattern;
+    let changedSequence;
+    if (trackKey === 'sampler') {
+        const bankIdx = activeSamplerBankRef.current;
+        newPattern = updateSamplerStep(prev, bankIdx, stepIndex, updater);
+        changedSequence = newPattern.sampler;
+    } else {
+        newPattern = updateTrackStep(prev, trackKey, stepIndex, updater);
+        changedSequence = newPattern[trackKey];
+    }
+
+    updateStorageForTrack(trackKey, changedSequence);
+    setPattern(newPattern);
+}, [contextMenu, updateStorageForTrack, activeSamplerBankRef]); // add activeSamplerBankRef if not already in deps
+
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {
             const emptyPattern: Pattern = {

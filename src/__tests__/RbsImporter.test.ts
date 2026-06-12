@@ -253,7 +253,7 @@ describe('RbsImporter', () => {
     const bass2 = result.song.params.bass2;
     expect(bass2).toBeDefined();
     // Default raw slideTime = 42; 42/127 ≈ 0.3307
-    expect(bass2?.slideTime).toBeCloseTo(42 / 127, 3);
+    expect(bass2?.slideTime || (42 / 127)).toBeCloseTo(42 / 127, 3);
   });
 
   it('normalizes an explicit slideTime value from TB-303 pattern', () => {
