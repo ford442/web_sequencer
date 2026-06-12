@@ -232,6 +232,8 @@ export function resolvePublicAsset(relativePath: string): string {
       ? import.meta.env.BASE_URL
       : './';
 
+  const normalized = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+
   if (typeof window !== 'undefined' && window.location?.href) {
     try {
       const assetRoot = new URL(base, window.location.href);
