@@ -59,7 +59,14 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
                 </div>
                 
                 {/* Progress Bar */}
-                <div className="relative h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                    className="relative h-2 bg-gray-800 rounded-full overflow-hidden"
+                    role="progressbar"
+                    aria-valuenow={Math.round(aiImportProgress)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="AI Song Import Progress"
+                >
                     <div 
                         className={`absolute top-0 left-0 h-full rounded-full transition-all duration-300 ${
                             aiImportStage === 'error' ? 'bg-red-500' :

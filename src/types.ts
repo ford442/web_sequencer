@@ -103,6 +103,7 @@ export interface SamplerBankParams {
   timeStretchEnvDepth?: number;
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
+  granularPitchShift?: number;
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
@@ -116,6 +117,7 @@ export interface SamplerBankParams {
   formantEnvAttack?: number;
   formantEnvDecay?: number;
   formantEnvAmount?: number;
+  formantEnvSync?: boolean;
   customLfoShape?: number[];
   characterMorph?: number;
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright';
@@ -377,10 +379,18 @@ export interface Note {
   probability?: number;
   microtiming?: number;
   retrigger?: number;
+  glitchChance?: number;
   reverse?: boolean;
   sliceIndex?: number;
   freeze?: number;
   formantShift?: number;
+  formantLfoRate?: number;
+  formantLfoDepth?: number;
+  formantLfoSync?: boolean;
+  formantEnvSync?: boolean;
+  freezeLfoRate?: number;
+  freezeLfoDepth?: number;
+  freezeLfoSync?: boolean;
   vibratoDepth?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
@@ -391,6 +401,7 @@ export interface Note {
   delayLfoRate?: number;
   delayLfoDepth?: number;
   delaySend?: number;
+  granularPitchShift?: number;
   choir?: number;
   drive?: number;
   tranceGate?: number;

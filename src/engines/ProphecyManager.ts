@@ -10,6 +10,7 @@
  */
 
 import { ProphecyOscillator } from './ProphecyOscillator';
+import { logEngineFallback } from '../utils/engineTelemetry';
 import type { SynthParams } from '../types';
 import { PROPHECY_WAVEFORM_ID } from './ProphecyParams';
 
@@ -38,8 +39,8 @@ export class ProphecyManager {
         const aReady = aResult.status === 'fulfilled' && aResult.value;
         const bReady = bResult.status === 'fulfilled' && bResult.value;
 
-        if (!aReady) console.warn('[ProphecyManager] partA init failed');
-        if (!bReady) console.warn('[ProphecyManager] partB init failed');
+        if (!aReady) logEngineFallback('prophecy', 'wasm-worklet', 'partA (SYNTH A) init failed');
+        if (!bReady) logEngineFallback('prophecy', 'wasm-worklet', 'partB (SYNTH B) init failed');
 
         return aReady || bReady;
     }

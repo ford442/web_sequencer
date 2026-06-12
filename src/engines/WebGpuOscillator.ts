@@ -1,5 +1,6 @@
 // @mode: typescript
 // @note-for-ai: This is a native WebGPU implementation (L5 in UIMP).
+import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 // The WGSL shader code is embedded in SHADER_CODE constant.
 // This file handles GPU resource management and buffer pooling.
 // See PERFORMANCE_MIGRATION_STRATEGY.md for migration context.
@@ -76,13 +77,16 @@ export class WebGpuOscillator {
 
     async init() {
         if (!navigator.gpu) {
-            console.warn("WebGPU not supported in this browser.");
+            logEngineFallback('webgpu', 'webgpu', 'navigator.gpu unavailable (browser lacks WebGPU)');
             return;
         }
 
         try {
             const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) throw new Error("No GPU adapter found.");
+            if (!adapter) {
+                logEngineFallback('webgpu', 'webgpu', 'requestAdapter() returned null (no compatible GPU adapter)');
+                return;
+            }
 
             this.device = await adapter.requestDevice();
 
@@ -103,8 +107,9 @@ export class WebGpuOscillator {
             });
 
             this.isSupported = true;
+            try { engineTelemetry.registerResolution('webgpu', 'webgpu', 'device-ready'); } catch (_) {}
         } catch (e) {
-            console.error("Failed to init WebGPU Audio:", e);
+            logEngineFallback('webgpu', 'webgpu', 'GPUDevice or compute pipeline creation failed', e);
         }
     }
 
@@ -138,7 +143,7 @@ export class WebGpuOscillator {
 
             return { output, read };
         } catch (e) {
-            console.error("Failed to create GPU buffers:", e);
+            logEngineFallback('webgpu', 'webgpu', 'GPUBuffer allocation failed', e);
             return null;
         }
     }
@@ -247,7 +252,7 @@ export class WebGpuOscillator {
 
             return result;
         } catch (e) {
-            console.error("WebGPU readback failed:", e);
+            logEngineFallback('webgpu', 'webgpu', 'GPU buffer readback failed', e);
             // Destroy buffers on error - don't return to pool
             outputBuffer.destroy();
             readBuffer.destroy();

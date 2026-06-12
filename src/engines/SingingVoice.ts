@@ -1104,6 +1104,17 @@ export class SingingVoice {
     }
 
     /**
+     * Set the granular pitch shift amount.
+     * @param semitones The amount to pitch shift in semitones (-24.0 to 24.0)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setGranularPitchShift(semitones: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('granularPitchShift')?.setValueAtTime(semitones, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Set the trance gate depth.
      * @param amount Gate depth (0.0 - 1.0)
      * @param time Optional time to apply the change (default: now)

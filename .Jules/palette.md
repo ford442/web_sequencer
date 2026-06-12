@@ -31,3 +31,22 @@
 ## 2026-05-26 - Engine303Selector Keyboard Navigation and Screen Reader Labels
 **Learning:** The Engine303Selector's engine toggle buttons only relied on plain text labels without explicit screen reader context, and lacked focus-visible states for keyboard navigation, making them difficult to use for non-mouse users.
 **Action:** Added `focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2` to make keyboard focus visible, and explicit `aria-label`s ("Select Custom Open303 engine", "Select Authentic JC303 engine") to provide screen readers with better context on what the buttons do.
+## 2026-06-06 - Add Progressbar ARIA Attributes
+**Learning:** Custom UI components that act as progress bars need explicit 'progressbar' role, 'aria-valuenow', 'aria-valuemin', and 'aria-valuemax' attributes for screen reader support. 'aria-label' or 'aria-labelledby' should also be included.
+**Action:** Always verify custom progress indicators implement standard WAI-ARIA progressbar patterns.
+## 2026-06-07 - Consolidate disabled UX states in reusable components
+**Learning:** Hardcoding 'disabled:cursor-not-allowed' inline across the application causes inconsistency and code duplication.
+**Action:** Always place generic interactive visual affordances (like disabled opacity and cursor states) directly into core reusable components like LoadingButton.
+## 2026-06-08 - Keyboard Navigation in Custom List Items
+**Learning:** Custom interactive rows (like `LaneRow` in the Automation lane list) that rely solely on `div` wrappers and `onClick` are unreachable via keyboard. Furthermore, native focus styling on `button` and `select` elements often clashes or is invisible against custom dark backgrounds.
+**Action:** Always add `tabIndex={0}` and map `onKeyDown` ('Enter', ' ') to custom row items. Explicitly apply `focus-visible:ring-2 focus-visible:ring-[color]` with matching `ring-offset` colors across all interactive elements (buttons, selects, rows) in custom lists to ensure unified and visible keyboard navigation.
+## 2026-06-10 - Screen Reader Accessibility in Parameter Groups
+**Learning:** Components like SynthPart and DrumMachine group parameters visually using fieldsets but originally used a standard visible `<legend>` which can sometimes be styled inconsistently. Furthermore, when using `<fieldset>` in dense control areas, if the visual label is just text styled as a header but without a `<legend>`, screen readers won't group the items logically.
+**Action:** Always ensure that `<fieldset>` tags contain a `<legend>` element. When specific complex styling is needed for the group's title that cannot be achieved gracefully on a standard `<legend>`, use `<legend className="sr-only">` for screen readers and a separate `<div aria-hidden="true">` for the visual header.
+
+## 2026-06-09 - Invalid ARIA state on Switch role
+**Learning:** When using `role="switch"` on toggle buttons, `aria-pressed` is invalid ARIA. Switches must strictly use `aria-checked` to represent their state to screen readers.
+**Action:** Always check the ARIA role of a toggle button. Use `aria-checked` for `role="switch"` or `role="checkbox"`, and reserve `aria-pressed` for generic toggle `role="button"` elements.
+## 2026-06-12 - Added keyboard focus to dynamically generated oscillator type buttons
+**Learning:** Dynamically mapped `<button>` elements in tight container components (like `OscillatorTypeSelector`) frequently miss focus-visible attributes, causing a loss of keyboard navigability within deep menus. Setting focus indicators based on accent colors (`accentColor` prop) keeps the focus styles in line with the UI's specific modular coloring.
+**Action:** Always verify `types.map()` logic that produces buttons or interactive elements to ensure they include explicit `focus-visible:ring-2` and `focus-visible:ring-offset-2` attributes.

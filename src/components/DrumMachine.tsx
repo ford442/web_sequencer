@@ -97,7 +97,8 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* KICK */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Kick</legend>
+          <legend className="sr-only">Kick</legend>
+          <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2 -mt-2 bg-gray-900 w-max" aria-hidden="true">Kick</div>
           <div className="flex justify-around flex-wrap">
             <Knob label="Pitch" value={params.kick.pitch} onChange={handlers.kick.pitch} min={20} max={150} color="yellow" unit="Hz" />
             <Knob label="Decay" value={params.kick.decay} onChange={handlers.kick.decay} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
@@ -107,7 +108,8 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
         </fieldset>
         {/* SNARE */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Snare</legend>
+          <legend className="sr-only">Snare</legend>
+          <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2 -mt-2 bg-gray-900 w-max" aria-hidden="true">Snare</div>
           <div className="flex justify-around flex-wrap">
             <Knob label="Decay" value={params.snare.decay} onChange={handlers.snare.decay} min={0.05} max={0.5} step={0.01} color="yellow" unit="s" logarithmic />
             <Knob label="Tone" value={params.snare.tone} onChange={handlers.snare.tone} min={100} max={400} color="yellow" unit="Hz" />
@@ -117,7 +119,8 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
         </fieldset>
         {/* HATS */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Hi-Hats</legend>
+          <legend className="sr-only">Hi-Hats</legend>
+          <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2 -mt-2 bg-gray-900 w-max" aria-hidden="true">Hi-Hats</div>
           <div className="flex justify-around flex-wrap">
             <Knob label="CH Decay" value={params.closedHat.decay} onChange={handlers.hats.chDecay} min={0.01} max={0.2} step={0.001} color="yellow" unit="s" logarithmic />
             <Knob label="OH Decay" value={params.openHat.decay} onChange={handlers.hats.ohDecay} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
