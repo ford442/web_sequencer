@@ -1,121 +1,13 @@
-/**
- * RBS File Parser
- * 
- * Parses .rbs files from ReBirth RB-338 (v1.5, 2.0, 2.0.1) and compatible sequencers.
- * 
- * Architecture:
- * - Current implementation: Fixed-offset parser for single-pattern data (HEAD + TB303 A/B + DRUMS + PCF + basic automation).
- *   Already handles 16-step patterns, param extraction, accent/slide/tie flags, PCF, basic automation lanes, drum kit/tuning/decay.
- * - Next evolution (see GitHub #671): Full IFF "CAT RB40" chunk-based parser (per definitive RBS42.txt + rbs.h from nsauzede/jsynth reverse engineering).
- *   Required for real multi-pattern song files: 32 patterns per device in DEVL catalog, GLOB (play mode song vs pattern), TRKL/TRAK event lists (delta-tick + ctrlID + value) for song arrangement + continuous automation.
- * - Version handling: v2.0+ (RB40) is the documented full format; v1.5 is a simpler subset (often 1x303 + 808 only).
- *
- * Automation Precision Notes (critical for accurate ReBirth playback + future authentic RBS song creation):
- * - TRAK events use sub-step / tick resolution (~24 PPQ, 768 ticks/bar). Requires 1/96+ sub-step support in lanes + AudioParam scheduling (setValueAtTime + linearRampToValueAtTime) rather than pure per-step JS updates.
- * - Hybrid: Step-based (pattern step bitmasks for accent/slide/note) + continuous curves (knob automation events).
- * - Must reproduce ReBirth accent intensity, slide/portamento timing, PCF sweeps, 303 env/decay/wave changes with low jitter and tight clock sync (no drift over long songs).
- * - Recording must capture with temporal accuracy aligned to scheduler/audio clock.
- * - The system (lanes + scheduler + Open303 wiring) must be expressive enough to *author* new ReBirth-style songs inside Hyphon.
- * See updated issues #669, #670, #654, and new #671 for details and requirements.
- *
- * Primary external reference: https://github.com/nsauzede/jsynth (RBS42.txt, songfilev4.txt, rbs.h/c with exact packed structs, controller IDs, event encoding).
- *
- * Comprehensive error handling with detailed offset information.
- */
-
-import type { 
-  RawRbsData, 
-  RbsProject, 
-  Tb303PatternA, 
-  Tb303PatternB, 
-  DrumPattern, 
-  PcfSettings, 
-  AutomationLane,
-  RbsBinaryHeader,
-  RbsRawStep,
-  RbsRawAutomationLane,
-  RbsGlobData,
-  RbsTrakEvent,
-  RbsTrakData,
-  RbsSongData,
+import type {
+  RawRbsData, RbsGlobData, RbsTrakEvent, RbsTrakData, RbsSongData, RbsProject,
+  Tb303PatternA, Tb303PatternB, DrumPattern, PcfSettings, AutomationLane, HyphonAutomationLane,
+  Tb303Step, RbsBinaryHeader, RbsRawStep, RbsRawAutomationPoint, RbsRawAutomationLane
 } from './types';
-import { AUTOMATION_PARAMETER_MAP, TICKS_PER_BAR, TRAK_TRACK_INDEX } from './types';
+import { DEFAULT_RBS_IMPORT_OPTIONS, AUTOMATION_PARAMETER_MAP, TRAK_CONTROLLER } from './types';
+import type { RbsParserResult, RbsParserError, IffChunk } from './parser-types';
+import { MIN_FILE_SIZE, OFFSETS, STEP_COUNT, STEP_SIZE, NOTE_REST, NOTE_TIE, MAX_TRAK_EVENTS, SUPPORTED_VERSIONS } from './parser-types';
+import { TICKS_PER_BAR } from './types';
 
-/** Parser error types for granular error handling */
-export type RbsParserError = 
-  | { type: 'INVALID_FORMAT'; message: string }
-  | { type: 'UNSUPPORTED_VERSION'; version: string; supported: string[] }
-  | { type: 'CORRUPTED_DATA'; section: string; details?: string; offset?: number }
-  | { type: 'READ_ERROR'; message: string };
-
-/** Parser result with discriminated union for type safety */
-export type RbsParserResult = 
-  | { success: true; data: RawRbsData }
-  | { success: false; error: RbsParserError };
-
-/** Supported RBS format versions (current parser accepts common ones; full IFF path will detect RB40 / v4.x) */
-const SUPPORTED_VERSIONS = ['1.0', '1.5', '2.0', '2.0.1', '4.0', '4.2'];
-
-/** Minimum valid RBS file size (header + minimal patterns) */
-const MIN_FILE_SIZE = 0x300; // 768 bytes minimum
-
-/** File offset constants (legacy fixed-offset path for single-pattern / current parser) */
-const OFFSETS = {
-  HEADER: 0x00,
-  HEADER_SIZE: 0x40,           // 64 bytes (legacy view)
-  TB303_A: 0x40,
-  TB303_A_SIZE: 0x100,         // 256 bytes
-  TB303_B: 0x140,
-  TB303_B_SIZE: 0x100,         // 256 bytes
-  DRUMS: 0x240,
-  DRUMS_SIZE: 0x80,            // 128 bytes
-  PCF: 0x2C0,
-  PCF_SIZE: 0x40,              // 64 bytes
-  AUTOMATION: 0x300,
-} as const;
-
-/**
- * IFF chunk header (parsed from CAT RB40 files).
- * ReBirth uses big-endian for chunk sizes in the IFF container.
- */
-interface IffChunk {
-  id: string;      // 4-char ID (e.g. "HEAD", "GLOB", "DEVL", "TRAK")
-  size: number;    // payload size (big-endian uint32 after ID)
-  offset: number;  // absolute file offset of payload start
-}
-
-/** Step structure size in bytes */
-const STEP_SIZE = 15;
-
-/** Number of steps per pattern */
-const STEP_COUNT = 16;
-
-/** Special note value: rest (no note plays) */
-const NOTE_REST = 255;
-
-/** Special note value: tie (sustain previous note) */
-const NOTE_TIE = 254;
-
-/** Maximum number of TRAK events to parse (safety cap) */
-const MAX_TRAK_EVENTS = 100000;
-
-/** Maximum song length in measures for arrangement import */
-const MAX_SONG_BARS = 64;
-
-/**
- * RBS Parser class
- * 
- * Usage:
- * ```typescript
- * const parser = new RbsParser();
- * const result = await parser.parseRbsFile(file);
- * if (result.success) {
- *   console.log(result.data.project.name);
- * } else {
- *   console.error(result.error.message);
- * }
- * ```
- */
 export class RbsParser {
   /** Parse progress callback (0-100) */
   onProgress?: (percent: number) => void;

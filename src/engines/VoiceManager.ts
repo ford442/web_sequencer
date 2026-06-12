@@ -4,14 +4,19 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/waveformParser';
 import type { WasmOscillator } from './WasmOscillator';
 import type { RustOscillator } from './RustOscillator';
+import { logEngineFallback } from '../utils/engineTelemetry';
+import {
+    PYODIDE_REF_FREQ,
+    generatePyodideLoopBuffer,
+    type PyodideLike,
+} from '../utils/pyodideBuffers';
 
 export interface VoiceEngineDeps {
     wasmEngine?: WasmOscillator | null;
     wgslBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
     rustEngine?: RustOscillator | null;
-    // Pyodide live playback is not supported (generate_wave is async). Present here
-    // only so Voice can emit a clear warning when a pyodide-* waveform is requested.
-    pyodideEngine?: unknown;
+    pyodideEngine?: PyodideLike | null;
+    pyodideBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
 }
 
 export class Voice {
@@ -42,6 +47,10 @@ export class Voice {
     private globalDelaySendGain?: GainNode;
 
     private engineDeps?: VoiceEngineDeps;
+
+    updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
+        this.engineDeps = { ...this.engineDeps, ...deps };
+    }
 
     constructor(
         context: AudioContext,
@@ -160,7 +169,7 @@ export class Voice {
                     src.playbackRate.value = freq / REF_FREQ;
                     createdSource = src;
                 } else {
-                    console.warn(`[Voice] wav-${parsed.shape}: PCM buffer not loaded yet — falling back to JS oscillator`);
+                    logEngineFallback('wav', 'pcm', `wav-${parsed.shape} buffer not loaded yet`);
                 }
             } else if (parsed.engine === 'wam') {
                 // WAM (AssemblyScript/WASM oscillator). Bug fix: was checking 'wasm' but
@@ -183,10 +192,10 @@ export class Voice {
                         src.playbackRate.value = freq / REF_FREQ;
                         createdSource = src;
                     } else {
-                        console.warn(`[Voice] wam-${parsed.shape}: WasmOscillator.generate() returned empty — falling back to JS oscillator`);
+                        logEngineFallback('wam', 'wasm', `WasmOscillator.generate() returned empty for wam-${parsed.shape}`);
                     }
                 } else {
-                    console.warn(`[Voice] wam-${parsed.shape}: WasmOscillator not ready — falling back to JS oscillator`);
+                    logEngineFallback('wam', 'wasm', `WasmOscillator not ready for wam-${parsed.shape}`);
                 }
             } else if (parsed.engine === 'rust') {
                 // Rust/WASM oscillator. Supports saw and sqr only; tri/sin are not
@@ -210,10 +219,10 @@ export class Voice {
                         src.playbackRate.value = freq / REF_FREQ;
                         createdSource = src;
                     } else {
-                        console.warn(`[Voice] rust-${parsed.shape}: RustOscillator.generate() returned empty — falling back to JS oscillator`);
+                        logEngineFallback('rust', 'wasm', `RustOscillator.generate() returned empty for rust-${parsed.shape}`);
                     }
                 } else {
-                    console.warn(`[Voice] rust-${parsed.shape}: RustOscillator not in engineDeps or not ready — falling back to JS oscillator`);
+                    logEngineFallback('rust', 'wasm', `RustOscillator not ready for rust-${parsed.shape}`);
                 }
             } else if (parsed.engine === 'wgsl') {
                 // WebGPU: use pre-rendered buffer. Buffers are only populated when
@@ -226,12 +235,50 @@ export class Voice {
                     src.playbackRate.value = freq / REF_FREQ;
                     createdSource = src;
                 } else {
-                    console.warn(`[Voice] wgsl-${parsed.shape}: WebGPU buffer unavailable (GPU unsupported or still rendering) — falling back to JS oscillator`);
+                    logEngineFallback(
+                        'webgpu',
+                        'webgpu',
+                        `wgsl-${parsed.shape} buffer unavailable (GPU unsupported or pre-render pending)`,
+                    );
                 }
             } else if (parsed.engine === 'pyodide') {
-                // Pyodide generate_wave() is async and cannot be called from the
-                // synchronous startNote path. This engine is export-only (renderAudio.ts).
-                console.warn(`[Voice] pyodide-${parsed.shape}: Pyodide live playback is not supported (async API) — use audio export for Pyodide output. Falling back to JS oscillator.`);
+                const pyodide = this.engineDeps?.pyodideEngine;
+                if (pyodide) {
+                    let buf =
+                        this.engineDeps?.pyodideBuffers?.[parsed.shape] ?? null;
+                    if (!buf) {
+                        buf = generatePyodideLoopBuffer(
+                            pyodide,
+                            this.context,
+                            parsed.shape,
+                            params.filterCutoff,
+                            params.filterResonance,
+                        );
+                    }
+                    if (buf) {
+                        const src = this.context.createBufferSource();
+                        src.buffer = buf;
+                        src.loop = true;
+                        src.playbackRate.value = freq / PYODIDE_REF_FREQ;
+                        createdSource = src;
+                        this.filter.frequency.setValueAtTime(
+                            Math.min(params.filterCutoff, 20000),
+                            now,
+                        );
+                    } else {
+                        logEngineFallback(
+                            'pyodide',
+                            'pyodide',
+                            `generate_loop_buffer returned empty for pyodide-${parsed.shape}`,
+                        );
+                    }
+                } else {
+                    logEngineFallback(
+                        'pyodide',
+                        'pyodide',
+                        `Pyodide not ready for pyodide-${parsed.shape}`,
+                    );
+                }
             }
 
             // Final fallback: JS oscillator using the correct wave family so the
@@ -399,5 +446,11 @@ export class VoiceManager {
 
     stopAll(time?: number): void {
         this.voices.forEach(v => v.stop(time ?? v.context.currentTime));
+    }
+
+    updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
+        for (const voice of this.voices) {
+            voice.updateEngineDeps(deps);
+        }
     }
 }
