@@ -1090,8 +1090,8 @@ const handleKeyboardPlay = useCallback((note: string) => {
     }, [isNoteDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
 
     const handleDrawEnter = useCallback(() => {}, []);
-
-    const handleKeyDown = useCallback((e: KeyboardEvent) => {
+useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
         // Copy
@@ -1113,18 +1113,34 @@ const handleKeyboardPlay = useCallback((note: string) => {
             const high = Math.max(startStep, endStep);
 
             setPattern(prev => {
-                let newPattern = prev;
+                const copy = { ...prev };
 
                 if (trackKey === 'sampler') {
                     const bankIdx = activeSamplerBankRef.current;
-                    newPattern = updateSamplerRange(newPattern, bankIdx, low, high, () => null);
-                    updateStorageForTrack(trackKey, newPattern.sampler);
+                    const newSampler = [...copy.sampler];
+                    const newBank = { ...newSampler[bankIdx] };
+
+                    newBank.steps = [...newBank.steps];
+                    for (let i = low; i <= high; i++) {
+                        newBank.steps[i] = null;
+                    }
+
+                    newSampler[bankIdx] = newBank;
+                    copy.sampler = newSampler;
+
+                    updateStorageForTrack(trackKey, newSampler);
                 } else {
-                    newPattern = updateTrackRange(newPattern, trackKey, low, high, () => null);
-                    updateStorageForTrack(trackKey, newPattern[trackKey]);
+                    const newTrack = { ...(copy[trackKey] as any) };
+                    newTrack.steps = [...newTrack.steps];
+                    for (let i = low; i <= high; i++) {
+                        newTrack.steps[i] = null;
+                    }
+
+                    copy[trackKey] = newTrack;
+                    updateStorageForTrack(trackKey, newTrack);
                 }
 
-                return newPattern;
+                return copy;
             });
 
             setSelection(null);
@@ -1135,17 +1151,16 @@ const handleKeyboardPlay = useCallback((note: string) => {
             e.preventDefault();
             audioEngine?.triggerTapeStop?.(2.0);
         }
-    }, [selection, handleCopy, handlePaste, updateStorageForTrack, audioEngine]);
+    };
 
-    useEffect(() => {
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('mouseup', handleSelectionEnd);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mouseup', handleSelectionEnd);
 
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('mouseup', handleSelectionEnd);
-        };
-    }, [handleKeyDown, handleSelectionEnd]);
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('mouseup', handleSelectionEnd);
+    };
+}, [selection, handleSelectionEnd, updateStorageForTrack, handleCopy, handlePaste]);
 const handleNoteSelect = useCallback((note: string) => {
     if (!contextMenu) return;
 
@@ -1225,8 +1240,8 @@ const handleNoteLengthChange = useCallback((newLength: number) => {
 const handleNotePropertyChange = useCallback((
     key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 
          'filterCutoff' | 'filterResonance' | 'envMod' | 'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
-         'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' | 'formantEnvSync' |
-         'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'vibratoDepth' | 'drive' | 
+         'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' |
+         'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvSync' | 'vibratoDepth' | 'drive' |
          'characterMorph' | 'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' | 'delayLfoRate' | 'delayLfoDepth' | 'delaySend' | 'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' | 'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
          'vowel' | 'portamento' | 'slideFormant',

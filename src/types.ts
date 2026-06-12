@@ -387,7 +387,6 @@ export interface Note {
   formantLfoRate?: number;
   formantLfoDepth?: number;
   formantLfoSync?: boolean;
-  formantEnvSync?: boolean;
   freezeLfoRate?: number;
   freezeLfoDepth?: number;
   freezeLfoSync?: boolean;
@@ -405,6 +404,7 @@ export interface Note {
   choir?: number;
   drive?: number;
   tranceGate?: number;
+  formantEnvSync?: boolean;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;
