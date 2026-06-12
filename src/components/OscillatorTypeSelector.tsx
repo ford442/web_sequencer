@@ -81,7 +81,7 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
               onClick={() => onChange(t)}
               aria-pressed={isActive}
               title={`${theme.label} oscillator family`}
-              className={`px-2 py-0.5 font-bold rounded-md transition-all border flex-1 min-w-[52px] ${
+              className={`px-2 py-0.5 font-bold rounded-md transition-all border flex-1 min-w-[52px] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115] ${accentColor === 'cyan' ? 'focus-visible:ring-cyan-500' : 'focus-visible:ring-pink-500'} ${
                 isActive ? activeStyleMap[t] : inactiveBase
               }`}
             >
