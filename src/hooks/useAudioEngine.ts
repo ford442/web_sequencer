@@ -1027,18 +1027,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 const rateHz = (tempo / 60) * (params.gateRate / 4);
                                 voice.setGateRate(rateHz, triggerTime);
                             }
-
-                            if (noteParams?.gateDepth !== undefined) {
-                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
-                            } else if (params.gateDepth !== undefined) {
-                                voice.setGateDepth(params.gateDepth, triggerTime);
-                            }
-
-                            if (noteParams?.gateRate !== undefined) {
-                                voice.setGateRate(noteParams.gateRate, triggerTime);
-                            } else if (params.gateRate !== undefined) {
-                                voice.setGateRate(params.gateRate, triggerTime);
-                            }
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
                             if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
                             if (params.sustain !== undefined) voice.setSustain(params.sustain, triggerTime);
@@ -1607,7 +1595,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 activeSamplerNotes.current.set(id, {
                     source,
                     envGain: gain,
-                    expressiveNode,
                     releaseTime: params.release ?? 0.1,
                 });
                 return id;
@@ -1618,14 +1605,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 if (note) {
                     const now = context.currentTime;
                     const releaseTime = note.releaseTime ?? 0.1;
-                    note.expressiveNode?.parameters.get('gate')?.setValueAtTime(0, now);
                     note.envGain.gain.cancelScheduledValues(now);
                     note.envGain.gain.linearRampToValueAtTime(0, now + releaseTime);
-                    // Keep source alive a tiny bit longer so gate-release tails can render cleanly.
-                    note.source.stop(now + releaseTime + EXPRESSIVE_STOP_BUFFER_SECONDS);
-                    note.source.addEventListener('ended', () => {
-                        try { note.expressiveNode?.disconnect(); } catch { /* noop */ }
-                    }, { once: true });
+                    note.source.stop(now + releaseTime);
                     activeSamplerNotes.current.delete(id);
                 }
             };
