@@ -1013,12 +1013,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             // Sync other params
                             if (noteParams?.vibratoDepth !== undefined) {
                                 voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
-                            } else {
-                                // SingingVoice setters use legacy percentage depth (0-100).
-                                voice.setVibratoDepth(expressiveConfig.vibratoDepth * 100, triggerTime);
                             }
-                            voice.setVibratoRate(expressiveConfig.vibratoRate, triggerTime);
-
                             if (noteParams?.gateDepth !== undefined) {
                                 voice.setGateDepth(noteParams.gateDepth, triggerTime);
                             } else if (params.gateDepth !== undefined) {
@@ -1032,9 +1027,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 const rateHz = (tempo / 60) * (params.gateRate / 4);
                                 voice.setGateRate(rateHz, triggerTime);
                             }
-                            // SingingVoice setters use legacy percentage depth (0-100).
-                            voice.setTremoloDepth(expressiveConfig.tremoloDepth * 100, triggerTime);
-                            if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
 
                             if (noteParams?.gateDepth !== undefined) {
                                 voice.setGateDepth(noteParams.gateDepth, triggerTime);
@@ -1046,12 +1038,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setGateRate(noteParams.gateRate, triggerTime);
                             } else if (params.gateRate !== undefined) {
                                 voice.setGateRate(params.gateRate, triggerTime);
-                            }
-
-                            if (noteParams?.breathIntensity !== undefined) {
-                                voice.setBreathIntensity(noteParams.breathIntensity, triggerTime);
-                            } else {
-                                voice.setBreathIntensity(expressiveConfig.breathAmount, triggerTime);
                             }
                             if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
                             if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
@@ -1390,41 +1376,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         finalDestination = masterSaturationRef.current!;
                     }
 
-                    let expressiveNode: AudioWorkletNode | null = null;
-                    try {
-                        expressiveNode = expressiveVoicePoolRef.current?.acquire({
-                                vibratoRate: expressiveConfig.vibratoRate,
-                                vibratoDepth: expressiveConfig.vibratoDepth,
-                                tremoloRate: params.tremoloRate ?? 5.0,
-                                tremoloDepth: expressiveConfig.tremoloDepth,
-                                breathAmount: expressiveConfig.breathAmount,
-                                attack: params.attack ?? 0,
-                                decay: params.decay ?? 0,
-                                sustain: params.sustain ?? 1,
-                                release: params.release ?? 0.1,
-                                gate: 1,
-                            }) || new AudioWorkletNode(context, 'expressive-voice', {
-                                numberOfInputs: 1,
-                                numberOfOutputs: 1,
-                                outputChannelCount: [1],
-                                parameterData: {
-                                    vibratoRate: expressiveConfig.vibratoRate,
-                                    vibratoDepth: expressiveConfig.vibratoDepth,
-                                    tremoloRate: params.tremoloRate ?? 5.0,
-                                    tremoloDepth: expressiveConfig.tremoloDepth,
-                                    breathAmount: expressiveConfig.breathAmount,
-                                    attack: params.attack ?? 0,
-                                    decay: params.decay ?? 0,
-                                    sustain: params.sustain ?? 1,
-                                    release: params.release ?? 0.1,
-                                    gate: 1,
-                                }
-                            });
-                        expressiveNode.connect(finalDestination);
-                        finalDestination = expressiveNode;
-                    } catch (_err) {
-                        expressiveNode = null;
-                    }
+
 
                     const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
                     const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
@@ -1647,46 +1599,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const gain = context.createGain();
                 gain.gain.value = params.volume;
 
-                let expressiveNode: AudioWorkletNode | null = null;
-                try {
-                    expressiveNode = expressiveVoicePoolRef.current?.acquire({
-                            vibratoRate: expressiveConfig.vibratoRate,
-                            vibratoDepth: expressiveConfig.vibratoDepth,
-                            tremoloRate: params.tremoloRate ?? 5.0,
-                            tremoloDepth: expressiveConfig.tremoloDepth,
-                            breathAmount: expressiveConfig.breathAmount,
-                            attack: params.attack ?? 0,
-                            decay: params.decay ?? 0,
-                            sustain: params.sustain ?? 1,
-                            release: params.release ?? 0.1,
-                            gate: 1,
-                        }) || new AudioWorkletNode(context, 'expressive-voice', {
-                            numberOfInputs: 1,
-                            numberOfOutputs: 1,
-                            outputChannelCount: [1],
-                            parameterData: {
-                                vibratoRate: expressiveConfig.vibratoRate,
-                                vibratoDepth: expressiveConfig.vibratoDepth,
-                                tremoloRate: params.tremoloRate ?? 5.0,
-                                tremoloDepth: expressiveConfig.tremoloDepth,
-                                breathAmount: expressiveConfig.breathAmount,
-                                attack: params.attack ?? 0,
-                                decay: params.decay ?? 0,
-                                sustain: params.sustain ?? 1,
-                                release: params.release ?? 0.1,
-                                gate: 1,
-                            }
-                        });
-                } catch (_err) {
-                    expressiveNode = null;
-                }
-
-                if (expressiveNode) {
-                    source.connect(expressiveNode);
-                    expressiveNode.connect(gain);
-                } else {
-                    source.connect(gain);
-                }
+                source.connect(gain);
                 gain.connect(masterSaturationRef.current);
                 source.start(now);
 
