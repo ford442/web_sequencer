@@ -1014,30 +1014,16 @@ const handleKeyboardPlay = useCallback((note: string) => {
     const step = currentStepRef.current;
     if (isRecording && isPlaying && step >= 0) {
         setPattern(prev => {
-            const copy = { ...prev };
-
+            let newPattern;
             if (selectedTrack === 'sampler') {
                 const bankIdx = activeSamplerBankRef.current;
-                const nextSampler = [...copy.sampler];
-                const nextBank = { ...nextSampler[bankIdx] };
-
-                nextBank.steps = [...nextBank.steps];
-                nextBank.steps[step] = { note, velocity: 1, length: 1 };
-
-                nextSampler[bankIdx] = nextBank;
-                copy.sampler = nextSampler;
-
-                updateStorageForTrack('sampler', nextSampler);
+                newPattern = updateSamplerStep(prev, bankIdx, step, () => ({ note, velocity: 1, length: 1 }));
+                updateStorageForTrack('sampler', newPattern.sampler);
             } else {
-                const nextTrack = { ...(copy[selectedTrack] as any) };
-                nextTrack.steps = [...nextTrack.steps];
-                nextTrack.steps[step] = { note, velocity: 1, length: 1 };
-
-                copy[selectedTrack] = nextTrack;
-                updateStorageForTrack(selectedTrack, nextTrack);
+                newPattern = updateTrackStep(prev, selectedTrack, step, () => ({ note, velocity: 1, length: 1 }));
+                updateStorageForTrack(selectedTrack, newPattern[selectedTrack]);
             }
-
-            return copy;
+            return newPattern;
         });
     }
 }, [audioEngine, selectedTrack, isRecording, isPlaying, updateStorageForTrack]);
@@ -1114,34 +1100,16 @@ useEffect(() => {
             const high = Math.max(startStep, endStep);
 
             setPattern(prev => {
-                const copy = { ...prev };
-
+                let newPattern;
                 if (trackKey === 'sampler') {
                     const bankIdx = activeSamplerBankRef.current;
-                    const newSampler = [...copy.sampler];
-                    const newBank = { ...newSampler[bankIdx] };
-
-                    newBank.steps = [...newBank.steps];
-                    for (let i = low; i <= high; i++) {
-                        newBank.steps[i] = null;
-                    }
-
-                    newSampler[bankIdx] = newBank;
-                    copy.sampler = newSampler;
-
-                    updateStorageForTrack(trackKey, newSampler);
+                    newPattern = updateSamplerRange(prev, bankIdx, low, high, () => null);
+                    updateStorageForTrack(trackKey, newPattern.sampler);
                 } else {
-                    const newTrack = { ...(copy[trackKey] as any) };
-                    newTrack.steps = [...newTrack.steps];
-                    for (let i = low; i <= high; i++) {
-                        newTrack.steps[i] = null;
-                    }
-
-                    copy[trackKey] = newTrack;
-                    updateStorageForTrack(trackKey, newTrack);
+                    newPattern = updateTrackRange(prev, trackKey, low, high, () => null);
+                    updateStorageForTrack(trackKey, newPattern[trackKey]);
                 }
-
-                return copy;
+                return newPattern;
             });
 
             setSelection(null);
@@ -1193,59 +1161,27 @@ const handleNoteLengthChange = useCallback((newLength: number) => {
     if (!contextMenu) return;
 
     const prev = patternRef.current;
-    const copy = { ...prev };
     const trackKey = contextMenu.track;
     const stepIndex = contextMenu.step;
 
+    let newPattern = prev;
+
     if (trackKey === 'sampler') {
         const bankIdx = activeSamplerBankRef.current;
-        const newSampler = [...copy.sampler];
-        const newBank = { ...newSampler[bankIdx] };
-        newBank.steps = [...newBank.steps];
-
-        // Update the length of the current step
-        const currentStep = newBank.steps[stepIndex];
-        if (currentStep) {
-            newBank.steps[stepIndex] = { ...currentStep, length: newLength };
+        newPattern = updateSamplerStep(newPattern, bankIdx, stepIndex, (stepData) => stepData ? { ...stepData, length: newLength } : stepData);
+        if (newLength > 1) {
+            newPattern = updateSamplerRange(newPattern, bankIdx, stepIndex + 1, Math.min(stepIndex + newLength - 1, 255), () => null);
         }
-
-        // Nullify subsequent steps covered by the new length
-        for (let i = 1; i < newLength; i++) {
-            const targetIndex = stepIndex + i;
-            if (targetIndex < 256) {
-                newBank.steps[targetIndex] = null;
-            }
-        }
-
-        newSampler[bankIdx] = newBank;
-        copy.sampler = newSampler;
-
-        setPattern(copy);
-        updateStorageForTrack(trackKey, newSampler);
+        updateStorageForTrack(trackKey, newPattern.sampler);
     } else {
-        const newTrack = { ...(copy[trackKey] as any) };
-        newTrack.steps = [...newTrack.steps];
-
-        // Update the length of the current step
-        const currentStep = newTrack.steps[stepIndex];
-        if (currentStep) {
-            newTrack.steps[stepIndex] = { ...currentStep, length: newLength };
+        newPattern = updateTrackStep(newPattern, trackKey, stepIndex, (stepData) => stepData ? { ...stepData, length: newLength } : stepData);
+        if (newLength > 1) {
+            newPattern = updateTrackRange(newPattern, trackKey, stepIndex + 1, Math.min(stepIndex + newLength - 1, 255), () => null);
         }
-
-        // Nullify subsequent steps covered by the new length
-        for (let i = 1; i < newLength; i++) {
-            const targetIndex = stepIndex + i;
-            if (targetIndex < 256) {
-                newTrack.steps[targetIndex] = null;
-            }
-        }
-
-        copy[trackKey] = newTrack;
-
-        setPattern(copy);
-        updateStorageForTrack(trackKey, newTrack);
+        updateStorageForTrack(trackKey, newPattern[trackKey]);
     }
 
+    setPattern(newPattern);
     setContextMenu(null);
 }, [contextMenu, updateStorageForTrack]);
 
@@ -1261,6 +1197,7 @@ const handleNotePropertyChange = useCallback((
          'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' |
          'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
+         'spectralPanRate' | 'spectralPanDepth' |
          'vowel' | 'portamento' | 'slideFormant',
     value: number | boolean | string
 ) => {
@@ -1560,27 +1497,20 @@ const handleLyricApply = useCallback(async (text: string) => {
         setTtsPhrases(newPhrases);
 
         const prev = patternRef.current;
-        const copy = { ...prev };
         const bankIdx = activeSamplerBankRef.current;
 
-        const newSampler = [...copy.sampler];
-        const newBank = { ...newSampler[bankIdx] };
-        newBank.steps = [...newBank.steps];
-
         let noteIndex = 0;
-        for (let i = 0; i < 32; i++) {
-            const step = newBank.steps[i];
-            if (step && step.velocity > 0) {
-                newBank.steps[i] = { ...step, sliceIndex: noteIndex };
+        const newPattern = updateSamplerRange(prev, bankIdx, 0, 31, (stepData) => {
+            if (stepData && stepData.velocity > 0) {
+                const newStep = { ...stepData, sliceIndex: noteIndex };
                 noteIndex++;
+                return newStep;
             }
-        }
+            return stepData;
+        });
 
-        newSampler[bankIdx] = newBank;
-        copy.sampler = newSampler;
-
-        setPattern(copy);
-        updateStorageForTrack('sampler', newSampler);
+        setPattern(newPattern);
+        updateStorageForTrack('sampler', newPattern.sampler);
 
         setSampler(prevParams => {
             const next = [...prevParams];
