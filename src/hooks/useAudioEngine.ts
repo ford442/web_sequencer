@@ -1468,21 +1468,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         gain.connect(spectralFinalDest);
                     }
 
-                    if (expressiveNode) {
-                        source.addEventListener('ended', () => {
-                            try { expressiveNode?.disconnect(); } catch { /* noop */ }
-                        });
-                    }
-
                     source.start(startTime);
                     if (duration > 0) {
-                        const releaseTime = params.release ?? 0.1;
-                        if (expressiveNode) {
-                            expressiveNode.parameters.get('gate')?.setValueAtTime(0, startTime + duration);
-                            source.stop(startTime + duration + releaseTime + EXPRESSIVE_STOP_BUFFER_SECONDS);
-                        } else {
-                            source.stop(startTime + duration);
-                        }
+                        source.stop(startTime + duration);
                     }
                 };
 
