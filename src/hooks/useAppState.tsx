@@ -1243,7 +1243,7 @@ const handleNotePropertyChange = useCallback((
 
     updateStorageForTrack(trackKey, changedSequence);
     setPattern(newPattern);
-}, [contextMenu, updateStorageForTrack]);
+}, [contextMenu, updateStorageForTrack, activeSamplerBankRef]); // add activeSamplerBankRef if not already in deps
 
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {
