@@ -147,12 +147,6 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             const exp = this.getExports();
 
             const instanceExp = instance.exports as Record<string, any>;
-            this.exports = {
-                memory:           memory,
-                prophecy_init:    instanceExp[exportMap?.prophecy_init ?? 'prophecy_init'] as CallableFunction,
-                prophecy_process: instanceExp[exportMap?.prophecy_process ?? 'prophecy_process'] as CallableFunction,
-                prophecy_free:    instanceExp[exportMap?.prophecy_free ?? 'prophecy_free'] as CallableFunction,
-            };
 
             const mem: WebAssembly.Memory =
                 memory ??
