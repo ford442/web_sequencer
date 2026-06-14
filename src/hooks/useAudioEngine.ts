@@ -1056,6 +1056,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Apply Envelope Follower depths (global only)
                             if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            if (noteParams?.timeStretchEnvDepth !== undefined) {
+                                voice.setTimeStretchEnvDepth(noteParams.timeStretchEnvDepth, triggerTime);
+                            } else if (params.timeStretchEnvDepth !== undefined) {
+                                voice.setTimeStretchEnvDepth(params.timeStretchEnvDepth, triggerTime);
+                            }
                             if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
                             if (noteParams?.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);

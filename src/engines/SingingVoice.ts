@@ -1073,6 +1073,17 @@ export class SingingVoice {
      * @param depth Depth (0-1)
      * @param time Optional time to apply the change (default: now)
      */
+    /**
+     * Set envelope follower depth for time stretch modulation.
+     * @param depth Depth (-1 to 1)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setTimeStretchEnvDepth(depth: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('timeStretchEnvDepth')?.setValueAtTime(depth, time || this.audioContext.currentTime);
+        }
+    }
+
     setFreezeEnvDepth(depth: number, time?: number): void {
         if (this.workletNode) {
             this.workletNode.parameters.get('freezeEnvDepth')?.setValueAtTime(depth, time || this.audioContext.currentTime);
