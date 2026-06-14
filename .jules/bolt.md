@@ -60,3 +60,7 @@
 ## 2026-06-11 - AudioWorkletNode Allocation in Hot Paths
 **Learning:** Initializing new `AudioWorkletNode` instances directly inside high-frequency note-triggering functions (like `playSamplerVoice`) causes significant GC pressure and potential audio dropouts, as it requires allocating not just JS wrapper objects but full Web Audio graph nodes and background processing structures.
 **Action:** Implement and use an `AudioNodePool` to pre-allocate and reuse `AudioWorkletNode` instances (e.g. for distortion and expressive processing). When a note triggers, acquire a node, apply parameters via `parameterData` updates, and safely return it to the pool (with `disconnect` and a `TEARDOWN` message) in the `noteOff` or `setTimeout` handlers.
+
+## 2026-06-13 - Structural Sharing in useAppState
+**Learning:** Heavy global context files like `useAppState.tsx` often fall back to deep cloning (`JSON.parse(JSON.stringify(prev))`) out of convenience when modifying complex nested state like the 8x32 `Pattern` structure. This introduces massive GC pressure and completely circumvents `React.memo` by instantiating new references for completely untouched sequencer tracks.
+**Action:** Replace `JSON.parse` with structured, immutable cloning helpers like `updateTrackStep` and `updateSamplerRange` that only spawn new objects along the modified property path.
