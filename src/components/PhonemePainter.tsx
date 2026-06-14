@@ -524,7 +524,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
             ref={timelineRef}
             tabIndex={0}
             aria-label="Phoneme timeline. Use arrow keys to navigate and adjust phonemes."
-            className="relative rounded-lg border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] outline-none focus:ring-2 focus:ring-cyan-500/50"
+            className="relative rounded-lg border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500/50"
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider flex items-center gap-1.5">
@@ -750,7 +750,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                   <div className="flex gap-1">
                     <button
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend - 10)}
-                      className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
                       aria-label="Decrease pitch bend"
                       title="Decrease pitch bend"
                     >
@@ -758,7 +758,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                     </button>
                     <button
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend + 10)}
-                      className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
                       aria-label="Increase pitch bend"
                       title="Increase pitch bend"
                     >
@@ -781,7 +781,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                         p.id === selectedPhoneme.id ? { ...p, volume: vol } : p
                       ));
                     }}
-                    className="w-24 h-1 bg-zinc-700 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-24 h-1 bg-zinc-700 rounded-lg appearance-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
                     aria-label="Volume"
                     aria-valuetext={`${Math.round((selectedPhoneme.volume || 1) * 100)}%`}
                   />
@@ -812,7 +812,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
         <div className="border-t border-zinc-800 bg-zinc-950/50 px-6 py-4 flex items-center justify-between relative">
           <button
             onClick={handleClear}
-            className="px-4 py-2 text-xs font-mono text-red-400 hover:text-red-300 rounded-md border border-red-900/30 bg-gradient-to-b from-red-950/30 to-red-950/10 hover:from-red-950/50 hover:to-red-950/20 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="px-4 py-2 text-xs font-mono text-red-400 hover:text-red-300 rounded-md border border-red-900/30 bg-gradient-to-b from-red-950/30 to-red-950/10 hover:from-red-950/50 hover:to-red-950/20 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-red-500"
             aria-label="Clear all phonemes"
             title="Clear all phonemes"
           >
@@ -822,7 +822,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-white rounded-md bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-2 focus:ring-zinc-500"
+              className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-white rounded-md bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-zinc-500"
               aria-label="Cancel changes"
               title="Cancel changes"
             >
@@ -830,7 +830,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
             </button>
             <button
               onClick={handleSave}
-              className="px-6 py-2 text-xs font-mono font-bold text-black rounded-md bg-gradient-to-b from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 border border-cyan-400 transition-all shadow-[0_4px_16px_rgba(6,182,212,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] relative overflow-hidden group focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="px-6 py-2 text-xs font-mono font-bold text-black rounded-md bg-gradient-to-b from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 border border-cyan-400 transition-all shadow-[0_4px_16px_rgba(6,182,212,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] relative overflow-hidden group focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
               aria-label="Save changes"
               title="Save changes"
             >
