@@ -15,7 +15,8 @@
 
 ### Domain A: Audio Engine (Synth & Sampler)
 - [x] **Step-Sequenced Bitcrusher / Decimator:** Add per-step bit reduction and downsampling to `rubberband-processor.ts` for rhythmically evolving lo-fi crunch textures on TTS vocals.
-- [ ] **Time-Stretch Envelope:** Use an ADSR envelope to dynamically modulate the `timeRatio` of the granular engine, allowing vocals to rhythmically slow down or speed up over a single step.
+- [x] **Time-Stretch Envelope:** Use an ADSR envelope to dynamically modulate the `timeRatio` of the granular engine, allowing vocals to rhythmically slow down or speed up over a single step.
+  - Implemented: per-step + global `timeStretchEnvDepth` fully wired through SingingVoice → rubberband Worklet. Pairs beautifully with Formant Envelope Sync.
 - [x] **Refactor SingingVoice State:** Expose alignment state setters in `SingingVoice` to avoid type casting hacks and improve multi-bank alignment handling.
 - [x] **TTS Slice Triggering:** Implement a logic where a MIDI Note NoteOn event can trigger a specific *slice* or *word* from the TTS buffer (e.g., Note C3 = "Hello", Note D3 = "World").
 - [x] **Hybrid Polyphony:** Finalize `VoiceManager` to handle 8-voice polyphony for `synth-1` while keeping `synth-2` strictly monophonic (legato priority).
@@ -231,3 +232,6 @@
 * **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently.
 * **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
 * [2026-05-19] - Refactored Large Files: Successfully split 10 out of 12 files that were over 1000 lines into multiple smaller files under 700 lines each. Extracted structural UI repetition into sub-components for NoteSelector, RbsImportModal, AISongModal, and SamplerPanel. Deferred splitting AISongStorage.ts and useAudioEngine.ts due to tightly coupled cyclic dependencies. These should be tackled incrementally in the future.
+
+* **Idea:** "Spectral Morph Automation" - Allow drawing automation curves to morph spectrally between two different TTS phonemes or samples over a sequence of steps.
+* **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.
