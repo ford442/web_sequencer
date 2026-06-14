@@ -1258,7 +1258,7 @@ const handleNotePropertyChange = useCallback((
          'vibratoDepth' | 'drive' | 'characterMorph' |
          'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
          'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
-         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
+         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' |
          'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
          'vowel' | 'portamento' | 'slideFormant',
@@ -1307,42 +1307,7 @@ const handleNotePropertyChange = useCallback((
     updateStorageForTrack(trackKey, changedSequence);
     setPattern(newPattern);
 }, [contextMenu, updateStorageForTrack, activeSamplerBankRef]);
-        return newPattern;
-    });
-}, [contextMenu, updateStorageForTrack]);
 
-const prev = patternRef.current;
-
-    const updater = (stepData: any) => {
-        if (!stepData) return stepData;
-        const newStep = { ...stepData };
-
-        if (key === 'reverse' || key === 'formantEnvSync' || key === 'formantLfoSync' || key === 'freezeLfoSync') {
-            if (typeof value === 'boolean') newStep[key] = value;
-        } else if (key === 'reverbType') {
-            if (typeof value === 'string') newStep[key] = value;
-        } else {
-            // numeric params (including new formantEnvAttack/Decay/Amount etc.)
-            if (typeof value === 'number') newStep[key] = value;
-        }
-
-        return newStep;
-    };
-
-    let newPattern;
-    let changedSequence;
-    if (trackKey === 'sampler') {
-        const bankIdx = activeSamplerBankRef.current;
-        newPattern = updateSamplerStep(prev, bankIdx, stepIndex, updater);
-        changedSequence = newPattern.sampler;
-    } else {
-        newPattern = updateTrackStep(prev, trackKey, stepIndex, updater);
-        changedSequence = newPattern[trackKey];
-    }
-
-    updateStorageForTrack(trackKey, changedSequence);
-    setPattern(newPattern);
-}, [contextMenu, updateStorageForTrack, activeSamplerBankRef]); // add activeSamplerBankRef if not already in deps
 
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {

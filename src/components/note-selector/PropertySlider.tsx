@@ -23,7 +23,7 @@ export const PropertySlider: React.FC<PropertySliderProps> = React.memo(({
   step = 0.01,
   accentColor = "accent-cyan-400 hover:accent-cyan-300",
   borderColor = "border-cyan-900/30",
-  valueFormatter = (val) => val,
+  valueFormatter = (val: number) => val,
   onChange,
   ariaLabel,
   id

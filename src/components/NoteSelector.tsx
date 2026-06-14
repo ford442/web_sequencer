@@ -55,6 +55,9 @@ interface NoteSelectorProps {
     currentGrainEnvDepth?: number;
     currentGrainPitchQuantize?: number;
     currentGranularPitchShift?: number;
+    currentTimeStretchEnvDepth?: number;
+    currentSpectralPanRate?: number;
+    currentSpectralPanDepth?: number;
     currentTranceGate?: number;
     currentDelaySend?: number;
     currentChoir?: number;
