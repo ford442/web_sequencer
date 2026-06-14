@@ -1554,6 +1554,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 
                 if (!buffer || !masterSaturationRef.current) return null;
 
+                const expressiveConfig = resolveExpressiveness(params);
                 const rootNote = params.rootNote ?? 60;
                 const coarseTune = params.coarseTune ?? 0;
                 const fineTune = params.fineTune ?? 0;

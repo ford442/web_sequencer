@@ -49,6 +49,8 @@ class ProphecyProcessor extends AudioWorkletProcessor {
     private processErrorCount    = 0;
     private allocationErrorCount = 0;
 
+    private exports: Record<string, any> | null = null;
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);

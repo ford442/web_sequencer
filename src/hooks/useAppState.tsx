@@ -1194,7 +1194,7 @@ const handleNotePropertyChange = useCallback((
          'vibratoDepth' | 'drive' | 'characterMorph' |
          'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
          'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
-         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
+         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' |
          'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
          'spectralPanRate' | 'spectralPanDepth' |
