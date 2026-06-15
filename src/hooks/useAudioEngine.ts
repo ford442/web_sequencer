@@ -1056,8 +1056,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Apply Envelope Follower depths (global only)
                             if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
-                            if (noteParams?.timeStretchEnvDepth !== undefined) {
-                                voice.setTimeStretchEnvDepth(noteParams.timeStretchEnvDepth, triggerTime);
+                            if ((noteParams as any)?.timeStretchEnvDepth !== undefined) {
+                                voice.setTimeStretchEnvDepth((noteParams as any).timeStretchEnvDepth, triggerTime);
                             } else if (params.timeStretchEnvDepth !== undefined) {
                                 voice.setTimeStretchEnvDepth(params.timeStretchEnvDepth, triggerTime);
                             }
@@ -1209,15 +1209,15 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Pitch Envelope
                             if (voice.setPitchAttack) {
-                                const pAttack = noteParams?.pitchAttack ?? params.pitchAttack ?? 0;
+                                const pAttack = (noteParams as any)?.pitchAttack ?? params.pitchAttack ?? 0;
                                 voice.setPitchAttack(pAttack, triggerTime);
                             }
                             if (voice.setPitchDecay) {
-                                const pDecay = noteParams?.pitchDecay ?? params.pitchDecay ?? 0;
+                                const pDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
                                 voice.setPitchDecay(pDecay, triggerTime);
                             }
                             if ((voice as any).setPitchAmount) {
-                                const pAmount = noteParams?.pitchAmount ?? params.pitchAmount ?? 0;
+                                const pAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
                                 (voice as any).setPitchAmount(pAmount, triggerTime);
                             }
 

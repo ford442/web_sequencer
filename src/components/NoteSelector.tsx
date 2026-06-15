@@ -11,6 +11,9 @@ interface NoteSelectorProps {
     currentNote: string;
     currentLength: number;
     currentPan?: number;
+    currentPitchAmount?: number;
+    currentPitchAttack?: number;
+    currentPitchDecay?: number;
     onSelect: (note: string) => void;
     onLengthChange: (length: number) => void;
     onClose: () => void;
@@ -131,6 +134,9 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentVelocity = 1,
     currentProbability = 1,
     currentMicrotiming = 0,
+    currentPitchAmount = 0,
+    currentPitchAttack = 0,
+    currentPitchDecay = 0,
     currentReverse = false,
     currentRetrigger = 1,
     currentFreeze = 0,
@@ -751,14 +757,14 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     <input
                                         type="range"
                                         min="-24" max="24" step="0.1"
-                                        value={currentNote?.pitchAmount ?? 0}
+                                        value={currentPitchAmount ?? 0}
                                         data-property="pitchAmount"
                                         onChange={(e) => onPropertyChange?.(e.target.dataset.property as any, parseFloat(e.target.value))}
                                         className="w-16 accent-purple-400"
                                         aria-label="Pitch Envelope Amount"
                                     />
                                     <span className="text-[10px] text-gray-300 font-mono">
-                                        {(currentNote?.pitchAmount ?? 0) > 0 ? '+' : ''}{(currentNote?.pitchAmount ?? 0).toFixed(1)}st
+                                        {(currentPitchAmount ?? 0) > 0 ? '+' : ''}{(currentPitchAmount ?? 0).toFixed(1)}st
                                     </span>
                                 </div>
                                 <div className="flex flex-col items-center gap-1">
@@ -766,7 +772,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     <input
                                         type="range"
                                         min="0" max="1" step="0.01"
-                                        value={currentNote?.pitchAttack ?? 0}
+                                        value={currentPitchAttack ?? 0}
                                         data-property="pitchAttack"
                                         onChange={(e) => onPropertyChange?.(e.target.dataset.property as any, parseFloat(e.target.value))}
                                         className="w-16 accent-purple-400"
@@ -778,7 +784,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                     <input
                                         type="range"
                                         min="0" max="1" step="0.01"
-                                        value={currentNote?.pitchDecay ?? 0}
+                                        value={currentPitchDecay ?? 0}
                                         data-property="pitchDecay"
                                         onChange={(e) => onPropertyChange?.(e.target.dataset.property as any, parseFloat(e.target.value))}
                                         className="w-16 accent-purple-400"
