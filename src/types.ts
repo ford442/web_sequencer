@@ -454,7 +454,6 @@ export interface Note {
   pitchDecay?: number;
   pitchAmount?: number;
   vowel?: number;
-  timeStretchEnvDepth?: number;
   /** Prophecy: Portamento rate 0–1 */
   portamento?: number;
   // ... other fields as needed
