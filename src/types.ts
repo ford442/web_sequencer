@@ -409,6 +409,7 @@ export interface Note {
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   vowel?: number;
+  timeStretchEnvDepth?: number;
   /** Prophecy: Portamento rate 0–1 */
   portamento?: number;
   // ... other fields as needed
