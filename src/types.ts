@@ -416,6 +416,9 @@ export interface Note {
   freezeLfoRate?: number;
   freezeLfoDepth?: number;
   freezeLfoSync?: boolean;
+  freezeEnvDepth?: number;
+  timeStretchEnvDepth?: number;
+  grainEnvDepth?: number;
   vibratoDepth?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
@@ -431,6 +434,12 @@ export interface Note {
   drive?: number;
   tranceGate?: number;
   formantEnvSync?: boolean;
+  formantEnvAttack?: number;
+  formantEnvDecay?: number;
+  formantEnvAmount?: number;
+  envMod?: number;
+  filterCutoff?: number;
+  filterResonance?: number;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;

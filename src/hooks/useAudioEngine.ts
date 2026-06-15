@@ -720,7 +720,15 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     reverbLfoRate?: number,
                     reverbLfoDepth?: number,
                     glitchChance?: number,
-                    isHarmonyVoice?: boolean
+                    isHarmonyVoice?: boolean,
+                    timeStretchEnvDepth?: number,
+                    freezeEnvDepth?: number,
+                    grainEnvDepth?: number,
+                    formantEnvSync?: boolean,
+                    formantEnvAttack?: number,
+                    formantEnvDecay?: number,
+                    formantEnvAmount?: number,
+                    envMod?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -1054,14 +1062,22 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setFreezeLfoDepth(params.freezeLfoDepth, triggerTime);
                             }
 
-                            // Apply Envelope Follower depths (global only)
-                            if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            // Apply Envelope Follower depths (per-step noteParams take precedence over global params)
+                            if (noteParams?.freezeEnvDepth !== undefined) {
+                                voice.setFreezeEnvDepth(noteParams.freezeEnvDepth, triggerTime);
+                            } else if (params.freezeEnvDepth !== undefined) {
+                                voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            }
                             if (noteParams?.timeStretchEnvDepth !== undefined) {
                                 voice.setTimeStretchEnvDepth(noteParams.timeStretchEnvDepth, triggerTime);
                             } else if (params.timeStretchEnvDepth !== undefined) {
                                 voice.setTimeStretchEnvDepth(params.timeStretchEnvDepth, triggerTime);
                             }
-                            if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+                            if (noteParams?.grainEnvDepth !== undefined) {
+                                voice.setGrainEnvDepth(noteParams.grainEnvDepth, triggerTime);
+                            } else if (params.grainEnvDepth !== undefined) {
+                                voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+                            }
                             if (noteParams?.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
                             } else if (params.grainPitchQuantize !== undefined) {
@@ -1120,10 +1136,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Formant Envelope
-                            const envSync = (noteParams as any)?.formantEnvSync ?? (params as any).formantEnvSync ?? false;
-                            let envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            let envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
-                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            const envSync = noteParams?.formantEnvSync ?? params.formantEnvSync ?? false;
+                            let envAttack = noteParams?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            let envDecay = noteParams?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envAmount = noteParams?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
 
                             if (envSync) {
                                 envAttack = getSyncedSeconds(envAttack as number, tempo);
