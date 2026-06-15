@@ -134,6 +134,29 @@ export class SingingVoice {
     private pitchAttack: number = 0;    // Pitch envelope attack time (0-1)
     private pitchDecay: number = 0;     // Pitch envelope decay time (0-1)
 
+    private pitchAmount: number = 0;    // Pitch envelope amount (-24 to 24)
+
+    /**
+     * Set pitch envelope amount.
+     * @param amount Amount in semitones (-24 to 24)
+     * @param time Optional time to apply the change (default: now)
+     */
+    setPitchAmount(amount: number, time?: number): void {
+        this.pitchAmount = amount;
+        if (this.workletNode) {
+            this.workletNode.parameters.get('pitchAmount')?.setValueAtTime(this.pitchAmount, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
+     * Get the current pitch envelope amount.
+     * @returns Amount in semitones
+     */
+    getPitchAmount(): number {
+        return this.pitchAmount;
+    }
+
+
     /** Envelope Baseline Tracker for Phoneme-Aware Velocity */
     private currentAttack: number = 0.05;
     private currentDecay: number = 0.1;

@@ -205,6 +205,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
             'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchQuantize', 'granularPitchShift',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
+            'pitchAmount', 'pitchAttack', 'pitchDecay',
             'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'downsample'
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
@@ -247,6 +248,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
     const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
     const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
+
+    const handlePitchAmountChange = paramHandlers.pitchAmount;
+    const handlePitchAttackChange = paramHandlers.pitchAttack;
+    const handlePitchDecayChange = paramHandlers.pitchDecay;
+
+
     const handleCharacterMorphChange = paramHandlers.characterMorph;
     const handleAttackChange = paramHandlers.attack;
     const handleDecayChange = paramHandlers.decay;
@@ -995,6 +1002,17 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Reverb LFO Rate" value={currentParams.reverbLfoRate ?? 0.1} onChange={handleReverbLfoRateChange} min={0.1} max={10.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Reverb LFO Depth" value={currentParams.reverbLfoDepth ?? 0} onChange={handleReverbLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+
+
+                            {/* Pitch Envelope */}
+                            <fieldset className="p-2 border border-purple-500/20 rounded bg-black/40">
+                                <legend className="text-[10px] text-purple-400 font-mono tracking-wider mb-2 px-1">Pitch Envelope</legend>
+                                <div className="flex items-center gap-4">
+                                    <Knob label="Amount" value={currentParams.pitchAmount ?? 0} onChange={handlePitchAmountChange} min={-24} max={24} step={0.1} color="purple" unit="st" />
+                                    <Knob label="Attack" value={currentParams.pitchAttack ?? 0} onChange={handlePitchAttackChange} min={0} max={1.0} step={0.01} color="purple" />
+                                    <Knob label="Decay" value={currentParams.pitchDecay ?? 0} onChange={handlePitchDecayChange} min={0} max={1.0} step={0.01} color="purple" />
+                                </div>
+                            </fieldset>
 
                             {/* Formant Envelope */}
                             <fieldset className="flex items-start gap-1 col-span-2 border border-indigo-900/30 p-1 rounded bg-gray-800/20">

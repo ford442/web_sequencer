@@ -1198,7 +1198,7 @@ const handleNotePropertyChange = useCallback((
          'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' |
          'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
          'spectralPanRate' | 'spectralPanDepth' |
-         'vowel' | 'portamento' | 'slideFormant',
+         'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
     value: number | boolean | string
 ) => {
     if (!contextMenu) return;
