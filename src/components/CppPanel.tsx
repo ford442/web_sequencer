@@ -1,7 +1,7 @@
 import React, { memo, useMemo } from 'react';
-import cppPanel from '../assets/panels/cpp-panel.jpg';
 import { MagicKnob } from './MagicKnob';
 import type { Waveform } from '../types';
+import { OSCILLATOR_PANEL_IMAGES } from '../types';
 
 /** CPP oscillator waveforms in knob order: sinf → sawtooth → square → rand */
 export const CPP_WAVEFORMS = ['cpp-sin', 'cpp-saw', 'cpp-sqr', 'cpp-rand'] as const satisfies readonly Waveform[];
@@ -58,7 +58,7 @@ export const CppPanel: React.FC<CppPanelProps> = memo(({
     >
       <div className="relative w-[240px]" style={{ lineHeight: 0 }}>
         <img
-          src={cppPanel}
+          src={OSCILLATOR_PANEL_IMAGES.cpp}
           alt="CPP oscillator panel"
           className="block w-full h-auto select-none pointer-events-none"
           draggable={false}
