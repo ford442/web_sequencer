@@ -1,7 +1,7 @@
 import type { Waveform } from '../types';
 
-export type OscEngineId = 'js' | 'wav' | 'wasm' | 'wgsl' | 'rust' | 'pyodide' | 'wam' | '303';
-export type WaveShape = 'saw' | 'sqr' | 'tri' | 'sin';
+export type OscEngineId = 'js' | 'wav' | 'wasm' | 'wgsl' | 'rust' | 'pyodide' | 'wam' | '303' | 'cpp';
+export type WaveShape = 'saw' | 'sqr' | 'tri' | 'sin' | 'rand';
 
 const ENGINE_MAP: Record<string, OscEngineId> = {
     wav: 'wav',
@@ -10,6 +10,7 @@ const ENGINE_MAP: Record<string, OscEngineId> = {
     wam: 'wam',
     rust: 'rust',
     '303': '303',
+    cpp: 'cpp',
 };
 
 const SHAPE_ALIASES: Record<string, WaveShape> = {
@@ -21,6 +22,7 @@ const SHAPE_ALIASES: Record<string, WaveShape> = {
     triangle: 'tri',
     sin: 'sin',
     sine: 'sin',
+    rand: 'rand',
 };
 
 export function parseWaveform(w: Waveform): { engine: OscEngineId; shape: WaveShape } {
