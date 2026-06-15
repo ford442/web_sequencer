@@ -1222,6 +1222,21 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // 4. Play
+
+                            // Pitch Envelope
+                            if (voice.setPitchAttack) {
+                                const pAttack = (noteParams as any)?.pitchAttack ?? params.pitchAttack ?? 0;
+                                voice.setPitchAttack(pAttack, triggerTime);
+                            }
+                            if (voice.setPitchDecay) {
+                                const pDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
+                                voice.setPitchDecay(pDecay, triggerTime);
+                            }
+                            if ((voice as any).setPitchAmount) {
+                                const pAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
+                                (voice as any).setPitchAmount(pAmount, triggerTime);
+                            }
+
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);
 
                             const releaseTime = triggerTime + targetDuration;

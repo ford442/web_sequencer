@@ -66,6 +66,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'gateDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'gateRate', defaultValue: 4.0, minValue: 0.1, maxValue: 50.0 },
       { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+
+      { name: 'pitchAttack', defaultValue: 0.0, minValue: 0.0, maxValue: 2.0 },
+      { name: 'pitchDecay', defaultValue: 0.0, minValue: 0.0, maxValue: 2.0 },
+      { name: 'pitchAmount', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
       { name: 'attack', defaultValue: 0.05, minValue: 0.001, maxValue: 2.0 },
       { name: 'decay', defaultValue: 0.1, minValue: 0.001, maxValue: 2.0 },
       { name: 'sustain', defaultValue: 1.0, minValue: 0.0, maxValue: 1.0 },
@@ -256,6 +260,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     const envelopeValue = this.expressiveProcessor.getCurrentEnvelopeValue();
 
+    const pitchEnvelopeValue = this.expressiveProcessor.getCurrentPitchEnvelopeValue();
+
+
     const pitch = parameters.pitchScale[0];
     const defaultTimeRatio = parameters.timeRatio[0];
     const vibDepth = parameters.vibratoDepth[0];
@@ -268,6 +275,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
+
+    const pitchAttack = parameters.pitchAttack ? parameters.pitchAttack[0] : 0.0;
+    const pitchDecay = parameters.pitchDecay ? parameters.pitchDecay[0] : 0.0;
+    const pitchAmount = parameters.pitchAmount ? parameters.pitchAmount[0] : 0.0;
     const attack = parameters.attack ? parameters.attack[0] : 0.05;
     const decay = parameters.decay ? parameters.decay[0] : 0.1;
     const sustain = parameters.sustain ? parameters.sustain[0] : 1.0;
@@ -278,11 +289,23 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       tremolo: { depth: tremDepth, rate: tremRate, enabled: tremDepth > 0 },
       gate: { depth: gateDepth, rate: gateRate, enabled: gateDepth > 0 },
       breath: { amount: breath, enabled: breath > 0, filterCutoff: 2000 },
-      envelope: { attack, decay, sustain, release }
+
+      envelope: { attack, decay, sustain, release },
+      pitchEnvelope: { attack: pitchAttack, decay: pitchDecay, amount: pitchAmount }
+
     });
 
     // Combine note pitch with parameter modulation
     let finalPitch = this.isPlaying ? this.basePitch * pitch : pitch;
+
+
+    // Apply Pitch Envelope
+    if (pitchAmount !== 0.0 && pitchEnvelopeValue > 0.0) {
+      // Amount is in semitones. Pitch envelope value is 0.0 to 1.0.
+      const pitchEnvSemitones = pitchAmount * pitchEnvelopeValue;
+      const pitchEnvRatio = Math.pow(2.0, pitchEnvSemitones / 12.0);
+      finalPitch *= pitchEnvRatio;
+    }
 
     // Granular Pitch Shift
     const granularPitchShift = parameters.granularPitchShift ? parameters.granularPitchShift[0] : 0.0;

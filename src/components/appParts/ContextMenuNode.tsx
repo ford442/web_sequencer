@@ -27,6 +27,9 @@ export const ContextMenuNode = React.memo(() => {
           currentNote={stepData?.note ?? ''}
           currentLength={stepData?.length ?? 1}
           currentPan={stepData?.pan}
+          currentPitchAmount={stepData?.pitchAmount}
+          currentPitchAttack={stepData?.pitchAttack}
+          currentPitchDecay={stepData?.pitchDecay}
           currentTimbre={stepData?.timbre ?? 0}
           currentVelocity={stepData?.velocity ?? 1}
           currentProbability={stepData?.probability ?? 1}
