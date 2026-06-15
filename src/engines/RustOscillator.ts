@@ -10,20 +10,20 @@ export class RustOscillator {
     private generateFn: RustGenerateFn | null = null;
 
     async init() {
+        const rustJs = resolvePublicAsset('rust-wasm/rust_audio.js');
+        const rustWasm = resolvePublicAsset('rust-wasm/rust_audio_bg.wasm');
         try {
-            // Dynamic import keeps the public-asset path out of Vite's static
-            // analysis (and therefore out of test compilation paths).
-            // Using a variable (not a string literal) keeps Vite's static import-analysis
-            // from checking the public-directory path at compile/test time.
-            const rustPath = resolvePublicAsset('rust-wasm/rust_audio.js');
-            const mod = await import(/* @vite-ignore */ rustPath) as { default: () => Promise<void>; generate_rust_wave: RustGenerateFn };
-            await mod.default();
+            const mod = await import(/* @vite-ignore */ rustJs) as {
+                default: (wasmUrl?: string | URL) => Promise<void>;
+                generate_rust_wave: RustGenerateFn;
+            };
+            await mod.default(rustWasm);
             this.generateFn = mod.generate_rust_wave;
             this.isReady = true;
             try { engineTelemetry.registerResolution('rust', 'wasm', 'loaded'); } catch (_) {}
             console.log('[RustOscillator] Engine ready');
         } catch (e) {
-            logEngineFallback('rust', 'wasm', `dynamic import failed (${resolvePublicAsset('rust-wasm/rust_audio.js')})`, e);
+            logEngineFallback('rust', 'wasm', `dynamic import failed (${rustJs})`, e);
         }
     }
 

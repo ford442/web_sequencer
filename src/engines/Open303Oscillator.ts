@@ -1,11 +1,15 @@
 import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
 import { FallbackBassSynth } from './FallbackBassSynth';
-import { engineTelemetry, logEngineFallback, resolvePublicAsset } from '../utils/engineTelemetry';
+import {
+    engineTelemetry,
+    loadHyphonWasmExportMap,
+    logEngineFallback,
+    resolvePublicAsset,
+} from '../utils/engineTelemetry';
 // Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
-const HYPHON_WASM_EXPORT_MAP_URL = resolvePublicAsset('hyphon_wasm_export_map.json');
 
 /** Minimum WebAssembly memory pages required by the threaded hyphon_native.wasm build.
  *  The module declares initial: 8192 (512 MB). Must stay in sync with
@@ -77,17 +81,15 @@ export class Open303Oscillator {
      * Extracted so that the native/legacy retry path can reuse it.
      */
     private async fetchExportMap(): Promise<Record<string, string>> {
-        try {
-            const response = await fetch(HYPHON_WASM_EXPORT_MAP_URL);
-            if (!response.ok) {
-                console.warn(`[Open303Oscillator] Export map fetch HTTP ${response.status} (${HYPHON_WASM_EXPORT_MAP_URL})`);
-                return {};
-            }
-            return await response.json() as Record<string, string>;
-        } catch (e) {
-            console.warn('[Open303Oscillator] Export map fetch failed:', e);
-            return {};
+        const map = await loadHyphonWasmExportMap();
+        if (Object.keys(map).length === 0) {
+            logEngineFallback(
+                'open303',
+                'wasm-worklet',
+                'hyphon_wasm_export_map.json empty and glue parse found no exports — worklet cannot resolve minified WASM symbols',
+            );
         }
+        return map;
     }
 
     private async _initWithWasmBytes(

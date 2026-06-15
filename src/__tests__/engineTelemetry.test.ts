@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   EngineTelemetry,
   logEngineFallback,
+  parseHyphonGlueExportMap,
+  emitUserEngineFallbackWarning,
+  getActiveEngineFallbacks,
+  clearEngineFallbackWarning,
   resolvePublicAsset,
   engineTelemetry,
 } from '../utils/engineTelemetry';
@@ -32,6 +36,35 @@ describe('resolvePublicAsset', () => {
       value: { href: original },
       configurable: true,
     });
+  });
+});
+
+describe('parseHyphonGlueExportMap', () => {
+  it('extracts bare export names from Emscripten glue', () => {
+    const glue =
+      'Module["_open303_create"]=wasmExports["da"];' +
+      '_open303_init=Module["_open303_init"]=wasmExports["fa"];';
+    const map = parseHyphonGlueExportMap(glue);
+    expect(map.open303_create).toBe('da');
+    expect(map.open303_init).toBe('fa');
+  });
+});
+
+describe('emitUserEngineFallbackWarning', () => {
+  beforeEach(() => {
+    clearEngineFallbackWarning('webgpu');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('records active fallback and warns once per throttle window', () => {
+    emitUserEngineFallbackWarning('webgpu', 'webgpu', 'navigator.gpu unavailable');
+    emitUserEngineFallbackWarning('webgpu', 'webgpu', 'navigator.gpu unavailable');
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(getActiveEngineFallbacks().get('webgpu')?.reason).toContain('navigator.gpu unavailable');
   });
 });
 
