@@ -1,13 +1,14 @@
 # web_sequencer — Weekly Plan
 
 ## Today's focus
-**2026-06-16 (Mon) — Directed sprint mode.** Repo is in an active vocal-expressivity phase; this week's Claude run should ship fixes, not re-explore the codebase. **3 scoped targets:**
+**2026-06-15 — FIX FIRST mode.** The prior sprint's lead task — **Issue #720, the oscillator fallback audit — is still OPEN and untouched.** 6 of 8 audio engines (Open303, JC303, Rust, Prophecy, Pyodide, WebGPU) silently degrade to the default JS voice. The hybrid engine fallback chain is a core focus area, so this counts as a cracked foundation: no new ideas until it's diagnosed and the highest-impact engines are restored.
 
-1. **Oscillator engine fallback audit (#720)** — Open303, JC303, Rust, Prophecy, Pyodide, and WebGPU are reportedly falling back to the default JS voice. Use `engineTelemetry` + `logEngineFallback` (Ctrl+Shift+E HUD / `?hud=1`) to diagnose per-engine root causes; fix the highest-impact failures first.
-2. **Vocal pitch envelope polish** — PR #759 merged 2026-06-15 (Jules). Add Vitest coverage for `pitchAttack` / `pitchDecay` / `pitchAmount` wiring (`SingingVoice.ts` → `rubberband-processor.ts` → `ExpressiveVoiceProcessor.ts` → UI in `SamplerPanel` / `SamplerVoicePanel` / per-step `Note` fields).
-3. **Accessibility follow-up** — Review/merge open PR #760 (aria-labels on oscillator variant buttons). Extend the pattern to any remaining icon-only controls in the synth path.
+**Primary task — Issue #720, per-engine fallback diagnosis & fix:**
+- Use `src/utils/engineTelemetry.ts` (`logEngineFallback`, console prefix `[EngineFallback]`) + `src/components/EngineHUD.tsx` (Ctrl+Shift+E / `?hud=1`) to capture per-engine init failures from a fresh build.
+- Diagnose each engine's distinct root cause (WASM fetch/timeout, worklet registration error, missing binary, `navigator.gpu` null, Pyodide CDN bootstrap) and fix the highest-impact engines first: Open303/JC303 native stack → Rust → Prophecy/WebGPU/Pyodide.
+- Surface a user-visible warning when a fallback occurs, and add an init-path test per engine.
 
-**Stretch (only if 1–3 are green):** quick polyphony / audio-engine stability pass now that vocal features are landing fast (watch `SingingVoiceManager` note allocation + rubberband worklet teardown).
+**Build precondition:** `pnpm install --frozen-lockfile && pnpm run build:wasm && pnpm run build:emcc` — without WASM/native artifacts every engine fails at import. Confirm COOP/COEP headers are served (threaded native wasm) and a user gesture resumes `AudioContext` before judging an engine "failed".
 
 ## Ideas
 - [done — 2026-04-27] **Verify bug-report.md staleness** — confirmed stale; file deleted.
@@ -15,13 +16,13 @@
 - [done — 2026-06-01] **Holographic knob WGSL/2D drift-kill** — `knobMaterial.ts` shared contract consumed by WGSL + Canvas2D; `knobMaterial.contract.test.ts` guards palette/geometry/bloom parity.
 
 ## Backlog
-- [ ] **Issue #720** — Oscillator fallback audit (only open GitHub issue as of 2026-06-16). See Today's focus #1.
-- [ ] **PR #760** — Palette: aria-labels on oscillator variant buttons (Jules draft, open). See Today's focus #3.
-- [ ] **Repo hygiene** — 30+ `*.md` files + dozens of one-off `fix*.py` / `patch*.py` / `update_*.py` scripts at repo root. Candidate: DOCS.md zero-move root index + archive scripts into `tools/`.
+- [ ] **Issue #720** — Oscillator fallback audit (only open GitHub issue as of 2026-06-15). **= Today's focus (Fix First).**
+- [ ] **Repo hygiene** — 30+ `*.md` files + dozens of one-off `fix*.py` / `patch*.py` / `update_*.py` / `replace_helpers*.py` scripts at repo root. Candidate: DOCS.md zero-move root index + archive scripts into `tools/`.
 - [ ] Rubberband phoneme-aware time-stretch + `ExpressiveVoiceProcessor.ts` pending per `RUBBERBAND_ENHANCEMENT_PLAN.md`.
 - [ ] RBS import test+docs polish — expand Vitest coverage for parser/importer/scheduler + document automation architecture (PRs #685/#686 merged; follow-up coverage still thin).
 
 ## Done
+- 2026-06-15 — **Palette: aria-labels on oscillator variant buttons** (PR #760, merged — commits `6b0f753` / `9ca0e24`). Closes prior sprint target #3.
 - 2026-06-15 — **Vocal Pitch Envelope** (PR #759, Jules): `pitchAttack`, `pitchDecay`, `pitchAmount` on `Note` / `SamplerParams`; `SingingVoice.ts` setters; `ExpressiveVoiceProcessor.ts` attack/decay envelope; `rubberband-processor.ts` per-step + global routing; UI knobs in `SamplerPanel` + per-step controls in `SamplerVoicePanel` / `SamplerPitchControls` / `ContextMenuNode`.
 - 2026-06-15 — **Time-Stretch Envelope** wiring completed (PRs #756, #757): `timeStretchEnvDepth` per-step + global path through `SingingVoice` → rubberband worklet.
 - 2026-06-15 — **Palette: standardize focus rings** (PR #758).
@@ -60,10 +61,10 @@ _(Running log — fill in at end of each weekly session.)_
 | 2026-06-16 | _(pending)_ | Prep: plan refreshed, tests green after `pnpm run build:wasm`, issue #720 primed. |
 
 ## Last run
-Date: 2026-06-01
-Mode: User Idea
-Focus: Finish holographic-knob drift-kill via shared `knobMaterial` constants module.
-Outcome: `knobMaterial.ts` + contract tests landed on `main`; WGSL/2D paths now share palette/geometry/bloom. Carried forward as done.
+Date: 2026-06-15
+Mode: Fix First
+Focus: Issue #720 — oscillator engine fallback audit (6/8 engines degrading to JS voice). Prior sprint's lead task carried over untouched.
+Outcome: Planning run. Reconciled PR #760 (oscillator aria-labels) to Done. #720 still open and confirmed the only open GitHub issue → made it today's mandatory Fix First focus over any new ideas. Dispatch: kimi-cli swarm on the engine fallback chain; decoupled Copilot issue on RBS importer test coverage; Claude Code whole-stack build→deploy→smoke task; Jules wrap-up template. Chat-history tools (recent_chats/conversation_search) unavailable in this environment — context drawn from repo + plan file only.
 
 ## Prep checklist (before each weekly Claude session)
 - [ ] Refresh this file (date + 3–4 scoped targets)
