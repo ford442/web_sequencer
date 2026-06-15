@@ -17,67 +17,73 @@ export class RbsParser {
   private fileSize!: number;
 
   /**
-   * Main entry point: parse an .rbs file
+   * Parse raw bytes (test / programmatic entry point).
+   * Never throws — all failures are returned as `{ success: false, error }`.
    */
-  async parseRbsFile(file: File): Promise<RbsParserResult> {
+  async parseBytes(
+    bytes: Uint8Array,
+    options: { filename?: string; requireExtension?: boolean } = {}
+  ): Promise<RbsParserResult> {
+    const filename = options.filename ?? 'input.rbs';
+    const requireExtension = options.requireExtension ?? true;
+
     this.onProgress?.(0);
 
     try {
-      // Validate file extension
-      if (!file.name.toLowerCase().endsWith('.rbs')) {
+      if (requireExtension && !filename.toLowerCase().endsWith('.rbs')) {
         return {
           success: false,
           error: {
             type: 'INVALID_FORMAT',
-            message: `File "${file.name}" does not have .rbs extension`
-          }
+            message: `File "${filename}" does not have .rbs extension`,
+          },
         };
       }
 
-      // Check file size bounds
-      this.fileSize = file.size;
+      this.fileSize = bytes.byteLength;
       if (this.fileSize < MIN_FILE_SIZE) {
         return {
           success: false,
           error: {
             type: 'CORRUPTED_DATA',
             section: 'header',
-            details: `File too small (${this.fileSize} bytes, min ${MIN_FILE_SIZE})`
-          }
+            details: `File too small (${this.fileSize} bytes, min ${MIN_FILE_SIZE})`,
+          },
         };
       }
 
-      if (this.fileSize > 10 * 1024 * 1024) { // 10MB max
+      if (this.fileSize > 10 * 1024 * 1024) {
         return {
           success: false,
           error: {
             type: 'INVALID_FORMAT',
-            message: 'File too large (max 10MB for RBS files)'
-          }
+            message: 'File too large (max 10MB for RBS files)',
+          },
         };
       }
 
-      // Read file into memory
-      const arrayBuffer = await file.arrayBuffer();
+      const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
       this.dataView = new DataView(arrayBuffer);
       this.rawBytes = new Uint8Array(arrayBuffer);
 
       this.onProgress?.(5);
 
-      // --- IFF CAT / RB40 detection and full song parsing (#671) ---
       const iffChunks = this.parseIffChunks();
       if (iffChunks.length > 0) {
+        const truncationError = this.detectIffTruncation(iffChunks);
+        if (truncationError) {
+          return { success: false, error: truncationError };
+        }
+
         console.info(`[RbsParser] Detected full IFF CAT RB40 structure with ${iffChunks.length} top-level chunks. Attempting full song parse.`);
         const iffResult = this.parseIffSongData(iffChunks);
         if (iffResult) {
           this.onProgress?.(100);
           return { success: true, data: iffResult };
         }
-        // If IFF song parsing returned null, fall through to legacy extraction
         console.info('[RbsParser] IFF song data incomplete, falling back to legacy single-pattern extraction.');
       }
 
-      // Parse header (0-10%)
       const headerResult = this.parseHeader();
       if (!headerResult.success) {
         return { success: false, error: (headerResult as { success: false; error: RbsParserError }).error };
@@ -85,28 +91,23 @@ export class RbsParser {
       const header = headerResult.data;
       this.onProgress?.(10);
 
-      // Parse TB-303 Pattern A (10-40%)
       const tb303A = this.parseTb303PatternA();
       this.onProgress?.(40);
 
-      // Parse TB-303 Pattern B (40-70%)
       const tb303B = this.parseTb303PatternB();
       this.onProgress?.(70);
 
-      // Parse Drum patterns (70-85%)
       const drums = this.parseDrumPatterns();
       this.onProgress?.(85);
 
-      // Parse PCF settings (85-95%)
       const pcf = this.parsePcfSettings();
       this.onProgress?.(95);
 
-      // Parse Automation (95-100%)
       const automation = this.parseAutomation();
       this.onProgress?.(100);
 
-      const baseName = file.name.replace(/\.rbs$/i, '');
-      
+      const baseName = filename.replace(/\.rbs$/i, '');
+
       const rawData: RawRbsData = {
         version: header.version,
         project: {
@@ -118,30 +119,34 @@ export class RbsParser {
           swing: header.swing,
           patternLength: header.patternLength,
           createdAt: new Date(),
-          sourceSoftware: 'ReBirth RB-338'
+          sourceSoftware: 'ReBirth RB-338',
         },
         tb303PatternA: tb303A,
         tb303PatternB: tb303B,
-        drums: drums,
-        pcf: pcf,
-        automation: automation,
-        rawHeader: header
+        drums,
+        pcf,
+        automation,
+        rawHeader: header,
       };
 
-      return {
-        success: true,
-        data: rawData
-      };
-
+      return { success: true, data: rawData };
     } catch (error) {
       return {
         success: false,
         error: {
           type: 'READ_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error reading file'
-        }
+          message: error instanceof Error ? error.message : 'Unknown error reading file',
+        },
       };
     }
+  }
+
+  /**
+   * Main entry point: parse an .rbs file
+   */
+  async parseRbsFile(file: File): Promise<RbsParserResult> {
+    const arrayBuffer = await file.arrayBuffer();
+    return this.parseBytes(new Uint8Array(arrayBuffer), { filename: file.name, requireExtension: true });
   }
 
   /**
@@ -615,6 +620,25 @@ export class RbsParser {
   }
 
   /**
+   * Detect IFF chunk payloads that extend past EOF (truncated file).
+   */
+  private detectIffTruncation(chunks: IffChunk[]): RbsParserError | null {
+    for (const chunk of chunks) {
+      const paddedSize = chunk.size + (chunk.size % 2);
+      const end = chunk.offset + paddedSize;
+      if (end > this.fileSize) {
+        return {
+          type: 'CORRUPTED_DATA',
+          section: 'iff',
+          details: `Truncated chunk "${chunk.id}" (payload ends at ${end}, file size ${this.fileSize})`,
+          offset: chunk.offset,
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
    * Parse top-level IFF CAT container and return list of chunks (for full RB40 song files).
    * This is the foundation for proper multi-pattern + song arrangement support (see #671).
    * ReBirth .rbs is "CAT <size> RB40" followed by chunks (HEAD, GLOB, DEVL catalog, TRKL catalog with TRAK events).
@@ -644,6 +668,12 @@ export class RbsParser {
       const id = this.readAsciiString(pos, 4);
       if (!id || id.charCodeAt(0) < 32) break;
       const size = this.dataView.getUint32(pos + 4, false);
+      const payloadEnd = pos + 8 + size + (size % 2);
+      if (payloadEnd > this.fileSize) {
+        // Truncated — still record chunk for detectIffTruncation; stop walking.
+        chunks.push({ id, size, offset: pos + 8 });
+        break;
+      }
       chunks.push({ id, size, offset: pos + 8 });
       pos += 8 + size;
       // pad to even (IFF rule)
@@ -667,6 +697,11 @@ export class RbsParser {
       const id = this.readAsciiString(pos, 4);
       if (!id || id.charCodeAt(0) < 32) break;
       const size = this.dataView.getUint32(pos + 4, false);
+      const payloadEnd = pos + 8 + size + (size % 2);
+      if (payloadEnd > parentOffset + parentSize && payloadEnd > this.fileSize) {
+        chunks.push({ id, size, offset: pos + 8 });
+        break;
+      }
       chunks.push({ id, size, offset: pos + 8 });
       pos += 8 + size;
       if (size % 2 === 1) pos++; // IFF padding
@@ -814,7 +849,7 @@ export class RbsParser {
     const playMode = this.rawBytes[o] === 1 ? 1 : 0;
     const tempoRaw = this.dataView.getUint16(o + 2, true);
     const tempo = tempoRaw > 0 ? tempoRaw / 10 : 120;
-    const shuffle = this.rawBytes[o + 4] || 64;
+    const shuffle = this.rawBytes[o + 4];
     const loopStart = this.dataView.getUint16(o + 6, true);
     const loopEnd = this.dataView.getUint16(o + 8, true);
     const vintage = this.rawBytes[o + 10] || 0;

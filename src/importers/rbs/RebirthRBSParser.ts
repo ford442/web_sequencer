@@ -198,8 +198,16 @@ export class RebirthRBSParser {
       return { success: false, error: 'File must have .rbs extension' };
     }
 
-    // Delegate binary extraction to the existing robust parser
-    const engineResult = await this.engine.parseRbsFile(file);
+    const buffer = await file.arrayBuffer();
+    return this.parseBuffer(new Uint8Array(buffer), file.name);
+  }
+
+  /**
+   * Parse from raw bytes (programmatic / test entry point).
+   * Never throws — failures are returned in the result object.
+   */
+  async parseBuffer(bytes: Uint8Array, filename = 'input.rbs'): Promise<RebirthParseResult> {
+    const engineResult = await this.engine.parseBytes(bytes, { filename, requireExtension: false });
     if (!engineResult.success) {
       return { success: false, error: extractErrorMessage(engineResult.error) };
     }
@@ -216,7 +224,7 @@ export class RebirthRBSParser {
     const automationLanes = this.parseAutomation();
 
     console.log(
-      `[RebirthRBSParser] Parsed "${file.name}" – version ${header.version}, ` +
+      `[RebirthRBSParser] Parsed "${filename}" – version ${header.version}, ` +
       `${patterns.length} pattern entries, ${automationLanes.length} automation lane(s).`
     );
 
