@@ -149,6 +149,17 @@ export class SingingVoice {
     }
 
     /**
+     * Set the envelope modulation depth for granular pitch shift.
+     * @param depth Depth (-24.0 to 24.0)
+     * @param time Optional time
+     */
+    setGrainPitchEnvDepth(depth: number, time?: number): void {
+        if (this.workletNode) {
+            this.workletNode.parameters.get('grainPitchEnvDepth')?.setValueAtTime(depth, time || this.audioContext.currentTime);
+        }
+    }
+
+    /**
      * Get the current pitch envelope amount.
      * @returns Amount in semitones
      */

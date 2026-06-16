@@ -57,6 +57,7 @@ interface NoteSelectorProps {
     currentFreezeEnvDepth?: number;
     currentGrainEnvDepth?: number;
     currentGrainPitchQuantize?: number;
+    currentGrainPitchEnvDepth?: number;
     currentGranularPitchShift?: number;
     currentTimeStretchEnvDepth?: number;
     currentSpectralPanRate?: number;
@@ -168,6 +169,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchQuantize = 0,
+    currentGrainPitchEnvDepth = 0,
     currentTimeStretchEnvDepth = 0,
     currentSpectralPanRate = 0,
     currentSpectralPanDepth = 0,
@@ -791,6 +793,24 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         aria-label="Pitch Envelope Decay"
                                     />
                                 </div>
+                            </div>
+                            <div className="flex flex-col gap-1 mt-1 border-t border-purple-900/30 pt-2">
+                                <div className="flex justify-between text-[10px] text-purple-300 font-medium font-mono">
+                                    <label htmlFor="note-grain-pitch-env">Grain P Env Amt</label>
+                                    <span className="text-purple-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(168,85,247,0.5)]">{currentGrainPitchEnvDepth} st</span>
+                                </div>
+                                <input
+                                    id="note-grain-pitch-env"
+                                    type="range"
+                                    min="-24"
+                                    max="24"
+                                    step="0.01"
+                                    value={currentGrainPitchEnvDepth}
+                                    onChange={(e) => onPropertyChange?.("grainPitchEnvDepth", parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-purple-400 border border-purple-900/30 hover:accent-purple-300 transition-all"
+                                    aria-valuetext={`${currentGrainPitchEnvDepth} semitones`}
+                                    aria-label="Grain Pitch Envelope Depth"
+                                />
                             </div>
                         </fieldset>
 
