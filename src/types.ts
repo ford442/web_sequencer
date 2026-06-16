@@ -105,6 +105,7 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number;
   freezeEnvDepth?: number;
   timeStretchEnvDepth?: number;
+  grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
   granularPitchShift?: number;
@@ -422,6 +423,7 @@ export interface Note {
   freezeLfoSync?: boolean;
   freezeEnvDepth?: number;
   timeStretchEnvDepth?: number;
+  grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
   reverbSend?: number;
@@ -454,7 +456,6 @@ export interface Note {
   pitchDecay?: number;
   pitchAmount?: number;
   vowel?: number;
-  timeStretchEnvDepth?: number;
   /** Prophecy: Portamento rate 0–1 */
   portamento?: number;
   // ... other fields as needed
