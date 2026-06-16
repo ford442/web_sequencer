@@ -236,5 +236,6 @@
 
 * **Idea:** "Spectral Morph Automation" - Allow drawing automation curves to morph spectrally between two different TTS phonemes or samples over a sequence of steps.
 * [x] **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine. (Implemented in `rubberband-processor.ts` via modulating `granularPitchShift` mapped through `SingingVoice` and `useAudioEngine`, exposed in `NoteSelector` and `SamplerPanel` UI!)
+
 * [2026-08-07] - Implemented Granular Pitch Envelope: Added `grainPitchEnvDepth` to `Note` and `SamplerBankParams` interfaces and UI. Modulates `granularPitchShift` via the active pitch envelope value in `rubberband-processor.ts`. Exposed to global `SamplerPanel` and per-step `NoteSelector` UI. Fulfills "Granular Pitch Envelope" Innovation Lab idea. Added new idea: "Spectral Grain Gate".
 * **Idea:** "Spectral Grain Gate" - Add a dynamic noise gate explicitly for granular synthesis that only allows grains to trigger when audio amplitude crosses a threshold, creating tight stutters.

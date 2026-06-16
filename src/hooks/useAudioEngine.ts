@@ -1078,6 +1078,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             } else if (params.grainEnvDepth !== undefined) {
                                 voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
                             }
+                            if (noteParams?.grainPitchEnvDepth !== undefined) {
+                                voice.setGrainPitchEnvDepth(noteParams.grainPitchEnvDepth, triggerTime);
+                            } else if (params.grainPitchEnvDepth !== undefined) {
+                                voice.setGrainPitchEnvDepth(params.grainPitchEnvDepth, triggerTime);
+                            }
                             if (noteParams?.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
                             } else if (params.grainPitchQuantize !== undefined) {

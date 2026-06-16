@@ -80,6 +80,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
       { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
@@ -307,8 +308,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       finalPitch *= pitchEnvRatio;
     }
 
-    // Granular Pitch Shift
-    const granularPitchShift = parameters.granularPitchShift ? parameters.granularPitchShift[0] : 0.0;
+    // Granular Pitch Shift & Envelope
+    let granularPitchShift = parameters.granularPitchShift ? parameters.granularPitchShift[0] : 0.0;
+
+    // Apply Granular Pitch Envelope (maps envelope 0-1 to shift amount, similar to main pitch env)
+    const grainPitchEnvDepth = parameters.grainPitchEnvDepth ? parameters.grainPitchEnvDepth[0] : 0.0;
+    if (grainPitchEnvDepth !== 0.0 && pitchEnvelopeValue > 0.0) {
+        const maxEnvShift = 24.0;
+        granularPitchShift += (maxEnvShift * grainPitchEnvDepth * pitchEnvelopeValue);
+    }
+
     if (granularPitchShift !== 0.0) {
       const pitchShiftRatio = Math.pow(2.0, granularPitchShift / 12.0);
       finalPitch *= pitchShiftRatio;
