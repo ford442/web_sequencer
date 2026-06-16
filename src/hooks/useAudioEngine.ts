@@ -1129,10 +1129,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
                             }
 
-                            if (noteParams?.grainPitchEnvDepth !== undefined) {
-                                voice.setGrainPitchEnvDepth(noteParams.grainPitchEnvDepth, triggerTime);
-                            } else if (params.grainPitchEnvDepth !== undefined) {
-                                voice.setGrainPitchEnvDepth(params.grainPitchEnvDepth, triggerTime);
+                            if ((noteParams as any)?.grainPitchEnvDepth !== undefined) {
+                                voice.setGrainPitchEnvDepth((noteParams as any).grainPitchEnvDepth, triggerTime);
+                            } else if ((params as any).grainPitchEnvDepth !== undefined) {
+                                voice.setGrainPitchEnvDepth((params as any).grainPitchEnvDepth, triggerTime);
                             }
                             if (noteParams?.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);

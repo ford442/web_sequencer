@@ -1196,7 +1196,7 @@ const handleNotePropertyChange = useCallback((
          'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
          'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
          'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'pan' | 'glitchChance' |
-         'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' |
+         'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' | 'grainPitchEnvDepth' |
          'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
          'spectralPanRate' | 'spectralPanDepth' |
          'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',

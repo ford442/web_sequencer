@@ -85,6 +85,7 @@ interface NoteSelectorProps {
         | 'grainEnvDepth'
         | 'grainPitchQuantize'
         | 'timeStretchEnvDepth'
+        | 'grainPitchEnvDepth'
         | 'spectralPanRate'
         | 'spectralPanDepth'
         | 'granularPitchShift'
