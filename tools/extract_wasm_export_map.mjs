@@ -19,11 +19,20 @@ if (!input || !output) {
 
 const js = fs.readFileSync(input, 'utf8');
 const map = {};
-const re = /var (_[a-zA-Z0-9_]+)=Module\["\1"\]=.*?wasmExports\["([^"]+)"\]/g;
 
-let match;
-while ((match = re.exec(js)) !== null) {
-  map[match[1].slice(1)] = match[2];
+// Emscripten glue formats (release builds minify export names):
+//   Module["_open303_create"]=wasmExports["da"];
+//   _open303_destroy=Module["_open303_destroy"]=wasmExports["ea"];
+const patterns = [
+  /Module\["(_[^"]+)"\]=wasmExports\["([^"]+)"\]/g,
+  /(_[a-zA-Z0-9_]+)=Module\["\1"\]=wasmExports\["([^"]+)"\]/g,
+];
+
+for (const re of patterns) {
+  let match;
+  while ((match = re.exec(js)) !== null) {
+    map[match[1].slice(1)] = match[2];
+  }
 }
 
 fs.mkdirSync(path.dirname(output), { recursive: true });

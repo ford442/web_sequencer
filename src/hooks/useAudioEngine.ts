@@ -720,7 +720,15 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     reverbLfoRate?: number,
                     reverbLfoDepth?: number,
                     glitchChance?: number,
-                    isHarmonyVoice?: boolean
+                    isHarmonyVoice?: boolean,
+                    timeStretchEnvDepth?: number,
+                    freezeEnvDepth?: number,
+                    grainEnvDepth?: number,
+                    formantEnvSync?: boolean,
+                    formantEnvAttack?: number,
+                    formantEnvDecay?: number,
+                    formantEnvAmount?: number,
+                    envMod?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -744,6 +752,56 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- GLITCH LOGIC END ---
 
                 // Handle Polyphony (Chords)
+
+                // --- HOISTED CALCULATIONS ---
+                // Calculate step-level parameters once rather than per voice
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12;
+
+
+
+                // -----------------------------
+
+
+                // --- HOISTED CALCULATIONS ---
+                // Calculate step-level parameters once rather than per voice
+                const hoisted_driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                const hoisted_filterCutoff = noteParams?.filterCutoff !== undefined
+                    ? Math.max(20, noteParams.filterCutoff * 20000)
+                    : (params.filterCutoff ?? 20000);
+                const hoisted_filterResonance = noteParams?.filterResonance !== undefined
+                    ? noteParams.filterResonance * 20
+                    : (params.filterResonance ?? 0);
+                const hoisted_spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+                const hoisted_spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : ((params as any).spectralPanDepth || 0);
+                const hoisted_spectralLfoRate = (hoisted_spectralPanRate || 1) * (tempo / 60);
+                const hoisted_reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                const hoisted_currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                const hoisted_targetReverbNode = reverbNodesRef.current[hoisted_currentReverbType] || reverbNodesRef.current['plate'];
+                const hoisted_delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                const hoisted_baseShift = params.formantShift || 0;
+                const hoisted_characterMorph = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+                const hoisted_morphTarget = params.morphTarget || 'female';
+                const hoisted_currentShift = noteParams?.formantShift !== undefined ? (hoisted_baseShift + noteParams.formantShift) : hoisted_baseShift;
+                const hoisted_normalizedShift = Math.max(-12, Math.min(12, hoisted_currentShift)) / 12;
+                let hoisted_reverbEqCutoff = 6000 - (hoisted_normalizedShift * 4000);
+                hoisted_reverbEqCutoff -= (hoisted_characterMorph * 1000);
+                hoisted_reverbEqCutoff = Math.max(1000, Math.min(12000, hoisted_reverbEqCutoff));
+                // -----------------------------
+
                 const notes = Array.isArray(note) ? note : [note];
 
                 // Performance: Hoist expressive config resolution to avoid recalculating per note/retrigger.
@@ -793,7 +851,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Drive/Distortion if present
-                            const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+
                             if (driveAmount !== undefined && driveAmount > 0) {
                                 try {
                                     const overdriveNode = overdriveNodeRef = vocalOverdrivePoolRef.current?.acquire({ drive: driveAmount }) || new AudioWorkletNode(context, 'vocal-overdrive-processor', {
@@ -819,7 +877,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             voice.fxStrip.updateFilter(cutoff, resonance, triggerTime);
 
                             // Apply Spectral Panning
-                            const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+
                             const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
 
                             const sRate = spectralPanRate || 1;
@@ -832,16 +890,33 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
                             const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
 
+
+
+                            if (reverbSendAmount > 0 && targetReverbNode) {
+                                const reverbGain = context.createGain();
+                                reverbGain.gain.value = reverbSendAmount;
+
                             if (reverbSendAmount > 0 && targetReverbNode) {
                                 // Calculate Formant Brightness for Reverb EQ
-                                const baseShift = params.formantShift || 0;
-                                const currentShift = noteParams?.formantShift !== undefined ? (baseShift + noteParams.formantShift) : baseShift;
-                                const characterMorph = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+
+
+
 
                                 const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12; // -1.0 to 1.0
                                 let reverbEqCutoff = 6000 - (normalizedShift * 4000);
                                 reverbEqCutoff -= (characterMorph * 1000);
                                 reverbEqCutoff = Math.max(1000, Math.min(12000, reverbEqCutoff));
+                                // High formant shifts or brighter characters -> more high frequencies -> lower cutoff to tame sibilance
+                                // Neutral/Low shifts -> higher cutoff to keep reverb clear
+                                // We map currentShift from roughly -12 to +12
+
+
+                                // Base cutoff around 6000Hz. If bright (+1), drop to 2000Hz. If dark (-1), raise to 10000Hz.
+
+
+                                // Further adjust by character morph (0 to 1). 1 usually means brighter/female.
+
+
 
                                 const rLfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
                                 const rLfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
@@ -855,7 +930,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
 
                             // Setup Delay Send
-                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+
                             if (delaySendAmount > 0 && delayNodeRef.current) {
                                 voice.fxStrip.updateDelaySend(delaySendAmount, triggerTime);
                                 voice.fxStrip.connectDelay(delayNodeRef.current);
@@ -865,7 +940,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
-                            const baseShift = params.formantShift || 0;
+
                             let targetFormantShift = baseShift;
 
                             if (noteParams?.formantShift !== undefined) {
@@ -883,9 +958,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Character Morphing
-                            const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
-                            const morphTarget = params.morphTarget || 'female';
-                            voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
+
+
+                            voice.setCharacterMorph(characterMorph, morphTarget as any, 0.05); // Use short ramp time
 
                             // Sync other params
                             if (noteParams?.vibratoDepth !== undefined) {
@@ -931,9 +1006,22 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setFreezeLfoDepth(params.freezeLfoDepth, triggerTime);
                             }
 
-                            // Apply Envelope Follower depths (global only)
-                            if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
-                            if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+                            // Apply Envelope Follower depths (per-step noteParams take precedence over global params)
+                            if (noteParams?.freezeEnvDepth !== undefined) {
+                                voice.setFreezeEnvDepth(noteParams.freezeEnvDepth, triggerTime);
+                            } else if (params.freezeEnvDepth !== undefined) {
+                                voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            }
+                            if (noteParams?.timeStretchEnvDepth !== undefined) {
+                                voice.setTimeStretchEnvDepth(noteParams.timeStretchEnvDepth, triggerTime);
+                            } else if (params.timeStretchEnvDepth !== undefined) {
+                                voice.setTimeStretchEnvDepth(params.timeStretchEnvDepth, triggerTime);
+                            }
+                            if (noteParams?.grainEnvDepth !== undefined) {
+                                voice.setGrainEnvDepth(noteParams.grainEnvDepth, triggerTime);
+                            } else if (params.grainEnvDepth !== undefined) {
+                                voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+                            }
                             if (noteParams?.grainPitchQuantize !== undefined) {
                                 voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
                             } else if (params.grainPitchQuantize !== undefined) {
@@ -992,10 +1080,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Formant Envelope
-                            const envSync = (noteParams as any)?.formantEnvSync ?? (params as any).formantEnvSync ?? false;
-                            let envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            let envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
-                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            const envSync = noteParams?.formantEnvSync ?? params.formantEnvSync ?? false;
+                            let envAttack = noteParams?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            let envDecay = noteParams?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envAmount = noteParams?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
 
                             if (envSync) {
                                 envAttack = getSyncedSeconds(envAttack as number, tempo);
@@ -1078,6 +1166,21 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // 4. Play
+
+                            // Pitch Envelope
+                            if (voice.setPitchAttack) {
+                                const pAttack = (noteParams as any)?.pitchAttack ?? params.pitchAttack ?? 0;
+                                voice.setPitchAttack(pAttack, triggerTime);
+                            }
+                            if (voice.setPitchDecay) {
+                                const pDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
+                                voice.setPitchDecay(pDecay, triggerTime);
+                            }
+                            if ((voice as any).setPitchAmount) {
+                                const pAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
+                                (voice as any).setPitchAmount(pAmount, triggerTime);
+                            }
+
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);
 
                             const releaseTime = triggerTime + targetDuration;
@@ -1198,7 +1301,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                     let finalShaperDest: AudioNode | null = null;
                     let overdriveNodeRef: AudioWorkletNode | null = null;
-                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+
                     if (driveAmount > 0) {
                         try {
                             const overdriveNode = overdriveNodeRef = vocalOverdrivePoolRef.current?.acquire({ drive: driveAmount }) || new AudioWorkletNode(context, 'vocal-overdrive-processor', {
@@ -1243,7 +1346,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
 
 
-                    const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+
                     const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
                     let spectralFinalDest = finalDestination;
                     let wetGain: GainNode | null = null;
@@ -1426,6 +1529,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 
                 if (!buffer || !masterSaturationRef.current) return null;
 
+                const expressiveConfig = resolveExpressiveness(params);
                 const rootNote = params.rootNote ?? 60;
                 const coarseTune = params.coarseTune ?? 0;
                 const fineTune = params.fineTune ?? 0;

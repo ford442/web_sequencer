@@ -48,6 +48,64 @@ export type RbsParserError =
   | { type: 'CORRUPTED_DATA'; section: string; details?: string; offset?: number }
   | { type: 'READ_ERROR'; message: string };
 
+/**
+ * Stable, testable error codes for the RBS parse pipeline.
+ * Maps from {@link RbsParserError} discriminated variants.
+ */
+export type RbsErrorCode =
+  | 'RBS_ERROR_UNKNOWN_FORMAT'
+  | 'RBS_ERROR_TRUNCATED_CHUNK'
+  | 'RBS_ERROR_UNSUPPORTED_VERSION'
+  | 'RBS_ERROR_CORRUPTED_DATA'
+  | 'RBS_ERROR_READ_ERROR'
+  | 'RBS_ERROR_FILE_TOO_SMALL'
+  | 'RBS_ERROR_FILE_TOO_LARGE'
+  | 'RBS_ERROR_INVALID_EXTENSION';
+
+/** All failure codes returned by {@link classifyParserError}. */
+export const RBS_ERROR_CODES: readonly RbsErrorCode[] = [
+  'RBS_ERROR_UNKNOWN_FORMAT',
+  'RBS_ERROR_TRUNCATED_CHUNK',
+  'RBS_ERROR_UNSUPPORTED_VERSION',
+  'RBS_ERROR_CORRUPTED_DATA',
+  'RBS_ERROR_READ_ERROR',
+  'RBS_ERROR_FILE_TOO_SMALL',
+  'RBS_ERROR_FILE_TOO_LARGE',
+  'RBS_ERROR_INVALID_EXTENSION',
+] as const;
+
+/**
+ * Classify a parser error into a stable `RBS_ERROR_*` code for UI and tests.
+ */
+export function classifyParserError(error: RbsParserError): RbsErrorCode {
+  switch (error.type) {
+    case 'INVALID_FORMAT':
+      if (error.message.includes('.rbs extension') || error.message.includes('does not have .rbs')) {
+        return 'RBS_ERROR_INVALID_EXTENSION';
+      }
+      if (error.message.toLowerCase().includes('too large')) {
+        return 'RBS_ERROR_FILE_TOO_LARGE';
+      }
+      return 'RBS_ERROR_UNKNOWN_FORMAT';
+    case 'UNSUPPORTED_VERSION':
+      return 'RBS_ERROR_UNSUPPORTED_VERSION';
+    case 'CORRUPTED_DATA': {
+      const details = error.details?.toLowerCase() ?? '';
+      if (details.includes('truncated') || details.includes('past eof') || details.includes('chunk')) {
+        return 'RBS_ERROR_TRUNCATED_CHUNK';
+      }
+      if (details.includes('too small') || error.section === 'header' && details.includes('min')) {
+        return 'RBS_ERROR_FILE_TOO_SMALL';
+      }
+      return 'RBS_ERROR_CORRUPTED_DATA';
+    }
+    case 'READ_ERROR':
+      return 'RBS_ERROR_READ_ERROR';
+    default:
+      return 'RBS_ERROR_CORRUPTED_DATA';
+  }
+}
+
 /** Parser result with discriminated union for type safety */
 export type RbsParserResult =
   | { success: true; data: RawRbsData }

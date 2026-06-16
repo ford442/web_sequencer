@@ -15,6 +15,7 @@ export type Waveform =
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
   | 'rust-saw' | 'rust-sqr'
+  | 'cpp-sin' | 'cpp-saw' | 'cpp-sqr' | 'cpp-rand'
   | '303-saw' | '303-sqr'
   | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
 
@@ -37,11 +38,16 @@ export interface SynthParams {
   /** Which DSP engine to use when waveform is '303-saw' or '303-sqr'. Defaults to 'open303'. */
   engine303?: Engine303;
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
+  pitchAttack?: number;
+  pitchDecay?: number;
+  pitchAmount?: number;
   vowel?: number;
   /** Prophecy: Portamento rate 0–1 (0=instantaneous, 1=max glide) */
   portamento?: number;
   /** Prophecy: Formant frequency shift 0–1 */
   formantShift?: number;
+  /** CPP: fine tune / shape parameter 0–1 */
+  cppFine?: number;
 }
 
 export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
@@ -135,11 +141,12 @@ export interface SamplerBankParams {
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
   pitchAttack?: number;
+  pitchDecay?: number;
+  pitchAmount?: number;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
-  pitchDecay?: number;
   expressiveness?: {
     vibratoRate: number;
     vibratoDepth: number;
@@ -171,6 +178,7 @@ export type OscillatorType =
   | 'rust'         // Rust/WASM high-precision synth
   | 'webgpu'       // WGSL/WebGPU GPU oscillators
   | 'wam'          // Web Audio Modules (WAM) plugins
+  | 'cpp'          // High-precision C++ math oscillators (sinf / saw / sqr / rand)
 ;
 
 /** Visual theme applied to the oscillator panel / overlay when this type is active. */
@@ -263,6 +271,28 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     text: 'text-amber-300',
     badge: 'WAM',
   },
+  cpp: {
+    label: 'CPP',
+    accent: 'fuchsia',
+    panelBg: 'bg-gradient-to-br from-indigo-950/40 via-fuchsia-950/30 to-rose-950/40',
+    panelBorder: 'border-fuchsia-500/40',
+    text: 'text-fuchsia-200',
+    badge: 'CPP',
+  },
+};
+
+/** Hardware panel artwork in public/osc/ — one JPG per oscillator family. */
+export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
+  javascript: '/osc/js.jpg',
+  pcm: '/osc/pcm.jpg',
+  open303: '/osc/open303.jpg',
+  jc303: '/osc/jc303.jpg',
+  prophecy: '/osc/prophecy.jpg',
+  pyodide: '/osc/pyodide.jpg',
+  rust: '/osc/rust.jpg',
+  webgpu: '/osc/webgpu.jpg',
+  wam: '/osc/wam.jpg',
+  cpp: '/osc/cpp.jpg',
 };
 
 /** Derive the OscillatorType from a concrete Waveform + optional engine303 override. */
@@ -278,6 +308,7 @@ export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine3
   if (w.startsWith('rust-')) return 'rust';
   if (w.startsWith('wgsl-')) return 'webgpu';
   if (w.startsWith('wam-')) return 'wam';
+  if (w.startsWith('cpp-')) return 'cpp';
   return 'javascript';
 }
 
@@ -299,6 +330,7 @@ export function getDefaultWaveformForType(type: OscillatorType): Waveform {
     case 'rust': return 'rust-saw';
     case 'webgpu': return 'wgsl-saw';
     case 'wam': return 'wam-saw';
+    case 'cpp': return 'cpp-saw';
     default: return 'sawtooth';
   }
 }
@@ -315,6 +347,7 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     case 'rust': return ['rust-saw', 'rust-sqr'];
     case 'webgpu': return ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'];
     case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
+    case 'cpp': return ['cpp-sin', 'cpp-saw', 'cpp-sqr', 'cpp-rand'];
     default: return ['sawtooth'];
   }
 }
@@ -387,6 +420,9 @@ export interface Note {
   freezeLfoRate?: number;
   freezeLfoDepth?: number;
   freezeLfoSync?: boolean;
+  freezeEnvDepth?: number;
+  timeStretchEnvDepth?: number;
+  grainEnvDepth?: number;
   vibratoDepth?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
@@ -402,12 +438,21 @@ export interface Note {
   drive?: number;
   tranceGate?: number;
   formantEnvSync?: boolean;
+  formantEnvAttack?: number;
+  formantEnvDecay?: number;
+  formantEnvAmount?: number;
+  envMod?: number;
+  filterCutoff?: number;
+  filterResonance?: number;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
+  pitchAttack?: number;
+  pitchDecay?: number;
+  pitchAmount?: number;
   vowel?: number;
   /** Prophecy: Portamento rate 0–1 */
   portamento?: number;

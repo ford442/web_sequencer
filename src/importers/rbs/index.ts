@@ -57,7 +57,8 @@ export {
 
 // Parser
 export { RbsParser, parseRbsFile } from './RbsParser';
-export type { RbsParserResult, RbsParserError } from './parser-types';
+export type { RbsParserResult, RbsParserError, RbsErrorCode } from './parser-types';
+export { classifyParserError, RBS_ERROR_CODES } from './parser-types';
 
 // New spec-driven Rebirth parser (recommended API per technical spec)
 export { RebirthRBSParser, parseRebirthRBSFile } from './RebirthRBSParser';

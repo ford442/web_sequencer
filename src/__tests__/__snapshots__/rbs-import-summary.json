@@ -1,0 +1,24 @@
+{
+  "automationLaneNames": [
+    "PCF → Synth A Filter",
+    "PCF → Synth B Filter",
+    "TB-303 A Accent",
+    "TB-303 A Slide",
+  ],
+  "automationTargets": [
+    "synthA.accent",
+    "synthA.filterCutoff",
+    "synthA.slide",
+    "synthB.filterCutoff",
+  ],
+  "drumKit": "808",
+  "kickPitch": 60,
+  "patternStepCounts": {
+    "kick": 32,
+    "partA": 32,
+    "partAActive": 12,
+    "partB": 32,
+  },
+  "snareTone": 200,
+  "tempo": 140,
+}

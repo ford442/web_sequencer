@@ -21,6 +21,7 @@ import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner'
 import { type HarmonizerConfig } from '../engines/Harmonizer'
 import { Engine303Selector } from '../components/Engine303Selector'
 import { ProphecyPanel } from '../components/ProphecyPanel'
+import { CppPanel } from '../components/CppPanel'
 import { OscillatorTypeSelector } from '../components/OscillatorTypeSelector'
 import { OscillatorVariantSelector } from '../components/OscillatorVariantSelector'
 import { SamplerPanel } from '../components/SamplerPanel'
@@ -1194,11 +1195,11 @@ const handleNotePropertyChange = useCallback((
          'vibratoDepth' | 'drive' | 'characterMorph' |
          'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
          'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
-         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'pan' | 'glitchChance' |
+         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchQuantize' | 'granularPitchShift' |
          'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
          'spectralPanRate' | 'spectralPanDepth' |
-         'vowel' | 'portamento' | 'slideFormant',
+         'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
     value: number | boolean | string
 ) => {
     if (!contextMenu) return;
@@ -1585,14 +1586,24 @@ const handleLyricApply = useCallback(async (text: string) => {
                     accentColor="cyan"
                     compact
                 />
-                {/* Per-type waveform variant selector (Phase 2): replaces the full legacy WaveformSelector popup.
-                    Only offers shapes that belong to the chosen oscillator family; keeps the panel theme stable. */}
+                {/* Per-type waveform variant selector — hidden for CPP (uses CppPanel knobs instead). */}
+                {currentTypeA !== 'cpp' && (
                 <OscillatorVariantSelector
                     type={currentTypeA}
                     selected={synthA.waveform}
                     onChange={(w) => updateSynthA({ waveform: w })}
                     accentColor="cyan"
                 />
+                )}
+                {currentTypeA === 'cpp' && (
+                    <CppPanel
+                        waveform={synthA.waveform}
+                        fine={synthA.cppFine ?? 0.5}
+                        accentColor="cyan"
+                        onWaveformChange={(w) => updateSynthA({ waveform: w })}
+                        onFineChange={(v) => updateSynthA({ cppFine: v })}
+                    />
+                )}
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
                 )}
@@ -1610,7 +1621,7 @@ const handleLyricApply = useCallback(async (text: string) => {
                 </div>
             </div>
         );
-    }, [synthA.waveform, synthA.engine303, synthA.vowel, synthA.portamento, synthA.formantShift, updateSynthA, audioEngine]);
+    }, [synthA.waveform, synthA.engine303, synthA.vowel, synthA.portamento, synthA.formantShift, synthA.cppFine, updateSynthA, audioEngine]);
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
         const isProphecy = synthB.waveform?.startsWith('prophecy-') ?? false;
@@ -1647,13 +1658,24 @@ const handleLyricApply = useCallback(async (text: string) => {
                     accentColor="pink"
                     compact
                 />
-                {/* Per-type waveform variant selector (Phase 2) */}
+                {/* Per-type waveform variant selector — hidden for CPP (uses CppPanel knobs instead). */}
+                {currentTypeB !== 'cpp' && (
                 <OscillatorVariantSelector
                     type={currentTypeB}
                     selected={synthB.waveform}
                     onChange={(w) => updateSynthB({ waveform: w })}
                     accentColor="pink"
                 />
+                )}
+                {currentTypeB === 'cpp' && (
+                    <CppPanel
+                        waveform={synthB.waveform}
+                        fine={synthB.cppFine ?? 0.5}
+                        accentColor="pink"
+                        onWaveformChange={(w) => updateSynthB({ waveform: w })}
+                        onFineChange={(v) => updateSynthB({ cppFine: v })}
+                    />
+                )}
                 {is303 && (
                     <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
                 )}
@@ -1671,7 +1693,7 @@ const handleLyricApply = useCallback(async (text: string) => {
                 </div>
             </div>
         );
-    }, [synthB.waveform, synthB.engine303, synthB.vowel, synthB.portamento, synthB.formantShift, updateSynthB, audioEngine]);
+    }, [synthB.waveform, synthB.engine303, synthB.vowel, synthB.portamento, synthB.formantShift, synthB.cppFine, updateSynthB, audioEngine]);
     const bass2Child = useMemo(() => {
         const engine = bass2.engine303 ?? 'open303';
         const handleBass2EngineChange = (e: 'open303' | 'jc303') => {

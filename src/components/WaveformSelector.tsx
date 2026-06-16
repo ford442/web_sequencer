@@ -79,6 +79,14 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>TRI</div>;
     case 'prophecy-pulse':
       return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>PLS</div>;
+    case 'cpp-sin':
+      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SIN</div>;
+    case 'cpp-saw':
+      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SAW</div>;
+    case 'cpp-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SQR</div>;
+    case 'cpp-rand':
+      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>RND</div>;
     default:
       // Always show at least the waveform name so unknown types are visible
       return <div className="font-bold text-[10px] leading-none text-center break-all">{type}</div>;
@@ -94,6 +102,7 @@ const OSCILLATOR_GROUPS = [
   { label: 'Rust', items: ['rust-saw', 'rust-sqr'] as Waveform[] },
   { label: 'WebGPU', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'] as Waveform[] },
   { label: 'Web Audio Module', items: ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
+  { label: 'CPP', items: ['cpp-sin', 'cpp-saw', 'cpp-sqr', 'cpp-rand'] as Waveform[] },
 ];
 
 // Flat list of all waveforms in display order, for cycling

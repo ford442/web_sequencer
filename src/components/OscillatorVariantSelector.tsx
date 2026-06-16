@@ -48,6 +48,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     rust: 'bg-gradient-to-b from-orange-500 to-orange-600 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.4)]',
     webgpu: 'bg-gradient-to-b from-fuchsia-500 to-fuchsia-600 text-white border-fuchsia-400 shadow-[0_0_8px_rgba(217,70,239,0.4)]',
     wam: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]',
+    cpp: 'bg-gradient-to-b from-fuchsia-500 via-violet-500 to-indigo-600 text-white border-fuchsia-300 shadow-[0_0_10px_rgba(217,70,239,0.45)]',
   };
 
   const inactiveBase = 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200';
@@ -58,8 +59,9 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     if (s === 'sawtooth' || s === '303-saw' || s === 'prophecy-saw' || s === 'rust-saw' || s === 'wav-saw' || s === 'pyodide-saw' || s === 'wgsl-saw' || s === 'wam-saw') return 'SAW';
     if (s === 'square' || s === '303-sqr' || s === 'prophecy-sqr' || s === 'rust-sqr' || s === 'wav-sqr' || s === 'pyodide-square' || s === 'wgsl-sqr' || s === 'wam-sqr') return 'SQR';
     if (s === 'triangle' || s === 'prophecy-tri' || s === 'wgsl-tri' || s === 'wam-tri') return 'TRI';
-    if (s === 'sine' || s === 'pyodide-sine' || s === 'wgsl-sin' || s === 'wam-sin') return 'SIN';
+    if (s === 'sine' || s === 'pyodide-sine' || s === 'wgsl-sin' || s === 'wam-sin' || s === 'cpp-sin') return 'SIN';
     if (s === 'prophecy-pulse') return 'PLS';
+    if (s === 'cpp-rand') return 'RND';
     // Fallback to last segment or upper
     return s.split('-').pop()?.toUpperCase().slice(0, 3) ?? 'WAV';
   };
@@ -76,7 +78,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     >
       <div className="flex items-center justify-between gap-1 px-0.5">
         <span className={`text-[7px] font-mono uppercase tracking-widest ${accentColor === 'cyan' ? 'text-cyan-400/60' : 'text-pink-400/60'}`}>
-          {type === 'prophecy' ? 'Carrier' : type.includes('303') ? 'Wave' : 'Shape'}
+          {type === 'prophecy' ? 'Carrier' : type === 'cpp' ? 'Function' : type.includes('303') ? 'Wave' : 'Shape'}
         </span>
         <span className={`text-[6px] font-bold uppercase tracking-[1px] ${theme.text} opacity-70`}>
           {theme.badge}
@@ -93,6 +95,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
               onClick={() => onChange(w)}
               aria-pressed={active}
               title={`${theme.label} ${label} (${w})`}
+              aria-label={`Select ${theme.label} ${label} waveform`}
               className={`px-1.5 py-0.5 text-[8px] font-bold rounded transition-all border flex-1 min-w-[32px] ${
                 active ? familyActiveMap[type] : inactiveBase
               }`}

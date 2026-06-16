@@ -87,7 +87,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = React.memo(({ onClose }) 
         }
     };
 
-    const btnClass = "text-xs py-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-colors";
+    const btnClass = "text-xs py-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-purple-400 transition-colors";
 
     return (
         <div
@@ -108,7 +108,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = React.memo(({ onClose }) 
             >
                 <div className="flex justify-between items-center mb-4">
                     <h2 id="voice-designer-title" className="text-xl font-orbitron text-purple-400">VOICE DESIGNER <span className="text-xs text-gray-500 ml-2">(WebGPU)</span></h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-400 rounded" aria-label="Close Voice Designer" title="Close Voice Designer"><span aria-hidden="true">✕</span></button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-purple-400 rounded" aria-label="Close Voice Designer" title="Close Voice Designer"><span aria-hidden="true">✕</span></button>
                 </div>
 
                 {/* Heatmap Area */}
@@ -146,7 +146,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = React.memo(({ onClose }) 
                     <button
                         onClick={handleApply}
                         disabled={isApplying}
-                        className={`px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-[0_0_15px_rgba(34,197,94,0.3)] font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-50 disabled:cursor-wait`}
+                        className={`px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-[0_0_15px_rgba(34,197,94,0.3)] font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-white disabled:opacity-50 disabled:cursor-wait`}
                         aria-busy={isApplying}
                     >
                         {isApplying ? (
@@ -167,7 +167,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = React.memo(({ onClose }) 
                             <span className="text-xs text-red-400/70 font-mono">Dev Tools</span>
                             <button
                                 onClick={handlePurgeCache}
-                                className="px-4 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-300 border border-red-900/40 rounded font-mono text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 transition-colors"
+                                className="px-4 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-300 border border-red-900/40 rounded font-mono text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-red-400 transition-colors"
                                 aria-label="Purge ONNX TTS cache"
                                 title="Purge ONNX TTS cache"
                             >

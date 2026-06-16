@@ -31,3 +31,9 @@
 ## 2026-05-26 - Engine303Selector Keyboard Navigation and Screen Reader Labels
 **Learning:** The Engine303Selector's engine toggle buttons only relied on plain text labels without explicit screen reader context, and lacked focus-visible states for keyboard navigation, making them difficult to use for non-mouse users.
 **Action:** Added `focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2` to make keyboard focus visible, and explicit `aria-label`s ("Select Custom Open303 engine", "Select Authentic JC303 engine") to provide screen readers with better context on what the buttons do.
+## 2026-06-02 - Consistent Focus Ring Styling
+**Learning:** Found inconsistencies where some components used generic `focus:ring-2` while others used the more robust `focus-visible:ring-2 focus-visible:ring-offset-2`. Additionally, dark-themed UIs require `ring-offset-gray-900` or similar offset colors to make the focus ring visible against the background.
+**Action:** Standardize interactive elements to use the full `focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[bg-color] focus-visible:ring-[accent-color]` pattern.
+## 2024-06-16 - Focus Rings on Custom Modal Tab Elements
+**Learning:** When building complex custom modals like `AISongModal` with multiple tabs or embedded action buttons (e.g. 'Fix JSON' or 'Copy Template'), developers often forget to add keyboard focus styling because they implement them as raw `<button>` elements with heavy custom CSS, assuming pointer-only interaction. This makes the modal practically unusable for keyboard-only users who cannot see which tab is active or which action is focused.
+**Action:** Always ensure that every custom `<button>` element inside modals—particularly those functioning as tabs (`role="tab"`) or tertiary actions—has explicit `focus-visible:ring-2` utility classes to guarantee keyboard accessibility.
