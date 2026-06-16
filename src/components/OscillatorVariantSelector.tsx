@@ -93,6 +93,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
               onClick={() => onChange(w)}
               aria-pressed={active}
               title={`${theme.label} ${label} (${w})`}
+              aria-label={`Select ${theme.label} ${label} waveform`}
               className={`px-1.5 py-0.5 text-[8px] font-bold rounded transition-all border flex-1 min-w-[32px] ${
                 active ? familyActiveMap[type] : inactiveBase
               }`}
