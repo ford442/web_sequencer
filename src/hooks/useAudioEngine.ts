@@ -744,6 +744,56 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- GLITCH LOGIC END ---
 
                 // Handle Polyphony (Chords)
+
+                // --- HOISTED CALCULATIONS ---
+                // Calculate step-level parameters once rather than per voice
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12;
+
+
+
+                // -----------------------------
+
+
+                // --- HOISTED CALCULATIONS ---
+                // Calculate step-level parameters once rather than per voice
+                const hoisted_driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                const hoisted_filterCutoff = noteParams?.filterCutoff !== undefined
+                    ? Math.max(20, noteParams.filterCutoff * 20000)
+                    : (params.filterCutoff ?? 20000);
+                const hoisted_filterResonance = noteParams?.filterResonance !== undefined
+                    ? noteParams.filterResonance * 20
+                    : (params.filterResonance ?? 0);
+                const hoisted_spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+                const hoisted_spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : ((params as any).spectralPanDepth || 0);
+                const hoisted_spectralLfoRate = (hoisted_spectralPanRate || 1) * (tempo / 60);
+                const hoisted_reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                const hoisted_currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                const hoisted_targetReverbNode = reverbNodesRef.current[hoisted_currentReverbType] || reverbNodesRef.current['plate'];
+                const hoisted_delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                const hoisted_baseShift = params.formantShift || 0;
+                const hoisted_characterMorph = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+                const hoisted_morphTarget = params.morphTarget || 'female';
+                const hoisted_currentShift = noteParams?.formantShift !== undefined ? (hoisted_baseShift + noteParams.formantShift) : hoisted_baseShift;
+                const hoisted_normalizedShift = Math.max(-12, Math.min(12, hoisted_currentShift)) / 12;
+                let hoisted_reverbEqCutoff = 6000 - (hoisted_normalizedShift * 4000);
+                hoisted_reverbEqCutoff -= (hoisted_characterMorph * 1000);
+                hoisted_reverbEqCutoff = Math.max(1000, Math.min(12000, hoisted_reverbEqCutoff));
+                // -----------------------------
+
                 const notes = Array.isArray(note) ? note : [note];
 
                 // Performance: Hoist expressive config resolution to avoid recalculating per note/retrigger.
@@ -793,7 +843,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Drive/Distortion if present
-                            const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+
                             if (driveAmount !== undefined && driveAmount > 0) {
                                 try {
                                     const overdriveNode = overdriveNodeRef = vocalOverdrivePoolRef.current?.acquire({ drive: driveAmount }) || new AudioWorkletNode(context, 'vocal-overdrive-processor', {
@@ -832,7 +882,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             let spectralFinalDest = finalDest;
                             let wetGain: GainNode | null = null;
                             // Apply Spectral Panning
-                            const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+
                             const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
                             if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
                                 const lowBand = context.createBiquadFilter();
@@ -917,29 +967,29 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Setup Reverb Send (Formant-Aware)
-                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
-                            const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+
+
+
                             if (reverbSendAmount > 0 && targetReverbNode) {
                                 const reverbGain = context.createGain();
                                 reverbGain.gain.value = reverbSendAmount;
 
                                 // Calculate Formant Brightness for Reverb EQ
-                                const baseShift = params.formantShift || 0;
-                                const currentShift = noteParams?.formantShift !== undefined ? (baseShift + noteParams.formantShift) : baseShift;
-                                const characterMorph = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+
+
+
 
                                 // High formant shifts or brighter characters -> more high frequencies -> lower cutoff to tame sibilance
                                 // Neutral/Low shifts -> higher cutoff to keep reverb clear
                                 // We map currentShift from roughly -12 to +12
-                                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12; // -1.0 to 1.0
+
 
                                 // Base cutoff around 6000Hz. If bright (+1), drop to 2000Hz. If dark (-1), raise to 10000Hz.
-                                let reverbEqCutoff = 6000 - (normalizedShift * 4000);
+
 
                                 // Further adjust by character morph (0 to 1). 1 usually means brighter/female.
-                                reverbEqCutoff -= (characterMorph * 1000);
-                                reverbEqCutoff = Math.max(1000, Math.min(12000, reverbEqCutoff));
+
+
 
                                 const formantReverbEq = context.createBiquadFilter();
                                 formantReverbEq.type = 'lowpass';
@@ -979,7 +1029,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Setup Delay Send
-                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+
                             if (delaySendAmount > 0 && delayNodeRef.current) {
                                 const delayGain = context.createGain();
                                 delayGain.gain.value = delaySendAmount;
@@ -988,7 +1038,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
-                            const baseShift = params.formantShift || 0;
+
                             let targetFormantShift = baseShift;
 
                             if (noteParams?.formantShift !== undefined) {
@@ -1006,9 +1056,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Character Morphing
-                            const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
-                            const morphTarget = params.morphTarget || 'female';
-                            voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
+
+
+                            voice.setCharacterMorph(characterMorph, morphTarget as any, 0.05); // Use short ramp time
 
                             // Sync other params
                             if (noteParams?.vibratoDepth !== undefined) {
@@ -1326,7 +1376,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                     let finalShaperDest: AudioNode | null = null;
                     let overdriveNodeRef: AudioWorkletNode | null = null;
-                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+
                     if (driveAmount > 0) {
                         try {
                             const overdriveNode = overdriveNodeRef = vocalOverdrivePoolRef.current?.acquire({ drive: driveAmount }) || new AudioWorkletNode(context, 'vocal-overdrive-processor', {
@@ -1371,7 +1421,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
 
 
-                    const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+
                     const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
                     let spectralFinalDest = finalDestination;
                     let wetGain: GainNode | null = null;
