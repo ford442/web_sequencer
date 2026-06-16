@@ -12,7 +12,7 @@ import { buildSyntheticIffFile } from './rbs/fixtures';
 describe('RbsParser IFF CAT RB40', () => {
   it('parses synthetic IFF CAT RB40 song file with GLOB and TRAK data', async () => {
     const bytes = buildSyntheticIffFile();
-    const file = new File([bytes], 'test_song.rbs', { type: 'application/octet-stream' });
+    const file = new File([new Uint8Array(bytes)], 'test_song.rbs', { type: 'application/octet-stream' });
     const parser = new RbsParser();
 
     const result = await parser.parseRbsFile(file);
@@ -46,7 +46,7 @@ describe('RbsParser IFF CAT RB40', () => {
 
   it('parses pattern mode IFF file correctly', async () => {
     const bytes = buildSyntheticIffFile({ playMode: 0, trakEvents: [] });
-    const file = new File([bytes], 'pattern_mode.rbs', { type: 'application/octet-stream' });
+    const file = new File([new Uint8Array(bytes)], 'pattern_mode.rbs', { type: 'application/octet-stream' });
     const parser = new RbsParser();
 
     const result = await parser.parseRbsFile(file);
@@ -59,7 +59,7 @@ describe('RbsParser IFF CAT RB40', () => {
 
   it('tempo is correctly parsed from GLOB (BPM × 10 encoding)', async () => {
     const bytes = buildSyntheticIffFile({ tempo: 1200 }); // 120.0 BPM
-    const file = new File([bytes], 'tempo_test.rbs', { type: 'application/octet-stream' });
+    const file = new File([new Uint8Array(bytes)], 'tempo_test.rbs', { type: 'application/octet-stream' });
     const parser = new RbsParser();
 
     const result = await parser.parseRbsFile(file);
@@ -74,7 +74,7 @@ describe('RbsParser IFF CAT RB40', () => {
 describe('RebirthRBSParser song arrangement', () => {
   it('returns song arrangement with pattern slots from TRAK events', async () => {
     const bytes = buildSyntheticIffFile();
-    const file = new File([bytes], 'song_arrangement.rbs', { type: 'application/octet-stream' });
+    const file = new File([new Uint8Array(bytes)], 'song_arrangement.rbs', { type: 'application/octet-stream' });
     const rbsParser = new RebirthRBSParser();
 
     const result = await rbsParser.parseFile(file);
@@ -89,7 +89,7 @@ describe('RebirthRBSParser song arrangement', () => {
 
   it('returns pattern mode for files without song arrangement', async () => {
     const bytes = buildSyntheticIffFile({ playMode: 0, trakEvents: [] });
-    const file = new File([bytes], 'pattern_only.rbs', { type: 'application/octet-stream' });
+    const file = new File([new Uint8Array(bytes)], 'pattern_only.rbs', { type: 'application/octet-stream' });
     const rbsParser = new RebirthRBSParser();
 
     const result = await rbsParser.parseFile(file);
@@ -103,7 +103,7 @@ describe('RebirthRBSParser song arrangement', () => {
 describe('RbsImporter song mode', () => {
   it('populates songArrangement in HyphonSong when songData is present', async () => {
     const bytes = buildSyntheticIffFile();
-    const file = new File([bytes], 'import_song.rbs', { type: 'application/octet-stream' });
+    const file = new File([new Uint8Array(bytes)], 'import_song.rbs', { type: 'application/octet-stream' });
     const parser = new RbsParser();
 
     const result = await parser.parseRbsFile(file);
@@ -125,7 +125,7 @@ describe('RbsImporter song mode', () => {
 
   it('report includes song mode info when songData is present', async () => {
     const bytes = buildSyntheticIffFile();
-    const file = new File([bytes], 'report_song.rbs', { type: 'application/octet-stream' });
+    const file = new File([new Uint8Array(bytes)], 'report_song.rbs', { type: 'application/octet-stream' });
     const parser = new RbsParser();
 
     const result = await parser.parseRbsFile(file);

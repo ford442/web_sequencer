@@ -3,6 +3,7 @@
  * Each engine must either initialize or emit a classified fallback reason.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -13,7 +14,9 @@ import { Open303Oscillator } from '../engines/Open303Oscillator';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-describe('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
+const hasNativeJs = existsSync(join(repoRoot, 'public/hyphon_native.js'));
+
+describe.skipIf(!hasNativeJs)('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
   it('glue + JSON map resolve open303_create and prophecy_process', () => {
     const glue = readFileSync(join(repoRoot, 'public/hyphon_native.js'), 'utf8');
     const map = parseHyphonGlueExportMap(glue);
@@ -92,7 +95,7 @@ describe('WebGpuOscillator.init', () => {
   });
 });
 
-describe('Open303Oscillator.init export map wiring', () => {
+describe.skipIf(!hasNativeJs)('Open303Oscillator.init export map wiring', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});

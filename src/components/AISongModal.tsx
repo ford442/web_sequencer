@@ -813,7 +813,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
             aria-selected={activeTab === 'paste'}
             aria-controls="ai-modal-panel-paste"
             onClick={() => setActiveTab('paste')}
-            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
               activeTab === 'paste'
                 ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
@@ -827,7 +827,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
             aria-selected={activeTab === 'template'}
             aria-controls="ai-modal-panel-template"
             onClick={() => setActiveTab('template')}
-            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
               activeTab === 'template'
                 ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
@@ -842,7 +842,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
             aria-controls="ai-modal-panel-preview"
             onClick={() => isValid && setActiveTab('preview')}
             disabled={!isValid}
-            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
               activeTab === 'preview'
                 ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : !isValid
@@ -867,7 +867,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                     <Tooltip key={key} text={EXAMPLES[key].desc} position="bottom">
                       <button
                         onClick={() => loadExample(key)}
-                        className="px-2 sm:px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all border border-gray-700 hover:border-emerald-500/50 flex items-center gap-1"
+                        className="px-2 sm:px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all border border-gray-700 hover:border-emerald-500/50 flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                       >
                         <span>{EXAMPLES[key].emoji}</span>
                         <span className="hidden sm:inline">{EXAMPLES[key].name.split(' ').slice(1).join(' ')}</span>
@@ -900,7 +900,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                 <Tooltip text="Select one or more .json files" position="bottom">
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all"
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                   >
                     Browse Files
                   </button>
@@ -935,7 +935,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                         <Tooltip text="Remove file" position="left">
                           <button
                             onClick={() => removeDroppedFile(droppedFile.id)}
-                            className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0"
+                            className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             aria-label={`Remove ${droppedFile.file.name}`}
                           ><span aria-hidden="true">✕</span></button>
                         </Tooltip>
@@ -1018,7 +1018,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                         <Tooltip text="Auto-fix common JSON issues" position="left">
                           <button
                             onClick={handleFixCommonIssues}
-                            className="px-3 py-1 bg-red-900/50 hover:bg-red-800/50 text-red-300 text-xs rounded transition-all"
+                            className="px-3 py-1 bg-red-900/50 hover:bg-red-800/50 text-red-300 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             aria-label="Fix Common JSON Issues"
                           >
                             🔧 Fix Issues
@@ -1028,7 +1028,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                       <Tooltip text="Copy error details to clipboard" position="left">
                         <button
                           onClick={copyErrorReport}
-                          className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all"
+                          className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                           aria-label="Copy error details to clipboard"
                         >
                           {copiedError ? '✓ Copied!' : '📋 Copy'}
@@ -1129,7 +1129,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                 <Tooltip text="Copy to clipboard" position="right">
                   <button
                     onClick={copyTemplate}
-                    className="mb-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-all flex items-center gap-2"
+                    className="mb-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-all flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                     aria-label="Copy AI Prompt Template"
                   >
                     <span>📋</span> Copy Template
@@ -1180,7 +1180,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                         </div>
                         <Tooltip text="Coming soon!" position="left">
                           <button
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             onClick={() => onShowToast('Audio preview coming soon!', 'info')}
                             disabled
                             aria-label="Play Preview (Coming Soon)"
@@ -1270,7 +1270,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
               <button
                 onClick={handleClose}
                 disabled={isImporting}
-                className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50"
+                className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Cancel Import"
               >
                 <span className="hidden sm:inline">Cancel</span>

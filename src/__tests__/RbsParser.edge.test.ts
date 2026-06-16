@@ -89,7 +89,9 @@ describe('RbsParser binary edge cases', () => {
     const result = await parse(bytes);
     // Form type "XXXX" is logged but HEAD/GLOB/TRKL still parse — must not throw.
     expect(result.success).toBe(true);
-    expect(result.data?.songData).toBeDefined();
+    if (result.success) {
+      expect(result.data?.songData).toBeDefined();
+    }
   });
 
   it('handles chunk length 0xFFFFFFFF without throwing (safe int clamp)', async () => {
