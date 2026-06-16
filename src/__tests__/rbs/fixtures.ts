@@ -65,7 +65,7 @@ function encodeTb303Step(step: Tb303Step): Uint8Array {
   if (step.slide) flags |= 0x02;
   if (step.tie) flags |= 0x04;
   bytes[2] = flags;
-  bytes[3] = step.gate;
+  bytes[3] = step.gate ?? 100;
   return bytes;
 }
 
