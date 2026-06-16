@@ -34,6 +34,34 @@ class MockAudioContext {
         addModule: vi.fn().mockResolvedValue(undefined)
     };
 
+
+    createGain() {
+        return {
+            gain: { value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() },
+            connect: vi.fn().mockReturnThis(),
+            disconnect: vi.fn()
+        };
+    }
+
+    createOscillator() {
+        return {
+            type: 'sine',
+            frequency: { value: 0, setValueAtTime: vi.fn() },
+            start: vi.fn(),
+            stop: vi.fn(),
+            connect: vi.fn().mockReturnThis(),
+            disconnect: vi.fn()
+        };
+    }
+
+    createStereoPanner() {
+        return {
+            pan: { value: 0, setValueAtTime: vi.fn() },
+            connect: vi.fn().mockReturnThis(),
+            disconnect: vi.fn()
+        };
+    }
+
     createBiquadFilter() {
         return {
             type: 'peaking',

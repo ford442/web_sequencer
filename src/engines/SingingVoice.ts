@@ -1,3 +1,4 @@
+import { VoiceFXStrip } from "./audio-fx/VoiceFXStrip";
 import { type ScaleDefinition, applyMicrotonalTuning } from '../utils/musicTheory';
 import processorUrl from '../audio-worklets/rubberband-processor.ts?worker&url';
 import { PhonemeAligner, type AlignmentResult } from './rubberband/PhonemeAligner';
@@ -113,6 +114,7 @@ export function freqToMidi(freq: number): number {
 }
 
 export class SingingVoice {
+    public fxStrip: VoiceFXStrip;
     private audioContext: AudioContext;
     private workletNode: AudioWorkletNode | null = null;
     private config: SingingVoiceConfig;
@@ -182,6 +184,7 @@ export class SingingVoice {
 
     constructor(audioContext: AudioContext, config: SingingVoiceConfig = {}) {
         this.audioContext = audioContext;
+        this.fxStrip = new VoiceFXStrip(audioContext);
         this.config = {
             useHighQuality: config.useHighQuality ?? false,
             preserveFormants: config.preserveFormants ?? true,
@@ -705,7 +708,9 @@ export class SingingVoice {
      */
     connect(destination: AudioNode): void {
         if (this.workletNode) {
-            this.workletNode.connect(destination);
+            this.workletNode.connect(this.fxStrip.input);
+            this.fxStrip.output.connect(destination);
+            this.fxStrip.connectReverb(destination);
         }
     }
 
@@ -861,18 +866,23 @@ export class SingingVoice {
         this.outputDestinations.add(destination);
 
         if (this.formantShifter && this.config.enableFormantShifting) {
-            // Route through formant shifter
-            this.formantShifter.connect(this.workletNode, destination);
+            // Route through formant shifter into the fxStrip
+            this.formantShifter.connect(this.workletNode, this.fxStrip.input);
         } else {
-            // Direct connection
-            this.workletNode.connect(destination);
+            // Direct connection into the fxStrip
+            this.workletNode.connect(this.fxStrip.input);
         }
+
+        // Connect the processed audio to the requested destination
+        this.fxStrip.output.connect(destination);
     }
 
     /**
      * Disconnect the output.
      */
     disconnectOutput(): void {
+        this.fxStrip.disconnect();
+
         if (this.workletNode) {
             this.workletNode.disconnect();
         }

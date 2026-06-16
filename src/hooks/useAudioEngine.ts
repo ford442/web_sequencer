@@ -865,116 +865,30 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                     shaper.connect(finalDest);
                                     finalDest = shaper;
                                 }
-                            }
+                            }                            // Apply Per-Step Filter if present, or fallback to global filter settings
+                            const cutoff = noteParams?.filterCutoff !== undefined
+                                ? Math.max(20, noteParams.filterCutoff * 20000)
+                                : (params.filterCutoff ?? 20000);
 
-                            // Apply Per-Step Filter if present, or fallback to global filter settings
-                            if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
-                                const filter = context.createBiquadFilter();
-                                filter.type = 'lowpass';
+                            const resonance = noteParams?.filterResonance !== undefined
+                                ? noteParams.filterResonance * 20
+                                : (params.filterResonance ?? 0);
 
-                                const cutoff = noteParams?.filterCutoff !== undefined
-                                    ? Math.max(20, noteParams.filterCutoff * 20000)
-                                    : (params.filterCutoff ?? 20000);
-                                filter.frequency.value = cutoff;
+                            voice.fxStrip.updateFilter(cutoff, resonance, triggerTime);
 
-                                const resonance = noteParams?.filterResonance !== undefined
-                                    ? noteParams.filterResonance * 20
-                                    : (params.filterResonance ?? 0);
-                                filter.Q.value = resonance;
-
-                                filter.connect(finalDest);
-                                finalDest = filter;
-                            }
-
-
-                            let spectralFinalDest = finalDest;
-                            let wetGain: GainNode | null = null;
                             // Apply Spectral Panning
 
                             const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
-                            if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
-                                const lowBand = context.createBiquadFilter();
-                                lowBand.type = "lowpass";
-                                lowBand.frequency.value = 400;
 
-                                const midBand = context.createBiquadFilter();
-                                midBand.type = "bandpass";
-                                midBand.frequency.value = 1500;
-                                midBand.Q.value = 1;
-
-                                const highBand = context.createBiquadFilter();
-                                highBand.type = "highpass";
-                                highBand.frequency.value = 4000;
-
-                                const lowPanner = context.createStereoPanner();
-                                const midPanner = context.createStereoPanner();
-                                const highPanner = context.createStereoPanner();
-
-                                const rate = spectralPanRate || 1;
-                                const lfoRate = rate * (tempo / 60);
-
-                                const lowLfo = context.createOscillator();
-                                lowLfo.type = "sine";
-                                lowLfo.frequency.value = lfoRate * 0.5;
-                                const lowGain = context.createGain();
-                                lowGain.gain.value = spectralPanDepth;
-                                lowLfo.connect(lowGain);
-                                lowGain.connect(lowPanner.pan);
-                                lowLfo.start(triggerTime);
-
-                                const midLfo = context.createOscillator();
-                                midLfo.type = "sine";
-                                midLfo.frequency.value = lfoRate * 0.75;
-                                const midGain = context.createGain();
-                                midGain.gain.value = spectralPanDepth * 0.8;
-                                midLfo.connect(midGain);
-                                midGain.connect(midPanner.pan);
-                                midLfo.start(triggerTime);
-
-                                const highLfo = context.createOscillator();
-                                highLfo.type = "sine";
-                                highLfo.frequency.value = lfoRate;
-                                const highGain = context.createGain();
-                                highGain.gain.value = spectralPanDepth * 1.2;
-                                highLfo.connect(highGain);
-                                highGain.connect(highPanner.pan);
-                                highLfo.start(triggerTime);
-
-                                lowBand.connect(lowPanner);
-                                midBand.connect(midPanner);
-                                highBand.connect(highPanner);
-
-                                lowPanner.connect(finalDest);
-                                midPanner.connect(finalDest);
-                                highPanner.connect(finalDest);
-
-                                const dryGain = context.createGain();
-                                dryGain.gain.value = 1.0 - spectralPanDepth;
-                                dryGain.connect(finalDest);
-
-                                wetGain = context.createGain();
-                                wetGain.gain.value = spectralPanDepth;
-                                wetGain.connect(lowBand);
-                                wetGain.connect(midBand);
-                                wetGain.connect(highBand);
-
-                                voice.connectOutput(dryGain);
-                                voice.connectOutput(wetGain);
-                                spectralFinalDest = dryGain;
-
-                                // Clean up LFOs when voice finishes
-                                const stopOscillators = () => {
-                                    try { lowLfo.stop(); } catch(e){}
-                                    try { midLfo.stop(); } catch(e){}
-                                    try { highLfo.stop(); } catch(e){}
-                                };
-                                // this may not be perfect teardown if stretch voice lasts longer, but it is a start
-                                setTimeout(stopOscillators, targetDuration * 1000 + 100);
-                            } else {
-                                voice.connectOutput(finalDest);
-                            }
+                            const sRate = spectralPanRate || 1;
+                            const sLfoRate = sRate * (tempo / 60);
+                            voice.fxStrip.updateSpectralPanning(spectralPanDepth || 0, sLfoRate, triggerTime);
+                            voice.connectOutput(finalDest);
 
                             // Setup Reverb Send (Formant-Aware)
+                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                            const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
 
 
 
@@ -982,11 +896,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 const reverbGain = context.createGain();
                                 reverbGain.gain.value = reverbSendAmount;
 
+                            if (reverbSendAmount > 0 && targetReverbNode) {
                                 // Calculate Formant Brightness for Reverb EQ
 
 
 
 
+                                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12; // -1.0 to 1.0
+                                let reverbEqCutoff = 6000 - (normalizedShift * 4000);
+                                reverbEqCutoff -= (characterMorph * 1000);
+                                reverbEqCutoff = Math.max(1000, Math.min(12000, reverbEqCutoff));
                                 // High formant shifts or brighter characters -> more high frequencies -> lower cutoff to tame sibilance
                                 // Neutral/Low shifts -> higher cutoff to keep reverb clear
                                 // We map currentShift from roughly -12 to +12
@@ -999,50 +918,25 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
 
 
-                                const formantReverbEq = context.createBiquadFilter();
-                                formantReverbEq.type = 'lowpass';
-                                formantReverbEq.frequency.value = reverbEqCutoff;
-                                formantReverbEq.Q.value = 0.5; // Gentle slope
+                                const rLfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
+                                const rLfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
 
-                                const lfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
-                                const lfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
-
-                                if (lfoDepth > 0 && lfoRate > 0) {
-                                    // Base amount minus the max modulation depth ensures we duck down
-                                    const minGain = Math.max(0, reverbSendAmount * (1 - lfoDepth));
-                                    const maxGain = reverbSendAmount;
-                                    const midGain = (maxGain + minGain) / 2;
-                                    const amplitude = (maxGain - minGain) / 2;
-
-                                    reverbGain.gain.value = midGain; // Set base level to midpoint
-
-                                    // LFO to modulate gain up to reverbSendAmount
-                                    const lfo = context.createOscillator();
-                                    lfo.type = 'sine';
-                                    lfo.frequency.value = lfoRate;
-
-                                    const lfoDepthGain = context.createGain();
-                                    lfoDepthGain.gain.value = amplitude;
-
-                                    lfo.connect(lfoDepthGain);
-                                    lfoDepthGain.connect(reverbGain.gain);
-
-                                    lfo.start(triggerTime);
-                                    lfo.stop(triggerTime + targetDuration + 1.0); // Stop after duration + tail
-                                }
-
-                                reverbGain.connect(formantReverbEq);
-                                formantReverbEq.connect(targetReverbNode);
-                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
+                                voice.fxStrip.updateReverbSend(reverbSendAmount, rLfoRate, rLfoDepth, reverbEqCutoff, triggerTime);
+                                voice.fxStrip.connectReverb(targetReverbNode);
+                            } else {
+                                voice.fxStrip.updateReverbSend(0, 0, 0, 6000, triggerTime);
+                                voice.fxStrip.connectReverb(null);
                             }
+
 
                             // Setup Delay Send
 
                             if (delaySendAmount > 0 && delayNodeRef.current) {
-                                const delayGain = context.createGain();
-                                delayGain.gain.value = delaySendAmount;
-                                delayGain.connect(delayNodeRef.current);
-                                voice.connectOutput(delayGain);
+                                voice.fxStrip.updateDelaySend(delaySendAmount, triggerTime);
+                                voice.fxStrip.connectDelay(delayNodeRef.current);
+                            } else {
+                                voice.fxStrip.updateDelaySend(0, triggerTime);
+                                voice.fxStrip.connectDelay(null);
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
@@ -1623,7 +1517,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     return;
                 }
 
-                playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
+                playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
             };
 
             const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any | null): number | null => {
