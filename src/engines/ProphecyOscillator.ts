@@ -15,11 +15,15 @@
 import type { ProphecyParams } from './ProphecyParams';
 import { ProphecyParam, DEFAULT_PROPHECY_PARAMS } from './ProphecyParams';
 
-import { engineTelemetry, logEngineFallback, resolvePublicAsset } from '../utils/engineTelemetry';
+import {
+    engineTelemetry,
+    loadHyphonWasmExportMap,
+    logEngineFallback,
+    resolvePublicAsset,
+} from '../utils/engineTelemetry';
 
 // hyphon_native.wasm bundles all engines (Open303, JC303, Prophecy, Rubberband)
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
-const HYPHON_WASM_EXPORT_MAP_URL = resolvePublicAsset('hyphon_wasm_export_map.json');
 
 /** Minimum WebAssembly memory pages for the threaded hyphon_native.wasm build (512 MB).
  *  Must stay in sync with PROPHECY_MIN_MEMORY_PAGES in prophecy-processor.ts. */
@@ -90,17 +94,15 @@ export class ProphecyOscillator {
      * Extracted so the init path stays testable without a real network.
      */
     private async fetchExportMap(): Promise<Record<string, string>> {
-        try {
-            const response = await fetch(HYPHON_WASM_EXPORT_MAP_URL);
-            if (!response.ok) {
-                console.warn(`[ProphecyOscillator] Export map fetch HTTP ${response.status} (${HYPHON_WASM_EXPORT_MAP_URL})`);
-                return {};
-            }
-            return await response.json() as Record<string, string>;
-        } catch (e) {
-            console.warn('[ProphecyOscillator] Export map fetch failed:', e);
-            return {};
+        const map = await loadHyphonWasmExportMap();
+        if (Object.keys(map).length === 0) {
+            logEngineFallback(
+                'prophecy',
+                'wasm-worklet',
+                'hyphon_wasm_export_map.json empty and glue parse found no exports — worklet cannot resolve minified WASM symbols',
+            );
         }
+        return map;
     }
 
     async _initWithWasmBytes(

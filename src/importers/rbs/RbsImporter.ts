@@ -285,131 +285,71 @@ export class RbsImporter {
 
   /**
    * Expand 16-step RBS pattern to 32-step Hyphon pattern
-   * 
+   *
    * Rules:
-   * - Step 0 → steps 0, 1 (step 0 has accent if original had accent)
-   * - Step 1 → steps 2, 3
-   * - Slides extend across both steps
-   * - Ties sustain the note
-   * - Accents preserved on first of each pair
+   * - Each 16th maps to two 32nd sub-steps
+   * - Slides span both sub-steps of their source 16th (length 2, second slot null)
+   * - Ties extend the previous note's length without placing new Note objects
+   *   (avoids envelope re-trigger on sustained notes)
+   * - Accents apply to the first sub-step only
    */
-  private expandPattern16To32(steps16: Tb303Step[], isBassTrack: boolean): PartSequence {
+  private expandPattern16To32(steps16: Tb303Step[], _isBassTrack: boolean): PartSequence {
     const steps32: (Note | null)[] = Array(32).fill(null);
 
     for (let i = 0; i < 16; i++) {
       const sourceStep = steps16[i];
-      const targetIndex1 = i * 2;     // First of pair
-      const targetIndex2 = i * 2 + 1; // Second of pair
-
-      if (sourceStep.note === -1) {
-        // Rest - both steps are null
-        continue;
-      }
 
       if (sourceStep.tie) {
-        // Tie - sustain from previous (handle below)
         this.stepStats.tieCount++;
         continue;
       }
 
-      // Convert note
+      if (sourceStep.note === -1) {
+        continue;
+      }
+
+      const targetIndex1 = i * 2;
+
+      let tieCount = 0;
+      while (i + 1 + tieCount < 16 && steps16[i + 1 + tieCount].tie) {
+        tieCount++;
+        this.stepStats.tieCount++;
+      }
+
       const midiNote = (sourceStep.octave + 1) * 12 + sourceStep.note;
       const noteName = midiToNote(midiNote);
 
-      // Calculate velocities based on accent
-      // Accent on first step only in expanded pattern
       const baseVelocity = 0.8;
       const accentBoost = sourceStep.accent ? this.convertAccentToBoost(127) : 0;
       const velocity1 = Math.min(1.0, baseVelocity + accentBoost);
-      const velocity2 = baseVelocity; // Second step always base velocity
 
-      // Track statistics
       if (sourceStep.slide) this.stepStats.slideCount++;
       if (sourceStep.accent) this.stepStats.accentCount++;
 
       if (sourceStep.slide) {
-        // Slide: note extends across both steps with slide flag
         steps32[targetIndex1] = {
           note: noteName,
           velocity: velocity1,
-          length: 2, // Spans both steps
+          length: 2,
           slide: true,
-          timbre: 0.5
+          timbre: 0.5,
         };
-        steps32[targetIndex2] = null; // Part of slide
-      } else {
-        // Normal note: place on first step, second step is rest
-        steps32[targetIndex1] = {
-          note: noteName,
-          velocity: velocity1,
-          length: 1,
-          slide: false,
-          timbre: 0.5
-        };
-        // Second step is null (rest) unless it's a sustained note
-        // Check if next step is a tie
-        const nextIndex = i + 1;
-        if (nextIndex < 16 && steps16[nextIndex].tie) {
-          // Next step is tied, sustain this note
-          steps32[targetIndex2] = {
-            note: noteName,
-            velocity: velocity2,
-            length: 1,
-            slide: false,
-            timbre: 0.5
-          };
-        }
+        steps32[targetIndex1 + 1] = null;
+        continue;
       }
-    }
 
-    // Handle ties (sustained notes) in the 32-step pattern
-    this.handleTiesInExpandedPattern(steps32, steps16);
+      const sustainSubSteps = tieCount > 0 ? (1 + tieCount) * 2 : 1;
+      steps32[targetIndex1] = {
+        note: noteName,
+        velocity: velocity1,
+        length: sustainSubSteps,
+        slide: false,
+        timbre: 0.5,
+      };
+    }
 
     this.stepStats.totalSteps += 32;
     return { steps: steps32 };
-  }
-
-  /**
-   * Handle tied notes in expanded pattern
-   * A tie means the note sustains through the next step
-   */
-  private handleTiesInExpandedPattern(steps32: (Note | null)[], steps16: Tb303Step[]): void {
-    for (let i = 0; i < 16; i++) {
-      const sourceStep = steps16[i];
-      if (sourceStep.tie && i > 0) {
-        // Find the previous non-tie step
-        let prevIndex = i - 1;
-        while (prevIndex >= 0 && steps16[prevIndex].tie) {
-          prevIndex--;
-        }
-        
-        if (prevIndex >= 0) {
-          const prevSourceStep = steps16[prevIndex];
-          const prevMidiNote = (prevSourceStep.octave + 1) * 12 + prevSourceStep.note;
-          const prevNoteName = midiToNote(prevMidiNote);
-          
-          // Extend the note into this step
-          const targetIndex1 = i * 2;
-          const targetIndex2 = i * 2 + 1;
-          
-          // Both sub-steps sustain the tied note
-          steps32[targetIndex1] = {
-            note: prevNoteName,
-            velocity: 0.8,
-            length: 1,
-            slide: false,
-            timbre: 0.5
-          };
-          steps32[targetIndex2] = {
-            note: prevNoteName,
-            velocity: 0.8,
-            length: 1,
-            slide: false,
-            timbre: 0.5
-          };
-        }
-      }
-    }
   }
 
   /**
