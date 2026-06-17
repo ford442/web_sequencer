@@ -95,6 +95,14 @@ export const CurveEditor = memo(({
       setLocalPoints(lane.points);
     }
   }, [lane?.points, draggingIdx]);
+  const [localPoints, setLocalPoints] = useState<AutomationLanePoint[]>([]);
+
+  // Sync local points with global store when not dragging
+  useEffect(() => {
+    if (draggingIdx === null && lane) {
+      setLocalPoints(lane.points);
+    }
+  }, [lane?.points, draggingIdx]);
 
   const drawWidth = width - PAD.left - PAD.right;
   const drawHeight = height - PAD.top - PAD.bottom;
