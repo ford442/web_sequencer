@@ -107,6 +107,7 @@ export interface SamplerBankParams {
   timeStretchEnvDepth?: number;
   grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
+  grainPitchEnvDepth?: number;
   grainPitchQuantize?: number;
   granularPitchShift?: number;
   formantLfoSync?: boolean;
@@ -436,6 +437,7 @@ export interface Note {
   delayLfoDepth?: number;
   delaySend?: number;
   granularPitchShift?: number;
+  grainPitchEnvDepth?: number;
   choir?: number;
   drive?: number;
   tranceGate?: number;
