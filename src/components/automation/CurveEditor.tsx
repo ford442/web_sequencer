@@ -12,7 +12,7 @@
  * @see Issue #669 — Automation Curve Editor UI, Lane List, Per-Bank Sampler Targeting
  */
 
-import React, { memo, useCallback, useRef, useState, useMemo } from 'react';
+import React, { memo, useCallback, useRef, useState, useMemo, useEffect } from 'react';
 import type { UnifiedAutomationLane, AutomationLanePoint, AutomationInterpolation } from '../../types';
 import { automationStore } from '../../stores/automationStore';
 
@@ -87,6 +87,14 @@ export const CurveEditor = memo(({
 }: CurveEditorProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [localPoints, setLocalPoints] = useState<AutomationLanePoint[]>([]);
+
+  // Sync local points with global store when not dragging
+  useEffect(() => {
+    if (draggingIdx === null && lane) {
+      setLocalPoints(lane.points);
+    }
+  }, [lane?.points, draggingIdx]);
 
   const drawWidth = width - PAD.left - PAD.right;
   const drawHeight = height - PAD.top - PAD.bottom;
@@ -140,38 +148,53 @@ export const CurveEditor = memo(({
   // Curve path
   const pathData = useMemo(() => {
     if (!lane) return '';
-    return buildCurvePath(lane.points, lane.interpolation, totalSteps, drawWidth, drawHeight);
-  }, [lane, totalSteps, drawWidth, drawHeight]);
+    return buildCurvePath(localPoints, lane.interpolation, totalSteps, drawWidth, drawHeight);
+  }, [lane, localPoints, totalSteps, drawWidth, drawHeight]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, idx: number) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent, idx: number) => {
     if (readOnly) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.button === 2 && lane) {
       // Right-click: remove point
-      const newPoints = lane.points.filter((_, i) => i !== idx);
+      const newPoints = localPoints.filter((_, i) => i !== idx);
       automationStore.updateLanePoints(lane.id, newPoints);
       return;
     }
     setDraggingIdx(idx);
-  }, [readOnly, lane]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    // Set pointer capture for robust dragging outside the element
+    if (svgRef.current) {
+        svgRef.current.setPointerCapture(e.pointerId);
+    }
+  }, [readOnly, lane, localPoints]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (draggingIdx === null || !lane || readOnly) return;
     const coords = fromSvgCoords(e.clientX, e.clientY);
     if (!coords) return;
-    const newPoints = [...lane.points];
+    // Update local state for immediate feedback
+    const newPoints = [...localPoints];
     newPoints[draggingIdx] = {
       ...newPoints[draggingIdx],
       step: coords.step,
       value: coords.value,
     };
-    automationStore.updateLanePoints(lane.id, newPoints);
-  }, [draggingIdx, lane, readOnly, fromSvgCoords]);
+    setLocalPoints(newPoints);
+  }, [draggingIdx, lane, readOnly, fromSvgCoords, localPoints]);
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (draggingIdx !== null && lane) {
+        // Flush to global store
+        automationStore.updateLanePoints(lane.id, localPoints);
+    }
     setDraggingIdx(null);
-  }, []);
+
+    // Release pointer capture
+    if (svgRef.current && svgRef.current.hasPointerCapture(e.pointerId)) {
+        svgRef.current.releasePointerCapture(e.pointerId);
+    }
+  }, [draggingIdx, lane, localPoints]);
 
   const handleSvgClick = useCallback((e: React.MouseEvent) => {
     if (readOnly || !lane) return;
@@ -183,8 +206,8 @@ export const CurveEditor = memo(({
       step: coords.step,
       value: coords.value,
     };
-    automationStore.updateLanePoints(lane.id, [...lane.points, newPoint]);
-  }, [readOnly, lane, fromSvgCoords]);
+    automationStore.updateLanePoints(lane.id, [...localPoints, newPoint]);
+  }, [readOnly, lane, fromSvgCoords, localPoints]);
 
   if (!lane) {
     return (
@@ -203,9 +226,9 @@ export const CurveEditor = memo(({
       width={width}
       height={height}
       className="bg-[#0d0f12] rounded border border-gray-700 select-none"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onClick={handleSvgClick}
       onContextMenu={(e) => e.preventDefault()}
       aria-label={`Curve editor for ${lane.name}`}
@@ -239,7 +262,7 @@ export const CurveEditor = memo(({
       )}
 
       {/* Points */}
-      {lane.points.map((point, idx) => {
+      {localPoints.map((point, idx) => {
         const cx = toX(point.step);
         const cy = toY(point.value);
         const isSubStep = point.step % 1 !== 0;
@@ -247,7 +270,7 @@ export const CurveEditor = memo(({
           <g
             key={idx}
             className="curve-point outline-none focus:stroke-cyan-200 focus:stroke-[2px]"
-            onMouseDown={(e) => handleMouseDown(e, idx)}
+            onPointerDown={(e) => handlePointerDown(e, idx)}
             style={{ cursor: readOnly ? 'default' : 'grab' }}
             tabIndex={readOnly ? -1 : 0}
             role="button"
@@ -256,20 +279,20 @@ export const CurveEditor = memo(({
               if (readOnly) return;
               if (e.key === 'Delete' || e.key === 'Backspace') {
                 e.preventDefault();
-                const newPoints = lane.points.filter((_, i) => i !== idx);
+                const newPoints = localPoints.filter((_, i) => i !== idx);
                 automationStore.updateLanePoints(lane.id, newPoints);
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                const newPoints = [...lane.points]; newPoints[idx] = { ...point, value: Math.min(1, point.value + 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
+                const newPoints = [...localPoints]; newPoints[idx] = { ...point, value: Math.min(1, point.value + 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
               } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                const newPoints = [...lane.points]; newPoints[idx] = { ...point, value: Math.max(0, point.value - 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
+                const newPoints = [...localPoints]; newPoints[idx] = { ...point, value: Math.max(0, point.value - 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
               } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
-                const newPoints = [...lane.points]; newPoints[idx] = { ...point, step: Math.max(0, point.step - 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
+                const newPoints = [...localPoints]; newPoints[idx] = { ...point, step: Math.max(0, point.step - 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
               } else if (e.key === 'ArrowRight') {
                 e.preventDefault();
-                const newPoints = [...lane.points]; newPoints[idx] = { ...point, step: Math.min(totalSteps || 16, point.step + 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
+                const newPoints = [...localPoints]; newPoints[idx] = { ...point, step: Math.min(totalSteps || 16, point.step + 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
               }
             }}
           >
