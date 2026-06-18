@@ -69,6 +69,7 @@ export const ContextMenuNode = React.memo(() => {
           currentSpectralPanRate={stepData?.spectralPanRate ?? 0}
           currentSpectralPanDepth={stepData?.spectralPanDepth ?? 0}
           currentGranularPitchShift={stepData?.granularPitchShift}
+          currentGrainPitchEnvDepth={stepData?.grainPitchEnvDepth}
           isProphecy={isProphecy}
           currentVowel={stepData?.vowel ?? 0}
           currentPortamento={stepData?.portamento ?? 0}

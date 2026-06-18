@@ -113,4 +113,23 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
             {renderedSteps}
         </g>
     )
-}));
+}), (prev: SequencerRowProps, next: SequencerRowProps) => {
+    // Note: We need activeSamplerBank for sampler tracks, but it is not a direct prop of SequencerRow right now.
+    // Given the props currently provided, we use the following comparison. If activeSamplerBank needs to trigger
+    // a row re-render, it is either passed implicitly via 'steps' changing (since `pattern.sampler[activeBank].steps`
+    // is passed in the parent), or the parent needs to be updated. Since the steps prop is derived from the active bank
+    // in `Sequencer.tsx`, changing the bank gives us a completely new `steps` array reference, correctly busting the memo.
+    return (
+        prev.rowKey === next.rowKey &&
+        prev.label === next.label &&
+        prev.rowIndex === next.rowIndex &&
+        prev.isSelected === next.isSelected &&
+        prev.activeSlot === next.activeSlot &&
+        // ⚡ Bolt: Relying on reference equality from useAppState immutable updates
+        prev.steps === next.steps &&
+        prev.trackSlots === next.trackSlots &&
+        prev.selectionRange?.start === next.selectionRange?.start &&
+        prev.selectionRange?.end === next.selectionRange?.end &&
+        prev.isDrawing === next.isDrawing
+    );
+});
