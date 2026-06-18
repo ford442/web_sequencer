@@ -235,4 +235,8 @@
 * [2026-05-19] - Refactored Large Files: Successfully split 10 out of 12 files that were over 1000 lines into multiple smaller files under 700 lines each. Extracted structural UI repetition into sub-components for NoteSelector, RbsImportModal, AISongModal, and SamplerPanel. Deferred splitting AISongStorage.ts and useAudioEngine.ts due to tightly coupled cyclic dependencies. These should be tackled incrementally in the future.
 
 * **Idea:** "Spectral Morph Automation" - Allow drawing automation curves to morph spectrally between two different TTS phonemes or samples over a sequence of steps.
-* **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.
+
+
+
+* [x] **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.
+## 2026-08-06 - Implemented Granular Pitch Envelope: Completed implementation by adding UI controls to ContextMenuNode and fixing syntax in useAudioEngine. Fulfills "Granular Pitch Envelope" Innovation Lab idea.
