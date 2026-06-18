@@ -213,7 +213,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
             >
                 <div className="flex justify-between items-center pb-2 border-b border-cyan-900/30">
                     <span id="note-selector-title" className="text-xs font-bold font-orbitron text-cyan-400 tracking-widest drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]">NOTE PROPERTIES</span>
-                    <button onClick={onClose} aria-label="Close note properties" title="Close note properties (Esc)" className="text-cyan-600 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 rounded"><span aria-hidden="true">✕</span></button>
+                    <button onClick={onClose} aria-label="Close note properties" title="Close note properties (Esc)" className="text-cyan-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-cyan-400 rounded"><span aria-hidden="true">✕</span></button>
                 </div>
 
                 {/* NEW: Duration Control */}
@@ -265,7 +265,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             aria-checked={currentFreezeLfoSync}
                                             aria-label="Sync Freeze LFO Rate to BPM"
                                             onClick={() => onPropertyChange?.('freezeLfoSync', !currentFreezeLfoSync)}
-                                            className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${currentFreezeLfoSync ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                            className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-cyan-400 ${currentFreezeLfoSync ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                         >
                                             SYNC
                                         </button>
@@ -282,7 +282,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         value={currentFreezeLfoRate}
                                         onChange={(e) => onPropertyChange?.('freezeLfoRate', parseFloat(e.target.value))}
                                         aria-label="Freeze LFO Rate (Synced)"
-                                        className="w-full bg-gray-900 text-cyan-400 text-xs font-mono rounded border border-cyan-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
+                                        className="w-full bg-gray-900 text-cyan-400 text-xs font-mono rounded border border-cyan-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-cyan-400"
                                     >
                                         <option value={2}>2 Bars</option>
                                         <option value={1}>1 Bar</option>
@@ -681,7 +681,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             aria-checked={currentFormantLfoSync || false}
                                             aria-label="Sync Formant LFO Rate to BPM"
                                             onClick={() => onPropertyChange?.('formantLfoSync', !currentFormantLfoSync)}
-                                            className={`px-1.5 py-0 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                            className={`px-1.5 py-0 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 ${currentFormantLfoSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                         >
                                             SYNC
                                         </button>
@@ -696,7 +696,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         value={currentFormantLfoRate}
                                         onChange={(e) => onPropertyChange?.("formantLfoRate", parseFloat(e.target.value))}
                                         aria-label="Formant LFO Rate Subdivision"
-                                        className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                        className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
                                     >
                                         <option value={2}>2 Bars</option>
                                         <option value={1}>1 Bar</option>
@@ -805,7 +805,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                         aria-checked={currentFormantEnvSync || false}
                                         aria-label="Sync Formant Envelope to BPM"
                                         onClick={() => onPropertyChange?.('formantEnvSync', !currentFormantEnvSync)}
-                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${currentFormantEnvSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 ${currentFormantEnvSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
                                     >
                                         SYNC
                                     </button>
@@ -820,7 +820,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             id="note-fmt-env-atk"
                                             value={currentFormantEnvAttack}
                                             onChange={(e) => onPropertyChange?.('formantEnvAttack', parseFloat(e.target.value))}
-                                            className="w-full bg-gray-900 text-indigo-400 text-xs font-mono rounded border border-indigo-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                            className="w-full bg-gray-900 text-indigo-400 text-xs font-mono rounded border border-indigo-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400"
                                         >
                                             <option value={2}>2 Bars</option>
                                             <option value={1}>1 Bar</option>
@@ -852,7 +852,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(({
                                             id="note-fmt-env-dec"
                                             value={currentFormantEnvDecay}
                                             onChange={(e) => onPropertyChange?.('formantEnvDecay', parseFloat(e.target.value))}
-                                            className="w-full bg-gray-900 text-indigo-400 text-xs font-mono rounded border border-indigo-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                            className="w-full bg-gray-900 text-indigo-400 text-xs font-mono rounded border border-indigo-900/50 px-2 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400"
                                         >
                                             <option value={2}>2 Bars</option>
                                             <option value={1}>1 Bar</option>

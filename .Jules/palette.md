@@ -37,3 +37,6 @@
 ## 2024-06-16 - Focus Rings on Custom Modal Tab Elements
 **Learning:** When building complex custom modals like `AISongModal` with multiple tabs or embedded action buttons (e.g. 'Fix JSON' or 'Copy Template'), developers often forget to add keyboard focus styling because they implement them as raw `<button>` elements with heavy custom CSS, assuming pointer-only interaction. This makes the modal practically unusable for keyboard-only users who cannot see which tab is active or which action is focused.
 **Action:** Always ensure that every custom `<button>` element inside modals—particularly those functioning as tabs (`role="tab"`) or tertiary actions—has explicit `focus-visible:ring-2` utility classes to guarantee keyboard accessibility.
+## 2026-06-18 - Missing Type Attribute on Buttons
+**Learning:** Found several generic `<button>` elements lacking the `type="button"` attribute. In HTML, buttons inside or outside forms default to `type="submit"`, which can cause unintended side-effects like reloading the page when activated via keyboard.
+**Action:** Always explicitly specify `type="button"` on non-submit buttons (e.g. toggle switches, close icons) to prevent unintended form submission behaviors and improve screen reader stability.
