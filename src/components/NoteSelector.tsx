@@ -114,6 +114,7 @@ interface NoteSelectorProps {
         | 'gateRate'
         | 'pan'
         | 'drive'
+        | 'glitchChance'
         | 'characterMorph'
         | 'reverbSend'
         | 'reverbType'
@@ -125,6 +126,9 @@ interface NoteSelectorProps {
         | 'choir'
         | 'vowel'
         | 'portamento'
+        | 'pitchAttack'
+        | 'pitchDecay'
+        | 'pitchAmount'
     , value: number | boolean | string) => void;
 }
 

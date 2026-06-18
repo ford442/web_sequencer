@@ -710,6 +710,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantShift?: number,
                     grainPitchQuantize?: number,
                     granularPitchShift?: number,
+                    grainPitchEnvDepth?: number,
                     bitcrush?: number,
                     downsample?: number,
                     tranceGate?: number,
@@ -752,29 +753,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- GLITCH LOGIC END ---
 
                 // Handle Polyphony (Chords)
-
-                // --- HOISTED CALCULATIONS ---
-                // Calculate step-level parameters once rather than per voice
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12;
-
-
-
-                // -----------------------------
-
 
                 // --- HOISTED CALCULATIONS ---
                 // Calculate step-level parameters once rather than per voice
