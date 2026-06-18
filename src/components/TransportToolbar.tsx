@@ -65,7 +65,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                         const isSaved = !!songStorage[slot];
                         const isActive = activeSongSlot === slot;
                         return (
-                            <button 
+                            <button type="button"
                                 key={slot} 
                                 onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }} 
                                 onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }} 
@@ -96,7 +96,7 @@ export const TransportToolbar = memo(function TransportToolbar({
             {/* Center: Transport Controls */}
             <div className="flex items-center gap-3">
                 {/* Play/Stop Button */}
-                <button
+                <button type="button"
                     onClick={handlePlayToggle}
                     aria-pressed={isPlaying}
                     aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
@@ -107,7 +107,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 </button>
 
                 {/* Record Button */}
-                <button 
+                <button type="button"
                     onClick={() => setIsRecording(!isRecording)} 
                     aria-pressed={isRecording} 
                     aria-label="Toggle Recording" 
@@ -124,7 +124,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 <div className="flex items-center gap-1.5">
                     <span className="text-[9px] text-gray-500 font-mono uppercase tracking-wider">BPM</span>
                     <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
-                        <button
+                        <button type="button"
                             onMouseDown={() => handleTempoHoldStart(-1)}
                             onMouseUp={handleTempoHoldEnd}
                             onMouseLeave={handleTempoHoldEnd}
@@ -143,7 +143,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                         >
                             {tempo}
                         </span>
-                        <button
+                        <button type="button"
                             onMouseDown={() => handleTempoHoldStart(1)}
                             onMouseUp={handleTempoHoldEnd}
                             onMouseLeave={handleTempoHoldEnd}
@@ -165,7 +165,7 @@ export const TransportToolbar = memo(function TransportToolbar({
             </div>
             <div className="flex items-center gap-2">
                 {/* Clear Button */}
-                <button 
+                <button type="button"
                     onClick={handleClearPattern} 
                     className="h-7 px-3 text-xs font-bold text-red-400 border border-red-900/50 bg-gradient-to-r from-red-950/30 to-red-900/20 hover:bg-red-900/30 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95"
                     aria-label="Clear Current Pattern" 
@@ -178,7 +178,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 <div className="w-px h-5 bg-gray-700 mx-1" />
 
                 {/* Song Mode Toggle */}
-                <button 
+                <button type="button"
                     onClick={() => setIsSongModeOpen(!isSongModeOpen)} 
                     aria-pressed={isSongModeOpen} 
                     aria-label="Toggle Song Mode" 
@@ -189,7 +189,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 </button>
 
                 {/* 3D Toggle */}
-                <button
+                <button type="button"
                     onClick={() => setIs3DMode(!is3DMode)}
                     aria-pressed={is3DMode}
                     aria-label="Toggle 3D Studio View"
@@ -200,7 +200,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 </button>
 
                 {/* Panic Button */}
-                <button 
+                <button type="button"
                     onClick={handlePanic} 
                     aria-label="Panic Stop All Notes" 
                     className="h-7 w-7 bg-red-950/50 hover:bg-red-900/70 text-red-500 border border-red-900/50 flex items-center justify-center font-bold text-xs transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95"

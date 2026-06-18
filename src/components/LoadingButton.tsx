@@ -17,7 +17,7 @@ export const LoadingButton: React.FC<LoadingButtonProps> = React.memo(({
     ...props
 }) => {
     return (
-        <button
+        <button type="button"
             {...props}
             disabled={disabled || isLoading}
             aria-busy={isLoading}

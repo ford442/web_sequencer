@@ -933,7 +933,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                             value={currentParams.freezeLfoRate ?? 0}
                                             onChange={(e) => handleFreezeLfoRateChange(parseFloat(e.target.value))}
                                             aria-label="Freeze LFO Rate"
-                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400"
                                         >
                                             <option value={2}>2 Bars</option>
                                             <option value={1}>1 Bar</option>
@@ -968,7 +968,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                             value={currentParams.formantLfoRate ?? 0}
                                             onChange={(e) => handleFormantLfoRateChange(parseFloat(e.target.value))}
                                             aria-label="Formant LFO Rate"
-                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400"
                                         >
                                             <option value={2}>2 Bars</option>
                                             <option value={1}>1 Bar</option>
@@ -1040,7 +1040,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                                 value={currentParams.formantEnvAttack ?? 0.1}
                                                 onChange={(e) => handleFormantEnvAttackChange(parseFloat(e.target.value))}
                                                 aria-label="Formant Envelope Attack Subdivision"
-                                                className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                                className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
                                             >
                                                 <option value={2}>2 Bars</option>
                                                 <option value={1}>1 Bar</option>
@@ -1060,7 +1060,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                                 value={currentParams.formantEnvDecay ?? 0.5}
                                                 onChange={(e) => handleFormantEnvDecayChange(parseFloat(e.target.value))}
                                                 aria-label="Formant Envelope Decay Subdivision"
-                                                className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                                className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
                                             >
                                                 <option value={2}>2 Bars</option>
                                                 <option value={1}>1 Bar</option>

@@ -101,7 +101,7 @@ export const BottomBar = memo(function BottomBar({
             <div className="flex items-center gap-2">
                 {/* Notes/Automation Toggle */}
                 <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 overflow-hidden" role="group" aria-label="Sequencer view mode">
-                    <button
+                    <button type="button"
                         onClick={() => setViewMode('notes')}
                         aria-pressed={viewMode === 'notes'}
                         aria-label="Notes View"
@@ -110,7 +110,7 @@ export const BottomBar = memo(function BottomBar({
                     >
                         NOTES
                     </button>
-                    <button
+                    <button type="button"
                         onClick={() => setViewMode('automation')}
                         aria-pressed={viewMode === 'automation'}
                         aria-label="Automation View"
@@ -141,7 +141,7 @@ export const BottomBar = memo(function BottomBar({
 
                 {/* Live Automation Record Toggle (for creating RBS songs with movement) */}
                 {setIsAutomationRecording && (
-                    <button
+                    <button type="button"
                         onClick={() => setIsAutomationRecording(!isAutomationRecording)}
                         disabled={!isPlaying}
                         aria-pressed={isAutomationRecording}
@@ -154,7 +154,7 @@ export const BottomBar = memo(function BottomBar({
                 )}
 
                 {/* LYRICS Button */}
-                <button 
+                <button type="button"
                     onClick={() => setIsLyricTrackVisible(!isLyricTrackVisible)}
                     aria-pressed={isLyricTrackVisible}
                     aria-label="Toggle Global Lyric Track"
@@ -167,7 +167,7 @@ export const BottomBar = memo(function BottomBar({
 
             {/* Center: File Operations */}
             <div className="flex items-center gap-1.5">
-                <button 
+                <button type="button"
                     onClick={exportSongToFile} 
                     disabled={isImportingAISong}
                     aria-label="Save project to JSON"
@@ -176,7 +176,7 @@ export const BottomBar = memo(function BottomBar({
                 >
                     💾 SAVE
                 </button>
-                <button 
+                <button type="button"
                     onClick={importSongFromFile} 
                     disabled={isImportingAISong}
                     aria-label="Load project from JSON"
@@ -185,7 +185,7 @@ export const BottomBar = memo(function BottomBar({
                 >
                     📂 LOAD
                 </button>
-                <button 
+                <button type="button"
                     onClick={() => setIsRbsImportModalOpen(true)}
                     disabled={isImportingAISong}
                     aria-label="Import ReBirth RB-338 .rbs file"
@@ -194,7 +194,7 @@ export const BottomBar = memo(function BottomBar({
                 >
                     🎹 Import .rbs File...
                 </button>
-                <button 
+                <button type="button"
                     onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}
                     disabled={isImportingAISong}
                     className={`h-6 px-2 text-[10px] font-bold bg-zinc-900 border min-w-[130px] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${
@@ -224,7 +224,7 @@ export const BottomBar = memo(function BottomBar({
                         <span><span aria-hidden="true">🤖</span> Import AI Song</span>
                     )}
                 </button>
-                <button
+                <button type="button"
                     onClick={() => setIsCloudLibraryOpen(true)}
                     disabled={isImportingAISong}
                     className={`h-6 px-2 text-[10px] font-bold text-purple-400 bg-zinc-900 border border-purple-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-950/30 hover:scale-105 active:scale-95'}`}
@@ -238,8 +238,7 @@ export const BottomBar = memo(function BottomBar({
             {/* Right: Utility Toggles */}
             <div className="flex items-center gap-2">
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                    <button
-                        type="button"
+                    <button type="button"
                         onClick={handleAutoMix}
                         className="bg-zinc-800 text-xs text-yellow-400 font-bold font-orbitron px-2 py-0.5 border border-yellow-500/50 hover:bg-yellow-900/50 hover:border-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.2)] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95"
                         title="Auto-Mix Assistant (AI Panning & Leveling)"
@@ -294,7 +293,7 @@ export const BottomBar = memo(function BottomBar({
                 <div className="w-px h-4 bg-gray-700 mx-1" />
 
                 {/* Tape Stop Button */}
-                <button
+                <button type="button"
                     onClick={() => audioEngine?.triggerTapeStop?.(2.0)}
                     className="h-6 px-2 bg-amber-900/80 hover:bg-amber-800 text-amber-200 hover:text-amber-100 border border-amber-700 text-[10px] font-bold uppercase tracking-wider transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95"
                     title="Tape Stop (Escape)"
@@ -306,7 +305,7 @@ export const BottomBar = memo(function BottomBar({
                 <div className="w-px h-4 bg-gray-700 mx-1" />
 
                 {/* Gamepad Toggle */}
-                <button
+                <button type="button"
                     onClick={() => setShowGamepadDebug(true)}
                     className="h-6 w-6 bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-slate-200 border border-zinc-700 flex items-center justify-center transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95"
                     title="Gamepad Debugger"
@@ -316,7 +315,7 @@ export const BottomBar = memo(function BottomBar({
                 </button>
 
                 {/* AudioWorklet Fallback Toggle */}
-                <button
+                <button type="button"
                     onClick={handleAudioWorkletToggle}
                     className={`h-6 px-2 text-[10px] font-mono border transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95 ${forceScriptProcessorFallback ? 'bg-yellow-900/30 text-yellow-400 border-yellow-900/50' : 'bg-zinc-800 text-gray-500 border-zinc-700'}`}
                     title={forceScriptProcessorFallback ? "Using ScriptProcessor fallback" : "Using AudioWorklet"}
@@ -329,7 +328,7 @@ export const BottomBar = memo(function BottomBar({
                 <div className="w-px h-4 bg-gray-700 mx-1" />
 
                 {/* Help Button */}
-                <button
+                <button type="button"
                     onClick={() => setIsShortcutsHelpOpen(true)}
                     className="h-6 w-6 bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 border border-zinc-600 flex items-center justify-center font-bold text-xs transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95"
                     aria-label="Keyboard Shortcuts"

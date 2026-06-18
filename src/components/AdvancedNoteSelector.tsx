@@ -183,7 +183,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.m
             {/* Main button: displays current note, supports drag */}
             <button
                 ref={buttonRef}
-                className="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded cursor-ns-resize select-none touch-none border border-transparent hover:border-cyan-500/50 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
+                className="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded cursor-ns-resize select-none touch-none border border-transparent hover:border-cyan-500/50 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-cyan-400"
                 style={{
                     backgroundColor: color,
                     color: isSharpKey(currentNoteName) ? '#ddd' : '#000',
@@ -239,7 +239,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.m
                                             title={`${fullNote}${!isInScale ? ' (Out of scale)' : ''}`}
                                             aria-label={`${fullNote}${!isInScale ? ' (Out of scale)' : ''}`}
                                             onClick={() => isInScale && handleFlyoutSelect(fullNote)}
-                                            className={`w-8 h-5 text-[9px] font-mono rounded flex items-center justify-center transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${
+                                            className={`w-8 h-5 text-[9px] font-mono rounded flex items-center justify-center transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-cyan-400 ${
                                                 isInScale ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed disabled:opacity-35'
                                             }`}
                                             style={{

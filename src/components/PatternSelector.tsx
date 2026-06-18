@@ -65,7 +65,7 @@ export const PatternSelector: React.FC<PatternSelectorProps> = React.memo(({
             >
                 <div className="flex justify-between items-center mb-2 px-1">
                     <span id="pattern-selector-title" className="text-xs font-bold text-gray-400">SELECT PTN</span>
-                    <button onClick={onClose} aria-label="Close pattern selector" title="Close pattern selector" className="text-gray-500 hover:text-white text-xs focus:outline-none focus-visible:ring-1 focus-visible:ring-white rounded"><span aria-hidden="true">✕</span></button>
+                    <button onClick={onClose} aria-label="Close pattern selector" title="Close pattern selector" className="text-gray-500 hover:text-white text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white rounded"><span aria-hidden="true">✕</span></button>
                 </div>
 
                 <div
