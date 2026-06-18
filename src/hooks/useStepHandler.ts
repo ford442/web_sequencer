@@ -435,7 +435,7 @@ export const useStepHandler = ({
                     realVal = min + normVal * (max - min);
                 } else if (lane.parameter === 'formantShift') {
                     realVal = (normVal - 0.5) * 2.0; // 0-1 -> -1..+1
-                } else if (['drive', 'attack', 'decay', 'vibratoDepth', 'tremoloDepth', 'breathAmount'].includes(lane.parameter)) {
+                } else if (['drive', 'attack', 'decay', 'vibratoDepth', 'tremoloDepth', 'breathAmount', 'characterMorph'].includes(lane.parameter)) {
                     realVal = normVal; // assume 0-1 or pass-through
                 }
 
