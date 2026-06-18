@@ -9,7 +9,26 @@ describe('SingingVoice - Slice & Granular Features', () => {
     beforeEach(() => {
         mockContext = {
             currentTime: 0,
-            createGain: vi.fn().mockReturnValue({ gain: { value: 1, setValueAtTime: vi.fn() }, connect: vi.fn() })
+
+            createBiquadFilter: vi.fn().mockReturnValue({
+                type: 'lowpass', frequency: { value: 0, setValueAtTime: vi.fn() },
+                Q: { value: 0, setValueAtTime: vi.fn() }, gain: { value: 0, setValueAtTime: vi.fn() },
+                connect: vi.fn().mockReturnThis(), disconnect: vi.fn()
+            }),
+            createStereoPanner: vi.fn().mockReturnValue({
+                pan: { value: 0, setValueAtTime: vi.fn() },
+                connect: vi.fn().mockReturnThis(), disconnect: vi.fn()
+            }),
+            createOscillator: vi.fn().mockReturnValue({
+                type: 'sine', frequency: { value: 0, setValueAtTime: vi.fn() },
+                start: vi.fn(), stop: vi.fn(),
+                connect: vi.fn().mockReturnThis(), disconnect: vi.fn()
+            }),
+            createGain: vi.fn().mockReturnValue({
+                gain: { value: 1, setValueAtTime: vi.fn() },
+                connect: vi.fn().mockReturnThis(), disconnect: vi.fn()
+            })
+
         };
 
         mockWorkletNode = {

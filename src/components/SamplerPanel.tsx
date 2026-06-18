@@ -161,9 +161,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             breathAmount: 0,
         },
         freeze: 0,
+        grainPitchEnvDepth: 0,
         grainPitchQuantize: 0,
         granularPitchShift: 0,
-        grainPitchEnvDepth: 0,
         formantLfoRate: 0,
         formantLfoDepth: 0,
         reverbLfoRate: 0.1,
@@ -204,7 +204,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchQuantize', 'granularPitchShift', 'grainPitchEnvDepth',
+            'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainPitchQuantize', 'granularPitchShift',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
             'pitchAmount', 'pitchAttack', 'pitchDecay',
             'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'downsample'
@@ -236,9 +236,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFreezeEnvDepthChange = paramHandlers.freezeEnvDepth;
     const handleTimeStretchEnvDepthChange = paramHandlers.timeStretchEnvDepth;
     const handleGrainEnvDepthChange = paramHandlers.grainEnvDepth;
+    const handleGrainPitchEnvDepthChange = paramHandlers.grainPitchEnvDepth;
     const handleGrainPitchQuantizeChange = paramHandlers.grainPitchQuantize;
     const handleGranularPitchShiftChange = paramHandlers.granularPitchShift;
-    const handleGrainPitchEnvDepthChange = paramHandlers.grainPitchEnvDepth;
     const handleBitcrushChange = paramHandlers.bitcrush;
     const handleDownsampleChange = paramHandlers.downsample;
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
@@ -996,9 +996,9 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth || 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Env → Time" value={currentParams.timeStretchEnvDepth || 0} onChange={handleTimeStretchEnvDepthChange} min={-1.0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Env → Grn Pitch" value={currentParams.grainPitchEnvDepth || 0} onChange={handleGrainPitchEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
                             <Knob label="Gran Pitch" value={currentParams.granularPitchShift || 0} onChange={handleGranularPitchShiftChange} min={-24} max={24} step={1} color="indigo" unit="st" />
-                            <Knob label="Grain P Env" value={currentParams.grainPitchEnvDepth || 0} onChange={handleGrainPitchEnvDepthChange} min={-24} max={24} step={0.01} color="indigo" unit="st" />
                             <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handleBitcrushChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Downsample" value={currentParams.downsample || 1} onChange={handleDownsampleChange} min={1} max={32} step={1} color="indigo" unit="x" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
