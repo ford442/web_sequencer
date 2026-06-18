@@ -105,7 +105,9 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number;
   freezeEnvDepth?: number;
   timeStretchEnvDepth?: number;
+  grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
+  grainPitchEnvDepth?: number;
   grainPitchQuantize?: number;
   granularPitchShift?: number;
   formantLfoSync?: boolean;
@@ -422,6 +424,7 @@ export interface Note {
   freezeLfoSync?: boolean;
   freezeEnvDepth?: number;
   timeStretchEnvDepth?: number;
+  grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
   reverbSend?: number;
@@ -434,6 +437,7 @@ export interface Note {
   delayLfoDepth?: number;
   delaySend?: number;
   granularPitchShift?: number;
+  grainPitchEnvDepth?: number;
   choir?: number;
   drive?: number;
   tranceGate?: number;

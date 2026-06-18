@@ -752,60 +752,106 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- GLITCH LOGIC END ---
 
                 // Handle Polyphony (Chords)
-
-                // --- HOISTED CALCULATIONS ---
-                // Calculate step-level parameters once rather than per voice
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12;
-
-
-
-                // -----------------------------
-
-
-                // --- HOISTED CALCULATIONS ---
-                // Calculate step-level parameters once rather than per voice
-                const hoisted_driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
-                const hoisted_filterCutoff = noteParams?.filterCutoff !== undefined
-                    ? Math.max(20, noteParams.filterCutoff * 20000)
-                    : (params.filterCutoff ?? 20000);
-                const hoisted_filterResonance = noteParams?.filterResonance !== undefined
-                    ? noteParams.filterResonance * 20
-                    : (params.filterResonance ?? 0);
-                const hoisted_spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
-                const hoisted_spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : ((params as any).spectralPanDepth || 0);
-                const hoisted_spectralLfoRate = (hoisted_spectralPanRate || 1) * (tempo / 60);
-                const hoisted_reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                const hoisted_currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
-                const hoisted_targetReverbNode = reverbNodesRef.current[hoisted_currentReverbType] || reverbNodesRef.current['plate'];
-                const hoisted_delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
-                const hoisted_baseShift = params.formantShift || 0;
-                const hoisted_characterMorph = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
-                const hoisted_morphTarget = params.morphTarget || 'female';
-                const hoisted_currentShift = noteParams?.formantShift !== undefined ? (hoisted_baseShift + noteParams.formantShift) : hoisted_baseShift;
-                const hoisted_normalizedShift = Math.max(-12, Math.min(12, hoisted_currentShift)) / 12;
-                let hoisted_reverbEqCutoff = 6000 - (hoisted_normalizedShift * 4000);
-                hoisted_reverbEqCutoff -= (hoisted_characterMorph * 1000);
-                hoisted_reverbEqCutoff = Math.max(1000, Math.min(12000, hoisted_reverbEqCutoff));
-                // -----------------------------
-
                 const notes = Array.isArray(note) ? note : [note];
 
                 // Performance: Hoist expressive config resolution to avoid recalculating per note/retrigger.
                 const expressiveConfig = resolveExpressiveness(params);
+
+                // --- HOISTED PARAMETERS START ---
+                // Spectral Panning
+                const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+                const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+                const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
+
+                // Reverb
+                const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+
+                const baseShift = params.formantShift || 0;
+                const currentShift = noteParams?.formantShift !== undefined ? (baseShift + noteParams.formantShift) : baseShift;
+                const characterMorph = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+                const morphTarget = params.morphTarget || 'female';
+
+                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12;
+                let reverbEqCutoff = 6000 - (normalizedShift * 4000);
+                reverbEqCutoff -= (characterMorph * 1000);
+                reverbEqCutoff = Math.max(1000, Math.min(12000, reverbEqCutoff));
+
+                const revLfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
+                const revLfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
+
+                // Delay
+                const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+
+                // Timbre Modulation
+                let targetFormantShift = baseShift;
+                if (noteParams?.formantShift !== undefined) {
+                    targetFormantShift = baseShift + noteParams.formantShift;
+                } else if (noteParams?.timbre !== undefined) {
+                    targetFormantShift = baseShift + (noteParams.timbre * 12) - 6;
+                }
+                const startFormantShift = noteParams?.slideFromFormant !== undefined ? (baseShift + noteParams.slideFromFormant) : undefined;
+
+                // General Params
+                const pVibratoDepth = noteParams?.vibratoDepth;
+                const pGateDepth = noteParams?.gateDepth !== undefined ? noteParams.gateDepth : params.gateDepth;
+                const pGateRateHz = noteParams?.gateRate !== undefined
+                    ? (tempo / 60) * (noteParams.gateRate / 4)
+                    : (params.gateRate !== undefined ? (tempo / 60) * (params.gateRate / 4) : undefined);
+                const pAttack = params.attack;
+                const pDecay = params.decay;
+                const pSustain = params.sustain;
+                const pRelease = params.release;
+
+                // Freeze
+                const pFreeze = noteParams?.freeze !== undefined ? noteParams.freeze : params.freeze;
+                const freezeRateSync = noteParams?.freezeLfoSync !== undefined ? noteParams.freezeLfoSync : params.freezeLfoSync;
+                let pFreezeLfoRate: number | undefined;
+                if (noteParams?.freezeLfoRate !== undefined) {
+                    pFreezeLfoRate = freezeRateSync ? getSyncedLfoHz(noteParams.freezeLfoRate, tempo) : noteParams.freezeLfoRate;
+                } else if (params.freezeLfoRate !== undefined) {
+                    pFreezeLfoRate = freezeRateSync ? getSyncedLfoHz(params.freezeLfoRate, tempo) : params.freezeLfoRate;
+                }
+                const pFreezeLfoDepth = noteParams?.freezeLfoDepth !== undefined ? noteParams.freezeLfoDepth : params.freezeLfoDepth;
+
+                // Envelopes
+                const pFreezeEnvDepth = noteParams?.freezeEnvDepth !== undefined ? noteParams.freezeEnvDepth : params.freezeEnvDepth;
+                const pTimeStretchEnvDepth = noteParams?.timeStretchEnvDepth !== undefined ? noteParams.timeStretchEnvDepth : params.timeStretchEnvDepth;
+                const pGrainEnvDepth = noteParams?.grainEnvDepth !== undefined ? noteParams.grainEnvDepth : params.grainEnvDepth;
+                const pGrainPitchEnvDepth = (noteParams as any)?.grainPitchEnvDepth !== undefined ? (noteParams as any).grainPitchEnvDepth : params.grainPitchEnvDepth;
+                const pGrainPitchQuantize = noteParams?.grainPitchQuantize !== undefined ? noteParams.grainPitchQuantize : params.grainPitchQuantize;
+
+                // Effects
+                const pGranularPitchShift = noteParams?.granularPitchShift !== undefined ? noteParams.granularPitchShift : params.granularPitchShift;
+                const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
+                const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
+                const pTranceGate = noteParams?.tranceGate;
+
+                // Formant LFO
+                const useFmtLfoSync = noteParams?.formantLfoSync ?? params.formantLfoSync ?? false;
+                const rawFmtLfoRate = noteParams?.formantLfoRate !== undefined ? noteParams.formantLfoRate : params.formantLfoRate;
+                const pFormantLfoRateHz = rawFmtLfoRate !== undefined ? (useFmtLfoSync ? ((tempo / 60) / (rawFmtLfoRate * 4)) : rawFmtLfoRate) : undefined;
+                const pFormantLfoDepth = noteParams?.formantLfoDepth !== undefined ? noteParams.formantLfoDepth : params.formantLfoDepth;
+                let pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
+                if (pFormantLfoShape === undefined) {
+                    pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.formantLfoShape;
+                }
+
+                // Formant Envelope
+                const envSync = noteParams?.formantEnvSync ?? params.formantEnvSync ?? false;
+                let pEnvAttack = noteParams?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                let pEnvDecay = noteParams?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                const pEnvAmount = noteParams?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                if (envSync) {
+                    pEnvAttack = getSyncedSeconds(pEnvAttack as number, tempo);
+                    pEnvDecay = getSyncedSeconds(pEnvDecay as number, tempo);
+                }
+
+                const pPitchDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
+                const pPitchAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
+                // --- HOISTED PARAMETERS END ---
+
 
                 // If Singing/Stretch Mode
                 if (params.mode === 'stretch' && singingVoiceManagerRef.current) {
@@ -851,7 +897,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Drive/Distortion if present
-
+                            const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
                             if (driveAmount !== undefined && driveAmount > 0) {
                                 try {
                                     const overdriveNode = overdriveNodeRef = vocalOverdrivePoolRef.current?.acquire({ drive: driveAmount }) || new AudioWorkletNode(context, 'vocal-overdrive-processor', {
@@ -865,92 +911,161 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                     shaper.connect(finalDest);
                                     finalDest = shaper;
                                 }
-                            }                            // Apply Per-Step Filter if present, or fallback to global filter settings
-                            const cutoff = noteParams?.filterCutoff !== undefined
-                                ? Math.max(20, noteParams.filterCutoff * 20000)
-                                : (params.filterCutoff ?? 20000);
+                            }
 
-                            const resonance = noteParams?.filterResonance !== undefined
-                                ? noteParams.filterResonance * 20
-                                : (params.filterResonance ?? 0);
+                            // Apply Per-Step Filter if present, or fallback to global filter settings
+                            if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
+                                const filter = context.createBiquadFilter();
+                                filter.type = 'lowpass';
 
-                            voice.fxStrip.updateFilter(cutoff, resonance, triggerTime);
+                                const cutoff = noteParams?.filterCutoff !== undefined
+                                    ? Math.max(20, noteParams.filterCutoff * 20000)
+                                    : (params.filterCutoff ?? 20000);
+                                filter.frequency.value = cutoff;
 
+                                const resonance = noteParams?.filterResonance !== undefined
+                                    ? noteParams.filterResonance * 20
+                                    : (params.filterResonance ?? 0);
+                                filter.Q.value = resonance;
+
+                                filter.connect(finalDest);
+                                finalDest = filter;
+                            }
+
+
+                            let spectralFinalDest = finalDest;
+                            let wetGain: GainNode | null = null;
                             // Apply Spectral Panning
+                            if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
+                                const lowBand = context.createBiquadFilter();
+                                lowBand.type = "lowpass";
+                                lowBand.frequency.value = 400;
 
-                            const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+                                const midBand = context.createBiquadFilter();
+                                midBand.type = "bandpass";
+                                midBand.frequency.value = 1500;
+                                midBand.Q.value = 1;
 
-                            const sRate = spectralPanRate || 1;
-                            const sLfoRate = sRate * (tempo / 60);
-                            voice.fxStrip.updateSpectralPanning(spectralPanDepth || 0, sLfoRate, triggerTime);
-                            voice.connectOutput(finalDest);
+                                const highBand = context.createBiquadFilter();
+                                highBand.type = "highpass";
+                                highBand.frequency.value = 4000;
+
+                                const lowPanner = context.createStereoPanner();
+                                const midPanner = context.createStereoPanner();
+                                const highPanner = context.createStereoPanner();
+
+                                const lowLfo = context.createOscillator();
+                                lowLfo.type = "sine";
+                                lowLfo.frequency.value = spectralPanLfoRate * 0.5;
+                                const lowGain = context.createGain();
+                                lowGain.gain.value = spectralPanDepth;
+                                lowLfo.connect(lowGain);
+                                lowGain.connect(lowPanner.pan);
+                                lowLfo.start(triggerTime);
+
+                                const midLfo = context.createOscillator();
+                                midLfo.type = "sine";
+                                midLfo.frequency.value = spectralPanLfoRate * 0.75;
+                                const midGain = context.createGain();
+                                midGain.gain.value = spectralPanDepth * 0.8;
+                                midLfo.connect(midGain);
+                                midGain.connect(midPanner.pan);
+                                midLfo.start(triggerTime);
+
+                                const highLfo = context.createOscillator();
+                                highLfo.type = "sine";
+                                highLfo.frequency.value = spectralPanLfoRate;
+                                const highGain = context.createGain();
+                                highGain.gain.value = spectralPanDepth * 1.2;
+                                highLfo.connect(highGain);
+                                highGain.connect(highPanner.pan);
+                                highLfo.start(triggerTime);
+
+                                lowBand.connect(lowPanner);
+                                midBand.connect(midPanner);
+                                highBand.connect(highPanner);
+
+                                lowPanner.connect(finalDest);
+                                midPanner.connect(finalDest);
+                                highPanner.connect(finalDest);
+
+                                const dryGain = context.createGain();
+                                dryGain.gain.value = 1.0 - spectralPanDepth;
+                                dryGain.connect(finalDest);
+
+                                wetGain = context.createGain();
+                                wetGain.gain.value = spectralPanDepth;
+                                wetGain.connect(lowBand);
+                                wetGain.connect(midBand);
+                                wetGain.connect(highBand);
+
+                                voice.connectOutput(dryGain);
+                                voice.connectOutput(wetGain);
+                                spectralFinalDest = dryGain;
+
+                                // Clean up LFOs when voice finishes
+                                const stopOscillators = () => {
+                                    try { lowLfo.stop(); } catch(e){}
+                                    try { midLfo.stop(); } catch(e){}
+                                    try { highLfo.stop(); } catch(e){}
+                                };
+                                // this may not be perfect teardown if stretch voice lasts longer, but it is a start
+                                setTimeout(stopOscillators, targetDuration * 1000 + 100);
+                            } else {
+                                voice.connectOutput(finalDest);
+                            }
 
                             // Setup Reverb Send (Formant-Aware)
-                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
-                            const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
-
-
-
                             if (reverbSendAmount > 0 && targetReverbNode) {
                                 const reverbGain = context.createGain();
                                 reverbGain.gain.value = reverbSendAmount;
 
-                            if (reverbSendAmount > 0 && targetReverbNode) {
-                                // Calculate Formant Brightness for Reverb EQ
 
 
+                                const formantReverbEq = context.createBiquadFilter();
+                                formantReverbEq.type = 'lowpass';
+                                formantReverbEq.frequency.value = reverbEqCutoff;
+                                formantReverbEq.Q.value = 0.5; // Gentle slope
 
+                                if (revLfoDepth > 0 && revLfoRate > 0) {
+                                    // Base amount minus the max modulation depth ensures we duck down
+                                    const minGain = Math.max(0, reverbSendAmount * (1 - revLfoDepth));
+                                    const maxGain = reverbSendAmount;
+                                    const midGain = (maxGain + minGain) / 2;
+                                    const amplitude = (maxGain - minGain) / 2;
 
-                                const normalizedShift = Math.max(-12, Math.min(12, currentShift)) / 12; // -1.0 to 1.0
-                                let reverbEqCutoff = 6000 - (normalizedShift * 4000);
-                                reverbEqCutoff -= (characterMorph * 1000);
-                                reverbEqCutoff = Math.max(1000, Math.min(12000, reverbEqCutoff));
-                                // High formant shifts or brighter characters -> more high frequencies -> lower cutoff to tame sibilance
-                                // Neutral/Low shifts -> higher cutoff to keep reverb clear
-                                // We map currentShift from roughly -12 to +12
+                                    reverbGain.gain.value = midGain; // Set base level to midpoint
 
+                                    // LFO to modulate gain up to reverbSendAmount
+                                    const lfo = context.createOscillator();
+                                    lfo.type = 'sine';
+                                    lfo.frequency.value = revLfoRate;
 
-                                // Base cutoff around 6000Hz. If bright (+1), drop to 2000Hz. If dark (-1), raise to 10000Hz.
+                                    const lfoDepthGain = context.createGain();
+                                    lfoDepthGain.gain.value = amplitude;
 
+                                    lfo.connect(lfoDepthGain);
+                                    lfoDepthGain.connect(reverbGain.gain);
 
-                                // Further adjust by character morph (0 to 1). 1 usually means brighter/female.
+                                    lfo.start(triggerTime);
+                                    lfo.stop(triggerTime + targetDuration + 1.0); // Stop after duration + tail
+                                }
 
-
-
-                                const rLfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
-                                const rLfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
-
-                                voice.fxStrip.updateReverbSend(reverbSendAmount, rLfoRate, rLfoDepth, reverbEqCutoff, triggerTime);
-                                voice.fxStrip.connectReverb(targetReverbNode);
-                            } else {
-                                voice.fxStrip.updateReverbSend(0, 0, 0, 6000, triggerTime);
-                                voice.fxStrip.connectReverb(null);
+                                reverbGain.connect(formantReverbEq);
+                                formantReverbEq.connect(targetReverbNode);
+                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
                             }
 
-
                             // Setup Delay Send
-
                             if (delaySendAmount > 0 && delayNodeRef.current) {
-                                voice.fxStrip.updateDelaySend(delaySendAmount, triggerTime);
-                                voice.fxStrip.connectDelay(delayNodeRef.current);
-                            } else {
-                                voice.fxStrip.updateDelaySend(0, triggerTime);
-                                voice.fxStrip.connectDelay(null);
+                                const delayGain = context.createGain();
+                                delayGain.gain.value = delaySendAmount;
+                                delayGain.connect(delayNodeRef.current);
+                                voice.connectOutput(delayGain);
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
-
-                            let targetFormantShift = baseShift;
-
-                            if (noteParams?.formantShift !== undefined) {
-                                targetFormantShift = baseShift + noteParams.formantShift;
-                            } else if (noteParams?.timbre !== undefined) {
-                                targetFormantShift = baseShift + (noteParams.timbre * 12) - 6;
-                            }
-
-                            if (noteParams?.slideFromFormant !== undefined && (noteParams?.slideFromMidi !== undefined || noteParams?.slideFromFormant !== undefined)) {
-                                const startFormantShift = baseShift + noteParams.slideFromFormant;
+                            if (startFormantShift !== undefined && (noteParams?.slideFromMidi !== undefined || noteParams?.slideFromFormant !== undefined)) {
                                 const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
                                 voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);
                             } else {
@@ -958,148 +1073,38 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Character Morphing
-
-
                             voice.setCharacterMorph(characterMorph, morphTarget as any, 0.05); // Use short ramp time
 
                             // Sync other params
-                            if (noteParams?.vibratoDepth !== undefined) {
-                                voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
-                            }
-                            if (noteParams?.gateDepth !== undefined) {
-                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
-                            } else if (params.gateDepth !== undefined) {
-                                voice.setGateDepth(params.gateDepth, triggerTime);
-                            }
+                            if (pVibratoDepth !== undefined) voice.setVibratoDepth(pVibratoDepth, triggerTime);
+                            if (pGateDepth !== undefined) voice.setGateDepth(pGateDepth, triggerTime);
+                            if (pGateRateHz !== undefined) voice.setGateRate(pGateRateHz, triggerTime);
 
-                            if (noteParams?.gateRate !== undefined) {
-                                const rateHz = (tempo / 60) * (noteParams.gateRate / 4);
-                                voice.setGateRate(rateHz, triggerTime);
-                            } else if (params.gateRate !== undefined) {
-                                const rateHz = (tempo / 60) * (params.gateRate / 4);
-                                voice.setGateRate(rateHz, triggerTime);
-                            }
-                            if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
-                            if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
-                            if (params.sustain !== undefined) voice.setSustain(params.sustain, triggerTime);
-                            if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
+                            if (pAttack !== undefined) voice.setAttack(pAttack, triggerTime);
+                            if (pDecay !== undefined) voice.setDecay(pDecay, triggerTime);
+                            if (pSustain !== undefined) voice.setSustain(pSustain, triggerTime);
+                            if (pRelease !== undefined) voice.setRelease(pRelease, triggerTime);
 
-                            // Apply per-step or global freeze
-                            if (noteParams?.freeze !== undefined) {
-                                voice.setFreeze(noteParams.freeze, triggerTime);
-                            } else if (params.freeze !== undefined) {
-                                voice.setFreeze(params.freeze, triggerTime);
-                            }
+                            if (pFreeze !== undefined) voice.setFreeze(pFreeze, triggerTime);
+                            if (pFreezeLfoRate !== undefined) voice.setFreezeLfoRate(pFreezeLfoRate, triggerTime);
+                            if (pFreezeLfoDepth !== undefined) voice.setFreezeLfoDepth(pFreezeLfoDepth, triggerTime);
 
-                            // Apply Freeze LFO
-                            const freezeRateSync = noteParams?.freezeLfoSync !== undefined ? noteParams.freezeLfoSync : params.freezeLfoSync;
-                            if (noteParams?.freezeLfoRate !== undefined) {
-                                const rate = freezeRateSync ? getSyncedLfoHz(noteParams.freezeLfoRate, tempo) : noteParams.freezeLfoRate;
-                                voice.setFreezeLfoRate(rate, triggerTime);
-                            } else if (params.freezeLfoRate !== undefined) {
-                                const rate = freezeRateSync ? getSyncedLfoHz(params.freezeLfoRate, tempo) : params.freezeLfoRate;
-                                voice.setFreezeLfoRate(rate, triggerTime);
-                            }
-                            if (noteParams?.freezeLfoDepth !== undefined) {
-                                voice.setFreezeLfoDepth(noteParams.freezeLfoDepth, triggerTime);
-                            } else if (params.freezeLfoDepth !== undefined) {
-                                voice.setFreezeLfoDepth(params.freezeLfoDepth, triggerTime);
-                            }
+                            if (pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(pFreezeEnvDepth, triggerTime);
+                            if (pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(pTimeStretchEnvDepth, triggerTime);
+                            if (pGrainEnvDepth !== undefined) voice.setGrainEnvDepth(pGrainEnvDepth, triggerTime);
+                            if (pGrainPitchEnvDepth !== undefined) voice.setGrainPitchEnvDepth(pGrainPitchEnvDepth, triggerTime);
+                            if (pGrainPitchQuantize !== undefined) voice.setGrainPitchQuantize(pGrainPitchQuantize, triggerTime);
 
-                            // Apply Envelope Follower depths (per-step noteParams take precedence over global params)
-                            if (noteParams?.freezeEnvDepth !== undefined) {
-                                voice.setFreezeEnvDepth(noteParams.freezeEnvDepth, triggerTime);
-                            } else if (params.freezeEnvDepth !== undefined) {
-                                voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
-                            }
-                            if (noteParams?.timeStretchEnvDepth !== undefined) {
-                                voice.setTimeStretchEnvDepth(noteParams.timeStretchEnvDepth, triggerTime);
-                            } else if (params.timeStretchEnvDepth !== undefined) {
-                                voice.setTimeStretchEnvDepth(params.timeStretchEnvDepth, triggerTime);
-                            }
-                            if (noteParams?.grainEnvDepth !== undefined) {
-                                voice.setGrainEnvDepth(noteParams.grainEnvDepth, triggerTime);
-                            } else if (params.grainEnvDepth !== undefined) {
-                                voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
-                            }
-                            if (noteParams?.grainPitchQuantize !== undefined) {
-                                voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
-                            } else if (params.grainPitchQuantize !== undefined) {
-                                voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
-                            }
+                            if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
+                            if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
+                            if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
+                            if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
 
-                            if (noteParams?.granularPitchShift !== undefined) {
-                                voice.setGranularPitchShift(noteParams.granularPitchShift, triggerTime);
-                            } else if (params.granularPitchShift !== undefined) {
-                                voice.setGranularPitchShift(params.granularPitchShift, triggerTime);
-                            }
-                            if (noteParams?.bitcrush !== undefined) {
-                                voice.setBitcrush(noteParams.bitcrush, triggerTime);
-                            } else if (params.bitcrush !== undefined) {
-                                voice.setBitcrush(params.bitcrush, triggerTime);
-                            }
+                            if (pFormantLfoRateHz !== undefined) voice.setFormantLfoRate(pFormantLfoRateHz, triggerTime);
+                            if (pFormantLfoDepth !== undefined) voice.setFormantLfoDepth(pFormantLfoDepth, triggerTime);
+                            voice.setFormantLfoShape(pFormantLfoShape);
 
-                            if (noteParams?.downsample !== undefined) {
-                                voice.setDownsample(noteParams.downsample, triggerTime);
-                            } else if (params.downsample !== undefined) {
-                                voice.setDownsample(params.downsample, triggerTime);
-                            }
-
-
-                            if (noteParams?.tranceGate !== undefined) {
-                                voice.setTranceGate(noteParams.tranceGate, triggerTime);
-                            }
-
-                            // Apply Formant LFO
-                            const useFmtLfoSync = noteParams?.formantLfoSync ?? params.formantLfoSync ?? false;
-                            let fmtLfoRate = params.formantLfoRate;
-                            if (noteParams?.formantLfoRate !== undefined) {
-                                fmtLfoRate = noteParams.formantLfoRate;
-                            }
-
-                            if (fmtLfoRate !== undefined) {
-                                if (useFmtLfoSync) {
-                                    const rateHz = (tempo / 60) / (fmtLfoRate * 4);
-                                    voice.setFormantLfoRate(rateHz, triggerTime);
-                                } else {
-                                    voice.setFormantLfoRate(fmtLfoRate, triggerTime);
-                                }
-                            }
-
-                            if (noteParams?.formantLfoDepth !== undefined) {
-                                voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
-                            } else if (params.formantLfoDepth !== undefined) {
-                                voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
-                            }
-                            if (noteParams?.formantLfoShape !== undefined) {
-                                voice.setFormantLfoShape(noteParams.formantLfoShape);
-                            } else if (params.formantLfoShape !== undefined) {
-                                voice.setFormantLfoShape(params.formantLfoShape);
-                            } else {
-                                voice.setFormantLfoShape(undefined);
-                            }
-
-                            // Formant Envelope
-                            const envSync = noteParams?.formantEnvSync ?? params.formantEnvSync ?? false;
-                            let envAttack = noteParams?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            let envDecay = noteParams?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
-                            const envAmount = noteParams?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
-
-                            if (envSync) {
-                                envAttack = getSyncedSeconds(envAttack as number, tempo);
-                                envDecay = getSyncedSeconds(envDecay as number, tempo);
-                            }
-
-                            if (envAmount !== 0) {
-                                voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
-                            }
-                            if (noteParams?.customLfoShape !== undefined) {
-                                voice.setFormantLfoShape(noteParams.customLfoShape);
-                            } else if (params.customLfoShape !== undefined) {
-                                voice.setFormantLfoShape(params.customLfoShape);
-                            } else {
-                                voice.setFormantLfoShape(undefined);
-                            }
+                            if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
 
                             // Load buffer only if the voice doesn't already have it
                             if (isNewBank) {
@@ -1173,12 +1178,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setPitchAttack(pAttack, triggerTime);
                             }
                             if (voice.setPitchDecay) {
-                                const pDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
-                                voice.setPitchDecay(pDecay, triggerTime);
+                                voice.setPitchDecay(pPitchDecay, triggerTime);
                             }
                             if ((voice as any).setPitchAmount) {
-                                const pAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
-                                (voice as any).setPitchAmount(pAmount, triggerTime);
+                                (voice as any).setPitchAmount(pPitchAmount, triggerTime);
                             }
 
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);
@@ -1301,7 +1304,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                     let finalShaperDest: AudioNode | null = null;
                     let overdriveNodeRef: AudioWorkletNode | null = null;
-
+                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
                     if (driveAmount > 0) {
                         try {
                             const overdriveNode = overdriveNodeRef = vocalOverdrivePoolRef.current?.acquire({ drive: driveAmount }) || new AudioWorkletNode(context, 'vocal-overdrive-processor', {
@@ -1346,8 +1349,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
 
 
-
-                    const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
                     let spectralFinalDest = finalDestination;
                     let wetGain: GainNode | null = null;
                     if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
@@ -1369,12 +1370,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         const midPanner = context.createStereoPanner();
                         const highPanner = context.createStereoPanner();
 
-                        const rate = spectralPanRate || 1;
-                        const lfoRate = rate * (tempo / 60);
-
                         const lowLfo = context.createOscillator();
                         lowLfo.type = "sine";
-                        lowLfo.frequency.value = lfoRate * 0.5;
+                        lowLfo.frequency.value = spectralPanLfoRate * 0.5;
                         const lowGain = context.createGain();
                         lowGain.gain.value = spectralPanDepth;
                         lowLfo.connect(lowGain);
@@ -1383,7 +1381,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                         const midLfo = context.createOscillator();
                         midLfo.type = "sine";
-                        midLfo.frequency.value = lfoRate * 0.75;
+                        midLfo.frequency.value = spectralPanLfoRate * 0.75;
                         const midGain = context.createGain();
                         midGain.gain.value = spectralPanDepth * 0.8;
                         midLfo.connect(midGain);
@@ -1392,7 +1390,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                         const highLfo = context.createOscillator();
                         highLfo.type = "sine";
-                        highLfo.frequency.value = lfoRate;
+                        highLfo.frequency.value = spectralPanLfoRate;
                         const highGain = context.createGain();
                         highGain.gain.value = spectralPanDepth * 1.2;
                         highLfo.connect(highGain);
@@ -1517,7 +1515,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     return;
                 }
 
-                playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
+                playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
             };
 
             const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any | null): number | null => {
