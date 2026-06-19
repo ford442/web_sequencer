@@ -21,3 +21,6 @@
 ## 2026-05-25 - Toast Accessibility Close Button
 **Learning:** The Toast component lacked a close button, making it hard to dismiss quickly for keyboard and screen reader users before the 3s timeout. Automated Playwright verification of transient Toasts is also brittle without global state hooks.
 **Action:** Added an explicit close button with aria-label and title to Toasts, and set aria-live=polite on the alert. Will rely on unit tests and manual dev check for transient UI components instead of forcing brittle E2E flows.
+## 2024-06-19 - [Missing interactive element semantics and tooltips on custom buttons]
+**Learning:** Found custom buttons acting as toggles without `type="button"`, `role="switch"`, `aria-checked`, or `title` attributes. This could result in ambiguous screen reader announcements and accidental form submissions. It also limits usability for mouse users relying on hover tooltips.
+**Action:** When creating icon-only toggles and controls (like enabling/disabling lanes), ensure they are fully semantic with `type="button"`, `role="switch"` (where applicable), `aria-checked`, and a helpful `title` tooltip alongside their `aria-label`.
