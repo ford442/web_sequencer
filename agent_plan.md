@@ -143,6 +143,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-08-07] - Implemented Spectral Morph Automation: Added `characterMorph` as an automatable lane parameter to allow drawing automation curves to morph spectrally between TTS vocal characters over a sequence of steps. Fulfills the "Spectral Morph Automation" Innovation Lab idea.
 * [2026-08-06] - Implemented Granular Pitch Envelope: Added `grainPitchEnvDepth` parameter globally and per-step to `SamplerBankParams` and `Note` interfaces. Modulated `finalPitch` inside `rubberband-processor.ts` by combining granular pitch shift with the pitch envelope curve. Added UI controls to `SamplerPanel` and `NoteSelector`. Fulfills the "Granular Pitch Envelope" Innovation Lab idea.
 * [2026-08-04] - Implemented Formant & Freeze LFO Sync Subdivisions: Added support to tempo-sync both Formant and Freeze LFO rates to specific musical subdivisions (e.g., 1/4, 1/8, 1 Bar) across the Sampler engine. Updates to `useAudioEngine.ts` to dynamically calculate the Hz rate from current `tempo`, and added per-step override support with a dropdown selector UI in `NoteSelector.tsx`. Fulfills the "Formant LFO Sync Subdivisions" Innovation Lab Idea. Added new idea: "Formant Preserving Vocoder".
 * [2026-06-06] - Implemented Step-Sequenced Glitch Density: Added `glitchChance` parameter to `Note` interface and updated `NoteSelector` UI to include a slider under the Glitch group. Updated `useAppState` to handle the new parameter and updated `useAudioEngine.ts` to allow per-step overrides of the global glitch probability, enabling targeted stutter effects on specific syllables. Fulfills the "Step-Sequenced Glitch Density" Innovation Lab idea. Added new idea: "Formant LFO Sync Subdivisions".
@@ -235,7 +236,7 @@
 * [x] **Idea:** "Vocal Pitch Envelope" - Add a dedicated pitch envelope (Attack/Decay/Amount) specifically for TTS phonemes to allow snappy pitch drops (like 808s) or slow, portamento-like rises on individual syllables, independent of standard melodic tracking.
 * [2026-05-19] - Refactored Large Files: Successfully split 10 out of 12 files that were over 1000 lines into multiple smaller files under 700 lines each. Extracted structural UI repetition into sub-components for NoteSelector, RbsImportModal, AISongModal, and SamplerPanel. Deferred splitting AISongStorage.ts and useAudioEngine.ts due to tightly coupled cyclic dependencies. These should be tackled incrementally in the future.
 
-* **Idea:** "Spectral Morph Automation" - Allow drawing automation curves to morph spectrally between two different TTS phonemes or samples over a sequence of steps.
+* [x] **Idea:** "Spectral Morph Automation" - Allow drawing automation curves to morph spectrally between two different TTS phonemes or samples over a sequence of steps.
 
 
 
