@@ -850,6 +850,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 const pPitchDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
                 const pPitchAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
+
+                const pFilterCutoff = noteParams?.filterCutoff !== undefined
+                    ? Math.max(20, noteParams.filterCutoff * 20000)
+                    : params.filterCutoff;
+                const pFilterResonance = noteParams?.filterResonance !== undefined
+                    ? noteParams.filterResonance * 20
+                    : params.filterResonance;
+                const pDriveAmount = noteParams?.drive !== undefined
+                    ? noteParams.drive
+                    : params.drive;
                 // --- HOISTED PARAMETERS END ---
 
 
@@ -1292,19 +1302,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                     const filter = context.createBiquadFilter();
                     filter.type = 'lowpass';
-                    const cutoff = noteParams?.filterCutoff !== undefined
-                        ? Math.max(20, noteParams.filterCutoff * 20000)
-                        : params.filterCutoff;
-                    filter.frequency.value = cutoff;
-
-                    const resonance = noteParams?.filterResonance !== undefined
-                        ? noteParams.filterResonance * 20
-                        : params.filterResonance;
-                    filter.Q.value = resonance;
+                    filter.frequency.value = pFilterCutoff;
+                    filter.Q.value = pFilterResonance;
 
                     let finalShaperDest: AudioNode | null = null;
                     let overdriveNodeRef: AudioWorkletNode | null = null;
-                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                    const driveAmount = pDriveAmount;
                     if (driveAmount > 0) {
                         try {
                             const overdriveNode = overdriveNodeRef = vocalOverdrivePoolRef.current?.acquire({ drive: driveAmount }) || new AudioWorkletNode(context, 'vocal-overdrive-processor', {
