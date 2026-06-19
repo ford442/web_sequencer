@@ -238,6 +238,9 @@ export function applySamplerVoiceParamUpdate({
             case 'breathAmount':
                 voice.setBreathIntensity(value as number);
                 break;
+            case 'characterMorph':
+                voice.setCharacterMorph(value as number, 'female', 0.05);
+                break;
         }
     });
 }
