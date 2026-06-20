@@ -156,18 +156,19 @@ export function createPlaySynth(
         const subDurationSteps = durationSteps / retrigger;
         const subDuration = subDurationSteps * stepTime;
 
+        const noteStr = Array.isArray(note) ? note[0] : note;
+        if (!noteStr) {
+            return;
+        }
+        const midi = noteToMidi(noteStr);
+
         for (let i = 0; i < retrigger; i++) {
             const noteTime = actualTime + (i * subDuration);
 
             if (track === 'bass2') {
                 if (refs.open303ManagerRef.current?.isBass2Ready()) {
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
+
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
 
@@ -196,12 +197,6 @@ export function createPlaySynth(
                 if (refs.open303ManagerRef.current?.isBass1Ready()) {
                     refs.open303ManagerRef.current.applyBass1Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -232,12 +227,6 @@ export function createPlaySynth(
                 if (refs.open303ManagerRef.current?.isLead303Ready()) {
                     refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -268,12 +257,6 @@ export function createPlaySynth(
                 if (refs.prophecyManagerRef?.current?.isPartBReady()) {
                     refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -301,12 +284,6 @@ export function createPlaySynth(
                 if (refs.prophecyManagerRef?.current?.isPartAReady()) {
                     refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -423,6 +400,21 @@ export function createPlayDrum(
             ? Math.pow(2, (noteToMidi(noteStr) - DRUM_REF_MIDI) / 12)
             : 1;
 
+        // Apply pitch ratio to params before passing to kit engine (hoisted)
+        let adjustedParams = params;
+        if (pitchRatio !== 1) {
+            if (sound === 'kick') {
+                const kp = params as KickParams;
+                adjustedParams = { ...kp, pitch: kp.pitch * pitchRatio };
+            } else if (sound === 'snare') {
+                const sp = params as SnareParams;
+                adjustedParams = { ...sp, tone: sp.tone * pitchRatio };
+            } else {
+                const hp = params as HatParams;
+                adjustedParams = { ...hp, pitch: hp.pitch * pitchRatio };
+            }
+        }
+
         const retrigger = 1;
         const subStep = stepTime / retrigger;
 
@@ -432,22 +424,8 @@ export function createPlayDrum(
             // Use DrumKitEngine for authentic 808/909 synthesis when available
             const kitEngine = refs.drumKitEngineRef?.current;
             if (kitEngine) {
-                // Apply pitch ratio to params before passing to kit engine
-                let adjustedParams = params;
-                if (pitchRatio !== 1) {
-                    if (sound === 'kick') {
-                        const kp = params as KickParams;
-                        adjustedParams = { ...kp, pitch: kp.pitch * pitchRatio };
-                    } else if (sound === 'snare') {
-                        const sp = params as SnareParams;
-                        adjustedParams = { ...sp, tone: sp.tone * pitchRatio };
-                    } else {
-                        const hp = params as HatParams;
-                        adjustedParams = { ...hp, pitch: hp.pitch * pitchRatio };
-                    }
-                }
-
                 if (sound === 'kick' && refs.sidechainGainRef.current) {
+
                     triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
                 }
 
