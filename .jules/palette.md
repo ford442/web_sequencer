@@ -24,3 +24,6 @@
 ## 2024-06-19 - [Missing interactive element semantics and tooltips on custom buttons]
 **Learning:** Found custom buttons acting as toggles without `type="button"`, `role="switch"`, `aria-checked`, or `title` attributes. This could result in ambiguous screen reader announcements and accidental form submissions. It also limits usability for mouse users relying on hover tooltips.
 **Action:** When creating icon-only toggles and controls (like enabling/disabling lanes), ensure they are fully semantic with `type="button"`, `role="switch"` (where applicable), `aria-checked`, and a helpful `title` tooltip alongside their `aria-label`.
+## 2024-06-20 - [Grouped Parameter Accessibility]
+**Learning:** In complex dropdown or parameter groups like those in the ScaleSelector, grouping related standard `<select>` options in a `<fieldset>` with a visually hidden `<legend>` ensures proper context without requiring multiple repetitive aria labels on every input and unifies their screen reading experience. Applying a unified `focus-visible:ring` provides critical context that regular `focus:ring` lacks.
+**Action:** When creating groupings of closely related controls (e.g. root, scale, tuning system), default to `<fieldset>` and `<legend>` wrapping and strictly use `focus-visible:` classes over `focus:`.
