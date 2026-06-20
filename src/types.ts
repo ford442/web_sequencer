@@ -105,6 +105,7 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number;
   freezeEnvDepth?: number;
   timeStretchEnvDepth?: number;
+  grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
   granularPitchShift?: number;
