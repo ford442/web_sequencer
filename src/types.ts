@@ -79,7 +79,6 @@ export interface HatParams {
 }
 
 export interface SamplerBankParams {
-  grainPitchEnvDepth?: number;
   grainJitter?: number;
   sampleName: string;
   playbackSpeed: number;
