@@ -11,3 +11,6 @@
 ## 2026-06-21 - Drum Param Resolution Hot-Path
 **Learning:** In hot audio paths like `createPlayDrum`, even simple `for` loops that execute once and unnecessary object spread operators (`{ ...params, pitch: ... }`) create significant garbage collection (GC) overhead and CPU spikes when handling dense rhythmic patterns (e.g., 16th notes).
 **Action:** When a parameter requires conditional modification based on external calculations (like pitch scaling), avoid unconditionally cloning the parameters. Always clone only when necessary and flatten unnecessary fixed-iteration loop wrappers.
+## 2026-06-18 - Outer Loop Redundant Note Handling Hoisting
+**Learning:** In audio synthesis functions like `createPlaySynth` and `createPlayDrum` in `audioPlayback.ts`, operations parsing the target `noteStr` and generating the `midi` or `pitchRatio` scale values were placed inside the `for (let i = 0; i < retrigger; i++)` loops, causing them to execute on every retrigger tick instead of just once per note trigger.
+**Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
