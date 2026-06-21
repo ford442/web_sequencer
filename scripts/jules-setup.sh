@@ -1,18 +1,17 @@
 #!/bin/bash
 # scripts/jules-setup.sh
-# Jules setup for web_sequencer / Hyphon (aggressive fallback)
+# web_sequencer temporary version
 
 set -euo pipefail
 
 echo "🚀 [Jules] Setting up web_sequencer / Hyphon environment..."
 
-echo "📦 Installing dependencies (with force to bypass conflicts)..."
-
-if npm ci --no-audit --no-fund --prefer-offline 2>/dev/null; then
-  echo "✅ npm ci succeeded"
+if [ -f package-lock.json ]; then
+  echo "📦 Using npm ci..."
+  npm ci --no-audit --no-fund --prefer-offline || npm install --no-audit --no-fund --legacy-peer-deps --force --prefer-offline
 else
-  echo "⚠️ npm ci failed — forcing install with legacy peer deps..."
+  echo "📦 No lockfile — using npm install with force..."
   npm install --no-audit --no-fund --legacy-peer-deps --force --prefer-offline
 fi
 
-echo "✅ [Jules] web_sequencer / Hyphon environment ready!"
+echo "✅ [Jules] web_sequencer environment ready!"
