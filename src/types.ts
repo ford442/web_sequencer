@@ -147,6 +147,7 @@ export interface SamplerBankParams {
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
+  vocoderMix?: number;
   expressiveness?: {
     vibratoRate: number;
     vibratoDepth: number;
@@ -449,6 +450,7 @@ export interface Note {
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
+  vocoderMix?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
