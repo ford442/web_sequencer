@@ -80,6 +80,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
       { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
@@ -398,7 +400,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const baseGrainSize = Math.floor(sRate * 0.1);
             // Modulate grain size with envelope: louder = smaller grains for more texture
             const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * (1.0 - grainEnvDepth * envelopeValue)));
-            const grainStart = Math.max(0, this.currentSamplePtr - Math.floor(grainSizeSamples / 2));
+
+            const grainJitter = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
+            // Jitter adds a random offset to the grain center up to +/- 50ms based on jitter amount
+            const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
+            const jitterOffset = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
+
+            const grainCenter = this.currentSamplePtr + jitterOffset;
+            const grainStart = Math.max(0, Math.min(buf.length - grainSizeSamples, grainCenter - Math.floor(grainSizeSamples / 2)));
             const grainEnd = Math.min(buf.length, grainStart + grainSizeSamples);
             const actualGrainSize = grainEnd - grainStart;
 
