@@ -77,6 +77,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = React.memo(({ onClose
                         KEYBOARD SHORTCUTS
                     </h2>
                     <button
+                        type="button"
                         onClick={onClose}
                         className="text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded p-1"
                         aria-label="Close Shortcuts"
@@ -110,6 +111,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = React.memo(({ onClose
                 {/* Footer */}
                 <div className="p-4 border-t border-gray-800 bg-gray-900/50 text-center">
                     <button
+                        type="button"
                         onClick={onClose}
                         className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-6 py-2 rounded font-orbitron text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                         aria-label="Acknowledge and close shortcuts"
