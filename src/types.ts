@@ -79,6 +79,8 @@ export interface HatParams {
 }
 
 export interface SamplerBankParams {
+  grainPitchEnvDepth?: number;
+  grainJitter?: number;
   sampleName: string;
   playbackSpeed: number;
   volume: number;
@@ -423,6 +425,7 @@ export interface Note {
   freezeEnvDepth?: number;
   timeStretchEnvDepth?: number;
   grainPitchEnvDepth?: number;
+  grainJitter?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
   reverbSend?: number;

@@ -162,6 +162,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         },
         freeze: 0,
         grainPitchEnvDepth: 0,
+        grainJitter: 0,
         grainPitchQuantize: 0,
         granularPitchShift: 0,
         formantLfoRate: 0,
@@ -204,7 +205,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainPitchQuantize', 'granularPitchShift',
+            'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
             'pitchAmount', 'pitchAttack', 'pitchDecay',
             'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'downsample'
@@ -237,6 +238,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleTimeStretchEnvDepthChange = paramHandlers.timeStretchEnvDepth;
     const handleGrainEnvDepthChange = paramHandlers.grainEnvDepth;
     const handleGrainPitchEnvDepthChange = paramHandlers.grainPitchEnvDepth;
+    const handleGrainJitterChange = paramHandlers.grainJitter;
     const handleGrainPitchQuantizeChange = paramHandlers.grainPitchQuantize;
     const handleGranularPitchShiftChange = paramHandlers.granularPitchShift;
     const handleBitcrushChange = paramHandlers.bitcrush;
@@ -997,6 +999,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <Knob label="Env → Time" value={currentParams.timeStretchEnvDepth || 0} onChange={handleTimeStretchEnvDepthChange} min={-1.0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Env → Grn Pitch" value={currentParams.grainPitchEnvDepth || 0} onChange={handleGrainPitchEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Jitter" value={currentParams.grainJitter || 0} onChange={handleGrainJitterChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
                             <Knob label="Gran Pitch" value={currentParams.granularPitchShift || 0} onChange={handleGranularPitchShiftChange} min={-24} max={24} step={1} color="indigo" unit="st" />
                             <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handleBitcrushChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
