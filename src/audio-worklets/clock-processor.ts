@@ -89,16 +89,16 @@ class ClockProcessor extends AudioWorkletProcessor {
         return parity === 0 ? baseSamples + shift : baseSamples - shift;
     }
 
-    process(_inputs: Float32Array[][], _outputs: Float32Array[][], _params: Record<string, Float32Array>): boolean {
+    process(_inputs: Float32Array[][], outputs: Float32Array[][], _params: Record<string, Float32Array>): boolean {
+        const output = outputs[0]?.[0];
+        const blockSize = output?.length ?? 128;
+        if (output) {
+            output.fill(0);
+        }
+
         if (!this.running) return true;
 
-        // How many samples are in this audio block (typically 128).
-        // The AudioWorklet spec guarantees outputs[0][0] has the block size, but
-        // since we don't use audio I/O here we derive it from currentTime arithmetic.
-        // Using 128 as a safe constant is fine — we iterate sample-by-sample anyway.
-        const BLOCK_SIZE = 128;
-
-        for (let i = 0; i < BLOCK_SIZE; i++) {
+        for (let i = 0; i < blockSize; i++) {
             if (this.sampleCursor >= this.nextStepAtSample) {
                 // Exact AudioContext time for this sample (currentTime is the time of
                 // the first sample in the current block).

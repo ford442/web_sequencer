@@ -1102,7 +1102,7 @@ export class SingingVoice {
    */
   setFormantEnvFollower(amount: number, time?: number): void {
     if (this.formantShifter && this.config.enableFormantShifting) {
-      this.formantShifter.setFollowerAmount(amount, time);
+      this.formantShifter.setEnvFollowerDepth(amount, time);
     }
   }
 

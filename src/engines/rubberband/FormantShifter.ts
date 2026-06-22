@@ -105,11 +105,10 @@ export class FormantShifter {
     private envGain: GainNode | null = null;
 
     // Envelope Follower components
-    private followerInput: GainNode | null = null;
-    private followerRectifier: WaveShaperNode | null = null;
+    private followerWaveshaper: WaveShaperNode | null = null;
     private followerFilter: BiquadFilterNode | null = null;
     private followerGain: GainNode | null = null;
-    private followerAmount: number = 0;
+    private followerDepth: number = 0;
 
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
@@ -217,6 +216,36 @@ export class FormantShifter {
             }
 
             this.envNode.start();
+        }
+
+        // Create Envelope Follower components
+        if (typeof this.audioContext.createWaveShaper === 'function') {
+            this.followerWaveshaper = this.audioContext.createWaveShaper();
+        }
+        // Create a simple absolute value curve
+        const curve = new Float32Array(4096);
+        for (let i = 0; i < 4096; i++) {
+            const x = (i * 2) / 4096 - 1;
+            curve[i] = Math.abs(x);
+        }
+        if (this.followerWaveshaper) this.followerWaveshaper.curve = curve;
+
+        if (typeof this.audioContext.createBiquadFilter === 'function') {
+            this.followerFilter = this.audioContext.createBiquadFilter();
+        }
+        if (this.followerFilter) this.followerFilter.type = 'lowpass';
+        if (this.followerFilter) this.followerFilter.frequency.value = 10; // 10 Hz smoothing
+
+        if (typeof this.audioContext.createGain === 'function') {
+            this.followerGain = this.audioContext.createGain();
+        }
+        if (this.followerGain) this.followerGain.gain.value = this.followerDepth * 100; // Map semitones to cents
+
+        if (this.followerWaveshaper && this.followerFilter) this.followerWaveshaper.connect(this.followerFilter);
+        if (this.followerFilter && this.followerGain) this.followerFilter.connect(this.followerGain);
+
+        for (let i = 0; i < formants.length; i++) {
+            if (this.followerGain) this.followerGain.connect(filters[i].detune);
         }
 
         this.filterNodes = filters;
@@ -525,8 +554,8 @@ export class FormantShifter {
         
         if (input && output) {
             source.connect(input);
-            if (this.followerInput) {
-                source.connect(this.followerInput);
+            if (this.followerWaveshaper) {
+                source.connect(this.followerWaveshaper);
             }
             output.connect(destination);
         } else {
@@ -563,13 +592,9 @@ export class FormantShifter {
             this.envGain = null;
         }
 
-        if (this.followerInput) {
-            this.followerInput.disconnect();
-            this.followerInput = null;
-        }
-        if (this.followerRectifier) {
-            this.followerRectifier.disconnect();
-            this.followerRectifier = null;
+        if (this.followerWaveshaper) {
+            this.followerWaveshaper.disconnect();
+            this.followerWaveshaper = null;
         }
         if (this.followerFilter) {
             this.followerFilter.disconnect();
@@ -580,21 +605,21 @@ export class FormantShifter {
             this.followerGain = null;
         }
     }
-    
+
     /**
-     * Set the amount of formant shift driven by the amplitude envelope follower.
-     * @param amount Peak shift amount in semitones (-24 to 24)
+     * Set the envelope follower depth.
+     * @param depth Modulate formant detune amount in semitones
      * @param time Optional time to apply the change
      */
-    setFollowerAmount(amount: number, time?: number): void {
-        this.followerAmount = amount;
+    setEnvFollowerDepth(depth: number, time?: number): void {
+        this.followerDepth = depth;
         if (this.followerGain) {
             const t = time || this.audioContext.currentTime;
             this.followerGain.gain.cancelScheduledValues(t);
-            this.followerGain.gain.setValueAtTime(amount * 100, t); // Map semitones to cents
+            this.followerGain.gain.setValueAtTime(depth * 100, t); // Map semitones to cents
         }
     }
-
+    
     /**
      * Trigger a formant envelope.
 

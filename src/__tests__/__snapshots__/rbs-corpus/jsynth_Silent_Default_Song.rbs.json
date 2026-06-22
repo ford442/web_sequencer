@@ -1,0 +1,16 @@
+{
+  "automationLaneCount": 1,
+  "automationTargets": [
+    "synthA.filterCutoff",
+  ],
+  "file": "jsynth_Silent_Default_Song.rbs",
+  "hasSongData": true,
+  "partAActiveSteps": 16,
+  "playMode": 0,
+  "songLengthBars": 245,
+  "tb303APatternCount": 32,
+  "tempo": 140,
+  "trakEventCount": 80,
+  "usedPatternCount": 15,
+  "version": "2.0",
+}

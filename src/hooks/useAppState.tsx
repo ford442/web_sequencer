@@ -1191,13 +1191,13 @@ const handleNotePropertyChange = useCallback((
          'filterCutoff' | 'filterResonance' | 'envMod' |
          'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
          'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' |
-         'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvSync' | 'formantEnvFollower' |
+         'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvFollower' | 'formantEnvSync' |
          'vibratoDepth' | 'drive' | 'characterMorph' |
          'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
          'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
          'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' |
-         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' |
+         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'vocoderMix' |
          'spectralPanRate' | 'spectralPanDepth' |
          'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
     value: number | boolean | string
@@ -1295,7 +1295,7 @@ const handleNotePropertyChange = useCallback((
 
     const {
         getSongData, getBankData, getPatternData,
-        exportSongToFile, importSongFromFile,
+        exportSongToFile, exportRbsToFile, importSongFromFile,
         handleSaveSong, loadSong, loadCloudData,
         handleAISongImport, handleRbsImport,
         isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
@@ -1900,6 +1900,7 @@ const handleLyricApply = useCallback(async (text: string) => {
         getBankData,
         getPatternData,
         exportSongToFile,
+        exportRbsToFile,
         importSongFromFile,
         handleSaveSong,
         loadSong,

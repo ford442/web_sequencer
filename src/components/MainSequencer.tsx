@@ -8,6 +8,7 @@ import type { Pattern, PartSequence, TrackKey, PhonemeData } from '../types';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useTimelineZoom } from '../hooks/useTimelineZoom';
 import { DEFAULT_ZOOM } from './sequencer/constants';
+import { TrackSlotStrip } from './sequencer/TrackSlotButton';
 import { noop } from '../utils/noop';
 
 // --- PERFORMANCE STYLES ---
@@ -348,18 +349,6 @@ const SvgStep = memo(({
     );
 });
 
-const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
-    const patternColor = getPatternColor(index);
-    const inactiveColor = hasData ? patternColor : '#0f1812';
-
-    return (
-        <g transform={`translate(${index * 22}, 0)`} className="track-slot" onClick={() => onSelect(trackKey, index)} cursor="pointer" role="button" tabIndex={0} aria-label={`Pattern Slot ${index + 1}, ${isActive ? "Active" : "Inactive"}`} aria-pressed={isActive} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(trackKey, index); } }} onContextMenu={(e) => e.preventDefault()}>
-            <rect width={18} height={18} rx={2} fill={isActive ? patternColor : inactiveColor} fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)} stroke={isActive ? '#fff' : patternColor} strokeOpacity={isActive ? 1 : 0.6} strokeWidth={1} />
-            <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : patternColor} fontFamily="monospace" fontWeight="bold">{index + 1}</text>
-        </g>
-    );
-});
-
 export interface SequencerRowHandle { setHighlight: (step: number) => void; }
 
 const SequencerRow = memo(forwardRef<SequencerRowHandle, {
@@ -486,7 +475,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     }, [onSelectRow, rowKey]);
 
     const renderedTrackSlots = useMemo(() => (
-        [0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))
+        <TrackSlotStrip activeSlot={activeSlot} trackSlots={trackSlots} trackKey={rowKey} onSelect={onSelectSlot} />
     ), [activeSlot, trackSlots, rowKey, onSelectSlot]);
 
     return (

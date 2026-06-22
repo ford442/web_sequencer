@@ -1,4 +1,5 @@
 /// <reference types="@webgpu/types" />
+import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 
 export class WebGpuBackend {
     device: GPUDevice | null = null;
@@ -9,9 +10,19 @@ export class WebGpuBackend {
     // Persistent 16-byte uniform buffer reused across all runOp() calls
     private uniformBuffer: GPUBuffer | null = null;
 
+    // ── Pooled, size-bucketed buffer allocator (mirrors WebGpuOscillator.ts) ──
+    // Ping-pong STORAGE buffers (STORAGE | COPY_SRC | COPY_DST) keyed by bucket.
+    private storagePool: Map<number, GPUBuffer[]> = new Map();
+    // Readback buffers (MAP_READ | COPY_DST) keyed by bucket.
+    private readPool: Map<number, GPUBuffer[]> = new Map();
+    private readonly MAX_POOL_SIZE_PER_BUCKET = 4;
+    private readonly SIZE_BUCKET_BYTES = 4096; // Quantize to 4KB buckets
+    private readonly MAX_BUFFER_SIZE = 64 * 1024 * 1024; // 64MB guard against OOM
+
     async init(): Promise<boolean> {
         if (!navigator.gpu) {
             console.warn("WebGPU not supported on this browser.");
+            logEngineFallback('webgpu-compute', 'webgpu', 'navigator.gpu unavailable (browser lacks WebGPU)');
             return false;
         }
 
@@ -19,6 +30,7 @@ export class WebGpuBackend {
             this.adapter = await navigator.gpu.requestAdapter();
             if (!this.adapter) {
                 console.warn("No appropriate GPUAdapter found.");
+                logEngineFallback('webgpu-compute', 'webgpu', 'requestAdapter() returned null (no compatible GPU adapter)');
                 return false;
             }
             this.device = await this.adapter.requestDevice();
@@ -30,9 +42,11 @@ export class WebGpuBackend {
             });
             this.ready = true;
             console.log("WebGPU Backend Initialized 🚀");
+            try { engineTelemetry.registerResolution('webgpu-compute', 'webgpu', 'device-ready'); } catch (_) {}
             return true;
         } catch (e) {
             console.error("WebGPU Init Failed:", e);
+            logEngineFallback('webgpu-compute', 'webgpu', 'GPUDevice or compute pipeline creation failed', e);
             return false;
         }
     }
@@ -232,5 +246,172 @@ export class WebGpuBackend {
         readbackBuffer.destroy();
 
         return finalData;
+    }
+
+    // ── Pooled buffer allocator ───────────────────────────────────────────────
+    // Quantize a byte size up to the nearest bucket so differently-sized chains
+    // can still share buffers.
+    private getSizeBucket(size: number): number {
+        return Math.ceil(size / this.SIZE_BUCKET_BYTES) * this.SIZE_BUCKET_BYTES;
+    }
+
+    private acquire(
+        pool: Map<number, GPUBuffer[]>,
+        bucket: number,
+        usage: GPUBufferUsageFlags,
+    ): GPUBuffer | null {
+        if (!this.device) return null;
+        const free = pool.get(bucket);
+        if (free && free.length > 0) return free.pop()!;
+        try {
+            return this.device.createBuffer({ size: bucket, usage });
+        } catch (e) {
+            logEngineFallback('webgpu-compute', 'webgpu', 'GPUBuffer allocation failed', e);
+            return null;
+        }
+    }
+
+    private release(pool: Map<number, GPUBuffer[]>, bucket: number, buffer: GPUBuffer) {
+        let free = pool.get(bucket);
+        if (!free) {
+            free = [];
+            pool.set(bucket, free);
+        }
+        if (free.length < this.MAX_POOL_SIZE_PER_BUCKET) {
+            free.push(buffer);
+        } else {
+            buffer.destroy();
+        }
+    }
+
+    /**
+     * GPU-resident op chaining. Runs `ops` in sequence, ping-ponging between two
+     * persistent STORAGE buffers so intermediate results never leave the GPU —
+     * only the final result is read back (one mapAsync, one submit).
+     *
+     * Returns null when WebGPU is unavailable so callers fall back to CPU,
+     * matching runOp()'s contract. Offline/precompute only — never await this
+     * on the audio worklet thread.
+     */
+    async runChain(
+        ops: string[],
+        data: Float32Array,
+        dims: number[],
+        params: { factor?: number }[] = [],
+    ): Promise<Float32Array | null> {
+        if (!this.ready || !this.device) return null;
+        if (ops.length === 0) return new Float32Array(data); // nothing to do
+
+        const rows = dims[1];
+        const cols = dims[2];
+        const size = rows * cols;
+        const bufferSize = size * 4;
+
+        if (bufferSize > this.MAX_BUFFER_SIZE) {
+            logEngineFallback(
+                'webgpu-compute',
+                'webgpu',
+                `chain buffer ${bufferSize}B exceeds max ${this.MAX_BUFFER_SIZE}B`,
+            );
+            return null;
+        }
+
+        const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const bucket = this.getSizeBucket(bufferSize);
+        const storageUsage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+
+        // Two persistent ping-pong buffers + one readback buffer from the pool.
+        const bufA = this.acquire(this.storagePool, bucket, storageUsage);
+        const bufB = this.acquire(this.storagePool, bucket, storageUsage);
+        const readback = this.acquire(this.readPool, bucket, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+        if (!bufA || !bufB || !readback) {
+            if (bufA) this.release(this.storagePool, bucket, bufA);
+            if (bufB) this.release(this.storagePool, bucket, bufB);
+            if (readback) this.release(this.readPool, bucket, readback);
+            return null;
+        }
+
+        // Seed the chain: upload input into bufA.
+        this.device.queue.writeBuffer(bufA, 0, data.buffer, data.byteOffset, data.byteLength);
+
+        // One uniform buffer per op — all passes coexist in a single submit, so
+        // they cannot share one mutable uniform buffer.
+        const uniformBuffers: GPUBuffer[] = [];
+        const commandEncoder = this.device.createCommandEncoder();
+
+        let src = bufA;
+        let dst = bufB;
+        try {
+            for (let i = 0; i < ops.length; i++) {
+                const pipeline = this.pipelines[ops[i]];
+                if (!pipeline) {
+                    throw new Error(`unknown op "${ops[i]}"`);
+                }
+
+                const factor = params[i]?.factor !== undefined ? params[i]!.factor! : 1.0;
+                const seed = Math.random() * 10000;
+                const uniformBuffer = this.device.createBuffer({
+                    size: 16,
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                });
+                this.device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([rows, cols, factor, seed]));
+                uniformBuffers.push(uniformBuffer);
+
+                const bindGroup = this.device.createBindGroup({
+                    layout: pipeline.getBindGroupLayout(0),
+                    entries: [
+                        { binding: 0, resource: { buffer: src } },
+                        { binding: 1, resource: { buffer: dst } },
+                        { binding: 2, resource: { buffer: uniformBuffer } },
+                    ],
+                });
+
+                const pass = commandEncoder.beginComputePass();
+                pass.setPipeline(pipeline);
+                pass.setBindGroup(0, bindGroup);
+                pass.dispatchWorkgroups(Math.ceil(size / 64));
+                pass.end();
+
+                // Ping-pong: this op's output becomes the next op's input.
+                const tmp = src;
+                src = dst;
+                dst = tmp;
+            }
+
+            // After the loop the freshest result lives in `src`.
+            commandEncoder.copyBufferToBuffer(src, 0, readback, 0, bufferSize);
+            this.device.queue.submit([commandEncoder.finish()]);
+
+            await readback.mapAsync(GPUMapMode.READ);
+            const mapped = new Float32Array(readback.getMappedRange(), 0, size);
+            const finalData = new Float32Array(mapped); // copy out before unmap
+            readback.unmap();
+
+            try { engineTelemetry.recordLatency('webgpu-compute', (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0); } catch (_) {}
+
+            // Return all pooled buffers for reuse.
+            this.release(this.storagePool, bucket, bufA);
+            this.release(this.storagePool, bucket, bufB);
+            this.release(this.readPool, bucket, readback);
+            uniformBuffers.forEach(b => b.destroy());
+
+            return finalData;
+        } catch (e) {
+            logEngineFallback('webgpu-compute', 'webgpu', 'runChain dispatch/readback failed', e);
+            // Don't return buffers to the pool on error — destroy them.
+            bufA.destroy();
+            bufB.destroy();
+            readback.destroy();
+            uniformBuffers.forEach(b => b.destroy());
+            return null;
+        }
+    }
+
+    // Release all pooled buffers (call on teardown).
+    destroy() {
+        for (const free of this.storagePool.values()) free.forEach(b => b.destroy());
+        for (const free of this.readPool.values()) free.forEach(b => b.destroy());
+        this.storagePool.clear();
+        this.readPool.clear();
     }
 }

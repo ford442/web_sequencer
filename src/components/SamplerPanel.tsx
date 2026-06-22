@@ -1079,7 +1079,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                         <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
                                     )}
                                     <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
-                                    <Knob label="Fmt Follower" value={currentParams.formantEnvFollower ?? 0} onChange={handleFormantEnvFollowerChange} min={0} max={24} step={1} color="indigo" unit="st" />
+                                    <Knob label="Fmt Follower" value={currentParams.formantEnvFollower ?? 0} onChange={handleFormantEnvFollowerChange} min={-24} max={24} step={1} color="indigo" unit="st" />
                                 </div>
                             </fieldset>
 

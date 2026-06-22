@@ -35,7 +35,12 @@ import type {
 import { automationStore } from '../../stores/automationStore';
 import type { Open303Manager } from '../../engines/Open303Manager';
 import type { PcfEffect } from '../../engines/PcfEffect';
-import { AUTOMATION_PARAMETER_MAP } from '../../importers/rbs/types';
+import {
+  isTrakParamAutomationEvent,
+  isTrakPatternSelectEvent,
+  normaliseTrakParamValue,
+  resolveTrakParamMapping,
+} from '../../importers/rbs/trakControllers';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -43,41 +48,31 @@ import { AUTOMATION_PARAMETER_MAP } from '../../importers/rbs/types';
 
 /** Resolve delta-tick events into absolute-tick events. */
 export function resolveTrakDeltas(
-  events: Array<{ deltaTick: number; ctrlId: number; value: number }>
+  events: Array<{ deltaTick: number; trackIndex: number; ctrlId: number; value: number; eventKind?: ResolvedTrakEvent['eventKind'] }>
 ): ResolvedTrakEvent[] {
   let tick = 0;
   return events.map((ev) => {
     tick += ev.deltaTick;
-    return { tick, ctrlId: ev.ctrlId, value: ev.value };
+    return {
+      tick,
+      trackIndex: ev.trackIndex,
+      ctrlId: ev.ctrlId,
+      value: ev.value,
+      eventKind: ev.eventKind,
+    };
   });
 }
 
 /**
- * Convert a raw TRAK value (0–127 or 0–255) for a given parameter into a
- * normalised 0–1 float suitable for Open303Manager setters.
- * Falls back to identity mapping for unknown parameters.
+ * Convert a raw TRAK value for a per-track controller into a normalised float.
+ * Uses track-local param mapping — not the legacy automation lane enum.
  */
-export function normaliseTrakValue(ctrlId: number, rawValue: number): number {
-  const name = AUTOMATION_PARAMETER_MAP[ctrlId];
-  switch (name) {
-    case 'tb303Acutoff':
-    case 'tb303Bcutoff':
-    case 'tb303Aresonance':
-    case 'tb303Bresonance':
-    case 'tb303Adecay':
-    case 'tb303Bdecay':
-    case 'pcfCutoff':
-    case 'pcfResonance':
-    case 'pcfEnvAmount':
-      return Math.max(0, Math.min(1, rawValue / 127));
-    case 'masterVolume':
-      return Math.max(0, Math.min(1, rawValue / 127));
-    case 'tempo':
-      // tempo stored as integer BPM; return as-is (caller handles conversion)
-      return rawValue;
-    default:
-      return Math.max(0, Math.min(1, rawValue / 127));
-  }
+export function normaliseTrakValue(
+  trackIndex: number,
+  ctrlId: number,
+  rawValue: number,
+): number {
+  return normaliseTrakParamValue(trackIndex, ctrlId, rawValue);
 }
 
 // ---------------------------------------------------------------------------
@@ -246,15 +241,15 @@ export class AutomationScheduler {
     for (const ev of events) {
       if (ev.tick < fromTick || ev.tick >= toTick) continue;
 
-      const audioTime = baseAudioTime + (ev.tick - fromTick) * tickSeconds;
-      const normValue = normaliseTrakValue(ev.ctrlId, ev.value);
+      // Arrangement events (pattern select) must not hit knob setters.
+      if (isTrakPatternSelectEvent(ev.trackIndex, ev.ctrlId, ev.eventKind)) continue;
+      if (!isTrakParamAutomationEvent(ev.trackIndex, ev.ctrlId, ev.eventKind)) continue;
 
-      const paramName = AUTOMATION_PARAMETER_MAP[ev.ctrlId];
-      if (!paramName) continue;
-
-      // Map RBS parameter names to (target, parameter) pairs.
-      const mapping = trakCtrlToTargetParam(paramName);
+      const mapping = resolveTrakParamMapping(ev.trackIndex, ev.ctrlId);
       if (!mapping) continue;
+
+      const audioTime = baseAudioTime + (ev.tick - fromTick) * tickSeconds;
+      const normValue = normaliseTrakValue(ev.trackIndex, ev.ctrlId, ev.value);
 
       this._scheduleParam(
         mapping.target,
@@ -431,27 +426,4 @@ export class AutomationScheduler {
   }
 }
 
-// ---------------------------------------------------------------------------
-// TRAK ctrl-ID → (target, parameter) mapping
-// ---------------------------------------------------------------------------
-
-interface TargetParam {
-  target: AutomationTarget;
-  parameter: string;
-}
-
-function trakCtrlToTargetParam(paramName: string): TargetParam | null {
-  switch (paramName) {
-    case 'tb303Acutoff':     return { target: 'synthA', parameter: 'filterCutoff' };
-    case 'tb303Bcutoff':     return { target: 'synthB', parameter: 'filterCutoff' };
-    case 'tb303Aresonance':  return { target: 'synthA', parameter: 'filterResonance' };
-    case 'tb303Bresonance':  return { target: 'synthB', parameter: 'filterResonance' };
-    case 'tb303Adecay':      return { target: 'synthA', parameter: 'decay' };
-    case 'tb303Bdecay':      return { target: 'synthB', parameter: 'decay' };
-    case 'masterVolume':     return { target: 'master', parameter: 'volume' };
-    case 'pcfCutoff':        return { target: 'master', parameter: 'pcfCutoff' };
-    case 'pcfResonance':     return { target: 'master', parameter: 'pcfResonance' };
-    case 'pcfEnvAmount':     return { target: 'master', parameter: 'pcfEnvAmount' };
-    default:                 return null;
-  }
-}
+// trakCtrlToTargetParam removed — per-track mapping lives in trakControllers.ts
