@@ -23,6 +23,7 @@ interface SamplerVoicePanelProps {
     vibratoDepth?: number; // 0-1
     tremoloDepth?: number; // 0-1
     breathAmount?: number; // 0-1
+    vocoderMix?: number; // 0-1
     quality?: 'preview' | 'good' | 'better' | 'best';
     stretchMode?: 'Time' | 'Pitch' | 'Formant';
     lockToSequencer?: boolean;
@@ -502,6 +503,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     vibratoDepth = 0,
     tremoloDepth = 0,
     breathAmount = 0,
+    vocoderMix = 0,
     quality = 'good',
     stretchMode = 'Time',
     lockToSequencer = false,
@@ -520,6 +522,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [localVibratoDepth, setLocalVibratoDepth] = useState(vibratoDepth);
     const [localTremoloDepth, setLocalTremoloDepth] = useState(tremoloDepth);
     const [localBreathAmount, setLocalBreathAmount] = useState(breathAmount);
+    const [localVocoderMix, setLocalVocoderMix] = useState(vocoderMix);
     const [localQuality, setLocalQuality] = useState<typeof quality>(quality);
     const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
@@ -549,6 +552,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'vibratoDepth': setLocalVibratoDepth(value as number); break;
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
+            case 'vocoderMix': setLocalVocoderMix(value as number); break;
             case 'quality': setLocalQuality(value as typeof quality); break;
             case 'stretchMode': setLocalStretch(value as typeof stretchMode); break;
             case 'lockToSequencer': setLocalLock(value as boolean); break;
@@ -810,6 +814,13 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             value={localBreathAmount * 2 - 1}
                             displayValue={localBreathAmount.toFixed(2)}
                             onChange={(v) => handleParamChange('breathAmount', Math.max(0, Math.min(1, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="VOCODER MIX"
+                            value={localVocoderMix * 2 - 1}
+                            displayValue={localVocoderMix.toFixed(2)}
+                            onChange={(v) => handleParamChange('vocoderMix', Math.max(0, Math.min(1, (v + 1) / 2)))}
                             colorHex={colorHex}
                         />
                     </div>

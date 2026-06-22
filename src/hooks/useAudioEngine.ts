@@ -82,6 +82,7 @@ import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker
 import vocalOverdriveProcessorUrl from '../audio-worklets/vocal-overdrive-processor.ts?worker&url';
 import expressiveVoiceProcessorUrl from '../audio-worklets/expressive-voice-processor.ts?worker&url';
 import expressiveVoiceProcessorWorkletUrl from '../audio-worklets/expressive-voice-processor-worklet.ts?worker&url';
+import vocoderProcessorUrl from '../audio-worklets/vocoder-processor.ts?worker&url';
 
 type AudioWindow = Window & typeof globalThis & {
     webkitAudioContext?: typeof AudioContext;
@@ -163,6 +164,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const wavSqrBufferRef = useRef<AudioBuffer | null>(null);
 
     // Master Volume & Pan
+    const synthABusRef = useRef<GainNode | null>(null);
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const sidechainGainRef = useRef<BiquadFilterNode | null>(null);
@@ -228,6 +230,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         bassSidechainEQBusRef,
         sidechainBusRef,
         drumKitEngineRef,
+        synthABusRef
     }), []);
 
     useEffect(() => {
@@ -528,11 +531,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 pyodideEngine: pyodideRef.current as PyodideLike | null,
             };
 
+            synthABusRef.current = context.createGain();
+            synthABusRef.current.connect(masterSaturationRef.current!);
+
             // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
+            voiceManagerARef.current = new VoiceManager(context, synthABusRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
             voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
 
             await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
+
+            try {
+                await context.audioWorklet.addModule(vocoderProcessorUrl);
+            } catch (error) {
+                console.error('VocoderProcessor AudioWorklet initialization failed:', error);
+            }
 
             try {
                 await context.audioWorklet.addModule(vocalOverdriveProcessorUrl);
@@ -728,7 +740,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantEnvAttack?: number,
                     formantEnvDecay?: number,
                     formantEnvAmount?: number,
-                    envMod?: number
+                    envMod?: number,
+                    vocoderMix?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -758,6 +771,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const expressiveConfig = resolveExpressiveness(params);
 
                 // --- HOISTED PARAMETERS START ---
+                // Vocoder Mix
+                const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
+
                 // Spectral Panning
                 const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
                 const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
@@ -943,6 +959,32 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 finalDest = filter;
                             }
 
+
+                            // Apply Vocoder if present
+                            let vocoderNodeRef: AudioWorkletNode | null = null;
+                            if (vocoderMix > 0 && synthABusRef.current) {
+                                try {
+                                    const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
+                                        numberOfInputs: 2,
+                                        parameterData: { mix: vocoderMix }
+                                    });
+                                    // Connect Synth A to carrier (input 0)
+                                    synthABusRef.current.connect(vocoderNode, 0, 0);
+
+                                    // Connect Vocoder output to next in chain
+                                    vocoderNode.connect(finalDest);
+
+                                    // We need to route the TTS source to modulator (input 1)
+                                    // Create a gain to act as the new finalDest for the TTS source
+                                    const modulatorGain = context.createGain();
+                                    modulatorGain.connect(vocoderNode, 0, 1);
+
+                                    vocoderNodeRef = vocoderNode;
+                                    finalDest = modulatorGain;
+                                } catch (e) {
+                                    console.warn("Failed to instantiate vocoder node", e);
+                                }
+                            }
 
                             let spectralFinalDest = finalDest;
                             let wetGain: GainNode | null = null;
@@ -1210,6 +1252,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                     if (overdriveNodeRef) {
                                         vocalOverdrivePoolRef.current?.release(overdriveNodeRef);
                                     }
+                                    if (vocoderNodeRef) {
+                                        synthABusRef.current?.disconnect(vocoderNodeRef);
+                                        vocoderNodeRef.disconnect();
+                                    }
                                 }, delayMs);
                             } else {
                                 voice.noteOff();
@@ -1219,6 +1265,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 }
                                 if (overdriveNodeRef) {
                                     vocalOverdrivePoolRef.current?.release(overdriveNodeRef);
+                                }
+                                if (vocoderNodeRef) {
+                                    synthABusRef.current?.disconnect(vocoderNodeRef);
+                                    vocoderNodeRef.disconnect();
                                 }
                             }
                         };
@@ -1352,7 +1402,36 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         finalDestination = masterSaturationRef.current!;
                     }
 
+                    // Apply Vocoder if present
+                    let vocoderNodeRef: AudioWorkletNode | null = null;
+                    if (vocoderMix > 0 && synthABusRef.current) {
+                        try {
+                            const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
+                                numberOfInputs: 2,
+                                parameterData: { mix: vocoderMix }
+                            });
+                            // Connect Synth A to carrier (input 0)
+                            synthABusRef.current.connect(vocoderNode, 0, 0);
 
+                            // Connect Vocoder output to next in chain
+                            vocoderNode.connect(finalDestination);
+
+                            // Create a gain to act as the new finalDestination for the TTS source
+                            const modulatorGain = context.createGain();
+                            modulatorGain.connect(vocoderNode, 0, 1);
+
+                            vocoderNodeRef = vocoderNode;
+                            finalDestination = modulatorGain;
+
+                            // Clean up
+                            source.addEventListener('ended', () => {
+                                synthABusRef.current?.disconnect(vocoderNode);
+                                vocoderNode.disconnect();
+                            });
+                        } catch (e) {
+                            console.warn("Failed to instantiate vocoder node", e);
+                        }
+                    }
 
                     let spectralFinalDest = finalDestination;
                     let wetGain: GainNode | null = null;
