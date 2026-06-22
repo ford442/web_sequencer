@@ -126,6 +126,7 @@ interface NoteSelectorProps {
       | "delayLfoDepth"
       | "delaySend"
       | "choir"
+      | "vocoderMix"
       | "vowel"
       | "portamento",
     value: number | boolean | string,
