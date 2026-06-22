@@ -34,6 +34,7 @@
     "three": "^0.182.0"
   },
   "devDependencies": {
+    "@babel/helper-plugin-utils": "^7.29.7",
     "@eslint/js": "^9.39.1",
     "@fast-check/vitest": "^0.4.1",
     "@playwright/test": "^1.57.0",
@@ -45,8 +46,14 @@
     "@types/react-dom": "^19.2.2",
     "@types/web": "^0.0.162",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/expect": "2.1.9",
+    "@vitest/mocker": "2.1.9",
+    "@vitest/pretty-format": "2.1.9",
+    "@vitest/runner": "2.1.9",
+    "@vitest/snapshot": "2.1.9",
+    "@vitest/spy": "2.1.9",
+    "@vitest/utils": "2.1.9",
     "@webgpu/types": "^0.1.66",
-    "@babel/helper-plugin-utils": "^7.29.7",
     "assemblyscript": "^0.28.9",
     "autoprefixer": "^10.4.14",
     "eslint": "^9.39.1",
@@ -59,9 +66,10 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
     "vite": "^5.4.21",
+    "vite-node": "2.1.9",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.5.0",
-    "vitest": "^4.1.9",
+    "vitest": "2.1.9",
     "wasm-pack": "^0.13.1"
   }
 }

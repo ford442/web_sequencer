@@ -104,6 +104,13 @@ export class FormantShifter {
     private envNode: ConstantSourceNode | null = null;
     private envGain: GainNode | null = null;
 
+    // Envelope Follower components
+    private followerInput: GainNode | null = null;
+    private followerRectifier: WaveShaperNode | null = null;
+    private followerFilter: BiquadFilterNode | null = null;
+    private followerGain: GainNode | null = null;
+    private followerAmount: number = 0;
+
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
         this.sourceFormants = config.sourceFormants ?? VOICE_FORMANTS.default;
@@ -518,6 +525,9 @@ export class FormantShifter {
         
         if (input && output) {
             source.connect(input);
+            if (this.followerInput) {
+                source.connect(this.followerInput);
+            }
             output.connect(destination);
         } else {
             // No filters, direct connection
@@ -552,10 +562,43 @@ export class FormantShifter {
             this.envGain.disconnect();
             this.envGain = null;
         }
+
+        if (this.followerInput) {
+            this.followerInput.disconnect();
+            this.followerInput = null;
+        }
+        if (this.followerRectifier) {
+            this.followerRectifier.disconnect();
+            this.followerRectifier = null;
+        }
+        if (this.followerFilter) {
+            this.followerFilter.disconnect();
+            this.followerFilter = null;
+        }
+        if (this.followerGain) {
+            this.followerGain.disconnect();
+            this.followerGain = null;
+        }
     }
     
     /**
+     * Set the amount of formant shift driven by the amplitude envelope follower.
+     * @param amount Peak shift amount in semitones (-24 to 24)
+     * @param time Optional time to apply the change
+     */
+    setFollowerAmount(amount: number, time?: number): void {
+        this.followerAmount = amount;
+        if (this.followerGain) {
+            const t = time || this.audioContext.currentTime;
+            this.followerGain.gain.cancelScheduledValues(t);
+            this.followerGain.gain.setValueAtTime(amount * 100, t); // Map semitones to cents
+        }
+    }
+
+    /**
      * Trigger a formant envelope.
+
+
      * @param amount Peak shift amount in semitones
      * @param attack Attack time in seconds
      * @param decay Decay time in seconds
