@@ -123,6 +123,7 @@ export interface SamplerBankParams {
   formantEnvAttack?: number;
   formantEnvDecay?: number;
   formantEnvAmount?: number;
+  formantEnvFollower?: number;
   formantEnvSync?: boolean;
   customLfoShape?: number[];
   characterMorph?: number;
@@ -446,6 +447,7 @@ export interface Note {
   formantEnvAttack?: number;
   formantEnvDecay?: number;
   formantEnvAmount?: number;
+  formantEnvFollower?: number;
   envMod?: number;
   filterCutoff?: number;
   filterResonance?: number;

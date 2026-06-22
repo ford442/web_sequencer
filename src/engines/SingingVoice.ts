@@ -1109,6 +1109,15 @@ export class SingingVoice {
   }
 
   /**
+   * Set formant envelope follower depth.
+   */
+  setFormantEnvFollower(amount: number, time?: number): void {
+    if (this.formantShifter && this.config.enableFormantShifting) {
+      this.formantShifter.setEnvFollowerDepth(amount, time);
+    }
+  }
+
+  /**
    * Set character morphing amount and target.
    * @param amount Morph amount (0 to 1)
    * @param target Target voice character

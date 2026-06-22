@@ -42,6 +42,7 @@ interface NoteSelectorProps {
   currentFormantEnvAttack?: number;
   currentFormantEnvDecay?: number;
   currentFormantEnvAmount?: number;
+  currentFormantEnvFollower?: number;
   currentFreezeLfoSync?: boolean;
   currentFreezeLfoRate?: number;
   currentFreezeLfoDepth?: number;
@@ -111,6 +112,7 @@ interface NoteSelectorProps {
       | "formantEnvAttack"
       | "formantEnvDecay"
       | "formantEnvAmount"
+      | "formantEnvFollower"
       | "formantEnvSync"
       | "vibratoDepth"
       | "gateDepth"
@@ -168,6 +170,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFormantEnvAttack = 0.1,
     currentFormantEnvDecay = 0.5,
     currentFormantEnvAmount = 0,
+    currentFormantEnvFollower = 0,
     currentFreezeLfoSync = false,
     currentFreezeLfoRate = 0,
     currentFreezeLfoDepth = 0,
@@ -1330,6 +1333,30 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       onChange={(e) =>
                         onPropertyChange?.(
                           "formantEnvAmount",
+                          parseFloat(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 mt-2">
+                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                      <label htmlFor="note-fmt-env-fol">Env Follower</label>
+                      <span className="text-indigo-400 font-mono text-[10px]">
+                        {currentFormantEnvFollower > 0 ? "+" : ""}
+                        {currentFormantEnvFollower} st
+                      </span>
+                    </div>
+                    <input
+                      id="note-fmt-env-fol"
+                      type="range"
+                      min="-24"
+                      max="24"
+                      step="1"
+                      value={currentFormantEnvFollower}
+                      onChange={(e) =>
+                        onPropertyChange?.(
+                          "formantEnvFollower",
                           parseFloat(e.target.value),
                         )
                       }

@@ -740,6 +740,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantEnvAttack?: number,
                     formantEnvDecay?: number,
                     formantEnvAmount?: number,
+                    formantEnvFollower?: number,
                     envMod?: number,
                     vocoderMix?: number
                 },
@@ -860,6 +861,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 let pEnvAttack = noteParams?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
                 let pEnvDecay = noteParams?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
                 const pEnvAmount = noteParams?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                const pFormantEnvFollower = noteParams?.formantEnvFollower ?? params.formantEnvFollower ?? 0;
                 if (envSync) {
                     pEnvAttack = getSyncedSeconds(pEnvAttack as number, tempo);
                     pEnvDecay = getSyncedSeconds(pEnvDecay as number, tempo);
@@ -1159,6 +1161,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             voice.setFormantLfoShape(pFormantLfoShape);
 
                             if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
+
+                            if (pFormantEnvFollower !== 0) voice.setFormantEnvFollower(pFormantEnvFollower, triggerTime);
 
                             // Load buffer only if the voice doesn't already have it
                             if (isNewBank) {
