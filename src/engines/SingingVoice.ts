@@ -1299,6 +1299,19 @@ export class SingingVoice {
   }
 
   /**
+   * Set granular position jitter amount.
+   * @param amount Jitter amount (0-1)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainJitter(amount: number, time?: number): void {
+    if (this.workletNode) {
+      this.workletNode.parameters
+        .get("grainJitter")
+        ?.setValueAtTime(amount, time || this.audioContext.currentTime);
+    }
+  }
+
+  /**
    * Set granular pitch envelope depth.
    * @param depth Depth (0-1)
    * @param time Optional time to apply the change (default: now)

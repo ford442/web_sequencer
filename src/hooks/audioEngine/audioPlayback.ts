@@ -424,40 +424,37 @@ export function createPlayDrum(
             ? Math.pow(2, (noteToMidi(noteStr) - DRUM_REF_MIDI) / 12)
             : 1;
 
-        const retrigger = 1;
-        const subStep = stepTime / retrigger;
+        // Hoisted adjustedParams (conditional clone only when pitch changes)
+        // Removed redundant retrigger loop (hardcoded to 1) for cleaner hot path
+        let adjustedParams = params;
+        if (pitchRatio !== 1) {
+            if (sound === 'kick') {
+                const kp = params as KickParams;
+                adjustedParams = { ...kp, pitch: kp.pitch * pitchRatio };
+            } else if (sound === 'snare') {
+                const sp = params as SnareParams;
+                adjustedParams = { ...sp, tone: sp.tone * pitchRatio };
+            } else {
+                const hp = params as HatParams;
+                adjustedParams = { ...hp, pitch: hp.pitch * pitchRatio };
+            }
+        }
 
-        for (let i = 0; i < retrigger; i++) {
-            const now = time + (i * subStep);
+        const now = time;  // single-shot for now
 
-            // Use DrumKitEngine for authentic 808/909 synthesis when available
-            const kitEngine = refs.drumKitEngineRef?.current;
-            if (kitEngine) {
-                // Apply pitch ratio to params before passing to kit engine
-                let adjustedParams = params;
-                if (pitchRatio !== 1) {
-                    if (sound === 'kick') {
-                        const kp = params as KickParams;
-                        adjustedParams = { ...kp, pitch: kp.pitch * pitchRatio };
-                    } else if (sound === 'snare') {
-                        const sp = params as SnareParams;
-                        adjustedParams = { ...sp, tone: sp.tone * pitchRatio };
-                    } else {
-                        const hp = params as HatParams;
-                        adjustedParams = { ...hp, pitch: hp.pitch * pitchRatio };
-                    }
-                }
-
-                if (sound === 'kick' && refs.sidechainGainRef.current) {
-                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
-                }
-
-                kitEngine.play(context, refs.masterGainRef.current, refs.noiseBufferRef.current, sound, adjustedParams, now);
-                continue;
+        // Use DrumKitEngine for authentic 808/909 synthesis when available
+        const kitEngine = refs.drumKitEngineRef?.current;
+        if (kitEngine) {
+            if (sound === 'kick' && refs.sidechainGainRef.current) {
+                triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
             }
 
-            // Legacy fallback (no kit engine)
-            if (sound === 'kick') {
+            kitEngine.play(context, refs.masterGainRef.current, refs.noiseBufferRef.current, sound, adjustedParams, now);
+            return;
+        }
+
+        // Legacy fallback (no kit engine)
+        if (sound === 'kick') {
                 if (refs.sidechainGainRef.current) {
                     triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
                 }

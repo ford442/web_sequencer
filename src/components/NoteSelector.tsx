@@ -86,6 +86,7 @@ interface NoteSelectorProps {
       | "freezeEnvDepth"
       | "grainEnvDepth"
       | "grainPitchEnvDepth"
+      | "grainJitter"
       | "grainPitchQuantize"
       | "timeStretchEnvDepth"
       | "spectralPanRate"
@@ -492,7 +493,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       onChange={(e) =>
                         onPropertyChange?.(
                           "grainPitchEnvDepth",
-                          parseFloat(e.target.value),
+                          parseFloat(e.target.value)
                         )
                       }
                       className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
