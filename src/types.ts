@@ -739,6 +739,7 @@ export interface SongStructure {
 }
 
 export interface SavedSongData {
+  /** Schema version: 1 = 8 pattern slots per track, 2 = 32 slots (ReBirth-compatible). */
   version?: number;
   pattern: Pattern;
   params: {
@@ -793,10 +794,14 @@ export interface TrakEvent {
 export interface ResolvedTrakEvent {
   /** Absolute tick position from the beginning of the arrangement. */
   tick: number;
-  /** Parameter / control ID. */
+  /** TRAK track index (0=mixer, 1=TB-303 #1, …). */
+  trackIndex: number;
+  /** Per-track parameter / control ID. */
   ctrlId: number;
   /** Raw parameter value. */
   value: number;
+  /** Pre-resolved event kind (optional — scheduler re-resolves if absent). */
+  eventKind?: import('./importers/rbs/trakControllers').TrakEventKind;
 }
 
 /**

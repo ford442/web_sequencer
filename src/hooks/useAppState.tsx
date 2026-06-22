@@ -1295,7 +1295,7 @@ const handleNotePropertyChange = useCallback((
 
     const {
         getSongData, getBankData, getPatternData,
-        exportSongToFile, importSongFromFile,
+        exportSongToFile, exportRbsToFile, importSongFromFile,
         handleSaveSong, loadSong, loadCloudData,
         handleAISongImport, handleRbsImport,
         isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
@@ -1900,6 +1900,7 @@ const handleLyricApply = useCallback(async (text: string) => {
         getBankData,
         getPatternData,
         exportSongToFile,
+        exportRbsToFile,
         importSongFromFile,
         handleSaveSong,
         loadSong,

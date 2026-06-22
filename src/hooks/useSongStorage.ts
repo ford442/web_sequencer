@@ -1,6 +1,13 @@
 import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane, ResolvedTrakEvent } from '../types';
+import {
+  migrateTrackStorage,
+  deriveActiveTrackSlotsFromStructure,
+  createEmptyTrackStorage,
+  defaultActiveTrackSlots,
+  SAVED_SONG_DATA_VERSION,
+} from '../utils/trackStorageUtils';
 import type { CloudItemType } from '../services/CloudStorage';
 import type { AISongData } from '../importers/ai-song';
 import type { TrackKey, SongSnapshot } from '../constants/appDefaults';
@@ -8,6 +15,8 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
 import { audioBufferToWav, blobToBase64 } from '../utils/audioExport';
 import { automationStore, convertHyphonLanes } from '../stores/automationStore';
+import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
+import { RbsExporter, hyphonSongFromSavedData } from '../importers/rbs';
 
 // ---- Types for the hook parameters ----
 
@@ -86,6 +95,7 @@ export interface SongStorageReturn {
 
     // File I/O
     exportSongToFile: () => Promise<void>;
+    exportRbsToFile: () => Promise<void>;
     importSongFromFile: () => void;
 
     // Save / Load
@@ -148,7 +158,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         // so memoization of this callback does not cause stale automation data.
         const exportedLanes = automationStore.exportLanes();
         return {
-            version: 1,
+            version: SAVED_SONG_DATA_VERSION,
             pattern: patternRef.current,
             tempo: tempoRef.current,
             ambianceUrl,
@@ -214,8 +224,19 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                     samplerRef.current = samplerWithMode;
                 }
             }
-            if (songData.trackStorage) setTrackStorage(songData.trackStorage as unknown as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>);
-            if (songData.activeTrackSlots) setActiveTrackSlots(songData.activeTrackSlots as unknown as Record<TrackKey, number>);
+            if (songData.trackStorage) {
+                const migrated = migrateTrackStorage(songData.trackStorage);
+                setTrackStorage(migrated);
+            }
+            if (songData.activeTrackSlots) {
+                setActiveTrackSlots(songData.activeTrackSlots as unknown as Record<TrackKey, number>);
+            } else if (songData.songStructure) {
+                setActiveTrackSlots(
+                    deriveActiveTrackSlotsFromStructure(
+                        songData.songStructure as Array<Partial<Record<TrackKey, number | null>>>,
+                    ),
+                );
+            }
             if (songData.songStructure) setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]);
             if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) {
                 setTtsPhrases(songData.ttsPhrases);
@@ -245,10 +266,13 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             }
             // Restore automation lanes — importLanes replaces all existing lanes (including clearing when empty).
             automationStore.importLanes(songData.automationLanes ?? []);
+            if (isE2eMode()) {
+                setE2eLaneCount(automationStore.getState().lanes.length);
+            }
             showToast("Song loaded!", "success");
         } else if (type === 'bank') {
             if (data.trackStorage) {
-                setTrackStorage(data.trackStorage);
+                setTrackStorage(migrateTrackStorage(data.trackStorage));
                 showToast("Pattern Bank loaded!", "success");
             }
         } else if (type === 'pattern') {
@@ -329,6 +353,42 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }, [getSongData]);
+
+    const exportRbsToFile = useCallback(async () => {
+        try {
+            const songData = await getSongData();
+            const exporter = new RbsExporter();
+            const song = hyphonSongFromSavedData(songData);
+            const result = exporter.exportToBlob(song, {
+                songName: song.metadata.name,
+            });
+            if (!result.success || !result.blob) {
+                showToast(result.error ?? 'RBS export failed', 'error');
+                return;
+            }
+            if (result.warnings.length > 0) {
+                console.warn('[RBS Export warnings]', result.warnings);
+            }
+            const url = URL.createObjectURL(result.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const safeName = (song.metadata.name || 'hyphon-song').replace(/[^\w.-]+/g, '_');
+            a.download = `${safeName}.rbs`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(
+                result.warnings.length > 0
+                    ? `Exported .rbs (${result.warnings.length} compatibility warnings)`
+                    : 'Exported ReBirth .rbs file!',
+                result.warnings.length > 0 ? 'info' : 'success',
+            );
+        } catch (err) {
+            console.error('RBS export failed:', err);
+            showToast('Failed to export .rbs file', 'error');
+        }
+    }, [getSongData, showToast]);
 
     const importSongFromFile = useCallback(() => {
         const input = document.createElement('input');
@@ -466,17 +526,19 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         const arrangement = song.songArrangement;
 
         const trackStorage: SavedSongData['trackStorage'] = arrangement
-            ? arrangement.trackStorage
-            : {
-                partA: [song.pattern.partA, ...Array(7).fill(null)],
-                partB: [song.pattern.partB, ...Array(7).fill(null)],
-                bass2: [song.pattern.bass2, ...Array(7).fill(null)],
-                kick: [song.pattern.kick, ...Array(7).fill(null)],
-                snare: [song.pattern.snare, ...Array(7).fill(null)],
-                closedHat: [song.pattern.closedHat, ...Array(7).fill(null)],
-                openHat: [song.pattern.openHat, ...Array(7).fill(null)],
-                sampler: [song.pattern.sampler, ...Array(7).fill(null)],
-            };
+            ? migrateTrackStorage(arrangement.trackStorage)
+            : (() => {
+                const storage = createEmptyTrackStorage();
+                storage.partA[0] = song.pattern.partA;
+                storage.partB[0] = song.pattern.partB;
+                storage.bass2[0] = song.pattern.bass2;
+                storage.kick[0] = song.pattern.kick;
+                storage.snare[0] = song.pattern.snare;
+                storage.closedHat[0] = song.pattern.closedHat;
+                storage.openHat[0] = song.pattern.openHat;
+                storage.sampler[0] = song.pattern.sampler;
+                return storage;
+            })();
 
         const songStructure: SavedSongData['songStructure'] = arrangement
             ? arrangement.songStructure
@@ -485,8 +547,14 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 snare: 0, closedHat: 0, openHat: 0, sampler: null,
             }));
 
+        const activeTrackSlots = arrangement?.activeTrackSlots
+            ? { ...defaultActiveTrackSlots(), ...arrangement.activeTrackSlots }
+            : deriveActiveTrackSlotsFromStructure(
+                songStructure as Array<Partial<Record<TrackKey, number | null>>>,
+            );
+
         const savedSong: SavedSongData = {
-            version: 1,
+            version: SAVED_SONG_DATA_VERSION,
             pattern: song.pattern,
             tempo: song.tempo,
             ambianceUrl: '',
@@ -518,10 +586,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 })),
             },
             trackStorage,
-            activeTrackSlots: {
-                partA: 0, partB: 0, bass2: 0, kick: 0,
-                snare: 0, closedHat: 0, openHat: 0, sampler: 0,
-            },
+            activeTrackSlots,
             songStructure,
             ttsPhrases: Array(8).fill('Hello World'),
             ...(automationLanes ? { automationLanes } : {}),
@@ -545,12 +610,15 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             deps.setIsSongModeActive?.(true);
         }
 
-        // Convert flat RBS trak events to ResolvedTrakEvent[] for sub-step automation scheduling.
-        if (arrangement?.trakEvents?.length && deps.trakEventsRef) {
-            deps.trakEventsRef.current = arrangement.trakEvents.map(ev => ({
+        // Convert param-only TRAK events for sub-step automation scheduling.
+        const paramEvents = arrangement?.trakParamEvents ?? arrangement?.trakEvents;
+        if (paramEvents?.length && deps.trakEventsRef) {
+            deps.trakEventsRef.current = paramEvents.map(ev => ({
                 tick: ev.absoluteTicks,
+                trackIndex: ev.trackIndex,
                 ctrlId: ev.controllerId,
                 value: ev.value,
+                eventKind: ev.eventKind,
             }));
         }
 
@@ -587,15 +655,15 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             }
         }
 
-        setIsRbsImportModalOpen(false);
-        showToast(`Imported "${song.metadata.name}" from RBS`, 'success');
-    }, [loadCloudData, showToast, audioEngine]);
+        // Keep the import modal open so ImportReportPanel stays visible until the user clicks Done.
+    }, [loadCloudData, audioEngine, deps]);
 
     return {
         getSongData,
         getBankData,
         getPatternData,
         exportSongToFile,
+        exportRbsToFile,
         importSongFromFile,
         handleSaveSong,
         loadSong,
