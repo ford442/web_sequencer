@@ -15,7 +15,7 @@
 
 ### Domain A: Audio Engine (Synth & Sampler)
 - [x] **Granular Position Jitter:** Add a `grainJitter` parameter to `rubberband-processor.ts` and UI. This adds randomness to the grain read pointer, creating textured, diffused vocal clouds.
-- [ ] **Formant Envelope Follower:** Add an Envelope Follower that modulates the Formant Shift amount dynamically based on the vocal amplitude envelope.
+- [x] **Formant Envelope Follower:** Add an Envelope Follower that modulates the Formant Shift amount dynamically based on the vocal amplitude envelope. (Implemented native Web Audio Envelope Follower in FormantShifter, UI controls, and engine plumbing!)
 - [x] **Step-Sequenced Bitcrusher / Decimator:** Add per-step bit reduction and downsampling to `rubberband-processor.ts` for rhythmically evolving lo-fi crunch textures on TTS vocals.
 - [x] **Time-Stretch Envelope:** Use an ADSR envelope to dynamically modulate the `timeRatio` of the granular engine, allowing vocals to rhythmically slow down or speed up over a single step.
   - Implemented: per-step + global `timeStretchEnvDepth` fully wired through SingingVoice → rubberband Worklet. Pairs beautifully with Formant Envelope Sync.
@@ -145,6 +145,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-08-08] - Implemented Formant Envelope Follower: Built a native Web Audio envelope follower in `FormantShifter.ts` (using `WaveShaperNode` for rectification and `BiquadFilterNode` for smoothing) to dynamically modulate formant shift amounts based on vocal amplitude. Added global UI knob to `SamplerPanel` and per-step automation to `NoteSelector`. Cleaned up duplicate setters and passed performance and integration tests. Fulfills the "Formant Envelope Follower" Innovation Lab idea.
 * [2026-06-21] - Implemented Granular Position Jitter: Added `grainJitter` parameter to `rubberband-processor.ts` and `SingingVoice.ts`. Wired UI controls in `SamplerPanel` and `NoteSelector` to allow global and per-step granular jitter for textured vocal smearing. Added "Formant Envelope Follower" to Innovation Lab.
 * [2026-08-07] - Implemented Spectral Morph Automation: Added `characterMorph` as an automatable lane parameter to allow drawing automation curves to morph spectrally between TTS vocal characters over a sequence of steps. Fulfills the "Spectral Morph Automation" Innovation Lab idea.
 * [2026-08-06] - Implemented Granular Pitch Envelope: Added `grainPitchEnvDepth` parameter globally and per-step to `SamplerBankParams` and `Note` interfaces. Modulated `finalPitch` inside `rubberband-processor.ts` by combining granular pitch shift with the pitch envelope curve. Added UI controls to `SamplerPanel` and `NoteSelector`. Fulfills the "Granular Pitch Envelope" Innovation Lab idea.

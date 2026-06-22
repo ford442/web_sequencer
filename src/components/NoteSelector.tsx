@@ -42,6 +42,7 @@ interface NoteSelectorProps {
   currentFormantEnvAttack?: number;
   currentFormantEnvDecay?: number;
   currentFormantEnvAmount?: number;
+  currentFormantEnvFollower?: number;
   currentFreezeLfoSync?: boolean;
   currentFreezeLfoRate?: number;
   currentFreezeLfoDepth?: number;
@@ -65,6 +66,7 @@ interface NoteSelectorProps {
   currentTranceGate?: number;
   currentDelaySend?: number;
   currentChoir?: number;
+  currentVocoderMix?: number;
   currentGateDepth?: number;
   currentGateRate?: number;
   /** Prophecy: whether the active synth uses a prophecy-* waveform */
@@ -110,6 +112,7 @@ interface NoteSelectorProps {
       | "formantEnvAttack"
       | "formantEnvDecay"
       | "formantEnvAmount"
+      | "formantEnvFollower"
       | "formantEnvSync"
       | "vibratoDepth"
       | "gateDepth"
@@ -125,6 +128,7 @@ interface NoteSelectorProps {
       | "delayLfoDepth"
       | "delaySend"
       | "choir"
+      | "vocoderMix"
       | "vowel"
       | "portamento",
     value: number | boolean | string,
@@ -167,6 +171,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFormantEnvAttack = 0.1,
     currentFormantEnvDecay = 0.5,
     currentFormantEnvAmount = 0,
+    currentFormantEnvFollower = 0,
     currentFreezeLfoSync = false,
     currentFreezeLfoRate = 0,
     currentFreezeLfoDepth = 0,
@@ -191,6 +196,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentBitcrush = 0,
     currentDownsample = 1,
     currentChoir,
+    currentVocoderMix,
     currentTranceGate = 0, // from jules branch
 
     currentGateDepth = 0,
@@ -551,6 +557,19 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       aria-label="Granular Pitch Shift Override"
                     />
                   </div>
+
+                  <PropertySlider
+                    label="Vocoder Mix"
+                    id="note-vocoder-mix"
+                    ariaLabel="Vocoder Mix Override"
+                    value={currentVocoderMix ?? 0}
+                    onChange={(v) => onPropertyChange?.("vocoderMix", v)}
+                    valueFormatter={() =>
+                      `${((currentVocoderMix ?? 0) * 100).toFixed(0)}%`
+                    }
+                    accentColor="accent-indigo-400 hover:accent-indigo-300"
+                    borderColor="border-indigo-900/30"
+                  />
 
                   <PropertySlider
                     label="Bitcrush"
@@ -978,7 +997,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                     />
                     <div className="flex items-center gap-2 mt-1">
                       <button
-                        className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-zinc-900 border-zinc-700 text-gray-500"} hover:bg-zinc-800 transition-colors`}
+                        className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-zinc-900 border-zinc-700 text-gray-500"} hover:bg-zinc-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-cyan-500`}
                         onClick={() =>
                           onPropertyChange("slideFormant", !currentSlideFormant)
                         }
@@ -1315,6 +1334,30 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       onChange={(e) =>
                         onPropertyChange?.(
                           "formantEnvAmount",
+                          parseFloat(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 mt-2">
+                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                      <label htmlFor="note-fmt-env-fol">Env Follower</label>
+                      <span className="text-indigo-400 font-mono text-[10px]">
+                        {currentFormantEnvFollower > 0 ? "+" : ""}
+                        {currentFormantEnvFollower} st
+                      </span>
+                    </div>
+                    <input
+                      id="note-fmt-env-fol"
+                      type="range"
+                      min="-24"
+                      max="24"
+                      step="1"
+                      value={currentFormantEnvFollower}
+                      onChange={(e) =>
+                        onPropertyChange?.(
+                          "formantEnvFollower",
                           parseFloat(e.target.value),
                         )
                       }
@@ -1680,7 +1723,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 <button
                   id="note-reverse"
                   onClick={() => onPropertyChange("reverse", !currentReverse)}
-                  className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${currentReverse ? "bg-cyan-500 justify-end shadow-[0_0_8px_rgba(6,182,212,0.4)]" : "bg-gray-700 justify-start border border-gray-600"}`}
+                  className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${currentReverse ? "bg-cyan-500 justify-end shadow-[0_0_8px_rgba(6,182,212,0.4)]" : "bg-gray-700 justify-start border border-gray-600"}`}
                   aria-checked={currentReverse}
                   role="switch"
                   aria-label="Play slice in reverse"

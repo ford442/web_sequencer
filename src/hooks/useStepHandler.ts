@@ -16,6 +16,7 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
+import { isE2eMode, setE2eTransportStep } from '../e2e/probe';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
 
@@ -117,6 +118,8 @@ export const useStepHandler = ({
 }: UseStepHandlerOptions) => {
     const onStep = useCallback((step: number, audioTime?: number) => {
         currentStepRef.current = step;
+        automationStore.setPlaybackStep(step);
+        if (isE2eMode()) setE2eTransportStep(step);
         if (sequencerRef.current) sequencerRef.current.setHighlight(step);
         if (!audioEngine) return;
 
@@ -371,7 +374,6 @@ export const useStepHandler = ({
         // Apply recorded/imported RBS/AI automation lanes with interpolation.
         // High-priority: Voice Designer params (formantShift, drive, attack, decay) via ramping path.
         // This enables full expressive RBS song playback with parameter movement.
-        automationStore.setPlaybackStep(step);
         const playbackEnabled = automationStore.getState().playbackEnabled;
         if (playbackEnabled && audioEngine) {
             const automationPatternIndex = isSongModeActiveRef.current ? (songMeasureRef.current % 8) : 0;

@@ -1,7 +1,7 @@
 import { memo, forwardRef, useRef, useCallback, useImperativeHandle, useLayoutEffect, useMemo } from 'react';
 import type { TrackKey, PartSequence } from '../../types';
 import { SvgStep } from './SvgStep';
-import { TrackSlotButton } from './TrackSlotButton';
+import { TrackSlotStrip } from './TrackSlotButton';
 import { GridIndicators } from '../GridIndicators';
 
 export interface SequencerRowHandle { setHighlight: (step: number) => void; }
@@ -97,7 +97,7 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
     }, [onSelectRow, rowKey]);
 
     const renderedTrackSlots = useMemo(() => (
-        [0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))
+        <TrackSlotStrip activeSlot={activeSlot} trackSlots={trackSlots} trackKey={rowKey} onSelect={onSelectSlot} />
     ), [activeSlot, trackSlots, rowKey, onSelectSlot]);
 
     return (

@@ -13,6 +13,7 @@ interface BottomBarProps {
     aiImportStage: AiImportStage
     aiImportProgress: number
     exportSongToFile: () => Promise<void>
+    exportRbsToFile: () => Promise<void>
     importSongFromFile: () => void
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsAISongModalOpen: React.Dispatch<React.SetStateAction<boolean>>
@@ -54,6 +55,7 @@ export const BottomBar = memo(function BottomBar({
     aiImportStage,
     aiImportProgress,
     exportSongToFile,
+    exportRbsToFile,
     importSongFromFile,
     setIsRbsImportModalOpen,
     setIsAISongModalOpen,
@@ -192,7 +194,16 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30 hover:scale-105 active:scale-95'}`}
                     title="Import ReBirth RB-338 file"
                 >
-                    🎹 Import .rbs File...
+                    🎹 Import .rbs
+                </button>
+                <button type="button"
+                    onClick={exportRbsToFile}
+                    disabled={isImportingAISong}
+                    aria-label="Export project as ReBirth RB-338 .rbs file"
+                    className={`h-6 px-2 text-[10px] font-bold text-orange-400 bg-zinc-900 border border-orange-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-950/30 hover:scale-105 active:scale-95'}`}
+                    title="Export as ReBirth RB-338 pattern file"
+                >
+                    💾 Export .rbs
                 </button>
                 <button type="button"
                     onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}

@@ -1,6 +1,7 @@
 import React, { memo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { PatternSelector } from './PatternSelector';
+import { MAX_TRACK_PATTERN_SLOT_INDEX } from '../utils/trackStorageUtils';
 
 type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 
@@ -8,7 +9,7 @@ export interface SongModeHandle {
     setHighlight: (step: number) => void;
 }
 
-// Map pattern slot numbers (0-7) to note colors (C4, D4, E4, F4, G4, A4, B4, C5)
+// Map pattern slot numbers to note colors (cycles every 8 slots)
 const PATTERN_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 const getPatternColor = (slotIndex: number): string => {
     return getNoteColor(PATTERN_NOTES[slotIndex % PATTERN_NOTES.length]);
@@ -201,16 +202,16 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                 
                 let newVal: number | null;
                 if (startVal === null) {
-                    // Start from 0 or 7 depending on direction
-                    newVal = step > 0 ? Math.min(step - 1, 7) : Math.max(7 + step + 1, 0);
+                    // Start from 0 or max slot depending on direction
+                    newVal = step > 0 ? Math.min(step - 1, MAX_TRACK_PATTERN_SLOT_INDEX) : Math.max(MAX_TRACK_PATTERN_SLOT_INDEX + step + 1, 0);
                 } else {
                     newVal = startVal + step;
                 }
                 
-                // Clamp to 0-7 or null (dragging down past 0 clears it)
+                // Clamp to 0–31 or null (dragging down past 0 clears it)
                 if (newVal !== null) {
                     if (newVal < 0) newVal = null;
-                    else if (newVal > 7) newVal = 7;
+                    else if (newVal > MAX_TRACK_PATTERN_SLOT_INDEX) newVal = MAX_TRACK_PATTERN_SLOT_INDEX;
                 }
                 
                 onUpdateStep(sIdx, track, newVal);
@@ -298,7 +299,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
             e.stopPropagation();
-            const nextVal = currentVal === null ? 0 : Math.min(7, currentVal + 1);
+            const nextVal = currentVal === null ? 0 : Math.min(MAX_TRACK_PATTERN_SLOT_INDEX, currentVal + 1);
             onUpdateStep(sIdx, track, nextVal);
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();

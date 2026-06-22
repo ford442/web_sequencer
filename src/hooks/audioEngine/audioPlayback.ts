@@ -107,6 +107,7 @@ export interface PlaybackRefs {
     bassSidechainEQBusRef: MutableRefObject<BiquadFilterNode | null>;
     sidechainBusRef: MutableRefObject<GainNode | null>;
     drumKitEngineRef: MutableRefObject<DrumKitEngine | null>;
+    synthABusRef: MutableRefObject<GainNode | null>;
 }
 
 export function createPlaySynth(
@@ -531,7 +532,6 @@ export function createPlayDrum(
                     src.stop(now + hatParams.decay);
                 }
             }
-        }
     };
 
 

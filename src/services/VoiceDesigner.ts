@@ -118,6 +118,31 @@ export class VoiceDesigner {
         this.renderHeatmap();
     }
 
+    // Run a sequence of GPU ops as a single GPU-resident chain (one readback).
+    // Falls back to applying each op via the per-op CPU path if WebGPU is down.
+    async _runGpuChain(ops: { name: string; params?: Record<string, number> }[]) {
+        if (ops.length === 0) return;
+        if (this.gpu.ready && this.currentTtl) {
+            console.time(`GPU chain [${ops.map(o => o.name).join('>')}]`);
+            const result = await this.gpu.runChain(
+                ops.map(o => o.name),
+                this.currentTtl,
+                this.ttlDims,
+                ops.map(o => o.params ?? {}),
+            );
+            if (result) this.currentTtl = result;
+            console.timeEnd(`GPU chain [${ops.map(o => o.name).join('>')}]`);
+            if (result) {
+                this.renderHeatmap();
+                return;
+            }
+            // result === null → fall through to per-op CPU fallback below.
+        }
+        for (const op of ops) {
+            await this._runGpuOp(op.name, op.params ?? {});
+        }
+    }
+
     // --- Operations ---
 
     async mirrorX() {
@@ -158,6 +183,16 @@ export class VoiceDesigner {
     async dspEcho() { await this._runGpuOp('echo'); }
     async dspTremolo() { await this._runGpuOp('tremolo'); }
     async dspJitter() { await this._runGpuOp('jitter'); }
+
+    // Composite "mangle" effect — three ops chained GPU-resident (no intermediate
+    // readback between sharpen → quantize → tremolo).
+    async dspMangle() {
+        await this._runGpuChain([
+            { name: 'sharpen', params: { factor: 1.5 } },
+            { name: 'quantize', params: { factor: 5.0 } },
+            { name: 'tremolo' },
+        ]);
+    }
 
     async randomShift() {
         if (!this.currentTtl) return;

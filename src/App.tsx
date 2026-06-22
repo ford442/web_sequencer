@@ -75,7 +75,7 @@ export const App: React.FC = () => {
         handleMasterVolumeKeyDown, handleMasterVolumeReset,
         globalPan, handleGlobalPan, handleGlobalPanKeyDown, handleGlobalPanReset,
         audioEngine, forceScriptProcessorFallback, setForceScriptProcessorFallback,
-        setViewMode, setAutomationParam, exportSongToFile, importSongFromFile,
+        setViewMode, setAutomationParam, exportSongToFile, exportRbsToFile, importSongFromFile,
     } = state;
 
     if (is3DMode) {
@@ -159,6 +159,7 @@ export const App: React.FC = () => {
                 aiImportStage={aiImportStage}
                 aiImportProgress={aiImportProgress}
                 exportSongToFile={exportSongToFile}
+                exportRbsToFile={exportRbsToFile}
                 importSongFromFile={importSongFromFile}
                 setIsRbsImportModalOpen={setIsRbsImportModalOpen}
                 setIsAISongModalOpen={setIsAISongModalOpen}

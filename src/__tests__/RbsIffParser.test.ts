@@ -7,7 +7,8 @@ import { RbsParser } from '../importers/rbs/RbsParser';
 import { RbsImporter } from '../importers/rbs/RbsImporter';
 import { RebirthRBSParser } from '../importers/rbs/RebirthRBSParser';
 import { TICKS_PER_BAR, TICKS_PER_STEP } from '../importers/rbs/types';
-import { buildSyntheticIffFile } from './rbs/fixtures';
+import { buildSyntheticIffFile, buildPatternSelectEventsForRange } from './rbs/fixtures';
+import { MAX_TRACK_PATTERN_SLOTS } from '../constants';
 
 describe('RbsParser IFF CAT RB40', () => {
   it('parses synthetic IFF CAT RB40 song file with GLOB and TRAK data', async () => {
@@ -30,11 +31,12 @@ describe('RbsParser IFF CAT RB40', () => {
     expect(songData.glob.loopStart).toBe(0);
     expect(songData.glob.loopEnd).toBe(8);
 
-    // TRAK events
-    expect(songData.tracks.length).toBeGreaterThanOrEqual(1);
-    const track = songData.tracks[0];
+    // TRAK events on TB-303 #1 track (index 1)
+    expect(songData.tracks.length).toBeGreaterThanOrEqual(2);
+    const track = songData.tracks.find((t) => t.trackIndex === 1) ?? songData.tracks[1];
     expect(track.eventCount).toBe(4);
-    expect(track.events[0].controllerId).toBe(0); // pattern select
+    expect(track.events[0].controllerId).toBe(0x01); // pattern select (RBS42 TB-303)
+    expect(track.events[0].eventKind).toBe('patternSelect');
     expect(track.events[0].value).toBe(0);
     expect(track.events[1].absoluteTicks).toBe(768);
     expect(track.events[1].value).toBe(1);
@@ -57,8 +59,8 @@ describe('RbsParser IFF CAT RB40', () => {
     expect(result.data.songData!.glob.playMode).toBe(0);
   });
 
-  it('tempo is correctly parsed from GLOB (BPM × 10 encoding)', async () => {
-    const bytes = buildSyntheticIffFile({ tempo: 1200 }); // 120.0 BPM
+  it('tempo is correctly parsed from GLOB (BPM × 1000 encoding)', async () => {
+    const bytes = buildSyntheticIffFile({ tempo: 120_000 }); // 120.0 BPM
     const file = new File([new Uint8Array(bytes)], 'tempo_test.rbs', { type: 'application/octet-stream' });
     const parser = new RbsParser();
 
@@ -118,9 +120,10 @@ describe('RbsImporter song mode', () => {
     expect(song.songArrangement).toBeDefined();
     expect(song.songArrangement!.mode).toBe('song');
     expect(song.songArrangement!.songStructure.length).toBeGreaterThan(0);
-    expect(song.songArrangement!.trackStorage.partA.length).toBe(8);
+    expect(song.songArrangement!.trackStorage.partA.length).toBe(MAX_TRACK_PATTERN_SLOTS);
     expect(song.songArrangement!.trakEvents).toBeDefined();
     expect(song.songArrangement!.trakEvents!.length).toBe(4);
+    expect(song.songArrangement!.trakParamEvents).toBeUndefined();
   });
 
   it('report includes song mode info when songData is present', async () => {
@@ -140,6 +143,33 @@ describe('RbsImporter song mode', () => {
     expect(converted.report.songMode!.arrangementEventCount).toBe(4);
     expect(converted.report.songMode!.usedPatternCount).toBe(3);
     expect(converted.report.songMode!.songLengthBars).toBeGreaterThanOrEqual(3);
+  });
+
+  it('imports 16 referenced patterns without truncation warning', async () => {
+    const bytes = buildSyntheticIffFile({
+      loopEnd: 16,
+      trakEvents: buildPatternSelectEventsForRange(15),
+    });
+    const file = new File([new Uint8Array(bytes)], 'patterns_0_15.rbs', { type: 'application/octet-stream' });
+    const parser = new RbsParser();
+    const result = await parser.parseRbsFile(file);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    expect(result.data.songData!.usedPatternCount).toBe(16);
+
+    const importer = new RbsImporter();
+    const converted = importer.convertToHyphonSong(result.data);
+    expect(converted.success).toBe(true);
+
+    const truncation = converted.report.warnings.find((w) => w.includes('Excess patterns truncated'));
+    expect(truncation).toBeUndefined();
+
+    const arrangement = converted.song.songArrangement!;
+    expect(arrangement.trackStorage.partA.length).toBe(32);
+    expect(arrangement.songStructure.length).toBeGreaterThanOrEqual(16);
+    expect(arrangement.songStructure[15].partA).toBe(15);
+    expect(arrangement.activeTrackSlots?.partA).toBe(0);
   });
 
   it('does not populate songArrangement for legacy single-pattern files', async () => {
