@@ -114,6 +114,20 @@ export type RbsParserResult =
 /** Supported RBS format versions (current parser accepts common ones; full IFF path will detect RB40 / v4.x) */
 export const SUPPORTED_VERSIONS = ['1.0', '1.5', '2.0', '2.0.1', '4.0', '4.2'];
 
+/** Versions that use the v1.5 device subset (often single 303 + TR-808, no 909). */
+export const V15_SUBSET_VERSIONS = ['1.0', '1.5'] as const;
+
+/** Versions that use the full IFF CAT RB40 multi-device layout. */
+export const IFF_FULL_FORMAT_VERSIONS = ['2.0', '2.0.1', '4.0', '4.2'] as const;
+
+export function isV15SubsetVersion(version: string): boolean {
+  return (V15_SUBSET_VERSIONS as readonly string[]).includes(version);
+}
+
+export function isIffFullFormatVersion(version: string): boolean {
+  return (IFF_FULL_FORMAT_VERSIONS as readonly string[]).includes(version);
+}
+
 /** Minimum valid RBS file size (header + minimal patterns) */
 export const MIN_FILE_SIZE = 0x300; // 768 bytes minimum
 
@@ -159,6 +173,93 @@ export const MAX_TRAK_EVENTS = 100000;
 
 /** Maximum song length in measures for arrangement import */
 const MAX_SONG_BARS = 64;
+
+/**
+ * IFF DEVL device chunk layouts (RBS42 / rbs.h).
+ * Ref: Propellerhead RBSFormat42.txt, nsauzede/jsynth `rbs.h`.
+ *
+ * DEVL catalog order (fixed): MIXR, DELY, PCF, DIST, COMP, `303 `, `303 `, `808 `, `909 `.
+ * Implementation: `devlLayout.ts` (`parseTb303DeviceChunk`, `parseTr808DeviceChunk`, …).
+ */
+export const DEVL_LAYOUT = {
+  /** `303 ` chunk payload size (bytes). */
+  TB303_CHUNK_SIZE: 1097,
+  /** Bytes per pattern slot inside `303 ` (shuffle + length + 16×2 step bytes). */
+  TB303_PATTERN_SIZE: 34,
+  TB303_PATTERN_COUNT: 32,
+  /** First pattern slot offset within `303 ` payload (after 9-byte device header). */
+  TB303_PATTERN_DATA_OFFSET: 9,
+  /** `808 ` chunk payload size. */
+  TR808_CHUNK_SIZE: 6238,
+  /** Bytes per pattern slot inside `808 ` (shuffle + length + 16×12 trigger bytes). */
+  TR808_PATTERN_SIZE: 194,
+  TR808_PATTERN_DATA_OFFSET: 30,
+  /** `909 ` chunk payload size (+1 vs 808 for extra global param). */
+  TR909_CHUNK_SIZE: 6239,
+  TR909_PATTERN_SIZE: 194,
+  TR909_PATTERN_DATA_OFFSET: 30,
+} as const;
+
+/**
+ * TB-303 `303 ` device header offsets (pattern-mode globals, RBS42).
+ * Pattern banks begin at {@link DEVL_LAYOUT.TB303_PATTERN_DATA_OFFSET}.
+ */
+export const DEVL_TB303_DEVICE = {
+  ENABLED: 0,
+  SELECTED_PATTERN: 1,
+  TUNE: 2,
+  CUTOFF: 3,
+  RESONANCE: 4,
+  ENV_MOD: 5,
+  DECAY: 6,
+  ACCENT: 7,
+  WAVEFORM: 8,
+} as const;
+
+/**
+ * One TB-303 pattern block inside the 32×{@link DEVL_LAYOUT.TB303_PATTERN_SIZE} bank region.
+ * Step *n* starts at `patternBase + STEP_DATA + n * STEP_BYTES`.
+ */
+export const DEVL_TB303_PATTERN = {
+  SHUFFLE: 0,
+  LENGTH: 1,
+  STEP_DATA: 2,
+  STEP_BYTES: 2,
+  /** Step flag bit 0 — slide. */
+  FLAG_SLIDE: 0x01,
+  /** Step flag bit 1 — accent. */
+  FLAG_ACCENT: 0x02,
+  /** Step flag bit 4 — note on (clear = rest). */
+  FLAG_NOTE: 0x10,
+} as const;
+
+/**
+ * TR-808 / TR-909 pattern step layout: 12 trigger bytes per step (AC, BD, SD, …).
+ * See RBS42 `808 ` / `909 ` chunk sections.
+ */
+export const DEVL_DRUM_STEP = {
+  INSTRUMENT_COUNT: 12,
+  OFFSET_IN_PATTERN: 2,
+  TRIGGER_ON: 0x01,
+  TRIGGER_ACCENT: 0x02,
+} as const;
+
+/**
+ * DEVL `PCF ` chunk byte offsets (12-byte payload, RBS42).
+ */
+export const DEVL_PCF_CHUNK = {
+  SIZE: 12,
+  ENABLED: 0,
+  FREQUENCY: 1,
+  RESONANCE: 2,
+  AMOUNT: 3,
+  WAVE: 4,
+  DECAY: 5,
+  MODE: 6,
+} as const;
+
+/** DEVL `MIXR` — PCF device routing byte. */
+export const DEVL_MIXR_PCF_DEVICE_ID_OFFSET = 2;
 
 /**
  * RBS Parser class

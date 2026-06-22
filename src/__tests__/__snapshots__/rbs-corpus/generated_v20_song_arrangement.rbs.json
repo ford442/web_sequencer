@@ -1,0 +1,17 @@
+{
+  "automationLaneCount": 2,
+  "automationTargets": [
+    "synthA.accent",
+    "synthA.slide",
+  ],
+  "file": "generated_v20_song_arrangement.rbs",
+  "hasSongData": true,
+  "partAActiveSteps": 12,
+  "playMode": 1,
+  "songLengthBars": 3,
+  "tb303APatternCount": 32,
+  "tempo": 128,
+  "trakEventCount": 4,
+  "usedPatternCount": 1,
+  "version": "2.0",
+}

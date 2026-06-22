@@ -620,6 +620,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 onClick={onClose}
                 className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Close Import Modal"
+                data-testid="rbs-import-done"
               >
                 ✓ Done
               </button>
