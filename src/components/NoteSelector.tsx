@@ -65,6 +65,7 @@ interface NoteSelectorProps {
   currentTranceGate?: number;
   currentDelaySend?: number;
   currentChoir?: number;
+  currentVocoderMix?: number;
   currentGateDepth?: number;
   currentGateRate?: number;
   /** Prophecy: whether the active synth uses a prophecy-* waveform */
@@ -191,6 +192,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentBitcrush = 0,
     currentDownsample = 1,
     currentChoir,
+    currentVocoderMix,
     currentTranceGate = 0, // from jules branch
 
     currentGateDepth = 0,
@@ -551,6 +553,19 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       aria-label="Granular Pitch Shift Override"
                     />
                   </div>
+
+                  <PropertySlider
+                    label="Vocoder Mix"
+                    id="note-vocoder-mix"
+                    ariaLabel="Vocoder Mix Override"
+                    value={currentVocoderMix ?? 0}
+                    onChange={(v) => onPropertyChange?.("vocoderMix", v)}
+                    valueFormatter={() =>
+                      `${((currentVocoderMix ?? 0) * 100).toFixed(0)}%`
+                    }
+                    accentColor="accent-indigo-400 hover:accent-indigo-300"
+                    borderColor="border-indigo-900/30"
+                  />
 
                   <PropertySlider
                     label="Bitcrush"
