@@ -11,6 +11,13 @@
 
 **Why this over anything else:** every other audit signal is clean (#720 closed, knob work shipped). The only cracked thing is the build gate, and it's invalidating a week of merged work silently.
 
+## GPU compute log
+- **2026-06-22 — WebGpuBackend GPU-resident op chaining (`runChain`).** Added `runChain(ops[], data, dims, params[])` to `src/services/WebGpuBackend.ts`. It ping-pongs between two persistent STORAGE buffers across all ops in a *single* command submission and reads back exactly **once** at the end (one `mapAsync`), eliminating the per-op `outputBuffer → readbackBuffer → mapAsync` round trip that `runOp()` pays for every op. Each op gets its own 16-byte uniform buffer (passes coexist in one submit, so they can't share a mutable uniform). `runOp()` is untouched for single-op callers.
+  - **Pooled allocator:** adopted the size-bucketed (4KB) pool pattern from `WebGpuOscillator.ts` — `storagePool` (STORAGE|COPY_SRC|COPY_DST ping-pong pair) + `readPool` (MAP_READ|COPY_DST), capped at 4/bucket, plus a `destroy()` teardown. Replaces fresh per-call STORAGE allocations on the chain path. (Full unification of both classes onto one shared pool left as a follow-up — kept this change small.)
+  - **Fallback + telemetry preserved:** returns `null` when WebGPU is unavailable (callers fall back to CPU, same contract as `runOp`); registers `webgpu-compute` resolution on init and `logEngineFallback(...)` on adapter/device/alloc/dispatch failure, mirroring the oscillator's telemetry. Stays OFFLINE/precompute — never awaited on the audio worklet thread.
+  - **Call site:** `VoiceDesigner._runGpuChain()` + new `dspMangle()` (sharpen→quantize→tremolo) demonstrate composing ops with no intermediate readback; degrades to the existing per-op CPU fallback when GPU is down or `runChain` returns null.
+  - **Tests:** `src/services/WebGpuBackend.test.ts` (6 cases) — empty/unavailable contracts, one pass per op + single readback, ping-pong wiring (op N output === op N+1 input), unknown-op error path, pool reuse across calls. Verified all 10 GPU tests green under vitest 2.1.9 (the repo's installed vitest 4.1.9 is incompatible with vite 5.4.21 — the documented red-CI mismatch above; full `tsc --noEmit` is clean: 0 errors).
+
 ## Ideas
 - [done — 2026-04-27] **Verify bug-report.md staleness** — confirmed stale; file deleted.
 - [done — 2026-05-25] **Holographic knob GPU context unification** — `KnobGPUContext.ts` singleton + `MagicKnob.tsx` ported.
