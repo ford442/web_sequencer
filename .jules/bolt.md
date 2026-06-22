@@ -14,3 +14,7 @@
 ## 2026-06-18 - Outer Loop Redundant Note Handling Hoisting
 **Learning:** In audio synthesis functions like `createPlaySynth` and `createPlayDrum` in `audioPlayback.ts`, operations parsing the target `noteStr` and generating the `midi` or `pitchRatio` scale values were placed inside the `for (let i = 0; i < retrigger; i++)` loops, causing them to execute on every retrigger tick instead of just once per note trigger.
 **Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
+
+## 2026-06-22 - Nested function closures and array checks hoisted
+**Learning:** Found instances of array parsing `Array.isArray(note)` and massive 300+ line function declarations (`triggerVoice`) inside high frequency inner-loops like `for (let i = 0; i < retrigger; i++)` and `notes.forEach`. This allocates memory per note per cycle in a WebAudio hot path.
+**Action:** Relocated block invariants like `const midi = noteToMidi(noteStr)` and scoped function signatures out of the tight loops to execute strictly once per global sequence step context rather than per voice iteration.
