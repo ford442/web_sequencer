@@ -46,6 +46,13 @@
     "@types/react-dom": "^19.2.2",
     "@types/web": "^0.0.162",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/expect": "2.1.9",
+    "@vitest/mocker": "2.1.9",
+    "@vitest/pretty-format": "2.1.9",
+    "@vitest/runner": "2.1.9",
+    "@vitest/snapshot": "2.1.9",
+    "@vitest/spy": "2.1.9",
+    "@vitest/utils": "2.1.9",
     "@webgpu/types": "^0.1.66",
     "assemblyscript": "^0.28.9",
     "autoprefixer": "^10.4.14",
@@ -58,10 +65,11 @@
     "tailwindcss": "^3.4.6",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vite": "^6.4.3",
+    "vite": "^5.4.21",
+    "vite-node": "2.1.9",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.5.0",
-    "vitest": "^1.6.1",
+    "vitest": "2.1.9",
     "wasm-pack": "^0.13.1"
   }
 }

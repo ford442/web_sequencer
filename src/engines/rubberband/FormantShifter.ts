@@ -241,7 +241,7 @@ export class FormantShifter {
         }
         if (this.followerGain) this.followerGain.gain.value = this.followerDepth * 100; // Map semitones to cents
 
-        if (this.followerWaveshaper) if (this.followerWaveshaper && this.followerFilter) this.followerWaveshaper.connect(this.followerFilter);
+        if (this.followerWaveshaper && this.followerFilter) this.followerWaveshaper.connect(this.followerFilter);
         if (this.followerFilter && this.followerGain) this.followerFilter.connect(this.followerGain);
 
         for (let i = 0; i < formants.length; i++) {
@@ -622,6 +622,8 @@ export class FormantShifter {
     
     /**
      * Trigger a formant envelope.
+
+
      * @param amount Peak shift amount in semitones
      * @param attack Attack time in seconds
      * @param decay Decay time in seconds

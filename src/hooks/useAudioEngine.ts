@@ -1161,8 +1161,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             voice.setFormantLfoShape(pFormantLfoShape);
 
                             if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
-
-                            if (pFormantEnvFollower !== 0) voice.setFormantEnvFollower(pFormantEnvFollower, triggerTime);
+                            voice.setFormantEnvFollower(pFormantEnvFollower, triggerTime);
 
                             // Load buffer only if the voice doesn't already have it
                             if (isNewBank) {
