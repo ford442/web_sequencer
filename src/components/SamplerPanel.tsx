@@ -172,6 +172,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         formantEnvAttack: 0.1,
         formantEnvDecay: 0.5,
         formantEnvAmount: 0,
+        formantEnvFollower: 0,
         characterMorph: 0,
         morphTarget: 'female' as 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright',
         attack: 0.05,
@@ -252,6 +253,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
     const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
     const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
+    const handleFormantEnvFollowerChange = (v: number) => { updateParam('formantEnvFollower', v); };
 
     const handlePitchAmountChange = paramHandlers.pitchAmount;
     const handlePitchAttackChange = paramHandlers.pitchAttack;
@@ -1077,6 +1079,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                         <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
                                     )}
                                     <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+                                    <Knob label="Fmt Follower" value={currentParams.formantEnvFollower ?? 0} onChange={handleFormantEnvFollowerChange} min={-24} max={24} step={1} color="indigo" unit="st" />
                                 </div>
                             </fieldset>
 

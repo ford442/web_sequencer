@@ -15,7 +15,7 @@
 
 ### Domain A: Audio Engine (Synth & Sampler)
 - [x] **Granular Position Jitter:** Add a `grainJitter` parameter to `rubberband-processor.ts` and UI. This adds randomness to the grain read pointer, creating textured, diffused vocal clouds.
-- [ ] **Formant Envelope Follower:** Add an Envelope Follower that modulates the Formant Shift amount dynamically based on the vocal amplitude envelope.
+- [x] **Formant Envelope Follower:** Add an Envelope Follower that modulates the Formant Shift amount dynamically based on the vocal amplitude envelope.
 - [x] **Step-Sequenced Bitcrusher / Decimator:** Add per-step bit reduction and downsampling to `rubberband-processor.ts` for rhythmically evolving lo-fi crunch textures on TTS vocals.
 - [x] **Time-Stretch Envelope:** Use an ADSR envelope to dynamically modulate the `timeRatio` of the granular engine, allowing vocals to rhythmically slow down or speed up over a single step.
   - Implemented: per-step + global `timeStretchEnvDepth` fully wired through SingingVoice → rubberband Worklet. Pairs beautifully with Formant Envelope Sync.
@@ -145,6 +145,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-08-09] - Implemented Formant Envelope Follower: Added a native Web Audio sidechain follower circuit (`WaveShaperNode` -> `BiquadFilterNode` -> `GainNode`) in `FormantShifter.ts`. Exposed `formantEnvFollower` parameter globally and per-step to UI via `SamplerPanel` and `NoteSelector`. Wired it down through `useAudioEngine.ts` and `SingingVoice.ts` to dynamically modulate the formant detune amount based on the vocal amplitude envelope. Fulfills the 'Formant Envelope Follower' Innovation Lab idea.
 * [2026-08-08] - Implemented Formant Preserving Vocoder (Phase 1): Created a `vocoder-processor` AudioWorklet with an envelope-follower amplitude multiplier. Wired `synthABusRef` as a global carrier tap for Synth A and passed it into the Vocoder's carrier input within `playSamplerVoice`. Added global and per-step `vocoderMix` controls to `SamplerPanel.tsx` and `NoteSelector.tsx`. Fulfills the "Formant Preserving Vocoder" Innovation Lab idea.
 * [2026-06-21] - Implemented Granular Position Jitter: Added `grainJitter` parameter to `rubberband-processor.ts` and `SingingVoice.ts`. Wired UI controls in `SamplerPanel` and `NoteSelector` to allow global and per-step granular jitter for textured vocal smearing. Added "Formant Envelope Follower" to Innovation Lab.
 * [2026-08-07] - Implemented Spectral Morph Automation: Added `characterMorph` as an automatable lane parameter to allow drawing automation curves to morph spectrally between TTS vocal characters over a sequence of steps. Fulfills the "Spectral Morph Automation" Innovation Lab idea.
