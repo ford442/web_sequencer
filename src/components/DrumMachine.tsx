@@ -2,6 +2,7 @@
 import React, { memo, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { AllDrumParams, DrumSound, KickParams, SnareParams, HatParams, DrumKitType } from '../types';
 import { Knob } from './Knob';
+import { DrumPads } from './DrumPads';
 
 interface DrumMachineProps {
   params: AllDrumParams;
@@ -10,9 +11,11 @@ interface DrumMachineProps {
   drumKit?: DrumKitType;
   /** Callback to switch drum kits */
   onDrumKitChange?: (kit: DrumKitType) => void;
+  /** Live pad trigger callback */
+  onPlayDrum?: (sound: DrumSound, velocity?: number) => void;
 }
 
-export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange, drumKit, onDrumKitChange }) => {
+export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange, drumKit, onDrumKitChange, onPlayDrum }) => {
   // Use a ref to access latest params inside callbacks without causing them to update
   const paramsRef = useRef(params);
   useEffect(() => {
@@ -94,7 +97,8 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
           </div>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="flex flex-col xl:flex-row gap-6">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* KICK */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
           <legend className="sr-only">Kick</legend>
@@ -128,6 +132,13 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
             <Knob label="Volume" value={params.closedHat.volume} onChange={handlers.hats.volume} min={0} max={1.5} step={0.01} color="yellow" />
           </div>
         </fieldset>
+        </div>
+
+        {onPlayDrum && (
+          <div className="w-full xl:w-96 shrink-0 flex items-center justify-center">
+            <DrumPads onPlayDrum={onPlayDrum} />
+          </div>
+        )}
       </div>
     </div>
   );

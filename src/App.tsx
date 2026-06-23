@@ -41,7 +41,7 @@ export const App: React.FC = () => {
         handleExportXM, isSongModeActive, setIsSongModeActive,
         contextMenu, setContextMenu, handleNoteSelect, handleNoteLengthChange,
         handleNotePropertyChange, currentScale,
-        handleKeyboardPlay, handleKeyboardStop,
+        handleKeyboardPlay, handleKeyboardStop, handleDrumPadPlay,
         synthAControls, synthBControls, bass2Controls, kickControls,
         snareControls, closedHatControls, openHatControls, samplerControls,
         onSynthAParamChange, onSynthBParamChange, onBass2ParamChange,
@@ -84,7 +84,7 @@ export const App: React.FC = () => {
                 <Studio3D
                     header={<TransportHeader />}
                     sequencer={<SequencerNode />}
-                    keyboard={<KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} />}
+                    keyboard={<KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} handleDrumPadPlay={handleDrumPadPlay} />}
                     rack={<RackNode />}
                     onExit={() => setIs3DMode(false)}
                 />
@@ -144,7 +144,7 @@ export const App: React.FC = () => {
                 </div>
 
                 <div className="shrink-0 py-4 mt-2 max-w-[1000px] mx-auto w-full px-4">
-                    <KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} />
+                    <KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} handleDrumPadPlay={handleDrumPadPlay} />
                 </div>
             </main>
 
