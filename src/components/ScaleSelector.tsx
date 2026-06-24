@@ -37,7 +37,7 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = memo(({ currentScale,
 
     return (
         <div className="flex items-center gap-1.5 bg-gray-900/80 border border-gray-700 rounded-lg px-2 py-1">
-            <button
+            <button type="button"
                 onClick={handleToggle}
                 className={`px-2 py-0.5 text-[10px] font-bold font-orbitron rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] focus-visible:ring-cyan-500 ${
                     isActive

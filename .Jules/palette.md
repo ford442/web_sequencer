@@ -1,3 +1,6 @@
+## 2026-06-24 - Missing type=button accessibility pattern
+**Learning:** Found that custom SVG icon-only buttons (e.g. close buttons, modal actions, sequence toggles) across 18 components lacked the `type="button"` attribute. This is an accessibility issue because these buttons default to `type="submit"`, which can cause unintended side-effects (like reloading the page) when activated via keyboard in certain contexts.
+**Action:** Always explicitly specify `type="button"` on non-submit buttons (especially icon-only or modal close buttons) to prevent unexpected form submissions and ensure stable screen reader behavior.
 ## 2024-05-01 - Fix aria-controls for Harmonizer Popover
 **Learning:** Found that custom dropdowns/popovers acting as modals or flyouts require a clear structural link using `aria-controls` pointing to the exact `id` of the popover content. The `aria-expanded` and `aria-haspopup` tags alone are insufficient for complete screen reader accessibility if the container it targets cannot be identified via an `id` reference.
 **Action:** Always ensure that `aria-controls` matches a specific `id` attribute on the container component whenever implementing custom popup interfaces.

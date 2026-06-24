@@ -559,6 +559,7 @@ export function createPlayDrum(
             }
     };
 
+        }
 export function createNoteOnSynth(
     context: AudioContext,
     refs: Pick<PlaybackRefs, 'open303ManagerRef' | 'prophecyManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'nextSynthNoteId' | 'activeSynthNotes' | 'bassSidechainEQBusRef'>,
