@@ -1,7 +1,8 @@
 {
-  "automationLaneCount": 2,
+  "automationLaneCount": 3,
   "automationTargets": [
     "synthA.accent",
+    "synthA.filterCutoff",
     "synthA.slide",
   ],
   "file": "generated_v15_single_303.rbs",
@@ -13,5 +14,5 @@
   "tempo": 118,
   "trakEventCount": 0,
   "usedPatternCount": 1,
-  "version": "2.0",
+  "version": "1.5",
 }
