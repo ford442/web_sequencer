@@ -1,3 +1,4 @@
+import { MAX_TRACK_PATTERN_SLOT_INDEX } from '../../utils/trackStorageUtils';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { SongMode } from '../SongMode';
