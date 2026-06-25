@@ -781,3 +781,4 @@ export function setHarmonizerConfig(
     harmonizerRef.current.setActive(isActive);
     console.log('[useAudioEngine] Harmonizer config updated:', config, 'active:', isActive);
 }
+}
