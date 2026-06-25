@@ -558,6 +558,7 @@ export function createPlayDrum(
                 }
             }
     };
+}
 
 export function createNoteOnSynth(
     context: AudioContext,

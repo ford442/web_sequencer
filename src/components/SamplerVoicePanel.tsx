@@ -24,6 +24,10 @@ interface SamplerVoicePanelProps {
     tremoloDepth?: number; // 0-1
     breathAmount?: number; // 0-1
     vocoderMix?: number; // 0-1
+    vocoderFormantShift?: number;
+    vocoderPreservation?: number;
+    vocoderAttack?: number;
+    vocoderRelease?: number;
     quality?: 'preview' | 'good' | 'better' | 'best';
     stretchMode?: 'Time' | 'Pitch' | 'Formant';
     lockToSequencer?: boolean;
@@ -504,6 +508,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     tremoloDepth = 0,
     breathAmount = 0,
     vocoderMix = 0,
+    vocoderFormantShift = 0,
+    vocoderPreservation = 1.0,
+    vocoderAttack = 0.01,
+    vocoderRelease = 0.05,
     quality = 'good',
     stretchMode = 'Time',
     lockToSequencer = false,
@@ -523,6 +531,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [localTremoloDepth, setLocalTremoloDepth] = useState(tremoloDepth);
     const [localBreathAmount, setLocalBreathAmount] = useState(breathAmount);
     const [localVocoderMix, setLocalVocoderMix] = useState(vocoderMix);
+    const [localVocoderFormantShift, setLocalVocoderFormantShift] = useState(vocoderFormantShift);
+    const [localVocoderPreservation, setLocalVocoderPreservation] = useState(vocoderPreservation);
+    const [localVocoderAttack, setLocalVocoderAttack] = useState(vocoderAttack);
+    const [localVocoderRelease, setLocalVocoderRelease] = useState(vocoderRelease);
     const [localQuality, setLocalQuality] = useState<typeof quality>(quality);
     const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
@@ -553,6 +565,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'vocoderMix': setLocalVocoderMix(value as number); break;
+            case 'vocoderFormantShift': setLocalVocoderFormantShift(value as number); break;
+            case 'vocoderPreservation': setLocalVocoderPreservation(value as number); break;
+            case 'vocoderAttack': setLocalVocoderAttack(value as number); break;
+            case 'vocoderRelease': setLocalVocoderRelease(value as number); break;
             case 'quality': setLocalQuality(value as typeof quality); break;
             case 'stretchMode': setLocalStretch(value as typeof stretchMode); break;
             case 'lockToSequencer': setLocalLock(value as boolean); break;
@@ -821,6 +837,38 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             value={localVocoderMix * 2 - 1}
                             displayValue={localVocoderMix.toFixed(2)}
                             onChange={(v) => handleParamChange('vocoderMix', Math.max(0, Math.min(1, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                    </div>
+                    <div className="flex gap-2">
+                        <HSlider
+                            label="VOC FMT SFT"
+                            value={localVocoderFormantShift / 12}
+                            displayValue={localVocoderFormantShift.toFixed(0)}
+                            onChange={(v) => handleParamChange('vocoderFormantShift', v * 12)}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="VOC PRESERV"
+                            value={localVocoderPreservation * 2 - 1}
+                            displayValue={localVocoderPreservation.toFixed(2)}
+                            onChange={(v) => handleParamChange('vocoderPreservation', Math.max(0, Math.min(1, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                    </div>
+                    <div className="flex gap-2">
+                        <HSlider
+                            label="VOC ATTACK"
+                            value={localVocoderAttack * 2 - 1}
+                            displayValue={localVocoderAttack.toFixed(3)}
+                            onChange={(v) => handleParamChange('vocoderAttack', Math.max(0.001, Math.min(1.0, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="VOC RELEASE"
+                            value={localVocoderRelease * 2 - 1}
+                            displayValue={localVocoderRelease.toFixed(3)}
+                            onChange={(v) => handleParamChange('vocoderRelease', Math.max(0.001, Math.min(1.0, (v + 1) / 2)))}
                             colorHex={colorHex}
                         />
                     </div>
