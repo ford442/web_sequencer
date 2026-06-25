@@ -557,6 +557,7 @@ export function createPlayDrum(
                     src.stop(now + hatParams.decay);
                 }
             }
+        };
     };
 
 export function createNoteOnSynth(
