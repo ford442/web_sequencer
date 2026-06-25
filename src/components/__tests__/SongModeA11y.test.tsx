@@ -1,3 +1,4 @@
+import { MAX_TRACK_PATTERN_SLOT_INDEX } from '../../utils/trackStorageUtils';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { SongMode } from '../SongMode';
@@ -92,7 +93,7 @@ describe('SongMode Accessibility', () => {
     });
 
     it('clamps max value at 31 on ArrowUp', () => {
-        // Test max clamp (7 -> 7)
+        // Test max clamp (31 -> 31)
         const structureMax = [
             { ...defaultStructure[0], partA: 31 },
             defaultStructure[1]
@@ -102,7 +103,7 @@ describe('SongMode Accessibility', () => {
         const maxCell = screen.getByTestId('cell-partA-0');
         fireEvent.keyDown(maxCell, { key: 'ArrowUp' });
 
-        // Should stay at 7
+        // Should stay at 31
         expect(mockOnUpdateStep).toHaveBeenCalledWith(0, 'partA', 31);
     });
 
