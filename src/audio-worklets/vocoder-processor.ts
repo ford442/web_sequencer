@@ -190,6 +190,9 @@ class VocoderProcessor extends AudioWorkletProcessor {
                 this.samplesBuffered -= this.hopSize;
                 this.outputWriteIdx = (this.outputWriteIdx + this.hopSize) % bufSize;
             }
+            this.inBufferCarrier[this.FRAME_SIZE - 1] = cIn[i];
+            this.inBufferModulator[this.FRAME_SIZE - 1] = mIn[i];
+            this.outBuffer[this.FRAME_SIZE - 1] = 0;
 
             // Output the accumulated signal
             const outSample = this.outputBuffer[this.outputReadIdx];
