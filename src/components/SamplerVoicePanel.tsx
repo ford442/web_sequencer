@@ -24,10 +24,13 @@ interface SamplerVoicePanelProps {
     tremoloDepth?: number; // 0-1
     breathAmount?: number; // 0-1
     vocoderMix?: number; // 0-1
+<<<<<<< HEAD
+=======
     vocoderFormantShift?: number;
     vocoderPreservation?: number;
     vocoderAttack?: number;
     vocoderRelease?: number;
+>>>>>>> origin/main
     quality?: 'preview' | 'good' | 'better' | 'best';
     stretchMode?: 'Time' | 'Pitch' | 'Formant';
     lockToSequencer?: boolean;
@@ -508,10 +511,13 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     tremoloDepth = 0,
     breathAmount = 0,
     vocoderMix = 0,
+<<<<<<< HEAD
+=======
     vocoderFormantShift = 0,
     vocoderPreservation = 1.0,
     vocoderAttack = 0.01,
     vocoderRelease = 0.05,
+>>>>>>> origin/main
     quality = 'good',
     stretchMode = 'Time',
     lockToSequencer = false,
@@ -531,10 +537,13 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [localTremoloDepth, setLocalTremoloDepth] = useState(tremoloDepth);
     const [localBreathAmount, setLocalBreathAmount] = useState(breathAmount);
     const [localVocoderMix, setLocalVocoderMix] = useState(vocoderMix);
+<<<<<<< HEAD
+=======
     const [localVocoderFormantShift, setLocalVocoderFormantShift] = useState(vocoderFormantShift);
     const [localVocoderPreservation, setLocalVocoderPreservation] = useState(vocoderPreservation);
     const [localVocoderAttack, setLocalVocoderAttack] = useState(vocoderAttack);
     const [localVocoderRelease, setLocalVocoderRelease] = useState(vocoderRelease);
+>>>>>>> origin/main
     const [localQuality, setLocalQuality] = useState<typeof quality>(quality);
     const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
@@ -565,10 +574,13 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'vocoderMix': setLocalVocoderMix(value as number); break;
+<<<<<<< HEAD
+=======
             case 'vocoderFormantShift': setLocalVocoderFormantShift(value as number); break;
             case 'vocoderPreservation': setLocalVocoderPreservation(value as number); break;
             case 'vocoderAttack': setLocalVocoderAttack(value as number); break;
             case 'vocoderRelease': setLocalVocoderRelease(value as number); break;
+>>>>>>> origin/main
             case 'quality': setLocalQuality(value as typeof quality); break;
             case 'stretchMode': setLocalStretch(value as typeof stretchMode); break;
             case 'lockToSequencer': setLocalLock(value as boolean); break;
@@ -840,6 +852,8 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             colorHex={colorHex}
                         />
                     </div>
+<<<<<<< HEAD
+=======
                     <div className="flex gap-2">
                         <HSlider
                             label="VOC FMT SFT"
@@ -872,6 +886,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             colorHex={colorHex}
                         />
                     </div>
+>>>>>>> origin/main
 
                     {/* Divider */}
                     <div className="h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent my-1" />

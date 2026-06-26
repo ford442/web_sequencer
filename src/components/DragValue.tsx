@@ -137,7 +137,11 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
       {label && <label className="text-xs text-gray-400 uppercase tracking-wider">{label}</label>}
       <div className="flex items-center gap-1">
         {/* Minus button */}
+<<<<<<< HEAD
         <button
+=======
+        <button type="button"
+>>>>>>> origin/main
           onClick={(e) => handleButtonClick(e, -1)}
           onMouseDown={() => startRepeat(-1)}
           onMouseUp={stopRepeat}
@@ -209,7 +213,11 @@ export const DragValue: React.FC<DragValueProps> = React.memo(({ value, onChange
           {display(value)}
         </div>
         {/* Plus button */}
+<<<<<<< HEAD
         <button
+=======
+        <button type="button"
+>>>>>>> origin/main
           onClick={(e) => handleButtonClick(e, 1)}
           onMouseDown={() => startRepeat(1)}
           onMouseUp={stopRepeat}

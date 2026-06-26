@@ -9,7 +9,11 @@ export interface LadderButtonProps {
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 export const LadderButton: React.FC<LadderButtonProps> = React.memo(({ note, isActive, onClick, buttonRef }) => (
+<<<<<<< HEAD
     <button
+=======
+    <button type="button"
+>>>>>>> origin/main
         ref={buttonRef}
         onClick={onClick}
         role="radio"
