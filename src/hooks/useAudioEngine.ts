@@ -890,6 +890,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     // For each note in the chord
                     notes.forEach((noteStr, _noteIndex) => {
 
+                        const noteMidiValue = noteToMidi(noteStr);
+
                         const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
@@ -1175,12 +1177,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                                 if (noteParams?.sliceIndex !== undefined) {
                                     sliceIndex = noteParams.sliceIndex;
-                                    const targetMidi = noteToMidi(noteStr);
                                     const baseMidi = 60;
-                                    pitchRatio = Math.pow(2, (targetMidi - baseMidi + pitchOffset + pitchOffsetSemitones) / 12);
+                                    pitchRatio = Math.pow(2, (noteMidiValue - baseMidi + pitchOffset + pitchOffsetSemitones) / 12);
                                 } else {
-                                    const targetMidi = noteToMidi(noteStr);
-                                    sliceIndex = targetMidi - 60;
+                                    sliceIndex = noteMidiValue - 60;
                                     pitchRatio = Math.pow(2, (pitchOffset + pitchOffsetSemitones) / 12);
                                 }
 
@@ -1205,7 +1205,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             voice.setTimeRatio(timeRatio, triggerTime);
 
                             // 2. Pitch Shift (with offset for harmonizer and slide support)
-                            const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
+                            const targetMidi = noteMidiValue + pitchOffsetSemitones;
                             if (noteParams?.slideFromMidi !== undefined) {
                                 const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
                                 voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
@@ -1543,7 +1543,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     // Include pitchOffsetSemitones so harmony voices transpose correctly
                     // in buffer-source mode (matches the pitch offset already applied in
                     // stretch mode via noteToMidi(noteStr) + pitchOffsetSemitones).
-                    const midi = noteToMidi(noteStr) + pitchOffsetSemitones;
+                    const noteMidiValue = noteToMidi(noteStr);
+                    const midi = noteMidiValue + pitchOffsetSemitones;
 
                     if (shouldGlitch) {
                         const numStutters = Math.floor(Math.random() * 3) + 2;
