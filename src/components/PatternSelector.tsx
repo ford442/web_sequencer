@@ -74,7 +74,11 @@ export const PatternSelector: React.FC<PatternSelectorProps> = React.memo(({
             >
                 <div className="flex justify-between items-center mb-2 px-1">
                     <span id="pattern-selector-title" className="text-xs font-bold text-gray-400">SELECT PTN (1–{MAX_TRACK_PATTERN_SLOT_INDEX + 1})</span>
+<<<<<<< HEAD
+                    <button onClick={onClose} aria-label="Close pattern selector" title="Close pattern selector" className="text-gray-500 hover:text-white text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white rounded"><span aria-hidden="true">✕</span></button>
+=======
                     <button type="button" onClick={onClose} aria-label="Close pattern selector" title="Close pattern selector" className="text-gray-500 hover:text-white text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white rounded"><span aria-hidden="true">✕</span></button>
+>>>>>>> origin/main
                 </div>
 
                 <div
@@ -87,7 +91,11 @@ export const PatternSelector: React.FC<PatternSelectorProps> = React.memo(({
                         const isSelected = currentPattern === slot;
 
                         return (
+<<<<<<< HEAD
+                            <button
+=======
                             <button type="button"
+>>>>>>> origin/main
                                 key={slot}
                                 ref={(el) => { buttonRefs.current[slot] = el; }}
                                 onClick={() => onSelect(slot)}
@@ -112,7 +120,11 @@ export const PatternSelector: React.FC<PatternSelectorProps> = React.memo(({
                     })}
                 </div>
 
+<<<<<<< HEAD
+                <button
+=======
                 <button type="button"
+>>>>>>> origin/main
                     onClick={() => onSelect(null)}
                     aria-label="Clear pattern from step"
                     title="Clear pattern from step"

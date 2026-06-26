@@ -1,7 +1,2 @@
 packages:
   - '.'
-allowBuilds:
-  - '@swc/core'
-  - 'esbuild'
-  - 'protobufjs'
-  - 'wasm-pack'
