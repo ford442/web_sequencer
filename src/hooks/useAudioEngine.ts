@@ -871,6 +871,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     pEnvDecay = getSyncedSeconds(pEnvDecay as number, tempo);
                 }
 
+                const pPitchAttack = (noteParams as any)?.pitchAttack ?? params.pitchAttack ?? 0;
                 const pPitchDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
                 const pPitchAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
 
@@ -891,10 +892,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
-                    // For each note in the chord
-                    notes.forEach((noteStr, _noteIndex) => {
-
-                        const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+                        // Performance: Hoisted out of notes.forEach to avoid redefining closures and redundant param evaluations per note
+                        const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
                             const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
@@ -1241,8 +1240,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Pitch Envelope
                             if (voice.setPitchAttack) {
-                                const pAttack = (noteParams as any)?.pitchAttack ?? params.pitchAttack ?? 0;
-                                voice.setPitchAttack(pAttack, triggerTime);
+                                voice.setPitchAttack(pPitchAttack, triggerTime);
                             }
                             if (voice.setPitchDecay) {
                                 voice.setPitchDecay(pPitchDecay, triggerTime);
@@ -1286,12 +1284,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
                         };
 
-                        const runVoices = (timeOffset: number, duration: number) => {
+                        const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
                             const t = actualTime + timeOffset;
 
                             const mainVoiceData = manager.acquireVoiceForBank(params.sampleName);
                             manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
-                            triggerVoice(mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
+                            triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
 
                             const effectiveChoir = noteParams?.choir !== undefined ? noteParams.choir : (params.choir || 0);
 
@@ -1305,19 +1303,23 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 const leftVoiceData = manager.acquireVoiceForBank(params.sampleName);
                                 if (leftVoiceData.index !== mainVoiceData.index) {
                                     manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
-                                    triggerVoice(leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
+                                    triggerVoice(noteStr, leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
                                 }
 
                                 const rightVoiceData = manager.acquireVoiceForBank(params.sampleName);
                                 if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
                                     manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
-                                    triggerVoice(rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
+                                    triggerVoice(noteStr, rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
                                 }
                             } else if (pitchOffsetSemitones === 0) {
                                 if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                             }
                         };
+                    // For each note in the chord
+                    notes.forEach((noteStr, _noteIndex) => {
+
+
 
                         if (shouldGlitch) {
                             const numStutters = Math.floor(Math.random() * 3) + 2;
@@ -1325,16 +1327,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             const stutterLen = Math.min(0.06, totalDur / numStutters);
 
                             for (let i = 0; i < numStutters; i++) {
-                                runVoices(i * stutterLen, stutterLen);
+                                runVoices(noteStr, i * stutterLen, stutterLen);
                             }
                             const played = numStutters * stutterLen;
                             if (totalDur > played) {
-                                runVoices(played, totalDur - played);
+                                runVoices(noteStr, played, totalDur - played);
                             }
                         } else {
                             for (let r = 0; r < retrigger; r++) {
                                 const offset = r * (subDurationSteps * stepTime);
-                                runVoices(offset, subDurationSteps * stepTime);
+                                runVoices(noteStr, offset, subDurationSteps * stepTime);
                             }
                         }
                     });
