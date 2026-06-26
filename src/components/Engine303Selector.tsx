@@ -67,7 +67,11 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
             </div>
 
             {/* Custom Open303 button */}
+<<<<<<< HEAD
             <button
+=======
+            <button type="button"
+>>>>>>> origin/main
                 onClick={() => onChange('open303')}
                 title="Custom Open303 synthesizer — uses the built-in open303_* WASM API in hyphon_native.wasm"
                 aria-pressed={!isJc303}
@@ -80,7 +84,11 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
             </button>
 
             {/* Authentic JC303 button */}
+<<<<<<< HEAD
             <button
+=======
+            <button type="button"
+>>>>>>> origin/main
                 onClick={() => onChange('jc303')}
                 title="Authentic rosic::Open303 — per-voice JC303 engine from the jc303_wasm submodule (rosic_Open303). Enables the accurate TB-303 DSP introduced in the May 2026 per-voice engine update."
                 aria-pressed={isJc303}

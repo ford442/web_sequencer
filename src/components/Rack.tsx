@@ -16,7 +16,11 @@ export const Rack = memo(({ is3DMode, selectedTrack, onSelectTrack, modules }: R
             {is3DMode && (
                 <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
                     {ROWS.map((row: any) => (
+<<<<<<< HEAD
                         <button
+=======
+                        <button type="button"
+>>>>>>> origin/main
                             key={row.key}
                             onClick={() => onSelectTrack(row.key as TrackKey)}
                             aria-label={`Select ${row.label} track`}

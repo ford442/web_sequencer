@@ -7,6 +7,99 @@ declare class AudioWorkletProcessor {
 }
 declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
 
+// ---- Lightweight JS FFT Implementation ----
+// Based on the Cooley-Tukey algorithm, in-place, allocation-free after init.
+class SimpleFFT {
+    private size: number;
+    private bitReversedIndices: Uint32Array;
+    private twiddleReal: Float32Array;
+    private twiddleImag: Float32Array;
+
+    constructor(size: number) {
+        this.size = size;
+        this.bitReversedIndices = new Uint32Array(size);
+        this.twiddleReal = new Float32Array(size);
+        this.twiddleImag = new Float32Array(size);
+
+        // Precompute bit-reversed indices
+        const bits = Math.log2(size);
+        for (let i = 0; i < size; i++) {
+            let reversed = 0;
+            for (let j = 0; j < bits; j++) {
+                reversed = (reversed << 1) | ((i >> j) & 1);
+            }
+            this.bitReversedIndices[i] = reversed;
+        }
+
+        // Precompute twiddle factors
+        for (let k = 0; k < size; k++) {
+            const angle = -2 * Math.PI * k / size;
+            this.twiddleReal[k] = Math.cos(angle);
+            this.twiddleImag[k] = Math.sin(angle);
+        }
+    }
+
+    // Forward transform. input/output are interleaved complex arrays [re, im, re, im...]
+    // For real input, put samples in re, 0 in im.
+    forward(real: Float32Array, imag: Float32Array) {
+        this.transform(real, imag, false);
+    }
+
+    inverse(real: Float32Array, imag: Float32Array) {
+        this.transform(real, imag, true);
+        for (let i = 0; i < this.size; i++) {
+            real[i] /= this.size;
+            imag[i] /= this.size;
+        }
+    }
+
+    private transform(real: Float32Array, imag: Float32Array, inverse: boolean) {
+        // Bit reversal permutation
+        for (let i = 0; i < this.size; i++) {
+            const j = this.bitReversedIndices[i];
+            if (i < j) {
+                const tempRe = real[i];
+                const tempIm = imag[i];
+                real[i] = real[j];
+                imag[i] = imag[j];
+                real[j] = tempRe;
+                imag[j] = tempIm;
+            }
+        }
+
+        // Cooley-Tukey butterfly
+        for (let stage = 1; stage < this.size; stage <<= 1) {
+            const step = stage << 1;
+            const twiddleStep = this.size / step;
+
+            for (let group = 0; group < stage; group++) {
+                const twiddleIdx = group * twiddleStep;
+                const wr = this.twiddleReal[twiddleIdx];
+                // Conjugate twiddle factors for IFFT
+                const wi = inverse ? -this.twiddleImag[twiddleIdx] : this.twiddleImag[twiddleIdx];
+
+                for (let pair = group; pair < this.size; pair += step) {
+                    const evenIdx = pair;
+                    const oddIdx = pair + stage;
+
+                    const evenRe = real[evenIdx];
+                    const evenIm = imag[evenIdx];
+                    const oddRe = real[oddIdx];
+                    const oddIm = imag[oddIdx];
+
+                    const twiddledOddRe = wr * oddRe - wi * oddIm;
+                    const twiddledOddIm = wr * oddIm + wi * oddRe;
+
+                    real[evenIdx] = evenRe + twiddledOddRe;
+                    imag[evenIdx] = evenIm + twiddledOddIm;
+                    real[oddIdx] = evenRe - twiddledOddRe;
+                    imag[oddIdx] = evenIm - twiddledOddIm;
+                }
+            }
+        }
+    }
+}
+
 class VocoderProcessor extends AudioWorkletProcessor {
     static get parameterDescriptors() {
         return [
@@ -20,235 +113,179 @@ class VocoderProcessor extends AudioWorkletProcessor {
         ];
     }
 
-    private readonly FRAME_SIZE = 512;
-    private readonly HOP_SIZE = 128; // 4x overlap
-    private readonly numBands = 32;
+    private fftSize: number = 512;
+    private hopSize: number = 128; // 4x overlap
+    private fft: SimpleFFT;
+    private window: Float32Array;
 
-    private inBufferCarrier = new Float32Array(this.FRAME_SIZE);
-    private inBufferModulator = new Float32Array(this.FRAME_SIZE);
-    private outBuffer = new Float32Array(this.FRAME_SIZE);
+    // Circular buffers for input (1024 to be safe)
+    private carrierBuffer: Float32Array;
+    private modulatorBuffer: Float32Array;
+    private outputBuffer: Float32Array;
+    private inputWriteIdx: number = 0;
+    private outputReadIdx: number = 0;
+    private outputWriteIdx: number = 0;
+    private samplesBuffered: number = 0;
 
-    private window = new Float32Array(this.FRAME_SIZE);
-
-    private carrierReal = new Float32Array(this.FRAME_SIZE);
-    private carrierImag = new Float32Array(this.FRAME_SIZE);
-    private modReal = new Float32Array(this.FRAME_SIZE);
-    private modImag = new Float32Array(this.FRAME_SIZE);
-
-    private modMagnitude = new Float32Array(this.FRAME_SIZE);
-    private carrierMagnitude = new Float32Array(this.FRAME_SIZE);
-
-    private bitReversedIndices = new Int32Array(this.FRAME_SIZE);
-    private twiddleReal = new Float32Array(this.FRAME_SIZE);
-    private twiddleImag = new Float32Array(this.FRAME_SIZE);
-
-    private bufferIndex = 0;
+    // Working arrays for FFT to avoid allocations
+    private carrierRe: Float32Array;
+    private carrierIm: Float32Array;
+    private modulatorRe: Float32Array;
+    private modulatorIm: Float32Array;
+    private smoothedEnvelope: Float32Array;
 
     constructor() {
         super();
-        this.initFFT();
-
+        this.fft = new SimpleFFT(this.fftSize);
+        this.window = new Float32Array(this.fftSize);
         // Hann window
-        for (let i = 0; i < this.FRAME_SIZE; i++) {
-            this.window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.FRAME_SIZE - 1)));
-        }
-    }
-
-    private initFFT() {
-        // Bit reversal
-        const bits = Math.log2(this.FRAME_SIZE);
-        for (let i = 0; i < this.FRAME_SIZE; i++) {
-            let rev = 0;
-            for (let j = 0; j < bits; j++) {
-                if ((i & (1 << j)) !== 0) {
-                    rev |= (1 << (bits - 1 - j));
-                }
-            }
-            this.bitReversedIndices[i] = rev;
+        for (let i = 0; i < this.fftSize; i++) {
+            this.window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.fftSize - 1)));
         }
 
-        // Twiddle factors
-        for (let k = 0; k < this.FRAME_SIZE / 2; k++) {
-            const angle = (-2 * Math.PI * k) / this.FRAME_SIZE;
-            this.twiddleReal[k] = Math.cos(angle);
-            this.twiddleImag[k] = Math.sin(angle);
-        }
-    }
+        const bufSize = this.fftSize * 4;
+        this.carrierBuffer = new Float32Array(bufSize);
+        this.modulatorBuffer = new Float32Array(bufSize);
+        this.outputBuffer = new Float32Array(bufSize);
 
-    private fft(real: Float32Array, imag: Float32Array, inverse: boolean = false) {
-        // Bit-reverse copy
-        for (let i = 0; i < this.FRAME_SIZE; i++) {
-            const rev = this.bitReversedIndices[i];
-            if (i < rev) {
-                const tr = real[i];
-                const ti = imag[i];
-                real[i] = real[rev];
-                imag[i] = imag[rev];
-                real[rev] = tr;
-                imag[rev] = ti;
-            }
-        }
+        this.carrierRe = new Float32Array(this.fftSize);
+        this.carrierIm = new Float32Array(this.fftSize);
+        this.modulatorRe = new Float32Array(this.fftSize);
+        this.modulatorIm = new Float32Array(this.fftSize);
+        this.smoothedEnvelope = new Float32Array(this.fftSize);
 
-        for (let stage = 1; stage < this.FRAME_SIZE; stage <<= 1) {
-            const step = stage << 1;
-            const twiddleStep = this.FRAME_SIZE / step;
-
-            for (let group = 0; group < stage; group++) {
-                const twiddleIdx = group * twiddleStep;
-                const wr = this.twiddleReal[twiddleIdx];
-                const wi = inverse ? -this.twiddleImag[twiddleIdx] : this.twiddleImag[twiddleIdx];
-
-                for (let pair = group; pair < this.FRAME_SIZE; pair += step) {
-                    const evenIdx = pair;
-                    const oddIdx = pair + stage;
-
-                    const evenReal = real[evenIdx];
-                    const evenImag = imag[evenIdx];
-                    const oddReal = real[oddIdx];
-                    const oddImag = imag[oddIdx];
-
-                    const twiddledOddReal = wr * oddReal - wi * oddImag;
-                    const twiddledOddImag = wr * oddImag + wi * oddReal;
-
-                    real[evenIdx] = evenReal + twiddledOddReal;
-                    imag[evenIdx] = evenImag + twiddledOddImag;
-                    real[oddIdx] = evenReal - twiddledOddReal;
-                    imag[oddIdx] = evenImag - twiddledOddImag;
-                }
-            }
-        }
-
-        if (inverse) {
-            for (let i = 0; i < this.FRAME_SIZE; i++) {
-                real[i] /= this.FRAME_SIZE;
-                imag[i] /= this.FRAME_SIZE;
-            }
-        }
+        // Delay the read pointer by fftSize to allow time for the OLA buffer to accumulate a full frame
+        // before we start reading from it. This ensures causality in the ring buffer.
+        this.outputReadIdx = (bufSize - this.fftSize) % bufSize;
     }
 
     process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>) {
-        const carrierInput = inputs[0];
-        const modulatorInput = inputs[1];
-        const output = outputs[0];
+        const carrierInput = inputs[0]?.[0]; // Synth A (mono downmix for vocoding)
+        const modulatorInput = inputs[1]?.[0]; // TTS Sampler
+        const outputChannelL = outputs[0]?.[0];
+        const outputChannelR = outputs[0]?.[1];
 
-        if (!carrierInput || !modulatorInput || !output ||
-            carrierInput.length === 0 || modulatorInput.length === 0 || output.length === 0) {
+        if (!carrierInput || !modulatorInput || !outputChannelL) {
             return true;
         }
 
         const mixParams = parameters.mix;
         const isMixConstant = mixParams.length === 1;
+        const bufSize = this.carrierBuffer.length;
 
-        // Ensure we process mono for the core vocoder algorithm to save CPU.
-        // We'll duplicate to all output channels.
-        const cIn = carrierInput[0];
-        const mIn = modulatorInput[0];
+        for (let i = 0; i < carrierInput.length; i++) {
+            // Write incoming samples to ring buffers
+            this.carrierBuffer[this.inputWriteIdx] = carrierInput[i];
+            this.modulatorBuffer[this.inputWriteIdx] = modulatorInput[i];
+            this.inputWriteIdx = (this.inputWriteIdx + 1) % bufSize;
+            this.samplesBuffered++;
 
-        if (!cIn || !mIn) return true;
+            // Process a frame if we have enough samples
+            if (this.samplesBuffered >= this.hopSize) {
+                // Ensure we have at least fftSize samples in the buffer to process
+                // Wait until buffer has filled up initially
+                // To simplify, we actually process backwards from inputWriteIdx
+                this.processFrame(bufSize);
 
-        const blockSize = cIn.length;
-
-        for (let i = 0; i < blockSize; i++) {
-            // Shift buffers
-            for (let j = 0; j < this.FRAME_SIZE - 1; j++) {
-                this.inBufferCarrier[j] = this.inBufferCarrier[j + 1];
-                this.inBufferModulator[j] = this.inBufferModulator[j + 1];
-                this.outBuffer[j] = this.outBuffer[j + 1];
+                this.samplesBuffered -= this.hopSize;
+                this.outputWriteIdx = (this.outputWriteIdx + this.hopSize) % bufSize;
             }
             this.inBufferCarrier[this.FRAME_SIZE - 1] = cIn[i];
             this.inBufferModulator[this.FRAME_SIZE - 1] = mIn[i];
             this.outBuffer[this.FRAME_SIZE - 1] = 0;
 
-            this.bufferIndex++;
+            // Output the accumulated signal
+            const outSample = this.outputBuffer[this.outputReadIdx];
+            // Clear the buffer after reading
+            this.outputBuffer[this.outputReadIdx] = 0;
+            this.outputReadIdx = (this.outputReadIdx + 1) % bufSize;
 
-            if (this.bufferIndex >= this.HOP_SIZE) {
-                this.bufferIndex = 0;
-                this.processFrame();
-            }
-
+            // Apply mix (0 = modulator only, 1 = full vocoder)
             const mix = isMixConstant ? mixParams[0] : mixParams[i];
+            const finalOut = outSample * mix + modulatorInput[i] * (1 - mix);
 
-            // outBuffer[0] contains the fully overlap-added signal
-            const vocoded = this.outBuffer[0];
-
-            for (let channel = 0; channel < output.length; ++channel) {
-                const outCh = output[channel];
-                const modSignal = modulatorInput[channel] ? modulatorInput[channel][i] : mIn[i];
-                outCh[i] = vocoded * mix + modSignal * (1 - mix);
+            outputChannelL[i] = finalOut;
+            if (outputChannelR) {
+                outputChannelR[i] = finalOut;
             }
         }
 
         return true;
     }
 
-    private processFrame() {
-        // Windowing and prepare for FFT
-        for (let i = 0; i < this.FRAME_SIZE; i++) {
-            this.carrierReal[i] = this.inBufferCarrier[i] * this.window[i];
-            this.carrierImag[i] = 0;
+    private processFrame(bufSize: number) {
+        // 1. Gather samples and apply window
+        // The most recent sample is at (inputWriteIdx - 1).
+        // We want to grab the last `fftSize` samples.
+        let readPtr = (this.inputWriteIdx - this.fftSize + bufSize) % bufSize;
 
-            this.modReal[i] = this.inBufferModulator[i] * this.window[i];
-            this.modImag[i] = 0;
+        for (let i = 0; i < this.fftSize; i++) {
+            this.carrierRe[i] = this.carrierBuffer[readPtr] * this.window[i];
+            this.carrierIm[i] = 0;
+            this.modulatorRe[i] = this.modulatorBuffer[readPtr] * this.window[i];
+            this.modulatorIm[i] = 0;
+            readPtr = (readPtr + 1) % bufSize;
         }
 
-        // FFT
-        this.fft(this.carrierReal, this.carrierImag, false);
-        this.fft(this.modReal, this.modImag, false);
+        // 2. FFT
+        this.fft.forward(this.carrierRe, this.carrierIm);
+        this.fft.forward(this.modulatorRe, this.modulatorIm);
 
-        const halfSize = this.FRAME_SIZE / 2 + 1;
+        // 3. Extract Spectral Envelope (Formants) from Modulator
+        // Simple moving average smoothing to find peaks
+        const halfSize = this.fftSize / 2;
+        const smoothingRadius = 4; // Bins
 
-        // Compute magnitudes
-        for (let i = 0; i < halfSize; i++) {
-            this.modMagnitude[i] = Math.sqrt(this.modReal[i] * this.modReal[i] + this.modImag[i] * this.modImag[i]);
-            this.carrierMagnitude[i] = Math.sqrt(this.carrierReal[i] * this.carrierReal[i] + this.carrierImag[i] * this.carrierImag[i]);
-        }
-
-        // Symmetrize magnitudes to prevent errors, though we only really care up to Nyquist
-        for (let i = halfSize; i < this.FRAME_SIZE; i++) {
-            this.modMagnitude[i] = this.modMagnitude[this.FRAME_SIZE - i];
-            this.carrierMagnitude[i] = this.carrierMagnitude[this.FRAME_SIZE - i];
-        }
-
-        // Extract Spectral Envelope (Formants) via Spectral Smoothing (Moving Average)
-        // A more advanced version would use cepstral smoothing or LPC, but this works well for a vocoder.
-        const smoothingRadius = 8;
-        const envelope = new Float32Array(halfSize);
-
-        for (let i = 0; i < halfSize; i++) {
+        for (let i = 0; i <= halfSize; i++) {
             let sum = 0;
             let count = 0;
-            for (let j = Math.max(0, i - smoothingRadius); j <= Math.min(halfSize - 1, i + smoothingRadius); j++) {
-                sum += this.modMagnitude[j];
+            for (let j = Math.max(0, i - smoothingRadius); j <= Math.min(halfSize, i + smoothingRadius); j++) {
+                sum += Math.sqrt(this.modulatorRe[j]*this.modulatorRe[j] + this.modulatorIm[j]*this.modulatorIm[j]);
                 count++;
             }
-            envelope[i] = sum / count;
+            this.smoothedEnvelope[i] = sum / count;
         }
 
-        // Apply Modulator Envelope to Carrier (preserving Carrier Phase)
-        for (let i = 0; i < halfSize; i++) {
-            // We want to force the carrier's magnitude to match the modulator's envelope
-            const cMag = this.carrierMagnitude[i] + 1e-10; // prevent div zero
-            const targetMag = envelope[i] * 2.0; // gain compensation
+        // 4. Apply Envelope to Carrier
+        for (let i = 0; i <= halfSize; i++) {
+            const magC = Math.sqrt(this.carrierRe[i]*this.carrierRe[i] + this.carrierIm[i]*this.carrierIm[i]);
 
-            const ratio = targetMag / cMag;
+            if (magC > 0.0001) {
+                // Normalize carrier bin amplitude and multiply by modulator envelope
+                const scale = this.smoothedEnvelope[i] / magC;
+                this.carrierRe[i] *= scale;
+                this.carrierIm[i] *= scale;
+            } else {
+                this.carrierRe[i] = 0;
+                this.carrierIm[i] = 0;
+            }
 
-            this.carrierReal[i] *= ratio;
-            this.carrierImag[i] *= ratio;
-
-            if (i > 0 && i < halfSize - 1) {
-                // symmetric upper half
-                this.carrierReal[this.FRAME_SIZE - i] = this.carrierReal[i];
-                this.carrierImag[this.FRAME_SIZE - i] = -this.carrierImag[i]; // conjugate
+            // Mirror upper half for IFFT
+            if (i > 0 && i < halfSize) {
+                this.carrierRe[this.fftSize - i] = this.carrierRe[i];
+                this.carrierIm[this.fftSize - i] = -this.carrierIm[i];
             }
         }
 
-        // Inverse FFT
-        this.fft(this.carrierReal, this.carrierImag, true);
+        // Ensure Nyquist is real
+        this.carrierIm[halfSize] = 0;
 
-        // Overlap-add
-        for (let i = 0; i < this.FRAME_SIZE; i++) {
-            // 4x overlap compensation factor is ~0.5 for Hann window, but we will just scale it down slightly
-            this.outBuffer[i] += this.carrierReal[i] * this.window[i] * 0.5;
+        // 5. IFFT
+        this.fft.inverse(this.carrierRe, this.carrierIm);
+
+        // 6. Overlap-Add to output buffer
+        // Note: The STFT was taken for samples ending at inputWriteIdx.
+        // We need to add them to the output buffer starting at (outputWriteIdx - fftSize + hopSize)
+        // because outputWriteIdx represents the start of the *next* hop to be played.
+        let outPtr = (this.outputWriteIdx - this.fftSize + this.hopSize + bufSize) % bufSize;
+
+        // Gain compensation for overlap and windowing
+        const overlapFactor = this.fftSize / this.hopSize;
+        const gain = 1.0 / (overlapFactor * 0.5); // 0.5 is approx integral of Hann window^2
+
+        for (let i = 0; i < this.fftSize; i++) {
+            this.outputBuffer[outPtr] += this.carrierRe[i] * this.window[i] * gain;
+            outPtr = (outPtr + 1) % bufSize;
         }
     }
 }

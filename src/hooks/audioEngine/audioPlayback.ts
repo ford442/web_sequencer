@@ -539,6 +539,7 @@ export function createPlayDrum(
                     src.stop(now + hatParams.decay);
                 }
             }
+        };
     };
 }
 
