@@ -90,7 +90,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
           const label = getLabel(w);
           const active = isActive(w);
           return (
-            <button
+            <button type="button"
               key={w}
               onClick={() => onChange(w)}
               aria-pressed={active}
