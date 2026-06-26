@@ -157,17 +157,18 @@ export function createPlaySynth(
         const subDurationSteps = durationSteps / retrigger;
         const subDuration = subDurationSteps * stepTime;
 
+        // === HOISTED NOTE RESOLUTION (outside retrigger loop) ===
+        const noteStr = Array.isArray(note) ? note[0] : note;
+        if (!noteStr) {
+            return; // note is invariant, so we can exit early
+        }
+        const midi = noteToMidi(noteStr);
+
         for (let i = 0; i < retrigger; i++) {
             const noteTime = actualTime + (i * subDuration);
 
             if (track === 'bass2') {
                 if (refs.open303ManagerRef.current?.isBass2Ready()) {
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -197,12 +198,6 @@ export function createPlaySynth(
                 if (refs.open303ManagerRef.current?.isBass1Ready()) {
                     refs.open303ManagerRef.current.applyBass1Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -233,12 +228,6 @@ export function createPlaySynth(
                 if (refs.open303ManagerRef.current?.isLead303Ready()) {
                     refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -269,12 +258,6 @@ export function createPlaySynth(
                 if (refs.prophecyManagerRef?.current?.isPartBReady()) {
                     refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -302,12 +285,6 @@ export function createPlaySynth(
                 if (refs.prophecyManagerRef?.current?.isPartAReady()) {
                     refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -558,6 +535,7 @@ export function createPlayDrum(
                 }
             }
     };
+}
 
 export function createNoteOnSynth(
     context: AudioContext,
