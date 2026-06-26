@@ -81,7 +81,11 @@ export const CloudStatus: React.FC = React.memo(() => {
          );
     } else if (connectionStatus === 'SLEEPING' || connectionStatus === 'ERROR') {
         content = (
+<<<<<<< HEAD
             <button
+=======
+            <button type="button"
+>>>>>>> origin/main
                 onClick={handleWake}
                 className="flex items-center gap-1.5 px-2 py-1 bg-yellow-900/20 border border-yellow-800 rounded text-[10px] font-mono text-yellow-400 hover:bg-yellow-900/40 transition-colors"
                 aria-label="Wake up cloud storage"

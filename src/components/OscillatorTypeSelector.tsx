@@ -77,7 +77,11 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
           };
 
           return (
+<<<<<<< HEAD
             <button
+=======
+            <button type="button"
+>>>>>>> origin/main
               key={t}
               onClick={() => onChange(t)}
               aria-pressed={isActive}

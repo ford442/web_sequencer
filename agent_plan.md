@@ -245,6 +245,7 @@
 
 
 * [x] **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.
+
 ## 2026-08-08 - Implemented Formant Preserving Vocoder: Upgraded `vocoder-processor.ts` from a simple envelope follower to a true FFT-based vocoder. Added a lightweight JS FFT/IFFT implementation and Overlap-Add (OLA) framework directly in the worklet. The DSP now extracts the spectral envelope (formants) from the Modulator (TTS Sampler) and applies it to the Carrier (Synth A) while preserving phase. Fulfills "Formant Preserving Vocoder" Innovation Lab idea.
 
 ## 2026-08-06 - Implemented Granular Pitch Envelope: Completed implementation by adding UI controls to ContextMenuNode and fixing syntax in useAudioEngine. Fulfills "Granular Pitch Envelope" Innovation Lab idea.
