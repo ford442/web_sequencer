@@ -91,10 +91,10 @@ describe('SongMode Accessibility', () => {
         expect(mockOnUpdateStep).toHaveBeenCalledWith(0, 'partA', null);
     });
 
-    it('clamps max value at 7 on ArrowUp', () => {
+    it('clamps max value at 31 on ArrowUp', () => {
         // Test max clamp (7 -> 7)
         const structureMax = [
-            { ...defaultStructure[0], partA: 7 },
+            { ...defaultStructure[0], partA: 31 },
             defaultStructure[1]
         ];
         render(<SongMode {...defaultProps} songStructure={structureMax} />);
@@ -103,7 +103,7 @@ describe('SongMode Accessibility', () => {
         fireEvent.keyDown(maxCell, { key: 'ArrowUp' });
 
         // Should stay at 7
-        expect(mockOnUpdateStep).toHaveBeenCalledWith(0, 'partA', 7);
+        expect(mockOnUpdateStep).toHaveBeenCalledWith(0, 'partA', 31);
     });
 
     it('clamps min value at 0 on ArrowDown', () => {
