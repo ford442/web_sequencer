@@ -157,10 +157,10 @@ export function createPlaySynth(
         const subDurationSteps = durationSteps / retrigger;
         const subDuration = subDurationSteps * stepTime;
 
-        // === HOISTED NOTE RESOLUTION (outside retrigger loop) ===
+
         const noteStr = Array.isArray(note) ? note[0] : note;
         if (!noteStr) {
-            return; // note is invariant, so we can exit early
+            return;
         }
         const midi = noteToMidi(noteStr);
 
@@ -169,6 +169,7 @@ export function createPlaySynth(
 
             if (track === 'bass2') {
                 if (refs.open303ManagerRef.current?.isBass2Ready()) {
+
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -197,6 +198,7 @@ export function createPlaySynth(
             if (track === 'partB' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
                 if (refs.open303ManagerRef.current?.isBass1Ready()) {
                     refs.open303ManagerRef.current.applyBass1Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+
 
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
@@ -228,6 +230,7 @@ export function createPlaySynth(
                 if (refs.open303ManagerRef.current?.isLead303Ready()) {
                     refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
+
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -258,6 +261,7 @@ export function createPlaySynth(
                 if (refs.prophecyManagerRef?.current?.isPartBReady()) {
                     refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
 
+
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -284,6 +288,7 @@ export function createPlaySynth(
             if (track === 'partA' && prophecyWaveType !== undefined) {
                 if (refs.prophecyManagerRef?.current?.isPartAReady()) {
                     refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
+
 
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
@@ -534,6 +539,7 @@ export function createPlayDrum(
                     src.stop(now + hatParams.decay);
                 }
             }
+        };
     };
 }
 
