@@ -122,11 +122,7 @@ export const PhonemeBlock = memo(({
 
         {/* Delete button - hardware style */}
         {isSelected && (
-<<<<<<< HEAD
           <button
-=======
-          <button type="button"
->>>>>>> origin/main
             onClick={(e) => { e.stopPropagation(); onDelete(phoneme.id); }}
             className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white text-xs flex items-center justify-center shadow-lg border border-red-400/50 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-red-400"
             title="Delete phoneme (Delete key)"

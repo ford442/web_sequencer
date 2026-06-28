@@ -437,9 +437,9 @@ export function createPlayDrum(
 
         // Legacy fallback (no kit engine)
         if (sound === 'kick') {
-                if (refs.sidechainGainRef.current) {
-                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
-                }
+            if (refs.sidechainGainRef.current) {
+                triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+            }
 
                 const kickParams = params as KickParams;
                 const osc = context.createOscillator();
@@ -541,7 +541,6 @@ export function createPlayDrum(
             }
         };
     };
-}
 
 export function createNoteOnSynth(
     context: AudioContext,

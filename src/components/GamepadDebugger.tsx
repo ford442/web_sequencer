@@ -29,11 +29,7 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto" onClick={onClose}>
       <div aria-hidden="true" className="absolute inset-0 z-0"></div>
       <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-5xl p-6 relative" role="dialog" aria-modal="true" aria-labelledby="gamepad-debugger-title" aria-describedby="gamepad-debugger-desc" tabIndex={-1} ref={modalRef} onClick={e => e.stopPropagation()}>
-<<<<<<< HEAD
         <button
-=======
-        <button type="button"
->>>>>>> origin/main
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 rounded p-1.5"
           aria-label="Close Debugger"

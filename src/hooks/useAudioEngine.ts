@@ -774,13 +774,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- HOISTED PARAMETERS START ---
                 // Vocoder Mix
                 const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
-<<<<<<< HEAD
-=======
-                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
-                const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
-                const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
-                const pVocoderRelease = noteParams?.vocoderRelease ?? 0.05;
->>>>>>> origin/main
 
                 // Spectral Panning
                 const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
@@ -895,9 +888,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
                     // For each note in the chord
-                    notes.forEach((noteStr, _noteIndex) => {
-
-                        const triggerVoice = (voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+                    const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
                             const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
@@ -975,17 +966,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 try {
                                     const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
                                         numberOfInputs: 2,
-<<<<<<< HEAD
                                         parameterData: { mix: vocoderMix }
-=======
-                                        parameterData: {
-                                            mix: vocoderMix,
-                                            formantShift: pVocoderFormantShift,
-                                            preservation: pVocoderPreservation,
-                                            envelopeAttack: pVocoderAttack,
-                                            envelopeRelease: pVocoderRelease
-                                        }
->>>>>>> origin/main
                                     });
                                     // Connect Synth A to carrier (input 0)
                                     synthABusRef.current.connect(vocoderNode, 0, 0);
@@ -1293,12 +1274,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
                         };
 
-                        const runVoices = (timeOffset: number, duration: number) => {
+                        const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
                             const t = actualTime + timeOffset;
 
                             const mainVoiceData = manager.acquireVoiceForBank(params.sampleName);
                             manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
-                            triggerVoice(mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
+                            triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
 
                             const effectiveChoir = noteParams?.choir !== undefined ? noteParams.choir : (params.choir || 0);
 
@@ -1312,19 +1293,22 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 const leftVoiceData = manager.acquireVoiceForBank(params.sampleName);
                                 if (leftVoiceData.index !== mainVoiceData.index) {
                                     manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
-                                    triggerVoice(leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
+                                    triggerVoice(noteStr, leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
                                 }
 
                                 const rightVoiceData = manager.acquireVoiceForBank(params.sampleName);
                                 if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
                                     manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
-                                    triggerVoice(rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
+                                    triggerVoice(noteStr, rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
                                 }
                             } else if (pitchOffsetSemitones === 0) {
                                 if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                             }
                         };
+                    notes.forEach((noteStr, _noteIndex) => {
+
+
 
                         if (shouldGlitch) {
                             const numStutters = Math.floor(Math.random() * 3) + 2;
@@ -1332,16 +1316,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             const stutterLen = Math.min(0.06, totalDur / numStutters);
 
                             for (let i = 0; i < numStutters; i++) {
-                                runVoices(i * stutterLen, stutterLen);
+                                runVoices(noteStr, i * stutterLen, stutterLen);
                             }
                             const played = numStutters * stutterLen;
                             if (totalDur > played) {
-                                runVoices(played, totalDur - played);
+                                runVoices(noteStr, played, totalDur - played);
                             }
                         } else {
                             for (let r = 0; r < retrigger; r++) {
                                 const offset = r * (subDurationSteps * stepTime);
-                                runVoices(offset, subDurationSteps * stepTime);
+                                runVoices(noteStr, offset, subDurationSteps * stepTime);
                             }
                         }
                     });
@@ -1428,17 +1412,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         try {
                             const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
                                 numberOfInputs: 2,
-<<<<<<< HEAD
                                 parameterData: { mix: vocoderMix }
-=======
-                                parameterData: {
-                                    mix: vocoderMix,
-                                    formantShift: pVocoderFormantShift,
-                                    preservation: pVocoderPreservation,
-                                    envelopeAttack: pVocoderAttack,
-                                    envelopeRelease: pVocoderRelease
-                                }
->>>>>>> origin/main
                             });
                             // Connect Synth A to carrier (input 0)
                             synthABusRef.current.connect(vocoderNode, 0, 0);

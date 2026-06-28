@@ -181,11 +181,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.m
     return (
         <div className="relative inline-block">
             {/* Main button: displays current note, supports drag */}
-<<<<<<< HEAD
             <button
-=======
-            <button type="button"
->>>>>>> origin/main
                 ref={buttonRef}
                 className="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded cursor-ns-resize select-none touch-none border border-transparent hover:border-cyan-500/50 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-cyan-400"
                 style={{
@@ -234,11 +230,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> = React.m
                                     const isInScale = scaleNotes ? scaleNotes.has(noteName) : true;
 
                                     return (
-<<<<<<< HEAD
                                         <button
-=======
-                                        <button type="button"
->>>>>>> origin/main
                                             key={fullNote}
                                             role="option"
                                             aria-selected={isSelected}
