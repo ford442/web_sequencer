@@ -457,6 +457,7 @@ export interface Note {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  phonemes?: PhonemeData[];
   vocoderFormantShift?: number;
   vocoderPreservation?: number;
   vocoderAttack?: number;
