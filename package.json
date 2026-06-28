@@ -1,5 +1,6 @@
 {
   "name": "hyphon-daw",
+  "workspaces": ["."],
   "version": "1.0.0",
   "private": true,
   "description": "Sequencer-driven Web Audio workstation inspired by the Korg Electribe EA-1 ER-1.",
