@@ -41,7 +41,6 @@ export interface SynthParams {
   pitchAttack?: number;
   pitchDecay?: number;
   pitchAmount?: number;
-  formantEnvFollower?: number;
   vowel?: number;
   /** Prophecy: Portamento rate 0–1 (0=instantaneous, 1=max glide) */
   portamento?: number;
@@ -147,15 +146,15 @@ export interface SamplerBankParams {
   pitchAttack?: number;
   pitchDecay?: number;
   pitchAmount?: number;
-  formantEnvFollower?: number;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  vocoderAttack?: number;
+  vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
-    vibratoDepth: number;
     tremoloDepth: number;
     breathAmount: number;
   };
@@ -459,11 +458,13 @@ export interface Note {
   spectralPanDepth?: number;
   vocoderMix?: number;
   phonemes?: PhonemeData[];
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
+  vocoderAttack?: number;
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
   pitchDecay?: number;
   pitchAmount?: number;
-  formantEnvFollower?: number;
   vowel?: number;
   /** Prophecy: Portamento rate 0–1 */
   portamento?: number;

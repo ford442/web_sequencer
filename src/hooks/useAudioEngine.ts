@@ -774,6 +774,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- HOISTED PARAMETERS START ---
                 // Vocoder Mix
                 const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
+                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
+                const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
+                const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
+                const pVocoderRelease = noteParams?.vocoderRelease ?? 0.05;
 
                 // Spectral Panning
                 const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
@@ -966,7 +970,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 try {
                                     const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
                                         numberOfInputs: 2,
-                                        parameterData: { mix: vocoderMix }
+                                        parameterData: {
+                                            mix: vocoderMix,
+                                            formantShift: pVocoderFormantShift,
+                                            preservation: pVocoderPreservation,
+                                            envelopeAttack: pVocoderAttack,
+                                            envelopeRelease: pVocoderRelease
+                                        }
                                     });
                                     // Connect Synth A to carrier (input 0)
                                     synthABusRef.current.connect(vocoderNode, 0, 0);
@@ -1412,7 +1422,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         try {
                             const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
                                 numberOfInputs: 2,
-                                parameterData: { mix: vocoderMix }
+                                parameterData: {
+                                    mix: vocoderMix,
+                                    formantShift: pVocoderFormantShift,
+                                    preservation: pVocoderPreservation,
+                                    envelopeAttack: pVocoderAttack,
+                                    envelopeRelease: pVocoderRelease
+                                }
                             });
                             // Connect Synth A to carrier (input 0)
                             synthABusRef.current.connect(vocoderNode, 0, 0);
