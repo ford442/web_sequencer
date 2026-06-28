@@ -437,109 +437,109 @@ export function createPlayDrum(
 
         // Legacy fallback (no kit engine)
         if (sound === 'kick') {
-                if (refs.sidechainGainRef.current) {
-                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+            if (refs.sidechainGainRef.current) {
+                triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+            }
+
+            const kickParams = params as KickParams;
+            const osc = context.createOscillator();
+            const gain = context.createGain();
+
+            osc.frequency.setValueAtTime(150 * pitchRatio, now);
+            osc.frequency.exponentialRampToValueAtTime(0.01, now + kickParams.decay);
+
+            gain.gain.setValueAtTime(kickParams.volume, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + kickParams.decay);
+
+            osc.connect(gain);
+
+            let finalDest: AudioNode = gain;
+            if ((pan !== undefined && pan !== 0) || (kickParams.pan !== undefined && kickParams.pan !== 0)) {
+                const activePan = pan !== undefined ? pan : (kickParams.pan || 0);
+                const panner = context.createStereoPanner();
+                panner.pan.value = activePan;
+                finalDest.connect(panner);
+                finalDest = panner;
+            }
+            finalDest.connect(refs.masterGainRef.current);
+
+            osc.start(now);
+            osc.stop(now + kickParams.decay);
+
+        } else if (sound === 'snare') {
+            const snareParams = params as SnareParams;
+            const osc = context.createOscillator();
+            const oscGain = context.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(250 * pitchRatio, now);
+            oscGain.gain.setValueAtTime(snareParams.tone * snareParams.volume, now);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
+
+            let finalDestOsc: AudioNode = oscGain;
+            if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
+                const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
+                const panner = context.createStereoPanner();
+                panner.pan.value = activePan;
+                finalDestOsc.connect(panner);
+                finalDestOsc = panner;
+            }
+
+            if (refs.noiseBufferRef.current) {
+                const noise = context.createBufferSource();
+                noise.buffer = refs.noiseBufferRef.current;
+                const noiseFilter = context.createBiquadFilter();
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.value = 1000;
+                const noiseGain = context.createGain();
+                noiseGain.gain.setValueAtTime(snareParams.noise * snareParams.volume, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
+
+                noise.connect(noiseFilter);
+                noiseFilter.connect(noiseGain);
+                let finalDestNoise: AudioNode = noiseGain;
+                if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
+                    const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
+                    const panner = context.createStereoPanner();
+                    panner.pan.value = activePan;
+                    finalDestNoise.connect(panner);
+                    finalDestNoise = panner;
                 }
+                finalDestNoise.connect(refs.masterGainRef.current);
+                noise.start(now);
+                noise.stop(now + snareParams.decay);
+            }
 
-                const kickParams = params as KickParams;
-                const osc = context.createOscillator();
+            osc.connect(oscGain);
+            finalDestOsc.connect(refs.masterGainRef.current);
+            osc.start(now);
+            osc.stop(now + snareParams.decay);
+        } else {
+            const hatParams = params as HatParams;
+            if (refs.noiseBufferRef.current) {
+                const src = context.createBufferSource();
+                src.buffer = refs.noiseBufferRef.current;
+                const filter = context.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.value = 5000;
                 const gain = context.createGain();
+                gain.gain.setValueAtTime(hatParams.volume, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + hatParams.decay);
 
-                osc.frequency.setValueAtTime(150 * pitchRatio, now);
-                osc.frequency.exponentialRampToValueAtTime(0.01, now + kickParams.decay);
-
-                gain.gain.setValueAtTime(kickParams.volume, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + kickParams.decay);
-
-                osc.connect(gain);
-
+                src.connect(filter);
+                filter.connect(gain);
                 let finalDest: AudioNode = gain;
-                if ((pan !== undefined && pan !== 0) || (kickParams.pan !== undefined && kickParams.pan !== 0)) {
-                    const activePan = pan !== undefined ? pan : (kickParams.pan || 0);
+                if ((pan !== undefined && pan !== 0) || (hatParams.pan !== undefined && hatParams.pan !== 0)) {
+                    const activePan = pan !== undefined ? pan : (hatParams.pan || 0);
                     const panner = context.createStereoPanner();
                     panner.pan.value = activePan;
                     finalDest.connect(panner);
                     finalDest = panner;
                 }
                 finalDest.connect(refs.masterGainRef.current);
-
-                osc.start(now);
-                osc.stop(now + kickParams.decay);
-            } else if (sound === 'snare') {
-                const snareParams = params as SnareParams;
-                const osc = context.createOscillator();
-                const oscGain = context.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(250 * pitchRatio, now);
-                oscGain.gain.setValueAtTime(snareParams.tone * snareParams.volume, now);
-                oscGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
-
-                let finalDestOsc: AudioNode = oscGain;
-                if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
-                    const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
-                    const panner = context.createStereoPanner();
-                    panner.pan.value = activePan;
-                    finalDestOsc.connect(panner);
-                    finalDestOsc = panner;
-                }
-
-                if (refs.noiseBufferRef.current) {
-                    const noise = context.createBufferSource();
-                    noise.buffer = refs.noiseBufferRef.current;
-                    const noiseFilter = context.createBiquadFilter();
-                    noiseFilter.type = 'highpass';
-                    noiseFilter.frequency.value = 1000;
-                    const noiseGain = context.createGain();
-                    noiseGain.gain.setValueAtTime(snareParams.noise * snareParams.volume, now);
-                    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
-
-                    noise.connect(noiseFilter);
-                    noiseFilter.connect(noiseGain);
-                    let finalDestNoise: AudioNode = noiseGain;
-                    if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
-                    const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
-                        const panner = context.createStereoPanner();
-                        panner.pan.value = activePan;
-                        finalDestNoise.connect(panner);
-                        finalDestNoise = panner;
-                    }
-                    finalDestNoise.connect(refs.masterGainRef.current);
-                    noise.start(now);
-                    noise.stop(now + snareParams.decay);
-                }
-
-                osc.connect(oscGain);
-                finalDestOsc.connect(refs.masterGainRef.current);
-                osc.start(now);
-                osc.stop(now + snareParams.decay);
-            } else {
-                const hatParams = params as HatParams;
-                if (refs.noiseBufferRef.current) {
-                    const src = context.createBufferSource();
-                    src.buffer = refs.noiseBufferRef.current;
-                    const filter = context.createBiquadFilter();
-                    filter.type = 'highpass';
-                    filter.frequency.value = 5000;
-                    const gain = context.createGain();
-                    gain.gain.setValueAtTime(hatParams.volume, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + hatParams.decay);
-
-                    src.connect(filter);
-                    filter.connect(gain);
-                    let finalDest: AudioNode = gain;
-                    if ((pan !== undefined && pan !== 0) || (hatParams.pan !== undefined && hatParams.pan !== 0)) {
-                        const activePan = pan !== undefined ? pan : (hatParams.pan || 0);
-                        const panner = context.createStereoPanner();
-                        panner.pan.value = activePan;
-                        finalDest.connect(panner);
-                        finalDest = panner;
-                    }
-                    finalDest.connect(refs.masterGainRef.current);
-                    src.start(now);
-                    src.stop(now + hatParams.decay);
-                }
+                src.start(now);
+                src.stop(now + hatParams.decay);
             }
-        };
+        }
     };
 }
 

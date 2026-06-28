@@ -15,11 +15,7 @@ export const WaveformFloatingToggle: React.FC<WaveformFloatingToggleProps> = Rea
 
   return (
     <div className="absolute top-2 right-4 z-50 pointer-events-auto">
-<<<<<<< HEAD
-      <button
-=======
       <button type="button"
->>>>>>> origin/main
         aria-label="Open waveform selector"
         aria-expanded={open}
         aria-controls="waveform-selector-popover"
