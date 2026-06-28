@@ -185,14 +185,11 @@ class VocoderProcessor extends AudioWorkletProcessor {
                 // Ensure we have at least fftSize samples in the buffer to process
                 // Wait until buffer has filled up initially
                 // To simplify, we actually process backwards from inputWriteIdx
-                this.processFrame(bufSize);
+                this.processFrame(bufSize, resynthesisAmt);
 
                 this.samplesBuffered -= this.hopSize;
                 this.outputWriteIdx = (this.outputWriteIdx + this.hopSize) % bufSize;
             }
-            this.inBufferCarrier[this.FRAME_SIZE - 1] = cIn[i];
-            this.inBufferModulator[this.FRAME_SIZE - 1] = mIn[i];
-            this.outBuffer[this.FRAME_SIZE - 1] = 0;
 
             // Output the accumulated signal
             const outSample = this.outputBuffer[this.outputReadIdx];
