@@ -171,6 +171,8 @@ class VocoderProcessor extends AudioWorkletProcessor {
 
         const mixParams = parameters.mix;
         const isMixConstant = mixParams.length === 1;
+        const resynthesisParams = parameters.spectralResynthesis;
+        const resynthesisAmt = resynthesisParams ? resynthesisParams[0] : 0;
         const bufSize = this.carrierBuffer.length;
 
         for (let i = 0; i < carrierInput.length; i++) {
