@@ -210,7 +210,7 @@ class VocoderProcessor extends AudioWorkletProcessor {
         return true;
     }
 
-    private processFrame(bufSize: number) {
+    private processFrame(bufSize: number, resynthesisAmt: number) {
         // 1. Gather samples and apply window
         // The most recent sample is at (inputWriteIdx - 1).
         // We want to grab the last `fftSize` samples.
