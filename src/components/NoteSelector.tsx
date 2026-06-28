@@ -67,13 +67,10 @@ interface NoteSelectorProps {
   currentDelaySend?: number;
   currentChoir?: number;
   currentVocoderMix?: number;
-<<<<<<< HEAD
-=======
   currentVocoderFormantShift?: number;
   currentVocoderPreservation?: number;
   currentVocoderAttack?: number;
   currentVocoderRelease?: number;
->>>>>>> origin/main
   currentGateDepth?: number;
   currentGateRate?: number;
   /** Prophecy: whether the active synth uses a prophecy-* waveform */
@@ -136,13 +133,10 @@ interface NoteSelectorProps {
       | "delaySend"
       | "choir"
       | "vocoderMix"
-<<<<<<< HEAD
-=======
       | "vocoderFormantShift"
       | "vocoderPreservation"
       | "vocoderAttack"
       | "vocoderRelease"
->>>>>>> origin/main
       | "vowel"
       | "portamento",
     value: number | boolean | string,
@@ -211,13 +205,10 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentDownsample = 1,
     currentChoir,
     currentVocoderMix,
-<<<<<<< HEAD
-=======
     currentVocoderFormantShift,
     currentVocoderPreservation,
     currentVocoderAttack,
     currentVocoderRelease,
->>>>>>> origin/main
     currentTranceGate = 0, // from jules branch
 
     currentGateDepth = 0,
@@ -592,8 +583,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                     borderColor="border-indigo-900/30"
                   />
 
-<<<<<<< HEAD
-=======
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between text-[10px] text-indigo-200/70 font-bold uppercase">
                       <label htmlFor="note-vocoder-formant-shift">Voc Fmt Sft</label>
@@ -644,7 +633,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                     />
                   </div>
 
->>>>>>> origin/main
                   <PropertySlider
                     label="Bitcrush"
                     id="note-bitcrush"
