@@ -30,3 +30,7 @@
 ## 2026-06-28 - Sequence Builder Button Hygiene
 **Learning:** Found that quick-action buttons in interactive sequence builders (like adding/removing measures in SongMode) frequently lack `type="button"` and `title` tooltips. This omits crucial affordance for both keyboard and mouse users, as well as risking accidental form submissions if placed within `<form>` tags.
 **Action:** When auditing custom sequencer panels, explicitly verify that all control buttons (like "+ BAR" or "- BAR") include both a semantic `type="button"` and a `title` tooltip alongside their existing `aria-label`.
+
+## 2026-06-25 - DragValue Component Accessibility Refinement
+**Learning:** Found that custom draggable input controls with supplementary increment/decrement buttons lack standard `type="button"` attributes, which can cause unexpected form submissions if nested within forms. Additionally, focus ring colors must be aligned with the global app theme (e.g., using cyan instead of yellow) to maintain visual consistency across reusable components.
+**Action:** Ensure all `<button>` elements in custom input components include `type="button"` explicitly, and verify that `focus-visible:ring` colors match the app's established design system tokens.
