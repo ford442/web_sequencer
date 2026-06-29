@@ -157,17 +157,19 @@ export function createPlaySynth(
         const subDurationSteps = durationSteps / retrigger;
         const subDuration = subDurationSteps * stepTime;
 
+
+        const noteStr = Array.isArray(note) ? note[0] : note;
+        if (!noteStr) {
+            return;
+        }
+        const midi = noteToMidi(noteStr);
+
         for (let i = 0; i < retrigger; i++) {
             const noteTime = actualTime + (i * subDuration);
 
             if (track === 'bass2') {
                 if (refs.open303ManagerRef.current?.isBass2Ready()) {
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
 
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -197,12 +199,7 @@ export function createPlaySynth(
                 if (refs.open303ManagerRef.current?.isBass1Ready()) {
                     refs.open303ManagerRef.current.applyBass1Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
 
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -233,12 +230,7 @@ export function createPlaySynth(
                 if (refs.open303ManagerRef.current?.isLead303Ready()) {
                     refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
 
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -269,12 +261,7 @@ export function createPlaySynth(
                 if (refs.prophecyManagerRef?.current?.isPartBReady()) {
                     refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
 
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -302,12 +289,7 @@ export function createPlaySynth(
                 if (refs.prophecyManagerRef?.current?.isPartAReady()) {
                     refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
 
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
 
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -455,9 +437,9 @@ export function createPlayDrum(
 
         // Legacy fallback (no kit engine)
         if (sound === 'kick') {
-                if (refs.sidechainGainRef.current) {
-                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
-                }
+            if (refs.sidechainGainRef.current) {
+                triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+            }
 
                 const kickParams = params as KickParams;
                 const osc = context.createOscillator();
@@ -557,9 +539,9 @@ export function createPlayDrum(
                     src.stop(now + hatParams.decay);
                 }
             }
+        };
     };
 
-}
 export function createNoteOnSynth(
     context: AudioContext,
     refs: Pick<PlaybackRefs, 'open303ManagerRef' | 'prophecyManagerRef' | 'voiceManagerARef' | 'voiceManagerBRef' | 'nextSynthNoteId' | 'activeSynthNotes' | 'bassSidechainEQBusRef'>,
