@@ -171,6 +171,8 @@ class VocoderProcessor extends AudioWorkletProcessor {
 
         const mixParams = parameters.mix;
         const isMixConstant = mixParams.length === 1;
+        const resynthesisParams = parameters.spectralResynthesis;
+        const resynthesisAmt = resynthesisParams ? resynthesisParams[0] : 0;
         const bufSize = this.carrierBuffer.length;
 
         for (let i = 0; i < carrierInput.length; i++) {
@@ -185,14 +187,11 @@ class VocoderProcessor extends AudioWorkletProcessor {
                 // Ensure we have at least fftSize samples in the buffer to process
                 // Wait until buffer has filled up initially
                 // To simplify, we actually process backwards from inputWriteIdx
-                this.processFrame(bufSize);
+                this.processFrame(bufSize, resynthesisAmt);
 
                 this.samplesBuffered -= this.hopSize;
                 this.outputWriteIdx = (this.outputWriteIdx + this.hopSize) % bufSize;
             }
-            this.inBufferCarrier[this.FRAME_SIZE - 1] = cIn[i];
-            this.inBufferModulator[this.FRAME_SIZE - 1] = mIn[i];
-            this.outBuffer[this.FRAME_SIZE - 1] = 0;
 
             // Output the accumulated signal
             const outSample = this.outputBuffer[this.outputReadIdx];
@@ -213,7 +212,7 @@ class VocoderProcessor extends AudioWorkletProcessor {
         return true;
     }
 
-    private processFrame(bufSize: number) {
+    private processFrame(bufSize: number, resynthesisAmt: number) {
         // 1. Gather samples and apply window
         // The most recent sample is at (inputWriteIdx - 1).
         // We want to grab the last `fftSize` samples.

@@ -742,7 +742,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantEnvAmount?: number,
                     formantEnvFollower?: number,
                     envMod?: number,
-                    vocoderMix?: number
+                    vocoderMix?: number,
+                    spectralResynthesis?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
