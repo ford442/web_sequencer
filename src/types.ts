@@ -157,7 +157,7 @@ export interface SamplerBankParams {
   vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
-    vibratoDepth: number;
+    vibratoDepth?: number;
     tremoloDepth: number;
     breathAmount: number;
   };
