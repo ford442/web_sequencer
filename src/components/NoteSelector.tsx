@@ -252,7 +252,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
             >
               NOTE PROPERTIES
             </span>
-            <button
+            <button type="button"
               onClick={onClose}
               aria-label="Close note properties"
               title="Close note properties (Esc)"
@@ -348,8 +348,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                     <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
                       <label htmlFor="note-freeze-rate">Frz LFO Rate</label>
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
+                        <button type="button"
                           role="switch"
                           aria-checked={currentFreezeLfoSync}
                           aria-label="Sync Freeze LFO Rate to BPM"
@@ -1058,7 +1057,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       aria-valuetext={`${currentFormantShift > 0 ? "+" : ""}${currentFormantShift} st`}
                     />
                     <div className="flex items-center gap-2 mt-1">
-                      <button
+                      <button type="button"
                         className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-zinc-900 border-zinc-700 text-gray-500"} hover:bg-zinc-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-cyan-500`}
                         onClick={() =>
                           onPropertyChange("slideFormant", !currentSlideFormant)
@@ -1093,8 +1092,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                   <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase items-center">
                     <label htmlFor="note-fmt-rate">Fmt LFO Rate</label>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <button type="button"
                         role="switch"
                         aria-checked={currentFormantLfoSync || false}
                         aria-label="Sync Formant LFO Rate to BPM"
@@ -1270,8 +1268,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 <div className="flex flex-col gap-1 mt-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30">
                   <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
                     <label>Formant Env Sync</label>
-                    <button
-                      type="button"
+                    <button type="button"
                       role="switch"
                       aria-checked={currentFormantEnvSync || false}
                       aria-label="Sync Formant Envelope to BPM"
@@ -1502,7 +1499,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                     >
                       {(["A", "E", "I", "O", "U"] as const).map(
                         (label, idx) => (
-                          <button
+                          <button type="button"
                             key={label}
                             onClick={() => onPropertyChange("vowel", idx)}
                             aria-pressed={Math.round(currentVowel) === idx}
@@ -1649,7 +1646,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                   className="flex gap-1"
                 >
                   {[1, 2, 3, 4].map((val) => (
-                    <button
+                    <button type="button"
                       key={val}
                       onClick={() => onPropertyChange("retrigger", val)}
                       className={`flex-1 py-1 text-[10px] font-bold rounded transition-all ${currentRetrigger === val ? "bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.3)]" : "bg-gray-800/80 text-cyan-200/70 hover:bg-gray-700 hover:text-white border border-gray-700/50"}`}
@@ -1782,7 +1779,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
               {/* Reverse Control */}
               <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase py-1">
                 <label htmlFor="note-reverse">Reverse Sample</label>
-                <button
+                <button type="button"
                   id="note-reverse"
                   onClick={() => onPropertyChange("reverse", !currentReverse)}
                   className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${currentReverse ? "bg-cyan-500 justify-end shadow-[0_0_8px_rgba(6,182,212,0.4)]" : "bg-gray-700 justify-start border border-gray-600"}`}
@@ -1811,7 +1808,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       : true;
 
                     return (
-                      <button
+                      <button type="button"
                         key={fullNote}
                         onClick={() => isInScale && onSelect(fullNote)}
                         aria-label={`Select ${fullNote}`}
