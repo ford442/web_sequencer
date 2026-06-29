@@ -40,3 +40,6 @@
 ## 2026-06-18 - Missing Type Attribute on Buttons
 **Learning:** Found several generic `<button>` elements lacking the `type="button"` attribute. In HTML, buttons inside or outside forms default to `type="submit"`, which can cause unintended side-effects like reloading the page when activated via keyboard.
 **Action:** Always explicitly specify `type="button"` on non-submit buttons (e.g. toggle switches, close icons) to prevent unintended form submission behaviors and improve screen reader stability.
+## 2026-06-29 - Fixed missing type='button' in NoteSelector and AutomationLaneList
+**Learning:** Generic <button> elements inside heavy editing flows like NoteSelector and AutomationLaneList often omit the type="button" attribute. While they may not immediately sit inside a <form> element, it is standard HTML and accessibility practice to explicitly add type="button" to non-submit action buttons to ensure correct behavior and stability.
+**Action:** Always explicitly specify type="button" on generic <button> elements, especially in high-use panels like NoteSelector and AutomationLaneList.
