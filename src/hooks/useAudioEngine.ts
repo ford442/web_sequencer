@@ -196,6 +196,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const expressiveVoicePoolRef = useRef<AudioNodePool | null>(null);
     const vocalOverdrivePoolRef = useRef<AudioNodePool | null>(null);
     const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool | null>(null);
+    const vocoderPoolRef = useRef<AudioNodePool | null>(null);
     
     // Multisample Generator
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
@@ -542,18 +543,21 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             try {
                 await context.audioWorklet.addModule(vocoderProcessorUrl);
+                vocoderPoolRef.current = new AudioNodePool(context, 'vocoder-processor', { numberOfInputs: 2 });
             } catch (error) {
                 console.error('VocoderProcessor AudioWorklet initialization failed:', error);
             }
 
             try {
                 await context.audioWorklet.addModule(vocalOverdriveProcessorUrl);
+                vocalOverdrivePoolRef.current = new AudioNodePool(context, 'vocal-overdrive-processor');
             } catch (error) {
                 console.error('VocalOverdrive AudioWorklet initialization failed:', error);
             }
 
             try {
                 await context.audioWorklet.addModule(expressiveVoiceProcessorUrl);
+                expressiveVoiceProcessorPoolRef.current = new AudioNodePool(context, 'expressive-voice-processor');
             } catch (error) {
                 console.error('ExpressiveVoiceProcessor AudioWorklet initialization failed:', error);
             }
@@ -969,7 +973,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             let vocoderNodeRef: AudioWorkletNode | null = null;
                             if (vocoderMix > 0 && synthABusRef.current) {
                                 try {
-                                    const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
+                                    const vocoderNode = vocoderPoolRef.current?.acquire({
+                                        mix: vocoderMix,
+                                        formantShift: pVocoderFormantShift,
+                                        preservation: pVocoderPreservation,
+                                        envelopeAttack: pVocoderAttack,
+                                        envelopeRelease: pVocoderRelease
+                                    }) || new AudioWorkletNode(context, 'vocoder-processor', {
                                         numberOfInputs: 2,
                                         parameterData: {
                                             mix: vocoderMix,
@@ -1266,7 +1276,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                     }
                                     if (vocoderNodeRef) {
                                         synthABusRef.current?.disconnect(vocoderNodeRef);
-                                        vocoderNodeRef.disconnect();
+                                        vocoderPoolRef.current?.release(vocoderNodeRef);
                                     }
                                 }, delayMs);
                             } else {
@@ -1280,7 +1290,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 }
                                 if (vocoderNodeRef) {
                                     synthABusRef.current?.disconnect(vocoderNodeRef);
-                                    vocoderNodeRef.disconnect();
+                                    vocoderPoolRef.current?.release(vocoderNodeRef);
                                 }
                             }
                         };
@@ -1421,7 +1431,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     let vocoderNodeRef: AudioWorkletNode | null = null;
                     if (vocoderMix > 0 && synthABusRef.current) {
                         try {
-                            const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
+                            const vocoderNode = vocoderPoolRef.current?.acquire({
+                                mix: vocoderMix,
+                                formantShift: pVocoderFormantShift,
+                                preservation: pVocoderPreservation,
+                                envelopeAttack: pVocoderAttack,
+                                envelopeRelease: pVocoderRelease
+                            }) || new AudioWorkletNode(context, 'vocoder-processor', {
                                 numberOfInputs: 2,
                                 parameterData: {
                                     mix: vocoderMix,
@@ -1447,7 +1463,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             // Clean up
                             source.addEventListener('ended', () => {
                                 synthABusRef.current?.disconnect(vocoderNode);
-                                vocoderNode.disconnect();
+                                vocoderPoolRef.current?.release(vocoderNode);
                             });
                         } catch (e) {
                             console.warn("Failed to instantiate vocoder node", e);
