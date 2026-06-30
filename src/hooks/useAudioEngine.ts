@@ -1557,11 +1557,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     }
                 };
 
+                // ⚡ Bolt: Hoist string parsing and noteToMidi out of polyphonic playback loop
+                const isArray = Array.isArray(notes);
+                const firstNote = isArray && notes.length > 0 ? notes[0] : notes;
+                const noteMidiValue = firstNote ? noteToMidi(firstNote as string) + pitchOffsetSemitones : 0;
+
                 notes.forEach(noteStr => {
-                    // Include pitchOffsetSemitones so harmony voices transpose correctly
-                    // in buffer-source mode (matches the pitch offset already applied in
-                    // stretch mode via noteToMidi(noteStr) + pitchOffsetSemitones).
-                    const midi = noteToMidi(noteStr) + pitchOffsetSemitones;
+                    const midi = noteMidiValue;
 
                     if (shouldGlitch) {
                         const numStutters = Math.floor(Math.random() * 3) + 2;

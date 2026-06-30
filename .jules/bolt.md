@@ -22,3 +22,7 @@
 ## 2026-06-25 - Real-time Polyphonic Closure Hoisting
 **Learning:** During polyphonic granular playback (`useAudioEngine.ts` inside `playSamplerVoice`), defining complex closures like `triggerVoice` and `runVoices` inside the `notes.forEach` loop forces the engine to re-allocate and capture these heavy functions for every note triggered. In glitch effects or wide chords, this creates intense garbage collection overhead per frame.
 **Action:** Always identify and hoist closures out of high-frequency inner loops. Pass dynamic iteration variables (like `noteStr`) as explicit parameters instead of capturing them implicitly, fully decoupling the logic from the inner loop execution phase and avoiding per-note memory reallocation.
+
+## 2026-29-29 - Redundant Worklet Param Resolution in Audio Playback
+**Learning:** Discovered that polyphonic trigger loops inside `createPlaySynth` and `createPlayDrum` redundantly re-parse notes, calculate midi numbers, and compute pitch ratios on every iteration/sub-step instead of hoisting these invariant calculations.
+**Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
