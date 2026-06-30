@@ -742,7 +742,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantEnvAmount?: number,
                     formantEnvFollower?: number,
                     envMod?: number,
-                    vocoderMix?: number
+                    vocoderMix?: number,
+                    spectralResynthesis?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -774,10 +775,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- HOISTED PARAMETERS START ---
                 // Vocoder Mix
                 const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
-                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
-                const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
-                const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
-                const pVocoderRelease = noteParams?.vocoderRelease ?? 0.05;
+                const pVocoderFormantShift = (noteParams as any)?.vocoderFormantShift ?? params.formantShift ?? 0;
+                const pVocoderPreservation = (noteParams as any)?.vocoderPreservation ?? 1.0;
+                const pVocoderAttack = (noteParams as any)?.vocoderAttack ?? 0.01;
+                const pVocoderRelease = (noteParams as any)?.vocoderRelease ?? 0.05;
 
                 // Spectral Panning
                 const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
