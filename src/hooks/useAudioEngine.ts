@@ -713,6 +713,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     freezeLfoDepth?: number,
                     customLfoShape?: number[],
                     vibratoDepth?: number,
+                    tremoloDepth?: number,
+                    tremoloRate?: number,
                     reverbSend?: number,
                     delaySend?: number,
                     choir?: number,
