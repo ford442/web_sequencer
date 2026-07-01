@@ -26,3 +26,7 @@
 ## 2026-29-29 - Redundant Worklet Param Resolution in Audio Playback
 **Learning:** Discovered that polyphonic trigger loops inside `createPlaySynth` and `createPlayDrum` redundantly re-parse notes, calculate midi numbers, and compute pitch ratios on every iteration/sub-step instead of hoisting these invariant calculations.
 **Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
+
+## 2026-07-01 - Real-time Polyphonic Closure Hoisting via Context
+**Learning:** During polyphonic granular playback (`useAudioEngine.ts` inside `playSamplerVoice`), defining complex closures like `triggerVoice` and `runVoices` inside the outer execution scope forces the engine to re-allocate and capture these heavy functions on EVERY trigger call. In glitch effects or wide chords, this creates intense garbage collection overhead.
+**Action:** Always identify and hoist closures fully to the module level outside of high-frequency playback functions. Construct a single explicit, typed context object (like `SamplerVoiceContext`) right after resolving parameters, and pass it into these hoisted module-level functions. This completely eliminates implicit closure capture and per-call memory reallocation.
