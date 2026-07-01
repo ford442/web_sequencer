@@ -465,9 +465,6 @@ export interface Note {
   vocoderAttack?: number;
   vocoderRelease?: number;
   phonemes?: PhonemeData[];
-  vocoderFormantShift?: number;
-  vocoderPreservation?: number;
-  vocoderAttack?: number;
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
   pitchDecay?: number;
