@@ -59,7 +59,7 @@ export const ProphecyPanel: React.FC<ProphecyPanelProps> = memo(({
             </span>
             <div className="flex gap-1">
                 {VOWEL_LABELS.map((label, idx) => (
-                    <button
+                    <button type="button"
                         key={label}
                         onClick={() => onVowelChange(idx)}
                         aria-pressed={isActive(idx)}

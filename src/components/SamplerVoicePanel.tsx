@@ -302,7 +302,7 @@ const HarmonizerPopover: React.FC<{
                         HARMONIZER
                     </span>
                     {/* Toggle switch style ON/OFF button */}
-                    <button 
+                    <button type="button"
                         onClick={() => setLocalActive(!localActive)}
                         aria-label={localActive ? "Disable Harmonizer" : "Enable Harmonizer"}
                         aria-pressed={localActive}
@@ -326,7 +326,7 @@ const HarmonizerPopover: React.FC<{
                         <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Voices</span>
                         <div className="flex gap-2 bg-zinc-950/50 p-1 rounded-lg border border-zinc-800">
                             {[2, 3, 4].map(count => (
-                                <button
+                                <button type="button"
                                     key={count}
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
                                     aria-label={`${count} Voices`} title={`${count} Voices`}
@@ -352,7 +352,7 @@ const HarmonizerPopover: React.FC<{
                         <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Type</span>
                         <div className="grid grid-cols-2 gap-1.5">
                             {harmonyTypes.map(({ value, label }) => (
-                                <button
+                                <button type="button"
                                     key={value}
                                     onClick={() => handleHarmonyTypeChange(value)}
                                     aria-label={`${label} Harmony`} title={`${label} Harmony`}
@@ -444,7 +444,7 @@ const HarmonizerPopover: React.FC<{
                                 { key: 'choir', label: 'CHR', desc: 'Choir (Thick)' },
                                 { key: 'power', label: '5TH', desc: '5th Harmony (Power)' }
                             ].map(({ key, label, desc }) => (
-                                <button
+                                <button type="button"
                                     key={key}
                                     onClick={() => setLocalConfig(HARMONIZE_PRESETS[key as keyof typeof HARMONIZE_PRESETS]())}
                                     className="flex-1 py-1.5 rounded-md text-[8px] font-bold bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border border-zinc-700 hover:text-zinc-200 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
@@ -458,7 +458,7 @@ const HarmonizerPopover: React.FC<{
                     </div>
 
                     {/* Apply Button - Animated hardware style */}
-                    <button
+                    <button type="button"
                         onClick={handleApply}
                         aria-label="Apply Harmonizer Settings"
                         title="Apply Harmonizer Settings"
@@ -771,8 +771,8 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                         </div>
 
                         <div className="flex items-center gap-2 mt-1">
-                            <button
-                                type="button"
+                            <button type="button"
+
                                 onClick={() => handleParamChange('lockToSequencer', !localLock)}
                                 className={`w-9 h-5 rounded-full border transition-all relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 ${localLock ? 'bg-cyan-600/80 border-cyan-400' : 'bg-zinc-800 border-zinc-600'}`}
                                 role="switch"
@@ -895,7 +895,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             
                             {/* HARMONIZE Button - Hardware style */}
                             <div className="relative">
-                                <button
+                                <button type="button"
                                     ref={harmonizeTriggerRef}
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
                                     aria-haspopup="dialog"

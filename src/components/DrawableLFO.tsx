@@ -140,12 +140,12 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = React.memo(({
         <div className="flex flex-col items-center gap-1 p-2 bg-gray-900/50 rounded border border-gray-700/50">
             <div className="flex justify-between w-full items-center px-1">
                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{label}</span>
-                <button
+                <button type="button"
                     onClick={resetToFlat}
                     className="text-[9px] text-gray-500 hover:text-green-400 transition-colors"
                     aria-label="Reset to Flat"
                     title="Reset to Flat"
-                    type="button"
+
                 >
                     RESET
                 </button>

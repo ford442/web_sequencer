@@ -43,3 +43,6 @@
 ## 2026-06-29 - Fixed missing type='button' in NoteSelector and AutomationLaneList
 **Learning:** Generic <button> elements inside heavy editing flows like NoteSelector and AutomationLaneList often omit the type="button" attribute. While they may not immediately sit inside a <form> element, it is standard HTML and accessibility practice to explicitly add type="button" to non-submit action buttons to ensure correct behavior and stability.
 **Action:** Always explicitly specify type="button" on generic <button> elements, especially in high-use panels like NoteSelector and AutomationLaneList.
+## 2026-07-01 - [Avoid Bulk Python Replacements for JSX Attributes]
+**Learning:** Using bulk python string replacement scripts to insert HTML attributes across many JSX files frequently introduces duplicate attributes (e.g., `type="button" type="button"`) and unclosed tags, triggering `TS17001` compilation errors. Worse, broad matching patterns can unintentionally match and delete unrelated file contents (e.g., interface definitions in `types.ts`).
+**Action:** Always use targeted, file-specific manual edits, unified diff patch tools, or highly specific IDE refactoring tools when adding standard accessibility attributes. When a build breaks due to duplicates, apply surgical fixes rather than reverting entire batches of valid accessibility work.
