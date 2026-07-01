@@ -67,6 +67,7 @@ export const ContextMenuNode = React.memo(() => {
           currentFreezeEnvDepth={stepData?.freezeEnvDepth}
           currentGrainEnvDepth={stepData?.grainEnvDepth}
           currentGrainPitchEnvDepth={stepData?.grainPitchEnvDepth}
+          currentGrainJitter={stepData?.grainJitter}
           currentGrainPitchQuantize={stepData?.grainPitchQuantize}
           currentSpectralPanRate={stepData?.spectralPanRate ?? 0}
           currentSpectralPanDepth={stepData?.spectralPanDepth ?? 0}

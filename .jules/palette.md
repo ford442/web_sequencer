@@ -27,6 +27,9 @@
 ## 2024-06-20 - [Grouped Parameter Accessibility]
 **Learning:** In complex dropdown or parameter groups like those in the ScaleSelector, grouping related standard `<select>` options in a `<fieldset>` with a visually hidden `<legend>` ensures proper context without requiring multiple repetitive aria labels on every input and unifies their screen reading experience. Applying a unified `focus-visible:ring` provides critical context that regular `focus:ring` lacks.
 **Action:** When creating groupings of closely related controls (e.g. root, scale, tuning system), default to `<fieldset>` and `<legend>` wrapping and strictly use `focus-visible:` classes over `focus:`.
+## 2026-06-28 - Sequence Builder Button Hygiene
+**Learning:** Found that quick-action buttons in interactive sequence builders (like adding/removing measures in SongMode) frequently lack `type="button"` and `title` tooltips. This omits crucial affordance for both keyboard and mouse users, as well as risking accidental form submissions if placed within `<form>` tags.
+**Action:** When auditing custom sequencer panels, explicitly verify that all control buttons (like "+ BAR" or "- BAR") include both a semantic `type="button"` and a `title` tooltip alongside their existing `aria-label`.
 
 ## 2026-06-25 - DragValue Component Accessibility Refinement
 **Learning:** Found that custom draggable input controls with supplementary increment/decrement buttons lack standard `type="button"` attributes, which can cause unexpected form submissions if nested within forms. Additionally, focus ring colors must be aligned with the global app theme (e.g., using cyan instead of yellow) to maintain visual consistency across reusable components.

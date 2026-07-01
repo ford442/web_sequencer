@@ -151,10 +151,13 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
   vocoderAttack?: number;
   vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
+    vibratoDepth?: number;
     tremoloDepth: number;
     breathAmount: number;
   };
@@ -457,6 +460,10 @@ export interface Note {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
+  vocoderAttack?: number;
+  vocoderRelease?: number;
   phonemes?: PhonemeData[];
   vocoderFormantShift?: number;
   vocoderPreservation?: number;
