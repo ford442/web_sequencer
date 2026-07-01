@@ -717,6 +717,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     freezeLfoDepth?: number,
                     customLfoShape?: number[],
                     vibratoDepth?: number,
+                    tremoloDepth?: number,
+                    tremoloRate?: number,
                     reverbSend?: number,
                     delaySend?: number,
                     choir?: number,
@@ -821,6 +823,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 // General Params
                 const pVibratoDepth = noteParams?.vibratoDepth;
+                const pTremoloDepth = noteParams?.tremoloDepth;
+                const pTremoloRate = noteParams?.tremoloRate;
                 const pGateDepth = noteParams?.gateDepth !== undefined ? noteParams.gateDepth : params.gateDepth;
                 const pGateRateHz = noteParams?.gateRate !== undefined
                     ? (tempo / 60) * (noteParams.gateRate / 4)
@@ -1222,6 +1226,8 @@ const triggerVoice = (ctx: SamplerVoiceContext, noteStr: string, voice: SingingV
 
                             // Sync other params
                             if (pVibratoDepth !== undefined) voice.setVibratoDepth(pVibratoDepth, triggerTime);
+                            if (pTremoloDepth !== undefined) voice.setTremoloDepth(pTremoloDepth * 100, triggerTime); // setTremoloDepth expects percentage 0-100
+                            if (pTremoloRate !== undefined) voice.setTremoloRate(pTremoloRate, triggerTime);
                             if (pGateDepth !== undefined) voice.setGateDepth(pGateDepth, triggerTime);
                             if (pGateRateHz !== undefined) voice.setGateRate(pGateRateHz, triggerTime);
 
