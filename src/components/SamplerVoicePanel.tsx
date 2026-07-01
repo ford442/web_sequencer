@@ -329,7 +329,7 @@ const HarmonizerPopover: React.FC<{
                                 <button
                                     key={count}
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
-                                    aria-label={`${count} Voices`}
+                                    aria-label={`${count} Voices`} title={`${count} Voices`}
                                     aria-pressed={localConfig.voiceCount === count}
                                     className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${
                                         localConfig.voiceCount === count
@@ -355,7 +355,7 @@ const HarmonizerPopover: React.FC<{
                                 <button
                                     key={value}
                                     onClick={() => handleHarmonyTypeChange(value)}
-                                    aria-label={`${label} Harmony`}
+                                    aria-label={`${label} Harmony`} title={`${label} Harmony`}
                                     aria-pressed={localConfig.harmonyType === value}
                                     className={`py-1.5 rounded-md text-[9px] font-bold transition-all relative overflow-hidden ${
                                         localConfig.harmonyType === value

@@ -1,3 +1,5 @@
+## 2026-08-09 - Implemented Step-Sequenced Granular Jitter: Added `currentGrainJitter` to `NoteSelector` and `ContextMenuNode` to allow per-step overrides of the global granular jitter parameter. This fulfills the "Step-Sequenced Granular Jitter" idea in the active backlog. Added new idea: "Vocal Harmony Envelope".
+
 ## 2026-08-08 - Implemented Formant Preserving Vocoder: Completely rewrote `vocoder-processor.ts` to use a pure-JS Short-Time Fourier Transform (STFT) inside the AudioWorklet. Smooths the TTS modulator frequency magnitudes to extract a spectral envelope and shapes the Synth A carrier signal, creating a true formant-preserving vocoder. Fulfills the "Formant Preserving Vocoder" Innovation Lab idea. Added new idea: "AI Formant Tracking LFO".
 
 ## 2026-08-05 - Implemented Formant Envelope Sync Subdivisions: Added `formantEnvSync` to `Note` and `SamplerBankParams` interfaces and UI. Mapped parameters to `useAudioEngine.ts` to allow step-sequenced and global formant envelope sync to tempo subdivisions using `getSyncedSeconds`. Fulfills "Formant Envelope Sync" Innovation Lab idea. Added new idea: "Spectral Resynthesis Mode".
@@ -72,6 +74,7 @@
 
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
 ## 🧠 Innovation Lab (The "Dream" Log)
+* [ ] **Idea:** "Vocal Harmony Envelope" - Apply a dedicated ADSR envelope specifically to the generated harmony voices (synth B in choir mode) so they can fade in slowly behind the main lead vocal.
 * [x] **Idea:** "Step-Sequenced Glitch Density" - Allow individual sequencer steps to override the global `glitchChance` parameter, enabling targeted stutter effects on specific syllables. (Implemented in `NoteSelector`, `useAppState`, and `useAudioEngine`!)
 * [x] **Idea:** "Formant LFO Sync Subdivisions" - Extend the Formant LFO sync feature to allow selecting specific note subdivisions (1/4, 1/8, 1/16, 1/32) rather than just syncing to a generic tempo rate. (Implemented via formantLfoSync in NoteSelector and useAudioEngine!)
 * [x] **Idea:** "Formant Envelope Sync" - Sync the formant envelope to BPM subdivisions for rhythmic sweeps. (Implemented in `NoteSelector`, `SamplerPanel`, `useAudioEngine.ts`, and `types.ts` globally and per-step!)
@@ -239,6 +242,7 @@
 * [2026-08-02] - Implemented Granular Pitch Shifter (grain-level): Added `grainPitchShift` to `Note` and `SamplerBankParams` interfaces. Modulated `pitchScale` inside `rubberband-processor.ts` independently of basic tracking. Exposed to global `SamplerPanel` and per-step `NoteSelector` UI. Added new idea: "Formant Preserving Vocoder".
 * [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently. (Implemented inline STFT and overlap-add directly in `vocoder-processor.ts`!)
 * [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently.
+* **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
 * [x] **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
 * [x] **Idea:** "Vocal Pitch Envelope" - Add a dedicated pitch envelope (Attack/Decay/Amount) specifically for TTS phonemes to allow snappy pitch drops (like 808s) or slow, portamento-like rises on individual syllables, independent of standard melodic tracking.
 * [2026-05-19] - Refactored Large Files: Successfully split 10 out of 12 files that were over 1000 lines into multiple smaller files under 700 lines each. Extracted structural UI repetition into sub-components for NoteSelector, RbsImportModal, AISongModal, and SamplerPanel. Deferred splitting AISongStorage.ts and useAudioEngine.ts due to tightly coupled cyclic dependencies. These should be tackled incrementally in the future.
