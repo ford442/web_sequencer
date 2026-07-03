@@ -151,9 +151,6 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
-  vocoderFormantShift?: number;
-  vocoderPreservation?: number;
-  vocoderAttack?: number;
   vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
@@ -434,8 +431,6 @@ export interface Note {
   grainJitter?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
-  tremoloDepth?: number;
-  tremoloRate?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
   reverbLfoRate?: number;
