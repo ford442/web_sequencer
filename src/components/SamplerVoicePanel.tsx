@@ -771,8 +771,8 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                         </div>
 
                         <div className="flex items-center gap-2 mt-1">
-                            <button type="button"
-
+                            <button
+                                type="button"
                                 onClick={() => handleParamChange('lockToSequencer', !localLock)}
                                 className={`w-9 h-5 rounded-full border transition-all relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 ${localLock ? 'bg-cyan-600/80 border-cyan-400' : 'bg-zinc-800 border-zinc-600'}`}
                                 role="switch"

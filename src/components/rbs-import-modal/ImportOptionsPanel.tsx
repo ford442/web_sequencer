@@ -35,8 +35,8 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
             onClick={() => updateOption('expandTo32Steps', !importOptions.expandTo32Steps)}
           >
             <span id="expand-label" className="text-sm text-gray-400 select-none">Expand 16 → 32 steps</span>
-            <button type="button"
-
+            <button
+              type="button"
               role="switch"
               aria-checked={importOptions.expandTo32Steps}
               aria-labelledby="expand-label"
@@ -64,8 +64,8 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
             onClick={() => updateOption('importSwing', !importOptions.importSwing)}
           >
             <span id="swing-label" className="text-sm text-gray-400 select-none">Import swing settings</span>
-            <button type="button"
-
+            <button
+              type="button"
               role="switch"
               aria-checked={importOptions.importSwing}
               aria-labelledby="swing-label"
@@ -93,8 +93,8 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
             onClick={() => updateOption('convertPcfToAutomation', !importOptions.convertPcfToAutomation)}
           >
             <span id="pcf-label" className="text-sm text-gray-400 select-none">Convert PCF to automation</span>
-            <button type="button"
-
+            <button
+              type="button"
               role="switch"
               aria-checked={importOptions.convertPcfToAutomation}
               aria-labelledby="pcf-label"

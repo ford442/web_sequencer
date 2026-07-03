@@ -54,9 +54,9 @@ export const DrumPads = memo(({ onPlayDrum }: DrumPadsProps) => {
           const isActive = activePads.has(pad.id);
 
           return (
-            <button type="button"
+            <button
               key={pad.id}
-
+              type="button"
               aria-label={`Play ${pad.label}`}
               title={`Play ${pad.label}`}
               onMouseDown={() => handlePadDown(pad)}
