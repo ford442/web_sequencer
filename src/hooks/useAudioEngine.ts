@@ -2102,7 +2102,7 @@ const playSamplerVoice = (
             loadingProgressStore.completeStep('complete');
             loadingProgressStore.finishLoading();
             setIsReady(true);
-        } catch (e) {
+        } } } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             loadingProgressStore.addError(e instanceof Error ? e.message : String(e));
             loadingProgressStore.finishLoading();

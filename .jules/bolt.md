@@ -32,3 +32,7 @@
 ## 2026-29-29 - Redundant Worklet Param Resolution in Audio Playback
 **Learning:** Discovered that polyphonic trigger loops inside `createPlaySynth` and `createPlayDrum` redundantly re-parse notes, calculate midi numbers, and compute pitch ratios on every iteration/sub-step instead of hoisting these invariant calculations.
 **Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
+
+## 2026-07-06 - Decoupling React Render Loop from Sequencer Playhead
+**Learning:** During fast sequencer playback (high BPM), driving the playhead highlight via React props (`steps`, `viewMode`) and triggering `updateClasses` via state changes or deep array dependencies causes severe layout thrashing and widespread re-rendering across all 32-step rows (`MainSequencer`, `SequencerRow`).
+**Action:** Decouple frequent playhead visual updates from the React render loop. Store the required props (`steps`) in a `useRef` synced via `useLayoutEffect`. This allows the `updateClasses` callback to have an empty dependency array `[]`. Finally, wrap the direct DOM mutations (`stepRefs.current[i].classList.add`) inside a `requestAnimationFrame` to batch layout changes and guarantee 60fps performance without React reconciliation overhead.
