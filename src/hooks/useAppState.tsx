@@ -41,7 +41,7 @@ import {
     DEFAULT_SAMPLER_BANK_PARAMS,
     getKitDrumParams,
 } from '../constants'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType, AutomationTarget, ResolvedTrakEvent, OscillatorType } from '../types'
+import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Note, Bass2Params, PhonemeData, ReverbType, DrumKitType, DrumSound, AutomationTarget, ResolvedTrakEvent, OscillatorType } from '../types'
 import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses, OSCILLATOR_THEMES } from '../types'
 import {
     INITIAL_SAMPLER_PARAMS, UPDATED_INITIAL_PATTERN,
@@ -932,6 +932,25 @@ const handleAutomationChange = useCallback((trackKey: TrackKey, step: number, va
     }, [handlePatternChange]);
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
+
+    const handleDrumPadPlay = useCallback((sound: DrumSound, velocity = 1.0) => {
+        if (!audioEngine) return;
+
+        const time = audioEngine.context.currentTime;
+        const paramsBySound = {
+            kick: kickRef.current,
+            snare: snareRef.current,
+            closedHat: closedHatRef.current,
+            openHat: openHatRef.current,
+        } as const;
+        const params = paramsBySound[sound];
+        const scaledParams = velocity === 1
+            ? params
+            : { ...params, volume: params.volume * velocity };
+
+        audioEngine.playDrum(sound, scaledParams, time);
+    }, [audioEngine]);
+
 const handleKeyboardPlay = useCallback((note: string) => {
     if (!audioEngine) return;
 
@@ -1195,10 +1214,10 @@ const handleNotePropertyChange = useCallback((
          'vibratoDepth' | 'drive' | 'characterMorph' |
          'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
          'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
-         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'pan' | 'glitchChance' |
+         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' |
-         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'vocoderMix' |
-         'spectralPanRate' | 'spectralPanDepth' |
+         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
+         'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' |
          'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
     value: number | boolean | string
 ) => {
@@ -1846,6 +1865,7 @@ const handleLyricApply = useCallback(async (text: string) => {
         handleStepToggle,
         handleKeyboardPlay,
         handleKeyboardStop,
+        handleDrumPadPlay,
         handleRightMouseDown,
         handleGlobalMouseMove,
         handleGlobalMouseUp,

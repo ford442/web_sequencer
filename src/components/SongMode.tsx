@@ -344,9 +344,9 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                 <div className="h-14 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 flex items-center justify-between px-6 shrink-0 relative">
                      <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest">SONG ARRANGER</h2>
                      <div className="flex gap-3 items-center">
-                        <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg border border-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
-                        <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">+ BAR</button>
-                        <button
+                        <button type="button" onClick={onRemoveMeasure} aria-label="Remove Measure" title="Remove Measure" className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg border border-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
+                        <button type="button" onClick={onAddMeasure} aria-label="Add Measure" title="Add Measure" className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">+ BAR</button>
+                        <button type="button"
                             onClick={() => onSetIsSongModeActive(!isSongModeActive)}
                             aria-pressed={isSongModeActive}
                             aria-label={isSongModeActive ? 'Loop Song Mode Active' : 'Loop Pattern Mode Active'}
@@ -446,16 +446,16 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                             className="w-32 bg-transparent text-xs text-cyan-300 focus:outline-none border-b border-gray-700 focus:border-cyan-500 font-mono"
                         />
                         {backgroundImage && (
-                            <button
+                            <button type="button"
                                 onClick={() => onSetBackgroundImage('')}
                                 className="text-gray-500 hover:text-white px-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
                                 aria-label="Clear Background Image"
                             ><span aria-hidden="true">✕</span></button>
                         )}
                     </div>
-                    <button onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
-                    <button onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">+ BAR</button>
-                    <button
+                    <button type="button" onClick={onRemoveMeasure} aria-label="Remove Measure" title="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
+                    <button type="button" onClick={onAddMeasure} aria-label="Add Measure" title="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">+ BAR</button>
+                    <button type="button"
                         onClick={() => onSetIsSongModeActive(!isSongModeActive)}
                         aria-pressed={isSongModeActive}
                         aria-label={isSongModeActive ? 'Loop Song Mode Active' : 'Loop Pattern Mode Active'}
@@ -463,7 +463,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                     >
                         {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
                     </button>
-                    <button
+                    <button type="button"
                         onClick={async () => {
                             if (isExporting) return;
                             setIsExporting(true);
@@ -492,7 +492,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                             </span>
                         ) : 'EXPORT XM'}
                     </button>
-                    <button onClick={onToggle} aria-label="Close Song Mode" title="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1"><span aria-hidden="true">✕</span></button>
+                    <button type="button" onClick={onToggle} aria-label="Close Song Mode" title="Close Song Mode" className="ml-2 text-gray-400 hover:text-white text-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1"><span aria-hidden="true">✕</span></button>
                 </div>
             </div>
 

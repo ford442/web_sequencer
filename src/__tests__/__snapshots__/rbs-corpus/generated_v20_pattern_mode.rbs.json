@@ -1,7 +1,8 @@
 {
-  "automationLaneCount": 2,
+  "automationLaneCount": 3,
   "automationTargets": [
     "synthA.accent",
+    "synthA.filterCutoff",
     "synthA.slide",
   ],
   "file": "generated_v20_pattern_mode.rbs",

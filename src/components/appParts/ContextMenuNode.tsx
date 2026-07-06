@@ -51,6 +51,8 @@ export const ContextMenuNode = React.memo(() => {
           currentFormantEnvAmount={stepData?.formantEnvAmount}
           currentFormantEnvFollower={stepData?.formantEnvFollower}
           currentVibratoDepth={stepData?.vibratoDepth ?? 0}
+          currentTremoloDepth={stepData?.tremoloDepth ?? 0}
+          currentTremoloRate={stepData?.tremoloRate ?? 0}
           currentGateDepth={stepData?.gateDepth}
           currentGateRate={stepData?.gateRate}
           currentDrive={stepData?.drive}
@@ -67,6 +69,7 @@ export const ContextMenuNode = React.memo(() => {
           currentFreezeEnvDepth={stepData?.freezeEnvDepth}
           currentGrainEnvDepth={stepData?.grainEnvDepth}
           currentGrainPitchEnvDepth={stepData?.grainPitchEnvDepth}
+          currentGrainJitter={stepData?.grainJitter}
           currentGrainPitchQuantize={stepData?.grainPitchQuantize}
           currentSpectralPanRate={stepData?.spectralPanRate ?? 0}
           currentSpectralPanDepth={stepData?.spectralPanDepth ?? 0}

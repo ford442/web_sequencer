@@ -24,6 +24,10 @@ interface SamplerVoicePanelProps {
     tremoloDepth?: number; // 0-1
     breathAmount?: number; // 0-1
     vocoderMix?: number; // 0-1
+    vocoderFormantShift?: number;
+    vocoderPreservation?: number;
+    vocoderAttack?: number;
+    vocoderRelease?: number;
     quality?: 'preview' | 'good' | 'better' | 'best';
     stretchMode?: 'Time' | 'Pitch' | 'Formant';
     lockToSequencer?: boolean;
@@ -298,7 +302,7 @@ const HarmonizerPopover: React.FC<{
                         HARMONIZER
                     </span>
                     {/* Toggle switch style ON/OFF button */}
-                    <button 
+                    <button type="button"
                         onClick={() => setLocalActive(!localActive)}
                         aria-label={localActive ? "Disable Harmonizer" : "Enable Harmonizer"}
                         aria-pressed={localActive}
@@ -322,10 +326,10 @@ const HarmonizerPopover: React.FC<{
                         <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Voices</span>
                         <div className="flex gap-2 bg-zinc-950/50 p-1 rounded-lg border border-zinc-800">
                             {[2, 3, 4].map(count => (
-                                <button
+                                <button type="button"
                                     key={count}
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
-                                    aria-label={`${count} Voices`}
+                                    aria-label={`${count} Voices`} title={`${count} Voices`}
                                     aria-pressed={localConfig.voiceCount === count}
                                     className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${
                                         localConfig.voiceCount === count
@@ -348,10 +352,10 @@ const HarmonizerPopover: React.FC<{
                         <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Type</span>
                         <div className="grid grid-cols-2 gap-1.5">
                             {harmonyTypes.map(({ value, label }) => (
-                                <button
+                                <button type="button"
                                     key={value}
                                     onClick={() => handleHarmonyTypeChange(value)}
-                                    aria-label={`${label} Harmony`}
+                                    aria-label={`${label} Harmony`} title={`${label} Harmony`}
                                     aria-pressed={localConfig.harmonyType === value}
                                     className={`py-1.5 rounded-md text-[9px] font-bold transition-all relative overflow-hidden ${
                                         localConfig.harmonyType === value
@@ -440,7 +444,7 @@ const HarmonizerPopover: React.FC<{
                                 { key: 'choir', label: 'CHR', desc: 'Choir (Thick)' },
                                 { key: 'power', label: '5TH', desc: '5th Harmony (Power)' }
                             ].map(({ key, label, desc }) => (
-                                <button
+                                <button type="button"
                                     key={key}
                                     onClick={() => setLocalConfig(HARMONIZE_PRESETS[key as keyof typeof HARMONIZE_PRESETS]())}
                                     className="flex-1 py-1.5 rounded-md text-[8px] font-bold bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border border-zinc-700 hover:text-zinc-200 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
@@ -454,7 +458,7 @@ const HarmonizerPopover: React.FC<{
                     </div>
 
                     {/* Apply Button - Animated hardware style */}
-                    <button
+                    <button type="button"
                         onClick={handleApply}
                         aria-label="Apply Harmonizer Settings"
                         title="Apply Harmonizer Settings"
@@ -504,6 +508,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     tremoloDepth = 0,
     breathAmount = 0,
     vocoderMix = 0,
+    vocoderFormantShift = 0,
+    vocoderPreservation = 1.0,
+    vocoderAttack = 0.01,
+    vocoderRelease = 0.05,
     quality = 'good',
     stretchMode = 'Time',
     lockToSequencer = false,
@@ -523,6 +531,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [localTremoloDepth, setLocalTremoloDepth] = useState(tremoloDepth);
     const [localBreathAmount, setLocalBreathAmount] = useState(breathAmount);
     const [localVocoderMix, setLocalVocoderMix] = useState(vocoderMix);
+    const [localVocoderFormantShift, setLocalVocoderFormantShift] = useState(vocoderFormantShift);
+    const [localVocoderPreservation, setLocalVocoderPreservation] = useState(vocoderPreservation);
+    const [localVocoderAttack, setLocalVocoderAttack] = useState(vocoderAttack);
+    const [localVocoderRelease, setLocalVocoderRelease] = useState(vocoderRelease);
     const [localQuality, setLocalQuality] = useState<typeof quality>(quality);
     const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
@@ -553,6 +565,10 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'vocoderMix': setLocalVocoderMix(value as number); break;
+            case 'vocoderFormantShift': setLocalVocoderFormantShift(value as number); break;
+            case 'vocoderPreservation': setLocalVocoderPreservation(value as number); break;
+            case 'vocoderAttack': setLocalVocoderAttack(value as number); break;
+            case 'vocoderRelease': setLocalVocoderRelease(value as number); break;
             case 'quality': setLocalQuality(value as typeof quality); break;
             case 'stretchMode': setLocalStretch(value as typeof stretchMode); break;
             case 'lockToSequencer': setLocalLock(value as boolean); break;
@@ -824,6 +840,38 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             colorHex={colorHex}
                         />
                     </div>
+                    <div className="flex gap-2">
+                        <HSlider
+                            label="VOC FMT SFT"
+                            value={localVocoderFormantShift / 12}
+                            displayValue={localVocoderFormantShift.toFixed(0)}
+                            onChange={(v) => handleParamChange('vocoderFormantShift', v * 12)}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="VOC PRESERV"
+                            value={localVocoderPreservation * 2 - 1}
+                            displayValue={localVocoderPreservation.toFixed(2)}
+                            onChange={(v) => handleParamChange('vocoderPreservation', Math.max(0, Math.min(1, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                    </div>
+                    <div className="flex gap-2">
+                        <HSlider
+                            label="VOC ATTACK"
+                            value={localVocoderAttack * 2 - 1}
+                            displayValue={localVocoderAttack.toFixed(3)}
+                            onChange={(v) => handleParamChange('vocoderAttack', Math.max(0.001, Math.min(1.0, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="VOC RELEASE"
+                            value={localVocoderRelease * 2 - 1}
+                            displayValue={localVocoderRelease.toFixed(3)}
+                            onChange={(v) => handleParamChange('vocoderRelease', Math.max(0.001, Math.min(1.0, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                    </div>
 
                     {/* Divider */}
                     <div className="h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent my-1" />
@@ -847,7 +895,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             
                             {/* HARMONIZE Button - Hardware style */}
                             <div className="relative">
-                                <button
+                                <button type="button"
                                     ref={harmonizeTriggerRef}
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
                                     aria-haspopup="dialog"

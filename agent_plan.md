@@ -1,3 +1,7 @@
+## 2026-08-09 - Implemented Step-Sequenced Granular Jitter: Added `currentGrainJitter` to `NoteSelector` and `ContextMenuNode` to allow per-step overrides of the global granular jitter parameter. This fulfills the "Step-Sequenced Granular Jitter" idea in the active backlog. Added new idea: "Vocal Harmony Envelope".
+
+## 2026-08-08 - Implemented Formant Preserving Vocoder: Completely rewrote `vocoder-processor.ts` to use a pure-JS Short-Time Fourier Transform (STFT) inside the AudioWorklet. Smooths the TTS modulator frequency magnitudes to extract a spectral envelope and shapes the Synth A carrier signal, creating a true formant-preserving vocoder. Fulfills the "Formant Preserving Vocoder" Innovation Lab idea. Added new idea: "AI Formant Tracking LFO".
+
 ## 2026-08-05 - Implemented Formant Envelope Sync Subdivisions: Added `formantEnvSync` to `Note` and `SamplerBankParams` interfaces and UI. Mapped parameters to `useAudioEngine.ts` to allow step-sequenced and global formant envelope sync to tempo subdivisions using `getSyncedSeconds`. Fulfills "Formant Envelope Sync" Innovation Lab idea. Added new idea: "Spectral Resynthesis Mode".
 
 ## 2026-08-03 - Implemented Formant LFO Sync Subdivisions: Added `formantLfoSync` to `Note` interface and UI. Mapped parameters to `useAudioEngine.ts` to allow step-sequenced formant LFO rate sync to tempo subdivisions. Fulfills "Formant LFO Sync Subdivisions" Innovation Lab idea. Added new idea: "Formant Envelope Sync".
@@ -70,6 +74,7 @@
 
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
 ## 🧠 Innovation Lab (The "Dream" Log)
+* [ ] **Idea:** "Vocal Harmony Envelope" - Apply a dedicated ADSR envelope specifically to the generated harmony voices (synth B in choir mode) so they can fade in slowly behind the main lead vocal.
 * [x] **Idea:** "Step-Sequenced Glitch Density" - Allow individual sequencer steps to override the global `glitchChance` parameter, enabling targeted stutter effects on specific syllables. (Implemented in `NoteSelector`, `useAppState`, and `useAudioEngine`!)
 * [x] **Idea:** "Formant LFO Sync Subdivisions" - Extend the Formant LFO sync feature to allow selecting specific note subdivisions (1/4, 1/8, 1/16, 1/32) rather than just syncing to a generic tempo rate. (Implemented via formantLfoSync in NoteSelector and useAudioEngine!)
 * [x] **Idea:** "Formant Envelope Sync" - Sync the formant envelope to BPM subdivisions for rhythmic sweeps. (Implemented in `NoteSelector`, `SamplerPanel`, `useAudioEngine.ts`, and `types.ts` globally and per-step!)
@@ -100,6 +105,7 @@
 * [x] **Idea:** "Text-to-Drumkit" - Auto-generate a drum kit from a TTS phrase by mapping short transient consonants (t, k, p) to hats/snares and vowels to kicks/toms.
 * [x] **Idea:** "Vocal Envelope Shaper" - Add granular attack/decay ADSR shaping explicitly for TTS syllables to create sharp plucks or smooth pads from any word. (Implemented in ExpressiveVoiceProcessor and exposed to SamplerPanel!)
 * [x] **Idea:** "Dynamic Tremolo" - Expose Tremolo Rate and Depth to UI to pulse vocals. (Implemented!)
+* [x] **Idea:** "Step-Sequenced Tremolo" - Allow individual sequencer steps to override the global Tremolo Rate and Depth settings. (Implemented!)
 * [x] **Idea:** "LFO to Freeze Amount" - Automate the Freeze parameter with an LFO to create rhythmic pulsing granular clouds. (Implemented in RubberBandProcessor and exposed to SamplerPanel!)
 * [x] **Idea:** "Per-Step Filter & Resonance" - Allow sequence steps to override cutoff and resonance for rhythmic acid-style filtering of TTS samples. (Implemented!)
 * [x] **Idea:** "Filter Envelope Mod" - Allow the sequence steps to have an envelope mod amount that specifically shapes the filter envelope per step. (Implemented!)
@@ -131,7 +137,7 @@
 ---
 
 * [x] **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
-* **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
+* [x] **Idea:** "Granular Envelope Follower" - Allow mapping the amplitude envelope of the voice sample to control granular parameters like grain size or freeze amount.
 * [x] **Idea:** "Vocal Harmony Parallel Bus" - Implement a dedicated bus to process all harmony vocal tracks together (e.g., glue compression, joint EQ) independently from the main lead vocal track.
 * [x] **Idea:** "Multiband Distortion for TTS" - Create a specialized distortion effect that splits the vocal spectrum and only saturates the highs to simulate aggressive modern pop/rap vocal processing without muddying the fundamental pitch.
 * [x] **Idea:** "Harmony Panning & Routing Fix" - Fix the master saturation bypass for harmony voices that prevented proper panning. Ensure pan parameters add up and clamp correctly.
@@ -145,6 +151,7 @@
 ---
 
 ## 📜 Changelog
+* [2026-08-10] - Implemented Step-Sequenced Tremolo: Added `tremoloRate` and `tremoloDepth` per-step parameters to `Note` interface and exposed controls in `NoteSelector`. Connected these to `useAudioEngine.ts` to allow individual sequencer steps to rhythmically override the global tremolo envelope, providing dynamic pulsing vocal textures. Fulfills the "Step-Sequenced Tremolo" Innovation Lab idea. Added new idea: "Step-Sequenced Granular Pitch Envelopes".
 * [2026-08-08] - Implemented Formant Envelope Follower: Built a native Web Audio envelope follower in `FormantShifter.ts` (using `WaveShaperNode` for rectification and `BiquadFilterNode` for smoothing) to dynamically modulate formant shift amounts based on vocal amplitude. Added global UI knob to `SamplerPanel` and per-step automation to `NoteSelector`. Cleaned up duplicate setters and passed performance and integration tests. Fulfills the "Formant Envelope Follower" Innovation Lab idea.
 * [2026-06-21] - Implemented Granular Position Jitter: Added `grainJitter` parameter to `rubberband-processor.ts` and `SingingVoice.ts`. Wired UI controls in `SamplerPanel` and `NoteSelector` to allow global and per-step granular jitter for textured vocal smearing. Added "Formant Envelope Follower" to Innovation Lab.
 * [2026-08-07] - Implemented Spectral Morph Automation: Added `characterMorph` as an automatable lane parameter to allow drawing automation curves to morph spectrally between TTS vocal characters over a sequence of steps. Fulfills the "Spectral Morph Automation" Innovation Lab idea.
@@ -235,8 +242,10 @@
 * [2026-05-12] - Implemented Performance Fixes for CI and TS Types: Cleaned up mismatched properties between `SamplerBankParams` UI and internal type definitions (`coarseTune`, `fineTune`, `formantShift`, `quality`, `lockToSequencer`). Cleaned up custom sequencer optimization patch.
 * [2026-08-02] - Implemented Granular Pitch Shifter: Added `granularPitchShift` to `Note` and `SamplerBankParams` interfaces. Mapped parameters to `rubberband-processor.ts` via `SingingVoice.ts` and `useAudioEngine.ts` to allow independent granular pitch transposition logic via ratio scaling, decoupled from sample duration, fulfilling the "Granular Pitch Shifter" Innovation Lab idea. Added new idea: "Vocal Overdrive Worklet".
 * [2026-08-02] - Implemented Granular Pitch Shifter (grain-level): Added `grainPitchShift` to `Note` and `SamplerBankParams` interfaces. Modulated `pitchScale` inside `rubberband-processor.ts` independently of basic tracking. Exposed to global `SamplerPanel` and per-step `NoteSelector` UI. Added new idea: "Formant Preserving Vocoder".
-* **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently.
+* [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently. (Implemented inline STFT and overlap-add directly in `vocoder-processor.ts`!)
+* [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently.
 * **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
+* [x] **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
 * [x] **Idea:** "Vocal Pitch Envelope" - Add a dedicated pitch envelope (Attack/Decay/Amount) specifically for TTS phonemes to allow snappy pitch drops (like 808s) or slow, portamento-like rises on individual syllables, independent of standard melodic tracking.
 * [2026-05-19] - Refactored Large Files: Successfully split 10 out of 12 files that were over 1000 lines into multiple smaller files under 700 lines each. Extracted structural UI repetition into sub-components for NoteSelector, RbsImportModal, AISongModal, and SamplerPanel. Deferred splitting AISongStorage.ts and useAudioEngine.ts due to tightly coupled cyclic dependencies. These should be tackled incrementally in the future.
 
@@ -245,5 +254,10 @@
 
 
 * [x] **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.
+
+## 2026-08-09 - Implemented Spectral Resynthesis Mode: Added `spectralResynthesis` mode to `vocoder-processor.ts` which interpolates between Vocoder envelope tracking and true FFT-based magnitude cross-synthesis. Plumbed parameters through the AudioEngine and added UI controls to `NoteSelector`, `SamplerVoicePanel`, and `SamplerPanel`. Fulfills "Spectral Resynthesis Mode" Innovation Lab idea. Added new idea: "Harmonic Content Preserving Time-Stretch".
+
+## 2026-08-08 - Implemented Formant Preserving Vocoder: Upgraded `vocoder-processor.ts` from a simple envelope follower to a true FFT-based vocoder. Added a lightweight JS FFT/IFFT implementation and Overlap-Add (OLA) framework directly in the worklet. The DSP now extracts the spectral envelope (formants) from the Modulator (TTS Sampler) and applies it to the Carrier (Synth A) while preserving phase. Fulfills "Formant Preserving Vocoder" Innovation Lab idea.
+
 ## 2026-08-06 - Implemented Granular Pitch Envelope: Completed implementation by adding UI controls to ContextMenuNode and fixing syntax in useAudioEngine. Fulfills "Granular Pitch Envelope" Innovation Lab idea.
 * [x] **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.
