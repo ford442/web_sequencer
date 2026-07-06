@@ -497,7 +497,7 @@ export function createPlayDrum(
                     noiseFilter.connect(noiseGain);
                     let finalDestNoise: AudioNode = noiseGain;
                     if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
-                    const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
+                        const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
                         const panner = context.createStereoPanner();
                         panner.pan.value = activePan;
                         finalDestNoise.connect(panner);
