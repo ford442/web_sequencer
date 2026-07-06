@@ -5,6 +5,10 @@
 ## 2026-06-25 - Redundant Worklet Param Resolution in Audio Playback
 **Learning:** Discovered that polyphonic trigger loops inside `createPlaySynth` and `createPlayDrum` redundantly re-parse notes, calculate midi numbers, and compute pitch ratios on every iteration/sub-step instead of hoisting these invariant calculations.
 **Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
+
+## 2026-06-22 - Nested function closures and array checks hoisted
+**Learning:** Found instances of array parsing `Array.isArray(note)` and massive 300+ line function declarations (`triggerVoice`) inside high frequency inner-loops like `for (let i = 0; i < retrigger; i++)` and `notes.forEach`. This allocates memory per note per cycle in a WebAudio hot path.
+**Action:** Relocated block invariants like `const midi = noteToMidi(noteStr)` and scoped function signatures out of the tight loops to execute strictly once per global sequence step context rather than per voice iteration.
 ## 2026-06-26 - Audio Engine Inner Loop Function Hoisting
 **Learning:** Defining large function closures (like `triggerVoice` and `runVoices`) inside inner loops (like `notes.forEach`) in real-time polyphonic audio triggers causes redundant function recreation and closure allocations per note.
 **Action:** Always hoist complex inner functions outside of polyphonic trigger loops in the Web Audio hot path, passing loop-specific variables (like `noteStr`) as parameters instead to minimize GC pressure and CPU overhead.
