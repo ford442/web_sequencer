@@ -58,6 +58,7 @@ export const DrumPads = memo(({ onPlayDrum }: DrumPadsProps) => {
               key={pad.id}
               type="button"
               aria-label={`Play ${pad.label}`}
+              title={`Play ${pad.label}`}
               onMouseDown={() => handlePadDown(pad)}
               onMouseUp={() => handlePadUp(pad.id)}
               onMouseLeave={() => handlePadUp(pad.id)}

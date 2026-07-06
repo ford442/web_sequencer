@@ -110,7 +110,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                         HARMONIZER
                     </span>
                     {/* Toggle switch style ON/OFF button */}
-                    <button
+                    <button type="button"
                         onClick={() => setLocalActive(!localActive)}
                         aria-label={localActive ? 'Disable Harmonizer' : 'Enable Harmonizer'}
                         className={`relative px-3 py-1 rounded-full text-[9px] font-bold transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500 ${
@@ -133,7 +133,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                         <span id="voice-count-label" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Voices</span>
                         <div role="radiogroup" aria-labelledby="voice-count-label" className="flex gap-2 bg-zinc-950/50 p-1 rounded-lg border border-zinc-800">
                             {[2, 3, 4].map(count => (
-                                <button
+                                <button type="button"
                                     key={count}
                                     role="radio"
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
@@ -160,7 +160,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                         <span id="harmony-type-label" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Type</span>
                         <div role="radiogroup" aria-labelledby="harmony-type-label" className="grid grid-cols-2 gap-1.5">
                             {harmonyTypes.map(({ value, label }) => (
-                                <button
+                                <button type="button"
                                     key={value}
                                     role="radio"
                                     onClick={() => handleHarmonyTypeChange(value)}
@@ -374,7 +374,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 { key: 'choir', label: 'CHR', desc: 'Choir (Thick)' },
                                 { key: 'power', label: '5TH', desc: '5th Harmony (Power)' }
                             ].map(({ key, label, desc }) => (
-                                <button
+                                <button type="button"
                                     key={key}
                                     onClick={() => setLocalConfig(HARMONIZE_PRESETS[key as keyof typeof HARMONIZE_PRESETS]())}
                                     className="flex-1 py-1.5 rounded-md text-[8px] font-bold bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border border-zinc-700 hover:text-zinc-200 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500"
@@ -388,7 +388,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     </div>
 
                     {/* Apply Button - Animated hardware style */}
-                    <button
+                    <button type="button"
                         onClick={handleApply}
                         aria-label="Apply Harmonizer Settings"
                         title="Apply Harmonizer Settings"

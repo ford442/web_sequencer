@@ -45,7 +45,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
       <div className="flex justify-between items-center gap-2">
         <div className="flex gap-1" role="toolbar" aria-label="Sample Management">
           <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" aria-label="Load Sample File" />
-          <button
+          <button type="button"
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold text-gray-300"
             aria-label="Load Sample from File"
@@ -56,7 +56,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
             </svg>
             LOAD
           </button>
-          <button
+          <button type="button"
             onClick={toggleRecording}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold transition-colors ${
               isRecording
@@ -87,7 +87,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
             aria-label="Text to Speech Phrase"
           />
           {currentTtsText && (
-            <button
+            <button type="button"
               onClick={() => setCurrentTtsText('')}
               className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
               aria-label="Clear Text-to-Speech phrase input"
@@ -114,7 +114,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           GEN
         </LoadingButton>
         {onOpenEditor && (
-          <button
+          <button type="button"
             onClick={onOpenEditor}
             aria-haspopup="dialog"
             aria-expanded={isVoiceEditorOpen}
@@ -144,7 +144,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {isProcessingHarmonize ? "Applying harmonization, please wait..." : ""}
         </div>
-        <button
+        <button type="button"
           onClick={handleHarmonizeClick}
           disabled={isProcessingHarmonize || !onHarmonize}
           className={`flex items-center gap-1.5 px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all ${isProcessingHarmonize ? 'cursor-wait' : ''}`}

@@ -123,7 +123,7 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
                 
                 {/* Cancel Button (only during non-critical stages) */}
                 {aiImportStage && !['complete', 'error', 'loading'].includes(aiImportStage) && (
-                    <button
+                    <button type="button"
                         onClick={() => {
                             setIsImportingAISong(false);
                             setAiImportStage(null);

@@ -105,7 +105,7 @@ const KnobOverlay = memo(({
 
             {/* 2. Record Button */}
             {onRecordToggle && (
-                <button
+                <button type="button"
                     onClick={(e) => { e.stopPropagation(); onRecordToggle(id); }}
                     className="absolute pointer-events-auto transform -translate-x-1/2"
                     style={{
