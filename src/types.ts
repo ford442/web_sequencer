@@ -151,9 +151,6 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
-  vocoderFormantShift?: number;
-  vocoderPreservation?: number;
-  vocoderAttack?: number;
   vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
