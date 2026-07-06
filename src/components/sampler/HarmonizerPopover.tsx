@@ -51,6 +51,22 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
         setLocalConfig(prev => ({ ...prev, busWidener: value }));
     };
 
+    const handleEnvAttackChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, envAttack: value }));
+    };
+
+    const handleEnvDecayChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, envDecay: value }));
+    };
+
+    const handleEnvSustainChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, envSustain: value }));
+    };
+
+    const handleEnvReleaseChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, envRelease: value }));
+    };
+
     const handleApply = () => {
         onApply(localConfig, localActive);
         onClose();
@@ -361,6 +377,131 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 aria-label="Bus Stereo Width"
                                 aria-valuetext={`${Math.round((localConfig.busWidener ?? 0.0) * 100)} percent`}
                             />
+                        </div>
+                    </div>
+
+                    {/* Envelope - Styled sliders */}
+                    <div className="space-y-3 pt-2 border-t border-zinc-800/50">
+                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Envelope</span>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Attack</span>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                    {((localConfig.envAttack ?? 0.01) * 1000).toFixed(0)}ms
+                                </span>
+                            </div>
+                            <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                                <div
+                                    className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                    style={{
+                                        width: `${Math.min(100, ((localConfig.envAttack ?? 0.01) / 2) * 100)}%`,
+                                        background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                        boxShadow: `0 0 10px ${color}40`
+                                    }}
+                                />
+                                <input
+                                    type="range"
+                                    min="0.001"
+                                    max="2"
+                                    step="0.001"
+                                    value={localConfig.envAttack ?? 0.01}
+                                    onChange={(e) => handleEnvAttackChange(parseFloat(e.target.value))}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    aria-label="Harmony Envelope Attack"
+                                    aria-valuetext={`${((localConfig.envAttack ?? 0.01) * 1000).toFixed(0)} milliseconds`}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Decay</span>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                    {((localConfig.envDecay ?? 0.1) * 1000).toFixed(0)}ms
+                                </span>
+                            </div>
+                            <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                                <div
+                                    className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                    style={{
+                                        width: `${Math.min(100, ((localConfig.envDecay ?? 0.1) / 2) * 100)}%`,
+                                        background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                        boxShadow: `0 0 10px ${color}40`
+                                    }}
+                                />
+                                <input
+                                    type="range"
+                                    min="0.001"
+                                    max="2"
+                                    step="0.001"
+                                    value={localConfig.envDecay ?? 0.1}
+                                    onChange={(e) => handleEnvDecayChange(parseFloat(e.target.value))}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    aria-label="Harmony Envelope Decay"
+                                    aria-valuetext={`${((localConfig.envDecay ?? 0.1) * 1000).toFixed(0)} milliseconds`}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Sustain</span>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                    {Math.round((localConfig.envSustain ?? 1.0) * 100)}%
+                                </span>
+                            </div>
+                            <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                                <div
+                                    className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                    style={{
+                                        width: `${(localConfig.envSustain ?? 1.0) * 100}%`,
+                                        background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                        boxShadow: `0 0 10px ${color}40`
+                                    }}
+                                />
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={localConfig.envSustain ?? 1.0}
+                                    onChange={(e) => handleEnvSustainChange(parseFloat(e.target.value))}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    aria-label="Harmony Envelope Sustain"
+                                    aria-valuetext={`${Math.round((localConfig.envSustain ?? 1.0) * 100)} percent`}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Release</span>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                    {((localConfig.envRelease ?? 0.3) * 1000).toFixed(0)}ms
+                                </span>
+                            </div>
+                            <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                                <div
+                                    className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                    style={{
+                                        width: `${Math.min(100, ((localConfig.envRelease ?? 0.3) / 2) * 100)}%`,
+                                        background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                        boxShadow: `0 0 10px ${color}40`
+                                    }}
+                                />
+                                <input
+                                    type="range"
+                                    min="0.001"
+                                    max="2"
+                                    step="0.001"
+                                    value={localConfig.envRelease ?? 0.3}
+                                    onChange={(e) => handleEnvReleaseChange(parseFloat(e.target.value))}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    aria-label="Harmony Envelope Release"
+                                    aria-valuetext={`${((localConfig.envRelease ?? 0.3) * 1000).toFixed(0)} milliseconds`}
+                                />
+                            </div>
                         </div>
                     </div>
 
