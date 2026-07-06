@@ -1257,7 +1257,7 @@ const triggerVoice = (ctx: SamplerVoiceContext, noteStr: string, voice: SingingV
                             voice.setFormantLfoShape(pFormantLfoShape);
 
                             if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
-                            voice.setFormantEnvFollower(pFormantEnvFollower, triggerTime);
+                            voice.setFormantEnvFollower(pFormantEnvFollower as number, triggerTime);
 
                             // Load buffer only if the voice doesn't already have it
                             if (isNewBank) {
