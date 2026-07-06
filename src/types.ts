@@ -151,9 +151,6 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
-  vocoderFormantShift?: number;
-  vocoderPreservation?: number;
-  vocoderAttack?: number;
   vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
@@ -434,6 +431,8 @@ export interface Note {
   grainJitter?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
+  tremoloDepth?: number;
+  tremoloRate?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
   reverbLfoRate?: number;
@@ -465,9 +464,6 @@ export interface Note {
   vocoderAttack?: number;
   vocoderRelease?: number;
   phonemes?: PhonemeData[];
-  vocoderFormantShift?: number;
-  vocoderPreservation?: number;
-  vocoderAttack?: number;
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
   pitchDecay?: number;

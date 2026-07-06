@@ -157,12 +157,15 @@ export function createPlaySynth(
         const subDurationSteps = durationSteps / retrigger;
         const subDuration = subDurationSteps * stepTime;
 
+        // === HOISTED NOTE PROCESSING ===
 
         const noteStr = Array.isArray(note) ? note[0] : note;
         if (!noteStr) {
             return;
         }
         const midi = noteToMidi(noteStr);
+        const velocity = Math.round((noteParams?.velocity ?? 0.8) * 127);
+        const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
 
         for (let i = 0; i < retrigger; i++) {
             const noteTime = actualTime + (i * subDuration);
@@ -178,7 +181,7 @@ export function createPlaySynth(
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnBass2(midi, Math.round((noteParams?.velocity ?? 0.8) * 127));
+                        refs.open303ManagerRef.current?.noteOnBass2(midi, velocity);
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
@@ -208,7 +211,7 @@ export function createPlaySynth(
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnBass1(midi, Math.round((noteParams?.velocity ?? 0.8) * 127));
+                        refs.open303ManagerRef.current?.noteOnBass1(midi, velocity);
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
@@ -237,7 +240,7 @@ export function createPlaySynth(
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnLead303(midi, Math.round((noteParams?.velocity ?? 0.8) * 127));
+                        refs.open303ManagerRef.current?.noteOnLead303(midi, velocity);
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
@@ -256,7 +259,6 @@ export function createPlaySynth(
             }
 
             // === Prophecy Routing ===
-            const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
             if (track === 'partB' && prophecyWaveType !== undefined) {
                 if (refs.prophecyManagerRef?.current?.isPartBReady()) {
                     refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
@@ -327,9 +329,6 @@ export function createPlaySynth(
                 voice.setDelaySend(delaySendAmount, noteTime);
 
                 const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                // Currently setReverbSend assumes global reverb on the Voice object.
-                // We'll need to use setReverbSend if it exists, or handle custom routing if Voice supports it.
-                // For now, let's just use the voice.setReverbSend interface which the AudioEngine expects.
                 if (typeof (voice as any).setReverbSend === 'function') {
                     (voice as any).setReverbSend(reverbSendAmount, noteTime);
                 }
@@ -497,7 +496,7 @@ export function createPlayDrum(
                     noiseFilter.connect(noiseGain);
                     let finalDestNoise: AudioNode = noiseGain;
                     if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
-                    const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
+                        const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
                         const panner = context.createStereoPanner();
                         panner.pan.value = activePan;
                         finalDestNoise.connect(panner);
@@ -541,6 +540,7 @@ export function createPlayDrum(
             }
         };
     };
+
 
 export function createNoteOnSynth(
     context: AudioContext,

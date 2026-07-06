@@ -423,7 +423,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
               <p id="rbs-import-desc" className="text-xs text-gray-400">Import .rbs pattern files from ReBirth RB-338</p>
             </div>
           </div>
-          <button
+          <button type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
             title="Close (Esc)"
@@ -468,7 +468,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 </p>
               )}
               <p className="text-xs text-gray-500">or</p>
-              <button
+              <button type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all"
                 disabled={isParsing}
@@ -495,7 +495,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                   <span className="animate-spin">⏳</span>
                   <span className="text-sm font-medium">{parseState.stageLabel}</span>
                 </div>
-                <button
+                <button type="button"
                   onClick={handleCancel}
                   className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all"
                 >
@@ -528,7 +528,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                     {parseState.category === 'READ_ERROR' && 'Read Error'}
                   </span>
                 </div>
-                <button
+                <button type="button"
                   onClick={handleLoadExample}
                   className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded transition-all"
                 >
@@ -616,7 +616,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
           </div>
           <div className="flex gap-2">
             {importReport ? (
-              <button
+              <button type="button"
                 onClick={onClose}
                 className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Close Import Modal"
@@ -626,7 +626,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
               </button>
             ) : (
               <>
-                <button
+                <button type="button"
                   onClick={onClose}
                   disabled={isImporting}
                   className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
@@ -634,7 +634,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 >
                   Cancel
                 </button>
-                <button
+                <button type="button"
                   onClick={handleImport}
                   disabled={!isComplete || isImporting}
                   aria-busy={isImporting}

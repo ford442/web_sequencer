@@ -765,7 +765,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
             </div>
           </div>
           <Tooltip text="Close (Esc)" position="bottom">
-            <button 
+            <button type="button"
               onClick={handleClose}
               className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
               aria-label="Close modal"
@@ -787,14 +787,14 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           <div className="px-4 py-2 bg-yellow-950/50 border-b border-yellow-900/50 flex items-center justify-between animate-in slide-in-from-top-2">
             <span className="text-xs text-yellow-400">You have unsaved changes. Close anyway?</span>
             <div className="flex gap-2">
-              <button
+              <button type="button"
                 onClick={() => setShowCloseConfirm(false)}
                 className="px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Cancel closing modal"
               >
                 Cancel
               </button>
-              <button
+              <button type="button"
                 onClick={confirmClose}
                 className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Confirm close modal"
@@ -807,7 +807,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
 
         {/* Tabs */}
         <div className="flex border-b border-gray-800 overflow-x-auto" role="tablist" aria-label="Import method">
-          <button
+          <button type="button"
             id="ai-modal-tab-paste"
             role="tab"
             aria-selected={activeTab === 'paste'}
@@ -821,7 +821,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           >
             <span className="hidden sm:inline">📋 </span>Paste JSON
           </button>
-          <button
+          <button type="button"
             id="ai-modal-tab-template"
             role="tab"
             aria-selected={activeTab === 'template'}
@@ -835,7 +835,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           >
             <span className="hidden sm:inline">📝 </span>Template
           </button>
-          <button
+          <button type="button"
             id="ai-modal-tab-preview"
             role="tab"
             aria-selected={activeTab === 'preview'}
@@ -865,7 +865,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                 <div className="flex flex-wrap gap-2">
                   {(Object.keys(EXAMPLES) as Array<keyof typeof EXAMPLES>).map(key => (
                     <Tooltip key={key} text={EXAMPLES[key].desc} position="bottom">
-                      <button
+                      <button type="button"
                         onClick={() => loadExample(key)}
                         className="px-2 sm:px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all border border-gray-700 hover:border-emerald-500/50 flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                       >
@@ -898,7 +898,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                 </p>
                 <p className="text-xs text-gray-600 my-2">or</p>
                 <Tooltip text="Select one or more .json files" position="bottom">
-                  <button
+                  <button type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                   >
@@ -933,7 +933,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                           {index === 0 && <span className="text-emerald-400 text-[10px]">(active)</span>}
                         </div>
                         <Tooltip text="Remove file" position="left">
-                          <button
+                          <button type="button"
                             onClick={() => removeDroppedFile(droppedFile.id)}
                             className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             aria-label={`Remove ${droppedFile.file.name}`}
@@ -1016,7 +1016,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                     <div className="flex gap-2">
                       {validationState.category === 'JSON_SYNTAX' && (
                         <Tooltip text="Auto-fix common JSON issues" position="left">
-                          <button
+                          <button type="button"
                             onClick={handleFixCommonIssues}
                             className="px-3 py-1 bg-red-900/50 hover:bg-red-800/50 text-red-300 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             aria-label="Fix Common JSON Issues"
@@ -1026,7 +1026,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                         </Tooltip>
                       )}
                       <Tooltip text="Copy error details to clipboard" position="left">
-                        <button
+                        <button type="button"
                           onClick={copyErrorReport}
                           className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                           aria-label="Copy error details to clipboard"
@@ -1127,7 +1127,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                   Customize the genre, tempo, and mood as desired.
                 </p>
                 <Tooltip text="Copy to clipboard" position="right">
-                  <button
+                  <button type="button"
                     onClick={copyTemplate}
                     className="mb-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-all flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                     aria-label="Copy AI Prompt Template"
@@ -1179,7 +1179,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                           <p className="text-xs text-gray-500">Listen to the pattern before importing</p>
                         </div>
                         <Tooltip text="Coming soon!" position="left">
-                          <button
+                          <button type="button"
                             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             onClick={() => onShowToast('Audio preview coming soon!', 'info')}
                             disabled
@@ -1267,7 +1267,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           </div>
           <div className="flex gap-2">
             <Tooltip text="Cancel (Esc)" position="top">
-              <button
+              <button type="button"
                 onClick={handleClose}
                 disabled={isImporting}
                 className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"

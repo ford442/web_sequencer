@@ -92,7 +92,7 @@ const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = React.memo(({ sele
         const isSelected = note === selected;
         const isC = note % 12 === 0;
         return (
-          <button
+          <button type="button"
             key={note}
             ref={(el) => {
               if (el) buttonRefs.current.set(note, el);
