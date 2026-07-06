@@ -214,7 +214,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                     onKeyDown={handleTabKeyDown}
                 >
                     {TABS.map(tab => (
-                        <button
+                        <button type="button"
                             key={tab.id}
                             id={`tab-${tab.id}`}
                             role="tab"
@@ -247,7 +247,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                             <div className="flex justify-between items-center mb-4">
                                 <div className="flex gap-2">
                                     {['all', 'song', 'bank', 'pattern'].map((t) => (
-                                        <button
+                                        <button type="button"
                                             key={t}
                                             onClick={() => setFilterType(t as any)}
                                             className={`px-3 py-1 rounded text-xs font-bold uppercase transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${filterType === t ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-500 hover:bg-gray-700'}`}
@@ -257,7 +257,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                         </button>
                                     ))}
                                 </div>
-                                <button onClick={loadLibrary} aria-label="Refresh cloud library" className="text-xs text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">↻ Refresh</button>
+                                <button type="button" onClick={loadLibrary} aria-label="Refresh cloud library" className="text-xs text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded px-1">↻ Refresh</button>
                             </div>
 
                             {isLoading ? (
@@ -276,7 +276,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                     <p className="text-gray-500 text-xs mb-6 max-w-[200px]">
                                         The library is empty. Be the first to share your creation with the world!
                                     </p>
-                                    <button
+                                    <button type="button"
                                         onClick={() => setActiveTab('upload')}
                                         className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                                         aria-label="Upload your first creation"
@@ -306,7 +306,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                                 </div>
                                                 {item.description && <div className="text-xs text-gray-600 mt-1 ml-1 italic">{item.description}</div>}
                                             </div>
-                                            <button 
+                                            <button type="button"
                                                 onClick={() => handleLoadClick(item)}
                                                 className="bg-cyan-900/30 text-cyan-400 border border-cyan-800 px-3 py-1.5 rounded text-xs font-bold font-orbitron hover:bg-cyan-500 hover:text-black transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                                             >
@@ -415,7 +415,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
 
                 {/* Footer */}
                 <div className="border-t border-gray-800 p-4 bg-gray-900/50 flex justify-end">
-                    <button onClick={onClose} aria-label="Close cloud library" title="Close cloud library" className="text-gray-400 text-xs font-mono hover:text-white px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded">CLOSE</button>
+                    <button type="button" onClick={onClose} aria-label="Close cloud library" title="Close cloud library" className="text-gray-400 text-xs font-mono hover:text-white px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded">CLOSE</button>
                 </div>
             </div>
         </div>
