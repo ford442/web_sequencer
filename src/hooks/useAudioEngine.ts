@@ -726,6 +726,47 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setFormantLfoShape(undefined);
                             }
 
+                            // Apply Character Morphing
+                            voice.setCharacterMorph(characterMorph, morphTarget as any, 0.05); // Use short ramp time
+
+                            // Sync other params
+                            if (pVibratoDepth !== undefined) voice.setVibratoDepth(pVibratoDepth, triggerTime);
+                            if (pTremoloDepth !== undefined) voice.setTremoloDepth(pTremoloDepth * 100, triggerTime); // setTremoloDepth expects percentage 0-100
+                            if (pTremoloRate !== undefined) voice.setTremoloRate(pTremoloRate, triggerTime);
+                            if (pGateDepth !== undefined) voice.setGateDepth(pGateDepth, triggerTime);
+                            if (pGateRateHz !== undefined) voice.setGateRate(pGateRateHz, triggerTime);
+
+                            if (pAttack !== undefined) voice.setAttack(pAttack, triggerTime);
+                            if (pDecay !== undefined) voice.setDecay(pDecay, triggerTime);
+                            if (pSustain !== undefined) voice.setSustain(pSustain, triggerTime);
+                            if (pRelease !== undefined) voice.setRelease(pRelease, triggerTime);
+
+                            if (pFreeze !== undefined) voice.setFreeze(pFreeze, triggerTime);
+                            if (pFreezeLfoRate !== undefined) voice.setFreezeLfoRate(pFreezeLfoRate, triggerTime);
+                            if (pFreezeLfoDepth !== undefined) voice.setFreezeLfoDepth(pFreezeLfoDepth, triggerTime);
+
+                            if (pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(pFreezeEnvDepth, triggerTime);
+                            if (pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(pTimeStretchEnvDepth, triggerTime);
+                            if (pGrainEnvDepth !== undefined) voice.setGrainEnvDepth(pGrainEnvDepth, triggerTime);
+                            if (pGrainPitchEnvDepth !== undefined) voice.setGrainPitchEnvDepth(pGrainPitchEnvDepth, triggerTime);
+                            if (pGrainJitter !== undefined) voice.setGrainJitter(pGrainJitter, triggerTime);
+                            if (pGrainPitchQuantize !== undefined) voice.setGrainPitchQuantize(pGrainPitchQuantize, triggerTime);
+
+                            if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
+                            if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
+                            if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
+                            if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
+
+                            if (pFormantLfoRateHz !== undefined) voice.setFormantLfoRate(pFormantLfoRateHz, triggerTime);
+                            if (pFormantLfoDepth !== undefined) voice.setFormantLfoDepth(pFormantLfoDepth, triggerTime);
+                            voice.setFormantLfoShape(pFormantLfoShape);
+
+                            if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
+                            voice.setFormantEnvFollower(pFormantEnvFollower as number, triggerTime);
+
+                            // Load buffer only if the voice doesn't already have it
+                            if (isNewBank) {
+                                voice.loadBuffer(buffer.getChannelData(0));
                             // Formant Envelope
                             const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
                             const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
@@ -1159,8 +1200,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             });
 
             setIsReady(true);
-            isInitializing.current = false;
-        } catch (e) {
+        } } } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             setIsReady(true);
             isInitializing.current = false;
