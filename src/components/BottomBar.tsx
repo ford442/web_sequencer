@@ -1,6 +1,11 @@
 import React, { memo, useCallback } from 'react'
 import type { AiImportStage } from '../hooks/useSongStorage'
 import type { ReverbType } from '../types'
+import { registerMidiControlTouch, startMidiLearnForControl } from '../hooks/useMidi'
+import { MidiBadge } from './MidiBadge'
+import { useMidiMapStore } from '../stores/midiMapStore'
+import { automationStore, useAutomationStore } from '../stores/automationStore'
+import { makeMidiControlId } from '../types/midi'
 
 interface BottomBarProps {
     viewMode: 'notes' | 'automation'
@@ -85,6 +90,26 @@ export const BottomBar = memo(function BottomBar({
     setIsAutomationRecording,
     isPlaying = false,
 }: BottomBarProps) {
+    const { mappings, activeControls } = useMidiMapStore();
+    const { showHardwareAutomation } = useAutomationStore();
+
+    const masterMidiProps = useCallback((param: 'volume' | 'saturation' | 'pan') => {
+        const controlId = makeMidiControlId('master', param);
+        return {
+            onPointerDown: () => registerMidiControlTouch('master', param),
+            onContextMenu: (e: React.MouseEvent) => {
+                e.preventDefault();
+                startMidiLearnForControl('master', param);
+            },
+            'data-midi-control': controlId,
+        };
+    }, []);
+
+    const isMasterMapped = (param: 'volume' | 'saturation' | 'pan') =>
+        mappings.some((m) => m.controlId === makeMidiControlId('master', param));
+    const isMasterActive = (param: 'volume' | 'saturation' | 'pan') =>
+        activeControls[makeMidiControlId('master', param)] !== undefined;
+
     const handleAudioWorkletToggle = useCallback(() => {
         const newValue = !forceScriptProcessorFallback;
         setForceScriptProcessorFallback(newValue);
@@ -154,6 +179,21 @@ export const BottomBar = memo(function BottomBar({
                         {isAutomationRecording ? '● REC' : 'REC AUTO'}
                     </button>
                 )}
+
+                <button
+                    type="button"
+                    onClick={() => automationStore.toggleShowHardwareAutomation()}
+                    aria-pressed={showHardwareAutomation}
+                    aria-label="Toggle automation curve overlay on hardware knobs"
+                    title="Show automation curves on knobs (dims non-automated params)"
+                    className={`h-6 px-2 rounded-md font-orbitron text-[9px] font-bold tracking-wider border transition-all duration-150 ${
+                        showHardwareAutomation
+                            ? 'bg-cyan-700 text-white border-cyan-400'
+                            : 'bg-zinc-800 text-cyan-400 border-cyan-900/50'
+                    }`}
+                >
+                    AUTO VIEW
+                </button>
 
                 {/* LYRICS Button */}
                 <button type="button"
@@ -271,34 +311,46 @@ export const BottomBar = memo(function BottomBar({
                     </select>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                    <input
-                        type="range" min="0" max="1" step="0.01"
-                        value={masterSaturation} onChange={handleMasterSaturation} onKeyDown={handleMasterSaturationKeyDown} onDoubleClick={handleMasterSaturationReset}
-                        className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
-                        aria-label="Master Saturation"
-                        title={`Warmth: ${Math.round(masterSaturation * 100)}%`}
-                        aria-valuetext={`${Math.round(masterSaturation * 100)}%`}
-                    />
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="range" min="0" max="1" step="0.01"
+                            value={masterSaturation} onChange={handleMasterSaturation} onKeyDown={handleMasterSaturationKeyDown} onDoubleClick={handleMasterSaturationReset}
+                            {...masterMidiProps('saturation')}
+                            className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
+                            aria-label="Master Saturation"
+                            title={`Warmth: ${Math.round(masterSaturation * 100)}%`}
+                            aria-valuetext={`${Math.round(masterSaturation * 100)}%`}
+                        />
+                        <MidiBadge mapped={isMasterMapped('saturation')} active={isMasterActive('saturation')} />
+                    </div>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                    <input
-                        type="range" min="0" max="1.5" step="0.01"
-                        value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} onDoubleClick={handleMasterVolumeReset}
-                        className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
-                        aria-label="Master Volume"
-                        title={`Volume: ${Math.round(masterVolume * 100)}%`}
-                        aria-valuetext={`${Math.round(masterVolume * 100)}%`}
-                    />
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="range" min="0" max="1.5" step="0.01"
+                            value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} onDoubleClick={handleMasterVolumeReset}
+                            {...masterMidiProps('volume')}
+                            className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
+                            aria-label="Master Volume"
+                            title={`Volume: ${Math.round(masterVolume * 100)}%`}
+                            aria-valuetext={`${Math.round(masterVolume * 100)}%`}
+                        />
+                        <MidiBadge mapped={isMasterMapped('volume')} active={isMasterActive('volume')} />
+                    </div>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                    <input
-                        type="range" min="-1" max="1" step="0.01"
-                        value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} onDoubleClick={handleGlobalPanReset}
-                        className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
-                        aria-label="Global Pan"
-                        title={`Pan: ${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% L' : Math.round(globalPan * 100) + '% R'}`}
-                        aria-valuetext={`${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% Left' : Math.round(globalPan * 100) + '% Right'}`}
-                    />
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="range" min="-1" max="1" step="0.01"
+                            value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} onDoubleClick={handleGlobalPanReset}
+                            {...masterMidiProps('pan')}
+                            className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
+                            aria-label="Global Pan"
+                            title={`Pan: ${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% L' : Math.round(globalPan * 100) + '% R'}`}
+                            aria-valuetext={`${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% Left' : Math.round(globalPan * 100) + '% Right'}`}
+                        />
+                        <MidiBadge mapped={isMasterMapped('pan')} active={isMasterActive('pan')} />
+                    </div>
                 </div>
 
                 <div className="w-px h-4 bg-gray-700 mx-1" />

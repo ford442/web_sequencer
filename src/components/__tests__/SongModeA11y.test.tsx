@@ -6,8 +6,8 @@ import { SongMode } from '../SongMode';
 describe('SongMode Accessibility', () => {
     const mockOnUpdateStep = vi.fn();
     const defaultStructure = [
-        { partA: 0, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null },
-        { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }
+        { partA: 0, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null },
+        { partA: null, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }
     ];
 
     const defaultProps = {
@@ -133,5 +133,20 @@ describe('SongMode Accessibility', () => {
         mockOnUpdateStep.mockClear();
         fireEvent.keyDown(emptyCell, { key: 'ArrowDown' });
         expect(mockOnUpdateStep).toHaveBeenCalledWith(0, 'partB', 0);
+    });
+
+    it('handles Space key to toggle cell value', () => {
+        render(<SongMode {...defaultProps} />);
+        const activeCell = screen.getByTestId('cell-partA-0');
+        fireEvent.keyDown(activeCell, { key: ' ' });
+        expect(mockOnUpdateStep).toHaveBeenCalledWith(0, 'partA', null);
+    });
+
+    it('navigates between measures with ArrowLeft and ArrowRight', () => {
+        render(<SongMode {...defaultProps} />);
+        const cell = screen.getByTestId('cell-partA-1');
+        expect(cell).toHaveAttribute('tabindex', '-1');
+        fireEvent.keyDown(screen.getByTestId('cell-partA-0'), { key: 'ArrowRight' });
+        expect(cell).toHaveAttribute('tabindex', '0');
     });
 });

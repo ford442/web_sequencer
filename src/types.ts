@@ -743,6 +743,8 @@ export interface AutomationState {
    * Updated once per step tick; used by UI controls to show animated values.
    */
   liveAutomatedValues: Record<string, number>;
+  /** Highlight automated knobs on hardware panels; dim non-automated params. */
+  showHardwareAutomation: boolean;
 }
 
 export interface SongStep {
@@ -779,6 +781,8 @@ export interface SavedSongData {
   ttsPhrases?: string[];
   /** Persisted automation lanes (from .rbs import, recordings, or AI) */
   automationLanes?: UnifiedAutomationLane[];
+  /** Per-song MIDI CC / note → control mappings */
+  midiMappings?: import('./types/midi').MidiBinding[];
 }
 export interface AmbianceTrack {
   id: string;

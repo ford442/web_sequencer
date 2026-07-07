@@ -2,6 +2,8 @@ import { type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../e
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { LadderButton } from './sampler/LadderButton';
+import { VerticalKnob } from './sampler/VerticalKnob';
+import { HSlider } from './sampler/HSlider';
 import { noop } from '../utils/noop';
 
 interface SamplerVoicePanelProps {
@@ -12,6 +14,15 @@ interface SamplerVoicePanelProps {
     onRecordToggle?: (id: string) => void;
     is3D?: boolean;
     children?: React.ReactNode;
+    onMidiTouch?: (paramId: string) => void;
+    onMidiLearnStart?: (paramId: string) => void;
+    isMidiMapped?: (paramId: string) => boolean;
+    isMidiActive?: (paramId: string) => boolean;
+    automationTarget?: import('../types').AutomationTarget;
+    patternIndex?: number;
+    onAutomationNudge?: (paramId: string, value: number, step: number) => void;
+    onAutomationPunchIn?: (paramId: string) => void;
+    onAutomationLaneAction?: (action: 'toggle' | 'clear', paramId?: string) => void;
     // Sampler-specific props
     rootNote?: number; // 0-96 (C1-C8)
     coarseTune?: number; // -24 to +24
@@ -46,171 +57,6 @@ const midiToNote = (midi: number) => {
     return `${NOTES[noteIndex]}${octave}`;
 };
 
-
-// Vertical Knob Component (for pitch envelope)
-const VerticalKnob: React.FC<{
-    label: string;
-    value: number; // 0-1
-    onChange: (value: number) => void;
-    colorHex: [number, number, number];
-}> = ({ label, value, onChange, colorHex }) => {
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        const startY = e.clientY;
-        const startVal = value;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const dy = startY - e.clientY;
-            const newVal = Math.max(0, Math.min(1, startVal + dy * 0.01));
-            onChange(newVal);
-        };
-
-        const handleMouseUp = () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = 'default';
-        };
-
-        document.body.style.cursor = 'ns-resize';
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    }, [value, onChange]);
-
-    const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
-    const height = 40;
-    const fillHeight = value * height;
-
-    return (
-        <div className="flex flex-col items-center gap-1">
-            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">{label}</span>
-            <div
-                className="w-6 rounded-full bg-zinc-900 border-2 border-zinc-600 cursor-ns-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.05)]"
-                style={{ height: `${height}px` }}
-                onMouseDown={handleMouseDown}
-            >
-                {/* Bevel highlight */}
-                <div className="absolute inset-0 rounded-full border border-white/5 pointer-events-none" />
-                {/* Fill with gradient */}
-                <div
-                    className="absolute bottom-0 left-0 right-0 rounded-b-full transition-all"
-                    style={{
-                        height: `${fillHeight}px`,
-                        background: `linear-gradient(to top, ${color}, ${color}60 50%, ${color}30)`,
-                        boxShadow: `0 0 15px ${color}50, inset 0 -2px 4px rgba(0,0,0,0.3)`
-                    }}
-                />
-                {/* Center marker with LED style */}
-                <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent top-1/2" />
-                {/* Tick marks */}
-                {[0.25, 0.5, 0.75].map(tick => (
-                    <div 
-                        key={tick}
-                        className="absolute left-1 right-1 h-px bg-zinc-700"
-                        style={{ bottom: `${tick * 100}%` }}
-                    />
-                ))}
-            </div>
-            <span className="text-[8px] font-mono text-cyan-400/60">{Math.round(value * 100)}%</span>
-        </div>
-    );
-};
-
-// Horizontal Slider Component
-const HSlider: React.FC<{
-    label: string;
-    value: number; // -1 to 1 normalized
-    displayValue: string;
-    onChange: (value: number) => void;
-    colorHex: [number, number, number];
-}> = ({ label, value, displayValue, onChange, colorHex }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const cachedRectRef = useRef<DOMRect | null>(null);
-
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
-
-        cachedRectRef.current = container.getBoundingClientRect();
-
-        const observer = new ResizeObserver(() => {
-            cachedRectRef.current = container.getBoundingClientRect();
-        });
-
-        observer.observe(container);
-        return () => observer.disconnect();
-    }, []);
-
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        const rect = cachedRectRef.current || containerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const x = e.clientX - rect.left;
-            const normalized = Math.max(-1, Math.min(1, (x / rect.width) * 2 - 1));
-            onChange(normalized);
-        };
-
-        const handleMouseUp = () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = 'default';
-        };
-
-        document.body.style.cursor = 'ew-resize';
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-
-        // Initial set
-        const x = e.clientX - rect.left;
-        const normalized = Math.max(-1, Math.min(1, (x / rect.width) * 2 - 1));
-        onChange(normalized);
-    }, [onChange]);
-
-    const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
-    const percent = ((value + 1) / 2) * 100;
-
-    return (
-        <div className="flex flex-col gap-1.5 w-full">
-            <div className="flex justify-between items-center">
-                <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">{label}</span>
-                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950/50 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}60` }}>{displayValue}</span>
-            </div>
-            <div
-                ref={containerRef}
-                className="h-5 bg-zinc-900 rounded-md border border-zinc-700 cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)]"
-                onMouseDown={handleMouseDown}
-            >
-                {/* Track background with gradient */}
-                <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/30 to-transparent" />
-                {/* Center line with LED glow */}
-                <div className="absolute left-1/2 top-0.5 bottom-0.5 w-px bg-gradient-to-b from-transparent via-white/30 to-transparent z-10" />
-                {/* Fill from center with glow */}
-                <div
-                    className="absolute top-0.5 bottom-0.5 rounded-sm transition-all"
-                    style={{
-                        left: value < 0 ? `${percent}%` : '50%',
-                        right: value > 0 ? `${100 - percent}%` : '50%',
-                        background: `linear-gradient(to ${value < 0 ? 'left' : 'right'}, ${color}40 0%, ${color} 100%)`,
-                        boxShadow: `0 0 12px ${color}50, inset 0 1px 0 rgba(255,255,255,0.1)`
-                    }}
-                />
-                {/* Thumb with plastic look */}
-                <div
-                    className="absolute top-0.5 bottom-0.5 w-3 rounded-sm shadow-lg z-20 border border-white/20"
-                    style={{ 
-                        left: `calc(${percent}% - 6px)`,
-                        background: `linear-gradient(180deg, #3a3a3a 0%, #1a1a1a 50%, #0a0a0a 100%)`,
-                        boxShadow: `0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)`
-                    }}
-                >
-                    {/* Thumb highlight */}
-                    <div className="absolute top-0.5 left-0.5 right-0.5 h-px bg-white/30 rounded-full" />
-                </div>
-            </div>
-        </div>
-    );
-};
 
 // Harmonizer Popover Component
 const HarmonizerPopover: React.FC<{
@@ -497,6 +343,15 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     onRecordToggle,
     is3D = false,
     children,
+    onMidiTouch,
+    onMidiLearnStart,
+    isMidiMapped,
+    isMidiActive,
+    automationTarget,
+    patternIndex,
+    onAutomationNudge,
+    onAutomationPunchIn,
+    onAutomationLaneAction,
     rootNote = 60, // C4 default
     coarseTune = 0,
     fineTune = 0,
@@ -644,6 +499,15 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                     onParamChange={onParamChange}
                     onRecordToggle={onRecordToggle}
                     is3D={is3D}
+                    onMidiTouch={onMidiTouch}
+                    onMidiLearnStart={onMidiLearnStart}
+                    isMidiMapped={isMidiMapped}
+                    isMidiActive={isMidiActive}
+                    automationTarget={automationTarget}
+                    patternIndex={patternIndex}
+                    onAutomationNudge={onAutomationNudge}
+                    onAutomationPunchIn={onAutomationPunchIn}
+                    onAutomationLaneAction={onAutomationLaneAction}
                 >
                     {children}
                 </HardwareModule>
