@@ -9,6 +9,7 @@ import { Open303Manager } from '../engines/Open303Manager';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
+import { VoiceFXStrip } from '../engines/audio-fx/VoiceFXStrip';
 import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { DrumKitEngine } from '../engines/DrumKitEngine';
@@ -147,6 +148,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const activeSynthNotes = useRef(new Map<number, { stop: () => void }>());
     const nextSamplerNoteId = useRef(1);
     const activeSamplerNotes = useRef(new Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>());
+    const fxStripPoolRef = useRef<VoiceFXStrip[]>([]);
 
     const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
@@ -597,7 +599,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
-                    const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+                    const releaseFxStrip = (fxStrip: VoiceFXStrip | null) => {
+                        if (fxStrip) {
+                            try { fxStrip.output.disconnect(); } catch (e) {}
+                            fxStrip.connectReverb(null);
+                            fxStrip.connectDelay(null);
+                            fxStripPoolRef.current.push(fxStrip);
+                        }
+                    };
+
+                    const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, shouldLoadBuffer: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
                             const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
@@ -607,34 +618,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             let finalDest = destination || masterSaturationRef.current!;
 
                             // Apply Drive/Distortion if present
-                            const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                            let shaper: WaveShaperNode | null = null;
+                            const driveAmount = pDriveAmount;
                             if (driveAmount !== undefined && driveAmount > 0) {
-                                const shaper = context.createWaveShaper();
+                                shaper = context.createWaveShaper();
                                 shaper.curve = makeDistortionCurve(driveAmount * 100);
-                                shaper.connect(finalDest);
-                                finalDest = shaper;
                             }
-
-                            // Apply Per-Step Filter if present, or fallback to global filter settings
-                            if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
-                                const filter = context.createBiquadFilter();
-                                filter.type = 'lowpass';
-
-                                const cutoff = noteParams?.filterCutoff !== undefined
-                                    ? Math.max(20, noteParams.filterCutoff * 20000)
-                                    : (params.filterCutoff ?? 20000);
-                                filter.frequency.value = cutoff;
-
-                                const resonance = noteParams?.filterResonance !== undefined
-                                    ? noteParams.filterResonance * 20
-                                    : (params.filterResonance ?? 0);
-                                filter.Q.value = resonance;
-
-                                filter.connect(finalDest);
-                                finalDest = filter;
-                            }
-
-                            voice.connectOutput(finalDest);
 
                             // Setup Reverb Send
                             const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
@@ -654,6 +643,44 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 delayGain.gain.value = delaySendAmount;
                                 delayGain.connect(delayNodeRef.current);
                                 voice.connectOutput(delayGain);
+                            }
+
+                            // Apply Per-Step Filter / spectral panning / sends via a pooled VoiceFXStrip
+                            const shouldUseFxStrip = noteParams?.filterCutoff !== undefined
+                                || noteParams?.filterResonance !== undefined
+                                || params.filterCutoff !== undefined
+                                || params.filterResonance !== undefined
+                                || (spectralPanDepth || 0) > 0
+                                || reverbSendAmount > 0
+                                || delaySendAmount > 0;
+                            let fxStrip: VoiceFXStrip | null = null;
+                            if (shouldUseFxStrip) {
+                                fxStrip = fxStripPoolRef.current.pop() || new VoiceFXStrip(context);
+
+                                const cutoff = pFilterCutoff ?? 20000;
+                                const resonance = pFilterResonance ?? 0;
+                                fxStrip.updateFilter(cutoff, resonance, triggerTime);
+
+                                fxStrip.updateSpectralPanning(spectralPanDepth || 0, spectralPanLfoRate, triggerTime);
+                                fxStrip.updateReverbSend(reverbSendAmount, revLfoRate, revLfoDepth, reverbEqCutoff, triggerTime);
+                                fxStrip.connectReverb(targetReverbNode || null);
+                                fxStrip.updateDelaySend(delaySendAmount, triggerTime);
+                                fxStrip.connectDelay(delayNodeRef.current);
+                            }
+
+                            if (fxStrip) {
+                                if (shaper) {
+                                    voice.connectOutput(shaper);
+                                    shaper.connect(fxStrip.input);
+                                } else {
+                                    voice.connectOutput(fxStrip.input);
+                                }
+                                fxStrip.output.connect(finalDest);
+                            } else if (shaper) {
+                                voice.connectOutput(shaper);
+                                shaper.connect(finalDest);
+                            } else {
+                                voice.connectOutput(finalDest);
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
@@ -794,8 +821,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
                             voice.setFormantEnvFollower(pFormantEnvFollower as number, triggerTime);
 
-                            // Load buffer only if the voice doesn't already have it
-                            if (isNewBank) {
+                            // Buffer loading is only needed for the first voice allocation for a bank; pooled voices reuse the existing buffer.
+                            if (shouldLoadBuffer) {
                                 voice.loadBuffer(buffer.getChannelData(0));
                             }
 
@@ -874,13 +901,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);
 
                             const releaseTime = triggerTime + targetDuration;
+
                             const delayMs = (releaseTime - context.currentTime) * 1000;
                             if (delayMs > 0) {
                                 setTimeout(() => {
                                     voice.noteOff();
+                                    releaseFxStrip(fxStrip);
                                 }, delayMs);
                             } else {
                                 voice.noteOff();
+                                releaseFxStrip(fxStrip);
                             }
                         };
 
@@ -965,20 +995,14 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const gain = context.createGain();
                     gain.gain.value = params.volume;
 
-                    const filter = context.createBiquadFilter();
-                    filter.type = 'lowpass';
-                    const cutoff = noteParams?.filterCutoff !== undefined
-                        ? Math.max(20, noteParams.filterCutoff * 20000)
-                        : params.filterCutoff;
-                    filter.frequency.value = cutoff;
+                    const fxStrip = fxStripPoolRef.current.pop() || new VoiceFXStrip(context);
 
-                    const resonance = noteParams?.filterResonance !== undefined
-                        ? noteParams.filterResonance * 20
-                        : params.filterResonance;
-                    filter.Q.value = resonance;
+                    const cutoff = pFilterCutoff ?? 20000;
+                    const resonance = pFilterResonance ?? 0;
+                    fxStrip.updateFilter(cutoff, resonance, startTime);
 
                     const shaper = context.createWaveShaper();
-                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                    const driveAmount = pDriveAmount;
                     if (driveAmount > 0) {
                         shaper.curve = makeDistortionCurve(driveAmount * 100);
                     } else {
@@ -993,10 +1017,34 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         finalDestination = panner;
                     }
 
-                    source.connect(filter);
-                    filter.connect(shaper);
+                    source.connect(shaper);
                     shaper.connect(gain);
-                    gain.connect(finalDestination);
+                    gain.connect(fxStrip.input);
+                    fxStrip.output.connect(finalDestination);
+
+                    const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+                    const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+                    const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
+
+                    fxStrip.updateSpectralPanning(spectralPanDepth || 0, spectralPanLfoRate, startTime);
+
+                    const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                    const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                    const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+
+                    fxStrip.updateReverbSend(reverbSendAmount, 0.1, 0, 6000, startTime);
+                    fxStrip.connectReverb(targetReverbNode || null);
+
+                    const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                    fxStrip.updateDelaySend(delaySendAmount, startTime);
+                    fxStrip.connectDelay(delayNodeRef.current);
+
+                    source.onended = () => {
+                        try { fxStrip.output.disconnect(); } catch (e) {}
+                        fxStrip.connectReverb(null);
+                        fxStrip.connectDelay(null);
+                        fxStripPoolRef.current.push(fxStrip);
+                    };
 
                     source.start(startTime);
                     if (duration > 0) {
@@ -1219,6 +1267,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             });
 
             setIsReady(true);
+            isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             setIsReady(true);

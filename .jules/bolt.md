@@ -1,3 +1,7 @@
+## 2026-07-04 - Native AudioNode Garbage Collection
+**Learning:** Instantiating complex native Web Audio graphs (e.g. `context.createBiquadFilter()`, `context.createGain()`, `context.createOscillator()`, `context.createStereoPanner()`) dynamically inside the hot polyphonic inner loop (`notes.forEach`) causes severe main-thread garbage collection (GC) overhead and potential CPU spikes, especially during dense chord playback or rapid granular retriggers.
+**Action:** Use pre-allocated, object-oriented node wrappers like `VoiceFXStrip` initialized once per audio engine session and pooled via `fxStripPoolRef.current.push/pop()`. Configure the active parameters with `AudioParam.setValueAtTime()` and recycle the strip back to the pool on source completion to eliminate per-note allocations in `playSamplerVoice`.
+
 ## 2026-07-06 - [Optimization] Hoist Invariant Audio Parameter Configuration Outside of Polyphonic Loops
 
 **Learning:** When debugging the hot path for synthesizer and sampler playback, it's critical to realize that WASM engine parameter applications (`applyBass1Params`, `applyPartBParams`, and `setCutoff`) frequently trigger expensive FFI (Foreign Function Interface) calls across thread or memory boundaries. If these apply methods are inside inner polyphonic loops (`notes.forEach`) or note-retrigger loops (`for (let i = 0; i < retrigger; i++)`), they execute redundantly for every sub-step or voice layer, multiplying CPU cost with no audio benefit. Similarly, parsing notes strings to MIDI (`noteToMidi`) should only happen strictly when notes differ.
