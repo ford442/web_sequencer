@@ -143,6 +143,10 @@ interface NoteSelectorProps {
       | "vocoderAttack"
       | "vocoderRelease"
       | "vowel"
+      | "slideFormant"
+      | "pitchAmount"
+      | "pitchAttack"
+      | "pitchDecay"
       | "portamento",
     value: number | boolean | string,
   ) => void;
