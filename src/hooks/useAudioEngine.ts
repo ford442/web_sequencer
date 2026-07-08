@@ -54,6 +54,37 @@ type AudioWindow = Window & typeof globalThis & {
     audioContext?: AudioContext;
 };
 
+export function getSyncedSeconds(bars: number, bpm: number): number {
+    if (!bars || bars <= 0) return 0;
+    return bars * 4 * (60 / bpm);
+}
+
+export function getSyncedLfoHz(bars: number, bpm: number): number {
+    if (!bars || bars <= 0) return 0;
+    return bpm / (240 * bars);
+}
+
+type ResolvedExpressiveness = {
+    vibratoRate: number;
+    vibratoDepth: number;
+    tremoloDepth: number;
+    breathAmount: number;
+};
+
+const resolveExpressiveness = (params: SamplerBankParams): ResolvedExpressiveness => {
+    const cfg = params.expressiveness;
+    const normalizeDepth = (value: number | undefined) => {
+        if (value === undefined) return 0;
+        return value > 1 ? value / 100 : value;
+    };
+    return {
+        vibratoRate: cfg?.vibratoRate ?? 5.5,
+        vibratoDepth: normalizeDepth(cfg?.vibratoDepth ?? params.vibratoDepth),
+        tremoloDepth: normalizeDepth(cfg?.tremoloDepth ?? params.tremoloDepth),
+        breathAmount: cfg?.breathAmount ?? params.breathIntensity ?? 0,
+    };
+};
+
 export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
@@ -488,6 +519,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 // General Params
                 const pVibratoDepth = noteParams?.vibratoDepth;
+                const pTremoloDepth = noteParams?.tremoloDepth !== undefined ? noteParams.tremoloDepth : params.tremoloDepth;
+                const pTremoloRate = noteParams?.tremoloRate !== undefined ? noteParams.tremoloRate : params.tremoloRate;
                 const pGateDepth = noteParams?.gateDepth !== undefined ? noteParams.gateDepth : params.gateDepth;
                 const pGateRateHz = noteParams?.gateRate !== undefined
                     ? (tempo / 60) * (noteParams.gateRate / 4)
@@ -564,10 +597,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
-                    // For each note in the chord
-                    notes.forEach((noteStr, _noteIndex) => {
-
-                        const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+                    const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
                             const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
@@ -767,23 +797,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             // Load buffer only if the voice doesn't already have it
                             if (isNewBank) {
                                 voice.loadBuffer(buffer.getChannelData(0));
-                            // Formant Envelope
-                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
-                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
-                            if (envAmount !== 0) {
-                                voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
                             }
-                            if (noteParams?.customLfoShape !== undefined) {
-                                voice.setFormantLfoShape(noteParams.customLfoShape);
-                            } else if (params.customLfoShape !== undefined) {
-                                voice.setFormantLfoShape(params.customLfoShape);
-                            } else {
-                                voice.setFormantLfoShape(undefined);
-                            }
-
-                            // Load buffer
-                            voice.loadBuffer(buffer.getChannelData(0));
 
                             // CHECK FOR SLICE TRIGGER MODE
                             if (params.sliceMode === 'phoneme' && alignment) {
@@ -902,11 +916,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                             }
                         };
+
                     // For each note in the chord
                     notes.forEach((noteStr, _noteIndex) => {
-
-
-
                         if (shouldGlitch) {
                             const numStutters = Math.floor(Math.random() * 3) + 2;
                             const totalDur = durationSteps * stepTime;
@@ -1200,7 +1212,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             });
 
             setIsReady(true);
-        } } } catch (e) {
+        } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             setIsReady(true);
             isInitializing.current = false;
