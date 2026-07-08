@@ -5,6 +5,7 @@ import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/w
 import type { WasmOscillator } from './WasmOscillator';
 import type { RustOscillator } from './RustOscillator';
 import { logEngineFallback } from '../utils/engineTelemetry';
+import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import {
     PYODIDE_REF_FREQ,
     generatePyodideLoopBuffer,
@@ -422,15 +423,13 @@ export class VoiceManager {
             return voice;
         }
 
-        const voice = this.voices[this.currentIndex]!;
-        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
+        const voice = this.pickVoice(time);
         voice.play(params, noteStr, time, duration, slideFromFreq);
         return voice;
     }
 
     noteOn(params: SynthParams, note: string, time: number, slideFromFreq?: number): Voice {
-        const voice = this.voices[this.currentIndex]!;
-        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
+        const voice = this.pickVoice(time);
         voice.startNote(params, note, time, slideFromFreq);
         return voice;
     }
@@ -452,5 +451,34 @@ export class VoiceManager {
         for (const voice of this.voices) {
             voice.updateEngineDeps(deps);
         }
+    }
+
+    /** Prefer idle voices; stop and steal the round-robin victim when saturated. */
+    private pickVoice(time: number): Voice {
+        if (this.monophonic) {
+            const voice = this.voices[0]!;
+            if (voice.isActive) {
+                voice.stop(time);
+                playbackHealthMonitor.recordVoiceSteal('voiceManager-monophonic');
+            }
+            return voice;
+        }
+
+        for (let i = 0; i < this.voices.length; i++) {
+            const idx = (this.currentIndex + i) % this.voices.length;
+            const candidate = this.voices[idx]!;
+            if (!candidate.isActive) {
+                this.currentIndex = (idx + 1) % this.voices.length;
+                return candidate;
+            }
+        }
+
+        const victim = this.voices[this.currentIndex]!;
+        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
+        if (victim.isActive) {
+            victim.stop(time);
+            playbackHealthMonitor.recordVoiceSteal('voiceManager');
+        }
+        return victim;
     }
 }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### In-app discoverability (closes #632, #633, #634)
+- Searchable **Help** modal (`?` key): Search · Guides · Shortcuts tabs
+- Dismissible **What's New** checklist for major workflows
+- Contextual **?** tooltips on 303 engine selector, Prophecy panel, REC AUTO, RBS import, TTS, Song mode
+- First-use tips on engine selection (dismissible, stored in localStorage)
+
 ### Audio engine visibility updates
 - Documented dual 303 engine support in `hyphon_native.wasm` (`open303_wrapper.cpp` + `jc303_wrapper.cpp`) including per-voice `engine303` selection.
 - Documented Prophecy formant integration (`prophecy_wrapper.cpp`, `prophecy-processor`, `ProphecyManager`) and current routing.

@@ -23,6 +23,7 @@ import type {
   AutomationRecordingBuffer,
 } from '../types';
 import type { HyphonAutomationLane } from '../importers/rbs/types';
+import { interpolateLaneAtStep } from '../utils/knobAutomationCurve';
 
 // ============================================================================
 // HELPERS
@@ -95,6 +96,7 @@ function createInitialState(): AutomationState {
     playbackStep: 0,
     playbackEnabled: true,
     liveAutomatedValues: {},
+    showHardwareAutomation: false,
   };
 }
 
@@ -199,6 +201,76 @@ class AutomationStore {
       ),
     };
     this.notify();
+  }
+
+  setLaneEnabled(laneId: string, enabled: boolean): void {
+    this.state = {
+      ...this.state,
+      lanes: this.state.lanes.map((l) =>
+        l.id === laneId ? { ...l, enabled } : l
+      ),
+    };
+    this.notify();
+  }
+
+  /** Enable/disable all lanes for a target+parameter pair. */
+  setLanesEnabledForParam(target: AutomationTarget, parameter: string, enabled: boolean): void {
+    this.state = {
+      ...this.state,
+      lanes: this.state.lanes.map((l) =>
+        l.target === target && l.parameter === parameter ? { ...l, enabled } : l
+      ),
+    };
+    this.notify();
+  }
+
+  /** Remove all lanes targeting a parameter. */
+  clearLanesForParam(target: AutomationTarget, parameter: string): void {
+    this.state = {
+      ...this.state,
+      lanes: this.state.lanes.filter(
+        (l) => !(l.target === target && l.parameter === parameter),
+      ),
+    };
+    this.notify();
+  }
+
+  /** Primary enabled lane for a parameter in the current pattern scope. */
+  getPrimaryLaneForParam(
+    target: AutomationTarget,
+    parameter: string,
+    patternIndex = 0,
+  ): UnifiedAutomationLane | null {
+    const lanes = this.getLanesForParam(target, parameter).filter((l) => {
+      if (!l.enabled) return false;
+      return l.scope === 'song' || (l.scope === 'pattern' && l.patternIndex === patternIndex);
+    });
+    return lanes[0] ?? null;
+  }
+
+  /** Add or replace a point at the given step on a lane. */
+  upsertLanePoint(laneId: string, step: number, value: number): void {
+    const lane = this.state.lanes.find((l) => l.id === laneId);
+    if (!lane) return;
+    const clamped = Math.max(0, Math.min(1, value));
+    const next = [...lane.points];
+    const idx = next.findIndex((p) => p.step === step);
+    if (idx >= 0) {
+      next[idx] = { ...next[idx], value: clamped };
+    } else {
+      next.push({ step, value: clamped });
+    }
+    this.updateLanePoints(laneId, next);
+  }
+
+  setShowHardwareAutomation(show: boolean): void {
+    if (this.state.showHardwareAutomation === show) return;
+    this.state = { ...this.state, showHardwareAutomation: show };
+    this.notify();
+  }
+
+  toggleShowHardwareAutomation(): void {
+    this.setShowHardwareAutomation(!this.state.showHardwareAutomation);
   }
 
   /** Get lanes for a specific target and parameter */
@@ -434,41 +506,7 @@ class AutomationStore {
    * Returns null if no points cover that step.
    */
   getValueAtStep(lane: UnifiedAutomationLane, step: number): number | null {
-    if (lane.points.length === 0) return null;
-
-    // Exact match
-    const exact = lane.points.find((p) => p.step === step);
-    if (exact) return exact.value;
-
-    // Find surrounding points
-    let before: AutomationLanePoint | null = null;
-    let after: AutomationLanePoint | null = null;
-
-    for (const p of lane.points) {
-      if (p.step <= step) before = p;
-      if (p.step > step && !after) after = p;
-    }
-
-    if (!before && !after) return null;
-    if (!before) return after!.value;
-    if (!after) return before.value;
-
-    // Interpolate based on mode
-    const interp = before.interpolation || lane.interpolation;
-    if (interp === 'step') {
-      return before.value;
-    }
-
-    // Linear interpolation
-    const t = (step - before.step) / (after.step - before.step);
-    if (interp === 'linear') {
-      return before.value + t * (after.value - before.value);
-    }
-
-    // Smooth interpolation: cubic Hermite (smoothstep) 3t² - 2t³
-    // Provides ease-in/ease-out curve between points for natural knob movement
-    const smoothT = t * t * (3 - 2 * t);
-    return before.value + smoothT * (after.value - before.value);
+    return interpolateLaneAtStep(lane, step);
   }
 
   // --------------------------------------------------------------------------

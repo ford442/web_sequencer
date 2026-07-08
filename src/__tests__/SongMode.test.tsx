@@ -5,8 +5,8 @@ import { SongMode } from '../components/SongMode';
 
 describe('SongMode Accessibility', () => {
     const mockSongStructure = [
-        { partA: null, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null },
-        { partA: 0, partB: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null },
+        { partA: null, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null },
+        { partA: 0, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null },
     ];
 
     const defaultProps = {
@@ -30,13 +30,13 @@ describe('SongMode Accessibility', () => {
         // Find empty cell
         const emptyCell = screen.getByLabelText(/LEAD Measure 1, Empty/i);
         expect(emptyCell).toBeInTheDocument();
-        expect(emptyCell).toHaveAttribute('role', 'button');
+        expect(emptyCell).toHaveAttribute('role', 'gridcell');
         expect(emptyCell).toHaveAttribute('tabIndex', '0');
 
         // Find filled cell
         const filledCell = screen.getByLabelText(/LEAD Measure 2, Pattern 1/i);
         expect(filledCell).toBeInTheDocument();
-        expect(filledCell).toHaveAttribute('role', 'button');
+        expect(filledCell).toHaveAttribute('role', 'gridcell');
         expect(filledCell).toHaveAttribute('tabIndex', '0');
     });
 

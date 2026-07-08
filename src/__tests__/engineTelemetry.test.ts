@@ -9,6 +9,7 @@ import {
   resolvePublicAsset,
   engineTelemetry,
 } from '../utils/engineTelemetry';
+import { engineDegradationStore } from '../stores/engineDegradationStore';
 
 describe('resolvePublicAsset', () => {
   it('returns absolute URLs rooted at BASE_URL', () => {
@@ -104,5 +105,11 @@ describe('logEngineFallback', () => {
 
     register.mockRestore();
     record.mockRestore();
+  });
+
+  it('records degradation in engineDegradationStore', () => {
+    engineDegradationStore.clear('webgpu-test');
+    logEngineFallback('webgpu-test', 'webgpu', 'navigator.gpu unavailable');
+    expect(engineDegradationStore.getIssue('webgpu-test')?.activeBackend).toBe('js-fallback');
   });
 });
