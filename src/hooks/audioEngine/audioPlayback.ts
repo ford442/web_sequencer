@@ -167,6 +167,28 @@ export function createPlaySynth(
         const velocity = Math.round((noteParams?.velocity ?? 0.8) * 127);
         const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
 
+        // Hoist expensive WASM parameter mappings to avoid cross-boundary calls in retrigger loop
+        if (track === 'partB' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
+            if (refs.open303ManagerRef.current?.isBass1Ready()) {
+                refs.open303ManagerRef.current.applyBass1Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+            }
+        }
+        if (track === 'partA' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
+            if (refs.open303ManagerRef.current?.isLead303Ready()) {
+                refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+            }
+        }
+        if (track === 'partB' && prophecyWaveType !== undefined) {
+            if (refs.prophecyManagerRef?.current?.isPartBReady()) {
+                refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
+            }
+        }
+        if (track === 'partA' && prophecyWaveType !== undefined) {
+            if (refs.prophecyManagerRef?.current?.isPartAReady()) {
+                refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
+            }
+        }
+
         for (let i = 0; i < retrigger; i++) {
             const noteTime = actualTime + (i * subDuration);
 
@@ -200,9 +222,6 @@ export function createPlaySynth(
 
             if (track === 'partB' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
                 if (refs.open303ManagerRef.current?.isBass1Ready()) {
-                    refs.open303ManagerRef.current.applyBass1Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
-
-
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -231,9 +250,6 @@ export function createPlaySynth(
 
             if (track === 'partA' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
                 if (refs.open303ManagerRef.current?.isLead303Ready()) {
-                    refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
-
-
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -261,9 +277,6 @@ export function createPlaySynth(
             // === Prophecy Routing ===
             if (track === 'partB' && prophecyWaveType !== undefined) {
                 if (refs.prophecyManagerRef?.current?.isPartBReady()) {
-                    refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
-
-
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -289,9 +302,6 @@ export function createPlaySynth(
 
             if (track === 'partA' && prophecyWaveType !== undefined) {
                 if (refs.prophecyManagerRef?.current?.isPartAReady()) {
-                    refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
-
-
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
