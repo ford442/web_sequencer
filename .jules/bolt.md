@@ -19,6 +19,9 @@
 ## 2026-29-29 - Redundant Worklet Param Resolution in Audio Playback
 **Learning:** Discovered that polyphonic trigger loops inside `createPlaySynth` and `createPlayDrum` redundantly re-parse notes, calculate midi numbers, and compute pitch ratios on every iteration/sub-step instead of hoisting these invariant calculations.
 **Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
+## 2026-07-08 - [Closure Allocations in High-Frequency Loops]
+**Learning:** In React hooks that handle sequencer playback or dense state calculations (like `useAppState`), using higher-order array methods (like `.forEach`, `.map`) inside helper functions can introduce unnecessary closure allocations. In a real-time audio app, this causes micro-pauses due to garbage collection (GC) thrashing.
+**Action:** Always prefer standard `for` loops over `.forEach` for iterating large arrays (like track steps) inside critical path functions or effects, especially when those functions are called frequently (e.g., multiple times per state update for activity calculation).
 
 ## 2026-07-06 - Decoupling React Render Loop from Sequencer Playhead
 **Learning:** During fast sequencer playback (high BPM), driving the playhead highlight via React props (`steps`, `viewMode`) and triggering `updateClasses` via state changes or deep array dependencies causes severe layout thrashing and widespread re-rendering across all 32-step rows (`MainSequencer`, `SequencerRow`).
