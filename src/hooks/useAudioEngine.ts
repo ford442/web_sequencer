@@ -599,7 +599,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
-                    const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+                    const releaseFxStrip = (fxStrip: VoiceFXStrip | null) => {
+                        if (fxStrip) {
+                            try { fxStrip.output.disconnect(); } catch (e) {}
+                            fxStrip.connectReverb(null);
+                            fxStrip.connectDelay(null);
+                            fxStripPoolRef.current.push(fxStrip);
+                        }
+                    };
+
+                    const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, shouldLoadBuffer: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
                             const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
@@ -610,7 +619,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Apply Drive/Distortion if present
                             let shaper: WaveShaperNode | null = null;
-                            const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                            const driveAmount = pDriveAmount;
                             if (driveAmount !== undefined && driveAmount > 0) {
                                 shaper = context.createWaveShaper();
                                 shaper.curve = makeDistortionCurve(driveAmount * 100);
@@ -648,12 +657,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             if (shouldUseFxStrip) {
                                 fxStrip = fxStripPoolRef.current.pop() || new VoiceFXStrip(context);
 
-                                const cutoff = noteParams?.filterCutoff !== undefined
-                                    ? Math.max(20, noteParams.filterCutoff * 20000)
-                                    : (params.filterCutoff ?? 20000);
-                                const resonance = noteParams?.filterResonance !== undefined
-                                    ? noteParams.filterResonance * 20
-                                    : (params.filterResonance ?? 0);
+                                const cutoff = pFilterCutoff ?? 20000;
+                                const resonance = pFilterResonance ?? 0;
                                 fxStrip.updateFilter(cutoff, resonance, triggerTime);
 
                                 fxStrip.updateSpectralPanning(spectralPanDepth || 0, spectralPanLfoRate, triggerTime);
@@ -816,8 +821,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
                             voice.setFormantEnvFollower(pFormantEnvFollower as number, triggerTime);
 
-                            // Load buffer only if the voice doesn't already have it
-                            if (isNewBank) {
+                            // Buffer loading is only needed for the first voice allocation for a bank; pooled voices reuse the existing buffer.
+                            if (shouldLoadBuffer) {
                                 voice.loadBuffer(buffer.getChannelData(0));
                             }
 
@@ -896,24 +901,16 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);
 
                             const releaseTime = triggerTime + targetDuration;
-                            const releaseFxStrip = () => {
-                                if (fxStrip) {
-                                    try { fxStrip.output.disconnect(); } catch (e) {}
-                                    fxStrip.connectReverb(null);
-                                    fxStrip.connectDelay(null);
-                                    fxStripPoolRef.current.push(fxStrip);
-                                }
-                            };
 
                             const delayMs = (releaseTime - context.currentTime) * 1000;
                             if (delayMs > 0) {
                                 setTimeout(() => {
                                     voice.noteOff();
-                                    releaseFxStrip();
+                                    releaseFxStrip(fxStrip);
                                 }, delayMs);
                             } else {
                                 voice.noteOff();
-                                releaseFxStrip();
+                                releaseFxStrip(fxStrip);
                             }
                         };
 
@@ -1000,16 +997,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                     const fxStrip = fxStripPoolRef.current.pop() || new VoiceFXStrip(context);
 
-                    const cutoff = noteParams?.filterCutoff !== undefined
-                        ? Math.max(20, noteParams.filterCutoff * 20000)
-                        : params.filterCutoff;
-                    const resonance = noteParams?.filterResonance !== undefined
-                        ? noteParams.filterResonance * 20
-                        : params.filterResonance;
+                    const cutoff = pFilterCutoff ?? 20000;
+                    const resonance = pFilterResonance ?? 0;
                     fxStrip.updateFilter(cutoff, resonance, startTime);
 
                     const shaper = context.createWaveShaper();
-                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                    const driveAmount = pDriveAmount;
                     if (driveAmount > 0) {
                         shaper.curve = makeDistortionCurve(driveAmount * 100);
                     } else {
@@ -1274,6 +1267,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             });
 
             setIsReady(true);
+            isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             setIsReady(true);
