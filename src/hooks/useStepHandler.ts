@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type {
     Pattern,
     SynthParams,
@@ -19,6 +19,10 @@ import { automationStore } from '../stores/automationStore';
 import { isE2eMode, setE2eTransportStep } from '../e2e/probe';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
+import {
+    playbackHealthMonitor,
+    PLAYBACK_THRESHOLDS,
+} from '../audio/playback/PlaybackHealthMonitor';
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const notesArray = Array.isArray(notes) ? notes : [notes];
@@ -116,6 +120,9 @@ export const useStepHandler = ({
     automationSchedulerRef,
     trakEventsRef,
 }: UseStepHandlerOptions) => {
+    const lastHandledStepRef = useRef({ step: -1, audioTime: 0 });
+    const lastTrakBarRef = useRef(-1);
+
     const onStep = useCallback((step: number, audioTime?: number) => {
         currentStepRef.current = step;
         automationStore.setPlaybackStep(step);
@@ -127,6 +134,17 @@ export const useStepHandler = ({
         // This ensures notes are scheduled at the exact moment the step fires on the
         // audio thread, not at the moment the main-thread message is processed (~1-5ms later).
         const time = audioTime ?? audioEngine.context.currentTime;
+
+        const lastHandled = lastHandledStepRef.current;
+        if (
+            step === lastHandled.step &&
+            (time - lastHandled.audioTime) * 1000 < PLAYBACK_THRESHOLDS.stepDuplicateGuardMs
+        ) {
+            playbackHealthMonitor.recordStepBurst(step);
+            return;
+        }
+        lastHandledStepRef.current = { step, audioTime: time };
+
         let activePattern = patternRef.current;
 
         // Song Mode Measure Handling
@@ -134,6 +152,7 @@ export const useStepHandler = ({
             if (step === 0) {
                 if (isFirstStepRef.current) {
                     isFirstStepRef.current = false;
+                    lastTrakBarRef.current = -1;
                 } else {
                     const nextM = songMeasureRef.current + 1;
                     songMeasureRef.current = nextM < songStructureRef.current.length ? nextM : 0;
@@ -143,15 +162,18 @@ export const useStepHandler = ({
                 // Schedule sub-step trakEvents for the current bar (RBS imported songs).
                 if (trakEventsRef?.current?.length && automationSchedulerRef?.current) {
                     const mIdx = songMeasureRef.current;
-                    const fromTick = mIdx * TICKS_PER_BAR;
-                    const toTick = fromTick + TICKS_PER_BAR;
-                    automationSchedulerRef.current.scheduleFromTrakEvents(
-                        trakEventsRef.current,
-                        tempo,
-                        time,
-                        fromTick,
-                        toTick,
-                    );
+                    if (lastTrakBarRef.current !== mIdx) {
+                        lastTrakBarRef.current = mIdx;
+                        const fromTick = mIdx * TICKS_PER_BAR;
+                        const toTick = fromTick + TICKS_PER_BAR;
+                        automationSchedulerRef.current.scheduleFromTrakEvents(
+                            trakEventsRef.current,
+                            tempo,
+                            time,
+                            fromTick,
+                            toTick,
+                        );
+                    }
                 }
             }
 
@@ -378,7 +400,6 @@ export const useStepHandler = ({
         if (playbackEnabled && audioEngine) {
             const automationPatternIndex = isSongModeActiveRef.current ? (songMeasureRef.current % 8) : 0;
             const activeLanes = automationStore.getActiveLanesForPattern(automationPatternIndex);
-            const now = audioEngine.context.currentTime;
             const rampDuration = Math.max(0.01, stepTime * 0.85);
 
             // Collect live values for UI display (keyed "target:parameter")
@@ -401,7 +422,7 @@ export const useStepHandler = ({
                         step,
                         1,          // schedule one step ahead
                         stepTime,
-                        now
+                        time
                     );
                     // Collect live values from these lanes for UI indicators.
                     for (const lane of schedulerLanes) {
