@@ -42,6 +42,9 @@
 ## 2026-06-29 - Fixed missing type='button' in NoteSelector and AutomationLaneList
 **Learning:** Generic <button> elements inside heavy editing flows like NoteSelector and AutomationLaneList often omit the type="button" attribute. While they may not immediately sit inside a <form> element, it is standard HTML and accessibility practice to explicitly add type="button" to non-submit action buttons to ensure correct behavior and stability.
 **Action:** Always explicitly specify type="button" on generic <button> elements, especially in high-use panels like NoteSelector and AutomationLaneList.
+## 2026-07-08 - [Added type="button" to icon buttons]
+**Learning:** Many interactive SVG/icon buttons lacked `type="button"`, which could accidentally submit forms.
+**Action:** Add `type="button"` systematically to non-submit buttons to improve accessibility and prevent unintended navigation/submission.
 ## 2026-07-06 - Fixed missing type='button' in ProphecyPanel
 **Learning:** Buttons in newly added panels (like ProphecyPanel) sometimes still omit the type="button" attribute. It is crucial to remember to apply it to all interactive UI components, especially ones generating dynamic lists like the Vowel labels.
 **Action:** Always explicitly specify type="button" on generic <button> elements, even when mapped through arrays to prevent layout breakage or unwanted submissions during keyboard interaction.
