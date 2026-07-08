@@ -92,7 +92,7 @@ const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = React.memo(({ sele
         const isSelected = note === selected;
         const isC = note % 12 === 0;
         return (
-          <button
+          <button type="button"
             key={note}
             ref={(el) => {
               if (el) buttonRefs.current.set(note, el);
@@ -273,8 +273,8 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             className="flex items-center gap-2 mt-1 cursor-pointer"
             onClick={() => onChange('lockToSequencer', !values.lockToSequencer)}
           >
-            <button
-              type="button"
+            <button type="button"
+
               role="switch"
               aria-checked={values.lockToSequencer}
               id={lockToSequencerId}
