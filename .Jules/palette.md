@@ -45,3 +45,6 @@
 ## 2026-07-06 - Fixed missing type='button' in ProphecyPanel
 **Learning:** Buttons in newly added panels (like ProphecyPanel) sometimes still omit the type="button" attribute. It is crucial to remember to apply it to all interactive UI components, especially ones generating dynamic lists like the Vowel labels.
 **Action:** Always explicitly specify type="button" on generic <button> elements, even when mapped through arrays to prevent layout breakage or unwanted submissions during keyboard interaction.
+## 2026-07-04 - Safely scripting widespread type="button" updates
+**Learning:** Programmatically updating hundreds of missing `type="button"` attributes using regex scripts across a complex React codebase can easily cause duplicates, merge conflict errors, or mistakenly alter the AST if run against recently broken/refactored logic. React builds fail loudly on duplicate attributes (`TS17001`).
+**Action:** When performing sweeping attribute additions, always check for pre-existing occurrences in the target line, avoid touching files currently showing unresolved merge errors, and test via `pnpm lint` and `pnpm build` immediately to catch syntax errors introduced by over-eager regex.
