@@ -1053,6 +1053,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             formantShift: (params.formantShift || 0) + voice.formantShift,
                             fineTune: (params.fineTune || 0) + voice.detuneCents
                         };
+                        const config = harmonizer.getConfig();
+                        if (config.harmonyAttack !== undefined) {
+                            voiceParams.attack = config.harmonyAttack;
+                        }
+                        if (config.harmonyRelease !== undefined) {
+                            voiceParams.release = config.harmonyRelease;
+                        }
 
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
