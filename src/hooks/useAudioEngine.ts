@@ -616,6 +616,26 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 shaper.curve = makeDistortionCurve(driveAmount * 100);
                             }
 
+                            // Setup Reverb Send
+                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                            const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+                            if (reverbSendAmount > 0 && targetReverbNode) {
+                                const reverbGain = context.createGain();
+                                reverbGain.gain.value = reverbSendAmount;
+                                reverbGain.connect(targetReverbNode);
+                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
+                            }
+
+                            // Setup Delay Send
+                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                            if (delaySendAmount > 0 && delayNodeRef.current) {
+                                const delayGain = context.createGain();
+                                delayGain.gain.value = delaySendAmount;
+                                delayGain.connect(delayNodeRef.current);
+                                voice.connectOutput(delayGain);
+                            }
+
                             // Apply Per-Step Filter / spectral panning / sends via a pooled VoiceFXStrip
                             const shouldUseFxStrip = noteParams?.filterCutoff !== undefined
                                 || noteParams?.filterResonance !== undefined
@@ -656,26 +676,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 shaper.connect(finalDest);
                             } else {
                                 voice.connectOutput(finalDest);
-                            }
-
-                            // Setup Reverb Send
-                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
-                            const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
-                            if (reverbSendAmount > 0 && targetReverbNode) {
-                                const reverbGain = context.createGain();
-                                reverbGain.gain.value = reverbSendAmount;
-                                reverbGain.connect(targetReverbNode);
-                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
-                            }
-
-                            // Setup Delay Send
-                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
-                            if (delaySendAmount > 0 && delayNodeRef.current) {
-                                const delayGain = context.createGain();
-                                delayGain.gain.value = delaySendAmount;
-                                delayGain.connect(delayNodeRef.current);
-                                voice.connectOutput(delayGain);
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
