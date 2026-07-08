@@ -8,6 +8,7 @@ import { WasmOscillator } from '../engines/WasmOscillator';
 import { RustOscillator } from '../engines/RustOscillator';
 import { Open303Manager } from '../engines/Open303Manager';
 import { ProphecyManager } from '../engines/ProphecyManager';
+import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import { PcfEffect } from '../engines/PcfEffect';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
@@ -1799,6 +1800,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             const noteOnSynth = createNoteOnSynth(context, playbackRefs);
             const noteOffSynthById = (id: number) => noteOffSynth(activeSynthNotes.current, id);
             const stopAllNotes = createStopAllNotes(playbackRefs);
+            const guardedStopAllNotes = () => {
+                playbackHealthMonitor.reset();
+                stopAllNotes();
+            };
 
             const renderSynthPartToBuffer = (_params: SynthParams, _sequence: PartSequence, _tempo: number): Promise<AudioBuffer> => {
                  return Promise.resolve(context.createBuffer(2, context.sampleRate * 2, context.sampleRate));
@@ -1867,6 +1872,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303ManagerRef.current,
+                prophecyManager: prophecyManagerRef.current,
                 pcfEffect: pcfEffectRef.current,
                 singingVoice: undefined,
                 playSynth,
@@ -1876,7 +1882,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 noteOffSampler,
                 noteOnSynth,
                 noteOffSynth: noteOffSynthById,
-                stopAllNotes,
+                stopAllNotes: guardedStopAllNotes,
                 loadSampleToEngine,
                 renderSynthPartToBuffer,
                 playBufferedPart,

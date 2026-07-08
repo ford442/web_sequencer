@@ -514,9 +514,9 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             </div>
 
             {/* Sampler Voice Controls Panel */}
-            <div className="min-h-[280px] bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-t-2 border-purple-500/30 p-3 flex gap-4 shrink-0 relative overflow-y-auto overflow-x-hidden">
-                {/* Subtle grid pattern */}
-                <div className="absolute inset-0 opacity-5" style={{
+            <div className="min-h-[280px] bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-t-2 border-purple-500/30 p-3 flex gap-4 shrink-0 relative overflow-y-auto overflow-x-hidden hyphon-chrome-panel">
+                {/* Subtle grid pattern — matches theme circuit overlay at panel scale */}
+                <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{
                     backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
                     backgroundSize: '20px 20px'
                 }} />

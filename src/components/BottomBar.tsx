@@ -5,7 +5,9 @@ import { registerMidiControlTouch, startMidiLearnForControl } from '../hooks/use
 import { MidiBadge } from './MidiBadge'
 import { useMidiMapStore } from '../stores/midiMapStore'
 import { automationStore, useAutomationStore } from '../stores/automationStore'
-import { makeMidiControlId } from '../types/midi'
+import { useSurfaceTexture, type SurfaceTexture } from '../hooks/useSurfaceTexture'
+import { helpDiscoveryStore } from '../stores/helpDiscoveryStore'
+import { HelpTip } from './help/HelpTip'
 
 interface BottomBarProps {
     viewMode: 'notes' | 'automation'
@@ -92,6 +94,13 @@ export const BottomBar = memo(function BottomBar({
 }: BottomBarProps) {
     const { mappings, activeControls } = useMidiMapStore();
     const { showHardwareAutomation } = useAutomationStore();
+    const { texture, cycleTexture } = useSurfaceTexture();
+
+    const textureLabel: Record<SurfaceTexture, string> = {
+        off: 'TX OFF',
+        grain: 'GRAIN',
+        circuit: 'PCB',
+    };
 
     const masterMidiProps = useCallback((param: 'volume' | 'saturation' | 'pan') => {
         const controlId = makeMidiControlId('master', param);
@@ -123,11 +132,11 @@ export const BottomBar = memo(function BottomBar({
     }, [forceScriptProcessorFallback, setForceScriptProcessorFallback, showToast]);
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 h-10 bg-gradient-to-r from-[#0a0c10] via-[#0d1014] to-[#0a0c10] backdrop-blur-md border-t border-cyan-900/30 z-40 flex items-center justify-between px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+        <div className="fixed bottom-0 left-0 right-0 h-10 hyphon-toolbar-bottom z-40 flex items-center justify-between px-4">
             {/* Left: View Controls */}
             <div className="flex items-center gap-2">
                 {/* Notes/Automation Toggle */}
-                <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 overflow-hidden" role="group" aria-label="Sequencer view mode">
+                <div className="flex items-center hyphon-inset-well overflow-hidden" role="group" aria-label="Sequencer view mode">
                     <button type="button"
                         onClick={() => setViewMode('notes')}
                         aria-pressed={viewMode === 'notes'}
@@ -168,6 +177,7 @@ export const BottomBar = memo(function BottomBar({
 
                 {/* Live Automation Record Toggle (for creating RBS songs with movement) */}
                 {setIsAutomationRecording && (
+                    <HelpTip topicId="automation-rec-auto" showOnFirstUse position="top">
                     <button type="button"
                         onClick={() => setIsAutomationRecording(!isAutomationRecording)}
                         disabled={!isPlaying}
@@ -178,6 +188,7 @@ export const BottomBar = memo(function BottomBar({
                     >
                         {isAutomationRecording ? '● REC' : 'REC AUTO'}
                     </button>
+                    </HelpTip>
                 )}
 
                 <button
@@ -227,6 +238,7 @@ export const BottomBar = memo(function BottomBar({
                 >
                     📂 LOAD
                 </button>
+                <HelpTip topicId="rbs-import" position="top">
                 <button type="button"
                     onClick={() => setIsRbsImportModalOpen(true)}
                     disabled={isImportingAISong}
@@ -236,6 +248,7 @@ export const BottomBar = memo(function BottomBar({
                 >
                     🎹 Import .rbs
                 </button>
+                </HelpTip>
                 <button type="button"
                     onClick={exportRbsToFile}
                     disabled={isImportingAISong}
@@ -388,14 +401,31 @@ export const BottomBar = memo(function BottomBar({
                     {forceScriptProcessorFallback ? <><span aria-hidden="true">⚠️</span> AW</> : <><span aria-hidden="true">🔊</span> AW</>}
                 </button>
 
+                <button type="button"
+                    onClick={cycleTexture}
+                    aria-pressed={texture !== 'off'}
+                    aria-label={`Surface texture: ${textureLabel[texture]}. Click to cycle.`}
+                    title={`Surface texture (${texture}). Cycles off → film grain → circuit.`}
+                    className={`h-6 px-2 text-[9px] font-mono font-bold border transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95 ${
+                        texture !== 'off'
+                            ? 'bg-cyan-950/50 text-cyan-300 border-cyan-800/60'
+                            : 'bg-zinc-800 text-gray-500 border-zinc-700'
+                    }`}
+                >
+                    {textureLabel[texture]}
+                </button>
+
                 <div className="w-px h-4 bg-gray-700 mx-1" />
 
                 {/* Help Button */}
                 <button type="button"
-                    onClick={() => setIsShortcutsHelpOpen(true)}
+                    onClick={() => {
+                        helpDiscoveryStore.openHelp({ tab: 'search' });
+                        setIsShortcutsHelpOpen(true);
+                    }}
                     className="h-6 w-6 bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 border border-zinc-600 flex items-center justify-center font-bold text-xs transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95"
-                    aria-label="Keyboard Shortcuts"
-                    title="Keyboard Shortcuts (?)"
+                    aria-label="Help — search workflows and shortcuts (?)"
+                    title="Help (?)"
                 >
                     ?
                 </button>

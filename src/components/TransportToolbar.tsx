@@ -4,6 +4,7 @@ import { ScaleSelector } from './ScaleSelector'
 import type { ScaleDefinition } from '../utils/musicTheory'
 import type { SongSnapshot } from '../constants/appDefaults'
 import { midiMapStore, useMidiMapStore } from '../stores/midiMapStore'
+import { HelpTip } from './help/HelpTip'
 
 interface TransportToolbarProps {
     songStorage: (SongSnapshot | null)[]
@@ -79,13 +80,13 @@ export const TransportToolbar = memo(function TransportToolbar({
     };
 
     return (
-        <header className="transport-toolbar h-12 flex items-center justify-between px-2 sm:px-4 bg-gradient-to-r from-[#0b0d10] via-[#0d1014] to-[#0b0d10] border-b border-cyan-900/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)] shrink-0 relative backdrop-blur-md w-full z-30">
+        <header className="transport-toolbar h-12 flex items-center justify-between px-2 sm:px-4 hyphon-toolbar-shell border-b shrink-0 relative w-full z-30">
             {/* Left: Logo + Song Tabs */}
             <div className="flex items-center gap-4">
                 <h1 className="text-lg font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]">HYPHON</h1>
                 
                 {/* Song Slots */}
-                <div className="flex items-center gap-1 bg-zinc-950/80 p-1.5 rounded-lg border border-cyan-500/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" role="group" aria-label="Song slots">
+                <div className="flex items-center gap-1 hyphon-inset-well p-1.5" role="group" aria-label="Song slots">
                     <span className="text-[9px] text-gray-600 font-mono uppercase px-1 mr-1">SONG</span>
                     {[0, 1, 2, 3].map(slot => {
                         const isSaved = !!songStorage[slot];
@@ -260,6 +261,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 <div className="w-px h-5 bg-gray-700 mx-1" />
 
                 {/* Song Mode Toggle */}
+                <HelpTip topicId="song-mode" position="bottom">
                 <button type="button"
                     onClick={() => setIsSongModeOpen(!isSongModeOpen)}
                     onKeyDown={(e) => {
@@ -275,6 +277,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 >
                     SONG
                 </button>
+                </HelpTip>
 
                 {/* 3D Toggle */}
                 <button type="button"

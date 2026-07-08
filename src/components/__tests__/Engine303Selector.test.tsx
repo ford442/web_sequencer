@@ -1,22 +1,27 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Engine303Selector } from '../Engine303Selector';
+import { helpDiscoveryStore } from '../../stores/helpDiscoveryStore';
 
 describe('Engine303Selector', () => {
+    beforeEach(() => {
+        helpDiscoveryStore._resetForTests();
+        helpDiscoveryStore.markTipSeen('engine-303-switch');
+    });
     it('renders "Custom Open303" and "Authentic JC303" buttons', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="open303" onChange={onChange} />);
 
-        expect(screen.getByRole('button', { name: /Custom Open303/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /Authentic JC303/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Select Custom Open303 engine' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Select Authentic JC303 engine' })).toBeInTheDocument();
     });
 
     it('marks Custom Open303 as pressed when engine is open303', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="open303" onChange={onChange} />);
 
-        const customBtn = screen.getByRole('button', { name: /Custom Open303/i });
-        const jc303Btn = screen.getByRole('button', { name: /Authentic JC303/i });
+        const customBtn = screen.getByRole('button', { name: 'Select Custom Open303 engine' });
+        const jc303Btn = screen.getByRole('button', { name: 'Select Authentic JC303 engine' });
 
         expect(customBtn).toHaveAttribute('aria-pressed', 'true');
         expect(jc303Btn).toHaveAttribute('aria-pressed', 'false');
@@ -26,8 +31,8 @@ describe('Engine303Selector', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="jc303" onChange={onChange} />);
 
-        const customBtn = screen.getByRole('button', { name: /Custom Open303/i });
-        const jc303Btn = screen.getByRole('button', { name: /Authentic JC303/i });
+        const customBtn = screen.getByRole('button', { name: 'Select Custom Open303 engine' });
+        const jc303Btn = screen.getByRole('button', { name: 'Select Authentic JC303 engine' });
 
         expect(customBtn).toHaveAttribute('aria-pressed', 'false');
         expect(jc303Btn).toHaveAttribute('aria-pressed', 'true');
@@ -37,7 +42,7 @@ describe('Engine303Selector', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="open303" onChange={onChange} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /Authentic JC303/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'Select Authentic JC303 engine' }));
         expect(onChange).toHaveBeenCalledOnce();
         expect(onChange).toHaveBeenCalledWith('jc303');
     });
@@ -46,7 +51,7 @@ describe('Engine303Selector', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="jc303" onChange={onChange} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /Custom Open303/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'Select Custom Open303 engine' }));
         expect(onChange).toHaveBeenCalledOnce();
         expect(onChange).toHaveBeenCalledWith('open303');
     });
@@ -69,7 +74,7 @@ describe('Engine303Selector', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="open303" onChange={onChange} />);
 
-        const customBtn = screen.getByRole('button', { name: /Custom Open303/i });
+        const customBtn = screen.getByRole('button', { name: 'Select Custom Open303 engine' });
         expect(customBtn).toHaveAttribute('title');
         expect(customBtn.getAttribute('title')).toMatch(/open303/i);
     });
@@ -78,7 +83,7 @@ describe('Engine303Selector', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="open303" onChange={onChange} />);
 
-        const jc303Btn = screen.getByRole('button', { name: /Authentic JC303/i });
+        const jc303Btn = screen.getByRole('button', { name: 'Select Authentic JC303 engine' });
         expect(jc303Btn).toHaveAttribute('title');
         expect(jc303Btn.getAttribute('title')).toMatch(/rosic/i);
     });
@@ -94,6 +99,6 @@ describe('Engine303Selector', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="open303" onChange={onChange} accentColor="cyan" />);
 
-        expect(screen.getByRole('button', { name: /Custom Open303/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Select Custom Open303 engine' })).toBeInTheDocument();
     });
 });

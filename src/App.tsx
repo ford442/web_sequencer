@@ -14,6 +14,8 @@ import { AISongModal } from './components/AISongModal'
 import { RbsImportModal } from './components/RbsImportModal'
 import { VoiceEditor } from './components/VoiceEditor'
 import { ShortcutsHelp } from './components/ShortcutsHelp'
+import { helpDiscoveryStore, useHelpDiscoveryStore } from './stores/helpDiscoveryStore'
+import { WhatsNewBanner } from './components/help/WhatsNewBanner'
 import { MidiMapPanel } from './components/MidiMapPanel'
 import { GamepadDebugger } from './components/GamepadDebugger'
 import { LyricTrack } from './components/LyricTrack'
@@ -29,6 +31,8 @@ import { useCompactLayoutContext } from './contexts/CompactLayoutContext'
 import { engineDegradationStore } from './stores/engineDegradationStore'
 import { midiMapStore, useMidiMapStore } from './stores/midiMapStore'
 import { useA11yPlaybackAnnouncements } from './hooks/useA11yPlaybackAnnouncements'
+import { useSurfaceTexture } from './hooks/useSurfaceTexture'
+import { VisualStyleShowcase } from './components/ui/VisualStyleShowcase'
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -89,6 +93,12 @@ export const App: React.FC = () => {
 
     const { isCompact, toggleCompact } = useCompactLayoutContext();
     const { panelOpen: isMidiMapPanelOpen } = useMidiMapStore();
+    const { helpOpen } = useHelpDiscoveryStore();
+    const showHelpModal = isShortcutsHelpOpen || helpOpen;
+    const closeHelpModal = () => {
+        setIsShortcutsHelpOpen(false);
+        helpDiscoveryStore.closeHelp();
+    };
 
     useA11yPlaybackAnnouncements({
         isPlaying,
@@ -107,6 +117,15 @@ export const App: React.FC = () => {
         });
         return () => engineDegradationStore.setToastHandler(null);
     }, [showToast]);
+
+    useSurfaceTexture();
+
+    const showVisualReview = typeof location !== 'undefined'
+        && new URLSearchParams(location.search).has('visual-review');
+
+    if (showVisualReview) {
+        return <VisualStyleShowcase />;
+    }
 
     if (is3DMode) {
         return (
@@ -148,7 +167,7 @@ export const App: React.FC = () => {
             <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
             <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
-            {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
+            {showHelpModal && (<ShortcutsHelp onClose={closeHelpModal} />)}
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
             {isMidiMapPanelOpen && (<MidiMapPanel onClose={() => midiMapStore.setPanelOpen(false)} />)}
 
@@ -180,13 +199,14 @@ export const App: React.FC = () => {
             />
 
             <main id="main-content" className={`flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto overscroll-y-contain ${isCompact ? 'pb-28' : 'pb-12'} hyphon-main-scroll`}>
+                <WhatsNewBanner />
                 <div className={`w-full max-w-[1000px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-0 ${isCompact ? 'h-[min(42vh,360px)] min-h-[240px]' : 'h-[440px]'}`}>
                     <SequencerNode />
                 </div>
                 <ContextMenuNode />
 
                 <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
-                    <div className={`rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-cyan-500/20 ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px]'}`}>
+                    <div className={`hyphon-rack-shell overflow-hidden ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px]'}`}>
                         <RackNode />
                     </div>
                 </div>

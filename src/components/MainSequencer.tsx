@@ -17,6 +17,7 @@ import {
     sequencerCellKey,
     type SequencerCellCoord,
 } from '../utils/sequencerGridKeyboard';
+import { RackPanelChrome } from './ui/RackPanelChrome';
 
 // --- PERFORMANCE STYLES ---
 const SEQUENCER_STYLES = `
@@ -862,7 +863,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     return (
         <div
             id="main-sequencer"
-            className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-x-auto overflow-y-hidden scrollbar-thin hyphon-sequencer-scroll touch-pan-x"
+            className="w-full h-full p-4 hyphon-sequencer-shell relative overflow-x-auto overflow-y-hidden scrollbar-thin hyphon-sequencer-scroll touch-pan-x"
             ref={containerRef}
             onDoubleClick={handleDoubleClick}
             role="grid"
@@ -874,12 +875,8 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 Arrow keys move between steps and tracks. Space or Enter toggles a step. Shift plus arrow extends the selection range.
             </p>
             <style>{SEQUENCER_STYLES}</style>
-            <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
-            {/* Screws */}
-            <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: '0.75rem' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: 'calc(100% - 1.75rem)' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: '0.75rem' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: 'calc(100% - 1.75rem)' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+            <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none" aria-hidden="true" />
+            <RackPanelChrome stickyScrews />
 
             {/* Alt+Click hint for sampler */}
             {onPhonemeUpdate && (

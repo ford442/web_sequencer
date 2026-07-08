@@ -13,7 +13,9 @@ import { useSongStorage } from './useSongStorage'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
 import { automationStore } from '../stores/automationStore';
+import { helpDiscoveryStore } from '../stores/helpDiscoveryStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
+import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import type { PcfEffect } from '../engines/PcfEffect';
 import { updateCell, createEmptyMeasure, insertMeasure, removeMeasureAt, duplicateMeasure } from '../utils/songModeEditing'
 import { exportSongToXM } from '../utils/xmExport'
@@ -601,6 +603,7 @@ export function useAppState() {
     useEffect(() => {
         const ctx = audioEngine?.context;
         const mgr = (audioEngine as any)?.open303Engine ?? null;
+        const prophecy = (audioEngine as any)?.prophecyManager ?? null;
         const pcf: PcfEffect | null = (audioEngine as any)?.pcfEffect ?? null;
         if (ctx) {
             if (!automationSchedulerRef.current) {
@@ -609,6 +612,7 @@ export function useAppState() {
                 automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
             }
             automationSchedulerRef.current.setPcfEffect(pcf);
+            automationSchedulerRef.current.setProphecyManager(prophecy);
         }
     }, [audioEngine]);
 
@@ -670,6 +674,7 @@ export function useAppState() {
             currentStepRef.current = -1;
             automationStore.clearLiveValues();
             automationSchedulerRef.current?.cancelAll();
+            playbackHealthMonitor.reset();
         }
     }, [schedPlaying]);
 
@@ -733,6 +738,15 @@ export function useAppState() {
                 return;
             }
 
+            // Help: ? key opens searchable help modal
+            if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                if (inTextField) return;
+                e.preventDefault();
+                setIsShortcutsHelpOpen(true);
+                helpDiscoveryStore.openHelp({ tab: 'search' });
+                return;
+            }
+
             // Undo: Ctrl/Cmd+Z — song structure when song panel is open, else pattern
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
                 if (inTextField) return;
@@ -762,7 +776,7 @@ export function useAppState() {
         };
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [handlePlayToggle, undoRedo, canUndoSong, canRedoSong, undoSongStructure, redoSongStructure]);
+    }, [handlePlayToggle, undoRedo, canUndoSong, canRedoSong, undoSongStructure, redoSongStructure, setIsShortcutsHelpOpen]);
 
     const handleMasterVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v);
         if (automationStore.isParameterArmed('master', 'volume')) {

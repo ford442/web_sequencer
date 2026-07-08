@@ -14,6 +14,8 @@ import { automationStore, useAutomationStore } from '../stores/automationStore';
 import { smoothToward, getRecordingBufferValue } from '../utils/knobAutomationCurve';
 import type { KnobAutomationOverlayState } from './knobAutomationOverlay';
 import { buildKnobAutomationSvgPath, knobIndicatorPosition } from './knobAutomationOverlay';
+import { PanelTitleBar } from './ui/PanelChrome';
+import { RackPanelChrome } from './ui/RackPanelChrome';
 
 const KNOB_TEST_ID_SANITIZE_PATTERN = /[^A-Za-z0-9_-]/g;
 
@@ -127,9 +129,9 @@ const KnobOverlay = memo(({
                     }}
                     aria-hidden="true"
                 >
-                    <path d={ghostPath} fill="none" stroke="rgba(0,229,255,0.4)" strokeWidth="1.5" strokeLinejoin="round" />
+                    <path d={ghostPath} fill="none" stroke="var(--hyphon-knob-ring-dim)" strokeWidth="1.5" strokeLinejoin="round" />
                     {indicatorPos && (
-                        <circle cx={indicatorPos.x} cy={indicatorPos.y} r="3" fill="#00e5ff" opacity="0.9" />
+                        <circle cx={indicatorPos.x} cy={indicatorPos.y} r="3" fill="var(--hyphon-knob-ring)" opacity="0.9" />
                     )}
                 </svg>
             )}
@@ -144,8 +146,8 @@ const KnobOverlay = memo(({
                         width: `${size * 230}%`,
                         height: `${size * 230}%`,
                         transform: 'translate(-50%, -50%)',
-                        border: '2px solid #00e5ff',
-                        boxShadow: '0 0 8px #00e5ff, 0 0 16px #00e5ff60',
+                        border: '2px solid var(--hyphon-knob-ring)',
+                        boxShadow: '0 0 8px var(--hyphon-knob-ring), 0 0 16px color-mix(in srgb, var(--hyphon-knob-ring) 40%, transparent)',
                         zIndex: 5,
                     }}
                     aria-hidden="true"
@@ -168,11 +170,11 @@ const KnobOverlay = memo(({
                     <div className="text-[9px] font-mono leading-tight">
                         <span
                             className="text-[8px] font-bold uppercase tracking-widest px-0.5 rounded"
-                            style={{ color: '#00e5ff', textShadow: '0 0 6px #00e5ff' }}
+                            style={{ color: 'var(--hyphon-knob-ring)', textShadow: '0 0 6px var(--hyphon-knob-ring)' }}
                         >
                             AUTO
                         </span>
-                        <div style={{ color: '#00e5ff', textShadow: '0 0 4px #00e5ff80' }}>
+                        <div style={{ color: 'var(--hyphon-knob-ring)', textShadow: '0 0 4px color-mix(in srgb, var(--hyphon-knob-ring) 50%, transparent)' }}>
                             {Math.round(automatedValue * 100)}
                         </div>
                     </div>
@@ -723,7 +725,8 @@ export const HardwareModule = memo(
         }, [automationMenu, closeAutomationMenu]);
 
         return (
-            <div ref={containerRef} className={`relative rounded-lg shadow-xl bg-gray-900 border border-gray-700 touch-none hyphon-rack-surface ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: isCompact ? '260px' : '220px' }}>
+            <div ref={containerRef} className={`relative touch-none hyphon-chrome-panel hyphon-rack-surface ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: isCompact ? '260px' : '220px' }}>
+                <RackPanelChrome vents />
                 {automationMenu && onAutomationLaneAction && (
                     <div
                         className="fixed z-[100] min-w-[140px] bg-zinc-950 border border-cyan-800/50 rounded shadow-lg py-1 text-[10px] font-mono"
@@ -774,13 +777,11 @@ export const HardwareModule = memo(
                     />
                 ))}
                 <div className="absolute inset-0 pointer-events-none">
-                    <div
-                        className="absolute top-2 left-4 flex items-center gap-2 border-b border-white/20 pb-1 w-auto max-w-[90%] pointer-events-auto"
+                    <PanelTitleBar
+                        title={title}
+                        badge={titleBadge}
                         onContextMenu={handleHeaderContextMenu}
-                    >
-                        <span className="text-xs font-orbitron font-bold text-white/50 tracking-widest">{title.toUpperCase()}</span>
-                        {titleBadge}
-                        {automationTarget && (
+                        actions={automationTarget ? (
                             <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); automationStore.toggleShowHardwareAutomation(); }}
@@ -794,8 +795,8 @@ export const HardwareModule = memo(
                             >
                                 AUTO
                             </button>
-                        )}
-                    </div>
+                        ) : undefined}
+                    />
 
                     {controls.map((c, i) => (
                         <KnobOverlay
