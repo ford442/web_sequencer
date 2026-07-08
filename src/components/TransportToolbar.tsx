@@ -3,6 +3,8 @@ import { CloudStatus } from './CloudStatus'
 import { ScaleSelector } from './ScaleSelector'
 import type { ScaleDefinition } from '../utils/musicTheory'
 import type { SongSnapshot } from '../constants/appDefaults'
+import { midiMapStore, useMidiMapStore } from '../stores/midiMapStore'
+import { HelpTip } from './help/HelpTip'
 
 interface TransportToolbarProps {
     songStorage: (SongSnapshot | null)[]
@@ -27,6 +29,9 @@ interface TransportToolbarProps {
     setCurrentScale: (scale: ScaleDefinition | null) => void
     /** Optional always-visible engine status indicator rendered in the left cluster. */
     engineStatus?: React.ReactNode
+    /** Toggle compact touch layout (mobile-friendly). */
+    onToggleCompact?: () => void
+    isCompactLayout?: boolean
 }
 
 export const TransportToolbar = memo(function TransportToolbar({
@@ -51,24 +56,48 @@ export const TransportToolbar = memo(function TransportToolbar({
     currentScale,
     setCurrentScale,
     engineStatus,
+    onToggleCompact,
+    isCompactLayout = false,
 }: TransportToolbarProps) {
+    const { learnMode, inputAvailable } = useMidiMapStore();
+
+    const handleSongSlotKeyDown = (e: React.KeyboardEvent, slot: number, isSaved: boolean) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (isSaved) loadSong(slot);
+            else void handleSaveSong(slot);
+            return;
+        }
+        let next = -1;
+        if (e.key === 'ArrowRight') next = (slot + 1) % 4;
+        else if (e.key === 'ArrowLeft') next = (slot - 1 + 4) % 4;
+        else if (e.key === 'Home') next = 0;
+        else if (e.key === 'End') next = 3;
+        if (next !== -1) {
+            e.preventDefault();
+            (e.currentTarget.parentElement?.querySelector(`[data-song-slot="${next}"]`) as HTMLButtonElement | null)?.focus();
+        }
+    };
+
     return (
-        <header className="h-12 flex items-center justify-between px-4 bg-gradient-to-r from-[#0b0d10] via-[#0d1014] to-[#0b0d10] border-b border-cyan-900/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)] shrink-0 relative backdrop-blur-md w-full z-30">
+        <header className="transport-toolbar h-12 flex items-center justify-between px-2 sm:px-4 hyphon-toolbar-shell border-b shrink-0 relative w-full z-30">
             {/* Left: Logo + Song Tabs */}
             <div className="flex items-center gap-4">
                 <h1 className="text-lg font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]">HYPHON</h1>
                 
                 {/* Song Slots */}
-                <div className="flex items-center gap-1 bg-zinc-950/80 p-1.5 rounded-lg border border-cyan-500/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+                <div className="flex items-center gap-1 hyphon-inset-well p-1.5" role="group" aria-label="Song slots">
                     <span className="text-[9px] text-gray-600 font-mono uppercase px-1 mr-1">SONG</span>
                     {[0, 1, 2, 3].map(slot => {
                         const isSaved = !!songStorage[slot];
                         const isActive = activeSongSlot === slot;
                         return (
                             <button type="button"
-                                key={slot} 
+                                key={slot}
+                                data-song-slot={slot}
                                 onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }} 
-                                onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }} 
+                                onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }}
+                                onKeyDown={(e) => handleSongSlotKeyDown(e, slot, isSaved)}
                                 title={`Song Slot ${slot + 1}`}
                                 className={`w-7 h-6 text-xs font-mono transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95 ${isActive ? 'bg-cyan-500 text-black font-bold shadow-[0_0_10px_rgba(6,182,212,0.6)]' : (isSaved ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 hover:bg-cyan-800/50' : 'bg-zinc-900 text-zinc-600 border border-zinc-800 hover:border-zinc-700')}`}
                                 aria-label={`Song Slot ${slot + 1}`} 
@@ -93,11 +122,17 @@ export const TransportToolbar = memo(function TransportToolbar({
                 )}
             </div>
 
-            {/* Center: Transport Controls */}
-            <div className="flex items-center gap-3">
+            {/* Center: Transport Controls (desktop / tablet) */}
+            <div className="hidden sm:flex items-center gap-3">
                 {/* Play/Stop Button */}
                 <button type="button"
                     onClick={handlePlayToggle}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handlePlayToggle();
+                        }
+                    }}
                     aria-pressed={isPlaying}
                     aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
                     title={isPlaying ? "Stop Playback (Space)" : "Start Playback (Space)"}
@@ -108,7 +143,13 @@ export const TransportToolbar = memo(function TransportToolbar({
 
                 {/* Record Button */}
                 <button type="button"
-                    onClick={() => setIsRecording(!isRecording)} 
+                    onClick={() => setIsRecording(!isRecording)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setIsRecording(!isRecording);
+                        }
+                    }}
                     aria-pressed={isRecording} 
                     aria-label="Toggle Recording" 
                     title={isRecording ? "Stop Recording" : "Toggle Recording"}
@@ -162,8 +203,50 @@ export const TransportToolbar = memo(function TransportToolbar({
 
                 {/* Key Lock / Scale Selector */}
                 <ScaleSelector currentScale={currentScale} onChange={setCurrentScale} />
+
+                <div className="w-px h-5 bg-gray-700 mx-1" />
+
+                <button
+                    type="button"
+                    onClick={() => midiMapStore.toggleLearnMode()}
+                    aria-pressed={learnMode}
+                    aria-label="Toggle MIDI Learn"
+                    title={learnMode ? 'MIDI Learn ON — touch a control, then move a controller knob' : 'MIDI Learn — map controller knobs to parameters'}
+                    className={`h-7 px-2 font-orbitron text-[9px] font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-md ${
+                        learnMode
+                            ? 'bg-purple-600 text-white animate-pulse border border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)]'
+                            : 'bg-zinc-800 text-purple-400 border border-zinc-700 hover:bg-purple-950/40'
+                    }`}
+                >
+                    MIDI{inputAvailable ? '' : ' ○'}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => midiMapStore.setPanelOpen(true)}
+                    aria-label="Open MIDI Map"
+                    title="View / clear MIDI mappings"
+                    className="h-7 px-2 text-[9px] font-bold text-purple-300 bg-zinc-900 border border-purple-900/50 rounded-md hover:bg-purple-950/40"
+                >
+                    MAP
+                </button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
+                {onToggleCompact && (
+                    <button
+                        type="button"
+                        onClick={onToggleCompact}
+                        aria-pressed={isCompactLayout}
+                        aria-label={isCompactLayout ? 'Switch to comfortable layout' : 'Switch to compact touch layout'}
+                        title={isCompactLayout ? 'Comfortable layout' : 'Compact touch layout'}
+                        className={`h-8 min-w-[2.5rem] px-2 text-[10px] font-bold border rounded-md touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+                            isCompactLayout
+                                ? 'bg-cyan-900/50 text-cyan-200 border-cyan-600'
+                                : 'bg-zinc-900 text-gray-400 border-zinc-700'
+                        }`}
+                    >
+                        {isCompactLayout ? 'CMP' : 'FIT'}
+                    </button>
+                )}
                 {/* Clear Button */}
                 <button type="button"
                     onClick={handleClearPattern} 
@@ -178,8 +261,15 @@ export const TransportToolbar = memo(function TransportToolbar({
                 <div className="w-px h-5 bg-gray-700 mx-1" />
 
                 {/* Song Mode Toggle */}
+                <HelpTip topicId="song-mode" position="bottom">
                 <button type="button"
-                    onClick={() => setIsSongModeOpen(!isSongModeOpen)} 
+                    onClick={() => setIsSongModeOpen(!isSongModeOpen)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setIsSongModeOpen(!isSongModeOpen);
+                        }
+                    }}
                     aria-pressed={isSongModeOpen} 
                     aria-label="Toggle Song Mode" 
                     title={isSongModeOpen ? "Close Song Mode" : "Open Song Mode"}
@@ -187,6 +277,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                 >
                     SONG
                 </button>
+                </HelpTip>
 
                 {/* 3D Toggle */}
                 <button type="button"

@@ -121,6 +121,10 @@ The holographic effects are purely visual - interaction remains the same:
 1. **Mouse Control**
    - Click and drag vertically to adjust value
    - Drag up = increase, drag down = decrease
+   - **Shift** while dragging: coarse adjustment (~10× faster)
+   - **Alt / Ctrl** while dragging: fine adjustment (~10× slower)
+   - A brief **COARSE** / **FINE** label appears on the knob during modified drags
+   - Click the outer value arc to jump directly to a position (scale ticks at 0 / 50 / 100)
 
 2. **Keyboard Control**
    - Click knob to focus
@@ -131,6 +135,7 @@ The holographic effects are purely visual - interaction remains the same:
    - Hover over knob
    - Scroll to adjust value
    - Up = increase, down = decrease
+   - **Shift** = coarser steps; **Alt** = finer steps
 
 ## Troubleshooting Visual Issues
 

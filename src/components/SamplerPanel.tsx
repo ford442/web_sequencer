@@ -614,7 +614,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
     return (
         <div
-            className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+            className="flex flex-col h-full hyphon-sampler-shell text-white overflow-hidden select-none relative"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -631,7 +631,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 </div>
             )}
             {/* --- FIXED HEADER --- */}
-            <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
+            <div className="flex-none flex items-center justify-between p-2 hyphon-sampler-header">
                 {/* Bank Tabs - Mobile touch optimized */}
                 <div className="flex gap-1 overflow-x-auto scrollbar-none touch-pan-x" role="tablist" aria-label="Sample Banks">
                     {SAMPLE_BANKS.map((label, i) => (
