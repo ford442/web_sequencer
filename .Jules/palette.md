@@ -43,3 +43,6 @@
 ## 2026-06-29 - Fixed missing type='button' in NoteSelector and AutomationLaneList
 **Learning:** Generic <button> elements inside heavy editing flows like NoteSelector and AutomationLaneList often omit the type="button" attribute. While they may not immediately sit inside a <form> element, it is standard HTML and accessibility practice to explicitly add type="button" to non-submit action buttons to ensure correct behavior and stability.
 **Action:** Always explicitly specify type="button" on generic <button> elements, especially in high-use panels like NoteSelector and AutomationLaneList.
+## 2026-07-04 - Safely scripting widespread type="button" updates
+**Learning:** Programmatically updating hundreds of missing `type="button"` attributes using regex scripts across a complex React codebase can easily cause duplicates, merge conflict errors, or mistakenly alter the AST if run against recently broken/refactored logic. React builds fail loudly on duplicate attributes (`TS17001`).
+**Action:** When performing sweeping attribute additions, always check for pre-existing occurrences in the target line, avoid touching files currently showing unresolved merge errors, and test via `pnpm lint` and `pnpm build` immediately to catch syntax errors introduced by over-eager regex.
