@@ -14,6 +14,7 @@ import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
 import { DrumKitEngine } from '../engines/DrumKitEngine';
+import { VoiceFXStrip } from '../engines/audio-fx/VoiceFXStrip';
 import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
@@ -89,6 +90,16 @@ type AudioWindow = Window & typeof globalThis & {
     webkitAudioContext?: typeof AudioContext;
     audioContext?: AudioContext;
 };
+
+export function getSyncedSeconds(bars: number, bpm: number): number {
+    if (!bars || bars <= 0) return 0;
+    return bars * 4 * (60 / bpm);
+}
+
+export function getSyncedLfoHz(bars: number, bpm: number): number {
+    if (!bars || bars <= 0) return 0;
+    return bpm / (240 * bars);
+}
 
 type ResolvedExpressiveness = {
     vibratoRate: number;
@@ -907,6 +918,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         expressiveNode?: AudioWorkletNode | null;
         releaseTime?: number;
     }>());
+    const fxStripPoolRef = useRef<VoiceFXStrip[]>([]);
 
     const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
@@ -1481,6 +1493,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 // General Params
                 const pVibratoDepth = noteParams?.vibratoDepth;
+                const pTremoloDepth = noteParams?.tremoloDepth !== undefined ? noteParams.tremoloDepth : params.tremoloDepth;
+                const pTremoloRate = noteParams?.tremoloRate !== undefined ? noteParams.tremoloRate : params.tremoloRate;
                 const pGateDepth = noteParams?.gateDepth !== undefined ? noteParams.gateDepth : params.gateDepth;
                 const pGateRateHz = noteParams?.gateRate !== undefined
                     ? (tempo / 60) * (noteParams.gateRate / 4)
@@ -1635,11 +1649,361 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
                     // For each note in the chord
-;
 
-;
+
+
                     notes.forEach((noteStr, _noteIndex) => {
 
+                    const releaseFxStrip = (fxStrip: VoiceFXStrip | null) => {
+                        if (fxStrip) {
+                            try { fxStrip.output.disconnect(); } catch (e) {}
+                            fxStrip.connectReverb(null);
+                            fxStrip.connectDelay(null);
+                            fxStripPoolRef.current.push(fxStrip);
+                        }
+                    };
+
+                    const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, shouldLoadBuffer: boolean = true) => {
+                            const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
+                            const originalDuration = buffer.duration;
+                            const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
+
+                            // Ensure voice connected to correct output
+                            voice.disconnectOutput();
+                            let finalDest = destination || masterSaturationRef.current!;
+
+                            // Apply Drive/Distortion if present
+                            let shaper: WaveShaperNode | null = null;
+                            const driveAmount = pDriveAmount;
+                            if (driveAmount !== undefined && driveAmount > 0) {
+                                shaper = context.createWaveShaper();
+                                shaper.curve = makeDistortionCurve(driveAmount * 100);
+                            }
+
+                            // Setup Reverb Send
+                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                            const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+                            if (reverbSendAmount > 0 && targetReverbNode) {
+                                const reverbGain = context.createGain();
+                                reverbGain.gain.value = reverbSendAmount;
+                                reverbGain.connect(targetReverbNode);
+                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
+                            }
+
+                            // Setup Delay Send
+                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                            if (delaySendAmount > 0 && delayNodeRef.current) {
+                                const delayGain = context.createGain();
+                                delayGain.gain.value = delaySendAmount;
+                                delayGain.connect(delayNodeRef.current);
+                                voice.connectOutput(delayGain);
+                            }
+
+                            // Apply Per-Step Filter / spectral panning / sends via a pooled VoiceFXStrip
+                            const shouldUseFxStrip = noteParams?.filterCutoff !== undefined
+                                || noteParams?.filterResonance !== undefined
+                                || params.filterCutoff !== undefined
+                                || params.filterResonance !== undefined
+                                || (spectralPanDepth || 0) > 0
+                                || reverbSendAmount > 0
+                                || delaySendAmount > 0;
+                            let fxStrip: VoiceFXStrip | null = null;
+                            if (shouldUseFxStrip) {
+                                fxStrip = fxStripPoolRef.current.pop() || new VoiceFXStrip(context);
+
+                                const cutoff = pFilterCutoff ?? 20000;
+                                const resonance = pFilterResonance ?? 0;
+                                fxStrip.updateFilter(cutoff, resonance, triggerTime);
+
+                                fxStrip.updateSpectralPanning(spectralPanDepth || 0, spectralPanLfoRate, triggerTime);
+                                fxStrip.updateReverbSend(reverbSendAmount, revLfoRate, revLfoDepth, reverbEqCutoff, triggerTime);
+                                fxStrip.connectReverb(targetReverbNode || null);
+                                fxStrip.updateDelaySend(delaySendAmount, triggerTime);
+                                fxStrip.connectDelay(delayNodeRef.current);
+                            }
+
+                            if (fxStrip) {
+                                if (shaper) {
+                                    voice.connectOutput(shaper);
+                                    shaper.connect(fxStrip.input);
+                                } else {
+                                    voice.connectOutput(fxStrip.input);
+                                }
+                                fxStrip.output.connect(finalDest);
+                            } else if (shaper) {
+                                voice.connectOutput(shaper);
+                                shaper.connect(finalDest);
+                            } else {
+                                voice.connectOutput(finalDest);
+                            }
+
+                            // Apply Timbre Modulation (Formant Shift)
+                            const baseShift = params.formantShift || 0;
+                            if (noteParams?.formantShift !== undefined) {
+                                voice.setFormantShift(baseShift + noteParams.formantShift, triggerTime);
+                            } else if (noteParams?.timbre !== undefined) {
+                                const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
+                                voice.setFormantShift(baseShift + mod, triggerTime);
+                            } else if (params.formantShift !== undefined) {
+                                voice.setFormantShift(params.formantShift, triggerTime);
+                            }
+
+                            // Apply Character Morphing
+                            const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+                            const morphTarget = params.morphTarget || 'female';
+                            voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
+
+                            // Sync other params
+                            if (noteParams?.vibratoDepth !== undefined) {
+                                voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
+                            } else if (params.vibratoDepth !== undefined) {
+                                voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateDepth !== undefined) {
+                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
+                            } else if (params.gateDepth !== undefined) {
+                                voice.setGateDepth(params.gateDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateRate !== undefined) {
+                                const rateHz = (tempo / 60) * (noteParams.gateRate / 4);
+                                voice.setGateRate(rateHz, triggerTime);
+                            } else if (params.gateRate !== undefined) {
+                                const rateHz = (tempo / 60) * (params.gateRate / 4);
+                                voice.setGateRate(rateHz, triggerTime);
+                            }
+                            if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
+                            if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
+
+                            if (noteParams?.gateDepth !== undefined) {
+                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
+                            } else if (params.gateDepth !== undefined) {
+                                voice.setGateDepth(params.gateDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateRate !== undefined) {
+                                voice.setGateRate(noteParams.gateRate, triggerTime);
+                            } else if (params.gateRate !== undefined) {
+                                voice.setGateRate(params.gateRate, triggerTime);
+                            }
+
+                            if (noteParams?.breathIntensity !== undefined) {
+                                voice.setBreathIntensity(noteParams.breathIntensity, triggerTime);
+                            } else if (params.breathIntensity !== undefined) {
+                                voice.setBreathIntensity(params.breathIntensity, triggerTime);
+                            }
+                            if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
+                            if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
+                            if (params.sustain !== undefined) voice.setSustain(params.sustain, triggerTime);
+                            if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
+
+                            // Apply per-step or global freeze
+                            if (noteParams?.freeze !== undefined) {
+                                voice.setFreeze(noteParams.freeze, triggerTime);
+                            } else if (params.freeze !== undefined) {
+                                voice.setFreeze(params.freeze, triggerTime);
+                            }
+
+                            // Apply Envelope Follower depths (global only)
+                            if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+                            if (noteParams?.grainPitchQuantize !== undefined) {
+                                voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
+                            } else if (params.grainPitchQuantize !== undefined) {
+                                voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
+                            }
+
+                            if (noteParams?.tranceGate !== undefined) {
+                                voice.setTranceGate(noteParams.tranceGate, triggerTime);
+                            }
+
+                            // Apply Formant LFO
+                            if (noteParams?.formantLfoRate !== undefined) {
+                                voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);
+                            } else if (params.formantLfoRate !== undefined) {
+                                voice.setFormantLfoRate(params.formantLfoRate, triggerTime);
+                            }
+                            if (noteParams?.formantLfoDepth !== undefined) {
+                                voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
+                            } else if (params.formantLfoDepth !== undefined) {
+                                voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
+                            }
+                            if (noteParams?.formantLfoShape !== undefined) {
+                                voice.setFormantLfoShape(noteParams.formantLfoShape);
+                            } else if (params.formantLfoShape !== undefined) {
+                                voice.setFormantLfoShape(params.formantLfoShape);
+                            } else {
+                                voice.setFormantLfoShape(undefined);
+                            }
+
+                            // Apply Character Morphing
+                            voice.setCharacterMorph(characterMorph, morphTarget as any, 0.05); // Use short ramp time
+
+                            // Sync other params
+                            if (pVibratoDepth !== undefined) voice.setVibratoDepth(pVibratoDepth, triggerTime);
+                            if (pTremoloDepth !== undefined) voice.setTremoloDepth(pTremoloDepth * 100, triggerTime); // setTremoloDepth expects percentage 0-100
+                            if (pTremoloRate !== undefined) voice.setTremoloRate(pTremoloRate, triggerTime);
+                            if (pGateDepth !== undefined) voice.setGateDepth(pGateDepth, triggerTime);
+                            if (pGateRateHz !== undefined) voice.setGateRate(pGateRateHz, triggerTime);
+
+                            if (pAttack !== undefined) voice.setAttack(pAttack, triggerTime);
+                            if (pDecay !== undefined) voice.setDecay(pDecay, triggerTime);
+                            if (pSustain !== undefined) voice.setSustain(pSustain, triggerTime);
+                            if (pRelease !== undefined) voice.setRelease(pRelease, triggerTime);
+
+                            if (pFreeze !== undefined) voice.setFreeze(pFreeze, triggerTime);
+                            if (pFreezeLfoRate !== undefined) voice.setFreezeLfoRate(pFreezeLfoRate, triggerTime);
+                            if (pFreezeLfoDepth !== undefined) voice.setFreezeLfoDepth(pFreezeLfoDepth, triggerTime);
+
+                            if (pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(pFreezeEnvDepth, triggerTime);
+                            if (pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(pTimeStretchEnvDepth, triggerTime);
+                            if (pGrainEnvDepth !== undefined) voice.setGrainEnvDepth(pGrainEnvDepth, triggerTime);
+                            if (pGrainPitchEnvDepth !== undefined) voice.setGrainPitchEnvDepth(pGrainPitchEnvDepth, triggerTime);
+                            if (pGrainJitter !== undefined) voice.setGrainJitter(pGrainJitter, triggerTime);
+                            if (pGrainPitchQuantize !== undefined) voice.setGrainPitchQuantize(pGrainPitchQuantize, triggerTime);
+
+                            if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
+                            if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
+                            if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
+                            if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
+
+                            if (pFormantLfoRateHz !== undefined) voice.setFormantLfoRate(pFormantLfoRateHz, triggerTime);
+                            if (pFormantLfoDepth !== undefined) voice.setFormantLfoDepth(pFormantLfoDepth, triggerTime);
+                            voice.setFormantLfoShape(pFormantLfoShape);
+
+                            if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
+                            voice.setFormantEnvFollower(pFormantEnvFollower as number, triggerTime);
+
+                            // Buffer loading is only needed for the first voice allocation for a bank; pooled voices reuse the existing buffer.
+                            if (shouldLoadBuffer) {
+                                voice.loadBuffer(buffer.getChannelData(0));
+                            }
+
+                            // CHECK FOR SLICE TRIGGER MODE
+                            if (params.sliceMode === 'phoneme' && alignment) {
+                                let sliceIndex = -1;
+                                let pitchRatio = 1.0;
+
+                                if (noteParams?.sliceIndex !== undefined) {
+                                    sliceIndex = noteParams.sliceIndex;
+                                    const targetMidi = noteToMidi(noteStr);
+                                    const baseMidi = 60;
+                                    pitchRatio = Math.pow(2, (targetMidi - baseMidi + pitchOffset + pitchOffsetSemitones) / 12);
+                                } else {
+                                    const targetMidi = noteToMidi(noteStr);
+                                    sliceIndex = targetMidi - 60;
+                                    pitchRatio = Math.pow(2, (pitchOffset + pitchOffsetSemitones) / 12);
+                                }
+
+                                if (sliceIndex >= 0) {
+                                    const phonemeId = `${params.sampleName}_${sliceIndex}`;
+                                    voice.triggerSlice(
+                                        buffer.getChannelData(0),
+                                        sliceIndex,
+                                        alignment,
+                                        pitchRatio,
+                                        noteParams?.reverse,
+                                        targetDuration,
+                                        triggerTime,
+                                        phonemeId,
+                                    );
+                                    return;
+                                }
+                            }
+
+                            // 1. Calculate Time Ratio
+                            const timeRatio = targetDuration / originalDuration;
+                            voice.setTimeRatio(timeRatio, triggerTime);
+
+                            // 2. Pitch Shift (with offset for harmonizer and slide support)
+                            const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
+                            if (noteParams?.slideFromMidi !== undefined) {
+                                const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
+                                voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
+                                // Glide over half the target duration or a minimum of 0.15s, bounded by actual duration
+                                const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
+
+                                if (noteParams?.slideType === 'exponential' || params.portamentoType === 'exponential') {
+                                    voice.exponentialRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, tuning);
+                                } else {
+                                    voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, tuning);
+                                }
+                            } else {
+                                voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
+                            }
+
+                            // 3. Phoneme Awareness (from Jules branch)
+                            if (alignment) {
+                                voice.setAlignment(alignment);
+                                voice.sendPhonemeDataToWorklet(targetDuration);
+                            }
+
+                            // 4. Play
+
+                            // Pitch Envelope
+                            if (voice.setPitchAttack) {
+                                voice.setPitchAttack(pPitchAttack, triggerTime);
+                            }
+                            if (voice.setPitchDecay) {
+                                voice.setPitchDecay(pPitchDecay, triggerTime);
+                            }
+                            if ((voice as any).setPitchAmount) {
+                                (voice as any).setPitchAmount(pPitchAmount, triggerTime);
+                            }
+
+                            voice.play(undefined, undefined, 1.0, noteParams?.reverse);
+
+                            const releaseTime = triggerTime + targetDuration;
+
+                            const delayMs = (releaseTime - context.currentTime) * 1000;
+                            if (delayMs > 0) {
+                                setTimeout(() => {
+                                    voice.noteOff();
+                                    releaseFxStrip(fxStrip);
+                                }, delayMs);
+                            } else {
+                                voice.noteOff();
+                                releaseFxStrip(fxStrip);
+                            }
+                        };
+
+                        const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
+                            const t = actualTime + timeOffset;
+
+                            const mainVoiceData = manager.acquireVoice();
+                            manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
+                            triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
+
+                            const effectiveChoir = noteParams?.choir !== undefined ? noteParams.choir : (params.choir || 0);
+
+                            if (effectiveChoir > 0 && pitchOffsetSemitones === 0) {
+                                const detune = 0.15;
+                                const gain = effectiveChoir * 0.7;
+
+                                if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
+                                if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
+
+                                const leftVoiceData = manager.acquireVoice();
+                                if (leftVoiceData.index !== mainVoiceData.index) {
+                                    manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
+                                    triggerVoice(noteStr, leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
+                                }
+
+                                const rightVoiceData = manager.acquireVoice();
+                                if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
+                                    manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
+                                    triggerVoice(noteStr, rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
+                                }
+                            } else if (pitchOffsetSemitones === 0) {
+                                if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                                if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                            }
+                        };
+
+                    // For each note in the chord
+                    notes.forEach((noteStr, _noteIndex) => {
                         if (shouldGlitch) {
                             const numStutters = Math.floor(Math.random() * 3) + 2;
                             const totalDur = durationSteps * stepTime;
@@ -1663,12 +2027,91 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 }
 
                 // Buffer playback mode (non-stretch)
-;
+
 
                 // ⚡ Bolt: Hoist string parsing and noteToMidi out of polyphonic playback loop
                 const isArray = Array.isArray(notes);
                 const firstNote = isArray && notes.length > 0 ? notes[0] : notes;
                 const noteMidiValue = firstNote ? noteToMidi(firstNote as string) + pitchOffsetSemitones : 0;
+                const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
+                    const source = context.createBufferSource();
+
+                    const targetMidi = pitchSemitones;
+                    let playbackBuffer: AudioBuffer;
+                    let pitchRatio = 1.0;
+
+                    if (multisampleBank?.pitchBank.has(targetMidi)) {
+                        playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
+                        pitchRatio = params.playbackSpeed;
+                    } else {
+                        playbackBuffer = multisampleBank?.baseBuffer || buffer;
+                        const rootMidi = multisampleBank?.rootNote ?? 60;
+                        const speed = params.playbackSpeed;
+                        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+                    }
+
+                    source.buffer = playbackBuffer;
+                    source.playbackRate.value = pitchRatio;
+
+                    const gain = context.createGain();
+                    gain.gain.value = params.volume;
+
+                    const fxStrip = fxStripPoolRef.current.pop() || new VoiceFXStrip(context);
+
+                    const cutoff = pFilterCutoff ?? 20000;
+                    const resonance = pFilterResonance ?? 0;
+                    fxStrip.updateFilter(cutoff, resonance, startTime);
+
+                    const shaper = context.createWaveShaper();
+                    const driveAmount = pDriveAmount;
+                    if (driveAmount > 0) {
+                        shaper.curve = makeDistortionCurve(driveAmount * 100);
+                    } else {
+                        shaper.curve = null;
+                    }
+
+                    let finalDestination: AudioNode = masterSaturationRef.current!;
+                    if (params.pan !== undefined && params.pan !== 0) {
+                        const panner = context.createStereoPanner();
+                        panner.pan.value = params.pan;
+                        panner.connect(masterSaturationRef.current!);
+                        finalDestination = panner;
+                    }
+
+                    source.connect(shaper);
+                    shaper.connect(gain);
+                    gain.connect(fxStrip.input);
+                    fxStrip.output.connect(finalDestination);
+
+                    const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+                    const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
+                    const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
+
+                    fxStrip.updateSpectralPanning(spectralPanDepth || 0, spectralPanLfoRate, startTime);
+
+                    const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                    const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                    const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+
+                    fxStrip.updateReverbSend(reverbSendAmount, 0.1, 0, 6000, startTime);
+                    fxStrip.connectReverb(targetReverbNode || null);
+
+                    const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                    fxStrip.updateDelaySend(delaySendAmount, startTime);
+                    fxStrip.connectDelay(delayNodeRef.current);
+
+                    source.onended = () => {
+                        try { fxStrip.output.disconnect(); } catch (e) {}
+                        fxStrip.connectReverb(null);
+                        fxStrip.connectDelay(null);
+                        fxStripPoolRef.current.push(fxStrip);
+                    };
+
+                    source.start(startTime);
+                    if (duration > 0) {
+                        source.stop(startTime + duration);
+                    }
+                };
 
                 notes.forEach(noteStr => {
                     const midi = noteMidiValue;
@@ -1720,6 +2163,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             formantShift: (params.formantShift || 0) + voice.formantShift,
                             fineTune: (params.fineTune || 0) + voice.detuneCents
                         };
+                        const config = harmonizer.getConfig();
+                        if (config.harmonyAttack !== undefined) {
+                            voiceParams.attack = config.harmonyAttack;
+                        }
+                        if (config.harmonyRelease !== undefined) {
+                            voiceParams.release = config.harmonyRelease;
+                        }
 
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
@@ -1911,6 +2361,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             loadingProgressStore.completeStep('complete');
             loadingProgressStore.finishLoading();
             setIsReady(true);
+            isInitializing.current = false;
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             loadingProgressStore.addError(e instanceof Error ? e.message : String(e));

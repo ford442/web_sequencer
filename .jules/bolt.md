@@ -1,3 +1,7 @@
+## 2026-07-04 - Native AudioNode Garbage Collection
+**Learning:** Instantiating complex native Web Audio graphs (e.g. `context.createBiquadFilter()`, `context.createGain()`, `context.createOscillator()`, `context.createStereoPanner()`) dynamically inside the hot polyphonic inner loop (`notes.forEach`) causes severe main-thread garbage collection (GC) overhead and potential CPU spikes, especially during dense chord playback or rapid granular retriggers.
+**Action:** Use pre-allocated, object-oriented node wrappers like `VoiceFXStrip` initialized once per audio engine session and pooled via `fxStripPoolRef.current.push/pop()`. Configure the active parameters with `AudioParam.setValueAtTime()` and recycle the strip back to the pool on source completion to eliminate per-note allocations in `playSamplerVoice`.
+
 ## 2026-07-06 - [Optimization] Hoist Invariant Audio Parameter Configuration Outside of Polyphonic Loops
 
 **Learning:** When debugging the hot path for synthesizer and sampler playback, it's critical to realize that WASM engine parameter applications (`applyBass1Params`, `applyPartBParams`, and `setCutoff`) frequently trigger expensive FFI (Foreign Function Interface) calls across thread or memory boundaries. If these apply methods are inside inner polyphonic loops (`notes.forEach`) or note-retrigger loops (`for (let i = 0; i < retrigger; i++)`), they execute redundantly for every sub-step or voice layer, multiplying CPU cost with no audio benefit. Similarly, parsing notes strings to MIDI (`noteToMidi`) should only happen strictly when notes differ.
@@ -19,6 +23,9 @@
 ## 2026-29-29 - Redundant Worklet Param Resolution in Audio Playback
 **Learning:** Discovered that polyphonic trigger loops inside `createPlaySynth` and `createPlayDrum` redundantly re-parse notes, calculate midi numbers, and compute pitch ratios on every iteration/sub-step instead of hoisting these invariant calculations.
 **Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
+## 2026-07-08 - [Closure Allocations in High-Frequency Loops]
+**Learning:** In React hooks that handle sequencer playback or dense state calculations (like `useAppState`), using higher-order array methods (like `.forEach`, `.map`) inside helper functions can introduce unnecessary closure allocations. In a real-time audio app, this causes micro-pauses due to garbage collection (GC) thrashing.
+**Action:** Always prefer standard `for` loops over `.forEach` for iterating large arrays (like track steps) inside critical path functions or effects, especially when those functions are called frequently (e.g., multiple times per state update for activity calculation).
 
 ## 2026-07-01 - Real-time Polyphonic Closure Hoisting via Context
 **Learning:** During polyphonic granular playback (`useAudioEngine.ts` inside `playSamplerVoice`), defining complex closures like `triggerVoice` and `runVoices` inside the outer execution scope forces the engine to re-allocate and capture these heavy functions on EVERY trigger call. In glitch effects or wide chords, this creates intense garbage collection overhead.
