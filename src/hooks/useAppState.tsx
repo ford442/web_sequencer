@@ -434,13 +434,15 @@ export function useAppState() {
             if (!trackSeq || !trackSeq.steps) return 0;
             let activeSteps = 0;
             let totalVelocity = 0;
-            trackSeq.steps.forEach((step: any) => {
+            const steps = trackSeq.steps;
+            for (let i = 0; i < steps.length; i++) {
+                const step = steps[i];
                 if (step) {
                     activeSteps++;
                     totalVelocity += step.velocity || 1;
                 }
-            });
-            return activeSteps === 0 ? 0 : totalVelocity / trackSeq.steps.length;
+            }
+            return activeSteps === 0 ? 0 : totalVelocity / steps.length;
         };
 
         const synthAActivity = calculateActivity(pattern.partA);
@@ -1214,10 +1216,10 @@ const handleNotePropertyChange = useCallback((
          'vibratoDepth' | 'drive' | 'characterMorph' |
          'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
          'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
-         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'pan' | 'glitchChance' |
+         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' |
-         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' |
-         'spectralPanRate' | 'spectralPanDepth' |
+         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
+         'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' |
          'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
     value: number | boolean | string
 ) => {

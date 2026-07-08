@@ -635,7 +635,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 {/* Bank Tabs - Mobile touch optimized */}
                 <div className="flex gap-1 overflow-x-auto scrollbar-none touch-pan-x" role="tablist" aria-label="Sample Banks">
                     {SAMPLE_BANKS.map((label, i) => (
-                        <button
+                        <button type="button"
                             key={i}
                             ref={(el) => { tabRefs.current[i] = el; }}
                             id={`sampler-bank-tab-${i}`}
@@ -761,7 +761,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             {modes.map((mode, i) => {
                                 const isSelected = (currentParams.mode || 'loop') === mode;
                                 return (
-                                    <button
+                                    <button type="button"
                                         key={mode}
                                         ref={(el) => { modeRefs.current[i] = el; }}
                                         onClick={() => handleModeChange(mode)}
@@ -806,7 +806,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             </div>
                             <div className="flex gap-1 items-center">
                                 <label id="sampler-slice-label" className="text-[9px] text-gray-500 w-10">Slice:</label>
-                                <button
+                                <button type="button"
                                     aria-label="Toggle Phoneme Slice Mode"
                                     aria-pressed={currentParams.sliceMode === 'phoneme'}
                                     onClick={() => {
@@ -839,7 +839,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 <span className="text-[9px] text-gray-500">Drag steps to set pitch</span>
                             </div>
                         </div>
-                        <button
+                        <button type="button"
                             onClick={() => onMelodicModeChange?.(!melodicMode)}
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                                 melodicMode ? 'bg-purple-600' : 'bg-gray-700'
