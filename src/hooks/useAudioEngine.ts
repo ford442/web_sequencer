@@ -739,6 +739,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     reverbLfoDepth?: number,
                     glitchChance?: number,
                     isHarmonyVoice?: boolean,
+                    harmonyAttack?: number,
+                    harmonyRelease?: number,
                     timeStretchEnvDepth?: number,
                     freezeEnvDepth?: number,
                     grainEnvDepth?: number,
@@ -899,6 +901,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 if (params.mode === 'stretch' && singingVoiceManagerRef.current) {
                     const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
+                }
 
             interface SamplerVoiceContext {
                 params: SamplerBankParams;
@@ -1231,10 +1234,13 @@ const triggerVoice = (ctx: SamplerVoiceContext, noteStr: string, voice: SingingV
                             if (pGateDepth !== undefined) voice.setGateDepth(pGateDepth, triggerTime);
                             if (pGateRateHz !== undefined) voice.setGateRate(pGateRateHz, triggerTime);
 
-                            if (pAttack !== undefined) voice.setAttack(pAttack, triggerTime);
+                            const actualAttack = noteParams?.isHarmonyVoice && noteParams?.harmonyAttack !== undefined ? noteParams.harmonyAttack : pAttack;
+                            const actualRelease = noteParams?.isHarmonyVoice && noteParams?.harmonyRelease !== undefined ? noteParams.harmonyRelease : pRelease;
+
+                            if (actualAttack !== undefined) voice.setAttack(actualAttack, triggerTime);
                             if (pDecay !== undefined) voice.setDecay(pDecay, triggerTime);
                             if (pSustain !== undefined) voice.setSustain(pSustain, triggerTime);
-                            if (pRelease !== undefined) voice.setRelease(pRelease, triggerTime);
+                            if (actualRelease !== undefined) voice.setRelease(actualRelease, triggerTime);
 
                             if (pFreeze !== undefined) voice.setFreeze(pFreeze, triggerTime);
                             if (pFreezeLfoRate !== undefined) voice.setFreezeLfoRate(pFreezeLfoRate, triggerTime);
@@ -1403,7 +1409,7 @@ const runVoices = (ctx: SamplerVoiceContext, noteStr: string, timeOffset: number
                                 if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                             }
-                        }
+                        };
 const playBufferSource = (ctx: SamplerVoiceContext, startTime: number, duration: number, pitchSemitones: number) => {
                     const { context, multisampleBank, params, buffer, pFilterCutoff, pFilterResonance, pDriveAmount, vocalOverdrivePoolRef, noteParams, harmonyBusGainRef, expressiveVoiceProcessorPoolRef, spectralPanDepth, spectralPanLfoRate, masterSaturationRef } = ctx;
                     const source = context.createBufferSource();
@@ -1426,7 +1432,20 @@ const playBufferSource = (ctx: SamplerVoiceContext, startTime: number, duration:
                     source.playbackRate.value = pitchRatio;
 
                     const gain = context.createGain();
-                    gain.gain.value = params.volume;
+
+                    if (noteParams?.isHarmonyVoice && (noteParams?.harmonyAttack !== undefined || noteParams?.harmonyRelease !== undefined)) {
+                        const attack = noteParams.harmonyAttack ?? (params.attack ?? 0.05);
+                        const release = noteParams.harmonyRelease ?? (params.release ?? 0.1);
+                        const safeVolume = params.volume ?? 1.0;
+                        gain.gain.setValueAtTime(0, startTime);
+                        gain.gain.linearRampToValueAtTime(safeVolume, startTime + attack);
+                        if (duration > 0) {
+                            gain.gain.setValueAtTime(safeVolume, startTime + duration - release);
+                            gain.gain.linearRampToValueAtTime(0, startTime + duration);
+                        }
+                    } else {
+                        gain.gain.value = params.volume;
+                    }
 
                     const filter = context.createBiquadFilter();
                     filter.type = 'lowpass';
@@ -1622,7 +1641,7 @@ const playBufferSource = (ctx: SamplerVoiceContext, startTime: number, duration:
                     if (duration > 0) {
                         source.stop(startTime + duration);
                     }
-                }
+                };
 const playSamplerVoice = (
                 params: SamplerBankParams,
                 note: string | string[],
@@ -1671,6 +1690,8 @@ const playSamplerVoice = (
                     reverbLfoDepth?: number,
                     glitchChance?: number,
                     isHarmonyVoice?: boolean,
+                    harmonyAttack?: number,
+                    harmonyRelease?: number,
                     timeStretchEnvDepth?: number,
                     freezeEnvDepth?: number,
                     grainEnvDepth?: number,
@@ -1907,6 +1928,8 @@ const playSamplerVoice = (
                     // Play base voice (index 0) - the original note
                     playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
 
+                    const harmonizerConfig = harmonizer.getConfig();
+
                     // Play each harmony voice (skip index 0 which is base)
                     voices.forEach((voice) => {
                         if (voice.index === 0) return; // Skip base voice, already played above
@@ -1923,7 +1946,7 @@ const playSamplerVoice = (
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0, harmonyAttack: harmonizerConfig.harmonyAttack, harmonyRelease: harmonizerConfig.harmonyRelease }, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;
@@ -2102,6 +2125,7 @@ const playSamplerVoice = (
             loadingProgressStore.completeStep('complete');
             loadingProgressStore.finishLoading();
             setIsReady(true);
+        }
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             loadingProgressStore.addError(e instanceof Error ? e.message : String(e));
