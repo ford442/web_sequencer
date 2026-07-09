@@ -372,38 +372,67 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                         </div>
                     </div>
 
-                    {/* Harmony Envelope Controls */}
-                    <div className="space-y-3 pt-2 border-t border-zinc-800/50">
-                        <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Env Attack</span>
-                            <span className="text-[9px] font-mono text-cyan-400/80 tracking-widest">{localConfig.harmonyAttack?.toFixed(2) ?? 0.01}s</span>
-                        </div>
-                        <input
-                            type="range"
-                            min="0"
-                            max="2"
-                            step="0.01"
-                            value={localConfig.harmonyAttack ?? 0.01}
-                            onChange={(e) => handleHarmonyAttackChange(parseFloat(e.target.value))}
-                            className="w-full h-1.5 bg-zinc-900 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(6,182,212,0.6)]"
-                            aria-label="Harmony Envelope Attack"
-                        />
+{/* Harmony Attack - Styled slider */}
+<div className="space-y-2">
+    <div className="flex justify-between items-center">
+        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Attack</span>
+        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+            {(localConfig.harmonyAttack ?? 0.1).toFixed(2)}s
+        </span>
+    </div>
+    <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+        <div
+            className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+            style={{
+                width: `${((localConfig.harmonyAttack ?? 0.1) / 2.0) * 100}%`,
+                background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                boxShadow: `0 0 10px ${color}40`
+            }}
+        />
+        <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.01"
+            value={localConfig.harmonyAttack ?? 0.1}
+            onChange={(e) => handleHarmonyAttackChange(parseFloat(e.target.value))}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label="Harmony Attack Time"
+            aria-valuetext={`${(localConfig.harmonyAttack ?? 0.1).toFixed(2)} seconds`}
+        />
+    </div>
+</div>
 
-                        <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Env Release</span>
-                            <span className="text-[9px] font-mono text-cyan-400/80 tracking-widest">{localConfig.harmonyRelease?.toFixed(2) ?? 0.3}s</span>
-                        </div>
-                        <input
-                            type="range"
-                            min="0"
-                            max="2"
-                            step="0.01"
-                            value={localConfig.harmonyRelease ?? 0.3}
-                            onChange={(e) => handleHarmonyReleaseChange(parseFloat(e.target.value))}
-                            className="w-full h-1.5 bg-zinc-900 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(6,182,212,0.6)]"
-                            aria-label="Harmony Envelope Release"
-                        />
-                    </div>
+{/* Harmony Release - Styled slider */}
+<div className="space-y-2">
+    <div className="flex justify-between items-center">
+        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Release</span>
+        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+            {(localConfig.harmonyRelease ?? 0.3).toFixed(2)}s
+        </span>
+    </div>
+    <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+        <div
+            className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+            style={{
+                width: `${((localConfig.harmonyRelease ?? 0.3) / 2.0) * 100}%`,
+                background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                boxShadow: `0 0 10px ${color}40`
+            }}
+        />
+        <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.01"
+            value={localConfig.harmonyRelease ?? 0.3}
+            onChange={(e) => handleHarmonyReleaseChange(parseFloat(e.target.value))}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label="Harmony Release Time"
+            aria-valuetext={`${(localConfig.harmonyRelease ?? 0.3).toFixed(2)} seconds`}
+        />
+    </div>
+</div>
 
                     {/* Presets - Hardware button style */}
                     <div className="pt-2 border-t border-zinc-800/50">

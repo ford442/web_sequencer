@@ -196,7 +196,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const expressiveVoicePoolRef = useRef<AudioNodePool | null>(null);
     const vocalOverdrivePoolRef = useRef<AudioNodePool | null>(null);
     const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool | null>(null);
-
     
     // Multisample Generator
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
@@ -702,6 +701,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 durationSteps: number = 1, 
                 stepTime: number = 0.2, 
                 noteParams?: { 
+                    vocoderFormantShift?: number;
+                    vocoderPreservation?: number;
+                    vocoderAttack?: number;
+                    vocoderRelease?: number;
+                    harmonyAttack?: number;
+                    harmonyRelease?: number;
                     timbre?: number, 
                     microtiming?: number, 
                     reverse?: boolean, 
@@ -1631,8 +1636,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
+                        const attackOffset = noteParams?.harmonyAttack ? noteParams.harmonyAttack * voice.index * 0.05 : 0;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000) + attackOffset, durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;
