@@ -74,7 +74,7 @@
 
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
 ## 🧠 Innovation Lab (The "Dream" Log)
-* [ ] **Idea:** "Vocal Harmony Envelope" - Apply a dedicated ADSR envelope specifically to the generated harmony voices (synth B in choir mode) so they can fade in slowly behind the main lead vocal.
+* [x] **Idea:** "Vocal Harmony Envelope" - Apply a dedicated ADSR envelope specifically to the generated harmony voices (synth B in choir mode) so they can fade in slowly behind the main lead vocal.
 * [x] **Idea:** "Step-Sequenced Glitch Density" - Allow individual sequencer steps to override the global `glitchChance` parameter, enabling targeted stutter effects on specific syllables. (Implemented in `NoteSelector`, `useAppState`, and `useAudioEngine`!)
 * [x] **Idea:** "Formant LFO Sync Subdivisions" - Extend the Formant LFO sync feature to allow selecting specific note subdivisions (1/4, 1/8, 1/16, 1/32) rather than just syncing to a generic tempo rate. (Implemented via formantLfoSync in NoteSelector and useAudioEngine!)
 * [x] **Idea:** "Formant Envelope Sync" - Sync the formant envelope to BPM subdivisions for rhythmic sweeps. (Implemented in `NoteSelector`, `SamplerPanel`, `useAudioEngine.ts`, and `types.ts` globally and per-step!)
@@ -151,6 +151,8 @@
 ---
 
 ## 📜 Changelog
+## 2026-07-06 - Implemented Vocal Harmony Envelope: Extended `HarmonizerConfig` with `harmonyAttack` and `harmonyRelease` to allow dedicated ADSR envelopes for generated harmony voices. Updated UI with styled range sliders in `HarmonizerPopover` and injected the overrides directly into `voiceParams` inside the audio engine for seamless ensemble swells without affecting the lead vocal. Fulfills "Vocal Harmony Envelope" Innovation Lab idea.
+
 * [2026-08-10] - Implemented Step-Sequenced Tremolo: Added `tremoloRate` and `tremoloDepth` per-step parameters to `Note` interface and exposed controls in `NoteSelector`. Connected these to `useAudioEngine.ts` to allow individual sequencer steps to rhythmically override the global tremolo envelope, providing dynamic pulsing vocal textures. Fulfills the "Step-Sequenced Tremolo" Innovation Lab idea. Added new idea: "Step-Sequenced Granular Pitch Envelopes".
 * [2026-08-08] - Implemented Formant Envelope Follower: Built a native Web Audio envelope follower in `FormantShifter.ts` (using `WaveShaperNode` for rectification and `BiquadFilterNode` for smoothing) to dynamically modulate formant shift amounts based on vocal amplitude. Added global UI knob to `SamplerPanel` and per-step automation to `NoteSelector`. Cleaned up duplicate setters and passed performance and integration tests. Fulfills the "Formant Envelope Follower" Innovation Lab idea.
 * [2026-06-21] - Implemented Granular Position Jitter: Added `grainJitter` parameter to `rubberband-processor.ts` and `SingingVoice.ts`. Wired UI controls in `SamplerPanel` and `NoteSelector` to allow global and per-step granular jitter for textured vocal smearing. Added "Formant Envelope Follower" to Innovation Lab.
