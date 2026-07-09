@@ -4,14 +4,20 @@ import { usePyodideEngine } from './usePyodideEngine'
 import { useScheduler } from './useScheduler'
 import { useStepHandler } from './useStepHandler'
 import { useUndoRedo } from './useUndoRedo'
+import { useSongStructureEditor } from './useSongStructureEditor'
 import { useGamepad } from './useGamepad'
+import { useMidi } from './useMidi'
+import { midiMapStore } from '../stores/midiMapStore'
 import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
 import { automationStore } from '../stores/automationStore';
+import { helpDiscoveryStore } from '../stores/helpDiscoveryStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
+import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import type { PcfEffect } from '../engines/PcfEffect';
+import { updateCell, createEmptyMeasure, insertMeasure, removeMeasureAt, duplicateMeasure } from '../utils/songModeEditing'
 import { exportSongToXM } from '../utils/xmExport'
 import { noteToMidi, midiToNote } from '../utils/musicTheory'
 import type { ScaleDefinition } from '../utils/musicTheory'
@@ -434,13 +440,15 @@ export function useAppState() {
             if (!trackSeq || !trackSeq.steps) return 0;
             let activeSteps = 0;
             let totalVelocity = 0;
-            trackSeq.steps.forEach((step: any) => {
+            const steps = trackSeq.steps;
+            for (let i = 0; i < steps.length; i++) {
+                const step = steps[i];
                 if (step) {
                     activeSteps++;
                     totalVelocity += step.velocity || 1;
                 }
-            });
-            return activeSteps === 0 ? 0 : totalVelocity / trackSeq.steps.length;
+            }
+            return activeSteps === 0 ? 0 : totalVelocity / steps.length;
         };
 
         const synthAActivity = calculateActivity(pattern.partA);
@@ -563,6 +571,17 @@ export function useAppState() {
     useEffect(() => { patternRef.current = pattern; }, [pattern]);
     const songStructureRef = useRef(songStructure);
     useEffect(() => { songStructureRef.current = songStructure; }, [songStructure]);
+    const {
+        editSongStructure,
+        undoSongStructure,
+        redoSongStructure,
+        canUndoSong,
+        canRedoSong,
+        clearSongUndo,
+        songEditRevision,
+    } = useSongStructureEditor(songStructureRef, setSongStructure);
+    const isSongModeOpenRef = useRef(isSongModeOpen);
+    useEffect(() => { isSongModeOpenRef.current = isSongModeOpen; }, [isSongModeOpen]);
     const isSongModeActiveRef = useRef(isSongModeActive);
     useEffect(() => { isSongModeActiveRef.current = isSongModeActive; }, [isSongModeActive]);
     const trackStorageRef = useRef(trackStorage);
@@ -586,6 +605,7 @@ export function useAppState() {
     useEffect(() => {
         const ctx = audioEngine?.context;
         const mgr = (audioEngine as any)?.open303Engine ?? null;
+        const prophecy = (audioEngine as any)?.prophecyManager ?? null;
         const pcf: PcfEffect | null = (audioEngine as any)?.pcfEffect ?? null;
         if (ctx) {
             if (!automationSchedulerRef.current) {
@@ -594,6 +614,7 @@ export function useAppState() {
                 automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
             }
             automationSchedulerRef.current.setPcfEffect(pcf);
+            automationSchedulerRef.current.setProphecyManager(prophecy);
         }
     }, [audioEngine]);
 
@@ -655,6 +676,7 @@ export function useAppState() {
             currentStepRef.current = -1;
             automationStore.clearLiveValues();
             automationSchedulerRef.current?.cancelAll();
+            playbackHealthMonitor.reset();
         }
     }, [schedPlaying]);
 
@@ -718,12 +740,25 @@ export function useAppState() {
                 return;
             }
 
-            // Undo: Ctrl/Cmd+Z
+            // Help: ? key opens searchable help modal
+            if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                if (inTextField) return;
+                e.preventDefault();
+                setIsShortcutsHelpOpen(true);
+                helpDiscoveryStore.openHelp({ tab: 'search' });
+                return;
+            }
+
+            // Undo: Ctrl/Cmd+Z — song structure when song panel is open, else pattern
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
                 if (inTextField) return;
                 e.preventDefault();
-                const prev = undoRedo.undo();
-                if (prev) setPattern(prev);
+                if (isSongModeOpenRef.current && canUndoSong()) {
+                    undoSongStructure();
+                } else {
+                    const prev = undoRedo.undo();
+                    if (prev) setPattern(prev);
+                }
                 return;
             }
 
@@ -732,14 +767,18 @@ export function useAppState() {
                 ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')) {
                 if (inTextField) return;
                 e.preventDefault();
-                const next = undoRedo.redo();
-                if (next) setPattern(next);
+                if (isSongModeOpenRef.current && canRedoSong()) {
+                    redoSongStructure();
+                } else {
+                    const next = undoRedo.redo();
+                    if (next) setPattern(next);
+                }
                 return;
             }
         };
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [handlePlayToggle, undoRedo]);
+    }, [handlePlayToggle, undoRedo, canUndoSong, canRedoSong, undoSongStructure, redoSongStructure, setIsShortcutsHelpOpen]);
 
     const handleMasterVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { const v = parseFloat(e.target.value); setMasterVolume(v); audioEngine?.setMasterVolume(v);
         if (automationStore.isParameterArmed('master', 'volume')) {
@@ -1214,10 +1253,10 @@ const handleNotePropertyChange = useCallback((
          'vibratoDepth' | 'drive' | 'characterMorph' |
          'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
          'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
-         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'pan' | 'glitchChance' |
+         'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' | 'pan' | 'glitchChance' |
          'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' |
-         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' |
-         'spectralPanRate' | 'spectralPanDepth' |
+         'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
+         'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' |
          'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
     value: number | boolean | string
 ) => {
@@ -1292,10 +1331,33 @@ const handleNotePropertyChange = useCallback((
     const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), []);
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => { handlePatternChange(k, i, undefined, { length: len }); }, [handlePatternChange]);
     const handleSongModeToggle = useCallback(() => setIsSongModeOpen(prev => !prev), []);
-    const handleSongStructureUpdate = useCallback((idx: number, key: TrackKey, val: number | null) => { setSongStructure(prev => { const copy = [...prev]; copy[idx] = { ...copy[idx], [key]: val }; return copy; }); }, []);
-    const handleAddMeasure = useCallback(() => setSongStructure(prev => [...prev, { partA: null, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null }]), []);
+    const handleSongStructureUpdate = useCallback((idx: number, key: TrackKey, val: number | null) => {
+        editSongStructure((prev) => updateCell(prev, idx, key, val));
+    }, [editSongStructure]);
+    const handleEditSongStructure = editSongStructure;
+    const handleAddMeasure = useCallback(() => {
+        editSongStructure((prev) => [...prev, createEmptyMeasure()]);
+    }, [editSongStructure]);
+    const handleInsertMeasureAt = useCallback((index: number) => {
+        editSongStructure((prev) => insertMeasure(prev, index, createEmptyMeasure()));
+    }, [editSongStructure]);
+    const handleDuplicateMeasureAt = useCallback((index: number) => {
+        editSongStructure((prev) => duplicateMeasure(prev, index));
+    }, [editSongStructure]);
+    const handleRemoveMeasureAt = useCallback((index: number) => {
+        editSongStructure((prev) => removeMeasureAt(prev, index));
+    }, [editSongStructure]);
     const handleExportXM = useCallback(() => { exportSongToXM(songStructureRef.current, trackStorageRef.current, { synthA: synthARef.current, synthB: synthBRef.current, kick: kickRef.current, snare: snareRef.current, closedHat: closedHatRef.current, openHat: openHatRef.current, sampler: samplerRef.current }, tempoRef.current, patternRef.current, { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide: pyodide }, sampleBuffers); }, [audioEngine, pyodide, sampleBuffers]);
-    const handleRemoveMeasure = useCallback(() => { const currentStructure = songStructure; if (currentStructure.length === 0) return; const last = currentStructure[currentStructure.length - 1]; const hasData = Object.values(last).some(v => v !== null); if (hasData) { if (!window.confirm("The last measure contains patterns. Are you sure you want to remove it?")) return; } setSongStructure(prev => prev.slice(0, -1)); }, [songStructure]);
+    const handleRemoveMeasure = useCallback(() => {
+        const currentStructure = songStructure;
+        if (currentStructure.length === 0) return;
+        const last = currentStructure[currentStructure.length - 1];
+        const hasData = Object.values(last).some(v => v !== null);
+        if (hasData) {
+            if (!window.confirm("The last measure contains patterns. Are you sure you want to remove it?")) return;
+        }
+        editSongStructure((prev) => removeMeasureAt(prev, prev.length - 1));
+    }, [songStructure, editSongStructure]);
     const handleLoadSample = useCallback(async (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => {
         if (!audioEngine) return;
         await audioEngine.loadSampleToEngine(name, buffer, onProgress);
@@ -1334,6 +1396,7 @@ const handleNotePropertyChange = useCallback((
         setDrumKit: updateDrumKit,
         setIsSongModeActive,
         trakEventsRef,
+        clearSongUndo,
     });
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => { const updater = isA ? updateSynthA : updateSynthB; let realVal = val; if (id === 'pitch') realVal = Math.floor(val * 48 - 24); else if (id === 'filterCutoff') realVal = val * 8000; else if (id === 'filterResonance') realVal = val * 20; else if (id === 'filterMode') realVal = Math.round(val); else if (id === 'decay') realVal = val * 2; else if (id === 'release') realVal = val * 2; else if (id === 'length') realVal = val * 2; updater({ [id]: realVal });
@@ -1404,6 +1467,42 @@ const handleNotePropertyChange = useCallback((
         }
     }, [schedPlaying, isSongModeActiveRef, activeTrackSlotsRef]);
 
+    const handleAutomationNudge = useCallback((target: AutomationTarget, paramId: string, value: number, step: number) => {
+        const patternIdx = activeTrackSlotsRef.current['partA'] ?? 0;
+        const lane = automationStore.getPrimaryLaneForParam(target, paramId, patternIdx);
+        if (!lane) return;
+        automationStore.upsertLanePoint(lane.id, step, value);
+    }, [activeTrackSlotsRef]);
+
+    const handleAutomationPunchIn = useCallback((target: AutomationTarget, paramId: string) => {
+        if (!schedPlaying) return;
+        if (!automationStore.isParameterArmed(target, paramId)) {
+            automationStore.armParameter(target, paramId);
+            automationStore.startRecording(target, paramId);
+        }
+    }, [schedPlaying]);
+
+    const handleAutomationLaneAction = useCallback((
+        target: AutomationTarget,
+        action: 'toggle' | 'clear',
+        paramId?: string,
+    ) => {
+        if (action === 'clear') {
+            if (paramId) automationStore.clearLanesForParam(target, paramId);
+            else automationStore.getState().lanes.filter((l) => l.target === target).forEach((l) => automationStore.removeLane(l.id));
+            return;
+        }
+        if (paramId) {
+            const lanes = automationStore.getLanesForParam(target, paramId);
+            const enable = !lanes.some((l) => l.enabled);
+            automationStore.setLanesEnabledForParam(target, paramId, enable);
+        } else {
+            const lanes = automationStore.getState().lanes.filter((l) => l.target === target);
+            const enable = !lanes.some((l) => l.enabled);
+            lanes.forEach((l) => automationStore.setLaneEnabled(l.id, enable));
+        }
+    }, []);
+
     const handleSamplerChange = useCallback((id: string, val: number) => {
         let realVal = val; if (id === 'playbackSpeed') realVal = val * 4.0; else if (id === 'filterCutoff') realVal = val * 20000; else if (id === 'filterResonance') realVal = val * 20; setSampler(prev => {
             const next = [...prev]; const currentBank = next[activeSamplerBank];
@@ -1419,6 +1518,29 @@ const handleNotePropertyChange = useCallback((
             automationStore.recordPoint('sampler', id, { step, value: norm });
         }
     }, [activeSamplerBank]);
+
+    const midiHandlers = useMemo(() => ({
+        handleSynthChange,
+        handleBass2Change,
+        handleKickChange,
+        handleSnareChange,
+        handleClosedHatChange,
+        handleOpenHatChange,
+        handleSamplerChange,
+        setMasterVolume,
+        setMasterSaturation,
+        setGlobalPan,
+        setAudioMasterVolume: (v: number) => audioEngine?.setMasterVolume(v),
+        setAudioMasterSaturation: (v: number) => audioEngine?.setMasterSaturation(v),
+        setAudioGlobalPan: (v: number) => audioEngine?.setGlobalPan(v),
+        getCurrentStep: () => automationStore.getState().playbackStep || currentStepRef.current || 0,
+    }), [
+        handleSynthChange, handleBass2Change, handleKickChange, handleSnareChange,
+        handleClosedHatChange, handleOpenHatChange, handleSamplerChange,
+        audioEngine,
+    ]);
+
+    useMidi({ handlers: midiHandlers, showToast });
 
     const handleSamplerParamChange = useCallback((bankIdx: number, key: string, val: any) => {
         setSampler(prev => {
@@ -1748,6 +1870,8 @@ const handleLyricApply = useCallback(async (text: string) => {
         isLyricTrackVisible, setIsLyricTrackVisible,
         isShortcutsHelpOpen, setIsShortcutsHelpOpen,
         showGamepadDebug, setShowGamepadDebug,
+        toggleMidiLearn: () => midiMapStore.toggleLearnMode(),
+        setMidiMapPanelOpen: (open: boolean) => midiMapStore.setPanelOpen(open),
         isGenerating, setIsGenerating,
         hasStarted, setHasStarted,
         forceScriptProcessorFallback, setForceScriptProcessorFallback,
@@ -1882,9 +2006,18 @@ const handleLyricApply = useCallback(async (text: string) => {
         handleEditLength,
         handleSongModeToggle,
         handleSongStructureUpdate,
+        handleEditSongStructure,
         handleAddMeasure,
+        handleInsertMeasureAt,
+        handleDuplicateMeasureAt,
+        handleRemoveMeasureAt,
         handleExportXM,
         handleRemoveMeasure,
+        undoSongStructure,
+        redoSongStructure,
+        canUndoSong,
+        canRedoSong,
+        clearSongUndo,
         handleLoadSample,
         handleSynthChange,
         handleBass2Change,
@@ -1893,6 +2026,9 @@ const handleLyricApply = useCallback(async (text: string) => {
         handleClosedHatChange,
         handleOpenHatChange,
         handleKnobRecordToggle,
+        handleAutomationNudge,
+        handleAutomationPunchIn,
+        handleAutomationLaneAction,
         handleSamplerChange,
         handleSamplerParamChange,
         handleTtsPhraseChange,

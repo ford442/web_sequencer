@@ -15,6 +15,7 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
 import { audioBufferToWav, blobToBase64 } from '../utils/audioExport';
 import { automationStore, convertHyphonLanes } from '../stores/automationStore';
+import { midiMapStore } from '../stores/midiMapStore';
 import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
 import { RbsExporter, hyphonSongFromSavedData } from '../importers/rbs';
 
@@ -83,6 +84,8 @@ export interface SongStorageDeps {
     setDrumKit?: (kit: DrumKitType) => void;
     /** Activates song mode after a full-song RBS import. */
     setIsSongModeActive?: React.Dispatch<React.SetStateAction<boolean>>;
+    /** Clears song-structure undo history after a full song replace (load/import). */
+    clearSongUndo?: () => void;
     /** Ref populated with resolved TRAK events from the imported RBS song for sub-step automation. */
     trakEventsRef?: MutableRefObject<ResolvedTrakEvent[] | null>;
 }
@@ -135,6 +138,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen,
+        clearSongUndo,
     } = deps;
 
     // AI Song Import loading states
@@ -157,6 +161,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         // automationStore is a module singleton — exportLanes() reads its current state at call time,
         // so memoization of this callback does not cause stale automation data.
         const exportedLanes = automationStore.exportLanes();
+        const exportedMidi = midiMapStore.exportMappings();
         return {
             version: SAVED_SONG_DATA_VERSION,
             pattern: patternRef.current,
@@ -179,6 +184,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             embeddedSamples: encodedSamples,
             ttsPhrases,
             ...(exportedLanes.length > 0 ? { automationLanes: exportedLanes } : {}),
+            ...(exportedMidi.length > 0 ? { midiMappings: exportedMidi } : {}),
         } as SavedSongData;
     }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
 
@@ -237,7 +243,10 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                     ),
                 );
             }
-            if (songData.songStructure) setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]);
+            if (songData.songStructure) {
+                clearSongUndo?.();
+                setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]);
+            }
             if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) {
                 setTtsPhrases(songData.ttsPhrases);
             } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) {
@@ -266,6 +275,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             }
             // Restore automation lanes — importLanes replaces all existing lanes (including clearing when empty).
             automationStore.importLanes(songData.automationLanes ?? []);
+            midiMapStore.importSongMappings(songData.midiMappings);
             if (isE2eMode()) {
                 setE2eLaneCount(automationStore.getState().lanes.length);
             }

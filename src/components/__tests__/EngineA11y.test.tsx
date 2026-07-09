@@ -11,16 +11,21 @@
 
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Engine303Selector } from '../Engine303Selector';
 import { ProphecyPanel } from '../ProphecyPanel';
 import { EngineStatusPill } from '../EngineStatusPill';
+import { helpDiscoveryStore } from '../../stores/helpDiscoveryStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Engine303Selector a11y
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Engine303Selector – accessibility', () => {
+    beforeEach(() => {
+        helpDiscoveryStore._resetForTests();
+        helpDiscoveryStore.markTipSeen('engine-303-switch');
+    });
     it('wraps controls in a role="group" with an accessible name', () => {
         render(<Engine303Selector engine="open303" onChange={vi.fn()} />);
         expect(screen.getByRole('group', { name: /303 engine selection/i })).toBeInTheDocument();
@@ -28,18 +33,18 @@ describe('Engine303Selector – accessibility', () => {
 
     it('Custom Open303 button has aria-pressed=true when active', () => {
         render(<Engine303Selector engine="open303" onChange={vi.fn()} />);
-        expect(screen.getByRole('button', { name: /Custom Open303/i })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'Select Custom Open303 engine' })).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('Authentic JC303 button has aria-pressed=true when active', () => {
         render(<Engine303Selector engine="jc303" onChange={vi.fn()} />);
-        expect(screen.getByRole('button', { name: /Authentic JC303/i })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'Select Authentic JC303 engine' })).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('both buttons have title attributes for tooltip/screen-reader context', () => {
         render(<Engine303Selector engine="open303" onChange={vi.fn()} />);
-        expect(screen.getByRole('button', { name: /Custom Open303/i })).toHaveAttribute('title');
-        expect(screen.getByRole('button', { name: /Authentic JC303/i })).toHaveAttribute('title');
+        expect(screen.getByRole('button', { name: 'Select Custom Open303 engine' })).toHaveAttribute('title');
+        expect(screen.getByRole('button', { name: 'Select Authentic JC303 engine' })).toHaveAttribute('title');
     });
 
     it('JC303 active badge has aria-label when jc303 is selected', () => {
@@ -56,7 +61,7 @@ describe('Engine303Selector – accessibility', () => {
     it('clicking a button does not leave focus in an ambiguous state', () => {
         const onChange = vi.fn();
         render(<Engine303Selector engine="open303" onChange={onChange} />);
-        const jc303Btn = screen.getByRole('button', { name: /Authentic JC303/i });
+        const jc303Btn = screen.getByRole('button', { name: 'Select Authentic JC303 engine' });
         jc303Btn.focus();
         fireEvent.click(jc303Btn);
         expect(onChange).toHaveBeenCalledWith('jc303');

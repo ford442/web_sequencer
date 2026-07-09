@@ -50,7 +50,7 @@ export const SynthPart: React.FC<SynthPartProps> = memo(({ title, accentColor, p
   }, [handleParamChange]);
 
   return (
-    <div className={`relative bg-gray-900/50 p-4 rounded-lg border-2 ${accentClasses[accentColor].border} space-y-4`}>
+    <div className={`relative bg-gray-900/50 p-4 rounded-lg border-2 space-y-4 hyphon-legacy-panel hyphon-legacy-panel--${accentColor}`}>
       <div className="flex justify-between items-start">
         <h2 className={`font-orbitron text-xl font-bold ${accentClasses[accentColor].text}`}>{title}</h2>
         <LoadingButton

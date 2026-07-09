@@ -1,7 +1,9 @@
-import React, { useMemo, memo } from 'react';
+import React, { useMemo, memo, useEffect, useRef } from 'react';
 import { useAppStateContext } from '../../contexts/AppStateContext'
 import { SongMode } from '../SongMode'
 import { MainSequencer } from '../MainSequencer'
+import { useCompactLayoutOptional } from '../../contexts/CompactLayoutContext'
+import { DEFAULT_ZOOM } from '../sequencer/constants'
 
 export const SequencerNode = React.memo(() => {
   const state = useAppStateContext()
@@ -14,9 +16,14 @@ export const SequencerNode = React.memo(() => {
     setBackgroundImage,
     handleSongModeToggle,
     handleSongStructureUpdate,
+    handleEditSongStructure,
     handleAddMeasure,
     handleRemoveMeasure,
     handleExportXM,
+    undoSongStructure,
+    redoSongStructure,
+    canUndoSong,
+    canRedoSong,
     isSongModeActive,
     setIsSongModeActive,
     pattern,
@@ -44,6 +51,16 @@ export const SequencerNode = React.memo(() => {
     setZoomLevel,
   } = state
 
+  const compactLayout = useCompactLayoutOptional();
+  const autoZoomAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!compactLayout?.isCompact || autoZoomAppliedRef.current) return;
+    if (zoomLevel <= DEFAULT_ZOOM) {
+      setZoomLevel(2.2);
+    }
+    autoZoomAppliedRef.current = true;
+  }, [compactLayout?.isCompact, zoomLevel, setZoomLevel]);
+
   return useMemo(() => {
     if (isSongModeOpen && is3DMode) {
       return (
@@ -58,6 +75,11 @@ export const SequencerNode = React.memo(() => {
             onSetBackgroundImage={setBackgroundImage}
             onToggle={handleSongModeToggle}
             onUpdateStep={handleSongStructureUpdate}
+            onEditStructure={handleEditSongStructure}
+            onUndoSong={undoSongStructure}
+            onRedoSong={redoSongStructure}
+            canUndoSong={canUndoSong()}
+            canRedoSong={canRedoSong()}
             onAddMeasure={handleAddMeasure}
             onRemoveMeasure={handleRemoveMeasure}
             onExportXM={handleExportXM}
@@ -111,9 +133,14 @@ export const SequencerNode = React.memo(() => {
     selection,
     handleSongModeToggle,
     handleSongStructureUpdate,
+    handleEditSongStructure,
     handleAddMeasure,
     handleRemoveMeasure,
     handleExportXM,
+    undoSongStructure,
+    redoSongStructure,
+    canUndoSong,
+    canRedoSong,
     setIsSongModeActive,
     setBackgroundImage,
     handleStepToggle,
