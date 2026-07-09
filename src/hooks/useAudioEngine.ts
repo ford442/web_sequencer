@@ -196,6 +196,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const expressiveVoicePoolRef = useRef<AudioNodePool | null>(null);
     const vocalOverdrivePoolRef = useRef<AudioNodePool | null>(null);
     const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool | null>(null);
+
     
     // Multisample Generator
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
@@ -406,6 +407,15 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     forceSingleThreaded: true
                 });
                 
+                if (!open303Ready) {
+                    logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
+                }
+            } catch (e) {
+                logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() threw', e);
+                open303Ready = false;
+            }
+            loadingProgressStore.completeStep('open303Engine');
+
                 if (!open303Ready) {
                     logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
                 }
@@ -722,6 +732,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantShift?: number,
                     grainPitchQuantize?: number,
                     granularPitchShift?: number,
+                    vocoderFormantShift?: number,
+                    vocoderPreservation?: number,
+                    vocoderAttack?: number,
+                    vocoderRelease?: number,
                     bitcrush?: number,
                     downsample?: number,
                     tranceGate?: number,
