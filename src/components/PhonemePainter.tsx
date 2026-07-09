@@ -494,7 +494,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-lg bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-              aria-label="Close Phoneme Painter" title="Close Phoneme Painter"
+              aria-label="Close Phoneme Painter"
             >
               ×
             </button>
