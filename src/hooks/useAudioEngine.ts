@@ -125,7 +125,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
     // Pre-stretched phoneme buffer pool (phoneme-aware time stretching)
     const phonemeBufferPoolRef = useRef<PhonemeBufferPool | null>(null);
-
+    
     // Harmonizer for layered vocals
     const harmonizerRef = useRef<Harmonizer | null>(null);
     const harmonyBusGainRef = useRef<GainNode | null>(null);
@@ -197,6 +197,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const vocalOverdrivePoolRef = useRef<AudioNodePool | null>(null);
     const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool | null>(null);
 
+    
     // Multisample Generator
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
     const multisampleBanksRef = useRef<Map<string, MultisampleBank>>(new Map());
@@ -398,13 +399,22 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             loadingProgressStore.startStep('open303Engine');
             const open303Manager = new Open303Manager();
             let open303Ready = false;
-
+            
             try {
                 open303Ready = await open303Manager.init(context, open303ProcessorUrl, {
                     preferWorklet: true,
                     preferThreaded: false,
                     forceSingleThreaded: true
                 });
+                
+                if (!open303Ready) {
+                    logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
+                }
+            } catch (e) {
+                logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() threw', e);
+                open303Ready = false;
+            }
+            loadingProgressStore.completeStep('open303Engine');
 
                 if (!open303Ready) {
                     logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
@@ -686,17 +696,17 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 }
             };
             const playSamplerVoice = (
-                params: SamplerBankParams,
-                note: string | string[],
-                time: number,
-                durationSteps: number = 1,
-                stepTime: number = 0.2,
-                noteParams?: {
-                    timbre?: number,
-                    microtiming?: number,
-                    reverse?: boolean,
-                    sliceIndex?: number,
-                    retrigger?: number,
+                params: SamplerBankParams, 
+                note: string | string[], 
+                time: number, 
+                durationSteps: number = 1, 
+                stepTime: number = 0.2, 
+                noteParams?: { 
+                    timbre?: number, 
+                    microtiming?: number, 
+                    reverse?: boolean, 
+                    sliceIndex?: number, 
+                    retrigger?: number, 
                     slideFromMidi?: number,
                     slideFromFormant?: number,
                     slideType?: 'linear' | 'exponential',
@@ -755,7 +765,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
                 const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-
+                
                 if (!buffer || !masterSaturationRef.current) return;
 
                 // Apply Microtiming
@@ -1350,11 +1360,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // Buffer playback mode (non-stretch)
                 const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
                     const source = context.createBufferSource();
-
+                    
                     const targetMidi = pitchSemitones;
                     let playbackBuffer: AudioBuffer;
                     let pitchRatio = 1.0;
-
+                    
                     if (multisampleBank?.pitchBank.has(targetMidi)) {
                         playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
                         pitchRatio = params.playbackSpeed;
@@ -1364,7 +1374,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         const speed = params.playbackSpeed;
                         pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
                     }
-
+                    
                     source.buffer = playbackBuffer;
                     source.playbackRate.value = pitchRatio;
 
@@ -1629,11 +1639,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any | null): number | null => {
                 const now = time || context.currentTime;
-
+                
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
                 const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-
+                
                 if (!buffer || !masterSaturationRef.current) return null;
 
                 const expressiveConfig = resolveExpressiveness(params);
@@ -1643,10 +1653,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 const targetMidi = noteToMidi(note);
                 const source = context.createBufferSource();
-
+                
                 let playbackBuffer: AudioBuffer;
                 let pitchRatio: number;
-
+                
                 if (multisampleBank?.pitchBank.has(targetMidi)) {
                     playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
                     pitchRatio = params.playbackSpeed;
@@ -1656,7 +1666,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const effectivePitchOffset = coarseTune + (fineTune / 100);
                     pitchRatio = params.playbackSpeed * Math.pow(2, (targetMidi - rootMidi + effectivePitchOffset) / 12);
                 }
-
+                
                 source.buffer = playbackBuffer;
                 source.playbackRate.value = pitchRatio;
 
@@ -1824,7 +1834,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             rampTime
         });
     }, [audioEngine]);
-
+    
     const updateSamplerVoiceParams = useCallback((_bankIdx: number, param: string, value: number | string | boolean) => {
         applySamplerVoiceParamUpdate({
             manager: singingVoiceManagerRef.current,

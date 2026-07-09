@@ -51,6 +51,14 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
         setLocalConfig(prev => ({ ...prev, busWidener: value }));
     };
 
+    const handleHarmonyAttackChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, harmonyAttack: value }));
+    };
+
+    const handleHarmonyReleaseChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, harmonyRelease: value }));
+    };
+
     const handleApply = () => {
         onApply(localConfig, localActive);
         onClose();
@@ -362,6 +370,39 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 aria-valuetext={`${Math.round((localConfig.busWidener ?? 0.0) * 100)} percent`}
                             />
                         </div>
+                    </div>
+
+                    {/* Harmony Envelope Controls */}
+                    <div className="space-y-3 pt-2 border-t border-zinc-800/50">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Env Attack</span>
+                            <span className="text-[9px] font-mono text-cyan-400/80 tracking-widest">{localConfig.harmonyAttack?.toFixed(2) ?? 0.01}s</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="0.01"
+                            value={localConfig.harmonyAttack ?? 0.01}
+                            onChange={(e) => handleHarmonyAttackChange(parseFloat(e.target.value))}
+                            className="w-full h-1.5 bg-zinc-900 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+                            aria-label="Harmony Envelope Attack"
+                        />
+
+                        <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Env Release</span>
+                            <span className="text-[9px] font-mono text-cyan-400/80 tracking-widest">{localConfig.harmonyRelease?.toFixed(2) ?? 0.3}s</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="0.01"
+                            value={localConfig.harmonyRelease ?? 0.3}
+                            onChange={(e) => handleHarmonyReleaseChange(parseFloat(e.target.value))}
+                            className="w-full h-1.5 bg-zinc-900 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+                            aria-label="Harmony Envelope Release"
+                        />
                     </div>
 
                     {/* Presets - Hardware button style */}

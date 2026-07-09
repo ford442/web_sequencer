@@ -273,8 +273,8 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             className="flex items-center gap-2 mt-1 cursor-pointer"
             onClick={() => onChange('lockToSequencer', !values.lockToSequencer)}
           >
-            <button
-              type="button"
+            <button type="button"
+
               role="switch"
               aria-checked={values.lockToSequencer}
               id={lockToSequencerId}
