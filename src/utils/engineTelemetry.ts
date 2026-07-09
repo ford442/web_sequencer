@@ -1,6 +1,6 @@
 // Lightweight runtime telemetry for engine backends
-// Records backend resolution, recent latencies, and error counts.
-// Also produces an exportable, privacy-preserving session report (see issue #699).
+
+import { engineDegradationStore } from '../stores/engineDegradationStore';
 
 type Resolution = { backend: string; reason?: string; ts: number };
 
@@ -372,6 +372,7 @@ export function logEngineFallback(
   try {
     engineTelemetry.registerResolution(subsystem, 'fallback', fullReason);
     if (err != null) engineTelemetry.recordError(subsystem, err);
+    engineDegradationStore.reportEngineFallback(subsystem, requestedBackend, fullReason);
   } catch {
     /* telemetry must never break audio init */
   }

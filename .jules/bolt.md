@@ -32,3 +32,19 @@
 ## 2026-29-29 - Redundant Worklet Param Resolution in Audio Playback
 **Learning:** Discovered that polyphonic trigger loops inside `createPlaySynth` and `createPlayDrum` redundantly re-parse notes, calculate midi numbers, and compute pitch ratios on every iteration/sub-step instead of hoisting these invariant calculations.
 **Action:** Hoisted the note extraction logic and calculations to strictly run once before entering any loops to prevent unnecessary processing cycles during dense patterns with stutter/retrigger effects.
+## 2026-07-08 - Polyphonic Chord Pitch Over-Hoisting
+**Learning:** Hoisting calculations that depend on the specific element being iterated over (e.g., `noteToMidi(noteStr)`) out of polyphonic loops (e.g., `notes.forEach`) causes critical bugs, such as forcing all notes in a chord to the pitch of the first note. Only truly invariant variables should be hoisted.
+**Action:** When identifying invariant variables for hoisting out of high-frequency loops, strictly verify that the calculation does not depend on the iteration variable (e.g., `noteStr` inside a chord array).
+## 2026-07-09 - Avoid map().find() on high-frequency automation checks
+**Learning:** During playback, the `useStepHandler` is called repeatedly. Inside `useStepHandler`, querying the automation store for values using array functions like `automationStore.getLanesForParam(target, param).map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null)` created significant main-thread garbage collection (GC) overhead and performance bottlenecks.
+**Action:** Replace functional array pipelines (`.map().find()`) with a standard helper method that utilizes a traditional `for` loop to search through available lanes directly and return early when a matching, enabled lane value is found.
+## 2026-07-09 - Avoid map().find() on high-frequency automation checks
+**Learning:** During playback, the `useStepHandler` is called repeatedly. Inside `useStepHandler`, querying the automation store for values using array functions like `automationStore.getLanesForParam(target, param).map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null)` created significant main-thread garbage collection (GC) overhead and performance bottlenecks.
+**Action:** Replace functional array pipelines (`.map().find()`) with a standard helper method that utilizes a traditional `for` loop to search through available lanes directly and return early when a matching, enabled lane value is found.
+## 2026-07-09 - Avoid map().find() on high-frequency automation checks
+**Learning:** During playback, the `useStepHandler` is called repeatedly. Inside `useStepHandler`, querying the automation store for values using array functions like `automationStore.getLanesForParam(target, param).map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null)` created significant main-thread garbage collection (GC) overhead and performance bottlenecks.
+**Action:** Replace functional array pipelines (`.map().find()`) with a standard helper method that utilizes a traditional `for` loop to search through available lanes directly and return early when a matching, enabled lane value is found.
+
+## 2026-07-09 - Avoid map().find() on high-frequency automation checks
+**Learning:** During playback, the `useStepHandler` is called repeatedly. Inside `useStepHandler`, querying the automation store for values using array functions like `automationStore.getLanesForParam(target, param).map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null)` created significant main-thread garbage collection (GC) overhead and performance bottlenecks.
+**Action:** Replace functional array pipelines (`.map().find()`) with a standard helper method that utilizes a traditional `for` loop to search through available lanes directly and return early when a matching, enabled lane value is found.

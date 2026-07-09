@@ -614,7 +614,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
     return (
         <div
-            className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+            className="flex flex-col h-full hyphon-sampler-shell text-white overflow-hidden select-none relative"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -631,7 +631,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 </div>
             )}
             {/* --- FIXED HEADER --- */}
-            <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
+            <div className="flex-none flex items-center justify-between p-2 hyphon-sampler-header">
                 {/* Bank Tabs - Mobile touch optimized */}
                 <div className="flex gap-1 overflow-x-auto scrollbar-none touch-pan-x" role="tablist" aria-label="Sample Banks">
                     {SAMPLE_BANKS.map((label, i) => (
@@ -951,8 +951,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 ) : (
                                     <Knob label="Frz Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                                 )}
-                                <button
-                                    type="button"
+                                <button type="button"
+
                                     role="switch"
                                     aria-checked={currentParams.freezeLfoSync}
                                     aria-label="Sync Freeze LFO Rate to BPM"
@@ -986,8 +986,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 ) : (
                                     <Knob label="Fmt Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                                 )}
-                                <button
-                                    type="button"
+                                <button type="button"
+
                                     role="switch"
                                     aria-checked={currentParams.formantLfoSync}
                                     aria-label="Sync Formant LFO Rate to BPM"
@@ -1027,8 +1027,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <fieldset className="flex items-start gap-1 col-span-2 border border-indigo-900/30 p-1 rounded bg-gray-800/20">
                                 <legend className="sr-only">Formant Envelope</legend>
                                 <div className="flex flex-col items-center gap-1 min-w-[3rem] justify-center mt-4 border-r border-indigo-900/50 pr-1">
-                                    <button
-                                        type="button"
+                                    <button type="button"
+
                                         role="switch"
                                         aria-checked={currentParams.formantEnvSync || false}
                                         aria-label="Sync Formant Envelope to BPM"

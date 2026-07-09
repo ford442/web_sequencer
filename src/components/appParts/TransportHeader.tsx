@@ -3,7 +3,7 @@ import { useAppStateContext } from '../../contexts/AppStateContext'
 import { TransportToolbar } from '../TransportToolbar'
 import { EngineStatusPill } from '../EngineStatusPill'
 
-export const TransportHeader = React.memo(() => {
+export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }: { onToggleCompact?: () => void; isCompactLayout?: boolean }) => {
   const {
     songStorage,
     activeSongSlot,
@@ -61,6 +61,8 @@ export const TransportHeader = React.memo(() => {
       currentScale={currentScale}
       setCurrentScale={setCurrentScale}
       engineStatus={engineStatus}
+      onToggleCompact={onToggleCompact}
+      isCompactLayout={isCompactLayout}
     />
   )
 })

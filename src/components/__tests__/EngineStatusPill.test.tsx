@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { EngineStatusPill } from '../EngineStatusPill';
+import { engineDegradationStore } from '../../stores/engineDegradationStore';
 
 const defaultVoice = (override = {}) => ({
     label: 'A',
@@ -10,6 +11,12 @@ const defaultVoice = (override = {}) => ({
 });
 
 describe('EngineStatusPill', () => {
+    beforeEach(() => {
+        engineDegradationStore.clear('gpu-knobs');
+        engineDegradationStore.clear('open303');
+        engineDegradationStore.clear('rust');
+    });
+
     it('renders nothing when all voices use default engines', () => {
         const { container } = render(
             <EngineStatusPill
