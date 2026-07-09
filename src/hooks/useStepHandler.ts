@@ -16,6 +16,20 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
+import type { AutomationTarget } from '../types';
+
+// ⚡ Bolt: Helper to retrieve the automation store value per lane efficiently without array methods to reduce GC.
+const getAutomationValue = (target: AutomationTarget, param: string, step: number): number | undefined => {
+    const lanes = automationStore.getLanesForParam(target, param);
+    for (let i = 0; i < lanes.length; i++) {
+        const lane = lanes[i];
+        if (lane.enabled) {
+            const v = automationStore.getValueAtStep(lane, step);
+            if (v !== null) return v;
+        }
+    }
+    return undefined;
+};
 import { isE2eMode, setE2eTransportStep } from '../e2e/probe';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
@@ -247,20 +261,10 @@ export const useStepHandler = ({
             // Unified automation lanes (recorded + imported RBS) for filter cutoff/resonance on this synth track
             // These override per-step; values are already 0-1 normalized (playSynth scales to Hz/Q)
             const targetForLane: 'synthA' | 'synthB' = trackKey === 'partA' ? 'synthA' : 'synthB';
-            const cutoffLanes = automationStore.getLanesForParam(targetForLane, 'filterCutoff');
-            for (const lane of cutoffLanes) {
-                if (lane.enabled) {
-                    const v = automationStore.getValueAtStep(lane, step);
-                    if (v !== null) { noteParams.filterCutoff = v; break; }
-                }
-            }
-            const resLanes = automationStore.getLanesForParam(targetForLane, 'filterResonance');
-            for (const lane of resLanes) {
-                if (lane.enabled) {
-                    const v = automationStore.getValueAtStep(lane, step);
-                    if (v !== null) { noteParams.filterResonance = v; break; }
-                }
-            }
+            const cutoffVal = getAutomationValue(targetForLane, 'filterCutoff', step);
+            if (cutoffVal !== undefined) noteParams.filterCutoff = cutoffVal;
+            const resVal = getAutomationValue(targetForLane, 'filterResonance', step);
+            if (resVal !== undefined) noteParams.filterResonance = resVal;
 
             audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
 
@@ -301,9 +305,9 @@ export const useStepHandler = ({
 
             // Bass2 filter automation from unified lanes (RBS tb303Bcutoff etc maps to bass2)
             const bass2NoteParams: any = {};
-            const b2Cutoff = automationStore.getLanesForParam('bass2', 'filterCutoff').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step);
             if (b2Cutoff !== undefined) bass2NoteParams.filterCutoff = b2Cutoff;
-            const b2Res = automationStore.getLanesForParam('bass2', 'filterResonance').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const b2Res = getAutomationValue('bass2', 'filterResonance', step);
             if (b2Res !== undefined) bass2NoteParams.filterResonance = b2Res;
 
             audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, Object.keys(bass2NoteParams).length ? bass2NoteParams : undefined);
@@ -374,11 +378,11 @@ export const useStepHandler = ({
             };
 
             // Sampler track automation (filter, volume) from lanes - complements the Voice Designer ramping below
-            const sampCutoff = automationStore.getLanesForParam('sampler', 'filterCutoff').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step);
             if (sampCutoff !== undefined) (bankParams as any).filterCutoff = Math.max(20, sampCutoff * 20000);
-            const sampRes = automationStore.getLanesForParam('sampler', 'filterResonance').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const sampRes = getAutomationValue('sampler', 'filterResonance', step);
             if (sampRes !== undefined) (bankParams as any).filterResonance = sampRes * 20;
-            const sampVol = automationStore.getLanesForParam('sampler', 'volume').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const sampVol = getAutomationValue('sampler', 'volume', step);
             if (sampVol !== undefined) (bankParams as any).volume = sampVol;
 
             audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
