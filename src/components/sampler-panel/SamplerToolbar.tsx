@@ -106,7 +106,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           loadingText="GEN"
           spinnerColor="text-purple-200"
           className="flex items-center justify-center gap-1.5 px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 transition-all"
-          aria-label={isGenerating ? "Generating Speech..." : "Generate Speech"}
+          aria-label={isGenerating ? "Generating TTS voice for current bank..." : "Generate TTS voice for current bank"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1M12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clipRule="evenodd" />
@@ -119,7 +119,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
             aria-haspopup="dialog"
             aria-expanded={isVoiceEditorOpen}
             className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-            aria-label="Open Voice Editor for Text-to-Speech"
+            aria-label="Open Voice Editor for current bank"
           >
             EDIT
           </button>
