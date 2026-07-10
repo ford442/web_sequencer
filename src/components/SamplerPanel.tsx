@@ -642,7 +642,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             role="tab"
                             aria-selected={activeBankIdx === i}
                             aria-controls="sampler-bank-panel"
-                            aria-label={`Select Bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
+                            aria-label={`Select sample bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
                             tabIndex={activeBankIdx === i ? 0 : -1}
                             onClick={() => onBankChange(i)}
                             onKeyDown={(e) => handleKeyDown(e, i)}
