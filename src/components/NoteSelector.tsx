@@ -1353,8 +1353,9 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
               {trackType === "synth" && (
                 <div className="flex flex-col gap-1 mt-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30">
                   <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
-                    <label>Formant Env Sync</label>
+                    <label htmlFor="note-fmt-env-sync">Formant Env Sync</label>
                     <button type="button"
+                      id="note-fmt-env-sync"
                       role="switch"
                       aria-checked={currentFormantEnvSync || false}
                       aria-label="Sync Formant Envelope to BPM"
