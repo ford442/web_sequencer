@@ -1,5 +1,6 @@
 import React from 'react';
 import { LoadingButton } from '../LoadingButton';
+import { HelpIconButton, HelpTip } from '../help/HelpTip';
 
 interface SamplerToolbarProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -78,6 +79,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
 
       {/* Row B: TTS */}
       <div className="flex gap-1 items-center">
+        <HelpIconButton topicId="sampler-tts" className="shrink-0" />
         <div className="relative flex-1 flex items-center">
           <input
             value={currentTtsText}
@@ -99,6 +101,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           className={`w-2 h-2 border border-black shadow-sm flex-shrink-0 rounded-full transition-colors ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}
           title={ttsReady ? "TTS Engine Ready" : "TTS Engine Loading/Unavailable"}
         />
+        <HelpTip topicId="sampler-tts" position="bottom">
         <LoadingButton
           onClick={handleTTS}
           disabled={!ttsReady}
@@ -113,7 +116,9 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           </svg>
           GEN
         </LoadingButton>
+        </HelpTip>
         {onOpenEditor && (
+          <HelpTip topicId="voice-designer" position="bottom">
           <button type="button"
             onClick={onOpenEditor}
             aria-haspopup="dialog"
@@ -123,6 +128,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           >
             EDIT
           </button>
+          </HelpTip>
         )}
       </div>
 

@@ -143,7 +143,12 @@ interface NoteSelectorProps {
       | "vocoderAttack"
       | "vocoderRelease"
       | "vowel"
-      | "portamento",
+      | "portamento"
+      | "pitchAttack"
+      | "pitchDecay"
+      | "pitchAmount"
+      | "glitchChance"
+      | "probability",
     value: number | boolean | string,
   ) => void;
 }
@@ -246,6 +251,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
           role="dialog"
           aria-modal="true"
           aria-labelledby="note-selector-title"
+          aria-describedby="note-selector-kbd-hint"
           tabIndex={-1}
           className="fixed z-50 bg-gray-900/80 backdrop-blur-md border border-cyan-900/50 rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.15)] p-3 grid gap-3 outline-none animate-in fade-in zoom-in-95 duration-100"
           style={{
@@ -269,6 +275,9 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
               <span aria-hidden="true">✕</span>
             </button>
           </div>
+          <p id="note-selector-kbd-hint" className="sr-only">
+            Tab through note and property controls. Escape closes this panel.
+          </p>
 
           {/* NEW: Duration Control */}
           <PropertySlider
@@ -312,7 +321,11 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 onChange={(v) => onPropertyChange?.("probability", v)}
                 valueFormatter={(v) => `${Math.round(v * 100)}%`}
                 ariaLabel="Probability"
+                ariaDescribedBy="note-prob-desc"
               />
+              <p id="note-prob-desc" className="sr-only">
+                Chance this step triggers during playback. 100% always plays; lower values add random variation.
+              </p>
 
               {/* Microtiming Control */}
               <PropertySlider
@@ -324,7 +337,11 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 onChange={(v) => onPropertyChange?.("microtiming", v)}
                 valueFormatter={(v) => `${Math.round(v * 100)}%`}
                 ariaLabel="Microtiming"
+                ariaDescribedBy="note-micro-desc"
               />
+              <p id="note-micro-desc" className="sr-only">
+                Nudges the step earlier or later within the beat. Negative values play ahead; positive values delay.
+              </p>
 
               {/* Freeze (Spectral Smear) Control */}
               {trackType === "synth" && (
