@@ -211,7 +211,7 @@ export function useKnobInteraction({
             target.setPointerCapture(e.pointerId);
         }
         e.preventDefault();
-        target instanceof HTMLElement && target.focus();
+        if (target instanceof HTMLElement) target.focus();
 
         const { min: currentMin, max: currentMax, step: currentStep, logarithmic: currentLog, onChange: currentOnChange } = propsRef.current;
         let startValue = value;

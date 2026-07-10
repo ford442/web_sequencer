@@ -37,7 +37,7 @@ describe('SongMode Accessibility', () => {
         const filledCell = screen.getByLabelText(/LEAD Measure 2, Pattern 1/i);
         expect(filledCell).toBeInTheDocument();
         expect(filledCell).toHaveAttribute('role', 'gridcell');
-        expect(filledCell).toHaveAttribute('tabIndex', '0');
+        expect(filledCell).toHaveAttribute('tabIndex', '-1');
     });
 
     it('supports keyboard interaction to toggle cells', () => {
