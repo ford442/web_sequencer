@@ -104,6 +104,12 @@ class AutomationStore {
   private state: AutomationState;
   private listeners: Set<AutomationListener> = new Set();
 
+  // Cache to map "target:parameter" to pre-filtered lanes for O(1) lookups during playback
+  private lanesCache: { ref: UnifiedAutomationLane[]; map: Map<string, UnifiedAutomationLane[]> } = {
+    ref: [],
+    map: new Map(),
+  };
+
   constructor() {
     this.state = createInitialState();
   }
@@ -275,9 +281,23 @@ class AutomationStore {
 
   /** Get lanes for a specific target and parameter */
   getLanesForParam(target: AutomationTarget, parameter: string): UnifiedAutomationLane[] {
-    return this.state.lanes.filter(
-      (l) => l.target === target && l.parameter === parameter
-    );
+    if (this.lanesCache.ref !== this.state.lanes) {
+      const map = new Map<string, UnifiedAutomationLane[]>();
+      const lanes = this.state.lanes;
+      for (let i = 0; i < lanes.length; i++) {
+        const lane = lanes[i];
+        const key = `${lane.target}:${lane.parameter}`;
+        let bucket = map.get(key);
+        if (!bucket) {
+          bucket = [];
+          map.set(key, bucket);
+        }
+        bucket.push(lane);
+      }
+      this.lanesCache = { ref: lanes, map };
+    }
+    const key = `${target}:${parameter}`;
+    return this.lanesCache.map.get(key) || [];
   }
 
   /** Get lanes targeting a specific sampler bank (0–7) */
