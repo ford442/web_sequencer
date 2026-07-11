@@ -71,6 +71,7 @@ interface NoteSelectorProps {
   currentChoir?: number;
   currentVocoderMix?: number;
   currentVocoderFormantShift?: number;
+  currentFormantPitchLink?: number;
   currentVocoderPreservation?: number;
   currentVocoderAttack?: number;
   currentVocoderRelease?: number;
@@ -106,6 +107,7 @@ interface NoteSelectorProps {
       | "bitcrush"
       | "downsample"
       | "formantShift"
+      | "formantPitchLink"
       | "filterCutoff"
       | "filterResonance"
       | "envMod"
@@ -219,6 +221,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentChoir,
     currentVocoderMix,
     currentVocoderFormantShift,
+    currentFormantPitchLink,
     currentVocoderPreservation,
     currentVocoderAttack,
     currentVocoderRelease,
@@ -655,6 +658,31 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       }
                       className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all border border-indigo-900/30"
                       aria-label="Vocoder Formant Shift Override"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px] text-indigo-200/70 font-bold uppercase">
+                      <label htmlFor="note-formant-pitch-link">Fmt Link</label>
+                      <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">
+                        {currentFormantPitchLink?.toFixed(2) ?? '0.00'}
+                      </span>
+                    </div>
+                    <input
+                      id="note-formant-pitch-link"
+                      type="range"
+                      min="-1"
+                      max="1"
+                      step="0.01"
+                      value={currentFormantPitchLink ?? 0}
+                      onChange={(e) =>
+                        onPropertyChange?.(
+                          "formantPitchLink",
+                          parseFloat(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all border border-indigo-900/30"
+                      aria-label="Formant Pitch Link Override"
                     />
                   </div>
 
