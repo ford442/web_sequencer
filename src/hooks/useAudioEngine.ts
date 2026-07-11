@@ -415,15 +415,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             }
             loadingProgressStore.completeStep('open303Engine');
 
-                if (!open303Ready) {
-                    logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
-                }
-            } catch (e) {
-                logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() threw', e);
-                open303Ready = false;
-            }
-            loadingProgressStore.completeStep('open303Engine');
-
             // Initialize PCF (Pattern Controlled Filter) — inserted between 303 and master bus.
             // Enables ReBirth-style pattern-driven filter automation on the 303 output.
             {
@@ -737,10 +728,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantShift?: number,
                     grainPitchQuantize?: number,
                     granularPitchShift?: number,
-                    vocoderFormantShift?: number,
-                    vocoderPreservation?: number,
-                    vocoderAttack?: number,
-                    vocoderRelease?: number,
                     bitcrush?: number,
                     downsample?: number,
                     tranceGate?: number,
@@ -762,11 +749,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantEnvFollower?: number,
                     envMod?: number,
                     vocoderMix?: number,
-                    spectralResynthesis?: number,
-                    vocoderFormantShift?: number,
-                    vocoderPreservation?: number,
-                    vocoderAttack?: number,
-                    vocoderRelease?: number
+                    spectralResynthesis?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null

@@ -20,7 +20,8 @@ vi.mock('../SingingVoice', () => {
             setPitch: vi.fn(),
             setPitchFromMidi: vi.fn(),
             alignPhonemes: vi.fn(),
-            triggerSlice: vi.fn()
+            triggerSlice: vi.fn(),
+            noteOff: vi.fn()
         }; })
     };
 });
