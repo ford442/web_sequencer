@@ -1340,21 +1340,28 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                             }
                         };
+                    // ⚡ Bolt: Hoist glitch variables out of the polyphonic note loop.
+                    // This prevents redundant math per chord note and ensures all notes in a chord glitch synchronously.
+                    let glitchNumStutters = 0;
+                    let glitchTotalDur = 0;
+                    let glitchStutterLen = 0;
+                    if (shouldGlitch) {
+                        glitchNumStutters = Math.floor(Math.random() * 3) + 2;
+                        glitchTotalDur = durationSteps * stepTime;
+                        glitchStutterLen = Math.min(0.06, glitchTotalDur / glitchNumStutters);
+                    }
+
                     notes.forEach((noteStr, _noteIndex) => {
 
 
 
                         if (shouldGlitch) {
-                            const numStutters = Math.floor(Math.random() * 3) + 2;
-                            const totalDur = durationSteps * stepTime;
-                            const stutterLen = Math.min(0.06, totalDur / numStutters);
-
-                            for (let i = 0; i < numStutters; i++) {
-                                runVoices(noteStr, i * stutterLen, stutterLen);
+                            for (let i = 0; i < glitchNumStutters; i++) {
+                                runVoices(noteStr, i * glitchStutterLen, glitchStutterLen);
                             }
-                            const played = numStutters * stutterLen;
-                            if (totalDur > played) {
-                                runVoices(noteStr, played, totalDur - played);
+                            const played = glitchNumStutters * glitchStutterLen;
+                            if (glitchTotalDur > played) {
+                                runVoices(noteStr, played, glitchTotalDur - played);
                             }
                         } else {
                             for (let r = 0; r < retrigger; r++) {
@@ -1580,6 +1587,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     }
                 };
 
+                // ⚡ Bolt: Hoist glitch variables out of the polyphonic note loop for buffer mode.
+                let bufferGlitchNumStutters = 0;
+                const bufferGlitchStutterLen = 0.06;
+                if (shouldGlitch) {
+                    bufferGlitchNumStutters = Math.floor(Math.random() * 3) + 2;
+                }
+
                 notes.forEach(noteStr => {
                     // Include pitchOffsetSemitones so harmony voices transpose correctly
                     // in buffer-source mode (matches the pitch offset already applied in
@@ -1587,13 +1601,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const midi = noteToMidi(noteStr) + pitchOffsetSemitones;
 
                     if (shouldGlitch) {
-                        const numStutters = Math.floor(Math.random() * 3) + 2;
-                        const stutterLen = 0.06;
-
-                        for (let i = 0; i < numStutters; i++) {
-                            playBufferSource(actualTime + i * stutterLen, stutterLen, midi);
+                        for (let i = 0; i < bufferGlitchNumStutters; i++) {
+                            playBufferSource(actualTime + i * bufferGlitchStutterLen, bufferGlitchStutterLen, midi);
                         }
-                        playBufferSource(actualTime + numStutters * stutterLen, 0, midi);
+                        playBufferSource(actualTime + bufferGlitchNumStutters * bufferGlitchStutterLen, 0, midi);
                     } else {
                         for (let r = 0; r < retrigger; r++) {
                             const offset = r * (subDurationSteps * stepTime);

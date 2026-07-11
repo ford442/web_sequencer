@@ -48,3 +48,7 @@
 ## 2026-07-09 - Avoid map().find() on high-frequency automation checks
 **Learning:** During playback, the `useStepHandler` is called repeatedly. Inside `useStepHandler`, querying the automation store for values using array functions like `automationStore.getLanesForParam(target, param).map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null)` created significant main-thread garbage collection (GC) overhead and performance bottlenecks.
 **Action:** Replace functional array pipelines (`.map().find()`) with a standard helper method that utilizes a traditional `for` loop to search through available lanes directly and return early when a matching, enabled lane value is found.
+
+## 2026-07-11 - Polyphonic Glitch Math Hoisting
+**Learning:** Math logic for random glitching (\`Math.random()\`, \`Math.floor()\`) inside polyphonic chord loops (\`notes.forEach\`) causes notes in the same chord to have different randomized stutter counts, making them drift out of sync. Furthermore, it redundantly evaluates the same variables repeatedly per polyphonic note.
+**Action:** When working with polyphonic triggers and random effects, hoist math and random number generators outside the polyphonic iteration loop. Ensure \`shouldGlitch\` and all sub-variables (\`numStutters\`, \`stutterLen\`, etc.) are computed exactly once per trigger event, distributing consistent parameters across the entire chord.
