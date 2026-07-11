@@ -207,12 +207,13 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> =
           } else if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             if (activeMidi !== null) {
-              const noteStr = midiToNote(activeMidi);
-              // Check if it's in scale
               const activeNoteStr = midiToNote(activeMidi);
               const activeNoteName = extractNoteName(activeNoteStr);
-              if (!scaleNotes || scaleNotes.has(activeNoteName)) {
-                handleFlyoutSelect(noteStr);
+              const currentScaleNotes = currentScale
+                ? getScaleNotes(currentScale)
+                : null;
+              if (!currentScaleNotes || currentScaleNotes.has(activeNoteName)) {
+                handleFlyoutSelect(activeNoteStr);
               }
             }
           } else if (e.key === "Tab") {
