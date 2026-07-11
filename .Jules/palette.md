@@ -1,3 +1,6 @@
+## 2026-07-10 - Precise Accessibility Targeting
+**Learning:** Broad regex replacements across JSX codebases to enforce accessibility properties (like `type="button"`) often cause immediate React syntax errors due to duplicated attributes across multi-line tags.
+**Action:** Instead of cross-file regex scripts, use specific linter configurations (e.g., `eslint-plugin-react` rules) to find exact violations, and scope fixes to one or two high-impact components per PR to ensure stability and correctness.
 ## 2024-05-01 - Fix aria-controls for Harmonizer Popover
 **Learning:** Found that custom dropdowns/popovers acting as modals or flyouts require a clear structural link using `aria-controls` pointing to the exact `id` of the popover content. The `aria-expanded` and `aria-haspopup` tags alone are insufficient for complete screen reader accessibility if the container it targets cannot be identified via an `id` reference.
 **Action:** Always ensure that `aria-controls` matches a specific `id` attribute on the container component whenever implementing custom popup interfaces.
@@ -51,3 +54,7 @@
 ## 2026-07-04 - Safely scripting widespread type="button" updates
 **Learning:** Programmatically updating hundreds of missing `type="button"` attributes using regex scripts across a complex React codebase can easily cause duplicates, merge conflict errors, or mistakenly alter the AST if run against recently broken/refactored logic. React builds fail loudly on duplicate attributes (`TS17001`).
 **Action:** When performing sweeping attribute additions, always check for pre-existing occurrences in the target line, avoid touching files currently showing unresolved merge errors, and test via `pnpm lint` and `pnpm build` immediately to catch syntax errors introduced by over-eager regex.
+
+## 2026-07-10 - [Keyboard Accessibility for Playable Audio Triggers]
+**Learning:** When adding keyboard navigation to components that trigger real-time audio (like `DrumPads.tsx`), standard `<button>` click handling is insufficient. The Spacebar key defaults to scrolling the page, and operating system key-repeat rapidly fires `onKeyDown` if the key is held, causing horrible audio stuttering.
+**Action:** Always intercept `' '` (Space) and `'Enter'` keys explicitly via `onKeyDown` and `onKeyUp`. Call `e.preventDefault()` to stop scrolling, and maintain an active state (like a `Set` of active pad IDs) to ensure the audio trigger (`handlePadDown`) only fires once per physical key press, ignoring subsequent auto-repeat events.
