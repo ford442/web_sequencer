@@ -256,6 +256,36 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     preferThreaded: false,
                     forceSingleThreaded: true
                 });
+                
+                if (!open303Ready) {
+                    logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
+                }
+            } catch (e) {
+                logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() threw', e);
+                open303Ready = false;
+            }
+            loadingProgressStore.completeStep('open303Engine');
+
+            // Initialize PCF (Pattern Controlled Filter) — inserted between 303 and master bus.
+            // Enables ReBirth-style pattern-driven filter automation on the 303 output.
+            {
+                const pcf = new PcfEffect(context);
+                let pcfReady = false;
+                try {
+                    await pcf.init();
+                    pcfReady = true;
+                    pcfEffectRef.current = pcf;
+                    console.log('[useAudioEngine] PcfEffect Ready');
+                } catch (e) {
+                    console.warn(
+                        '[useAudioEngine] PcfEffect failed to initialize; bypassing PCF.' +
+                        ' Possible causes: AudioWorklet registration failed (check CORS / module' +
+                        ' loading), or AudioContext was suspended at init time.',
+                        e
+                    );
+                }
+                // Connect 303 through PCF (if ready) or directly to master bus.
+                // open303ManagerRef is set here, after routing is fully established.
 
                 if (open303Ready) {
                     open303Manager.connect(masterBusInput);
@@ -444,9 +474,29 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     breathIntensity?: number,
                     formantShift?: number,
                     grainPitchQuantize?: number,
-                    tranceGate?: number
+                    granularPitchShift?: number,
+                    bitcrush?: number,
+                    downsample?: number,
+                    tranceGate?: number,
                     gateRate?: number,
-                    gateDepth?: number
+                    gateDepth?: number,
+                    spectralPanRate?: number,
+                    spectralPanDepth?: number,
+                    reverbLfoRate?: number,
+                    reverbLfoDepth?: number,
+                    glitchChance?: number,
+                    isHarmonyVoice?: boolean,
+                    timeStretchEnvDepth?: number,
+                    freezeEnvDepth?: number,
+                    grainEnvDepth?: number,
+                    formantEnvSync?: boolean,
+                    formantEnvAttack?: number,
+                    formantEnvDecay?: number,
+                    formantEnvAmount?: number,
+                    formantEnvFollower?: number,
+                    envMod?: number,
+                    vocoderMix?: number,
+                    spectralResynthesis?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
