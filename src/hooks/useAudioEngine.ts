@@ -825,6 +825,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 const revLfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
                 const revLfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
+                const pFormantPitchLink = noteParams?.formantPitchLink !== undefined ? noteParams.formantPitchLink : (params.formantPitchLink || 0);
 
                 // Delay
                 const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
@@ -1152,11 +1153,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
+                            // Formant Pitch Link
+                            const targetMidiNote = noteToMidi(noteStr) + pitchOffsetSemitones;
+                            const pitchShiftForFormant = targetMidiNote - 60;
+                            const linkedTargetFormantShift = targetFormantShift + (pitchShiftForFormant * pFormantPitchLink);
+
                             if (startFormantShift !== undefined && (noteParams?.slideFromMidi !== undefined || noteParams?.slideFromFormant !== undefined)) {
+                                const startMidiNote = (noteParams?.slideFromMidi !== undefined ? noteParams.slideFromMidi : 60) + pitchOffsetSemitones;
+                                const startPitchShiftForFormant = startMidiNote - 60;
+                                const linkedStartFormantShift = startFormantShift + (startPitchShiftForFormant * pFormantPitchLink);
+
                                 const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
-                                voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);
+                                voice.setFormantGlide(linkedStartFormantShift, linkedTargetFormantShift, triggerTime, glideDuration);
                             } else {
-                                voice.setFormantShift(targetFormantShift, triggerTime);
+                                voice.setFormantShift(linkedTargetFormantShift, triggerTime);
                             }
 
                             // Apply Character Morphing
