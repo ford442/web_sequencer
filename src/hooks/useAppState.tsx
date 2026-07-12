@@ -341,7 +341,7 @@ export function useAppState() {
         vibratoDepth: 0,
         tremoloDepth: 0,
         breathAmount: 0,
-        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+        stretchProfile: 'vocal' as 'vocal' | 'harmonic' | 'fast',
         stretchMode: 'Time' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
     });
@@ -421,7 +421,7 @@ export function useAppState() {
             formantShift: bank.formantShift ?? samplerVoiceParamsRef.current.formantShift,
             attack: bank.attack ?? samplerVoiceParamsRef.current.attack,
             decay: bank.decay ?? samplerVoiceParamsRef.current.decay,
-            quality: bank.quality ?? samplerVoiceParamsRef.current.quality,
+            stretchProfile: bank.stretchProfile ?? samplerVoiceParamsRef.current.stretchProfile,
             stretchMode: bank.stretchMode ?? samplerVoiceParamsRef.current.stretchMode,
             lockToSequencer: bank.lockToSequencer ?? samplerVoiceParamsRef.current.lockToSequencer,
             vibratoRate: expressiveness?.vibratoRate ?? samplerVoiceParamsRef.current.vibratoRate,
@@ -1061,7 +1061,7 @@ const handleKeyboardPlay = useCallback((note: string) => {
                 tremoloDepth: voiceParams.tremoloDepth,
                 breathAmount: voiceParams.breathAmount,
             },
-            quality: voiceParams.quality,
+            stretchProfile: voiceParams.stretchProfile,
             stretchMode: voiceParams.stretchMode,
             lockToSequencer: voiceParams.lockToSequencer,
         };

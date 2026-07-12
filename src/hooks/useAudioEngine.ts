@@ -1,6 +1,6 @@
 import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type {
+import type { Note,
     SamplerBankParams, SynthParams, AudioEngine, PartSequence, MultisampleBank, PhonemeData
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
@@ -415,15 +415,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             }
             loadingProgressStore.completeStep('open303Engine');
 
-                if (!open303Ready) {
-                    logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
-                }
-            } catch (e) {
-                logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() threw', e);
-                open303Ready = false;
-            }
-            loadingProgressStore.completeStep('open303Engine');
-
             // Initialize PCF (Pattern Controlled Filter) — inserted between 303 and master bus.
             // Enables ReBirth-style pattern-driven filter automation on the 303 output.
             {
@@ -700,13 +691,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 time: number, 
                 durationSteps: number = 1, 
                 stepTime: number = 0.2, 
-                noteParams?: { 
-                    vocoderFormantShift?: number;
-                    vocoderPreservation?: number;
-                    vocoderAttack?: number;
-                    vocoderRelease?: number;
-                    harmonyAttack?: number;
-                    harmonyRelease?: number;
+                noteParams?: Note & {
                     timbre?: number, 
                     microtiming?: number, 
                     reverse?: boolean, 
@@ -737,10 +722,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantShift?: number,
                     grainPitchQuantize?: number,
                     granularPitchShift?: number,
-                    vocoderFormantShift?: number,
-                    vocoderPreservation?: number,
-                    vocoderAttack?: number,
-                    vocoderRelease?: number,
                     bitcrush?: number,
                     downsample?: number,
                     tranceGate?: number,
@@ -761,12 +742,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantEnvAmount?: number,
                     formantEnvFollower?: number,
                     envMod?: number,
-                    vocoderMix?: number,
-                    spectralResynthesis?: number,
-                    vocoderFormantShift?: number,
-                    vocoderPreservation?: number,
-                    vocoderAttack?: number,
-                    vocoderRelease?: number
+                    vocoderMix?: number, vocoderFormantShift?: number, vocoderPreservation?: number, vocoderAttack?: number, vocoderRelease?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -798,10 +774,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- HOISTED PARAMETERS START ---
                 // Vocoder Mix
                 const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
-                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
-                const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
-                const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
-                const pVocoderRelease = noteParams?.vocoderRelease ?? 0.05;
+                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.vocoderFormantShift ?? 0;
+                const pVocoderPreservation = noteParams?.vocoderPreservation ?? params.vocoderPreservation ?? 1.0;
+                const pVocoderAttack = noteParams?.vocoderAttack ?? params.vocoderAttack ?? 0.01;
+                const pVocoderRelease = noteParams?.vocoderRelease ?? params.vocoderRelease ?? 0.05;
 
                 // Spectral Panning
                 const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
@@ -825,7 +801,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 const revLfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
                 const revLfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
-                const pFormantPitchLink = noteParams?.formantPitchLink !== undefined ? noteParams.formantPitchLink : (params.formantPitchLink || 0);
 
                 // Delay
                 const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
@@ -1153,20 +1128,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Timbre Modulation (Formant Shift)
-                            // Formant Pitch Link
-                            const targetMidiNote = noteToMidi(noteStr) + pitchOffsetSemitones;
-                            const pitchShiftForFormant = targetMidiNote - 60;
-                            const linkedTargetFormantShift = targetFormantShift + (pitchShiftForFormant * pFormantPitchLink);
-
                             if (startFormantShift !== undefined && (noteParams?.slideFromMidi !== undefined || noteParams?.slideFromFormant !== undefined)) {
-                                const startMidiNote = (noteParams?.slideFromMidi !== undefined ? noteParams.slideFromMidi : 60) + pitchOffsetSemitones;
-                                const startPitchShiftForFormant = startMidiNote - 60;
-                                const linkedStartFormantShift = startFormantShift + (startPitchShiftForFormant * pFormantPitchLink);
-
                                 const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
-                                voice.setFormantGlide(linkedStartFormantShift, linkedTargetFormantShift, triggerTime, glideDuration);
+                                voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);
                             } else {
-                                voice.setFormantShift(linkedTargetFormantShift, triggerTime);
+                                voice.setFormantShift(targetFormantShift, triggerTime);
                             }
 
                             // Apply Character Morphing
@@ -1646,9 +1612,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
-                        const attackOffset = noteParams?.harmonyAttack ? noteParams.harmonyAttack * voice.index * 0.05 : 0;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000) + attackOffset, durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;

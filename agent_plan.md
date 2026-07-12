@@ -1,3 +1,5 @@
+## 2026-08-11 - Implemented Harmonic Content Preserving Time-Stretch: Formalized RubberBand stretch profiles by adding `stretchProfile` (Vocal, Harmonic, Fast) to `Note` and `SamplerBankParams` interfaces and UI. Replaced the broken `quality` bitmask with explicit initialization using `setStretchProfile` inside `rubberband-processor.ts`, enabling phase-coherent time-stretching. Fulfills the "Harmonic Content Preserving Time-Stretch" Innovation Lab idea. Added new idea: "Global Tape Saturation Profile".
+
 ## 2026-08-09 - Implemented Step-Sequenced Granular Jitter: Added `currentGrainJitter` to `NoteSelector` and `ContextMenuNode` to allow per-step overrides of the global granular jitter parameter. This fulfills the "Step-Sequenced Granular Jitter" idea in the active backlog. Added new idea: "Vocal Harmony Envelope".
 
 ## 2026-08-08 - Implemented Formant Preserving Vocoder: Completely rewrote `vocoder-processor.ts` to use a pure-JS Short-Time Fourier Transform (STFT) inside the AudioWorklet. Smooths the TTS modulator frequency magnitudes to extract a spectral envelope and shapes the Synth A carrier signal, creating a true formant-preserving vocoder. Fulfills the "Formant Preserving Vocoder" Innovation Lab idea. Added new idea: "AI Formant Tracking LFO".
@@ -248,6 +250,7 @@
 * [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently. (Implemented inline STFT and overlap-add directly in `vocoder-processor.ts`!)
 * [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently.
 * **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
+* [x] **Idea:** "Harmonic Content Preserving Time-Stretch"
 * [x] **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
 * [x] **Idea:** "Vocal Pitch Envelope" - Add a dedicated pitch envelope (Attack/Decay/Amount) specifically for TTS phonemes to allow snappy pitch drops (like 808s) or slow, portamento-like rises on individual syllables, independent of standard melodic tracking.
 * [2026-05-19] - Refactored Large Files: Successfully split 10 out of 12 files that were over 1000 lines into multiple smaller files under 700 lines each. Extracted structural UI repetition into sub-components for NoteSelector, RbsImportModal, AISongModal, and SamplerPanel. Deferred splitting AISongStorage.ts and useAudioEngine.ts due to tightly coupled cyclic dependencies. These should be tackled incrementally in the future.

@@ -140,7 +140,7 @@ export interface SamplerBankParams {
   rootNote?: number;
   coarseTune?: number;
   fineTune?: number;
-  quality?: 'preview' | 'good' | 'better' | 'best';
+  stretchProfile?: 'vocal' | 'harmonic' | 'fast';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
   pitchAttack?: number;
@@ -151,6 +151,9 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
+  vocoderAttack?: number;
   vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
@@ -467,10 +470,6 @@ export interface Note {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
-  vocoderFormantShift?: number;
-  vocoderPreservation?: number;
-  vocoderAttack?: number;
-  vocoderRelease?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;

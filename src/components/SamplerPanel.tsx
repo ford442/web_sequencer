@@ -184,7 +184,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         rootNote: 60,
         coarseTune: 0,
         fineTune: 0,
-        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+        stretchProfile: 'vocal' as 'vocal' | 'harmonic' | 'fast',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
     }, [params, activeBankIdx]);
@@ -295,19 +295,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 case 'formantShift':
                     voice.setFormantShift(value as number);
                     break;
-                case 'quality': {
-                    // Map quality to RubberBand options
-                    const qualityMap = {
-                        'Fast': 1 | 16,      // RealTime | Faster
-                        'Standard': 1 | 32,   // RealTime | Finer
-                        'Elastic': 1 | 32 | 1048576 // RealTime | Finer | FormantPreserved
-                    };
-                    // Note: Actual quality change requires worklet reinit or message
+                case 'stretchProfile': {
                     const node = voice.getSourceNode();
                     if (node && 'port' in node) {
                         (node as AudioWorkletNode).port.postMessage({
-                            type: 'setQuality',
-                            options: qualityMap[value as keyof typeof qualityMap]
+                            type: 'setStretchProfile',
+                            profile: value
                         });
                     }
                     break;
@@ -895,7 +888,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
 
 
-                        quality: currentParams.quality ?? 'good',
+                        stretchProfile: currentParams.stretchProfile ?? 'vocal',
                         stretchMode: currentParams.stretchMode ?? 'Pitch',
                         lockToSequencer: currentParams.lockToSequencer ?? false,
                     }}
