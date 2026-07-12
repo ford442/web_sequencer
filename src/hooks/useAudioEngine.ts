@@ -413,7 +413,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     breathIntensity?: number,
                     formantShift?: number,
                     grainPitchQuantize?: number,
-                    tranceGate?: number
+                    tranceGate?: number,
                     gateRate?: number,
                     gateDepth?: number
                 },
@@ -565,8 +565,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
                     // For each note in the chord
-                    notes.forEach((noteStr, _noteIndex) => {
-
                         const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
@@ -767,6 +765,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             // Load buffer only if the voice doesn't already have it
                             if (isNewBank) {
                                 voice.loadBuffer(buffer.getChannelData(0));
+                            }
                             // Formant Envelope
                             const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
                             const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
@@ -1200,7 +1199,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             });
 
             setIsReady(true);
-        } } } catch (e) {
+        } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
             setIsReady(true);
             isInitializing.current = false;
