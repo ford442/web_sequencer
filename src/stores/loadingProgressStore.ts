@@ -35,8 +35,17 @@ export interface LoadingState {
   currentStep: LoadingStep | null;
   steps: Record<LoadingStep, LoadingStepInfo>;
   errors: string[];
+  /** Runtime degradations after boot (GPU/WASM/worklet fallbacks). */
+  runtimeDegradations: RuntimeDegradationEntry[];
   startTime: number | null;
   estimatedTimeRemaining: number | null;
+}
+
+export interface RuntimeDegradationEntry {
+  subsystem: string;
+  message: string;
+  reason: string;
+  ts: number;
 }
 
 type ProgressListener = (state: LoadingState) => void;
@@ -100,6 +109,7 @@ class LoadingProgressStore {
       currentStep: null,
       steps,
       errors: [],
+      runtimeDegradations: [],
       startTime: null,
       estimatedTimeRemaining: null,
     };
@@ -133,6 +143,7 @@ class LoadingProgressStore {
       ...this.createInitialState(),
       isLoading: true,
       startTime: performance.now(),
+      runtimeDegradations: [],
     };
     this.logDebug('🚀 Loading sequence started');
     this.notify();
@@ -236,6 +247,29 @@ class LoadingProgressStore {
   addError(message: string): void {
     this.state.errors.push(message);
     this.logDebug(`❌ Error: ${message}`);
+    this.notify();
+  }
+
+  /** Record a post-boot runtime degradation (GPU context lost, WASM fallback, etc.). */
+  recordRuntimeDegradation(subsystem: string, message: string, reason: string): void {
+    const entry: RuntimeDegradationEntry = {
+      subsystem,
+      message,
+      reason,
+      ts: Date.now(),
+    };
+    const existingIdx = this.state.runtimeDegradations.findIndex((d) => d.subsystem === subsystem);
+    if (existingIdx >= 0) {
+      this.state.runtimeDegradations[existingIdx] = entry;
+    } else {
+      this.state.runtimeDegradations.push(entry);
+    }
+    this.logDebug(`⚠️ Runtime degradation: ${subsystem} — ${message}`);
+    this.notify();
+  }
+
+  clearRuntimeDegradation(subsystem: string): void {
+    this.state.runtimeDegradations = this.state.runtimeDegradations.filter((d) => d.subsystem !== subsystem);
     this.notify();
   }
 

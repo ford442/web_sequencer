@@ -1,4 +1,5 @@
 import { SingingVoice, type SingingVoiceConfig } from './SingingVoice';
+import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 
 interface ActiveVoice {
     voice: SingingVoice;
@@ -84,6 +85,12 @@ export class SingingVoiceManager {
         });
 
         if (oldestIndex !== -1) {
+            const stolen = this.activeVoices.get(oldestIndex);
+            if (stolen) {
+                stolen.voice.noteOff(this.audioContext.currentTime);
+                this.activeVoices.delete(oldestIndex);
+                playbackHealthMonitor.recordVoiceSteal('singingVoice');
+            }
             this.loadedBanks.set(oldestIndex, bankId);
             return { voice: this.voices[oldestIndex], index: oldestIndex, isNewBank: true };
         }

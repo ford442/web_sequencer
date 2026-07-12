@@ -25,6 +25,10 @@ import { engineTelemetry } from '../../utils/engineTelemetry';
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
 
 export interface SynthNoteParams {
+    vocoderFormantShift?: number;
+    vocoderPreservation?: number;
+    vocoderAttack?: number;
+    vocoderRelease?: number;
     pan?: number;
     timbre?: number;
     microtiming?: number;
