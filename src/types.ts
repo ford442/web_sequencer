@@ -443,8 +443,6 @@ export interface Note {
   grainPitchQuantize?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
-  tremoloDepth?: number;
-  tremoloRate?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
   reverbLfoRate?: number;

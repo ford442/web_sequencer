@@ -423,6 +423,137 @@ export const SongMode = memo(
                         return;
                     }
 
+                 {/* Header */}
+                <div className="h-14 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 flex items-center justify-between px-6 shrink-0 relative">
+                     <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest">SONG ARRANGER</h2>
+                     <div className="flex gap-3 items-center">
+                        <button type="button" onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg border border-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
+                        <button type="button" onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gray-800 text-cyan-300 text-xs rounded-lg border border-cyan-900/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">+ BAR</button>
+                        <button type="button"
+                            onClick={() => onSetIsSongModeActive(!isSongModeActive)}
+                            aria-pressed={isSongModeActive}
+                            aria-label={isSongModeActive ? 'Loop Song Mode Active' : 'Loop Pattern Mode Active'}
+                            className={`px-3 py-1.5 text-xs rounded-lg border font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
+                        >
+                            {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
+                        </button>
+                     </div>
+                </div>
+
+                {/* Grid Container */}
+                <div className="flex-1 overflow-auto p-6 custom-scrollbar bg-gradient-to-b from-[#0a0d10] to-[#080a0b]">
+                    <div className="relative" style={{ width: Math.max(totalWidth, 760), height: totalHeight }}>
+                         {/* Time Ruler */}
+                        <div className="absolute left-0 top-0 h-[30px] flex border-b border-gray-800">
+                            <div style={{ width: ROW_HEADER_WIDTH }} className="shrink-0 bg-[#0b0d10] z-10 sticky left-0 border-r border-gray-800"></div>
+                            {songStructure.map((_, i) => (
+                                <div key={i} ref={el => { headerCellRefs.current[i] = el; }} style={{ width: CELL_WIDTH }} className={`shrink-0 flex items-center justify-center text-[10px] font-mono border-r border-gray-800/30 ${i === currentSongStep ? 'bg-cyan-900/20 text-cyan-400 font-bold' : 'text-gray-600'}`}>
+                                    {i + 1}
+                                </div>
+                            ))}
+                        </div>
+                        {/* Tracks */}
+                        <div className="absolute left-0 top-[30px]">
+                            {ROWS.map((row) => (
+                                <div key={row.key} className="flex h-[30px]">
+                                    <div style={{ width: ROW_HEADER_WIDTH }} className="shrink-0 bg-[#0b0d10] border-r border-gray-800 flex items-center px-2 sticky left-0 z-10">
+                                        <span className="text-[10px] font-bold tracking-wider" style={{ color: row.color }}>{row.label}</span>
+                                    </div>
+                                    {songStructure.map((step, sIdx) => {
+                                        const val = step[row.key];
+                                        return (
+                                            <SongModeCell
+                                                key={`${row.key}-${sIdx}`}
+                                                ref={(node) => {
+                                                    if (node) {
+                                                        songModeCellRefs.current.set(`${row.key}-${sIdx}`, node);
+                                                    } else {
+                                                        songModeCellRefs.current.delete(`${row.key}-${sIdx}`);
+                                                    }
+                                                }}
+                                                sIdx={sIdx}
+                                                rowKey={row.key}
+                                                rowLabel={row.label}
+                                                val={val}
+                                                onMouseDown={handleCellMouseDown}
+                                                onKeyDown={handleCellKeyDown}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                        <div ref={el => { playheadLineRefs.current[0] = el; }} className="absolute top-0 bottom-0 w-[2px] bg-cyan-500/50 pointer-events-none z-20" style={{ left: ROW_HEADER_WIDTH + currentSongStep * CELL_WIDTH }} />
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div
+            className={`fixed left-0 top-16 bottom-[320px] z-40 bg-gradient-to-br from-[#0a0d10] to-[#080a0b] border-r-2 border-cyan-900/30 transition-all duration-300 overflow-hidden flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] backdrop-blur-sm ${isVisible ? 'w-[850px] opacity-100' : 'w-0 opacity-0'}`}
+        >
+            {/* Context Menu */}
+            {menu && (
+                <PatternSelector 
+                    x={menu.x} 
+                    y={menu.y} 
+                    currentPattern={menu.currentVal}
+                    onSelect={(val) => {
+                        onUpdateStep(menu.sIdx, menu.track, val);
+                        setMenu(null);
+                    }}
+                    onClose={() => setMenu(null)}
+                />
+            )}
+
+            {/* Decorative edge line */}
+            <div className="absolute top-0 bottom-0 right-0 w-px bg-gradient-to-b from-cyan-500/30 via-transparent to-cyan-500/30 pointer-events-none"></div>
+            
+            {/* Header */}
+            <div className="h-14 bg-gradient-to-r from-[#0b0d10] to-[#0d0f12] border-b-2 border-cyan-900/30 flex items-center justify-between px-6 shrink-0 shadow-lg relative">
+                {/* Decorative line */}
+                <div className="absolute bottom-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent"></div>
+                
+                <h2 className="font-orbitron font-bold text-cyan-400 tracking-widest drop-shadow-[0_0_8px_rgba(6,182,212,0.4)]">SONG ARRANGER</h2>
+                <div className="flex gap-3 items-center">
+                    <div className="flex items-center gap-2 mr-4 bg-gray-900/50 p-1 rounded border border-gray-800">
+                        <span className="text-[10px] text-gray-500 font-mono" id="bg-img-label">BG IMG:</span>
+                        <input
+                            type="text"
+                            value={backgroundImage}
+                            onChange={(e) => onSetBackgroundImage(e.target.value)}
+                            placeholder="https://..."
+                            aria-labelledby="bg-img-label"
+                            className="w-32 bg-transparent text-xs text-cyan-300 focus:outline-none border-b border-gray-700 focus:border-cyan-500 font-mono"
+                        />
+                        {backgroundImage && (
+                            <button type="button"
+                                onClick={() => onSetBackgroundImage('')}
+                                className="text-gray-500 hover:text-white px-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
+                                aria-label="Clear Background Image"
+                            ><span aria-hidden="true">✕</span></button>
+                        )}
+                    </div>
+                    <button type="button" onClick={onRemoveMeasure} aria-label="Remove Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-gray-600 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">- BAR</button>
+                    <button type="button" onClick={onAddMeasure} aria-label="Add Measure" className="px-3 py-1.5 bg-gradient-to-r from-gray-800 to-gray-700 text-cyan-300 text-xs rounded-lg hover:from-gray-700 hover:to-gray-600 border border-cyan-900/50 shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">+ BAR</button>
+                    <button type="button"
+                        onClick={() => onSetIsSongModeActive(!isSongModeActive)}
+                        aria-pressed={isSongModeActive}
+                        aria-label={isSongModeActive ? 'Loop Song Mode Active' : 'Loop Pattern Mode Active'}
+                        className={`px-3 py-1.5 text-xs rounded-lg border font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${isSongModeActive ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
+                    >
+                        {isSongModeActive ? 'LOOP SONG' : 'LOOP PATT'}
+                    </button>
+                    <button type="button"
+                        onClick={async () => {
+                            if (isExporting) return;
+                            setIsExporting(true);
+                            try {
+                                await onExportXM();
+                            } finally {
+                                setIsExporting(false);
                     if (e.metaKey || e.ctrlKey) {
                         setSelection((prev) => toggleCellSelection(prev, coord));
                         setSelectionAnchor(coord);

@@ -47,8 +47,6 @@ interface NoteSelectorProps {
   currentFreezeLfoRate?: number;
   currentFreezeLfoDepth?: number;
   currentVibratoDepth?: number;
-  currentTremoloDepth?: number;
-  currentTremoloRate?: number;
   currentDrive?: number;
   currentCharacterMorph?: number;
   currentReverbSend?: number;
@@ -60,7 +58,6 @@ interface NoteSelectorProps {
   currentFreezeEnvDepth?: number;
   currentGrainEnvDepth?: number;
   currentGrainPitchEnvDepth?: number;
-  currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;
   currentTimeStretchEnvDepth?: number;
@@ -124,8 +121,6 @@ interface NoteSelectorProps {
       | "formantEnvFollower"
       | "formantEnvSync"
       | "vibratoDepth"
-      | "tremoloDepth"
-      | "tremoloRate"
       | "gateDepth"
       | "gateRate"
       | "pan"
@@ -198,8 +193,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFreezeLfoRate = 0,
     currentFreezeLfoDepth = 0,
     currentVibratoDepth = 0,
-    currentTremoloDepth = 0,
-    currentTremoloRate = 0,
     currentDrive,
     currentCharacterMorph = 0,
     currentReverbSend,
@@ -212,7 +205,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchEnvDepth = 0,
-    currentGrainJitter = 0,
     currentGrainPitchQuantize = 0,
     currentTimeStretchEnvDepth = 0,
     currentSpectralPanRate = 0,
@@ -515,32 +507,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                       aria-valuetext={`\${Math.round((currentGrainEnvDepth + 0.0001) * 100)}%`}
                       aria-label="Envelope to Grain Size Depth"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                      <label htmlFor="note-grain-jitter">Grain Jitter</label>
-                      <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
-                        {Math.round((currentGrainJitter + 0.0001) * 100)}%
-                      </span>
-                    </div>
-                    <input
-                      id="note-grain-jitter"
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value={currentGrainJitter}
-                      onChange={(e) =>
-                        onPropertyChange?.(
-                          "grainJitter",
-                          parseFloat(e.target.value),
-                        )
-                      }
-                      className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-                      aria-valuetext={`\${Math.round((currentGrainJitter + 0.0001) * 100)}%`}
-                      aria-label="Envelope to Grain Jitter Amount"
                     />
                   </div>
 
@@ -1265,53 +1231,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                   />
                 </div>
               )}
-
-              {/* ── Tremolo (Rate & Depth) ────────────────────────────────────── */}
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                  <label htmlFor="note-tremolo-rate">Tremolo Rate</label>
-                  <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
-                    {Math.round((currentTremoloRate + 0.0001) * 10) / 10} Hz
-                  </span>
-                </div>
-                <input
-                  id="note-tremolo-rate"
-                  type="range"
-                  min="0.1"
-                  max="20"
-                  step="0.1"
-                  value={currentTremoloRate}
-                  onChange={(e) =>
-                    onPropertyChange && onPropertyChange("tremoloRate", parseFloat(e.target.value))
-                  }
-                  className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-                  aria-valuetext={`${Math.round((currentTremoloRate + 0.0001) * 10) / 10} Hz`}
-                  aria-label="Tremolo Rate"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1 mt-2">
-                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
-                  <label htmlFor="note-tremolo-depth">Tremolo Depth</label>
-                  <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
-                    {Math.round((currentTremoloDepth + 0.0001) * 100)}%
-                  </span>
-                </div>
-                <input
-                  id="note-tremolo-depth"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={currentTremoloDepth}
-                  onChange={(e) =>
-                    onPropertyChange && onPropertyChange("tremoloDepth", parseFloat(e.target.value))
-                  }
-                  className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-                  aria-valuetext={`${Math.round((currentTremoloDepth + 0.0001) * 100)}%`}
-                  aria-label="Tremolo Depth"
-                />
-              </div>
 
               {/* Pitch Envelope Controls */}
               <fieldset className="flex flex-col gap-2 p-2 bg-gray-800/40 rounded border border-purple-900/30">

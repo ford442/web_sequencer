@@ -15,6 +15,7 @@ import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { ProphecyManager } from '../engines/ProphecyManager';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
+import { VoiceFXStrip } from '../engines/audio-fx/VoiceFXStrip';
 import {
     createAmbianceControls,
     createNoteOnSynth,
@@ -163,6 +164,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
     const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
+    const expressiveVoicePoolRef = useRef<AudioNodePool | null>(null);
+    const vocalOverdrivePoolRef = useRef<AudioNodePool | null>(null);
+    const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool | null>(null);
+    
 
     // Multisample Generator
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
@@ -1416,23 +1421,33 @@ const playSamplerVoice = (
                                 finalDest = shaper;
                             }
 
+                            let fxStrip: any = null;
                             // Apply Per-Step Filter if present, or fallback to global filter settings
                             if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
-                                const filter = context.createBiquadFilter();
-                                filter.type = 'lowpass';
+                                fxStrip = fxStripPoolRef.current.pop() || new (VoiceFXStrip as any)(context);
+                                const cutoff = noteParams?.filterCutoff !== undefined ? Math.max(20, noteParams.filterCutoff * 20000) : ((params.filterCutoff as any) ?? 20000);
+                                const resonance = noteParams?.filterResonance !== undefined ? noteParams.filterResonance * 20 : (params.filterResonance ?? 0);
+                                fxStrip.updateFilter(cutoff, resonance, triggerTime);
 
-                                const cutoff = noteParams?.filterCutoff !== undefined
-                                    ? Math.max(20, noteParams.filterCutoff * 20000)
-                                    : (params.filterCutoff ?? 20000);
-                                filter.frequency.value = cutoff;
+                                const spectralPanDepth = (noteParams as any)?.spectralPanDepth !== undefined ? (noteParams as any).spectralPanDepth : (params as any).spectralPanDepth;
+                                const spectralPanRate = (noteParams as any)?.spectralPanRate !== undefined ? (noteParams as any).spectralPanRate : (params as any).spectralPanRate;
+                                const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
 
-                                const resonance = noteParams?.filterResonance !== undefined
-                                    ? noteParams.filterResonance * 20
-                                    : (params.filterResonance ?? 0);
-                                filter.Q.value = resonance;
+                                fxStrip.updateSpectralPanning(spectralPanDepth || 0, spectralPanLfoRate, triggerTime);
 
-                                filter.connect(finalDest);
-                                finalDest = filter;
+                                const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                                const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                                const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+
+                                fxStrip.updateReverbSend(reverbSendAmount, 0.1, 0, 6000, triggerTime);
+                                fxStrip.connectReverb(targetReverbNode || null);
+
+                                const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                                fxStrip.updateDelaySend(delaySendAmount, triggerTime);
+                                fxStrip.connectDelay(delayNodeRef.current);
+
+                                fxStrip.output.connect(finalDest);
+                                voice.connectOutput(fxStrip.input);
                             }
 
                             voice.connectOutput(finalDest);
@@ -1677,8 +1692,6 @@ const playSamplerVoice = (
 
                             // Sync other params
                             if (pVibratoDepth !== undefined) voice.setVibratoDepth(pVibratoDepth, triggerTime);
-                            if (pTremoloDepth !== undefined) voice.setTremoloDepth(pTremoloDepth * 100, triggerTime); // setTremoloDepth expects percentage 0-100
-                            if (pTremoloRate !== undefined) voice.setTremoloRate(pTremoloRate, triggerTime);
                             if (pGateDepth !== undefined) voice.setGateDepth(pGateDepth, triggerTime);
                             if (pGateRateHz !== undefined) voice.setGateRate(pGateRateHz, triggerTime);
 
@@ -1785,7 +1798,8 @@ const playSamplerVoice = (
 
                             // Pitch Envelope
                             if (voice.setPitchAttack) {
-                                voice.setPitchAttack(pPitchAttack, triggerTime);
+                                const pAttack = (noteParams as any)?.pitchAttack ?? params.pitchAttack ?? 0;
+                                voice.setPitchAttack(pAttack, triggerTime);
                             }
                             if (voice.setPitchDecay) {
                                 voice.setPitchDecay(pPitchDecay, triggerTime);
@@ -1801,6 +1815,12 @@ const playSamplerVoice = (
                             if (delayMs > 0) {
                                 setTimeout(() => {
                                     voice.noteOff();
+                                    if (typeof fxStrip !== 'undefined' && fxStrip) {
+                                        try { fxStrip.output.disconnect(); } catch (e) {}
+                                        fxStrip.connectReverb(null);
+                                        fxStrip.connectDelay(null);
+                                        fxStripPoolRef.current.push(fxStrip);
+                                    }
                                     if (expressiveVoiceNode) {
                                         expressiveVoiceNode.port.postMessage({ type: 'TEARDOWN' });
                                         expressiveVoiceProcessorPoolRef.current?.release(expressiveVoiceNode);
@@ -1815,6 +1835,12 @@ const playSamplerVoice = (
                                 }, delayMs);
                             } else {
                                 voice.noteOff();
+                                if (typeof fxStrip !== 'undefined' && fxStrip) {
+                                    try { fxStrip.output.disconnect(); } catch (e) {}
+                                    fxStrip.connectReverb(null);
+                                    fxStrip.connectDelay(null);
+                                    fxStripPoolRef.current.push(fxStrip);
+                                }
                                 if (expressiveVoiceNode) {
                                     expressiveVoiceNode.port.postMessage({ type: 'TEARDOWN' });
                                     expressiveVoiceProcessorPoolRef.current?.release(expressiveVoiceNode);
@@ -1828,6 +1854,13 @@ const playSamplerVoice = (
                                 }
                             }
                         };
+
+                        const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
+                            const t = actualTime + timeOffset;
+
+                            const mainVoiceData = manager.acquireVoiceForBank(params.sampleName);
+                            manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
+                            triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
 
                         const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
                             const t = actualTime + timeOffset;
@@ -1925,13 +1958,13 @@ const playSamplerVoice = (
                                     } else {
                                         filter.connect(gain);
                                     }
-                                const leftVoiceData = manager.acquireVoice();
+                                const leftVoiceData = manager.acquireVoiceForBank(params.sampleName);
                                 if (leftVoiceData.index !== mainVoiceData.index) {
                                     manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
                                     triggerVoice(noteStr, leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
                                 }
 
-                                const rightVoiceData = manager.acquireVoice();
+                                const rightVoiceData = manager.acquireVoiceForBank(params.sampleName);
                                 if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
                                     manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
                                     triggerVoice(noteStr, rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
@@ -1999,50 +2032,56 @@ const playSamplerVoice = (
 
                     const gain = context.createGain();
                     gain.gain.value = params.volume;
+const fxStrip: any = fxStripPoolRef.current.pop() || new (VoiceFXStrip as any)(context);
+                    fxStrip.updateFilter(pFilterCutoff, pFilterResonance, startTime);
 
-                    const filter = context.createBiquadFilter();
-                    filter.type = 'lowpass';
-                    const cutoff = noteParams?.filterCutoff !== undefined
-                        ? Math.max(20, noteParams.filterCutoff * 20000)
-                        : params.filterCutoff;
-                    filter.frequency.value = cutoff;
+                    const spectralPanDepth = (noteParams as any)?.spectralPanDepth !== undefined ? (noteParams as any).spectralPanDepth : (params as any).spectralPanDepth;
+                    const spectralPanRate = (noteParams as any)?.spectralPanRate !== undefined ? (noteParams as any).spectralPanRate : (params as any).spectralPanRate;
+                    const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
 
-                    const resonance = noteParams?.filterResonance !== undefined
-                        ? noteParams.filterResonance * 20
-                        : params.filterResonance;
-                    filter.Q.value = resonance;
+                    fxStrip.updateSpectralPanning(spectralPanDepth || 0, spectralPanLfoRate, startTime);
 
-                    const shaper = context.createWaveShaper();
-                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                    const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                    const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                    const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+
+                    fxStrip.updateReverbSend(reverbSendAmount, 0.1, 0, 6000, startTime);
+                    fxStrip.connectReverb(targetReverbNode || null);
+
+                    const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                    const driveAmount = pDriveAmount;
+
+                    fxStrip.updateDelaySend(delaySendAmount, startTime);
+                    fxStrip.connectDelay(delayNodeRef.current);
+
+                    let finalShaperDest: AudioNode | null = null;
+                    let overdriveNodeRef: AudioWorkletNode | null = null;
+
                     if (driveAmount > 0) {
-                        shaper.curve = makeDistortionCurve(driveAmount * 100);
-                    } else {
-                        shaper.curve = null;
-                        finalShaperDest = shaper;
+                        fxStrip.updateDrive?.(driveAmount, startTime);
                     }
 
-                                    if (wetGain) {
-                                        gain.connect(spectralFinalDest);
-                                        gain.connect(wetGain);
-                                    } else {
-                                        gain.connect(spectralFinalDest);
-                                    }
+                    if (wetGain) {
+                        gain.connect(spectralFinalDest);
+                        gain.connect(wetGain);
+                    } else {
+                        gain.connect(spectralFinalDest);
+                    }
 
-                                    source.start(startTime);
-                                    if (duration > 0) {
-                                        source.stop(startTime + duration);
-                                    }
-                                }
+                    source.start(startTime);
+                    if (duration > 0) {
+                        source.stop(startTime + duration);
+                    }
+                }
                 const ctx: SamplerVoiceContext = { params, noteParams, durationSteps, stepTime, buffer, actualTime, pitchSemitones: pitchOffsetSemitones, harmonyBusGainRef, expressiveVoiceProcessorPoolRef, context, masterSaturationRef, vocalOverdrivePoolRef, pFilterCutoff, pFilterResonance, pDriveAmount, delayNodeRef, startFormantShift, targetFormantShift, characterMorph, morphTarget, pVibratoDepth, pGateDepth, pGateRateHz, pAttack, pDecay, pSustain, pRelease, pFreeze, pFreezeLfoRate, pFreezeLfoDepth, pFreezeEnvDepth, pTimeStretchEnvDepth, pGrainEnvDepth, pGrainPitchEnvDepth, pGrainJitter, pGrainPitchQuantize, pGranularPitchShift, pBitcrush, pDownsample, pTranceGate, pFormantLfoRateHz, pFormantLfoDepth, pFormantLfoShape, pEnvAmount, pEnvAttack, pEnvDecay, vocoderMix, vocoderFormantShift: pVocoderFormantShift, vocoderPreservation: pVocoderPreservation, vocoderAttack: pVocoderAttack, vocoderRelease: pVocoderRelease, pFormantEnvFollower, tuning, pPitchDecay, pPitchAmount, synthABusRef, spectralPanDepth, spectralPanLfoRate, reverbSendAmount, targetReverbNode, reverbEqCutoff, revLfoDepth, revLfoRate, delaySendAmount, alignment: vocalAlignmentsRef.current.get(params.sampleName), manager: singingVoiceManagerRef.current, multisampleBank: multisampleBanksRef.current.get(params.sampleName), choirLeftGainRef, choirRightGainRef };
-// If Singing/Stretch Mode
+                // If Singing/Stretch Mode
                 if (params.mode === 'stretch' && singingVoiceManagerRef.current) {
                     const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
                     // For each note in the chord
                     ;
-
-                        ;
+                  
                     notes.forEach((noteStr, _noteIndex) => {
 
 
@@ -2164,11 +2203,20 @@ const playSamplerVoice = (
                         panner.connect(masterSaturationRef.current!);
                         finalDestination = panner;
                     }
+source.connect(fxStrip.input);
+                    if (finalShaperDest) {
+                        fxStrip.output.connect(finalShaperDest);
+                        finalShaperDest.connect(gain);
+                    } else {
+                        fxStrip.output.connect(gain);
+                    }
 
-                    source.connect(filter);
-                    filter.connect(shaper);
-                    shaper.connect(gain);
-                    gain.connect(finalDestination);
+                    if (wetGain) {
+                        gain.connect(spectralFinalDest);
+                        gain.connect(wetGain);
+                    } else {
+                        gain.connect(spectralFinalDest);
+                    }
 
                     source.start(startTime);
                     if (duration > 0) {
@@ -2184,7 +2232,10 @@ const playSamplerVoice = (
                 }
 
                 notes.forEach(noteStr => {
-                    const midi = noteToMidi(noteStr);
+                    // Include pitchOffsetSemitones so harmony voices transpose correctly
+                    // in buffer-source mode (matches the pitch offset already applied in
+                    // stretch mode via noteToMidi(noteStr) + pitchOffsetSemitones).
+                    const midi = noteToMidi(noteStr) + pitchOffsetSemitones;
 
                     if (shouldGlitch) {
                         for (let i = 0; i < bufferGlitchNumStutters; i++) {
