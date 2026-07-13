@@ -184,7 +184,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         rootNote: 60,
         coarseTune: 0,
         fineTune: 0,
-        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+        stretchProfile: 'vocal' as 'vocal' | 'harmonic' | 'fast',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
     }, [params, activeBankIdx]);
@@ -295,19 +295,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 case 'formantShift':
                     voice.setFormantShift(value as number);
                     break;
-                case 'quality': {
-                    // Map quality to RubberBand options
-                    const qualityMap = {
-                        'Fast': 1 | 16,      // RealTime | Faster
-                        'Standard': 1 | 32,   // RealTime | Finer
-                        'Elastic': 1 | 32 | 1048576 // RealTime | Finer | FormantPreserved
-                    };
-                    // Note: Actual quality change requires worklet reinit or message
+                case 'stretchProfile': {
                     const node = voice.getSourceNode();
                     if (node && 'port' in node) {
                         (node as AudioWorkletNode).port.postMessage({
-                            type: 'setQuality',
-                            options: qualityMap[value as keyof typeof qualityMap]
+                            type: 'setStretchProfile',
+                            profile: value
                         });
                     }
                     break;
@@ -614,7 +607,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
     return (
         <div
-            className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+            className="flex flex-col h-full hyphon-sampler-shell text-white overflow-hidden select-none relative"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -631,7 +624,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 </div>
             )}
             {/* --- FIXED HEADER --- */}
-            <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
+            <div className="flex-none flex items-center justify-between p-2 hyphon-sampler-header">
                 {/* Bank Tabs - Mobile touch optimized */}
                 <div className="flex gap-1 overflow-x-auto scrollbar-none touch-pan-x" role="tablist" aria-label="Sample Banks">
                     {SAMPLE_BANKS.map((label, i) => (
@@ -642,7 +635,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             role="tab"
                             aria-selected={activeBankIdx === i}
                             aria-controls="sampler-bank-panel"
-                            aria-label={`Select Bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
+                            aria-label={`Select sample bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
                             tabIndex={activeBankIdx === i ? 0 : -1}
                             onClick={() => onBankChange(i)}
                             onKeyDown={(e) => handleKeyDown(e, i)}
@@ -895,7 +888,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
 
 
-                        quality: currentParams.quality ?? 'good',
+                        stretchProfile: currentParams.stretchProfile ?? 'vocal',
                         stretchMode: currentParams.stretchMode ?? 'Pitch',
                         lockToSequencer: currentParams.lockToSequencer ?? false,
                     }}
@@ -951,8 +944,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 ) : (
                                     <Knob label="Frz Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                                 )}
-                                <button
-                                    type="button"
+                                <button type="button"
+
                                     role="switch"
                                     aria-checked={currentParams.freezeLfoSync}
                                     aria-label="Sync Freeze LFO Rate to BPM"
@@ -986,8 +979,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 ) : (
                                     <Knob label="Fmt Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                                 )}
-                                <button
-                                    type="button"
+                                <button type="button"
+
                                     role="switch"
                                     aria-checked={currentParams.formantLfoSync}
                                     aria-label="Sync Formant LFO Rate to BPM"
@@ -1027,8 +1020,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <fieldset className="flex items-start gap-1 col-span-2 border border-indigo-900/30 p-1 rounded bg-gray-800/20">
                                 <legend className="sr-only">Formant Envelope</legend>
                                 <div className="flex flex-col items-center gap-1 min-w-[3rem] justify-center mt-4 border-r border-indigo-900/50 pr-1">
-                                    <button
-                                        type="button"
+                                    <button type="button"
+
                                         role="switch"
                                         aria-checked={currentParams.formantEnvSync || false}
                                         aria-label="Sync Formant Envelope to BPM"

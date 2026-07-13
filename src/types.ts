@@ -79,6 +79,7 @@ export interface HatParams {
 }
 
 export interface SamplerBankParams {
+  grainPitchEnvDepth?: number;
   grainJitter?: number;
   sampleName: string;
   playbackSpeed: number;
@@ -113,19 +114,19 @@ export interface SamplerBankParams {
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
+  formantLfoShape?: number[];
+  customLfoShape?: number[];
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
   downsample?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
-  formantLfoShape?: number[];
   formantEnvAttack?: number;
   formantEnvDecay?: number;
   formantEnvAmount?: number;
   formantEnvFollower?: number;
   formantEnvSync?: boolean;
-  customLfoShape?: number[];
   characterMorph?: number;
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright';
   attack?: number;
@@ -140,7 +141,7 @@ export interface SamplerBankParams {
   rootNote?: number;
   coarseTune?: number;
   fineTune?: number;
-  quality?: 'preview' | 'good' | 'better' | 'best';
+  stretchProfile?: 'vocal' | 'harmonic' | 'fast';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
   pitchAttack?: number;
@@ -151,6 +152,9 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
+  vocoderAttack?: number;
   vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
@@ -409,7 +413,12 @@ export interface Note {
   length?: number;
   slide?: boolean;
   slideFormant?: boolean;
+  slideFromMidi?: number;
+  slideFromFormant?: number;
+  slideType?: 'linear' | 'exponential';
   chord?: string[];
+  characterMorph?: number;
+  isHarmonyVoice?: boolean;
   timbre?: number;
   probability?: number;
   microtiming?: number;
@@ -422,6 +431,8 @@ export interface Note {
   formantLfoRate?: number;
   formantLfoDepth?: number;
   formantLfoSync?: boolean;
+  formantLfoShape?: number[];
+  customLfoShape?: number[];
   freezeLfoRate?: number;
   freezeLfoDepth?: number;
   freezeLfoSync?: boolean;
@@ -429,6 +440,7 @@ export interface Note {
   timeStretchEnvDepth?: number;
   grainPitchEnvDepth?: number;
   grainJitter?: number;
+  grainPitchQuantize?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
   tremoloDepth?: number;
@@ -459,10 +471,6 @@ export interface Note {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
-  vocoderFormantShift?: number;
-  vocoderPreservation?: number;
-  vocoderAttack?: number;
-  vocoderRelease?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
@@ -482,7 +490,6 @@ export interface PartSequence {
 export interface Pattern {
   partA: PartSequence;
   partB: PartSequence;
-  bass2: PartSequence;
   kick: PartSequence;
   snare: PartSequence;
   closedHat: PartSequence;
@@ -497,6 +504,8 @@ export interface AudioEngine {
   webGpuEngine?: WebGpuOscillator | null;
   wasmEngine?: WasmOscillator | null;
   open303Engine?: Open303Oscillator | Open303Manager | null;
+  /** Prophecy formant engine manager; set after init. */
+  prophecyManager?: import('./engines/ProphecyManager').ProphecyManager | null;
   /** PcfEffect instance for PCF automation wiring; set after init. */
   pcfEffect?: import('./engines/PcfEffect').PcfEffect | null;
   singingVoice?: SingingVoice;
@@ -735,6 +744,8 @@ export interface AutomationState {
    * Updated once per step tick; used by UI controls to show animated values.
    */
   liveAutomatedValues: Record<string, number>;
+  /** Highlight automated knobs on hardware panels; dim non-automated params. */
+  showHardwareAutomation: boolean;
 }
 
 export interface SongStep {
@@ -771,6 +782,8 @@ export interface SavedSongData {
   ttsPhrases?: string[];
   /** Persisted automation lanes (from .rbs import, recordings, or AI) */
   automationLanes?: UnifiedAutomationLane[];
+  /** Per-song MIDI CC / note → control mappings */
+  midiMappings?: import('./types/midi').MidiBinding[];
 }
 export interface AmbianceTrack {
   id: string;

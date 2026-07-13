@@ -39,6 +39,10 @@ export interface HarmonizerConfig {
     envSustain?: number;
     /** Harmony bus envelope release time in seconds */
     envRelease?: number;
+    /** Dedicated attack time for harmony voices (seconds) */
+    harmonyAttack?: number;
+    /** Dedicated release time for harmony voices (seconds) */
+    harmonyRelease?: number;
 }
 
 /** Generated voice parameters for a single harmony voice */
@@ -110,6 +114,8 @@ export class Harmonizer {
         envDecay: 0.1,
         envSustain: 1.0,
         envRelease: 0.3
+        harmonyAttack: 0.1,
+        harmonyRelease: 0.3
     }) {
         this.config = { ...config };
     }
@@ -305,6 +311,8 @@ export const HARMONIZE_PRESETS = {
         envDecay: 0.1,
         envSustain: 1.0,
         envRelease: 0.3
+        harmonyAttack: 0.1,
+        harmonyRelease: 0.3
     }),
     
     /** Classic vocal harmony (major third) */
@@ -321,6 +329,8 @@ export const HARMONIZE_PRESETS = {
         envDecay: 0.1,
         envSustain: 1.0,
         envRelease: 0.3
+        harmonyAttack: 0.2,
+        harmonyRelease: 0.4
     }),
     
     /** Rich choir sound with 4 voices */
@@ -337,6 +347,8 @@ export const HARMONIZE_PRESETS = {
         envDecay: 0.1,
         envSustain: 1.0,
         envRelease: 0.3
+        harmonyAttack: 0.4,
+        harmonyRelease: 0.8
     }),
     
     /** Power chord style (root + fifth) */
@@ -353,6 +365,8 @@ export const HARMONIZE_PRESETS = {
         envDecay: 0.1,
         envSustain: 1.0,
         envRelease: 0.3
+        harmonyAttack: 0.05,
+        harmonyRelease: 0.2
     }),
     
     /** Wide ambient spread */
@@ -370,6 +384,8 @@ export const HARMONIZE_PRESETS = {
         envDecay: 0.1,
         envSustain: 1.0,
         envRelease: 0.3
+        harmonyAttack: 0.8,
+        harmonyRelease: 1.5
     })
 };
 

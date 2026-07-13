@@ -1337,6 +1337,19 @@ export class SingingVoice {
   }
 
   /**
+   * Set granular position jitter amount.
+   * @param amount Jitter amount (0-1)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainJitter(amount: number, time?: number): void {
+    if (this.workletNode) {
+      this.workletNode.parameters
+        .get("grainJitter")
+        ?.setValueAtTime(amount, time || this.audioContext.currentTime);
+    }
+  }
+
+  /**
    * Set granular pitch quantization interval in semitones.
    * 0 = off, 1 = chromatic, 3 = minor third, 4 = major third,
    * 5 = fourth, 7 = fifth, 12 = octave.

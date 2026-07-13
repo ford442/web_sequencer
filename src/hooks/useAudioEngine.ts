@@ -1,20 +1,18 @@
 import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type {
+import type { Note,
     SamplerBankParams, SynthParams, AudioEngine, PartSequence, MultisampleBank, PhonemeData
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
-import { RustOscillator } from '../engines/RustOscillator';
 import { Open303Manager } from '../engines/Open303Manager';
-import { ProphecyManager } from '../engines/ProphecyManager';
-import { PcfEffect } from '../engines/PcfEffect';
 import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
-import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
+import { DrumKitEngine } from '../engines/DrumKitEngine';
+import { ProphecyManager } from '../engines/ProphecyManager';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
 import {
@@ -31,31 +29,6 @@ import {
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
 import { makeDistortionCurve } from './audioEngine/distortion';
-import { AudioNodePool } from '../utils/AudioNodePool';
-
-export function safeConnect(source: AudioNode | undefined | null, destination: AudioNode | AudioParam | undefined | null) {
-    if (source && destination) {
-        if (destination instanceof AudioNode) {
-            source.connect(destination);
-        } else {
-            source.connect(destination);
-        }
-    }
-}
-
-export function getSyncedSeconds(bars: number, bpm: number): number {
-    if (!bars || bars <= 0) return 0;
-    return bars * 4 * (60 / bpm);
-}
-
-export function getSyncedLfoHz(bars: number, bpm: number): number {
-    // bars is the subdivision value from the UI (e.g., 0.25 for 1/4 bar)
-    // 1 bar = 4 beats. So duration in seconds = bars * 4 * (60 / bpm)
-    // Hz = 1 / duration = bpm / (240 * bars)
-    if (!bars || bars <= 0) return 0;
-    return bpm / (240 * bars);
-}
-
 import {
     applySamplerVoiceParamUpdate,
     applyVoiceParamUpdate,
@@ -66,14 +39,11 @@ import {
     initializeHarmonizer,
     initializeChoirBuses,
     initializeMasterOutput,
-    initializeHarmonyBus,
     initializeSustainProcessor,
     loadWavBuffer,
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
-import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
-import { prerenderPyodideBuffers, type PyodideLike } from '../utils/pyodideBuffers';
-import { loadingProgressStore } from '../stores/loadingProgressStore';
+import { engineTelemetry } from '../utils/engineTelemetry';
 
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
@@ -89,6 +59,16 @@ type AudioWindow = Window & typeof globalThis & {
     audioContext?: AudioContext;
 };
 
+export function getSyncedSeconds(bars: number, bpm: number): number {
+    if (!bars || bars <= 0) return 0;
+    return bars * 4 * (60 / bpm);
+}
+
+export function getSyncedLfoHz(bars: number, bpm: number): number {
+    if (!bars || bars <= 0) return 0;
+    return bpm / (240 * bars);
+}
+
 type ResolvedExpressiveness = {
     vibratoRate: number;
     vibratoDepth: number;
@@ -100,8 +80,6 @@ const resolveExpressiveness = (params: SamplerBankParams): ResolvedExpressivenes
     const cfg = params.expressiveness;
     const normalizeDepth = (value: number | undefined) => {
         if (value === undefined) return 0;
-        // Backward compatibility: older UI/state stores depths as 0-100 percentages,
-        // while newer expressiveness config stores normalized 0-1 values.
         return value > 1 ? value / 100 : value;
     };
     return {
@@ -112,23 +90,23 @@ const resolveExpressiveness = (params: SamplerBankParams): ResolvedExpressivenes
     };
 };
 
-const EXPRESSIVE_STOP_BUFFER_SECONDS = 0.02;
-
 export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
-    const initPromiseRef = useRef<Promise<void> | null>(null);
 
     // Polyphonic TTS Manager
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
+    const drumKitEngineRef = useRef<DrumKitEngine | null>(null);
+    const synthABusRef = useRef<GainNode | null>(null);
+    const prophecyManagerRef = useRef<ProphecyManager | null>(null);
+
 
     // Pre-stretched phoneme buffer pool (phoneme-aware time stretching)
     const phonemeBufferPoolRef = useRef<PhonemeBufferPool | null>(null);
-    
+
     // Harmonizer for layered vocals
     const harmonizerRef = useRef<Harmonizer | null>(null);
-    const harmonyBusGainRef = useRef<GainNode | null>(null);
 
     // Left/Right Choir Panning
     const choirLeftGainRef = useRef<GainNode | null>(null);
@@ -150,11 +128,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const loadedAmbianceBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const gpuEngineRef = useRef<WebGpuOscillator | null>(null);
     const wasmEngineRef = useRef<WasmOscillator | null>(null);
-    const rustEngineRef = useRef<RustOscillator | null>(null);
-    const analyserNodeRef = useRef<AnalyserNode | null>(null);
     const open303ManagerRef = useRef<Open303Manager | null>(null);
-    const prophecyManagerRef = useRef<ProphecyManager | null>(null);
-    const pcfEffectRef = useRef<PcfEffect | null>(null);
 
     // Voice Managers
     const voiceManagerARef = useRef<VoiceManager | null>(null);
@@ -185,26 +159,14 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const nextSynthNoteId = useRef(1);
     const activeSynthNotes = useRef(new Map<number, { stop: () => void }>());
     const nextSamplerNoteId = useRef(1);
-    const activeSamplerNotes = useRef(new Map<number, {
-        source: AudioBufferSourceNode;
-        envGain: GainNode;
-        expressiveNode?: AudioWorkletNode | null;
-        releaseTime?: number;
-    }>());
+    const activeSamplerNotes = useRef(new Map<number, { source: AudioBufferSourceNode; envGain: GainNode }>());
 
     const loadedSampleBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
     const vocalAlignmentsRef = useRef<Map<string, AlignmentResult>>(new Map());
-    const expressiveVoicePoolRef = useRef<AudioNodePool | null>(null);
-    const vocalOverdrivePoolRef = useRef<AudioNodePool | null>(null);
-    const expressiveVoiceProcessorPoolRef = useRef<AudioNodePool | null>(null);
-    const vocoderPoolRef = useRef<AudioNodePool | null>(null);
-    
+
     // Multisample Generator
     const multisampleGeneratorRef = useRef<MultisampleGenerator | null>(null);
     const multisampleBanksRef = useRef<Map<string, MultisampleBank>>(new Map());
-
-    // Drum Kit Engine (initialized with default 808)
-    const drumKitEngineRef = useRef<DrumKitEngine>(new DrumKitEngine('808'));
 
     const playbackRefs = useMemo<PlaybackRefs>(() => ({
         masterGainRef,
@@ -217,7 +179,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         masterPannerRef,
         noiseBufferRef,
         open303ManagerRef,
-        prophecyManagerRef,
         voiceManagerARef,
         voiceManagerBRef,
         nextSynthNoteId,
@@ -232,51 +193,19 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         bassSidechainEQBusRef,
         sidechainBusRef,
         drumKitEngineRef,
-        synthABusRef
+        synthABusRef,
+        prophecyManagerRef,
     }), []);
 
     useEffect(() => {
         pyodideRef.current = pyodide;
     }, [pyodide]);
 
-    useEffect(() => {
-        if (!pyodide || !audioEngine?.context) return;
-
-        let cancelled = false;
-        void (async () => {
-            try {
-                const buffers = await prerenderPyodideBuffers(pyodide as PyodideLike, audioEngine.context);
-                if (cancelled) return;
-                const deps = {
-                    pyodideEngine: pyodide as PyodideLike,
-                    pyodideBuffers: buffers,
-                };
-                voiceManagerARef.current?.updateEngineDeps(deps);
-                voiceManagerBRef.current?.updateEngineDeps(deps);
-                engineTelemetry.registerResolution('pyodide', 'pyodide', 'live-loop-buffers-ready');
-            } catch (e) {
-                logEngineFallback('pyodide', 'pyodide', 'live buffer pre-render failed', e);
-            }
-        })();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [pyodide, audioEngine]);
-
     const initializeAudio = useCallback(async () => {
-        if (audioEngine) return;
-        if (initPromiseRef.current) {
-            await initPromiseRef.current;
-            return;
-        }
-
-        const runInit = async () => {
+        if (audioEngine || isInitializing.current) return;
         isInitializing.current = true;
-        loadingProgressStore.startLoading();
 
         try {
-            loadingProgressStore.startStep('audioContext');
             const audioWindow = window as AudioWindow;
             const AudioContextCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
             if (!AudioContextCtor) {
@@ -343,6 +272,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             // Connect widener merger to master
             widenerMerger.connect(masterSaturationRef.current!);
 
+            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef);
+
             // Initialize Reverb Node
             // Initialize Reverb Nodes (Room, Plate, Hall)
             const roomNode = context.createConvolver();
@@ -370,42 +301,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             delayNode.connect(masterBusInput);
             delayNodeRef.current = delayNode;
             delayFeedbackRef.current = delayFeedback;
-            loadingProgressStore.completeStep('masterChain');
 
             // Initialize Engines
-            loadingProgressStore.startStep('webGpuEngine');
             const gpuEngine = new WebGpuOscillator();
-            try {
-                await gpuEngine.init();
-            } catch (e) {
-                logEngineFallback('webgpu', 'webgpu', 'WebGpuOscillator.init() threw', e);
-            }
+            await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
             gpuEngineRef.current = gpuEngine;
-            loadingProgressStore.completeStep('webGpuEngine');
 
-            loadingProgressStore.startStep('wasmEngine');
             const wasmEngine = new WasmOscillator();
-            try {
-                await wasmEngine.init();
-            } catch (e) {
-                logEngineFallback('wam', 'wasm', 'WasmOscillator.init() threw', e);
-            }
+            await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
             wasmEngineRef.current = wasmEngine;
-            loadingProgressStore.completeStep('wasmEngine');
-
-            const rustEngine = new RustOscillator();
-            try {
-                await rustEngine.init();
-            } catch (e) {
-                logEngineFallback('rust', 'wasm', 'RustOscillator.init() threw', e);
-            }
-            rustEngineRef.current = rustEngine;
 
             // Initialize Open303 Manager
-            loadingProgressStore.startStep('open303Engine');
             const open303Manager = new Open303Manager();
             let open303Ready = false;
-            
+
             try {
                 open303Ready = await open303Manager.init(context, open303ProcessorUrl, {
                     preferWorklet: true,
@@ -442,70 +351,39 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 }
                 // Connect 303 through PCF (if ready) or directly to master bus.
                 // open303ManagerRef is set here, after routing is fully established.
+
                 if (open303Ready) {
-                    if (pcfReady) {
-                        open303Manager.connect(pcf.input);
-                        pcf.output.connect(masterBusInput);
-                    } else {
-                        open303Manager.connect(masterBusInput);
-                    }
+                    open303Manager.connect(masterBusInput);
                     open303ManagerRef.current = open303Manager;
                     console.log('[useAudioEngine] Open303Manager Ready');
-                    try { engineTelemetry.registerResolution('open303', 'wasm-worklet', 'manager-ready'); } catch (e) { /* noop */ }
-                }
-            }
-
-            // Initialize Prophecy Formant Engine
-            loadingProgressStore.startStep('prophecyEngine');
-            const prophecyManager = new ProphecyManager();
-            let prophecyReady = false;
-
-            try {
-                prophecyReady = await prophecyManager.init(context, prophecyProcessorUrl);
-
-                if (prophecyReady) {
-                    prophecyManager.connect(masterBusInput);
-                    prophecyManagerRef.current = prophecyManager;
-                    console.log('[useAudioEngine] ProphecyManager Ready');
-                    try { engineTelemetry.registerResolution('prophecy', 'prophecy', 'ready'); } catch (e) { /* noop */ }
+                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
                 } else {
-                    logEngineFallback('prophecy', 'wasm-worklet', 'ProphecyManager.init() returned false');
+                    console.warn('[useAudioEngine] Open303Manager failed to initialize');
+                    try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
                 }
             } catch (e) {
-                logEngineFallback('prophecy', 'wasm-worklet', 'ProphecyManager.init() threw', e);
-                prophecyReady = false;
+                console.error('[useAudioEngine] Open303Manager crashed during init:', e);
+                open303Ready = false;
             }
-            loadingProgressStore.completeStep('prophecyEngine');
 
-            loadingProgressStore.startStep('wavFiles');
+            if (!open303Ready) {
+                console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
+            }
+
             const [sawBuf, sqrBuf] = await Promise.all([
                 loadWavBuffer(context, './assets/saw.wav'),
                 loadWavBuffer(context, './assets/square.wav')
             ]);
             wavSawBufferRef.current = sawBuf;
             wavSqrBufferRef.current = sqrBuf;
-            loadingProgressStore.completeStep('wavFiles');
 
-            // Register oscillator backend decision (webgpu -> wam -> rust -> wav -> js)
+            // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
             try {
                 let oscillatorBackend = 'js';
-                let decisionReason = 'no specialised engine ready';
-                if (gpuEngine.isSupported) {
-                    oscillatorBackend = 'webgpu';
-                    decisionReason = 'WebGPU device + pipeline ready';
-                } else if (wasmEngine.isReady) {
-                    oscillatorBackend = 'wam';
-                    decisionReason = 'AssemblyScript oscillators.wasm ready';
-                } else if (rustEngine.isReady) {
-                    oscillatorBackend = 'rust';
-                    decisionReason = 'rust-wasm module ready';
-                } else if (sawBuf || sqrBuf) {
-                    oscillatorBackend = 'wav';
-                    decisionReason = 'PCM wav buffers loaded';
-                } else {
-                    logEngineFallback('oscillators', 'hybrid-chain', decisionReason);
-                }
-                engineTelemetry.registerResolution('oscillators', oscillatorBackend, decisionReason);
+                if (gpuEngine && (gpuEngine as any).isSupported) oscillatorBackend = 'webgpu';
+                else if (wasmEngine && (wasmEngine as any).isReady) oscillatorBackend = 'wasm';
+                else if (sawBuf || sqrBuf) oscillatorBackend = 'wav';
+                engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
             } catch (e) {
                 console.warn('Engine telemetry registration failed for oscillators', e);
             }
@@ -549,21 +427,18 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             try {
                 await context.audioWorklet.addModule(vocoderProcessorUrl);
-                vocoderPoolRef.current = new AudioNodePool(context, 'vocoder-processor', { numberOfInputs: 2 });
             } catch (error) {
                 console.error('VocoderProcessor AudioWorklet initialization failed:', error);
             }
 
             try {
                 await context.audioWorklet.addModule(vocalOverdriveProcessorUrl);
-                vocalOverdrivePoolRef.current = new AudioNodePool(context, 'vocal-overdrive-processor');
             } catch (error) {
                 console.error('VocalOverdrive AudioWorklet initialization failed:', error);
             }
 
             try {
                 await context.audioWorklet.addModule(expressiveVoiceProcessorUrl);
-                expressiveVoiceProcessorPoolRef.current = new AudioNodePool(context, 'expressive-voice-processor');
             } catch (error) {
                 console.error('ExpressiveVoiceProcessor AudioWorklet initialization failed:', error);
             }
@@ -575,8 +450,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 console.error('ExpressiveVoice worklet initialization failed:', error);
             }
 
+            // Initialize Voice Managers
+            voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+            voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
+
+            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
+
             // --- Singing Voice Manager Init ---
-            loadingProgressStore.startStep('singingVoice');
             try {
                 let wasmBinary: ArrayBuffer | undefined = undefined;
                 try {
@@ -595,9 +475,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     enableFormantShifting: true
                 });
 
-                await manager.init(wasmBinary, (done, total) => {
-                    loadingProgressStore.updateStepProgress('singingVoice', (done / total) * 100);
-                });
+                await manager.init(wasmBinary);
                 singingVoiceManagerRef.current = manager;
                 try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
 
@@ -626,11 +504,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             } catch (e) {
                 try { engineTelemetry.registerResolution('singingVoice','js','failed to init: ' + String(e)); } catch (err) { /* noop */ }
                 console.warn('SingingVoiceManager failed to init:', e);
-                loadingProgressStore.failStep('singingVoice', e instanceof Error ? e : new Error(String(e)), true);
             }
-            loadingProgressStore.completeStep('singingVoice');
 
-            loadingProgressStore.startStep('complete');
             initializeHarmonizer(harmonizerRef);
             noiseBufferRef.current = createNoiseBuffer(context);
             multisampleGeneratorRef.current = new MultisampleGenerator(context);
@@ -652,8 +527,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             };
 
             // --- Playback Functions Extraction ---
-            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', tuning?: any | null, noteParams?: any) => {
-                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track, tuning, noteParams);
+            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', noteParams?: any) => {
+                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track as any, noteParams);
             };
             const playDrum = createPlayDrum(context, playbackRefs) as any;
             const {
@@ -701,30 +576,23 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 time: number, 
                 durationSteps: number = 1, 
                 stepTime: number = 0.2, 
-                noteParams?: { 
+                noteParams?: Note & {
                     timbre?: number, 
                     microtiming?: number, 
                     reverse?: boolean, 
                     sliceIndex?: number, 
                     retrigger?: number, 
                     slideFromMidi?: number,
-                    slideFromFormant?: number,
                     slideType?: 'linear' | 'exponential',
                     phonemes?: PhonemeData[],
                     freeze?: number,
                     filterCutoff?: number,
                     filterResonance?: number,
-                    formantLfoSync?: boolean,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     formantLfoShape?: number[],
-                    freezeLfoSync?: boolean,
-                    freezeLfoRate?: number,
-                    freezeLfoDepth?: number,
                     customLfoShape?: number[],
                     vibratoDepth?: number,
-                    tremoloDepth?: number,
-                    tremoloRate?: number,
                     reverbSend?: number,
                     delaySend?: number,
                     choir?: number,
@@ -754,7 +622,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantEnvAmount?: number,
                     formantEnvFollower?: number,
                     envMod?: number,
-                    vocoderMix?: number,
+                    vocoderMix?: number, vocoderFormantShift?: number, vocoderPreservation?: number, vocoderAttack?: number, vocoderRelease?: number
                     spectralResynthesis?: number
                 },
                 pitchOffsetSemitones: number = 0,
@@ -763,7 +631,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
                 const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-                
+
                 if (!buffer || !masterSaturationRef.current) return;
 
                 // Apply Microtiming
@@ -774,8 +642,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const subDurationSteps = durationSteps / retrigger;
 
                 // --- GLITCH LOGIC START ---
-                const effectiveGlitchChance = noteParams?.glitchChance ?? params.glitchChance ?? 0;
-                const shouldGlitch = retrigger === 1 && effectiveGlitchChance > 0 && Math.random() < effectiveGlitchChance;
+                const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
                 // --- GLITCH LOGIC END ---
 
                 // Handle Polyphony (Chords)
@@ -787,10 +654,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- HOISTED PARAMETERS START ---
                 // Vocoder Mix
                 const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
-                const pVocoderFormantShift = (noteParams as any)?.vocoderFormantShift ?? params.formantShift ?? 0;
-                const pVocoderPreservation = (noteParams as any)?.vocoderPreservation ?? 1.0;
-                const pVocoderAttack = (noteParams as any)?.vocoderAttack ?? 0.01;
-                const pVocoderRelease = (noteParams as any)?.vocoderRelease ?? 0.05;
+                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.vocoderFormantShift ?? 0;
+                const pVocoderPreservation = noteParams?.vocoderPreservation ?? params.vocoderPreservation ?? 1.0;
+                const pVocoderAttack = noteParams?.vocoderAttack ?? params.vocoderAttack ?? 0.01;
+                const pVocoderRelease = noteParams?.vocoderRelease ?? params.vocoderRelease ?? 0.05;
 
                 // Spectral Panning
                 const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
@@ -829,8 +696,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 // General Params
                 const pVibratoDepth = noteParams?.vibratoDepth;
-                const pTremoloDepth = noteParams?.tremoloDepth;
-                const pTremoloRate = noteParams?.tremoloRate;
+                const pTremoloDepth = noteParams?.tremoloDepth !== undefined ? noteParams.tremoloDepth : params.tremoloDepth;
+                const pTremoloRate = noteParams?.tremoloRate !== undefined ? noteParams.tremoloRate : params.tremoloRate;
                 const pGateDepth = noteParams?.gateDepth !== undefined ? noteParams.gateDepth : params.gateDepth;
                 const pGateRateHz = noteParams?.gateRate !== undefined
                     ? (tempo / 60) * (noteParams.gateRate / 4)
@@ -886,6 +753,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     pEnvDecay = getSyncedSeconds(pEnvDecay as number, tempo);
                 }
 
+                const pPitchAttack = (noteParams as any)?.pitchAttack ?? params.pitchAttack ?? 0;
                 const pPitchDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
                 const pPitchAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
 
@@ -1522,6 +1390,444 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                             console.warn("Failed to instantiate vocoder node", e);
                                         }
                                     }
+                    // For each note in the chord
+                        const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+                            const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
+                            const originalDuration = buffer.duration;
+                            const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
+
+                            // Ensure voice connected to correct output
+                            voice.disconnectOutput();
+                            let finalDest = destination || masterSaturationRef.current!;
+
+                            // Apply Drive/Distortion if present
+                            const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                            if (driveAmount !== undefined && driveAmount > 0) {
+                                const shaper = context.createWaveShaper();
+                                shaper.curve = makeDistortionCurve(driveAmount * 100);
+                                shaper.connect(finalDest);
+                                finalDest = shaper;
+                            }
+
+                            // Apply Per-Step Filter if present, or fallback to global filter settings
+                            if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
+                                const filter = context.createBiquadFilter();
+                                filter.type = 'lowpass';
+
+                                const cutoff = noteParams?.filterCutoff !== undefined
+                                    ? Math.max(20, noteParams.filterCutoff * 20000)
+                                    : (params.filterCutoff ?? 20000);
+                                filter.frequency.value = cutoff;
+
+                                const resonance = noteParams?.filterResonance !== undefined
+                                    ? noteParams.filterResonance * 20
+                                    : (params.filterResonance ?? 0);
+                                filter.Q.value = resonance;
+
+                                filter.connect(finalDest);
+                                finalDest = filter;
+                            }
+
+                            voice.connectOutput(finalDest);
+
+                            // Apply Vocoder if present
+                            let vocoderNodeRef: AudioWorkletNode | null = null;
+                            if (vocoderMix > 0 && synthABusRef.current) {
+                                try {
+                                    const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
+                                        numberOfInputs: 2,
+                                        parameterData: { mix: vocoderMix }
+                                    });
+                                    // Connect Synth A to carrier (input 0)
+                                    synthABusRef.current.connect(vocoderNode, 0, 0);
+
+                                    // Connect Vocoder output to next in chain
+                                    vocoderNode.connect(finalDest);
+
+                                    // We need to route the TTS source to modulator (input 1)
+                                    // Create a gain to act as the new finalDest for the TTS source
+                                    const modulatorGain = context.createGain();
+                                    modulatorGain.connect(vocoderNode, 0, 1);
+
+                                    vocoderNodeRef = vocoderNode;
+                                    finalDest = modulatorGain;
+                                } catch (e) {
+                                    console.warn("Failed to instantiate vocoder node", e);
+                                }
+                            }
+
+                            let spectralFinalDest = finalDest;
+                            let wetGain: GainNode | null = null;
+                            // Apply Spectral Panning
+                            if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
+                                const lowBand = context.createBiquadFilter();
+                                lowBand.type = "lowpass";
+                                lowBand.frequency.value = 400;
+
+                                const midBand = context.createBiquadFilter();
+                                midBand.type = "bandpass";
+                                midBand.frequency.value = 1500;
+                                midBand.Q.value = 1;
+
+                                const highBand = context.createBiquadFilter();
+                                highBand.type = "highpass";
+                                highBand.frequency.value = 4000;
+
+                                const lowPanner = context.createStereoPanner();
+                                const midPanner = context.createStereoPanner();
+                                const highPanner = context.createStereoPanner();
+
+                                const lowLfo = context.createOscillator();
+                                lowLfo.type = "sine";
+                                lowLfo.frequency.value = spectralPanLfoRate * 0.5;
+                                const lowGain = context.createGain();
+                                lowGain.gain.value = spectralPanDepth;
+                                lowLfo.connect(lowGain);
+                                lowGain.connect(lowPanner.pan);
+                                lowLfo.start(triggerTime);
+
+                                const midLfo = context.createOscillator();
+                                midLfo.type = "sine";
+                                midLfo.frequency.value = spectralPanLfoRate * 0.75;
+                                const midGain = context.createGain();
+                                midGain.gain.value = spectralPanDepth * 0.8;
+                                midLfo.connect(midGain);
+                                midGain.connect(midPanner.pan);
+                                midLfo.start(triggerTime);
+
+                                const highLfo = context.createOscillator();
+                                highLfo.type = "sine";
+                                highLfo.frequency.value = spectralPanLfoRate;
+                                const highGain = context.createGain();
+                                highGain.gain.value = spectralPanDepth * 1.2;
+                                highLfo.connect(highGain);
+                                highGain.connect(highPanner.pan);
+                                highLfo.start(triggerTime);
+
+                                lowBand.connect(lowPanner);
+                                midBand.connect(midPanner);
+                                highBand.connect(highPanner);
+
+                                lowPanner.connect(finalDest);
+                                midPanner.connect(finalDest);
+                                highPanner.connect(finalDest);
+
+                                const dryGain = context.createGain();
+                                dryGain.gain.value = 1.0 - spectralPanDepth;
+                                dryGain.connect(finalDest);
+
+                                wetGain = context.createGain();
+                                wetGain.gain.value = spectralPanDepth;
+                                wetGain.connect(lowBand);
+                                wetGain.connect(midBand);
+                                wetGain.connect(highBand);
+
+                                voice.connectOutput(dryGain);
+                                voice.connectOutput(wetGain);
+                                spectralFinalDest = dryGain;
+
+                                // Clean up LFOs when voice finishes
+                                const stopOscillators = () => {
+                                    try { lowLfo.stop(); } catch(e){}
+                                    try { midLfo.stop(); } catch(e){}
+                                    try { highLfo.stop(); } catch(e){}
+                                };
+                                // this may not be perfect teardown if stretch voice lasts longer, but it is a start
+                                setTimeout(stopOscillators, targetDuration * 1000 + 100);
+                            } else {
+                                voice.connectOutput(finalDest);
+                            }
+
+                            // Setup Reverb Send (Formant-Aware)
+                            // Setup Reverb Send
+                            const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
+                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                            const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
+                            if (reverbSendAmount > 0 && targetReverbNode) {
+                                const reverbGain = context.createGain();
+                                reverbGain.gain.value = reverbSendAmount;
+                                reverbGain.connect(targetReverbNode);
+                                voice.connectOutput(reverbGain); // connectOutput appends to existing connections
+                            }
+
+                            // Setup Delay Send
+                            const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
+                            if (delaySendAmount > 0 && delayNodeRef.current) {
+                                const delayGain = context.createGain();
+                                delayGain.gain.value = delaySendAmount;
+                                delayGain.connect(delayNodeRef.current);
+                                voice.connectOutput(delayGain);
+                            }
+
+                            // Apply Timbre Modulation (Formant Shift)
+                            const baseShift = params.formantShift || 0;
+                            if (noteParams?.formantShift !== undefined) {
+                                voice.setFormantShift(baseShift + noteParams.formantShift, triggerTime);
+                            } else if (noteParams?.timbre !== undefined) {
+                                const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
+                                voice.setFormantShift(baseShift + mod, triggerTime);
+                            } else if (params.formantShift !== undefined) {
+                                voice.setFormantShift(params.formantShift, triggerTime);
+                            }
+
+                            // Apply Character Morphing
+                            const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
+                            const morphTarget = params.morphTarget || 'female';
+                            voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
+
+                            // Sync other params
+                            if (noteParams?.vibratoDepth !== undefined) {
+                                voice.setVibratoDepth(noteParams.vibratoDepth, triggerTime);
+                            } else if (params.vibratoDepth !== undefined) {
+                                voice.setVibratoDepth(params.vibratoDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateDepth !== undefined) {
+                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
+                            } else if (params.gateDepth !== undefined) {
+                                voice.setGateDepth(params.gateDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateRate !== undefined) {
+                                const rateHz = (tempo / 60) * (noteParams.gateRate / 4);
+                                voice.setGateRate(rateHz, triggerTime);
+                            } else if (params.gateRate !== undefined) {
+                                const rateHz = (tempo / 60) * (params.gateRate / 4);
+                                voice.setGateRate(rateHz, triggerTime);
+                            }
+                            if (params.tremoloDepth !== undefined) voice.setTremoloDepth(params.tremoloDepth, triggerTime);
+                            if (params.tremoloRate !== undefined) voice.setTremoloRate(params.tremoloRate, triggerTime);
+
+                            if (noteParams?.gateDepth !== undefined) {
+                                voice.setGateDepth(noteParams.gateDepth, triggerTime);
+                            } else if (params.gateDepth !== undefined) {
+                                voice.setGateDepth(params.gateDepth, triggerTime);
+                            }
+
+                            if (noteParams?.gateRate !== undefined) {
+                                voice.setGateRate(noteParams.gateRate, triggerTime);
+                            } else if (params.gateRate !== undefined) {
+                                voice.setGateRate(params.gateRate, triggerTime);
+                            }
+
+                            if (noteParams?.breathIntensity !== undefined) {
+                                voice.setBreathIntensity(noteParams.breathIntensity, triggerTime);
+                            } else if (params.breathIntensity !== undefined) {
+                                voice.setBreathIntensity(params.breathIntensity, triggerTime);
+                            }
+                            if (params.attack !== undefined) voice.setAttack(params.attack, triggerTime);
+                            if (params.decay !== undefined) voice.setDecay(params.decay, triggerTime);
+                            if (params.sustain !== undefined) voice.setSustain(params.sustain, triggerTime);
+                            if (params.release !== undefined) voice.setRelease(params.release, triggerTime);
+
+                            // Apply per-step or global freeze
+                            if (noteParams?.freeze !== undefined) {
+                                voice.setFreeze(noteParams.freeze, triggerTime);
+                            } else if (params.freeze !== undefined) {
+                                voice.setFreeze(params.freeze, triggerTime);
+                            }
+
+                            // Apply Envelope Follower depths (global only)
+                            if (params.freezeEnvDepth !== undefined) voice.setFreezeEnvDepth(params.freezeEnvDepth, triggerTime);
+                            if (params.grainEnvDepth !== undefined) voice.setGrainEnvDepth(params.grainEnvDepth, triggerTime);
+                            if (noteParams?.grainPitchQuantize !== undefined) {
+                                voice.setGrainPitchQuantize(noteParams.grainPitchQuantize, triggerTime);
+                            } else if (params.grainPitchQuantize !== undefined) {
+                                voice.setGrainPitchQuantize(params.grainPitchQuantize, triggerTime);
+                            }
+
+                            if (noteParams?.tranceGate !== undefined) {
+                                voice.setTranceGate(noteParams.tranceGate, triggerTime);
+                            }
+
+                            // Apply Formant LFO
+                            if (noteParams?.formantLfoRate !== undefined) {
+                                voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);
+                            } else if (params.formantLfoRate !== undefined) {
+                                voice.setFormantLfoRate(params.formantLfoRate, triggerTime);
+                            }
+                            if (noteParams?.formantLfoDepth !== undefined) {
+                                voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
+                            } else if (params.formantLfoDepth !== undefined) {
+                                voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
+                            }
+                            if (noteParams?.formantLfoShape !== undefined) {
+                                voice.setFormantLfoShape(noteParams.formantLfoShape);
+                            } else if (params.formantLfoShape !== undefined) {
+                                voice.setFormantLfoShape(params.formantLfoShape);
+                            } else {
+                                voice.setFormantLfoShape(undefined);
+                            // Apply Timbre Modulation (Formant Shift)
+                            if (startFormantShift !== undefined && (noteParams?.slideFromMidi !== undefined || noteParams?.slideFromFormant !== undefined)) {
+                                const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
+                                voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);
+                            } else {
+                                voice.setFormantShift(targetFormantShift, triggerTime);
+                            }
+
+                            // Apply Character Morphing
+                            voice.setCharacterMorph(characterMorph, morphTarget as any, 0.05); // Use short ramp time
+
+                            // Sync other params
+                            if (pVibratoDepth !== undefined) voice.setVibratoDepth(pVibratoDepth, triggerTime);
+                            if (pTremoloDepth !== undefined) voice.setTremoloDepth(pTremoloDepth * 100, triggerTime); // setTremoloDepth expects percentage 0-100
+                            if (pTremoloRate !== undefined) voice.setTremoloRate(pTremoloRate, triggerTime);
+                            if (pGateDepth !== undefined) voice.setGateDepth(pGateDepth, triggerTime);
+                            if (pGateRateHz !== undefined) voice.setGateRate(pGateRateHz, triggerTime);
+
+                            if (pAttack !== undefined) voice.setAttack(pAttack, triggerTime);
+                            if (pDecay !== undefined) voice.setDecay(pDecay, triggerTime);
+                            if (pSustain !== undefined) voice.setSustain(pSustain, triggerTime);
+                            if (pRelease !== undefined) voice.setRelease(pRelease, triggerTime);
+
+                            if (pFreeze !== undefined) voice.setFreeze(pFreeze, triggerTime);
+                            if (pFreezeLfoRate !== undefined) voice.setFreezeLfoRate(pFreezeLfoRate, triggerTime);
+                            if (pFreezeLfoDepth !== undefined) voice.setFreezeLfoDepth(pFreezeLfoDepth, triggerTime);
+
+                            if (pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(pFreezeEnvDepth, triggerTime);
+                            if (pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(pTimeStretchEnvDepth, triggerTime);
+                            if (pGrainEnvDepth !== undefined) voice.setGrainEnvDepth(pGrainEnvDepth, triggerTime);
+                            if (pGrainPitchEnvDepth !== undefined) voice.setGrainPitchEnvDepth(pGrainPitchEnvDepth, triggerTime);
+                            if (pGrainJitter !== undefined) voice.setGrainJitter(pGrainJitter, triggerTime);
+                            if (pGrainPitchQuantize !== undefined) voice.setGrainPitchQuantize(pGrainPitchQuantize, triggerTime);
+
+                            if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
+                            if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
+                            if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
+                            if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
+
+                            if (pFormantLfoRateHz !== undefined) voice.setFormantLfoRate(pFormantLfoRateHz, triggerTime);
+                            if (pFormantLfoDepth !== undefined) voice.setFormantLfoDepth(pFormantLfoDepth, triggerTime);
+                            voice.setFormantLfoShape(pFormantLfoShape);
+
+                            if (pEnvAmount !== 0) voice.setFormantEnvelope(pEnvAmount, pEnvAttack as number, pEnvDecay as number, triggerTime);
+                            voice.setFormantEnvFollower(pFormantEnvFollower as number, triggerTime);
+
+                            // Load buffer only if the voice doesn't already have it
+                            if (isNewBank) {
+                                voice.loadBuffer(buffer.getChannelData(0));
+                            }
+                            // Formant Envelope
+                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
+                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
+                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
+                            if (envAmount !== 0) {
+                                voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
+                            }
+
+                            // CHECK FOR SLICE TRIGGER MODE
+                            if (params.sliceMode === 'phoneme' && alignment) {
+                                let sliceIndex = -1;
+                                let pitchRatio = 1.0;
+
+                                if (noteParams?.sliceIndex !== undefined) {
+                                    sliceIndex = noteParams.sliceIndex;
+                                    const targetMidi = noteToMidi(noteStr);
+                                    const baseMidi = 60;
+                                    pitchRatio = Math.pow(2, (targetMidi - baseMidi + pitchOffset + pitchOffsetSemitones) / 12);
+                                } else {
+                                    const targetMidi = noteToMidi(noteStr);
+                                    sliceIndex = targetMidi - 60;
+                                    pitchRatio = Math.pow(2, (pitchOffset + pitchOffsetSemitones) / 12);
+                                }
+
+                                if (sliceIndex >= 0) {
+                                    const phonemeId = `${params.sampleName}_${sliceIndex}`;
+                                    voice.triggerSlice(
+                                        buffer.getChannelData(0),
+                                        sliceIndex,
+                                        alignment,
+                                        pitchRatio,
+                                        noteParams?.reverse,
+                                        targetDuration,
+                                        triggerTime,
+                                        phonemeId,
+                                    );
+                                    return;
+                                }
+                            }
+
+                            // 1. Calculate Time Ratio
+                            const timeRatio = targetDuration / originalDuration;
+                            voice.setTimeRatio(timeRatio, triggerTime);
+
+                            // 2. Pitch Shift (with offset for harmonizer and slide support)
+                            const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
+                            if (noteParams?.slideFromMidi !== undefined) {
+                                const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
+                                voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
+                                // Glide over half the target duration or a minimum of 0.15s, bounded by actual duration
+                                const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
+
+                                if (noteParams?.slideType === 'exponential' || params.portamentoType === 'exponential') {
+                                    voice.exponentialRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, tuning);
+                                } else {
+                                    voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, tuning);
+                                }
+                            } else {
+                                voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
+                            }
+
+                            // 3. Phoneme Awareness (from Jules branch)
+                            if (alignment) {
+                                voice.setAlignment(alignment);
+                                voice.sendPhonemeDataToWorklet(targetDuration);
+                            }
+
+                            // 4. Play
+
+                            // Pitch Envelope
+                            if (voice.setPitchAttack) {
+                                voice.setPitchAttack(pPitchAttack, triggerTime);
+                            }
+                            if (voice.setPitchDecay) {
+                                voice.setPitchDecay(pPitchDecay, triggerTime);
+                            }
+                            if ((voice as any).setPitchAmount) {
+                                (voice as any).setPitchAmount(pPitchAmount, triggerTime);
+                            }
+
+                            voice.play(undefined, undefined, 1.0, noteParams?.reverse);
+
+                            const releaseTime = triggerTime + targetDuration;
+                            const delayMs = (releaseTime - context.currentTime) * 1000;
+                            if (delayMs > 0) {
+                                setTimeout(() => {
+                                    voice.noteOff();
+                                    if (expressiveVoiceNode) {
+                                        expressiveVoiceNode.port.postMessage({ type: 'TEARDOWN' });
+                                        expressiveVoiceProcessorPoolRef.current?.release(expressiveVoiceNode);
+                                    }
+                                    if (overdriveNodeRef) {
+                                        vocalOverdrivePoolRef.current?.release(overdriveNodeRef);
+                                    }
+                                    if (vocoderNodeRef) {
+                                        synthABusRef.current?.disconnect(vocoderNodeRef);
+                                        vocoderNodeRef.disconnect();
+                                    }
+                                }, delayMs);
+                            } else {
+                                voice.noteOff();
+                                if (expressiveVoiceNode) {
+                                    expressiveVoiceNode.port.postMessage({ type: 'TEARDOWN' });
+                                    expressiveVoiceProcessorPoolRef.current?.release(expressiveVoiceNode);
+                                }
+                                if (overdriveNodeRef) {
+                                    vocalOverdrivePoolRef.current?.release(overdriveNodeRef);
+                                }
+                                if (vocoderNodeRef) {
+                                    synthABusRef.current?.disconnect(vocoderNodeRef);
+                                    vocoderNodeRef.disconnect();
+                                }
+                            }
+                        };
+
+                        const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
+                            const t = actualTime + timeOffset;
+
+                            const mainVoiceData = manager.acquireVoice();
+                            manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
+                            triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
 
                                     let spectralFinalDest = finalDestination;
                                     let wetGain: GainNode | null = null;
@@ -1612,6 +1918,101 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                     } else {
                                         filter.connect(gain);
                                     }
+                                const leftVoiceData = manager.acquireVoice();
+                                if (leftVoiceData.index !== mainVoiceData.index) {
+                                    manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
+                                    triggerVoice(noteStr, leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
+                                }
+
+                                const rightVoiceData = manager.acquireVoice();
+                                if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
+                                    manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
+                                    triggerVoice(noteStr, rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
+                                }
+                            } else if (pitchOffsetSemitones === 0) {
+                                if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                                if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
+                            }
+                        };
+                    // ⚡ Bolt: Hoist glitch variables out of the polyphonic note loop.
+                    // This prevents redundant math per chord note and ensures all notes in a chord glitch synchronously.
+                    let glitchNumStutters = 0;
+                    let glitchTotalDur = 0;
+                    let glitchStutterLen = 0;
+                    if (shouldGlitch) {
+                        glitchNumStutters = Math.floor(Math.random() * 3) + 2;
+                        glitchTotalDur = durationSteps * stepTime;
+                        glitchStutterLen = Math.min(0.06, glitchTotalDur / glitchNumStutters);
+                    }
+
+                    notes.forEach((noteStr, _noteIndex) => {
+
+
+
+                    // For each note in the chord
+                    notes.forEach((noteStr, _noteIndex) => {
+                        if (shouldGlitch) {
+                            for (let i = 0; i < glitchNumStutters; i++) {
+                                runVoices(noteStr, i * glitchStutterLen, glitchStutterLen);
+                            }
+                            const played = glitchNumStutters * glitchStutterLen;
+                            if (glitchTotalDur > played) {
+                                runVoices(noteStr, played, glitchTotalDur - played);
+                            }
+                        } else {
+                            for (let r = 0; r < retrigger; r++) {
+                                const offset = r * (subDurationSteps * stepTime);
+                                runVoices(noteStr, offset, subDurationSteps * stepTime);
+                            }
+                        }
+                    });
+                    return;
+                }
+
+                // Buffer playback mode (non-stretch)
+                const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
+                    const source = context.createBufferSource();
+
+                    const targetMidi = pitchSemitones;
+                    let playbackBuffer: AudioBuffer;
+                    let pitchRatio = 1.0;
+
+                    if (multisampleBank?.pitchBank.has(targetMidi)) {
+                        playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
+                        pitchRatio = params.playbackSpeed;
+                    } else {
+                        playbackBuffer = multisampleBank?.baseBuffer || buffer;
+                        const rootMidi = multisampleBank?.rootNote ?? 60;
+                        const speed = params.playbackSpeed;
+                        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+                    }
+
+                    source.buffer = playbackBuffer;
+                    source.playbackRate.value = pitchRatio;
+
+                    const gain = context.createGain();
+                    gain.gain.value = params.volume;
+
+                    const filter = context.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    const cutoff = noteParams?.filterCutoff !== undefined
+                        ? Math.max(20, noteParams.filterCutoff * 20000)
+                        : params.filterCutoff;
+                    filter.frequency.value = cutoff;
+
+                    const resonance = noteParams?.filterResonance !== undefined
+                        ? noteParams.filterResonance * 20
+                        : params.filterResonance;
+                    filter.Q.value = resonance;
+
+                    const shaper = context.createWaveShaper();
+                    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+                    if (driveAmount > 0) {
+                        shaper.curve = makeDistortionCurve(driveAmount * 100);
+                    } else {
+                        shaper.curve = null;
+                        finalShaperDest = shaper;
+                    }
 
                                     if (wetGain) {
                                         gain.connect(spectralFinalDest);
@@ -1643,47 +2044,150 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             const numStutters = Math.floor(Math.random() * 3) + 2;
                             const totalDur = durationSteps * stepTime;
                             const stutterLen = Math.min(0.06, totalDur / numStutters);
+                    // Apply Vocoder if present
+                    let vocoderNodeRef: AudioWorkletNode | null = null;
+                    if (vocoderMix > 0 && synthABusRef.current) {
+                        try {
+                            const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
+                                numberOfInputs: 2,
+                                parameterData: { mix: vocoderMix }
+                            });
+                            // Connect Synth A to carrier (input 0)
+                            synthABusRef.current.connect(vocoderNode, 0, 0);
 
-                            for (let i = 0; i < numStutters; i++) {
-                                runVoices(ctx, noteStr, i * stutterLen, stutterLen);
-                            }
-                            const played = numStutters * stutterLen;
-                            if (totalDur > played) {
-                                runVoices(ctx, noteStr, played, totalDur - played);
-                            }
-                        } else {
-                            for (let r = 0; r < retrigger; r++) {
-                                const offset = r * (subDurationSteps * stepTime);
-                                runVoices(ctx, noteStr, offset, subDurationSteps * stepTime);
-                            }
+                            // Connect Vocoder output to next in chain
+                            vocoderNode.connect(finalDestination);
+
+                            // Create a gain to act as the new finalDestination for the TTS source
+                            const modulatorGain = context.createGain();
+                            modulatorGain.connect(vocoderNode, 0, 1);
+
+                            vocoderNodeRef = vocoderNode;
+                            finalDestination = modulatorGain;
+
+                            // Clean up
+                            source.addEventListener('ended', () => {
+                                synthABusRef.current?.disconnect(vocoderNode);
+                                vocoderNode.disconnect();
+                            });
+                        } catch (e) {
+                            console.warn("Failed to instantiate vocoder node", e);
                         }
-                    });
-                    return;
+                    }
+
+                    let spectralFinalDest = finalDestination;
+                    let wetGain: GainNode | null = null;
+                    if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
+                        // Parallel low/band/high bands with independent LFO panners for spectral movement
+                        const lowBand = context.createBiquadFilter();
+                        lowBand.type = "lowpass";
+                        lowBand.frequency.value = 400;
+
+                        const midBand = context.createBiquadFilter();
+                        midBand.type = "bandpass";
+                        midBand.frequency.value = 1500;
+                        midBand.Q.value = 1;
+
+                        const highBand = context.createBiquadFilter();
+                        highBand.type = "highpass";
+                        highBand.frequency.value = 4000;
+
+                        const lowPanner = context.createStereoPanner();
+                        const midPanner = context.createStereoPanner();
+                        const highPanner = context.createStereoPanner();
+
+                        const lowLfo = context.createOscillator();
+                        lowLfo.type = "sine";
+                        lowLfo.frequency.value = spectralPanLfoRate * 0.5;
+                        const lowGain = context.createGain();
+                        lowGain.gain.value = spectralPanDepth;
+                        lowLfo.connect(lowGain);
+                        lowGain.connect(lowPanner.pan);
+                        lowLfo.start(startTime);
+
+                        const midLfo = context.createOscillator();
+                        midLfo.type = "sine";
+                        midLfo.frequency.value = spectralPanLfoRate * 0.75;
+                        const midGain = context.createGain();
+                        midGain.gain.value = spectralPanDepth * 0.8;
+                        midLfo.connect(midGain);
+                        midGain.connect(midPanner.pan);
+                        midLfo.start(startTime);
+
+                        const highLfo = context.createOscillator();
+                        highLfo.type = "sine";
+                        highLfo.frequency.value = spectralPanLfoRate;
+                        const highGain = context.createGain();
+                        highGain.gain.value = spectralPanDepth * 1.2;
+                        highLfo.connect(highGain);
+                        highGain.connect(highPanner.pan);
+                        highLfo.start(startTime);
+
+                        lowBand.connect(lowPanner);
+                        midBand.connect(midPanner);
+                        highBand.connect(highPanner);
+
+                        lowPanner.connect(finalDestination);
+                        midPanner.connect(finalDestination);
+                        highPanner.connect(finalDestination);
+
+                        const dryGain = context.createGain();
+                        dryGain.gain.value = 1.0 - spectralPanDepth;
+                        dryGain.connect(finalDestination);
+
+                        wetGain = context.createGain();
+                        wetGain.gain.value = spectralPanDepth;
+                        wetGain.connect(lowBand);
+                        wetGain.connect(midBand);
+                        wetGain.connect(highBand);
+
+                        spectralFinalDest = dryGain;
+
+                        source.addEventListener("ended", () => {
+                            try { lowLfo.stop(); } catch(e){}
+                            try { midLfo.stop(); } catch(e){}
+                            try { highLfo.stop(); } catch(e){}
+                        });
+                    }
+
+                    let finalDestination: AudioNode = masterSaturationRef.current!;
+                    if (params.pan !== undefined && params.pan !== 0) {
+                        const panner = context.createStereoPanner();
+                        panner.pan.value = params.pan;
+                        panner.connect(masterSaturationRef.current!);
+                        finalDestination = panner;
+                    }
+
+                    source.connect(filter);
+                    filter.connect(shaper);
+                    shaper.connect(gain);
+                    gain.connect(finalDestination);
+
+                    source.start(startTime);
+                    if (duration > 0) {
+                        source.stop(startTime + duration);
+                    }
+                };
+
+                // ⚡ Bolt: Hoist glitch variables out of the polyphonic note loop for buffer mode.
+                let bufferGlitchNumStutters = 0;
+                const bufferGlitchStutterLen = 0.06;
+                if (shouldGlitch) {
+                    bufferGlitchNumStutters = Math.floor(Math.random() * 3) + 2;
                 }
 
-                // Buffer playback mode (non-stretch)
-                ;
-
-                // ⚡ Bolt: Hoist string parsing and noteToMidi out of polyphonic playback loop
-                const isArray = Array.isArray(notes);
-                const firstNote = isArray && notes.length > 0 ? notes[0] : notes;
-                const noteMidiValue = firstNote ? noteToMidi(firstNote as string) + pitchOffsetSemitones : 0;
-
                 notes.forEach(noteStr => {
-                    const midi = noteMidiValue;
+                    const midi = noteToMidi(noteStr);
 
                     if (shouldGlitch) {
-                        const numStutters = Math.floor(Math.random() * 3) + 2;
-                        const stutterLen = 0.06;
-
-                        for (let i = 0; i < numStutters; i++) {
-                            playBufferSource(ctx, actualTime + i * stutterLen, stutterLen, midi);
+                        for (let i = 0; i < bufferGlitchNumStutters; i++) {
+                            playBufferSource(actualTime + i * bufferGlitchStutterLen, bufferGlitchStutterLen, midi);
                         }
-                        playBufferSource(ctx, actualTime + numStutters * stutterLen, 0, midi);
+                        playBufferSource(actualTime + bufferGlitchNumStutters * bufferGlitchStutterLen, 0, midi);
                     } else {
                         for (let r = 0; r < retrigger; r++) {
                             const offset = r * (subDurationSteps * stepTime);
-                            playBufferSource(ctx, actualTime + offset, subDurationSteps * stepTime, midi);
+                            playBufferSource(actualTime + offset, subDurationSteps * stepTime, midi);
                         }
                     }
                 });
@@ -1719,7 +2223,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 time: number,
                 durationSteps: number = 1,
                 stepTime: number = 0.2,
-                noteParams?: any,
                 tuning?: ScaleDefinition | null
             ) => {
                 // Harmonize support - if harmonizer is active, generate multiple harmony voices
@@ -1729,7 +2232,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     triggerHarmonyEnvelope(time, durationSteps * stepTime);
 
                     // Play base voice (index 0) - the original note
-                    playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams, 0, tuning);
+                    playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
 
                     // Play each harmony voice (skip index 0 which is base)
                     voices.forEach((voice) => {
@@ -1738,7 +2241,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         // Create modified params for this harmony voice
                         const voiceParams: SamplerBankParams = {
                             ...params,
-                            pan: Math.max(-1, Math.min(1, (params.pan || 0) + (voice.pan || 0))),
+                            pan: voice.pan,
                             volume: params.volume * voice.gain * 0.85,
                             formantShift: (params.formantShift || 0) + voice.formantShift,
                             fineTune: (params.fineTune || 0) + voice.detuneCents
@@ -1756,26 +2259,25 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
             };
 
-            const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any | null): number | null => {
+            const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any): number | null => {
                 const now = time || context.currentTime;
-                
+
                 const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
                 const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);
                 const buffer = multisampleBank?.baseBuffer || legacyBuffer;
-                
+
                 if (!buffer || !masterSaturationRef.current) return null;
 
-                const expressiveConfig = resolveExpressiveness(params);
                 const rootNote = params.rootNote ?? 60;
                 const coarseTune = params.coarseTune ?? 0;
                 const fineTune = params.fineTune ?? 0;
 
                 const targetMidi = noteToMidi(note);
                 const source = context.createBufferSource();
-                
+
                 let playbackBuffer: AudioBuffer;
                 let pitchRatio: number;
-                
+
                 if (multisampleBank?.pitchBank.has(targetMidi)) {
                     playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
                     pitchRatio = params.playbackSpeed;
@@ -1785,7 +2287,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const effectivePitchOffset = coarseTune + (fineTune / 100);
                     pitchRatio = params.playbackSpeed * Math.pow(2, (targetMidi - rootMidi + effectivePitchOffset) / 12);
                 }
-                
+
                 source.buffer = playbackBuffer;
                 source.playbackRate.value = pitchRatio;
 
@@ -1797,11 +2299,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 source.start(now);
 
                 const id = nextSamplerNoteId.current++;
-                activeSamplerNotes.current.set(id, {
-                    source,
-                    envGain: gain,
-                    releaseTime: params.release ?? 0.1,
-                });
+                activeSamplerNotes.current.set(id, { source, envGain: gain });
                 return id;
             };
 
@@ -1809,10 +2307,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const note = activeSamplerNotes.current.get(id);
                 if (note) {
                     const now = context.currentTime;
-                    const releaseTime = note.releaseTime ?? 0.1;
                     note.envGain.gain.cancelScheduledValues(now);
-                    note.envGain.gain.linearRampToValueAtTime(0, now + releaseTime);
-                    note.source.stop(now + releaseTime);
+                    note.envGain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    note.source.stop(now + 0.1);
                     activeSamplerNotes.current.delete(id);
                 }
             };
@@ -1863,32 +2360,15 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             const processSpoon = async (_sampleName: string, _note: string) => null;
             const setSustainMode = (_mode: 'loop' | 'stretch' | 'wavetable') => {};
             const setSustainGrainSize = (_size: number) => {};
-            const setHarmonizerConfig = (config: HarmonizerConfig, isActive: boolean) => {
-                applyHarmonizerConfig(harmonizerRef, config, isActive);
-                if (harmonyBusGainRef.current) {
-                    harmonyBusGainRef.current.gain.setTargetAtTime(isActive ? (config.busGain ?? 0.85) : 0, context.currentTime, 0.05);
-                }
-                if (harmonyCompressorRef.current) {
-                    harmonyCompressorRef.current.threshold.setTargetAtTime(config.busCompressorThreshold ?? -18, context.currentTime, 0.05);
-                }
-                if (harmonyEQRef.current) {
-                    harmonyEQRef.current.gain.setTargetAtTime(config.busEqGain ?? -3.0, context.currentTime, 0.05);
-                }
-                if (harmonyWidenerDelayRef.current) {
-                    // Widener amount 0-1 mapped to 0-30ms delay
-                    harmonyWidenerDelayRef.current.delayTime.setTargetAtTime((config.busWidener ?? 0.0) * 0.03, context.currentTime, 0.05);
-                }
-            };
+            const setHarmonizerConfig = (config: HarmonizerConfig, isActive: boolean) => applyHarmonizerConfig(harmonizerRef, config, isActive);
             const updateSamplerVoiceParams = (_bankIdx: number, _key: string, _value: number | string | boolean) => {};
 
             // Re-assign to state
             setAudioEngine({
                 context,
-                analyserNode: analyserNodeRef.current,
                 webGpuEngine: gpuEngineRef.current,
                 wasmEngine: wasmEngineRef.current,
                 open303Engine: open303ManagerRef.current as any,
-                pcfEffect: pcfEffectRef.current,
                 singingVoice: undefined,
                 playSynth,
                 playDrum,
@@ -1910,6 +2390,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 setReverbType,
                 detectSamplePitch,
                 processSinging,
+                processSpoon,
                 prepareVocal,
                 getAlignment,
                 setAlignment,
@@ -1923,23 +2404,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 resetTapeStop
             });
 
-            loadingProgressStore.completeStep('complete');
-            loadingProgressStore.finishLoading();
             setIsReady(true);
         } catch (e) {
             console.error("CRITICAL AUDIO INIT FAILURE", e);
-            loadingProgressStore.addError(e instanceof Error ? e.message : String(e));
-            loadingProgressStore.finishLoading();
             setIsReady(true);
-        } finally {
             isInitializing.current = false;
         }
-        };
-
-        initPromiseRef.current = runInit().finally(() => {
-            initPromiseRef.current = null;
-        });
-        await initPromiseRef.current;
     }, [audioEngine, playbackRefs]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
@@ -1953,7 +2423,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             rampTime
         });
     }, [audioEngine]);
-    
+
     const updateSamplerVoiceParams = useCallback((_bankIdx: number, param: string, value: number | string | boolean) => {
         applySamplerVoiceParamUpdate({
             manager: singingVoiceManagerRef.current,
@@ -1969,6 +2439,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         initializeAudio,
         onParamChange: updateVoiceParams,
         updateSamplerVoiceParams,
-        drumKitEngineRef,
+        drumKitEngineRef
     }), [audioEngine, isReady, initializeAudio, updateVoiceParams, updateSamplerVoiceParams]);
 };
