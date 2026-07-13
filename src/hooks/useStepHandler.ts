@@ -18,12 +18,12 @@ import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
 import type { AutomationTarget } from '../types';
 
-// ⚡ Bolt: Helper to retrieve the automation store value per lane efficiently without array methods to reduce GC.
+// ⚡ Bolt: Helper to retrieve the automation store value efficiently using O(1) cache to reduce GC.
 const getAutomationValue = (target: AutomationTarget, param: string, step: number): number | undefined => {
-    const lanes = automationStore.getState().lanes;
+    const lanes = automationStore.getLanesForParam(target, param);
     for (let i = 0; i < lanes.length; i++) {
         const lane = lanes[i];
-        if (lane.target === target && lane.parameter === param && lane.enabled) {
+        if (lane.enabled) {
             const v = automationStore.getValueAtStep(lane, step);
             if (v !== null) return v;
         }

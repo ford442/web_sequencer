@@ -66,3 +66,7 @@
 ## 2026-07-11 - Polyphonic Glitch Math Hoisting
 **Learning:** Math logic for random glitching (\`Math.random()\`, \`Math.floor()\`) inside polyphonic chord loops (\`notes.forEach\`) causes notes in the same chord to have different randomized stutter counts, making them drift out of sync. Furthermore, it redundantly evaluates the same variables repeatedly per polyphonic note.
 **Action:** When working with polyphonic triggers and random effects, hoist math and random number generators outside the polyphonic iteration loop. Ensure \`shouldGlitch\` and all sub-variables (\`numStutters\`, \`stutterLen\`, etc.) are computed exactly once per trigger event, distributing consistent parameters across the entire chord.
+
+## 2026-07-12 - Reverting from Monolithic File Corruption
+**Learning:** During optimization efforts on `useAudioEngine.ts`, pulling snippets from an outdated/broken 1800-line monolithic `main` branch into a modularized branch caused severe brace mismatching and TS compilation errors (`TS1005: 'try' expected`). The codebase has transitioned to a modular structure (using `src/hooks/audioEngine/`).
+**Action:** When a local branch becomes polluted with structural corruption, do not attempt targeted regex patches or blind brace insertions. Reset `useAudioEngine.ts` and `src/hooks/audioEngine/` to the branch's clean modular baseline (`git checkout HEAD src/hooks/useAudioEngine.ts src/hooks/audioEngine/`) rather than checking out from an outdated `origin/main`. Only port explicitly confirmed, granular fixes from `main`.
