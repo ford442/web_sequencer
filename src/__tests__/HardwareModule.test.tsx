@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { HardwareModule } from '../components/HardwareModule';
 import type { KnobConfig } from '../components/HardwareModule';
+import { buildKnob2DDrawCalls } from '../components/knobRender';
+import { getKnobCanvasValue } from '../components/knobInteraction';
+import { KNOB_MATERIAL } from '../components/knobMaterial';
 
 // Mock WebGPU since it's not available in test environment
 vi.stubGlobal('navigator', {
@@ -154,5 +157,48 @@ describe('HardwareModule - 3D Holographic Mode', () => {
         // Should have ARIA sliders for accessibility
         const sliders = container.querySelectorAll('[role="slider"]');
         expect(sliders.length).toBe(mockControls.length);
+    });
+
+    it('shows AUTO badge with automated value when manual value differs', () => {
+        const onParamChange = vi.fn();
+        const automatedControls: KnobConfig[] = [
+            {
+                id: 'cutoff',
+                label: 'Cutoff',
+                x: 0.5,
+                y: 0.5,
+                size: 0.1,
+                value: 0.2,
+                isAutomated: true,
+                automatedValue: 0.8,
+            },
+        ];
+
+        const { getByText } = render(
+            <HardwareModule
+                title="Test Module"
+                colorHex={mockColorHex}
+                controls={automatedControls}
+                onParamChange={onParamChange}
+            />
+        );
+
+        expect(getByText('AUTO')).toBeTruthy();
+        expect(getByText('80')).toBeTruthy();
+    });
+
+    it('2D arc end angle follows automated canvas value', () => {
+        const ctrl = { value: 0.2, isAutomated: true, automatedValue: 0.8 };
+        const renderValue = getKnobCanvasValue(ctrl);
+        const drawCalls = buildKnob2DDrawCalls(KNOB_MATERIAL, renderValue, { w: 100, h: 100 });
+        const valueArc = drawCalls.find(
+            (cmd) =>
+                cmd.op === 'arc' &&
+                Math.abs(cmd.args[2] - 50 * KNOB_MATERIAL.geometry.arcRadius) < 1e-5
+        );
+        expect(valueArc?.op).toBe('arc');
+        if (!valueArc || valueArc.op !== 'arc') return;
+        const sweepSpan = valueArc.args[4] - valueArc.args[3];
+        expect(sweepSpan).toBeCloseTo(0.8 * KNOB_MATERIAL.geometry.sweepTotal, 5);
     });
 });

@@ -1,0 +1,259 @@
+/**
+ * Searchable in-app help catalog.
+ * Powers the Help modal command palette and contextual ? tooltips.
+ */
+
+export type HelpCategory =
+  | 'engine'
+  | 'automation'
+  | 'sampler'
+  | 'import'
+  | 'song'
+  | 'voice'
+  | 'general';
+
+export interface HelpTopic {
+  id: string;
+  title: string;
+  /** One-line answer for search results and tooltips. */
+  summary: string;
+  /** Expanded guidance (plain text, short paragraphs separated by blank lines). */
+  body: string;
+  keywords: string[];
+  category: HelpCategory;
+  /** Ordered steps for workflow topics. */
+  steps?: string[];
+  /** External or in-repo doc path. */
+  docLink?: string;
+}
+
+export const HELP_CATEGORY_LABELS: Record<HelpCategory, string> = {
+  engine: 'Engines & synthesis',
+  automation: 'Automation',
+  sampler: 'Sampler & TTS',
+  import: 'Import & export',
+  song: 'Song mode',
+  voice: 'Voice designer',
+  general: 'General',
+};
+
+export const HELP_TOPICS: HelpTopic[] = [
+  {
+    id: 'engine-303-switch',
+    title: 'Switch to authentic JC303',
+    summary: 'Pick a 303 waveform, then choose Authentic JC303 in the Engine panel on the rack overlay.',
+    body:
+      'Each 303 voice (SYNTH A lead, SYNTH B, BASS 2) can run the built-in Open303 WASM or the authentic rosic::Open303 engine from jc303_wasm.\n\n' +
+      'Select a 303-* waveform in the oscillator variant selector. The Engine panel appears on the rack module overlay — tap Authentic JC303 for the vintage DSP path.',
+    keywords: [
+      '303', 'jc303', 'open303', 'tb-303', 'authentic', 'engine', 'switch', 'bass', 'synth',
+    ],
+    category: 'engine',
+    steps: [
+      'Select SYNTH A, SYNTH B, or BASS 2 in the rack.',
+      'Choose a 303-saw or 303-sqr waveform variant.',
+      'On the overlay panel, open Engine and tap Authentic JC303.',
+      'Play a pattern — each voice keeps its own engine setting.',
+    ],
+    docLink: 'docs/audio-engine/jc303-prophecy.md',
+  },
+  {
+    id: 'prophecy-formants',
+    title: 'Prophecy formant waveforms',
+    summary: 'Select prophecy-* waves on SYNTH A/B, then use the Vowel / Formant / Portamento panel.',
+    body:
+      'Prophecy-style formant oscillators (prophecy-saw, prophecy-sqr, prophecy-tri, prophecy-pulse) route through the Prophecy worklet in hyphon_native.wasm.\n\n' +
+      'After selecting a prophecy waveform, the Prophecy panel appears with vowel presets (A/E/I/O/U), formant shift, and portamento.',
+    keywords: [
+      'prophecy', 'formant', 'vowel', 'portamento', 'korg', 'voice', 'synth',
+    ],
+    category: 'engine',
+    steps: [
+      'On SYNTH A or SYNTH B, pick an oscillator type that includes Prophecy variants.',
+      'Select a prophecy-* waveform.',
+      'Adjust Vowel buttons for formant character.',
+      'Use Formant Shift and Portamento sliders for expression.',
+    ],
+    docLink: 'docs/audio-engine/jc303-prophecy.md',
+  },
+  {
+    id: 'automation-filter',
+    title: 'Automate a filter (or any knob)',
+    summary: 'Right-click a hardware knob → enable lane, press Play, move the knob while REC AUTO is on.',
+    body:
+      'Hardware knobs on each rack module support per-parameter automation lanes stored in the song.\n\n' +
+      'Enable a lane from the knob context menu, turn on REC AUTO in the bottom bar while playing, then move the knob to record movement. Use AUTO VIEW to see ghost curves on knobs.',
+    keywords: [
+      'automate', 'automation', 'filter', 'cutoff', 'lane', 'record', 'knob', 'pcf',
+    ],
+    category: 'automation',
+    steps: [
+      'Open the rack module (e.g. SYNTH A) and find the target knob.',
+      'Right-click the knob → Toggle lane (or use the panel AUTO button).',
+      'Press Play, then enable REC AUTO in the bottom bar.',
+      'Move the knob while the sequencer runs — points are captured per step.',
+      'Toggle AUTO VIEW to preview curves; Alt+drag nudges points at the playhead.',
+    ],
+    docLink: 'docs/automation.md',
+  },
+  {
+    id: 'automation-rec-auto',
+    title: 'REC AUTO — live automation recording',
+    summary: 'Bottom bar REC AUTO arms capture while the transport is playing.',
+    body:
+      'REC AUTO records knob movements into enabled automation lanes during playback. Lanes must be armed first (per knob or via the module header AUTO control).\n\n' +
+      'Recording is disabled when stopped — start playback first.',
+    keywords: ['rec auto', 'record', 'automation', 'live', 'lane'],
+    category: 'automation',
+    steps: [
+      'Enable automation lanes on the parameters you want to move.',
+      'Press Play.',
+      'Click REC AUTO in the bottom bar (it pulses while active).',
+      'Twist hardware knobs — values are written per sequencer step.',
+      'Click REC AUTO again to stop capturing.',
+    ],
+  },
+  {
+    id: 'rbs-import',
+    title: 'Import ReBirth .rbs files',
+    summary: 'Bottom bar → Import .rbs opens the RBS import wizard for RB-338 patterns.',
+    body:
+      'Hyphon can import ReBirth Song (.rbs) files, mapping TB-303 patterns, drum tracks, and automation into Hyphon lanes.\n\n' +
+      'Use the import modal to preview patterns, choose PCF→automation conversion, and review the import report before applying.',
+    keywords: ['rbs', 'rebirth', 'rb-338', 'import', '338', 'rebirth'],
+    category: 'import',
+    steps: [
+      'Click Import .rbs in the bottom bar.',
+      'Choose a .rbs file from disk.',
+      'Review pattern mapping and automation options.',
+      'Confirm import — patterns load into the current song slots.',
+    ],
+    docLink: 'docs/automation.md',
+  },
+  {
+    id: 'ai-song-import',
+    title: 'Import AI-generated songs',
+    summary: 'Bottom bar → Import AI Song accepts JSON from Claude, Gemini, and other AI composers.',
+    body:
+      'The AI Song modal validates and converts structured JSON into Hyphon patterns, parameters, and metadata.\n\n' +
+      'Paste or upload JSON, review track statistics, then import into the current project.',
+    keywords: ['ai', 'import', 'song', 'claude', 'gemini', 'json'],
+    category: 'import',
+    steps: [
+      'Click Import AI Song in the bottom bar.',
+      'Paste JSON or pick a file.',
+      'Review validation and track breakdown.',
+      'Import — patterns merge into the active project.',
+    ],
+  },
+  {
+    id: 'sampler-tts',
+    title: 'Sampler text-to-speech (TTS)',
+    summary: 'Select a bank, type a phrase, press GEN. Each of 8 banks stores its own phrase.',
+    body:
+      'Supertonic ONNX TTS runs in-browser when models are installed (see docs/tts). Each sample bank has an independent TTS phrase saved with your project.\n\n' +
+      'The green LED beside GEN means the engine is ready. Use EDIT to open the Voice Designer for timbre shaping.',
+    keywords: ['tts', 'text', 'speech', 'sampler', 'supertonic', 'voice', 'gen', 'phrase'],
+    category: 'sampler',
+    steps: [
+      'Select the Sampler track and pick a bank (1–8).',
+      'Type text in the phrase field.',
+      'Wait for the green ready LED (models load on first use).',
+      'Press GEN — audio is rendered into the active bank.',
+      'Trigger from the sequencer or live keyboard.',
+    ],
+    docLink: 'docs/tts/TTS_DEPLOYMENT.md',
+  },
+  {
+    id: 'voice-designer',
+    title: 'Voice Designer',
+    summary: 'Sampler → EDIT opens the real-time voice parameter editor with GPU DSP.',
+    body:
+      'The Voice Designer provides sharpen, echo, tremolo, jitter, and geometric transforms on TTS output.\n\n' +
+      'Changes apply to the active bank and are saved with your project.',
+    keywords: ['voice', 'designer', 'edit', 'dsp', 'gpu', 'timbre'],
+    category: 'voice',
+    steps: [
+      'Open the Sampler rack module.',
+      'Click EDIT next to the TTS controls.',
+      'Adjust parameters — preview updates in real time.',
+      'Close the editor — settings persist per bank.',
+    ],
+    docLink: 'docs/tts/TTS_VISUAL_GUIDE.md',
+  },
+  {
+    id: 'song-mode',
+    title: 'Song mode — arrange patterns',
+    summary: 'Transport SONG button opens the arrangement grid across measures and tracks.',
+    body:
+      'Song mode lets you place pattern slot numbers (1–8) into a measure × track grid for full arrangements.\n\n' +
+      'Toggle Song Mode Active to follow the song structure during playback instead of looping a single pattern.',
+    keywords: ['song', 'mode', 'arrange', 'pattern', 'measure', 'structure'],
+    category: 'song',
+    steps: [
+      'Click SONG in the transport toolbar.',
+      'Click cells to assign pattern slot numbers per track.',
+      'Use arrow keys to navigate; Enter toggles values.',
+      'Enable Song Mode Active to play the arrangement.',
+      'Export to XM from the song panel when finished.',
+    ],
+  },
+  {
+    id: 'midi-learn',
+    title: 'MIDI learn & mapping',
+    summary: 'Toolbar MIDI toggles learn mode; touch a knob then move a controller to bind.',
+    body:
+      'MIDI Learn maps CCs and notes to hardware knobs and master sliders. Open MAP in the toolbar for an overview and to clear bindings.',
+    keywords: ['midi', 'learn', 'map', 'controller', 'cc'],
+    category: 'general',
+    steps: [
+      'Enable MIDI in the transport toolbar.',
+      'Touch or long-press a knob to select it as the learn target.',
+      'Move a MIDI control — binding is stored automatically.',
+      'Open MAP to review or clear mappings.',
+    ],
+  },
+  {
+    id: 'shortcuts-overview',
+    title: 'Keyboard shortcuts',
+    summary: 'Press ? or click Help in the bottom bar. Space = play, Ctrl+C/V = copy/paste steps.',
+    body: 'Open the Shortcuts tab in Help for the full list grouped by area.',
+    keywords: ['keyboard', 'shortcut', 'help', 'hotkey', '?'],
+    category: 'general',
+  },
+];
+
+export function getHelpTopic(id: string): HelpTopic | undefined {
+  return HELP_TOPICS.find((t) => t.id === id);
+}
+
+export function searchHelpTopics(query: string): HelpTopic[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return HELP_TOPICS;
+  return HELP_TOPICS.filter((topic) => {
+    const haystack = [
+      topic.title,
+      topic.summary,
+      topic.body,
+      ...topic.keywords,
+      HELP_CATEGORY_LABELS[topic.category],
+    ]
+      .join(' ')
+      .toLowerCase();
+    return q.split(/\s+/).every((word) => haystack.includes(word));
+  });
+}
+
+/** Checklist items shown in the dismissible What's New banner. */
+export const WHATS_NEW_ITEMS = [
+  { id: 'engine-303-switch', label: 'Per-voice authentic JC303 engine' },
+  { id: 'prophecy-formants', label: 'Prophecy formant oscillators' },
+  { id: 'automation-filter', label: 'Knob automation lanes + REC AUTO' },
+  { id: 'rbs-import', label: 'ReBirth .rbs import' },
+  { id: 'sampler-tts', label: 'Per-bank sampler TTS' },
+  { id: 'voice-designer', label: 'Voice Designer DSP editor' },
+  { id: 'song-mode', label: 'Song mode arrangement' },
+] as const;
+
+/** Bump when adding major features to re-show the What's New banner. */
+export const HELP_WHATS_NEW_VERSION = '2026.07';

@@ -24,13 +24,20 @@ if (typeof window !== 'undefined') {
   window.AudioContext = vi.fn().mockImplementation(function () { return ({
     createGain: vi.fn().mockReturnValue({
       connect: vi.fn(),
-      gain: { value: 0, setTargetAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), setValueAtTime: vi.fn() },
+      gain: {
+        value: 0,
+        setTargetAtTime: vi.fn(),
+        linearRampToValueAtTime: vi.fn(),
+        exponentialRampToValueAtTime: vi.fn(),
+        setValueAtTime: vi.fn(),
+        cancelScheduledValues: vi.fn(),
+      },
     }),
     createOscillator: vi.fn().mockReturnValue({
       connect: vi.fn(),
       start: vi.fn(),
       stop: vi.fn(),
-      frequency: { value: 0, setTargetAtTime: vi.fn(), setValueAtTime: vi.fn() },
+      frequency: { value: 0, setTargetAtTime: vi.fn(), setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
     }),
     createDynamicsCompressor: vi.fn().mockReturnValue({
       connect: vi.fn(),

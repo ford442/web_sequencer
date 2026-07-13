@@ -206,14 +206,43 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.expressiveProcessor.noteOff(targetTime);
         break;
 
-      case 'setQuality':
+      case 'setStretchProfile':
         // Update RubberBand quality options (requires reset)
-        if (data && typeof data.options === 'number') {
-          // this.qualityOptions = data.options;
+        if (data && typeof data.profile === 'string') {
           if (this.rubberBand) {
-            this.rubberBand.reset();
-            // Note: Full reinitialization would require recreating the stretcher
-            // For now, we just reset state
+             const timeRatio = this.rubberBand.getTimeRatio();
+             const pitchScale = this.rubberBand.getPitchScale();
+
+             let options = 1 | 32 | 1048576; // Default to vocal
+
+             if (data.profile === 'harmonic') {
+                 options = 1 | 32 | 256 | 0x02000000; // OptionProcessRealTime | OptionEngineFiner | OptionTransientsMixed | OptionPitchHighQuality
+             } else if (data.profile === 'fast') {
+                 options = 1; // OptionProcessRealTime | OptionEngineFaster
+             } else {
+                 options = 1 | 32 | 256 | 1048576; // OptionProcessRealTime | OptionEngineFiner | OptionTransientsMixed | OptionFormantPreserved
+             }
+
+             // Free old buffers if they exist
+             if (this.inputHeapPtr) this.rubberBand.module._free(this.inputHeapPtr);
+             if (this.outputHeapPtr) this.rubberBand.module._free(this.outputHeapPtr);
+             this.inputHeapPtr = 0;
+             this.outputHeapPtr = 0;
+             this.heapSizeFrames = 0;
+
+             // Recreate Stretcher
+             this.rubberBand = new this.rubberBand.module.RubberBandStretcher(
+               this.sampleRate,
+               1, // Mono
+               options,
+               1.0, // Initial Time Ratio
+               1.0  // Initial Pitch Scale
+             );
+
+
+
+             this.rubberBand.setTimeRatio(timeRatio);
+             this.rubberBand.setPitchScale(pitchScale);
           }
         }
         break;
