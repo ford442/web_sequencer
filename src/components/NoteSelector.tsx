@@ -562,6 +562,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       onChange={(e) =>
                         onPropertyChange?.(
                           "grainPitchEnvDepth",
+                        "grainJitter",
                           parseFloat(e.target.value)
                         )
                       }
