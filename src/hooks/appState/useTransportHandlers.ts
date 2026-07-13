@@ -1,72 +1,119 @@
-import { useCallback } from 'react';
-import type { useAudioEngine } from '../useAudioEngine';
+import { useCallback, useEffect, useRef } from 'react'
+import type { Pattern } from '../../types'
+import type { useUndoRedo } from '../useUndoRedo'
 
-export function useTransportHandlers(
-  isPlaying: boolean,
-  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>,
-  audioEngine: ReturnType<typeof useAudioEngine> | null,
-  startSequencer: () => Promise<void>,
-  stopSequencer: () => void,
-  tempo: number,
-  setTempo: React.Dispatch<React.SetStateAction<number>>,
-  updateAutomationLanes: () => void
-) {
+type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
 
-  const adjustTempo = useCallback((direction: number) => {
-    setTempo(prev => Math.max(30, Math.min(300, prev + direction)));
-  }, [setTempo]);
+export function useTransportHandlers(deps: {
+    isInitialized: boolean;
+    isReady: boolean;
+    initializeAudio: () => Promise<void>;
+    setIsInitialized: React.Dispatch<React.SetStateAction<boolean>>;
+    audioEngine: any;
+    setSchedPlaying: React.Dispatch<React.SetStateAction<boolean>>;
+    setTempo: React.Dispatch<React.SetStateAction<number>>;
+    undoRedo: UndoRedo;
+    setPattern: React.Dispatch<React.SetStateAction<Pattern>>;
+    activeKeyboardNotesRef: React.MutableRefObject<Map<string, number>>;
+}) {
+    const {
+        isInitialized, isReady, initializeAudio, setIsInitialized,
+        audioEngine, setSchedPlaying, setTempo, undoRedo, setPattern,
+        activeKeyboardNotesRef,
+    } = deps;
 
-  const handleTempoKeyDown = useCallback((e: React.KeyboardEvent, direction: number) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      adjustTempo(direction);
-    }
-  }, [adjustTempo]);
+    const tempoHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const tempoHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handlePanic = useCallback(() => {
-    if (audioEngine) {
-      if (audioEngine.audioEngine?.stopAllNotes) {
-        audioEngine.audioEngine.stopAllNotes();
-      }
-      setTimeout(() => {
-        setIsPlaying(false);
-        stopSequencer();
-      }, 50);
-    } else {
-      setIsPlaying(false);
-      stopSequencer();
-    }
-  }, [audioEngine, setIsPlaying, stopSequencer]);
+    const adjustTempo = useCallback((direction: number) => {
+        setTempo(t => Math.max(30, Math.min(300, t + direction)));
+    }, [setTempo]);
 
-  const handlePlayToggle = useCallback(async () => {
-    if (isPlaying) {
-      setIsPlaying(false);
-      stopSequencer();
-    } else {
-      setIsPlaying(true);
-      await startSequencer();
-      updateAutomationLanes();
-    }
-  }, [isPlaying, setIsPlaying, stopSequencer, startSequencer, updateAutomationLanes]);
+    const handleTempoHoldStart = useCallback((direction: number) => {
+        adjustTempo(direction);
+        tempoHoldTimeoutRef.current = setTimeout(() => {
+            tempoHoldIntervalRef.current = setInterval(() => { adjustTempo(direction); }, 50);
+        }, 300);
+    }, [adjustTempo]);
 
-  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
-    // Only handle if we aren't typing in an input or textarea
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const handleTempoHoldEnd = useCallback(() => {
+        if (tempoHoldTimeoutRef.current) { clearTimeout(tempoHoldTimeoutRef.current); tempoHoldTimeoutRef.current = null; }
+        if (tempoHoldIntervalRef.current) { clearInterval(tempoHoldIntervalRef.current); tempoHoldIntervalRef.current = null; }
+    }, []);
 
-    if (e.code === 'Space') {
-      e.preventDefault();
-      handlePlayToggle();
-    } else if (e.code === 'Escape') {
-      e.preventDefault();
-      if (isPlaying) handlePlayToggle();
-    }
-  }, [handlePlayToggle, isPlaying]);
+    const handleTempoKeyDown = useCallback((e: React.KeyboardEvent, direction: number) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            adjustTempo(direction);
+        }
+    }, [adjustTempo]);
 
-  return {
-    adjustTempo,
-    handleTempoKeyDown,
-    handlePanic,
-    handlePlayToggle,
-    handleGlobalKeyDown
-  };
+    const handlePanic = useCallback(() => {
+        if (!audioEngine || !audioEngine.stopAllNotes) return;
+        audioEngine.stopAllNotes();
+        activeKeyboardNotesRef.current.clear();
+    }, [audioEngine, activeKeyboardNotesRef]);
+
+    const handlePlayToggle = useCallback(async () => {
+        if (!isInitialized) {
+            await initializeAudio();
+            setIsInitialized(true);
+        }
+        const ctx = audioEngine?.context;
+        if (ctx?.state === 'suspended') {
+            try {
+                await ctx.resume();
+            } catch (e) {
+                console.warn('[transport] AudioContext.resume() failed:', e);
+            }
+        }
+        if (!isReady) {
+            console.warn('[transport] Audio engine not ready yet — playback may not start');
+        }
+        setSchedPlaying(prev => !prev);
+    }, [isInitialized, initializeAudio, audioEngine, isReady, setSchedPlaying, setIsInitialized]);
+
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            const inTextField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+            if (e.code === 'Space') {
+                if (inTextField) return;
+                e.preventDefault();
+                handlePlayToggle();
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+                if (inTextField) return;
+                e.preventDefault();
+                const prev = undoRedo.undo();
+                if (prev) setPattern(prev);
+                return;
+            }
+
+            if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') ||
+                ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')) {
+                if (inTextField) return;
+                e.preventDefault();
+                const next = undoRedo.redo();
+                if (next) setPattern(next);
+                return;
+            }
+        };
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [handlePlayToggle, undoRedo, setPattern]);
+
+    return {
+        adjustTempo,
+        handleTempoHoldStart,
+        handleTempoHoldEnd,
+        handleTempoKeyDown,
+        handlePanic,
+        handlePlayToggle,
+        tempoHoldIntervalRef,
+        tempoHoldTimeoutRef,
+    };
 }

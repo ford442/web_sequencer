@@ -113,7 +113,7 @@ export class Harmonizer {
         envAttack: 0.01,
         envDecay: 0.1,
         envSustain: 1.0,
-        envRelease: 0.3
+        envRelease: 0.3,
         harmonyAttack: 0.1,
         harmonyRelease: 0.3
     }) {
@@ -310,7 +310,7 @@ export const HARMONIZE_PRESETS = {
         envAttack: 0.01,
         envDecay: 0.1,
         envSustain: 1.0,
-        envRelease: 0.3
+        envRelease: 0.3,
         harmonyAttack: 0.1,
         harmonyRelease: 0.3
     }),
@@ -328,7 +328,7 @@ export const HARMONIZE_PRESETS = {
         envAttack: 0.01,
         envDecay: 0.1,
         envSustain: 1.0,
-        envRelease: 0.3
+        envRelease: 0.3,
         harmonyAttack: 0.2,
         harmonyRelease: 0.4
     }),
@@ -346,7 +346,7 @@ export const HARMONIZE_PRESETS = {
         envAttack: 0.01,
         envDecay: 0.1,
         envSustain: 1.0,
-        envRelease: 0.3
+        envRelease: 0.3,
         harmonyAttack: 0.4,
         harmonyRelease: 0.8
     }),
@@ -364,7 +364,7 @@ export const HARMONIZE_PRESETS = {
         envAttack: 0.01,
         envDecay: 0.1,
         envSustain: 1.0,
-        envRelease: 0.3
+        envRelease: 0.3,
         harmonyAttack: 0.05,
         harmonyRelease: 0.2
     }),
@@ -383,7 +383,7 @@ export const HARMONIZE_PRESETS = {
         envAttack: 0.01,
         envDecay: 0.1,
         envSustain: 1.0,
-        envRelease: 0.3
+        envRelease: 0.3,
         harmonyAttack: 0.8,
         harmonyRelease: 1.5
     })

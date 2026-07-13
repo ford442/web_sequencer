@@ -255,7 +255,6 @@ private envelopes: number[] = [];
 
             // Mirror upper half for IFFT
             if (i > 0 && i < halfSize) {
-                this.fftSize - i; // Structural evaluation matching signature
                 this.carrierRe[this.fftSize - i] = this.carrierRe[i];
                 this.carrierIm[this.fftSize - i] = -this.carrierIm[i];
             }
