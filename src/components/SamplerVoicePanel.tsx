@@ -35,11 +35,12 @@ interface SamplerVoicePanelProps {
     tremoloDepth?: number; // 0-1
     breathAmount?: number; // 0-1
     vocoderMix?: number; // 0-1
+    quality?: 'preview' | 'good' | 'better' | 'best';
     vocoderFormantShift?: number;
     vocoderPreservation?: number;
     vocoderAttack?: number;
     vocoderRelease?: number;
-    quality?: 'preview' | 'good' | 'better' | 'best';
+    stretchProfile?: 'vocal' | 'harmonic' | 'fast';
     stretchMode?: 'Time' | 'Pitch' | 'Formant';
     lockToSequencer?: boolean;
     onSamplerParamChange?: (param: string, value: number | string | boolean) => void;
@@ -175,7 +176,7 @@ const HarmonizerPopover: React.FC<{
                                 <button type="button"
                                     key={count}
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
-                                    aria-label={`${count} Voices`} title={`${count} Voices`}
+                                    aria-label={`${count} Voices`}
                                     aria-pressed={localConfig.voiceCount === count}
                                     className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${
                                         localConfig.voiceCount === count
@@ -201,7 +202,7 @@ const HarmonizerPopover: React.FC<{
                                 <button type="button"
                                     key={value}
                                     onClick={() => handleHarmonyTypeChange(value)}
-                                    aria-label={`${label} Harmony`} title={`${label} Harmony`}
+                                    aria-label={`${label} Harmony`}
                                     aria-pressed={localConfig.harmonyType === value}
                                     className={`py-1.5 rounded-md text-[9px] font-bold transition-all relative overflow-hidden ${
                                         localConfig.harmonyType === value
@@ -363,11 +364,12 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     tremoloDepth = 0,
     breathAmount = 0,
     vocoderMix = 0,
+    quality = 'good',
     vocoderFormantShift = 0,
     vocoderPreservation = 1.0,
     vocoderAttack = 0.01,
     vocoderRelease = 0.05,
-    quality = 'good',
+    stretchProfile = 'vocal',
     stretchMode = 'Time',
     lockToSequencer = false,
     onSamplerParamChange,
@@ -390,7 +392,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [localVocoderPreservation, setLocalVocoderPreservation] = useState(vocoderPreservation);
     const [localVocoderAttack, setLocalVocoderAttack] = useState(vocoderAttack);
     const [localVocoderRelease, setLocalVocoderRelease] = useState(vocoderRelease);
-    const [localQuality, setLocalQuality] = useState<typeof quality>(quality);
+    const [localQuality, setLocalQuality] = useState<typeof stretchProfile>(stretchProfile);
     const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
     const [isHarmonizerOpen, setIsHarmonizerOpen] = useState(false);
@@ -420,11 +422,12 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'vocoderMix': setLocalVocoderMix(value as number); break;
+            case 'quality': setLocalQuality(value as typeof quality); break;
             case 'vocoderFormantShift': setLocalVocoderFormantShift(value as number); break;
             case 'vocoderPreservation': setLocalVocoderPreservation(value as number); break;
             case 'vocoderAttack': setLocalVocoderAttack(value as number); break;
             case 'vocoderRelease': setLocalVocoderRelease(value as number); break;
-            case 'quality': setLocalQuality(value as typeof quality); break;
+            case 'stretchProfile': setLocalQuality(value as typeof stretchProfile); break;
             case 'stretchMode': setLocalStretch(value as typeof stretchMode); break;
             case 'lockToSequencer': setLocalLock(value as boolean); break;
         }
@@ -607,14 +610,13 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             <div className="flex-1 relative">
                                 <select
                                     value={localQuality}
-                                    onChange={(e) => handleParamChange('quality', e.target.value)}
-                                    aria-label="Sample Quality"
+                                    onChange={(e) => handleParamChange('stretchProfile', e.target.value)}
+                                    aria-label="Stretch Profile"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
-                                    <option value="preview">Preview</option>
-                                    <option value="good">Good</option>
-                                    <option value="better">Better</option>
-                                    <option value="best">Best</option>
+                                    <option value="vocal">Vocal</option>
+                                    <option value="harmonic">Harmonic</option>
+                                    <option value="fast">Fast</option>
                                 </select>
                                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-cyan-500 text-[8px]">▼</div>
                             </div>

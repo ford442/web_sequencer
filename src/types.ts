@@ -79,6 +79,7 @@ export interface HatParams {
 }
 
 export interface SamplerBankParams {
+  grainPitchEnvDepth?: number;
   grainJitter?: number;
   sampleName: string;
   playbackSpeed: number;
@@ -140,7 +141,7 @@ export interface SamplerBankParams {
   rootNote?: number;
   coarseTune?: number;
   fineTune?: number;
-  quality?: 'preview' | 'good' | 'better' | 'best';
+  stretchProfile?: 'vocal' | 'harmonic' | 'fast';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
   pitchAttack?: number;
@@ -151,6 +152,9 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
+  vocoderAttack?: number;
   vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
@@ -439,8 +443,6 @@ export interface Note {
   grainPitchQuantize?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
-  tremoloDepth?: number;
-  tremoloRate?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
   reverbLfoRate?: number;
@@ -467,10 +469,6 @@ export interface Note {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
-  vocoderFormantShift?: number;
-  vocoderPreservation?: number;
-  vocoderAttack?: number;
-  vocoderRelease?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
@@ -490,7 +488,6 @@ export interface PartSequence {
 export interface Pattern {
   partA: PartSequence;
   partB: PartSequence;
-  bass2: PartSequence;
   kick: PartSequence;
   snare: PartSequence;
   closedHat: PartSequence;

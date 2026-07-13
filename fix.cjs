@@ -1,23 +1,21 @@
 const fs = require('fs');
+const code = fs.readFileSync('src/hooks/useAudioEngine.ts', 'utf8');
+const lines = code.split('\n');
 
-let code = fs.readFileSync('src/hooks/useAudioEngine.ts.orig', 'utf8');
+let duplicateStart = -1;
+let duplicateEnd = -1;
 
-// 1. Imports
-code = code.replace(
-    "import { VoiceManager } from '../engines/VoiceManager';",
-    "import { VoiceManager } from '../engines/VoiceManager';\nimport { VoiceFXStrip } from '../engines/audio-fx/VoiceFXStrip';"
-);
-
-// 2. fxStripPoolRef
-code = code.replace(
-    "    const vocoderPoolRef = useRef<AudioNodePool | null>(null);",
-    "    const vocoderPoolRef = useRef<AudioNodePool | null>(null);\n    const fxStripPoolRef = useRef<VoiceFXStrip[]>([]);"
-);
-
-// 3. Pool initialization
-code = code.replace(
-    "            isAudioInitialized.current = true;",
-    "            isAudioInitialized.current = true;\n\n            const POOL_SIZE = 32;\n            for (let i = 0; i < POOL_SIZE; i++) {\n                fxStripPoolRef.current.push(new VoiceFXStrip(context));\n            }"
-);
-
-fs.writeFileSync('src/hooks/useAudioEngine.ts', code);
+for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('const playBufferSource =') && i > 1500) {
+        duplicateStart = i;
+    }
+    if (lines[i].includes('// Main playSampler function with harmonizer support') && duplicateStart > -1) {
+        duplicateEnd = i;
+        break;
+    }
+}
+if (duplicateStart > -1 && duplicateEnd > -1) {
+    console.log('deleting duplicate buffer logic lines', duplicateStart, duplicateEnd);
+    lines.splice(duplicateStart, duplicateEnd - duplicateStart, '            };');
+    fs.writeFileSync('src/hooks/useAudioEngine.ts', lines.join('\n'));
+}
