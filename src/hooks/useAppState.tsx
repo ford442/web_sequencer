@@ -440,15 +440,13 @@ export function useAppState() {
             if (!trackSeq || !trackSeq.steps) return 0;
             let activeSteps = 0;
             let totalVelocity = 0;
-            const steps = trackSeq.steps;
-            for (let i = 0; i < steps.length; i++) {
-                const step = steps[i];
+            trackSeq.steps.forEach((step: any) => {
                 if (step) {
                     activeSteps++;
                     totalVelocity += step.velocity || 1;
                 }
-            }
-            return activeSteps === 0 ? 0 : totalVelocity / steps.length;
+            });
+            return activeSteps === 0 ? 0 : totalVelocity / trackSeq.steps.length;
         };
 
         const synthAActivity = calculateActivity(pattern.partA);

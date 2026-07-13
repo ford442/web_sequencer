@@ -332,10 +332,10 @@ export function createPlaySynth(
 
             let voice: Voice | null = null;
             if (track === 'partB' && refs.voiceManagerBRef.current) {
-                voice = refs.voiceManagerBRef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                voice = refs.voiceManagerBRef.current.playNote(effectiveParams, typeof note === 'string' ? note : (note as any).note, noteTime, noteDuration, effectiveSlide);
                 triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, noteTime, noteDuration);
             } else if (refs.voiceManagerARef.current) {
-                voice = refs.voiceManagerARef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                voice = refs.voiceManagerARef.current.playNote(effectiveParams, typeof note === 'string' ? note : (note as any).note, noteTime, noteDuration, effectiveSlide);
             }
 
             if (voice) {
