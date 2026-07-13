@@ -64,7 +64,7 @@ const LaneRow = memo(({
       }}
     >
       {/* Enable/Disable toggle */}
-      <button
+      <button type="button"
         aria-label={`${lane.enabled ? 'Disable' : 'Enable'} lane ${lane.name}`}
         className={`w-4 h-4 rounded-sm border flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] ${
           lane.enabled ? 'bg-cyan-500 border-cyan-400' : 'bg-transparent border-gray-500'
@@ -111,7 +111,7 @@ const LaneRow = memo(({
       </span>
 
       {/* Remove button */}
-      <button
+      <button type="button"
         aria-label={`Remove lane ${lane.name}`}
         className="text-gray-500 hover:text-red-400 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] rounded"
         onClick={(e) => { e.stopPropagation(); onRemove(lane.id); }}

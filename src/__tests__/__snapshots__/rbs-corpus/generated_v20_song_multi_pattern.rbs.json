@@ -1,0 +1,18 @@
+{
+  "automationLaneCount": 3,
+  "automationTargets": [
+    "synthA.accent",
+    "synthA.filterCutoff",
+    "synthA.slide",
+  ],
+  "file": "generated_v20_song_multi_pattern.rbs",
+  "hasSongData": true,
+  "partAActiveSteps": 12,
+  "playMode": 1,
+  "songLengthBars": 4,
+  "tb303APatternCount": 32,
+  "tempo": 135,
+  "trakEventCount": 5,
+  "usedPatternCount": 4,
+  "version": "2.0",
+}

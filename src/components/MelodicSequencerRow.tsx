@@ -1,6 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef, useCallback, useLayoutEffect, memo, useMemo } from 'react';
 import { MelodicStep } from './MelodicStep';
 import { GridIndicators } from './GridIndicators';
+import { TrackSlotStrip } from './sequencer/TrackSlotButton';
 import { noteToMidi } from '../utils/musicTheory';
 import type { PartSequence, TrackKey } from '../types';
 
@@ -10,71 +11,6 @@ import type { PartSequence, TrackKey } from '../types';
  * Displays sampler steps with pitch-based height visualization.
  * Each step shows the note pitch and can be dragged to change pitch.
  */
-
-const TRACK_COLORS: Record<string, string> = {
-  partA: '#06b6d4',
-  partB: '#d946ef',
-  kick: '#f97316',
-  snare: '#22c55e',
-  closedHat: '#eab308',
-  openHat: '#eab308',
-  sampler: '#a855f7',
-};
-
-interface TrackSlotButtonProps {
-  index: number;
-  isActive: boolean;
-  hasData: boolean;
-  trackKey: TrackKey;
-  onSelect: (k: TrackKey, slot: number) => void;
-}
-
-const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: TrackSlotButtonProps) => {
-  const patternColor = TRACK_COLORS[trackKey] || '#22d3ee';
-  const inactiveColor = hasData ? patternColor : '#0f1812';
-
-  return (
-    <g
-      transform={`translate(${index * 22}, 0)`}
-      className="track-slot"
-      onClick={() => onSelect(trackKey, index)}
-      cursor="pointer"
-      role="button"
-      tabIndex={0}
-      aria-label={`Pattern Slot ${index + 1}`}
-      aria-pressed={isActive}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect(trackKey, index);
-        }
-      }}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <rect
-        width={18}
-        height={18}
-        rx={2}
-        fill={isActive ? patternColor : inactiveColor}
-        fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)}
-        stroke={isActive ? '#fff' : patternColor}
-        strokeOpacity={isActive ? 1 : 0.6}
-        strokeWidth={1}
-      />
-      <text
-        x={9}
-        y={13}
-        textAnchor="middle"
-        fontSize={10}
-        fill={isActive ? '#000' : patternColor}
-        fontFamily="monospace"
-        fontWeight="bold"
-      >
-        {index + 1}
-      </text>
-    </g>
-  );
-});
 
 export interface MelodicSequencerRowHandle {
   setHighlight: (step: number) => void;
@@ -115,31 +51,51 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
+    const stepsRef = useRef(steps);
+    const rafRef = useRef<number | null>(null);
+
+    useLayoutEffect(() => {
+      stepsRef.current = steps;
+    }, [steps]);
 
     const updateClasses = useCallback((step: number) => {
-      let newActiveIndex = -1;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
 
-      // Find which step should be highlighted based on current sequencer step
-      for (let i = step; i >= 0; i--) {
-        if (stepRefs.current[i]) {
-          const length = steps[i]?.length || 1;
-          if (i + length > step) {
-            newActiveIndex = i;
+      rafRef.current = requestAnimationFrame(() => {
+        let newActiveIndex = -1;
+
+        // Find which step should be highlighted based on current sequencer step
+        for (let i = step; i >= 0; i--) {
+          if (stepRefs.current[i]) {
+            const length = stepsRef.current[i]?.length || 1;
+            if (i + length > step) {
+              newActiveIndex = i;
+            }
+            break;
           }
-          break;
         }
-      }
 
-      if (newActiveIndex !== lastActiveIndexRef.current) {
-        if (lastActiveIndexRef.current !== -1) {
-          stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
+        if (newActiveIndex !== lastActiveIndexRef.current) {
+          if (lastActiveIndexRef.current !== -1) {
+            stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
+          }
+          if (newActiveIndex !== -1) {
+            stepRefs.current[newActiveIndex]?.classList.add('is-current');
+          }
+          lastActiveIndexRef.current = newActiveIndex;
         }
-        if (newActiveIndex !== -1) {
-          stepRefs.current[newActiveIndex]?.classList.add('is-current');
+      });
+    }, []);
+
+    useLayoutEffect(() => {
+      return () => {
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
         }
-        lastActiveIndexRef.current = newActiveIndex;
-      }
-    }, [steps]);
+      };
+    }, []);
 
     useImperativeHandle(ref, () => ({
       setHighlight: (step: number) => {
@@ -231,16 +187,12 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       }, [onSelectRow, rowKey]);
 
     const renderedTrackSlots = useMemo(() => (
-      [0, 1, 2, 3, 4, 5, 6, 7].map(slot => (
-        <TrackSlotButton
-          key={slot}
-          index={slot}
-          isActive={activeSlot === slot}
-          hasData={!!trackSlots[slot]}
-          trackKey={rowKey}
-          onSelect={onSelectSlot}
-        />
-      ))
+      <TrackSlotStrip
+        activeSlot={activeSlot}
+        trackSlots={trackSlots}
+        trackKey={rowKey}
+        onSelect={onSelectSlot}
+      />
     ), [activeSlot, trackSlots, rowKey, onSelectSlot]);
 
     return (

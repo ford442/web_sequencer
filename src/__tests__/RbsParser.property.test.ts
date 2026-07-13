@@ -81,7 +81,7 @@ describe('RbsParser property tests', () => {
       fc.asyncProperty(
         fc.record({
           playMode: fc.constantFrom(0 as const, 1 as const),
-          tempo: fc.integer({ min: 400, max: 2500 }),
+          tempo: fc.integer({ min: 40_000, max: 250_000 }),
           shuffle: fc.integer({ min: 0, max: 127 }),
         }),
         async (cfg) => {
@@ -89,14 +89,14 @@ describe('RbsParser property tests', () => {
             playMode: cfg.playMode,
             tempo: cfg.tempo,
             shuffle: cfg.shuffle,
-            trakEvents: [{ delta: 0, ctrl: 0, value: 0 }],
+            trakEvents: [{ delta: 0, ctrl: 0x01, value: 0 }],
           });
           const result = await parseBytesSafe(bytes);
           expect(result.success).toBe(true);
           if (!result.success) return;
           expect(result.data.songData).toBeDefined();
           expect(result.data.songData!.glob.playMode).toBe(cfg.playMode);
-          expect(result.data.songData!.glob.tempo).toBeCloseTo(cfg.tempo / 10, 0);
+          expect(result.data.songData!.glob.tempo).toBeCloseTo(cfg.tempo / 1000, 0);
           expect(result.data.songData!.glob.shuffle).toBe(cfg.shuffle);
         }
       ),

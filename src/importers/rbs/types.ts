@@ -119,18 +119,23 @@ export interface RbsGlobData {
  * Each event is (delta position in ticks, controller ID, value).
  * Resolution: ~24 PPQ (768 ticks per bar for 4/4 at 32 steps).
  * Ref: RBS42.txt TRAK section, rbs.h struct trak_event_t.
+ *
+ * Controller IDs are **per-track** — see {@link TRAK_TRACK_CONTROLLER_MAP} in
+ * `trakControllers.ts`. Do not use {@link AUTOMATION_PARAMETER_MAP} for TRAK bytes.
  */
 export interface RbsTrakEvent {
   /** Delta position in ticks from the last event (24 PPQ) */
   deltaTicks: number;
   /** Absolute tick position (computed during parsing) */
   absoluteTicks: number;
-  /** Controller ID — identifies which parameter is being changed.
-   *  Controller 0 on most tracks = pattern select (value = pattern index 0-31).
-   *  Other controllers map to knob positions, mutes, etc. */
+  /** TRAK track index (0=mixer, 1=303-A, … — see TRAK_TRACK_INDEX). */
+  trackIndex: number;
+  /** Per-track controller ID (rbs.h track-local enum). */
   controllerId: number;
   /** Value for this event (0-255 typically, interpretation depends on controller) */
   value: number;
+  /** Resolved semantic category (pattern select vs knob move vs mixer routing). */
+  eventKind: import('./trakControllers').TrakEventKind;
 }
 
 /**
@@ -175,11 +180,12 @@ export interface RbsSongData {
 }
 
 /**
- * TRAK controller ID constants for song arrangement.
- * Ref: rbs.h controller enums.
+ * TRAK controller ID constants — **legacy arrangement shorthand only**.
+ * Real IFF TRAK bytes use per-track enums in `trakControllers.ts` (e.g. TB-303
+ * pattern select = 0x01, cutoff = 0x03 on track 1).
  */
 export const TRAK_CONTROLLER = {
-  /** Pattern select (value = pattern index 0-31) */
+  /** @deprecated Use TB303_TRAK_CONTROLLER.PATTERN_SELECT on instrument tracks */
   PATTERN_SELECT: 0,
   /** Mute toggle (value: 0=unmute, 1=mute) */
   MUTE: 1,
@@ -190,7 +196,7 @@ export const TRAK_CONTROLLER = {
 } as const;
 
 /**
- * TRAK track index constants.
+ * TRAK track index constants (rbs.h trak_event_t ordering).
  * Ref: RBS42.txt track ordering in TRKL catalog.
  */
 export const TRAK_TRACK_INDEX = {
@@ -199,8 +205,29 @@ export const TRAK_TRACK_INDEX = {
   TB303_2: 2,
   TR808: 3,
   TR909: 4,
+  DELAY: 5,
+  DIST: 6,
+  PCF: 7,
+  COMPRESSOR: 8,
+  /** @deprecated Alias for DELAY (track index 5). */
   EFFECTS: 5,
 } as const;
+
+// Re-export per-track TRAK controller tables (rbs.h).
+export type { TrakEventKind, TrakParamMapping } from './trakControllers';
+export {
+  TRAK_TRACK_CONTROLLER_MAP,
+  TB303_TRAK_CONTROLLER,
+  MIXER_TRAK_CONTROLLER,
+  DRUM_TRAK_CONTROLLER,
+  PCF_TRAK_CONTROLLER,
+  DELAY_TRAK_CONTROLLER,
+  resolveTrakEventKind,
+  isTrakPatternSelectEvent,
+  isTrakParamAutomationEvent,
+  resolveTrakParamMapping,
+  normaliseTrakParamValue,
+} from './trakControllers';
 
 /** Ticks per bar in ReBirth format (768 ticks/bar in 4/4 time) */
 export const TICKS_PER_BAR = 768;
@@ -248,7 +275,16 @@ export interface RawRbsData {
    *  Contains multi-pattern banks, song arrangement tracks, and global settings.
    *  When present, indicates the file is a full song (not just a single pattern). */
   songData?: RbsSongData;
+
+  /** Devices present in the file (from DEVL banks or legacy layout inference). */
+  devicesPresent?: RbsDeviceId[];
+
+  /** Which parser path produced this data. */
+  parsePath?: 'legacy' | 'iff';
 }
+
+/** ReBirth device identifiers for import reporting. */
+export type RbsDeviceId = '303-1' | '303-2' | '808' | '909';
 
 /**
  * RBS Project metadata
@@ -473,7 +509,10 @@ export interface PcfSettings {
   
   /** 16 or 32 step pattern for filter modulation (0-127 per step) */
   pattern: number[];
-  
+
+  /** PCF wave preset index from IFF DEVL (0–55); legacy path derives pattern from bytes directly. */
+  waveIndex?: number;
+
   /** Target: which parts go through PCF */
   target: {
     tb303A: boolean;
@@ -608,12 +647,22 @@ export interface HyphonSong {
     };
     /** Song structure (ordered pattern slot indices per track per measure) */
     songStructure: Array<Record<string, number | null>>;
+    /** Active pattern slot per track (from measure 0 / first reference) */
+    activeTrackSlots?: Record<string, number>;
     /** Loop start bar (0-based) */
     loopStart?: number;
     /** Loop end bar (0-based) */
     loopEnd?: number;
-    /** Raw TRAK events preserved for sub-step automation scheduling */
+    /** Raw TRAK events preserved for arrangement / debugging */
     trakEvents?: RbsTrakEvent[];
+    /** Sub-step knob automation events (paramChange only — excludes pattern select). */
+    trakParamEvents?: RbsTrakEvent[];
+    /** Per-slot TB-303 knob params from DEVL pattern banks (song-mode pattern recall). */
+    trackParamStorage?: {
+      synthA: (Partial<SynthParams> | null)[];
+      synthB: (Partial<SynthParams> | null)[];
+      bass2: (Partial<Bass2Params> | null)[];
+    };
   };
 }
 
@@ -679,6 +728,7 @@ export interface RbsImportOptions {
 
 /** Default import options */
 export const DEFAULT_RBS_IMPORT_OPTIONS: RbsImportOptions = {
+  /** v1.5 files expose a single TB-303 — maps to partA (SYNTH A) by default. */
   tb303ATarget: 'partA',
   tb303BTarget: 'bass2',
   convertPcfToAutomation: true,

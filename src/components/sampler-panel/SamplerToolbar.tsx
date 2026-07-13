@@ -1,5 +1,6 @@
 import React from 'react';
 import { LoadingButton } from '../LoadingButton';
+import { HelpIconButton, HelpTip } from '../help/HelpTip';
 
 interface SamplerToolbarProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -45,7 +46,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
       <div className="flex justify-between items-center gap-2">
         <div className="flex gap-1" role="toolbar" aria-label="Sample Management">
           <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" aria-label="Load Sample File" />
-          <button
+          <button type="button"
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold text-gray-300"
             aria-label="Load Sample from File"
@@ -56,7 +57,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
             </svg>
             LOAD
           </button>
-          <button
+          <button type="button"
             onClick={toggleRecording}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold transition-colors ${
               isRecording
@@ -78,6 +79,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
 
       {/* Row B: TTS */}
       <div className="flex gap-1 items-center">
+        <HelpIconButton topicId="sampler-tts" className="shrink-0" />
         <div className="relative flex-1 flex items-center">
           <input
             value={currentTtsText}
@@ -87,7 +89,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
             aria-label="Text to Speech Phrase"
           />
           {currentTtsText && (
-            <button
+            <button type="button"
               onClick={() => setCurrentTtsText('')}
               className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
               aria-label="Clear Text-to-Speech phrase input"
@@ -99,6 +101,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           className={`w-2 h-2 border border-black shadow-sm flex-shrink-0 rounded-full transition-colors ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}
           title={ttsReady ? "TTS Engine Ready" : "TTS Engine Loading/Unavailable"}
         />
+        <HelpTip topicId="sampler-tts" position="bottom">
         <LoadingButton
           onClick={handleTTS}
           disabled={!ttsReady}
@@ -106,23 +109,26 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           loadingText="GEN"
           spinnerColor="text-purple-200"
           className="flex items-center justify-center gap-1.5 px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 transition-all"
-          aria-label={isGenerating ? "Generating Speech..." : "Generate Speech"}
+          aria-label={isGenerating ? "Generating TTS voice for current bank..." : "Generate TTS voice for current bank"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1M12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clipRule="evenodd" />
           </svg>
           GEN
         </LoadingButton>
+        </HelpTip>
         {onOpenEditor && (
-          <button
+          <HelpTip topicId="voice-designer" position="bottom">
+          <button type="button"
             onClick={onOpenEditor}
             aria-haspopup="dialog"
             aria-expanded={isVoiceEditorOpen}
             className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-            aria-label="Open Voice Editor for Text-to-Speech"
+            aria-label="Open Voice Editor for current bank"
           >
             EDIT
           </button>
+          </HelpTip>
         )}
       </div>
 
@@ -144,7 +150,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {isProcessingHarmonize ? "Applying harmonization, please wait..." : ""}
         </div>
-        <button
+        <button type="button"
           onClick={handleHarmonizeClick}
           disabled={isProcessingHarmonize || !onHarmonize}
           className={`flex items-center gap-1.5 px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all ${isProcessingHarmonize ? 'cursor-wait' : ''}`}

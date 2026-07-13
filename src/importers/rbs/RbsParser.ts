@@ -3,10 +3,22 @@ import type {
   Tb303PatternA, Tb303PatternB, DrumPattern, PcfSettings, AutomationLane, HyphonAutomationLane,
   Tb303Step, RbsBinaryHeader, RbsRawStep, RbsRawAutomationPoint, RbsRawAutomationLane
 } from './types';
-import { DEFAULT_RBS_IMPORT_OPTIONS, AUTOMATION_PARAMETER_MAP, TRAK_CONTROLLER } from './types';
+import { DEFAULT_RBS_IMPORT_OPTIONS, AUTOMATION_PARAMETER_MAP } from './types';
+import { isTrakPatternSelectEvent, resolveTrakEventKind } from './trakControllers';
 import type { RbsParserResult, RbsParserError, IffChunk } from './parser-types';
-import { MIN_FILE_SIZE, OFFSETS, STEP_COUNT, STEP_SIZE, NOTE_REST, NOTE_TIE, MAX_TRAK_EVENTS, SUPPORTED_VERSIONS } from './parser-types';
+import { MIN_FILE_SIZE, OFFSETS, STEP_COUNT, STEP_SIZE, NOTE_REST, NOTE_TIE, MAX_TRAK_EVENTS, SUPPORTED_VERSIONS, isV15SubsetVersion } from './parser-types';
+import { inferDevicesPresent, isTb303PatternSilent } from './deviceInference';
 import { TICKS_PER_BAR } from './types';
+import {
+  DEVL_CHUNK_IDS,
+  parseTb303DeviceChunk,
+  parseTr808DeviceChunk,
+  parseTr909DeviceChunk,
+  parseDevlPcfChunk,
+  parseDevlMixrPcfDeviceId,
+  buildPcfSettingsFromDevl,
+  disabledPcfSettings,
+} from './devlLayout';
 
 export class RbsParser {
   /** Parse progress callback (0-100) */
@@ -75,6 +87,15 @@ export class RbsParser {
           return { success: false, error: truncationError };
         }
 
+        const headChunk = iffChunks.find((c) => c.id === 'HEAD');
+        if (headChunk) {
+          const iffVersion = this.parseIffHead(headChunk);
+          const versionError = this.validateVersion(iffVersion);
+          if (versionError) {
+            return { success: false, error: versionError };
+          }
+        }
+
         console.info(`[RbsParser] Detected full IFF CAT RB40 structure with ${iffChunks.length} top-level chunks. Attempting full song parse.`);
         const iffResult = this.parseIffSongData(iffChunks);
         if (iffResult) {
@@ -89,12 +110,19 @@ export class RbsParser {
         return { success: false, error: (headerResult as { success: false; error: RbsParserError }).error };
       }
       const header = headerResult.data;
+      const versionError = this.validateVersion(header.version);
+      if (versionError) {
+        return { success: false, error: versionError };
+      }
       this.onProgress?.(10);
 
       const tb303A = this.parseTb303PatternA();
       this.onProgress?.(40);
 
-      const tb303B = this.parseTb303PatternB();
+      let tb303B = this.parseTb303PatternB();
+      if (isV15SubsetVersion(header.version) || isTb303PatternSilent(tb303B)) {
+        tb303B = this.generateEmptyTb303PatternB();
+      }
       this.onProgress?.(70);
 
       const drums = this.parseDrumPatterns();
@@ -127,7 +155,9 @@ export class RbsParser {
         pcf,
         automation,
         rawHeader: header,
+        parsePath: 'legacy',
       };
+      rawData.devicesPresent = inferDevicesPresent(rawData);
 
       return { success: true, data: rawData };
     } catch (error) {
@@ -751,7 +781,8 @@ export class RbsParser {
     this.onProgress?.(40);
 
     // Parse device patterns from DEVL (multi-pattern banks)
-    const patternBanks = this.parseDevlPatterns(devlChunks);
+    const hasDevlCatalog = devlChunks.length > 0;
+    const patternBanks = this.parseDevlPatterns(devlChunks, hasDevlCatalog);
 
     this.onProgress?.(70);
 
@@ -766,7 +797,9 @@ export class RbsParser {
     for (const track of tracks) {
       for (const evt of track.events) {
         if (evt.absoluteTicks > maxTick) maxTick = evt.absoluteTicks;
-        if (evt.controllerId === 0) usedPatterns.add(evt.value); // pattern select
+        if (isTrakPatternSelectEvent(evt.trackIndex, evt.controllerId, evt.eventKind)) {
+          usedPatterns.add(evt.value);
+        }
       }
     }
     const totalLengthBars = Math.ceil(maxTick / TICKS_PER_BAR) || 1;
@@ -780,10 +813,14 @@ export class RbsParser {
       usedPatternCount: usedPatterns.size || 1,
     };
 
-    // Use pattern 0 from banks as the "current" pattern for backwards compatibility
-    const tb303PatternA = patternBanks.tb303A[0] || this.generateMockTb303Pattern();
-    const tb303PatternB = patternBanks.tb303B[0] || this.generateMockTb303PatternB();
-    const drums = patternBanks.drums808[0] || patternBanks.drums909[0] || this.generateMockDrumPattern();
+    // Use pattern 0 from banks; missing devices get silent empty patterns (never mock melodies).
+    const tb303PatternA = patternBanks.tb303A[0] ?? this.generateEmptyTb303Pattern();
+    const tb303PatternB = patternBanks.tb303B[0] ?? this.generateEmptyTb303PatternB();
+    const drums = patternBanks.drums808[0] ?? patternBanks.drums909[0] ?? this.generateEmptyDrumPattern();
+
+    const pcf = hasDevlCatalog
+      ? this.parseDevlPcfSettings(devlChunks)
+      : disabledPcfSettings();
 
     const baseName = `RBS Song (${version})`;
     const rawData: RawRbsData = {
@@ -802,10 +839,12 @@ export class RbsParser {
       tb303PatternA,
       tb303PatternB,
       drums,
-      pcf: this.generateMockPcfSettings(), // PCF extracted from DEVL in future refinement
+      pcf,
       automation: [],
       songData,
+      parsePath: 'iff',
     };
+    rawData.devicesPresent = inferDevicesPresent(rawData);
 
     return rawData;
   }
@@ -824,37 +863,44 @@ export class RbsParser {
     const versionMatch = sig.match(/(\d+\.\d+(?:\.\d+)?)/);
     if (versionMatch) return versionMatch[1];
     
-    // Check for known patterns
+    // Check for known patterns (rbs.h / RBS42 HEAD signatures)
     if (sig.includes('RB40') || sig.includes('RB-338')) return '2.0';
-    if (sig.includes('RB15')) return '1.5';
+    if (sig.includes('RB15') || sig.includes('v1.5') || sig.includes('1.5')) return '1.5';
+    if (sig.includes('v1.0') || sig.includes('1.0')) return '1.0';
     
-    return '2.0'; // default for IFF CAT RB40 files
+    return '2.0'; // default for IFF CAT RB40 files without explicit version string
   }
 
   /**
    * Parse GLOB chunk (512 bytes: play mode, tempo, shuffle, loop points, vintage).
    * Ref: RBS42.txt GLOB layout, rbs.h struct glob_t.
-   * Layout (little-endian):
+   * Payload layout (big-endian ULONG fields per RBS42):
    *   0x00: play_mode (uint8): 0=pattern, 1=song
-   *   0x01: reserved (1 byte)
-   *   0x02: tempo (uint16 LE) — BPM * 10 (e.g. 1200 = 120.0 BPM)
-   *   0x04: shuffle (uint8) — 0-127
-   *   0x05: reserved (1 byte)
-   *   0x06: loop_start (uint16 LE) — bar index
-   *   0x08: loop_end (uint16 LE) — bar index
-   *   0x0A: vintage (uint8): 0=off, 1=on
+   *   0x01: loop on/off (uint8)
+   *   0x02: tempo (uint32 BE) — BPM × 1000
+   *   0x06: loop_start (uint32 BE) — bar × 768 ticks
+   *   0x0A: loop_end (uint32 BE) — bar × 768 ticks
+   *   0x0E: shuffle (uint8) — 0-127
+   *   0x1EA: vintage (uint8): 0=2.0 sound, 1=vintage
    */
   private parseIffGlob(chunk: IffChunk): RbsGlobData {
     const o = chunk.offset;
     const playMode = this.rawBytes[o] === 1 ? 1 : 0;
-    const tempoRaw = this.dataView.getUint16(o + 2, true);
-    const tempo = tempoRaw > 0 ? tempoRaw / 10 : 120;
-    const shuffle = this.rawBytes[o + 4];
-    const loopStart = this.dataView.getUint16(o + 6, true);
-    const loopEnd = this.dataView.getUint16(o + 8, true);
-    const vintage = this.rawBytes[o + 10] || 0;
+    const tempoRaw = this.dataView.getUint32(o + 2, false);
+    const tempo = tempoRaw > 0 ? tempoRaw / 1000 : 120;
+    const loopStartTicks = this.dataView.getUint32(o + 6, false);
+    const loopEndTicks = this.dataView.getUint32(o + 10, false);
+    const shuffle = this.rawBytes[o + 14] ?? 64;
+    const vintage = this.rawBytes[o + 0x1ea] || 0;
 
-    return { playMode, tempo, shuffle, loopStart, loopEnd, vintage };
+    return {
+      playMode,
+      tempo,
+      shuffle,
+      loopStart: Math.floor(loopStartTicks / TICKS_PER_BAR),
+      loopEnd: Math.floor(loopEndTicks / TICKS_PER_BAR),
+      vintage,
+    };
   }
 
   /**
@@ -865,11 +911,13 @@ export class RbsParser {
   }
 
   /**
-   * Parse device patterns from DEVL catalog chunks.
-   * DEVL contains per-device chunks with all 32 patterns.
-   * Returns pattern banks for each device type.
+   * Parse device patterns from DEVL catalog chunks (RBS42 struct layout).
+   * DEVL order is fixed: MIXR, DELY, PCF, DIST, COMP, 303, 303, 808, 909.
    */
-  private parseDevlPatterns(devlChunks: IffChunk[]): RbsSongData['patternBanks'] {
+  private parseDevlPatterns(
+    devlChunks: IffChunk[],
+    hasDevlCatalog: boolean,
+  ): RbsSongData['patternBanks'] {
     const banks: RbsSongData['patternBanks'] = {
       tb303A: [],
       tb303B: [],
@@ -877,134 +925,67 @@ export class RbsParser {
       drums909: [],
     };
 
-    // DEVL chunks contain device data; each device has ~32 patterns
-    // For now, extract what we can based on chunk sizes:
-    // - TB303 device: ~1097 bytes per pattern (16 steps × ~68B + params)
-    // - TR808: ~6KB total (~192B per pattern × 32)
-    // - TR909: ~6KB total
-    // We generate pattern 0 from the legacy parser path as baseline
-    // and populate additional patterns from chunk data when recognizable.
-    
+    let tb303DeviceIndex = 0;
+
     for (const chunk of devlChunks) {
       const chunkId = chunk.id;
-      // Device chunks inside DEVL may be tagged by type
-      // Common: "3031" (303 #1), "3032" (303 #2), "808 " (TR-808), "909 " (TR-909)
-      if (chunkId === '3031' || chunkId === '303A') {
-        this.extractTb303Patterns(chunk, banks.tb303A);
-      } else if (chunkId === '3032' || chunkId === '303B') {
-        this.extractTb303Patterns(chunk, banks.tb303B);
-      } else if (chunkId === '808 ' || chunkId === 'TR80') {
-        this.extractDrumPatterns(chunk, banks.drums808);
-      } else if (chunkId === '909 ' || chunkId === 'TR90') {
-        this.extractDrumPatterns(chunk, banks.drums909);
+
+      if (chunkId === DEVL_CHUNK_IDS.TB303) {
+        const patterns = parseTb303DeviceChunk(this.rawBytes, chunk.offset, chunk.size);
+        if (tb303DeviceIndex === 0) {
+          banks.tb303A.push(...patterns);
+        } else {
+          banks.tb303B.push(...patterns);
+        }
+        tb303DeviceIndex++;
+        continue;
+      }
+
+      if (chunkId === DEVL_CHUNK_IDS.TR808) {
+        banks.drums808.push(...parseTr808DeviceChunk(this.rawBytes, chunk.offset, chunk.size));
+        continue;
+      }
+
+      if (chunkId === DEVL_CHUNK_IDS.TR909) {
+        banks.drums909.push(...parseTr909DeviceChunk(this.rawBytes, chunk.offset, chunk.size));
       }
     }
 
-    // Ensure at least one pattern per bank (fallback to mock data for compatibility)
-    if (banks.tb303A.length === 0) banks.tb303A.push(this.generateMockTb303Pattern());
-    if (banks.tb303B.length === 0) banks.tb303B.push(this.generateMockTb303PatternB());
-    if (banks.drums808.length === 0) banks.drums808.push(this.generateMockDrumPattern());
-    if (banks.drums909.length === 0) banks.drums909.push(this.generateMockDrumPattern());
+    // Legacy alias IDs seen in some reverse-engineered dumps
+    if (banks.tb303A.length === 0) {
+      const legacyA = devlChunks.find((c) => c.id === '3031' || c.id === '303A');
+      if (legacyA) {
+        banks.tb303A.push(...parseTb303DeviceChunk(this.rawBytes, legacyA.offset, legacyA.size));
+      }
+    }
+    if (banks.tb303B.length === 0) {
+      const legacyB = devlChunks.find((c) => c.id === '3032' || c.id === '303B');
+      if (legacyB) {
+        banks.tb303B.push(...parseTb303DeviceChunk(this.rawBytes, legacyB.offset, legacyB.size));
+      }
+    }
 
+    // No mock injection — absent devices stay empty (v1.5 subset, TRKL-only fixtures).
     return banks;
   }
 
   /**
-   * Extract TB-303 patterns from a device chunk.
-   * Each pattern: 16 steps × (note + octave + flags + gate = ~4 bytes each) + global params.
-   * Simplified extraction: reads contiguous blocks of step data.
+   * Parse PCF + MIXR routing from DEVL catalog chunks (RBS42).
    */
-  private extractTb303Patterns(chunk: IffChunk, target: Tb303PatternA[]): void {
-    const offset = chunk.offset;
-    const size = chunk.size;
-    // Approximate pattern size: 16 steps × 4 bytes + 8 bytes params = 72 bytes
-    const PATTERN_BLOCK_SIZE = 72;
-    const maxPatterns = Math.min(32, Math.floor(size / PATTERN_BLOCK_SIZE));
+  private parseDevlPcfSettings(devlChunks: IffChunk[]): PcfSettings {
+    const pcfChunk = devlChunks.find((c) => c.id === DEVL_CHUNK_IDS.PCF);
+    const mixrChunk = devlChunks.find((c) => c.id === DEVL_CHUNK_IDS.MIXR);
 
-    for (let p = 0; p < maxPatterns; p++) {
-      const pOffset = offset + (p * PATTERN_BLOCK_SIZE);
-      if (pOffset + PATTERN_BLOCK_SIZE > offset + size) break;
-
-      const steps: Tb303PatternA['steps'] = [];
-      for (let s = 0; s < 16; s++) {
-        const stepOffset = pOffset + (s * 4);
-        const noteVal = this.rawBytes[stepOffset] || 0;
-        const octave = this.rawBytes[stepOffset + 1] || 3;
-        const flags = this.rawBytes[stepOffset + 2] || 0;
-        const gate = this.rawBytes[stepOffset + 3] || 100;
-
-        let note: number;
-        let tie = false;
-        if (noteVal === NOTE_REST) {
-          note = -1;
-        } else if (noteVal === NOTE_TIE) {
-          note = -1;
-          tie = true;
-        } else {
-          note = noteVal % 12;
-        }
-
-        steps.push({
-          index: s,
-          note,
-          octave: this.clamp(octave, 1, 5),
-          accent: !!(flags & 0x01),
-          slide: !!(flags & 0x02),
-          tie,
-          gate: this.clamp(gate, 0, 100),
-        });
-      }
-
-      // Params after 64 bytes of step data
-      const paramOffset = pOffset + 64;
-      const cutoff = this.rawBytes[paramOffset] || 64;
-      const resonance = this.rawBytes[paramOffset + 1] || 48;
-      const envMod = this.rawBytes[paramOffset + 2] || 64;
-      const decay = this.rawBytes[paramOffset + 3] || 48;
-      const accent = this.rawBytes[paramOffset + 4] || 80;
-      const waveform = (this.rawBytes[paramOffset + 5] || 0) as 0 | 1;
-
-      target.push({
-        steps,
-        cutoff, resonance, envMod, decay, accent, waveform,
-        distortion: 0,
-        delaySend: 0,
-      });
+    if (!pcfChunk) {
+      return disabledPcfSettings();
     }
-  }
 
-  /**
-   * Extract drum patterns from a device chunk.
-   * Each pattern: multiple instrument lanes × 16 boolean steps.
-   */
-  private extractDrumPatterns(chunk: IffChunk, target: DrumPattern[]): void {
-    const offset = chunk.offset;
-    const size = chunk.size;
-    // Drum pattern block: 4 instruments × 16 steps (2 bytes per step: trigger + accent) = 128 bytes + extras
-    const PATTERN_BLOCK_SIZE = 192; // includes accent + tuning + decay data
-    const maxPatterns = Math.min(32, Math.floor(size / PATTERN_BLOCK_SIZE));
+    const pcfData = parseDevlPcfChunk(this.rawBytes, pcfChunk.offset, pcfChunk.size);
+    const mixrPcfId = mixrChunk
+      ? parseDevlMixrPcfDeviceId(this.rawBytes, mixrChunk.offset)
+      : 0;
 
-    for (let p = 0; p < maxPatterns; p++) {
-      const pOffset = offset + (p * PATTERN_BLOCK_SIZE);
-      if (pOffset + 64 > offset + size) break; // at least 64 bytes needed
-
-      const kick: boolean[] = [];
-      const snare: boolean[] = [];
-      const closedHat: boolean[] = [];
-      const openHat: boolean[] = [];
-
-      for (let s = 0; s < 16; s++) {
-        kick.push(!!(this.rawBytes[pOffset + s] & 0x01));
-        snare.push(!!(this.rawBytes[pOffset + 16 + s] & 0x01));
-        closedHat.push(!!(this.rawBytes[pOffset + 32 + s] & 0x01));
-        openHat.push(!!(this.rawBytes[pOffset + 48 + s] & 0x01));
-      }
-
-      target.push({
-        kick, snare, closedHat, openHat,
-        kitType: '808',
-      });
-    }
+    return buildPcfSettingsFromDevl(pcfData, mixrPcfId);
   }
 
   /**
@@ -1013,14 +994,29 @@ export class RbsParser {
    * Ref: RBS42.txt TRAK event format, rbs.h struct trak_t.
    */
   private parseTrklTracks(trklChunks: IffChunk[]): RbsTrakData[] {
-    const trackNames = ['Mixer', 'TB-303 #1', 'TB-303 #2', 'TR-808', 'TR-909', 'Effects'];
+    const trackNames = [
+      'Mixer',
+      'TB-303 #1',
+      'TB-303 #2',
+      'TR-808',
+      'TR-909',
+      'Delay',
+      'Distortion',
+      'PCF',
+      'Compressor',
+    ];
     const tracks: RbsTrakData[] = [];
 
     for (let i = 0; i < trklChunks.length; i++) {
       const chunk = trklChunks[i];
       if (chunk.id !== 'TRAK') continue;
 
-      const track = this.parseSingleTrak(chunk, tracks.length, trackNames[tracks.length] || `Track ${tracks.length}`);
+      const trackIndex = tracks.length;
+      const track = this.parseSingleTrak(
+        chunk,
+        trackIndex,
+        trackNames[trackIndex] || `Track ${trackIndex}`,
+      );
       tracks.push(track);
     }
 
@@ -1054,7 +1050,15 @@ export class RbsParser {
       pos += 4;
 
       absoluteTicks += deltaTicks;
-      events.push({ deltaTicks, absoluteTicks, controllerId, value });
+      const eventKind = resolveTrakEventKind(index, controllerId);
+      events.push({
+        deltaTicks,
+        absoluteTicks,
+        trackIndex: index,
+        controllerId,
+        value,
+        eventKind,
+      });
     }
 
     return { trackIndex: index, trackName: name, eventCount: events.length, events };
@@ -1085,6 +1089,48 @@ export class RbsParser {
       drums: this.generateMockDrumPattern(),
       pcf: this.generateMockPcfSettings(),
       automation: this.generateMockAutomation()
+    };
+  }
+
+  private generateEmptyTb303Pattern(): Tb303PatternA {
+    const steps: Tb303PatternA['steps'] = Array.from({ length: 16 }, (_, index) => ({
+      index,
+      note: -1,
+      octave: 3,
+      accent: false,
+      slide: false,
+      tie: false,
+      gate: 100,
+    }));
+
+    return {
+      steps,
+      cutoff: 64,
+      resonance: 48,
+      envMod: 64,
+      decay: 48,
+      accent: 80,
+      waveform: 0,
+      distortion: 0,
+      delaySend: 0,
+    };
+  }
+
+  private generateEmptyTb303PatternB(): Tb303PatternB {
+    return {
+      ...this.generateEmptyTb303Pattern(),
+      transpose: 0,
+    };
+  }
+
+  private generateEmptyDrumPattern(): DrumPattern {
+    const silent = Array(16).fill(false);
+    return {
+      kick: [...silent],
+      snare: [...silent],
+      closedHat: [...silent],
+      openHat: [...silent],
+      kitType: '808',
     };
   }
 
@@ -1185,6 +1231,17 @@ export class RbsParser {
   /**
    * Validate RBS version string
    */
+  private validateVersion(version: string): RbsParserError | null {
+    if (!RbsParser.isVersionSupported(version)) {
+      return {
+        type: 'UNSUPPORTED_VERSION',
+        version,
+        supported: [...SUPPORTED_VERSIONS],
+      };
+    }
+    return null;
+  }
+
   static isVersionSupported(version: string): boolean {
     return SUPPORTED_VERSIONS.includes(version);
   }

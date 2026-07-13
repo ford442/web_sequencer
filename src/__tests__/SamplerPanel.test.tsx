@@ -243,7 +243,7 @@ describe('SamplerPanel TTS per-bank functionality', () => {
     expect(screen.getByLabelText('Text to Speech Phrase')).toBeInTheDocument();
 
     // Check Gen button label
-    expect(screen.getByLabelText('Generate Speech')).toBeInTheDocument();
+    expect(screen.getByLabelText('Generate TTS voice for current bank')).toBeInTheDocument();
 
     // Check Chord selector label
     expect(screen.getByLabelText('Harmonization Chord Type')).toBeInTheDocument();

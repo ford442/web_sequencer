@@ -90,13 +90,13 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
           const label = getLabel(w);
           const active = isActive(w);
           return (
-            <button
+            <button type="button"
               key={w}
               onClick={() => onChange(w)}
               aria-pressed={active}
               title={`${theme.label} ${label} (${w})`}
               aria-label={`Select ${theme.label} ${label} waveform`}
-              className={`px-1.5 py-0.5 text-[8px] font-bold rounded transition-all border flex-1 min-w-[32px] ${
+              className={`px-1.5 py-0.5 text-[8px] font-bold rounded transition-all border flex-1 min-w-[32px] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115] ${accentColor === 'cyan' ? 'focus-visible:ring-cyan-500' : 'focus-visible:ring-pink-500'} ${
                 active ? familyActiveMap[type] : inactiveBase
               }`}
             >
