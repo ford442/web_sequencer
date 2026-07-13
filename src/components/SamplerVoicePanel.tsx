@@ -23,6 +23,9 @@ interface SamplerVoicePanelProps {
     onAutomationNudge?: (paramId: string, value: number, step: number) => void;
     onAutomationPunchIn?: (paramId: string) => void;
     onAutomationLaneAction?: (action: 'toggle' | 'clear', paramId?: string) => void;
+    expressionLedTarget?: import('../types').ExpressionLedTarget;
+    expressionLedAnalyser?: AnalyserNode | null;
+    expressionLedFallbackColor?: string;
     // Sampler-specific props
     rootNote?: number; // 0-96 (C1-C8)
     coarseTune?: number; // -24 to +24
@@ -353,6 +356,9 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     onAutomationNudge,
     onAutomationPunchIn,
     onAutomationLaneAction,
+    expressionLedTarget,
+    expressionLedAnalyser,
+    expressionLedFallbackColor,
     rootNote = 60, // C4 default
     coarseTune = 0,
     fineTune = 0,
@@ -511,6 +517,9 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                     onAutomationNudge={onAutomationNudge}
                     onAutomationPunchIn={onAutomationPunchIn}
                     onAutomationLaneAction={onAutomationLaneAction}
+                    expressionLedTarget={expressionLedTarget}
+                    expressionLedAnalyser={expressionLedAnalyser}
+                    expressionLedFallbackColor={expressionLedFallbackColor}
                 >
                     {children}
                 </HardwareModule>

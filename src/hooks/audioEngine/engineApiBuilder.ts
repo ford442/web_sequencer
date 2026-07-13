@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react';
 import type { HarmonizerConfig } from '../../engines/Harmonizer';
-import type { AudioEngine, PartSequence, SynthParams } from '../../types';
+import type { AudioEngine, PartSequence, SynthParams, TrackAnalysers } from '../../types';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
 import { Open303Manager } from '../../engines/Open303Manager';
@@ -28,6 +28,8 @@ export interface EngineApiBuilderRefs extends PlaybackRefs {
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>;
     masterPannerRef: MutableRefObject<StereoPannerNode | null>;
     reverbTypeRef: MutableRefObject<'room' | 'plate' | 'hall'>;
+    analyserNodeRef: MutableRefObject<AnalyserNode | null>;
+    trackAnalysersRef: MutableRefObject<TrackAnalysers>;
 }
 
 export interface EngineApiPlaybackFns {
@@ -103,6 +105,8 @@ export function buildAudioEngine(
 
     return {
         context,
+        analyserNode: refs.analyserNodeRef.current,
+        trackAnalysers: refs.trackAnalysersRef.current,
         webGpuEngine: refs.gpuEngineRef.current,
         wasmEngine: refs.wasmEngineRef.current,
         open303Engine: refs.open303ManagerRef.current as any,
