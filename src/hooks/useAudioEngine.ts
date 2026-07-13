@@ -570,27 +570,32 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     }
                 }
             };
-            const playSamplerVoice = (
-                params: SamplerBankParams, 
-                note: string | string[], 
-                time: number, 
-                durationSteps: number = 1, 
-                stepTime: number = 0.2, 
-                noteParams?: Note & {
-                    timbre?: number, 
-                    microtiming?: number, 
-                    reverse?: boolean, 
-                    sliceIndex?: number, 
-                    retrigger?: number, 
+const playSamplerVoice = (
+                params: SamplerBankParams,
+                note: string | string[],
+                time: number,
+                durationSteps: number = 1,
+                stepTime: number = 0.2,
+                noteParams?: {
+                    timbre?: number,
+                    microtiming?: number,
+                    reverse?: boolean,
+                    sliceIndex?: number,
+                    retrigger?: number,
                     slideFromMidi?: number,
+                    slideFromFormant?: number,
                     slideType?: 'linear' | 'exponential',
                     phonemes?: PhonemeData[],
                     freeze?: number,
                     filterCutoff?: number,
                     filterResonance?: number,
+                    formantLfoSync?: boolean,
                     formantLfoRate?: number,
                     formantLfoDepth?: number,
                     formantLfoShape?: number[],
+                    freezeLfoSync?: boolean,
+                    freezeLfoRate?: number,
+                    freezeLfoDepth?: number,
                     customLfoShape?: number[],
                     vibratoDepth?: number,
                     reverbSend?: number,
@@ -642,7 +647,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const subDurationSteps = durationSteps / retrigger;
 
                 // --- GLITCH LOGIC START ---
-                const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
+                const effectiveGlitchChance = noteParams?.glitchChance ?? params.glitchChance ?? 0;
+                const shouldGlitch = retrigger === 1 && effectiveGlitchChance > 0 && Math.random() < effectiveGlitchChance;
                 // --- GLITCH LOGIC END ---
 
                 // Handle Polyphony (Chords)
@@ -654,10 +660,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- HOISTED PARAMETERS START ---
                 // Vocoder Mix
                 const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
-                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.vocoderFormantShift ?? 0;
-                const pVocoderPreservation = noteParams?.vocoderPreservation ?? params.vocoderPreservation ?? 1.0;
-                const pVocoderAttack = noteParams?.vocoderAttack ?? params.vocoderAttack ?? 0.01;
-                const pVocoderRelease = noteParams?.vocoderRelease ?? params.vocoderRelease ?? 0.05;
+                const pVocoderFormantShift = (noteParams as any)?.vocoderFormantShift ?? params.formantShift ?? 0;
+                const pVocoderPreservation = (noteParams as any)?.vocoderPreservation ?? 1.0;
+                const pVocoderAttack = (noteParams as any)?.vocoderAttack ?? 0.01;
+                const pVocoderRelease = (noteParams as any)?.vocoderRelease ?? 0.05;
 
                 // Spectral Panning
                 const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
@@ -767,6 +773,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     ? noteParams.drive
                     : params.drive;
                 // --- HOISTED PARAMETERS END ---
+
 
 
                 // If Singing/Stretch Mode

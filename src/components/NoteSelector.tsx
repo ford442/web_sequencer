@@ -151,6 +151,8 @@ interface NoteSelectorProps {
       | "pitchAmount"
       | "glitchChance"
       | "probability",
+      | "slideFormant"
+
     value: number | boolean | string,
   ) => void;
 }
