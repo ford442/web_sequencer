@@ -31,6 +31,14 @@ export interface HarmonizerConfig {
     busEqGain?: number;
     /** Bus stereo widener amount (0-1) */
     busWidener?: number;
+    /** Harmony bus envelope attack time in seconds */
+    envAttack?: number;
+    /** Harmony bus envelope decay time in seconds */
+    envDecay?: number;
+    /** Harmony bus envelope sustain level (0-1) */
+    envSustain?: number;
+    /** Harmony bus envelope release time in seconds */
+    envRelease?: number;
     /** Dedicated attack time for harmony voices (seconds) */
     harmonyAttack?: number;
     /** Dedicated release time for harmony voices (seconds) */
@@ -102,6 +110,10 @@ export class Harmonizer {
         busCompressorThreshold: -18,
         busEqGain: -3.0,
         busWidener: 0.0,
+        envAttack: 0.01,
+        envDecay: 0.1,
+        envSustain: 1.0,
+        envRelease: 0.3
         harmonyAttack: 0.1,
         harmonyRelease: 0.3
     }) {
@@ -295,6 +307,10 @@ export const HARMONIZE_PRESETS = {
         busCompressorThreshold: -12,
         busEqGain: -2.0,
         busWidener: 0.1,
+        envAttack: 0.01,
+        envDecay: 0.1,
+        envSustain: 1.0,
+        envRelease: 0.3
         harmonyAttack: 0.1,
         harmonyRelease: 0.3
     }),
@@ -309,6 +325,10 @@ export const HARMONIZE_PRESETS = {
         busCompressorThreshold: -18,
         busEqGain: -3.0,
         busWidener: 0.3,
+        envAttack: 0.01,
+        envDecay: 0.1,
+        envSustain: 1.0,
+        envRelease: 0.3
         harmonyAttack: 0.2,
         harmonyRelease: 0.4
     }),
@@ -323,6 +343,10 @@ export const HARMONIZE_PRESETS = {
         busCompressorThreshold: -24,
         busEqGain: -5.0,
         busWidener: 0.6,
+        envAttack: 0.01,
+        envDecay: 0.1,
+        envSustain: 1.0,
+        envRelease: 0.3
         harmonyAttack: 0.4,
         harmonyRelease: 0.8
     }),
@@ -337,6 +361,10 @@ export const HARMONIZE_PRESETS = {
         busCompressorThreshold: -15,
         busEqGain: -1.0,
         busWidener: 0.2,
+        envAttack: 0.01,
+        envDecay: 0.1,
+        envSustain: 1.0,
+        envRelease: 0.3
         harmonyAttack: 0.05,
         harmonyRelease: 0.2
     }),
@@ -352,6 +380,10 @@ export const HARMONIZE_PRESETS = {
         busCompressorThreshold: -20,
         busEqGain: -4.0,
         busWidener: 0.9,
+        envAttack: 0.01,
+        envDecay: 0.1,
+        envSustain: 1.0,
+        envRelease: 0.3
         harmonyAttack: 0.8,
         harmonyRelease: 1.5
     })
