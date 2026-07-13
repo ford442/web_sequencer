@@ -322,7 +322,7 @@ const SvgStep = memo(({
 
 
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; onStepRef?.(el); }} className="svg-step" role="gridcell" tabIndex={stepTabIndex} data-testid={`step-${rowKey}-${stepIndex}`} aria-label={`${rowLabel} step ${stepIndex + 1}, ${active ? "Active" : "Inactive"}`} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } else { onGridKeyDown?.(e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
+        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; onStepRef?.(el); }} className="svg-step" role="gridcell" tabIndex={0} data-testid={`step-${rowKey}-${stepIndex}`} aria-label={`${rowLabel} step ${stepIndex + 1}, ${active ? "Active" : "Inactive"}`} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } else { onGridKeyDown?.(e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
             {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
@@ -526,8 +526,8 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     ), [activeSlot, trackSlots, rowKey, onSelectSlot, isSelected]);
 
     return (
-        <g transform={`translate(0, ${rowIndex * 60})`}>
-            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track, ${isSelected ? "Selected" : "Unselected"}`} aria-description="Left-click to select row. Right-click for options." aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
+        <g role="row" transform={`translate(0, ${rowIndex * 60})`}>
+            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="rowheader" tabIndex={0} aria-label={`Select ${label} track, ${isSelected ? "Selected" : "Unselected"}`} aria-description="Left-click to select row. Right-click for options." aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
                 {isSelected && (
                     <rect 
                         x={-10} 
