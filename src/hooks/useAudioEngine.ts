@@ -1,6 +1,6 @@
 import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type {
+import type { Note,
     SamplerBankParams, SynthParams, AudioEngine, PartSequence, MultisampleBank, PhonemeData
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
@@ -444,17 +444,17 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 }
             };
             const playSamplerVoice = (
-                params: SamplerBankParams,
-                note: string | string[],
-                time: number,
-                durationSteps: number = 1,
-                stepTime: number = 0.2,
-                noteParams?: {
-                    timbre?: number,
-                    microtiming?: number,
-                    reverse?: boolean,
-                    sliceIndex?: number,
-                    retrigger?: number,
+                params: SamplerBankParams, 
+                note: string | string[], 
+                time: number, 
+                durationSteps: number = 1, 
+                stepTime: number = 0.2, 
+                noteParams?: Note & {
+                    timbre?: number, 
+                    microtiming?: number, 
+                    reverse?: boolean, 
+                    sliceIndex?: number, 
+                    retrigger?: number, 
                     slideFromMidi?: number,
                     slideType?: 'linear' | 'exponential',
                     phonemes?: PhonemeData[],
@@ -495,7 +495,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     formantEnvAmount?: number,
                     formantEnvFollower?: number,
                     envMod?: number,
-                    vocoderMix?: number,
+                    vocoderMix?: number, vocoderFormantShift?: number, vocoderPreservation?: number, vocoderAttack?: number, vocoderRelease?: number
                     spectralResynthesis?: number
                 },
                 pitchOffsetSemitones: number = 0,
@@ -527,10 +527,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 // --- HOISTED PARAMETERS START ---
                 // Vocoder Mix
                 const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
-                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
-                const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
-                const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
-                const pVocoderRelease = noteParams?.vocoderRelease ?? 0.05;
+                const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.vocoderFormantShift ?? 0;
+                const pVocoderPreservation = noteParams?.vocoderPreservation ?? params.vocoderPreservation ?? 1.0;
+                const pVocoderAttack = noteParams?.vocoderAttack ?? params.vocoderAttack ?? 0.01;
+                const pVocoderRelease = noteParams?.vocoderRelease ?? params.vocoderRelease ?? 0.05;
 
                 // Spectral Panning
                 const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
@@ -554,7 +554,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 const revLfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
                 const revLfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
-                const pFormantPitchLink = noteParams?.formantPitchLink !== undefined ? noteParams.formantPitchLink : (params.formantPitchLink || 0);
 
                 // Delay
                 const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
@@ -807,20 +806,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             } else {
                                 voice.setFormantLfoShape(undefined);
                             // Apply Timbre Modulation (Formant Shift)
-                            // Formant Pitch Link
-                            const targetMidiNote = noteToMidi(noteStr) + pitchOffsetSemitones;
-                            const pitchShiftForFormant = targetMidiNote - 60;
-                            const linkedTargetFormantShift = targetFormantShift + (pitchShiftForFormant * pFormantPitchLink);
-
                             if (startFormantShift !== undefined && (noteParams?.slideFromMidi !== undefined || noteParams?.slideFromFormant !== undefined)) {
-                                const startMidiNote = (noteParams?.slideFromMidi !== undefined ? noteParams.slideFromMidi : 60) + pitchOffsetSemitones;
-                                const startPitchShiftForFormant = startMidiNote - 60;
-                                const linkedStartFormantShift = startFormantShift + (startPitchShiftForFormant * pFormantPitchLink);
-
                                 const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
-                                voice.setFormantGlide(linkedStartFormantShift, linkedTargetFormantShift, triggerTime, glideDuration);
+                                voice.setFormantGlide(startFormantShift, targetFormantShift, triggerTime, glideDuration);
                             } else {
-                                voice.setFormantShift(linkedTargetFormantShift, triggerTime);
+                                voice.setFormantShift(targetFormantShift, triggerTime);
                             }
 
                             // Apply Character Morphing
@@ -1145,7 +1135,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
                         setTimeout(() => {
-                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
+                            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, { ...noteParams, isHarmonyVoice: voice.index > 0 }, voice.pitchOffset, tuning);
                         }, delayMs);
                     });
                     return;
