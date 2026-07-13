@@ -55,24 +55,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.51
-
       - name: Build WASM artifacts
         run: pnpm run build:wasm
 
-      - name: Lint (ESLint)
-        # eslint.config.js globalIgnores is expanded in this PR to exclude emsdk/,
-        # assembly/, emscripten/, jc303_wasm/, rubberband/, and public/. Keeping
-        # continue-on-error: true for any remaining src/ lint debt until it is
-        # triaged and resolved in a follow-up.
-        run: pnpm lint
-        continue-on-error: true
+      - name: Type-check (tsc)
+        run: pnpm exec tsc -b
 
-      - name: Build WASM
-        run: pnpm run build:wasm
+      - name: Lint (ESLint)
+        # eslint.config.js globalIgnores excludes emsdk/, assembly/, emscripten/,
+        # jc303_wasm/, rubberband/, and public/. Lint is now clean on src/, so
+        # failures here must be fixed rather than masked.
+        run: pnpm lint
+
 
       - name: Test (Vitest)
         # WASM artifacts are gitignored and intentionally not built in Phase 1.

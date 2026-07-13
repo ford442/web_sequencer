@@ -1,4 +1,6 @@
+import { SamplerToolbar } from './sampler-panel/SamplerToolbar';
 import React, { useRef, useState, useEffect, memo, useCallback, useMemo } from 'react';
+import { LoadingButton } from './LoadingButton';
 import type { SamplerBankParams, SamplerParams, AudioEngine } from '../types';
 import { SupertonicService } from '../services/Supertonic';
 import { Knob } from './Knob';
@@ -152,8 +154,17 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         tremoloDepth: 0,
         tremoloRate: 0.1,
         breathIntensity: 0,
+        expressiveness: {
+            vibratoRate: 5.5,
+            vibratoDepth: 0,
+            tremoloDepth: 0,
+            breathAmount: 0,
+        },
         freeze: 0,
+        grainPitchEnvDepth: 0,
+        grainJitter: 0,
         grainPitchQuantize: 0,
+        granularPitchShift: 0,
         formantLfoRate: 0,
         formantLfoDepth: 0,
         reverbLfoRate: 0.1,
@@ -161,6 +172,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         formantEnvAttack: 0.1,
         formantEnvDecay: 0.5,
         formantEnvAmount: 0,
+        formantEnvFollower: 0,
         characterMorph: 0,
         morphTarget: 'female' as 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright',
         attack: 0.05,
@@ -172,7 +184,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         rootNote: 60,
         coarseTune: 0,
         fineTune: 0,
-        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+        stretchProfile: 'vocal' as 'vocal' | 'harmonic' | 'fast',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
     }, [params, activeBankIdx]);
@@ -194,9 +206,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoSync', 'formantLfoSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'grainEnvDepth', 'grainPitchQuantize',
+            'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'formantEnvFollower',
+            'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
-            'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth'
+            'pitchAmount', 'pitchAttack', 'pitchDecay',
+            'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'downsample'
         ] as const;
         return Object.fromEntries(paramNames.map(p => [p, (v: any) => {
             if (onParamChange) onParamChange(activeBankIdx, p, v);
@@ -223,16 +237,30 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFreezeLfoDepthChange = paramHandlers.freezeLfoDepth;
     const handleFormantLfoSyncChange = paramHandlers.formantLfoSync;
     const handleFreezeEnvDepthChange = paramHandlers.freezeEnvDepth;
+    const handleTimeStretchEnvDepthChange = paramHandlers.timeStretchEnvDepth;
     const handleGrainEnvDepthChange = paramHandlers.grainEnvDepth;
+    const handleGrainPitchEnvDepthChange = paramHandlers.grainPitchEnvDepth;
+    const handleGrainJitterChange = paramHandlers.grainJitter;
     const handleGrainPitchQuantizeChange = paramHandlers.grainPitchQuantize;
+    const handleGranularPitchShiftChange = paramHandlers.granularPitchShift;
+    const handleBitcrushChange = paramHandlers.bitcrush;
+    const handleDownsampleChange = paramHandlers.downsample;
     const handleFormantLfoRateChange = paramHandlers.formantLfoRate;
     const handleFormantLfoDepthChange = paramHandlers.formantLfoDepth;
     const handleFormantLfoShapeChange = paramHandlers.formantLfoShape;
     const handleReverbLfoRateChange = paramHandlers.reverbLfoRate;
     const handleReverbLfoDepthChange = paramHandlers.reverbLfoDepth;
+    const handleFormantEnvSyncChange = paramHandlers.formantEnvSync;
     const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
     const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
     const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
+    const handleFormantEnvFollowerChange = (v: number) => { updateParam('formantEnvFollower', v); };
+
+    const handlePitchAmountChange = paramHandlers.pitchAmount;
+    const handlePitchAttackChange = paramHandlers.pitchAttack;
+    const handlePitchDecayChange = paramHandlers.pitchDecay;
+
+
     const handleCharacterMorphChange = paramHandlers.characterMorph;
     const handleAttackChange = paramHandlers.attack;
     const handleDecayChange = paramHandlers.decay;
@@ -267,19 +295,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 case 'formantShift':
                     voice.setFormantShift(value as number);
                     break;
-                case 'quality': {
-                    // Map quality to RubberBand options
-                    const qualityMap = {
-                        'Fast': 1 | 16,      // RealTime | Faster
-                        'Standard': 1 | 32,   // RealTime | Finer
-                        'Elastic': 1 | 32 | 1048576 // RealTime | Finer | FormantPreserved
-                    };
-                    // Note: Actual quality change requires worklet reinit or message
+                case 'stretchProfile': {
                     const node = voice.getSourceNode();
                     if (node && 'port' in node) {
                         (node as AudioWorkletNode).port.postMessage({
-                            type: 'setQuality',
-                            options: qualityMap[value as keyof typeof qualityMap]
+                            type: 'setStretchProfile',
+                            profile: value
                         });
                     }
                     break;
@@ -586,7 +607,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
     return (
         <div
-            className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+            className="flex flex-col h-full hyphon-sampler-shell text-white overflow-hidden select-none relative"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -603,18 +624,18 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 </div>
             )}
             {/* --- FIXED HEADER --- */}
-            <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
+            <div className="flex-none flex items-center justify-between p-2 hyphon-sampler-header">
                 {/* Bank Tabs - Mobile touch optimized */}
                 <div className="flex gap-1 overflow-x-auto scrollbar-none touch-pan-x" role="tablist" aria-label="Sample Banks">
                     {SAMPLE_BANKS.map((label, i) => (
-                        <button
+                        <button type="button"
                             key={i}
                             ref={(el) => { tabRefs.current[i] = el; }}
                             id={`sampler-bank-tab-${i}`}
                             role="tab"
                             aria-selected={activeBankIdx === i}
                             aria-controls="sampler-bank-panel"
-                            aria-label={`Select Bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
+                            aria-label={`Select sample bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
                             tabIndex={activeBankIdx === i ? 0 : -1}
                             onClick={() => onBankChange(i)}
                             onKeyDown={(e) => handleKeyDown(e, i)}
@@ -706,136 +727,24 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 )}
 
                 {/* 2. Actions (Toolbar: Load, Rec, TTS, Harmonize) */}
-                <div className="flex flex-col gap-2 bg-gray-800/20 p-2 rounded border border-gray-800">
-                    {/* Row A: Load / Record */}
-                    <div className="flex justify-between items-center gap-2">
-                        <div className="flex gap-1" role="toolbar" aria-label="Sample Management">
-                            <input type="file" accept="audio/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" aria-label="Load Sample File" />
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold text-gray-300"
-                                aria-label="Load Sample from File"
-                                title="Load audio file into current bank"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                </svg>
-                                LOAD
-                            </button>
-                            <button
-                                onClick={toggleRecording}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 text-[10px] font-bold transition-colors ${
-                                    isRecording
-                                        ? 'bg-red-900 border-red-500 animate-pulse text-white shadow-[0_0_8px_rgba(239,68,68,0.5)]'
-                                        : 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:text-white text-gray-300'
-                                }`}
-                                aria-label={isRecording ? "Stop Recording" : "Record Sample from Microphone"}
-                                title={isRecording ? "Stop recording audio" : "Record audio from microphone"}
-                            >
-                                {isRecording ? (
-                                    <div className="w-2 h-2 bg-white rounded-sm" />
-                                ) : (
-                                    <div className="w-2 h-2 bg-red-500 rounded-full shadow-[0_0_4px_rgba(239,68,68,0.8)]" />
-                                )}
-                                {isRecording ? 'STOP' : 'REC'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Row B: TTS */}
-                    <div className="flex gap-1 items-center">
-                        <div className="relative flex-1 flex items-center">
-                            <input
-                                value={currentTtsText}
-                                onChange={e => setCurrentTtsText(e.target.value)}
-                                className="w-full bg-gray-900 border border-gray-700 rounded px-1 pr-4 text-white text-[10px] outline-none focus:border-purple-500 h-5"
-                                placeholder="Phrase..."
-                                aria-label="Text to Speech Phrase"
-                            />
-                            {currentTtsText && (
-                                <button
-                                    onClick={() => setCurrentTtsText('')}
-                                    className="absolute right-1 text-gray-500 hover:text-white text-[10px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                            aria-label="Clear Text-to-Speech phrase input"
-                            title="Clear Text-to-Speech phrase input"
-                                ><span aria-hidden="true">✕</span></button>
-                            )}
-                        </div>
-                        <div
-                            className={`w-2 h-2 border border-black shadow-sm flex-shrink-0 rounded-full transition-colors ${ttsReady ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}
-                            title={ttsReady ? "TTS Engine Ready" : "TTS Engine Loading/Unavailable"}
-                        />
-                        <button
-                            onClick={handleTTS}
-                            disabled={isGenerating || !ttsReady}
-                            className="flex items-center gap-1.5 px-2 h-5 bg-purple-900 border border-purple-600 text-purple-200 rounded text-[10px] hover:bg-purple-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all"
-                            aria-label={isGenerating ? "Generating Speech..." : "Generate Speech"}
-                            aria-busy={isGenerating}
-                        >
-                            {isGenerating ? (
-                                <svg className="animate-spin h-2.5 w-2.5 text-purple-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1M12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clipRule="evenodd" />
-                                </svg>
-                            )}
-                            GEN
-                        </button>
-                        {onOpenEditor && (
-                            <button
-                                onClick={onOpenEditor}
-                                aria-haspopup="dialog"
-                                aria-expanded={isVoiceEditorOpen}
-                                className="text-[10px] text-purple-400 underline hover:text-white px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                                aria-label="Open Voice Editor for Text-to-Speech"
-                            >
-                                EDIT
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Row C: Harmonizer */}
-                    <div className="flex gap-1 items-center">
-                        <select
-                            value={chordType}
-                            onChange={(e) => setChordType(e.target.value)}
-                            aria-label="Harmonization Chord Type"
-                            className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-400"
-                        >
-                            <option value="major">Major</option>
-                            <option value="minor">Minor</option>
-                            <option value="maj7">Major 7</option>
-                            <option value="min7">Minor 7</option>
-                            <option value="octave">Octave</option>
-                            <option value="stack">Power Stack</option>
-                        </select>
-                        <div className="sr-only" aria-live="polite" aria-atomic="true">
-                            {isProcessingHarmonize ? "Applying harmonization, please wait..." : ""}
-                        </div>
-                        <button
-                            onClick={handleHarmonizeClick}
-                            disabled={isProcessingHarmonize || !onHarmonize}
-                            className={`flex items-center gap-1.5 px-2 h-5 bg-cyan-900 border border-cyan-600 text-cyan-200 rounded text-[10px] hover:bg-cyan-800 disabled:opacity-50 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-all ${isProcessingHarmonize ? 'cursor-wait' : ''}`}
-                            aria-label={isProcessingHarmonize ? "Applying Harmonization..." : "Apply Harmonization"}
-                            aria-busy={isProcessingHarmonize}
-                        >
-                            {isProcessingHarmonize ? (
-                                <svg className="animate-spin h-2.5 w-2.5 text-cyan-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
-                                </svg>
-                            )}
-                            HARM
-                        </button>
-                    </div>
-                </div>
+                <SamplerToolbar
+                    fileInputRef={fileInputRef}
+                    handleFileChange={handleFileChange}
+                    isRecording={isRecording}
+                    toggleRecording={toggleRecording}
+                    currentTtsText={currentTtsText}
+                    setCurrentTtsText={setCurrentTtsText}
+                    ttsReady={ttsReady}
+                    isGenerating={isGenerating}
+                    handleTTS={handleTTS}
+                    onOpenEditor={onOpenEditor}
+                    isVoiceEditorOpen={isVoiceEditorOpen}
+                    chordType={chordType}
+                    setChordType={setChordType}
+                    isProcessingHarmonize={isProcessingHarmonize}
+                    handleHarmonizeClick={handleHarmonizeClick}
+                    onHarmonize={!!onHarmonize}
+                />
 
                 {/* 3. Mode Selector */}
                 <div className="bg-gray-800/30 p-1.5 rounded">
@@ -845,7 +754,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             {modes.map((mode, i) => {
                                 const isSelected = (currentParams.mode || 'loop') === mode;
                                 return (
-                                    <button
+                                    <button type="button"
                                         key={mode}
                                         ref={(el) => { modeRefs.current[i] = el; }}
                                         onClick={() => handleModeChange(mode)}
@@ -890,7 +799,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             </div>
                             <div className="flex gap-1 items-center">
                                 <label id="sampler-slice-label" className="text-[9px] text-gray-500 w-10">Slice:</label>
-                                <button
+                                <button type="button"
                                     aria-label="Toggle Phoneme Slice Mode"
                                     aria-pressed={currentParams.sliceMode === 'phoneme'}
                                     onClick={() => {
@@ -923,7 +832,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 <span className="text-[9px] text-gray-500">Drag steps to set pitch</span>
                             </div>
                         </div>
-                        <button
+                        <button type="button"
                             onClick={() => onMelodicModeChange?.(!melodicMode)}
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                                 melodicMode ? 'bg-purple-600' : 'bg-gray-700'
@@ -979,7 +888,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
 
 
-                        quality: currentParams.quality ?? 'good',
+                        stretchProfile: currentParams.stretchProfile ?? 'vocal',
                         stretchMode: currentParams.stretchMode ?? 'Pitch',
                         lockToSequencer: currentParams.lockToSequencer ?? false,
                     }}
@@ -1022,7 +931,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                             value={currentParams.freezeLfoRate ?? 0}
                                             onChange={(e) => handleFreezeLfoRateChange(parseFloat(e.target.value))}
                                             aria-label="Freeze LFO Rate"
-                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400"
                                         >
                                             <option value={2}>2 Bars</option>
                                             <option value={1}>1 Bar</option>
@@ -1035,8 +944,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 ) : (
                                     <Knob label="Frz Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                                 )}
-                                <button
-                                    type="button"
+                                <button type="button"
+
                                     role="switch"
                                     aria-checked={currentParams.freezeLfoSync}
                                     aria-label="Sync Freeze LFO Rate to BPM"
@@ -1057,7 +966,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                             value={currentParams.formantLfoRate ?? 0}
                                             onChange={(e) => handleFormantLfoRateChange(parseFloat(e.target.value))}
                                             aria-label="Formant LFO Rate"
-                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                                            className="bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-gray-600 px-1 py-1 text-center cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400"
                                         >
                                             <option value={2}>2 Bars</option>
                                             <option value={1}>1 Bar</option>
@@ -1070,8 +979,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 ) : (
                                     <Knob label="Fmt Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                                 )}
-                                <button
-                                    type="button"
+                                <button type="button"
+
                                     role="switch"
                                     aria-checked={currentParams.formantLfoSync}
                                     aria-label="Sync Formant LFO Rate to BPM"
@@ -1083,15 +992,90 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             </div>
 
                             <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth || 0} onChange={handleFreezeEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Env → Time" value={currentParams.timeStretchEnvDepth || 0} onChange={handleTimeStretchEnvDepthChange} min={-1.0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handleGrainEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Env → Grn Pitch" value={currentParams.grainPitchEnvDepth || 0} onChange={handleGrainPitchEnvDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Jitter" value={currentParams.grainJitter || 0} onChange={handleGrainJitterChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handleGrainPitchQuantizeChange} min={0} max={12.0} step={1} color="indigo" unit="st" />
+                            <Knob label="Gran Pitch" value={currentParams.granularPitchShift || 0} onChange={handleGranularPitchShiftChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+                            <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handleBitcrushChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+                            <Knob label="Downsample" value={currentParams.downsample || 1} onChange={handleDownsampleChange} min={1} max={32} step={1} color="indigo" unit="x" />
                             <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handleFormantLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
                             <Knob label="Reverb LFO Rate" value={currentParams.reverbLfoRate ?? 0.1} onChange={handleReverbLfoRateChange} min={0.1} max={10.0} step={0.1} color="indigo" unit="Hz" />
                             <Knob label="Reverb LFO Depth" value={currentParams.reverbLfoDepth ?? 0} onChange={handleReverbLfoDepthChange} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-                            <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
-                            <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
-                            <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+
+
+                            {/* Pitch Envelope */}
+                            <fieldset className="p-2 border border-purple-500/20 rounded bg-black/40">
+                                <legend className="text-[10px] text-purple-400 font-mono tracking-wider mb-2 px-1">Pitch Envelope</legend>
+                                <div className="flex items-center gap-4">
+                                    <Knob label="Amount" value={currentParams.pitchAmount ?? 0} onChange={handlePitchAmountChange} min={-24} max={24} step={0.1} color="purple" unit="st" />
+                                    <Knob label="Attack" value={currentParams.pitchAttack ?? 0} onChange={handlePitchAttackChange} min={0} max={1.0} step={0.01} color="purple" />
+                                    <Knob label="Decay" value={currentParams.pitchDecay ?? 0} onChange={handlePitchDecayChange} min={0} max={1.0} step={0.01} color="purple" />
+                                </div>
+                            </fieldset>
+
+                            {/* Formant Envelope */}
+                            <fieldset className="flex items-start gap-1 col-span-2 border border-indigo-900/30 p-1 rounded bg-gray-800/20">
+                                <legend className="sr-only">Formant Envelope</legend>
+                                <div className="flex flex-col items-center gap-1 min-w-[3rem] justify-center mt-4 border-r border-indigo-900/50 pr-1">
+                                    <button type="button"
+
+                                        role="switch"
+                                        aria-checked={currentParams.formantEnvSync || false}
+                                        aria-label="Sync Formant Envelope to BPM"
+                                        onClick={() => handleFormantEnvSyncChange(!currentParams.formantEnvSync)}
+                                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${currentParams.formantEnvSync ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                    >
+                                        SYNC
+                                    </button>
+                                </div>
+                                <div className="flex gap-1">
+                                    {currentParams.formantEnvSync ? (
+                                        <div className="flex flex-col items-center min-w-[3rem]">
+                                            <span className="text-xs text-gray-400 uppercase tracking-wider mb-1">Fmt Atk</span>
+                                            <select
+                                                value={currentParams.formantEnvAttack ?? 0.1}
+                                                onChange={(e) => handleFormantEnvAttackChange(parseFloat(e.target.value))}
+                                                aria-label="Formant Envelope Attack Subdivision"
+                                                className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                            >
+                                                <option value={2}>2 Bars</option>
+                                                <option value={1}>1 Bar</option>
+                                                <option value={0.5}>1/2</option>
+                                                <option value={0.25}>1/4</option>
+                                                <option value={0.125}>1/8</option>
+                                                <option value={0.0625}>1/16</option>
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <Knob label="Fmt Env Atk" value={currentParams.formantEnvAttack ?? 0.1} onChange={handleFormantEnvAttackChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
+                                    )}
+                                    {currentParams.formantEnvSync ? (
+                                        <div className="flex flex-col items-center min-w-[3rem]">
+                                            <span className="text-xs text-gray-400 uppercase tracking-wider mb-1">Fmt Dec</span>
+                                            <select
+                                                value={currentParams.formantEnvDecay ?? 0.5}
+                                                onChange={(e) => handleFormantEnvDecayChange(parseFloat(e.target.value))}
+                                                aria-label="Formant Envelope Decay Subdivision"
+                                                className="w-full bg-gray-800 text-indigo-400 text-xs font-mono rounded border border-indigo-900/30 px-1 py-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 hover:bg-gray-700 transition-colors"
+                                            >
+                                                <option value={2}>2 Bars</option>
+                                                <option value={1}>1 Bar</option>
+                                                <option value={0.5}>1/2</option>
+                                                <option value={0.25}>1/4</option>
+                                                <option value={0.125}>1/8</option>
+                                                <option value={0.0625}>1/16</option>
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
+                                    )}
+                                    <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+                                    <Knob label="Fmt Follower" value={currentParams.formantEnvFollower ?? 0} onChange={handleFormantEnvFollowerChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+                                </div>
+                            </fieldset>
 
                             {/* Custom LFO Shape */}
                             <div className="flex flex-col items-center justify-start gap-1 col-span-2">
@@ -1165,7 +1149,9 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
     if (prev.audioEngine !== next.audioEngine) return false;
 
     // 5. Check if loaded banks status changed
-    if (JSON.stringify(prev.loadedBanks) !== JSON.stringify(next.loadedBanks)) return false;
+    // Using reference equality only. useAppState performs immutable shallow updates,
+    // so new references are created only when data actually changes.
+    if (prev.loadedBanks !== next.loadedBanks) return false;
 
     // 6. Check sample buffer
     if (prev.sampleBuffer !== next.sampleBuffer) return false;

@@ -16,6 +16,10 @@
  * - Mobile-responsive design
  */
 
+import { TrackStatisticsPanel } from './ai-song-modal/TrackStatisticsPanel';
+import { AutomationVisualizationPanel } from './ai-song-modal/AutomationVisualizationPanel';
+import { SongInfoPanel } from './ai-song-modal/SongInfoPanel';
+import { PatternGridPanel } from './ai-song-modal/PatternGridPanel';
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   AISongImporter,
@@ -24,12 +28,13 @@ import {
   type AIImportResultType,
   type AIImportErrorDetails
 } from '../importers/ai-song';
+import { LoadingButton } from './LoadingButton';
 import type { SavedSongData } from '../types';
 import type { TabType, ValidationStage, ErrorCategory, ImportStage, TrackStats, FieldError, ValidationState, DroppedFile, AISongModalProps } from '../types/aiSongModal';
 import { PROMPT_TEMPLATE, EXAMPLES } from '../constants/aiSongExamples';
 import { generateId, fixCommonJsonIssues, categorizeError, getErrorSuggestions, getValidationColor, getTextareaBorderColor, formatFileSize, getFileIcon } from '../utils/aiSongUtils';
 import { PreviewSkeleton } from './ai-song/PreviewSkeleton';
-import { Tooltip } from './ai-song/Tooltip';
+import { Tooltip } from './ai-song-modal/Tooltip';
 
 
 
@@ -651,6 +656,82 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
     </div>
   )) as React.ReactElement[], [noteCountEntries]);
 
+  const parsedTracksElements = useMemo(() => {
+    if (!parsedData?.tracks) return null;
+    return Object.keys(parsedData.tracks).map(track => (
+      <span key={track} className="px-1.5 py-0.5 bg-emerald-500/10 rounded text-emerald-400/70 text-[10px]">
+        {track}
+      </span>
+    ));
+  }, [parsedData?.tracks]);
+
+  const parsedAutomationLanesList = useMemo(() => {
+    if (!parsedData?.automation) return null;
+    return parsedData.automation.map((lane, idx) => (
+      <span key={idx} className="text-[10px] text-cyan-400/50">
+          {String(lane.target)}.{String(lane.parameter)}
+        {idx < parsedData.automation!.length - 1 ? ',' : ''}
+      </span>
+    ));
+  }, [parsedData?.automation]);
+
+  const parsedAutomationRows = useMemo(() => {
+    if (!parsedData?.automation) return null;
+    return parsedData.automation.map((lane, idx) => {
+      const nonNullSteps = lane.steps.map((v, i) => ({ value: v, step: i })).filter(s => s.value !== null);
+      const minVal = Math.min(...nonNullSteps.map(s => s.value!));
+      const maxVal = Math.max(...nonNullSteps.map(s => s.value!));
+
+      return (
+        <div key={idx} className="bg-gray-800/50 rounded p-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-cyan-400">{lane.target}</span>
+              <span className="text-xs text-gray-500">→</span>
+              <span className="text-xs text-cyan-400/80">{lane.parameter}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-gray-500">
+              <span className="px-1.5 py-0.5 bg-gray-700 rounded">{String(lane.interpolation || 'step')}</span>
+              <span>{String(nonNullSteps.length)} pts</span>
+              <span className="text-gray-600">|</span>
+              <span>range: {String(minVal)}-{String(maxVal)}</span>
+            </div>
+          </div>
+          {/* Mini visualization bar */}
+          <div className="flex items-end gap-px h-8">
+            {lane.steps.map((value, stepIdx) => {
+              const height = value !== null ? (value / 127) * 100 : 0;
+              const isActive = value !== null;
+              return (
+                <div
+                  key={stepIdx}
+                  className={`flex-1 min-w-[2px] transition-all ${
+                    isActive
+                      ? 'bg-cyan-500/60 hover:bg-cyan-400'
+                      : 'bg-gray-700/30'
+                  }`}
+                  style={{
+                    height: isActive ? `${height}%` : '2px',
+                    opacity: stepIdx % 4 === 0 ? 1 : 0.7
+                  }}
+                  title={isActive ? `Step ${stepIdx}: ${value}` : `Step ${stepIdx}: (no change)`}
+                />
+              );
+            })}
+          </div>
+          {/* Step markers */}
+          <div className="flex mt-1">
+            {[0, 4, 8, 12, 16, 20, 24, 28].map(mark => (
+              <div key={mark} className="flex-1 text-[8px] text-gray-600 text-center">
+                {mark}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    });
+  }, [parsedData?.automation]);
+
   return (
     <div 
       ref={modalRef}
@@ -665,6 +746,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-song-modal-title" aria-describedby="ai-song-modal-desc"
+        tabIndex={-1}
         className="relative z-10 bg-[#0f1115] border border-emerald-500/30 rounded-xl shadow-[0_0_60px_rgba(16,185,129,0.2)] w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -683,9 +765,9 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
             </div>
           </div>
           <Tooltip text="Close (Esc)" position="bottom">
-            <button 
+            <button type="button"
               onClick={handleClose}
-              className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
+              className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
               aria-label="Close modal"
               title="Close modal"
             ><span aria-hidden="true">✕</span></button>
@@ -705,16 +787,16 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           <div className="px-4 py-2 bg-yellow-950/50 border-b border-yellow-900/50 flex items-center justify-between animate-in slide-in-from-top-2">
             <span className="text-xs text-yellow-400">You have unsaved changes. Close anyway?</span>
             <div className="flex gap-2">
-              <button
+              <button type="button"
                 onClick={() => setShowCloseConfirm(false)}
-                className="px-2 py-1 text-xs text-gray-400 hover:text-white transition-colors"
+                className="px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Cancel closing modal"
               >
                 Cancel
               </button>
-              <button
+              <button type="button"
                 onClick={confirmClose}
-                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Confirm close modal"
               >
                 Close
@@ -725,13 +807,13 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
 
         {/* Tabs */}
         <div className="flex border-b border-gray-800 overflow-x-auto" role="tablist" aria-label="Import method">
-          <button
+          <button type="button"
             id="ai-modal-tab-paste"
             role="tab"
             aria-selected={activeTab === 'paste'}
             aria-controls="ai-modal-panel-paste"
             onClick={() => setActiveTab('paste')}
-            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
               activeTab === 'paste'
                 ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
@@ -739,13 +821,13 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           >
             <span className="hidden sm:inline">📋 </span>Paste JSON
           </button>
-          <button
+          <button type="button"
             id="ai-modal-tab-template"
             role="tab"
             aria-selected={activeTab === 'template'}
             aria-controls="ai-modal-panel-template"
             onClick={() => setActiveTab('template')}
-            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
               activeTab === 'template'
                 ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
@@ -753,14 +835,14 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           >
             <span className="hidden sm:inline">📝 </span>Template
           </button>
-          <button
+          <button type="button"
             id="ai-modal-tab-preview"
             role="tab"
             aria-selected={activeTab === 'preview'}
             aria-controls="ai-modal-panel-preview"
             onClick={() => isValid && setActiveTab('preview')}
             disabled={!isValid}
-            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
               activeTab === 'preview'
                 ? 'text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/5'
                 : !isValid
@@ -783,9 +865,9 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                 <div className="flex flex-wrap gap-2">
                   {(Object.keys(EXAMPLES) as Array<keyof typeof EXAMPLES>).map(key => (
                     <Tooltip key={key} text={EXAMPLES[key].desc} position="bottom">
-                      <button
+                      <button type="button"
                         onClick={() => loadExample(key)}
-                        className="px-2 sm:px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all border border-gray-700 hover:border-emerald-500/50 flex items-center gap-1"
+                        className="px-2 sm:px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all border border-gray-700 hover:border-emerald-500/50 flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                       >
                         <span>{EXAMPLES[key].emoji}</span>
                         <span className="hidden sm:inline">{EXAMPLES[key].name.split(' ').slice(1).join(' ')}</span>
@@ -816,9 +898,9 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                 </p>
                 <p className="text-xs text-gray-600 my-2">or</p>
                 <Tooltip text="Select one or more .json files" position="bottom">
-                  <button
+                  <button type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all"
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                   >
                     Browse Files
                   </button>
@@ -851,9 +933,9 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                           {index === 0 && <span className="text-emerald-400 text-[10px]">(active)</span>}
                         </div>
                         <Tooltip text="Remove file" position="left">
-                          <button
+                          <button type="button"
                             onClick={() => removeDroppedFile(droppedFile.id)}
-                            className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0"
+                            className="w-6 h-6 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             aria-label={`Remove ${droppedFile.file.name}`}
                           ><span aria-hidden="true">✕</span></button>
                         </Tooltip>
@@ -934,9 +1016,9 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                     <div className="flex gap-2">
                       {validationState.category === 'JSON_SYNTAX' && (
                         <Tooltip text="Auto-fix common JSON issues" position="left">
-                          <button
+                          <button type="button"
                             onClick={handleFixCommonIssues}
-                            className="px-3 py-1 bg-red-900/50 hover:bg-red-800/50 text-red-300 text-xs rounded transition-all"
+                            className="px-3 py-1 bg-red-900/50 hover:bg-red-800/50 text-red-300 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             aria-label="Fix Common JSON Issues"
                           >
                             🔧 Fix Issues
@@ -944,9 +1026,9 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                         </Tooltip>
                       )}
                       <Tooltip text="Copy error details to clipboard" position="left">
-                        <button
+                        <button type="button"
                           onClick={copyErrorReport}
-                          className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all"
+                          className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                           aria-label="Copy error details to clipboard"
                         >
                           {copiedError ? '✓ Copied!' : '📋 Copy'}
@@ -1022,11 +1104,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                     </p>
                     <p className="sm:col-span-2 flex flex-wrap gap-1">
                       <span className="text-gray-500">Tracks:</span> 
-                      {Object.keys(parsedData.tracks).map(track => (
-                        <span key={track} className="px-1.5 py-0.5 bg-emerald-500/10 rounded text-emerald-400/70 text-[10px]">
-                          {track}
-                        </span>
-                      ))}
+                      {parsedTracksElements}
                     </p>
                     {parsedData.automation && parsedData.automation.length > 0 && (
                       <p className="sm:col-span-2 flex flex-wrap gap-1 items-center">
@@ -1034,12 +1112,7 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                         <span className="px-1.5 py-0.5 bg-cyan-500/10 rounded text-cyan-400/70 text-[10px]">
                             {String(parsedData.automation.length)} lane{parsedData.automation.length !== 1 ? 's' : ''}
                         </span>
-                        {parsedData.automation.map((lane, idx) => (
-                          <span key={idx} className="text-[10px] text-cyan-400/50">
-                              {String(lane.target)}.{String(lane.parameter)}
-                            {idx < parsedData.automation!.length - 1 ? ',' : ''}
-                          </span>
-                        ))}
+                        {parsedAutomationLanesList}
                       </p>
                     )}
                   </div>
@@ -1054,9 +1127,9 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                   Customize the genre, tempo, and mood as desired.
                 </p>
                 <Tooltip text="Copy to clipboard" position="right">
-                  <button
+                  <button type="button"
                     onClick={copyTemplate}
-                    className="mb-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-all flex items-center gap-2"
+                    className="mb-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-all flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                     aria-label="Copy AI Prompt Template"
                   >
                     <span>📋</span> Copy Template
@@ -1086,178 +1159,16 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
               ) : parsedData && trackStats && patternGrid ? (
                 <div className="animate-in fade-in duration-300">
                   {/* Song Info */}
-                  <div className="p-4 bg-gray-900/50 rounded-lg">
-                    <h3 className="text-sm font-medium text-emerald-400 mb-3">{String(parsedData.meta.title)}</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
-                      <div>
-                        <span className="text-gray-500 block">Tempo</span>
-                        <span className="text-white">{String(parsedData.globals.tempo)} BPM</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Time Signature</span>
-                        <span className="text-white">{String((parsedData.globals.timeSignature as any[]).join('/'))}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Swing</span>
-                        <span className="text-white">{String(parsedData.globals?.swing ?? 0)}%</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Est. Duration</span>
-                        <span className="text-white">{String(trackStats.duration.toFixed(1))}s</span>
-                      </div>
-                      <div className="col-span-2 sm:col-span-1">
-                        <span className="text-gray-500 block">Total Notes</span>
-                        <span className="text-white">{String(trackStats.totalNotes ?? 0)}</span>
-                      </div>
-                    </div>
-                  </div>
+                  <SongInfoPanel parsedData={parsedData} trackStats={trackStats} />
 
                   {/* Pattern Grid */}
-                  <div className="p-4 bg-gray-900/50 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-300 mb-3">Pattern Preview (8 tracks × 32 steps)</h3>
-                    <div className="overflow-x-auto">
-                      <div className="inline-block min-w-full">
-                        {patternGrid.grid.map((row, trackIdx) => (
-                          <div key={String(trackIdx)} className="flex items-center gap-1 mb-1">
-                            <span className="w-16 sm:w-20 text-[10px] sm:text-xs text-gray-500 text-right mr-2 shrink-0">
-                              {String(patternGrid.tracks[trackIdx])}
-                            </span>
-                            <div className="flex gap-0.5">
-                              {row.map((active, stepIdx) => (
-                                <Tooltip key={stepIdx} text={String(`Step ${stepIdx}`)} position="top">
-                                  <div
-                                    className={`w-1.5 h-3 sm:w-2 sm:h-4 rounded-sm transition-colors ${
-                                      active 
-                                        ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' 
-                                        : stepIdx % 4 === 0 
-                                          ? 'bg-gray-700' 
-                                          : 'bg-gray-800'
-                                    }`}
-                                  />
-                                </Tooltip>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <PatternGridPanel patternGrid={patternGrid} />
 
                   {/* Track Statistics */}
-                  {trackStats ? (
-                    <div className="p-4 bg-gray-900/50 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-300 mb-3">{String("Track Statistics")}</h3>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div className="text-xs">
-                          <span className="text-gray-500">{String("Total Events:")}</span>
-                          <span className="text-white ml-2">{String(trackStats.totalNotes)}</span>
-                        </div>
-                        <div className="text-xs">
-                          <span className="text-gray-500">{String("Avg Velocity:")}</span>
-                          <span className="text-white ml-2">{String(Number.isNaN(Number(trackStats.avgVelocity)) ? '0' : (Number(trackStats.avgVelocity) * 100).toFixed(0))}%</span>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        {trackStats?.noteCounts ? (
-                          (Object.entries(trackStats.noteCounts as Record<string, unknown>)).map(([track, count]) => {
-                            const displayCount = typeof count === 'number' ? count : 0;
-                            const progress = Math.min(100, (displayCount / 16) * 100);
-                            return (
-                              <div key={String(track)} className="flex items-center gap-2 text-xs">
-                                <span className="w-16 sm:w-20 text-gray-500 shrink-0">{String(track)}:</span>
-                                <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-                                  <div className="h-full bg-emerald-500/50 rounded-full transition-all duration-500" style={{ width: `${String(progress)}%` }} />
-                                </div>
-                                <span className="text-gray-400 w-6 sm:w-8 text-right shrink-0">{String(displayCount)}</span>
-                              </div>
-                            );
-                          })
-                        ) : null}
-                      </div>
-                      <div className="space-y-1.5">
-                        {trackStatisticsRows.length > 0 && (trackStatisticsRows as React.ReactNode)}
-                      </div>
-                    </div>
-                  ) : null}
+                  <TrackStatisticsPanel trackStats={trackStats} trackStatisticsRows={trackStatisticsRows} />
 
                   {/* Automation Visualization */}
-                  {trackStats.automationLaneCount > 0 && parsedData?.automation && (
-                    <div className="p-4 bg-gray-900/50 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-300 mb-3">
-                        Automation ({trackStats.automationLaneCount} lanes, {trackStats.automationPointCount} points)
-                      </h3>
-                      <div className="space-y-3">
-                        {parsedData.automation.map((lane, idx) => {
-                          const nonNullSteps = lane.steps.map((v, i) => ({ value: v, step: i })).filter(s => s.value !== null);
-                          const minVal = Math.min(...nonNullSteps.map(s => s.value!));
-                          const maxVal = Math.max(...nonNullSteps.map(s => s.value!));
-                          
-                          return (
-                            <div key={idx} className="bg-gray-800/50 rounded p-2">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-medium text-cyan-400">{lane.target}</span>
-                                  <span className="text-xs text-gray-500">→</span>
-                                  <span className="text-xs text-cyan-400/80">{lane.parameter}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                                  <span className="px-1.5 py-0.5 bg-gray-700 rounded">{String(lane.interpolation || 'step')}</span>
-                                  <span>{String(nonNullSteps.length)} pts</span>
-                                  <span className="text-gray-600">|</span>
-                                  <span>range: {String(minVal)}-{String(maxVal)}</span>
-                                </div>
-                              </div>
-                              {/* Mini visualization bar */}
-                              <div className="flex items-end gap-px h-8">
-                                {lane.steps.map((value, stepIdx) => {
-                                  const height = value !== null ? (value / 127) * 100 : 0;
-                                  const isActive = value !== null;
-                                  return (
-                                    <div
-                                      key={stepIdx}
-                                      className={`flex-1 min-w-[2px] transition-all ${
-                                        isActive 
-                                          ? 'bg-cyan-500/60 hover:bg-cyan-400' 
-                                          : 'bg-gray-700/30'
-                                      }`}
-                                      style={{ 
-                                        height: isActive ? `${height}%` : '2px',
-                                        opacity: stepIdx % 4 === 0 ? 1 : 0.7
-                                      }}
-                                      title={isActive ? `Step ${stepIdx}: ${value}` : `Step ${stepIdx}: (no change)`}
-                                    />
-                                  );
-                                })}
-                              </div>
-                              {/* Step markers */}
-                              <div className="flex mt-1">
-                                {[0, 4, 8, 12, 16, 20, 24, 28].map(mark => (
-                                  <div key={mark} className="flex-1 text-[8px] text-gray-600 text-center">
-                                    {mark}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      
-                      {/* Automated Parameters Summary */}
-                      <div className="mt-3 pt-3 border-t border-gray-800">
-                        <p className="text-[10px] text-gray-500 mb-2">Automated Parameters:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {trackStats.automatedParams.map((param, idx) => (
-                            <span 
-                              key={idx} 
-                              className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded text-[10px] text-cyan-400"
-                            >
-                              {param}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <AutomationVisualizationPanel trackStats={trackStats} parsedData={parsedData} parsedAutomationRows={parsedAutomationRows} />
 
                   {/* Audio Preview */}
                   {audioEngine && (
@@ -1268,8 +1179,8 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
                           <p className="text-xs text-gray-500">Listen to the pattern before importing</p>
                         </div>
                         <Tooltip text="Coming soon!" position="left">
-                          <button
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          <button type="button"
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                             onClick={() => onShowToast('Audio preview coming soon!', 'info')}
                             disabled
                             aria-label="Play Preview (Coming Soon)"
@@ -1356,10 +1267,10 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
           </div>
           <div className="flex gap-2">
             <Tooltip text="Cancel (Esc)" position="top">
-              <button
+              <button type="button"
                 onClick={handleClose}
                 disabled={isImporting}
-                className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50"
+                className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
                 aria-label="Cancel Import"
               >
                 <span className="hidden sm:inline">Cancel</span>
@@ -1367,30 +1278,25 @@ export const AISongModal = React.memo(function AISongModal({ isOpen, onClose, on
               </button>
             </Tooltip>
             <Tooltip text={parsedData ? "Ctrl+Enter to import" : "Enter valid JSON first"} position="top">
-              <button
+              <LoadingButton
                 onClick={handleImport}
-                disabled={!parsedData || isImporting}
-                aria-busy={isImporting}
-                className={`px-3 sm:px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 disabled:cursor-not-allowed ${
+                disabled={!parsedData}
+                isLoading={isImporting}
+                loadingText="Importing..."
+                spinnerColor="text-white"
+                className={`px-3 sm:px-4 py-2 text-xs font-medium rounded flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
                   parsedData && !isImporting
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)]'
                     : 'bg-gray-700 text-gray-500'
                 }`}
                 aria-label="Import AI Song"
               >
-                {isImporting ? (
                   <>
-                    <span className="animate-spin">⏳</span>
-                    <span className="hidden sm:inline">Importing...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>🎵</span>
+                    <span aria-hidden="true">🎵</span>
                     <span className="hidden sm:inline">Import Song</span>
                     <span className="sm:hidden">Import</span>
                   </>
-                )}
-              </button>
+              </LoadingButton>
             </Tooltip>
           </div>
         </div>

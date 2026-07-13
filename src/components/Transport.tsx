@@ -12,7 +12,7 @@ interface TransportProps {
 export const Transport: React.FC<TransportProps> = React.memo(({ isPlaying, onPlayClick, tempo, onTempoChange }) => {
   return (
     <div className="flex items-center space-x-4 bg-gray-900 p-2 rounded-lg border border-gray-700">
-      <button
+      <button type="button"
         onClick={onPlayClick}
         aria-label={isPlaying ? 'Stop sequencer' : 'Play sequencer'}
         aria-pressed={isPlaying}

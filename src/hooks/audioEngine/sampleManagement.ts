@@ -208,6 +208,9 @@ export function applySamplerVoiceParamUpdate({
 
     manager.getAllVoices().forEach((voice) => {
         switch (param) {
+            case 'vibratoRate':
+                voice.setVibratoRate(value as number);
+                break;
             case 'rootNote':
                 voice.setRootNote(value as number);
                 break;
@@ -220,11 +223,34 @@ export function applySamplerVoiceParamUpdate({
             case 'formantShift':
                 voice.setFormantShift(value as number, currentTime);
                 break;
+            case 'stretchProfile': {
+                const node = voice.getSourceNode();
+                if (node && 'port' in node) {
+                    (node as AudioWorkletNode).port.postMessage({
+                        type: 'setStretchProfile',
+                        profile: value
+                    });
+                }
+                break;
+            }
+
             case 'pitchAttack':
                 voice.setPitchAttack(value as number);
                 break;
             case 'pitchDecay':
                 voice.setPitchDecay(value as number);
+                break;
+            case 'vibratoDepth':
+                voice.setVibratoDepth(value as number);
+                break;
+            case 'tremoloDepth':
+                voice.setTremoloDepth(value as number);
+                break;
+            case 'breathAmount':
+                voice.setBreathIntensity(value as number);
+                break;
+            case 'characterMorph':
+                voice.setCharacterMorph(value as number, 'female', 0.05);
                 break;
         }
     });

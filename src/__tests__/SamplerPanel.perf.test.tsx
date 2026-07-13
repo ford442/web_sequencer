@@ -50,8 +50,8 @@ describe('SamplerPanel Memoization', () => {
     it('re-renders children when active bank params change', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
-        // Initial render: 37 knobs (Added Gate Depth and Gate Rate)
-        expect(Knob).toHaveBeenCalledTimes(37);
+        // Initial render: 41 knobs (Added timeStretchEnvDepth and granularPitchShift)
+        expect(Knob).toHaveBeenCalledTimes(47);
         vi.clearAllMocks();
 
         // Update params for ACTIVE bank (0)
@@ -61,15 +61,15 @@ describe('SamplerPanel Memoization', () => {
 
         rerender(<SamplerPanel {...defaultProps} params={newParams} />);
 
-        // Should re-render (37 knobs now)
-        expect(Knob).toHaveBeenCalledTimes(37);
+        // Should re-render (41 knobs now)
+        expect(Knob).toHaveBeenCalledTimes(47);
     });
 
     it('does NOT re-render children when inactive bank params change', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
-        // Initial render: 37
-        expect(Knob).toHaveBeenCalledTimes(37);
+        // Initial render: 41
+        expect(Knob).toHaveBeenCalledTimes(47);
         vi.clearAllMocks();
 
         // Update params for INACTIVE bank (1)
@@ -89,7 +89,7 @@ describe('SamplerPanel Memoization', () => {
 
         rerender(<SamplerPanel {...defaultProps} activeBankIdx={1} />);
 
-        // Should re-render (37 knobs now)
-        expect(Knob).toHaveBeenCalledTimes(37);
+        // Should re-render (41 knobs now)
+        expect(Knob).toHaveBeenCalledTimes(47);
     });
 });

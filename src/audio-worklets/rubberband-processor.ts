@@ -47,6 +47,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private freezeLfoPhase: number = 0;
   private gatePhase: number = 0;
   private currentGateLfo: number = 1.0;
+
+  // Bitcrusher states
+  private downsamplePhase: number[] = [0, 0];
+  private lastSampleValue: number[] = [0, 0];
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -62,6 +66,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'gateDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'gateRate', defaultValue: 4.0, minValue: 0.1, maxValue: 50.0 },
       { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+
+      { name: 'pitchAttack', defaultValue: 0.0, minValue: 0.0, maxValue: 2.0 },
+      { name: 'pitchDecay', defaultValue: 0.0, minValue: 0.0, maxValue: 2.0 },
+      { name: 'pitchAmount', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
       { name: 'attack', defaultValue: 0.05, minValue: 0.001, maxValue: 2.0 },
       { name: 'decay', defaultValue: 0.1, minValue: 0.001, maxValue: 2.0 },
       { name: 'sustain', defaultValue: 1.0, minValue: 0.0, maxValue: 1.0 },
@@ -70,9 +78,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
       { name: 'freezeLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
-      { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
+      { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 }
     ];
   }
 
@@ -191,14 +206,43 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.expressiveProcessor.noteOff(targetTime);
         break;
 
-      case 'setQuality':
+      case 'setStretchProfile':
         // Update RubberBand quality options (requires reset)
-        if (data && typeof data.options === 'number') {
-          // this.qualityOptions = data.options;
+        if (data && typeof data.profile === 'string') {
           if (this.rubberBand) {
-            this.rubberBand.reset();
-            // Note: Full reinitialization would require recreating the stretcher
-            // For now, we just reset state
+             const timeRatio = this.rubberBand.getTimeRatio();
+             const pitchScale = this.rubberBand.getPitchScale();
+
+             let options = 1 | 32 | 1048576; // Default to vocal
+
+             if (data.profile === 'harmonic') {
+                 options = 1 | 32 | 256 | 0x02000000; // OptionProcessRealTime | OptionEngineFiner | OptionTransientsMixed | OptionPitchHighQuality
+             } else if (data.profile === 'fast') {
+                 options = 1; // OptionProcessRealTime | OptionEngineFaster
+             } else {
+                 options = 1 | 32 | 256 | 1048576; // OptionProcessRealTime | OptionEngineFiner | OptionTransientsMixed | OptionFormantPreserved
+             }
+
+             // Free old buffers if they exist
+             if (this.inputHeapPtr) this.rubberBand.module._free(this.inputHeapPtr);
+             if (this.outputHeapPtr) this.rubberBand.module._free(this.outputHeapPtr);
+             this.inputHeapPtr = 0;
+             this.outputHeapPtr = 0;
+             this.heapSizeFrames = 0;
+
+             // Recreate Stretcher
+             this.rubberBand = new this.rubberBand.module.RubberBandStretcher(
+               this.sampleRate,
+               1, // Mono
+               options,
+               1.0, // Initial Time Ratio
+               1.0  // Initial Pitch Scale
+             );
+
+
+
+             this.rubberBand.setTimeRatio(timeRatio);
+             this.rubberBand.setPitchScale(pitchScale);
           }
         }
         break;
@@ -248,6 +292,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     const envelopeValue = this.expressiveProcessor.getCurrentEnvelopeValue();
 
+    const pitchEnvelopeValue = this.expressiveProcessor.getCurrentPitchEnvelopeValue();
+
+
     const pitch = parameters.pitchScale[0];
     const defaultTimeRatio = parameters.timeRatio[0];
     const vibDepth = parameters.vibratoDepth[0];
@@ -256,7 +303,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
     const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0;
     const gateRate = parameters.gateRate ? parameters.gateRate[0] : 4.0;
+    const tranceGateAmt = parameters.tranceGate ? parameters.tranceGate[0] : 0.0;
+    const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
+    const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
+
+    const pitchAttack = parameters.pitchAttack ? parameters.pitchAttack[0] : 0.0;
+    const pitchDecay = parameters.pitchDecay ? parameters.pitchDecay[0] : 0.0;
+    const pitchAmount = parameters.pitchAmount ? parameters.pitchAmount[0] : 0.0;
     const attack = parameters.attack ? parameters.attack[0] : 0.05;
     const decay = parameters.decay ? parameters.decay[0] : 0.1;
     const sustain = parameters.sustain ? parameters.sustain[0] : 1.0;
@@ -267,11 +321,38 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       tremolo: { depth: tremDepth, rate: tremRate, enabled: tremDepth > 0 },
       gate: { depth: gateDepth, rate: gateRate, enabled: gateDepth > 0 },
       breath: { amount: breath, enabled: breath > 0, filterCutoff: 2000 },
-      envelope: { attack, decay, sustain, release }
+
+      envelope: { attack, decay, sustain, release },
+      pitchEnvelope: { attack: pitchAttack, decay: pitchDecay, amount: pitchAmount }
+
     });
 
     // Combine note pitch with parameter modulation
     let finalPitch = this.isPlaying ? this.basePitch * pitch : pitch;
+
+
+    // Apply Pitch Envelope
+    if (pitchAmount !== 0.0 && pitchEnvelopeValue > 0.0) {
+      // Amount is in semitones. Pitch envelope value is 0.0 to 1.0.
+      const pitchEnvSemitones = pitchAmount * pitchEnvelopeValue;
+      const pitchEnvRatio = Math.pow(2.0, pitchEnvSemitones / 12.0);
+      finalPitch *= pitchEnvRatio;
+    }
+
+    // Granular Pitch Shift & Envelope
+    let granularPitchShift = parameters.granularPitchShift ? parameters.granularPitchShift[0] : 0.0;
+
+    // Apply Granular Pitch Envelope (maps envelope 0-1 to shift amount, similar to main pitch env)
+    const grainPitchEnvDepth = parameters.grainPitchEnvDepth ? parameters.grainPitchEnvDepth[0] : 0.0;
+    if (grainPitchEnvDepth !== 0.0 && pitchEnvelopeValue > 0.0) {
+        const maxEnvShift = 24.0;
+        granularPitchShift += (maxEnvShift * grainPitchEnvDepth * pitchEnvelopeValue);
+    }
+
+    if (granularPitchShift !== 0.0) {
+      const pitchShiftRatio = Math.pow(2.0, granularPitchShift / 12.0);
+      finalPitch *= pitchShiftRatio;
+    }
 
     // Granular Pitch Quantization: snap pitch to intervals when active
     const grainPitchQuantize = parameters.grainPitchQuantize ? parameters.grainPitchQuantize[0] : 0.0;
@@ -292,6 +373,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (this.phonemeData && this.phonemeRatios) {
           ratio = this.getPhonemeStretchRatio(this.currentSamplePtr);
         }
+
+        // Apply Time-Stretch Envelope modulation
+        const timeStretchEnvDepth = parameters.timeStretchEnvDepth ? parameters.timeStretchEnvDepth[0] : 0.0;
+        const timeModulation = timeStretchEnvDepth * envelopeValue * 3.0; // scale factor
+        ratio = Math.max(0.1, Math.min(4.0, ratio + timeModulation));
+
         this.rubberBand.setTimeRatio(ratio);
 
         const samplesRequired = this.rubberBand.getSamplesRequired();
@@ -342,7 +429,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const baseGrainSize = Math.floor(sRate * 0.1);
             // Modulate grain size with envelope: louder = smaller grains for more texture
             const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * (1.0 - grainEnvDepth * envelopeValue)));
-            const grainStart = Math.max(0, this.currentSamplePtr - Math.floor(grainSizeSamples / 2));
+
+            const grainJitter = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
+            // Jitter adds a random offset to the grain center up to +/- 50ms based on jitter amount
+            const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
+            const jitterOffset = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
+
+            const grainCenter = this.currentSamplePtr + jitterOffset;
+            const grainStart = Math.max(0, Math.min(buf.length - grainSizeSamples, grainCenter - Math.floor(grainSizeSamples / 2)));
             const grainEnd = Math.min(buf.length, grainStart + grainSizeSamples);
             const actualGrainSize = grainEnd - grainStart;
 
@@ -456,6 +550,33 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
           const gateMultiplier = 1.0 - (gateDepth * (1.0 - this.currentGateLfo));
           outputChannel[i] *= gateMultiplier;
+        }
+      }
+
+      // Apply Bitcrush & Downsample
+      if (bitcrushAmount > 0 || downsampleFactor > 1.0) {
+        for (let channel = 0; channel < outputs[0].length; channel++) {
+          const outCh = outputs[0][channel];
+          if (!outCh) continue;
+
+          for (let i = 0; i < outCh.length; i++) {
+            this.downsamplePhase[channel] += 1.0;
+            if (this.downsamplePhase[channel] >= downsampleFactor) {
+              this.downsamplePhase[channel] -= downsampleFactor;
+
+              // Bitcrush
+              if (bitcrushAmount > 0) {
+                  // bitcrushAmount 0.0 -> 16 bits, 1.0 -> 2 bits
+                  // Map 0-1 to 16-2 bits linearly
+                  const bits = 16 - (bitcrushAmount * 14);
+                  const steps = Math.pow(2, bits);
+                  this.lastSampleValue[channel] = Math.floor(outCh[i] * steps) / steps;
+              } else {
+                  this.lastSampleValue[channel] = outCh[i];
+              }
+            }
+            outCh[i] = this.lastSampleValue[channel];
+          }
         }
       }
         // Check for completion when no output is available but we're still marked as playing

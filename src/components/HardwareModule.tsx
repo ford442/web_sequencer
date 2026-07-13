@@ -1,4 +1,23 @@
-import React, { memo, useRef, useEffect, useCallback } from 'react';
+import React, { memo, useRef, useEffect, useCallback, useState } from 'react';
+import { KnobGPUContext, type SlotHandle } from './KnobGPUContext';
+import { KNOB_MATERIAL, resolveDetentPositions } from './knobMaterial';
+import { renderKnob2D } from './knobRender';
+export type { Knob2DDimensions, Knob2DDrawCommand } from './knobRender';
+export { buildKnob2DDrawCalls } from './knobRender';
+import { isPointerNearArcRing, valueFromArcPointer, createKnobDragAnchor, computeKnobDragValue, getKnobCanvasValue, getKnobDragCursor, type KnobDragAnchor, type KnobDragModifier } from './knobInteraction';
+import { notifyDetentCross, snappedDetentIndex } from './knobDetentFeedback';
+import { findHitKnobIndex } from '../utils/touchHitTesting';
+import { useCompactLayoutOptional } from '../contexts/CompactLayoutContext';
+import { MidiBadge } from './MidiBadge';
+import type { AutomationTarget } from '../types';
+import { automationStore, useAutomationStore } from '../stores/automationStore';
+import { smoothToward, getRecordingBufferValue } from '../utils/knobAutomationCurve';
+import type { KnobAutomationOverlayState } from './knobAutomationOverlay';
+import { buildKnobAutomationSvgPath, knobIndicatorPosition } from './knobAutomationOverlay';
+import { PanelTitleBar } from './ui/PanelChrome';
+import { RackPanelChrome } from './ui/RackPanelChrome';
+
+const KNOB_TEST_ID_SANITIZE_PATTERN = /[^A-Za-z0-9_-]/g;
 
 export interface KnobConfig {
     id: string;
@@ -8,7 +27,26 @@ export interface KnobConfig {
     size: number;
     value: number;
     isRecording?: boolean;
+    /** True when an enabled automation lane is actively driving this parameter. */
+    isAutomated?: boolean;
+    /** Current normalized (0–1) automated value when isAutomated is true. */
+    automatedValue?: number;
     valueDisplay?: string;
+    /** Opt-in magnetic detent snap at 0 / 50% / 100%. */
+    enableDetentSnap?: boolean;
+    /** Haptic/audio tick when crossing a detent. */
+    detentFeedback?: boolean | 'audio' | 'haptic' | 'both';
+    isMidiMapped?: boolean;
+    isMidiActive?: boolean;
+    /** Lane preview for arc ghost curve on the knob face. */
+    automationPreview?: {
+        laneId: string;
+        curveSamples: number[];
+        hasLane: boolean;
+        laneEnabled: boolean;
+    };
+    /** Dim knob when global automation highlight is on but param has no lane. */
+    automationDimmed?: boolean;
 }
 
 interface HardwareModuleProps {
@@ -18,12 +56,23 @@ interface HardwareModuleProps {
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void;
     children?: React.ReactNode;
-    is3D?: boolean; // Enable holographic shader in 3D mode
+    /** Optional badge rendered in the title bar (e.g. engine indicator pill). */
+    titleBadge?: React.ReactNode;
+    is3D?: boolean; // Kept for API compatibility; no longer drives knob rendering
+    /** Automation target for MIDI learn / map (e.g. synthA, kick). */
+    midiTarget?: AutomationTarget;
+    onMidiTouch?: (paramId: string) => void;
+    onMidiLearnStart?: (paramId: string) => void;
+    isMidiMapped?: (paramId: string) => boolean;
+    isMidiActive?: (paramId: string) => boolean;
+    automationTarget?: AutomationTarget;
+    patternIndex?: number;
+    onAutomationNudge?: (paramId: string, value: number, step: number) => void;
+    onAutomationPunchIn?: (paramId: string) => void;
+    onAutomationLaneAction?: (action: 'toggle' | 'clear', paramId?: string) => void;
 }
 
 // PERFORMANCE: Memoized Knob Overlay Component
-// This component encapsulates the DOM overlays for each knob (Label, Record Button, A11y Slider).
-// It accepts primitive props to ensure React.memo works efficiently even when the parent 'KnobConfig' object changes reference.
 interface KnobOverlayProps {
     id: string;
     label: string;
@@ -33,61 +82,145 @@ interface KnobOverlayProps {
     value: number;
     valueDisplay?: string;
     isRecording?: boolean;
+    isAutomated?: boolean;
+    automatedValue?: number;
+    isMidiMapped?: boolean;
+    isMidiActive?: boolean;
+    automationPreview?: KnobConfig['automationPreview'];
+    automationDimmed?: boolean;
+    showAutomationOverlay?: boolean;
+    indicatorValue?: number;
     colorHex: [number, number, number];
     index: number;
     onParamChange: (id: string, value: number) => void;
     onRecordToggle?: (id: string) => void;
     onRegisterRef: (index: number, el: HTMLDivElement | null) => void;
+    compact?: boolean;
 }
 
 const KnobOverlay = memo(({
-    id, label, x, y, size, value, valueDisplay, isRecording, colorHex, index, onParamChange, onRecordToggle, onRegisterRef
+    id, label, x, y, size, value, valueDisplay, isRecording, isAutomated, automatedValue, isMidiMapped, isMidiActive,
+    automationPreview, automationDimmed, showAutomationOverlay, indicatorValue,
+    colorHex, index, onParamChange, onRecordToggle, onRegisterRef, compact = false
 }: KnobOverlayProps) => {
+    const viewSize = 100;
+    const ghostPath = automationPreview?.curveSamples?.length
+        ? buildKnobAutomationSvgPath(automationPreview.curveSamples, viewSize)
+        : '';
+    const indicatorPos = indicatorValue !== undefined
+        ? knobIndicatorPosition(indicatorValue, viewSize)
+        : null;
+
     return (
         <>
-            {/* 1. Label and Value Display - zIndex 10 ensures labels are below buttons */}
+            {/* Automation ghost arc (GPU knob slots — 2D canvas draws its own overlay) */}
+            {showAutomationOverlay && ghostPath && (
+                <svg
+                    className="absolute pointer-events-none"
+                    viewBox={`0 0 ${viewSize} ${viewSize}`}
+                    style={{
+                        left: `${x * 100}%`,
+                        top: `${y * 100}%`,
+                        width: `${size * 200}%`,
+                        height: `${size * 200}%`,
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 4,
+                        opacity: automationDimmed ? 0.35 : 1,
+                    }}
+                    aria-hidden="true"
+                >
+                    <path d={ghostPath} fill="none" stroke="var(--hyphon-knob-ring-dim)" strokeWidth="1.5" strokeLinejoin="round" />
+                    {indicatorPos && (
+                        <circle cx={indicatorPos.x} cy={indicatorPos.y} r="3" fill="var(--hyphon-knob-ring)" opacity="0.9" />
+                    )}
+                </svg>
+            )}
+
+            {/* Automation ring — cyan pulsing glow when an automation lane is active */}
+            {isAutomated && (
+                <div
+                    className="absolute rounded-full pointer-events-none animate-pulse"
+                    style={{
+                        left: `${x * 100}%`,
+                        top: `${y * 100}%`,
+                        width: `${size * 230}%`,
+                        height: `${size * 230}%`,
+                        transform: 'translate(-50%, -50%)',
+                        border: '2px solid var(--hyphon-knob-ring)',
+                        boxShadow: '0 0 8px var(--hyphon-knob-ring), 0 0 16px color-mix(in srgb, var(--hyphon-knob-ring) 40%, transparent)',
+                        zIndex: 5,
+                    }}
+                    aria-hidden="true"
+                />
+            )}
+
+            {/* 1. Label and Value Display */}
             <div
-                className="absolute text-center transform -translate-x-1/2"
+                className={`absolute text-center transform -translate-x-1/2 pointer-events-none transition-opacity duration-200 ${automationDimmed ? 'opacity-40' : ''}`}
                 style={{
                     left: `${x * 100}%`,
-                    top: `${(y + size * 0.8) * 100}%`,
+                    top: `${(y + size * (compact ? 0.72 : 0.8)) * 100}%`,
                     color: `rgba(${colorHex[0] * 255},${colorHex[1] * 255},${colorHex[2] * 255},0.8)`,
                     zIndex: 10
                 }}
             >
-                <span className="text-[10px] font-mono font-bold tracking-wider drop-shadow-md">{label}</span>
-                <div className="text-[9px] opacity-60 font-mono">{valueDisplay ?? Math.round(value * 100)}</div>
+                <span className={`${compact ? 'text-[8px]' : 'text-[10px]'} font-mono font-bold tracking-wider drop-shadow-md truncate block`}>{label}</span>
+                {/* When automated, show both the live automated value and an AUTO badge */}
+                {isAutomated && automatedValue !== undefined ? (
+                    <div className="text-[9px] font-mono leading-tight">
+                        <span
+                            className="text-[8px] font-bold uppercase tracking-widest px-0.5 rounded"
+                            style={{ color: 'var(--hyphon-knob-ring)', textShadow: '0 0 6px var(--hyphon-knob-ring)' }}
+                        >
+                            AUTO
+                        </span>
+                        <div style={{ color: 'var(--hyphon-knob-ring)', textShadow: '0 0 4px color-mix(in srgb, var(--hyphon-knob-ring) 50%, transparent)' }}>
+                            {Math.round(automatedValue * 100)}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-[9px] opacity-60 font-mono">{valueDisplay ?? Math.round(value * 100)}</div>
+                )}
             </div>
 
-            {/* 2. Record Button (Conditional) - zIndex 20 ensures buttons are above labels */}
-            {onRecordToggle && (
-                <button
-                    onClick={(e) => { e.stopPropagation(); onRecordToggle(id); }}
-                    className="absolute pointer-events-auto transform -translate-x-1/2"
+            {/* 2. Record + MIDI badges */}
+            {(onRecordToggle || isMidiMapped || isMidiActive) && (
+                <div
+                    className="absolute pointer-events-none transform -translate-x-1/2 flex items-center gap-0.5"
                     style={{
                         left: `${x * 100}%`,
                         top: `${(y - size * 1.3) * 100}%`,
-                        width: '16px',
-                        height: '16px',
-                        zIndex: 20
+                        zIndex: 20,
                     }}
-                    title="Record Automation"
-                    aria-label={`Record Automation for ${label}`}
-                    aria-pressed={isRecording}
                 >
-                    <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
-                </button>
+                    {onRecordToggle && (
+                        <button type="button"
+                            onClick={(e) => { e.stopPropagation(); onRecordToggle(id); }}
+                            className="pointer-events-auto"
+                            style={{ width: '16px', height: '16px' }}
+                            title="Record Automation"
+                            aria-label={`Record Automation for ${label}`}
+                            aria-pressed={isRecording}
+                        >
+                            <div className={`w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-red-500 border border-red-900/50 hover:bg-red-900/30'}`}>R</div>
+                        </button>
+                    )}
+                    <MidiBadge mapped={isMidiMapped} active={isMidiActive} />
+                </div>
             )}
 
-            {/* 3. Accessibility Slider (Invisible) - zIndex 30 ensures top interactivity */}
+            {/* 3. Accessibility Slider */}
             <div
                 ref={(el) => onRegisterRef(index, el)}
                 role="slider"
-                aria-label={label}
-                aria-valuetext={valueDisplay}
+                aria-label={isAutomated ? `${label} (automated)` : label}
+                aria-valuetext={isAutomated && automatedValue !== undefined
+                    ? `${Math.round(automatedValue * 100)} (automated)`
+                    : valueDisplay}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(value * 100)}
+                aria-description={isAutomated ? 'This parameter is currently driven by an automation lane' : undefined}
                 tabIndex={0}
                 className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:ring-2 focus:ring-white focus:outline-none pointer-events-none"
                 style={{
@@ -143,172 +276,326 @@ export const HardwareModule = memo(
         onParamChange,
         onRecordToggle,
         children,
-        is3D = false
+        titleBadge,
+        is3D = false,
+        onMidiTouch,
+        onMidiLearnStart,
+        isMidiMapped,
+        isMidiActive,
+        automationTarget,
+        patternIndex = 0,
+        onAutomationNudge,
+        onAutomationPunchIn,
+        onAutomationLaneAction,
     }: HardwareModuleProps) => {
-        const canvasRef = useRef<HTMLCanvasElement>(null);
+        const compactLayout = useCompactLayoutOptional();
+        const isCompact = compactLayout?.isCompact ?? false;
+        const { showHardwareAutomation } = useAutomationStore();
+        const [automationMenu, setAutomationMenu] = useState<{
+            x: number; y: number; paramId?: string; scope: 'knob' | 'panel';
+        } | null>(null);
         const containerRef = useRef<HTMLDivElement>(null);
         const cachedRectRef = useRef<DOMRect | null>(null);
         const controlsRef = useRef(controls);
-        // Ref to track previous controls for optimized diffing
         const prevControlsRef = useRef<KnobConfig[]>([]);
         const activeKnobIndex = useRef<number | null>(null);
-        const startY = useRef(0);
-        const startVal = useRef(0);
+        const dragAnchorRef = useRef<KnobDragAnchor | null>(null);
+        const dragLiveValueRef = useRef(0);
+        const dragHudRef = useRef<HTMLDivElement | null>(null);
+        const lastDetentIndexRef = useRef<number | null>(null);
+        const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+        const longPressKnobIdRef = useRef<string | null>(null);
+        const smoothedRecordingRef = useRef<Record<string, number>>({});
+        const dragNudgeRef = useRef(false);
+        const automationTargetRef = useRef(automationTarget);
+        automationTargetRef.current = automationTarget;
 
-        // PERFORMANCE: Staging buffer for WebGPU to avoid allocation per frame.
-        // We use a Ref so it persists across renders and can be updated by effects.
-        // Size: 288 bytes / 4 = 72 floats (matches shader struct size exactly)
-        const stagingBufferRef = useRef(new Float32Array(72));
+        const knobCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+        const knobHandlesRef = useRef<(SlotHandle | null)[]>([]);
 
-        // Ref to store the render function for demand-based rendering
-        const renderRef = useRef<(() => void) | null>(null);
-
-        // Ref to track dirty state for GPU buffer updates
-        const dirtyRef = useRef(true);
-
-        // Refs for accessibility elements to enable focus management
+        // Refs for accessibility elements
         const sliderRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-        // PERFORMANCE: Stable callback for registering refs from child components
         const handleRegisterRef = useCallback((index: number, el: HTMLDivElement | null) => {
             sliderRefs.current[index] = el;
         }, []);
 
-        // Sync refs & Update Staging Buffer
+        const getRecordingValue = useCallback((ctrl: KnobConfig): number | undefined => {
+            if (!ctrl.isRecording || !automationTargetRef.current) return undefined;
+            const buf = automationStore.getState().recordingBuffers.find(
+                (b) => b.target === automationTargetRef.current && b.parameter === ctrl.id && b.isRecording,
+            );
+            if (!buf) return undefined;
+            const target = getRecordingBufferValue(buf.points);
+            if (target === null) return undefined;
+            const smoothed = smoothedRecordingRef.current[ctrl.id] ?? target;
+            return smoothed;
+        }, []);
+
+        const getCanvasValueAt = useCallback((index: number): number => {
+            const ctrl = controlsRef.current[index];
+            if (!ctrl) return 0;
+            const dragOverride = activeKnobIndex.current === index ? dragLiveValueRef.current : null;
+            const recordingValue = getRecordingValue(ctrl);
+            return getKnobCanvasValue({ ...ctrl, recordingValue }, dragOverride);
+        }, [getRecordingValue]);
+
+        const getAutomationOverlayAt = useCallback((index: number): KnobAutomationOverlayState | undefined => {
+            const ctrl = controlsRef.current[index];
+            if (!ctrl?.automationPreview?.hasLane) return undefined;
+            const showMode = automationStore.getState().showHardwareAutomation;
+            if (!showMode && !ctrl.isAutomated && !ctrl.isRecording) return undefined;
+            const indicatorValue = getCanvasValueAt(index);
+            return {
+                showCurve: showMode && ctrl.automationPreview.curveSamples.length >= 2,
+                curveSamples: ctrl.automationPreview.curveSamples,
+                indicatorValue: (ctrl.isAutomated || ctrl.isRecording) ? indicatorValue : undefined,
+            };
+        }, [getCanvasValueAt]);
+
+        const renderCanvasAt = useCallback((index: number) => {
+            const canvas = knobCanvasRefs.current[index];
+            if (!canvas || knobHandlesRef.current[index] !== null) return;
+            renderKnob2D(canvas, getCanvasValueAt(index), KNOB_MATERIAL, getAutomationOverlayAt(index));
+        }, [getCanvasValueAt, getAutomationOverlayAt]);
+
+        // Sync controls ref and drive 2D fallback re-renders when values change
         useEffect(() => {
             controlsRef.current = controls;
-            dirtyRef.current = true; // Mark as dirty when props change
-
-            // Update Staging Buffer (Static Data)
-            // This moves the overhead of populating controls/color from the 60fps render loop
-            // to this effect which only runs when props actually change.
-            const buf = stagingBufferRef.current;
             const prev = prevControlsRef.current;
-
-            // Clear dynamic regions if length changed (layout change)
-            // This ensures if we switch from 12 knobs to 4, the old data is cleared.
-            const fullUpdate = controls.length !== prev.length;
-            if (fullUpdate) {
-                buf.fill(0, 8, 72);
-            }
-
-            // Update Color [4-7]
-            buf[4] = colorHex[0];
-            buf[5] = colorHex[1];
-            buf[6] = colorHex[2];
-
-            // Update Controls (Vals and Positions)
+            const handles = knobHandlesRef.current;
             controls.forEach((ctrl, i) => {
-                if (i < 12) {
-                    // Optimization: Only update buffer if control object changed reference
-                    // (Requires parent to use useStableKnobConfig)
-                    if (fullUpdate || ctrl !== prev[i]) {
-                        // Vals start at index 8
-                        buf[8 + i] = ctrl.value;
-
-                        // Positions start at index 24, stride 4
-                        const posOffset = 24 + (i * 4);
-                        buf[posOffset] = ctrl.x;
-                        buf[posOffset + 1] = ctrl.y;
-                        buf[posOffset + 2] = ctrl.size;
+                if (handles[i] === null) {
+                    const prevCtrl = prev[i];
+                    if (prevCtrl && prevCtrl.id === ctrl.id) {
+                        const prevRender = getKnobCanvasValue(
+                            prevCtrl,
+                            activeKnobIndex.current === i ? dragLiveValueRef.current : null
+                        );
+                        const nextRender = getKnobCanvasValue(
+                            ctrl,
+                            activeKnobIndex.current === i ? dragLiveValueRef.current : null
+                        );
+                        if (prevRender !== nextRender) {
+                            renderCanvasAt(i);
+                        }
                     }
                 }
             });
-
             prevControlsRef.current = controls;
+        }, [controls, renderCanvasAt]);
 
-            // Optimization: In 3D mode, the animation loop handles rendering.
-            // Avoid redundant render calls to prevent double-work per frame.
-            if (!is3D && renderRef.current) renderRef.current();
-        }, [controls, colorHex, is3D]);
+        // Smooth recording needle + playhead overlay refresh without React re-renders.
+        useEffect(() => {
+            let raf = 0;
+            let lastStep = -1;
+            const tick = () => {
+                const state = automationStore.getState();
+                let dirty = false;
+
+                if (state.playbackStep !== lastStep) {
+                    lastStep = state.playbackStep;
+                    dirty = true;
+                }
+
+                controlsRef.current.forEach((ctrl) => {
+                    if (!ctrl.isRecording || !automationTargetRef.current) return;
+                    const buf = state.recordingBuffers.find(
+                        (b) => b.target === automationTargetRef.current && b.parameter === ctrl.id && b.isRecording,
+                    );
+                    if (!buf || buf.points.length === 0) return;
+                    const target = buf.points[buf.points.length - 1].value;
+                    const prev = smoothedRecordingRef.current[ctrl.id] ?? target;
+                    const next = smoothToward(prev, target);
+                    if (Math.abs(next - prev) > 0.0005) {
+                        smoothedRecordingRef.current[ctrl.id] = next;
+                        dirty = true;
+                    }
+                });
+
+                if (dirty) {
+                    controlsRef.current.forEach((_, i) => {
+                        if (knobHandlesRef.current[i] === null) renderCanvasAt(i);
+                    });
+                }
+                raf = requestAnimationFrame(tick);
+            };
+            raf = requestAnimationFrame(tick);
+            return () => cancelAnimationFrame(raf);
+        }, [renderCanvasAt]);
 
         // --- INTERACTION LOGIC (Mouse + Touch + Wheel) ---
         useEffect(() => {
-            const canvas = canvasRef.current;
-            if (!canvas) return;
+            const container = containerRef.current;
+            if (!container) return;
 
-            cachedRectRef.current = canvas.getBoundingClientRect();
+            cachedRectRef.current = container.getBoundingClientRect();
 
             const observer = new ResizeObserver(() => {
-                cachedRectRef.current = canvas.getBoundingClientRect();
+                cachedRectRef.current = container.getBoundingClientRect();
             });
-            observer.observe(canvas);
+            observer.observe(container);
 
-            // Shared hit detection: normalises client coords using the same scale for X and Y
-            // to avoid elliptical hit zones on non-square canvases (Issue 5 fix).
             const findHitKnob = (clientX: number, clientY: number): number => {
-                const rect = cachedRectRef.current || canvas.getBoundingClientRect();
-                const scale = Math.max(rect.width, rect.height);
-                const normX = (clientX - rect.left) / scale;
-                const normY = (clientY - rect.top) / scale;
-                return controlsRef.current.findIndex(k => {
-                    const kNormX = k.x * rect.width / scale;
-                    const kNormY = k.y * rect.height / scale;
-                    const dx = kNormX - normX;
-                    const dy = kNormY - normY;
-                    // Use the same scale for size so hit circles remain circular in pixel space
-                    const kSizeNorm = k.size * Math.min(rect.width, rect.height) / scale;
-                    return Math.sqrt(dx * dx + dy * dy) < (kSizeNorm * 1.2);
+                const rect = cachedRectRef.current || container.getBoundingClientRect();
+                return findHitKnobIndex(controlsRef.current, clientX, clientY, rect, {
+                    hitRadiusMultiplier: isCompact ? 1.35 : 1.15,
                 });
             };
 
-            const activateKnob = (hitIndex: number, clientY: number) => {
-                activeKnobIndex.current = hitIndex;
-                startY.current = clientY;
-                startVal.current = controlsRef.current[hitIndex].value;
-                // UX IMPROVEMENT: Focus the accessible slider when clicking the visual knob
-                // This allows users to click to select, then use arrow keys for fine-tuning
-                sliderRefs.current[hitIndex]?.focus();
+            const setDragHud = (modifier: KnobDragModifier | null) => {
+                const hud = dragHudRef.current;
+                if (!hud) return;
+                if (!modifier || modifier === 'normal') {
+                    hud.style.display = 'none';
+                    return;
+                }
+                hud.textContent = modifier === 'coarse' ? 'COARSE' : 'FINE';
+                hud.style.color = modifier === 'coarse' ? '#fbbf24' : '#67e8f9';
+                hud.style.display = 'block';
             };
 
-            // --- Mouse Handlers ---
-            const handleMouseDown = (e: MouseEvent) => {
+            const activateKnob = (hitIndex: number, clientY: number, event: PointerEvent) => {
+                activeKnobIndex.current = hitIndex;
+                const ctrl = controlsRef.current[hitIndex];
+                dragNudgeRef.current = event.altKey && !!ctrl.automationPreview?.laneId;
+                const startValue = dragNudgeRef.current && ctrl.isAutomated && ctrl.automatedValue !== undefined
+                    ? ctrl.automatedValue
+                    : ctrl.value;
+                dragAnchorRef.current = createKnobDragAnchor(clientY, startValue, event);
+                dragLiveValueRef.current = startValue;
+                sliderRefs.current[hitIndex]?.focus();
+                onMidiTouch?.(ctrl.id);
+
+                if (ctrl.isAutomated && !event.altKey) {
+                    onAutomationPunchIn?.(ctrl.id);
+                }
+
+                if (onMidiLearnStart) {
+                    longPressKnobIdRef.current = ctrl.id;
+                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = setTimeout(() => {
+                        if (longPressKnobIdRef.current === ctrl.id) {
+                            onMidiLearnStart(ctrl.id);
+                        }
+                    }, 500);
+                }
+            };
+
+            const cancelLongPress = () => {
+                longPressKnobIdRef.current = null;
+                if (longPressTimerRef.current) {
+                    clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = null;
+                }
+            };
+
+            const tryArcClickToSet = (hitIndex: number, clientX: number, clientY: number): boolean => {
+                const k = controlsRef.current[hitIndex];
+                const rect = cachedRectRef.current || container.getBoundingClientRect();
+                const kCenterX = rect.left + k.x * rect.width;
+                const kCenterY = rect.top + k.y * rect.height;
+                const dx = clientX - kCenterX;
+                const dy = clientY - kCenterY;
+                const bodyRadius = k.size * Math.min(rect.width, rect.height);
+
+                if (!isPointerNearArcRing(dx, dy, bodyRadius, KNOB_MATERIAL)) {
+                    return false;
+                }
+
+                const newVal = valueFromArcPointer(dx, dy, KNOB_MATERIAL.geometry, {
+                    min: 0,
+                    max: 1,
+                    step: 0.05,
+                    useDetents: k.enableDetentSnap,
+                    material: KNOB_MATERIAL,
+                });
+                onParamChange(k.id, newVal);
+                dragLiveValueRef.current = newVal;
+                return true;
+            };
+
+            const handlePointerDown = (e: PointerEvent) => {
+                if (e.button !== 0) return;
                 const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex !== -1) {
-                    activateKnob(hitIndex, e.clientY);
-                    document.body.style.cursor = 'ns-resize';
+                    container.setPointerCapture(e.pointerId);
+                    activateKnob(hitIndex, e.clientY, e);
+                    tryArcClickToSet(hitIndex, e.clientX, e.clientY);
+                    if (dragAnchorRef.current) {
+                        dragAnchorRef.current.startValue = dragLiveValueRef.current;
+                        dragAnchorRef.current.startY = e.clientY;
+                    }
+                    const modifier = dragAnchorRef.current?.modifier ?? 'normal';
+                    setDragHud(modifier);
+                    document.body.style.cursor = getKnobDragCursor(modifier, true);
                     e.preventDefault();
                 }
             };
 
-            const handleMouseMove = (e: MouseEvent) => {
-                if (activeKnobIndex.current === null) return;
-                const dy = startY.current - e.clientY;
-                let newVal = startVal.current + (dy * 0.005);
-                newVal = Math.max(0, Math.min(1, newVal));
-                onParamChange(controlsRef.current[activeKnobIndex.current].id, newVal);
+            const handlePointerMove = (e: PointerEvent) => {
+                if (activeKnobIndex.current === null || !dragAnchorRef.current) return;
+                cancelLongPress();
+                const activeCtrl = controlsRef.current[activeKnobIndex.current];
+                const { value: newVal, modifier } = computeKnobDragValue(
+                    dragAnchorRef.current,
+                    e.clientY,
+                    e,
+                    dragLiveValueRef.current,
+                    {
+                        min: 0,
+                        max: 1,
+                        step: 0.05,
+                        detentSnap: activeCtrl?.enableDetentSnap
+                            ? { enabled: true, material: KNOB_MATERIAL }
+                            : undefined,
+                    }
+                );
+                dragLiveValueRef.current = newVal;
+                if (activeCtrl?.enableDetentSnap && activeCtrl.detentFeedback) {
+                    const positions = resolveDetentPositions(KNOB_MATERIAL);
+                    const threshold = KNOB_MATERIAL.detents?.snapThreshold ?? 0.035;
+                    const idx = snappedDetentIndex(newVal, positions, threshold);
+                    if (idx !== null && idx !== lastDetentIndexRef.current) {
+                        const mode = activeCtrl.detentFeedback === true ? 'both' : activeCtrl.detentFeedback;
+                        notifyDetentCross(mode);
+                    }
+                    lastDetentIndexRef.current = idx;
+                }
+                setDragHud(modifier);
+                document.body.style.cursor = getKnobDragCursor(modifier, true);
+                renderCanvasAt(activeKnobIndex.current);
+                const paramId = controlsRef.current[activeKnobIndex.current].id;
+                if (dragNudgeRef.current && onAutomationNudge) {
+                    const step = automationStore.getState().playbackStep;
+                    onAutomationNudge(paramId, newVal, step);
+                } else {
+                    onParamChange(paramId, newVal);
+                }
             };
 
-            const handleMouseUp = () => {
+            const handleContextMenu = (e: MouseEvent) => {
+                const hitIndex = findHitKnob(e.clientX, e.clientY);
+                if (hitIndex === -1) return;
+                e.preventDefault();
+                const ctrl = controlsRef.current[hitIndex];
+                if (!ctrl.automationPreview?.hasLane || !onAutomationLaneAction) return;
+                setAutomationMenu({ x: e.clientX, y: e.clientY, paramId: ctrl.id, scope: 'knob' });
+            };
+
+            const handlePointerUp = (e: PointerEvent) => {
+                if (activeKnobIndex.current === null) return;
+                cancelLongPress();
+                try {
+                    container.releasePointerCapture(e.pointerId);
+                } catch { /* already released */ }
                 activeKnobIndex.current = null;
+                dragAnchorRef.current = null;
+                lastDetentIndexRef.current = null;
+                setDragHud(null);
                 document.body.style.cursor = 'default';
             };
 
-            // --- Touch Handlers (Issue 1 fix) ---
-            const handleTouchStart = (e: TouchEvent) => {
-                const touch = e.touches[0];
-                const hitIndex = findHitKnob(touch.clientX, touch.clientY);
-                if (hitIndex !== -1) {
-                    activateKnob(hitIndex, touch.clientY);
-                    e.preventDefault();
-                }
-            };
-
-            const handleTouchMove = (e: TouchEvent) => {
-                if (activeKnobIndex.current === null) return;
-                const touch = e.touches[0];
-                const dy = startY.current - touch.clientY;
-                let newVal = startVal.current + (dy * 0.005);
-                newVal = Math.max(0, Math.min(1, newVal));
-                onParamChange(controlsRef.current[activeKnobIndex.current].id, newVal);
-                e.preventDefault();
-            };
-
-            const handleTouchEnd = () => {
-                activeKnobIndex.current = null;
-            };
-
-            // --- Wheel Handler (Issue 2 fix) ---
             const handleWheel = (e: WheelEvent) => {
                 const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex === -1) return;
@@ -320,329 +607,197 @@ export const HardwareModule = memo(
                 onParamChange(knob.id, newVal);
             };
 
-            canvas.addEventListener('mousedown', handleMouseDown);
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-            window.addEventListener('touchmove', handleTouchMove, { passive: false });
-            window.addEventListener('touchend', handleTouchEnd);
-            canvas.addEventListener('wheel', handleWheel, { passive: false });
+            container.addEventListener('pointerdown', handlePointerDown);
+            container.addEventListener('pointermove', handlePointerMove);
+            container.addEventListener('pointerup', handlePointerUp);
+            container.addEventListener('pointercancel', handlePointerUp);
+            container.addEventListener('wheel', handleWheel, { passive: false });
+            container.addEventListener('contextmenu', handleContextMenu);
 
             return () => {
+                cancelLongPress();
                 observer.disconnect();
-                canvas.removeEventListener('mousedown', handleMouseDown);
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
-                canvas.removeEventListener('touchstart', handleTouchStart);
-                window.removeEventListener('touchmove', handleTouchMove);
-                window.removeEventListener('touchend', handleTouchEnd);
-                canvas.removeEventListener('wheel', handleWheel);
+                container.removeEventListener('pointerdown', handlePointerDown);
+                container.removeEventListener('pointermove', handlePointerMove);
+                container.removeEventListener('pointerup', handlePointerUp);
+                container.removeEventListener('pointercancel', handlePointerUp);
+                container.removeEventListener('wheel', handleWheel);
+                container.removeEventListener('contextmenu', handleContextMenu);
             };
-        }, [onParamChange]);
+        }, [onParamChange, onMidiTouch, onMidiLearnStart, onAutomationNudge, onAutomationPunchIn, onAutomationLaneAction, renderCanvasAt, isCompact]);
 
-        // --- WEBGPU RENDERER ---
+        // ResizeObserver to keep knob canvases sized correctly
         useEffect(() => {
-            const canvas = canvasRef.current;
-            if (!canvas || !navigator.gpu) return;
-
-            let context: GPUCanvasContext;
-            let device: GPUDevice;
-            let pipeline: GPURenderPipeline;
-            let uniformBuffer: GPUBuffer;
-            let bindGroup: GPUBindGroup; // Performance: Reuse bindGroup
-            let isActive = true;
-
-            const init = async () => {
-                try {
-                    const adapter = await navigator.gpu.requestAdapter();
-                    if (!adapter) return;
-
-                    const newDevice = await adapter.requestDevice();
-                    // If component unmounted while waiting for device, destroy it immediately
-                    if (!isActive) {
-                        newDevice.destroy();
-                        return;
+            const container = containerRef.current;
+            if (!container) return;
+            const ro = new ResizeObserver((entries) => {
+                const rect = entries[0].contentRect;
+                const minDim = Math.min(rect.width, rect.height);
+                controlsRef.current.forEach((ctrl, i) => {
+                    const canvas = knobCanvasRefs.current[i];
+                    if (!canvas) return;
+                    const sizePx = ctrl.size * minDim * 2;
+                    canvas.style.width = `${sizePx}px`;
+                    canvas.style.height = `${sizePx}px`;
+                    canvas.style.left = `${ctrl.x * rect.width}px`;
+                    canvas.style.top = `${ctrl.y * rect.height}px`;
+                    canvas.style.position = 'absolute';
+                    canvas.style.transform = 'translate(-50%, -50%)';
+                    const dpr = window.devicePixelRatio || 1;
+                    const targetW = Math.max(1, Math.floor(sizePx * dpr));
+                    const targetH = Math.max(1, Math.floor(sizePx * dpr));
+                    if (canvas.width !== targetW || canvas.height !== targetH) {
+                        canvas.width = targetW;
+                        canvas.height = targetH;
                     }
-                    device = newDevice;
-
-                    context = canvas.getContext('webgpu') as GPUCanvasContext;
-                    context.configure({
-                        device,
-                        format: navigator.gpu.getPreferredCanvasFormat(),
-                        alphaMode: 'premultiplied'
-                    });
-
-                    // Shader logic - supports up to 12 knobs
-                    // Two shader modes: standard and holographic (3D mode)
-                    const shaderCode = is3D ? `
-                    // HOLOGRAPHIC SHADER FOR 3D MODE
-                    struct Uniforms {
-                        time: f32, ratio: f32, pad1: f32, pad2: f32,
-                        color: vec3f, pad3: f32,
-                        vals1: vec4f, vals2: vec4f, vals3: vec4f,
-                        pad4: vec4f,
-                        pos: array<vec4f, 12>,
-                    };
-                    @group(0) @binding(0) var<uniform> u: Uniforms;
-
-                    struct VertexOutput {
-                        @builtin(position) position: vec4f,
-                        @location(0) uv: vec2f,
-                    };
-
-                    @vertex
-                    fn vs_main(@builtin(vertex_index) vIdx: u32) -> VertexOutput {
-                        var pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
-                        var output: VertexOutput;
-                        output.position = vec4f(pos[vIdx], 0.0, 1.0);
-                        output.uv = pos[vIdx];
-                        return output;
+                    if (knobHandlesRef.current[i] === null) {
+                        renderKnob2D(canvas, getCanvasValueAt(i), KNOB_MATERIAL, getAutomationOverlayAt(i));
                     }
-
-                    fn get_knob_val(idx: i32) -> f32 {
-                        if (idx < 4) { return u.vals1[idx]; }
-                        if (idx < 8) { return u.vals2[idx - 4]; }
-                        return u.vals3[idx - 8];
-                    }
-
-                    fn rotate(angle: f32) -> mat2x2f {
-                        let c = cos(angle);
-                        let s = sin(angle);
-                        return mat2x2f(c, -s, s, c);
-                    }
-
-                    @fragment
-                    fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-                        var uv = in.uv * 0.5 + 0.5; 
-                        uv.y = 1.0 - uv.y;
-                        var p = uv; p.x = p.x * u.ratio;
-
-                        // Dark background with subtle grain
-                        var col = vec3f(0.08, 0.1, 0.12);
-                        col += (fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453) * 0.02);
-                        
-                        // Holographic scanlines
-                        let scanline = sin(uv.y * 300.0 + u.time * 8.0) * 0.5 + 0.5;
-                        col *= 0.92 + 0.08 * scanline;
-
-                        for (var i = 0; i < 12; i++) {
-                            let k_pos_uv = u.pos[i];
-                            if (k_pos_uv.z == 0.0) { continue; }
-
-                            let center_draw = vec2f(k_pos_uv.x * u.ratio, k_pos_uv.y);
-                            let delta = p - center_draw;
-                            let dist = length(delta);
-                            let radius = k_pos_uv.z;
-                            let val = get_knob_val(i);
-
-                            if (dist < radius * 1.2) {
-                                // Outer glow/halo effect
-                                let halo = smoothstep(radius * 1.2, radius * 0.9, dist);
-                                col += u.color * halo * 0.3 * (0.8 + 0.2 * sin(u.time * 3.0));
-
-                                if (dist < radius) {
-                                    // Rotating data ring
-                                    let rot_delta = rotate(u.time * 0.5) * delta;
-                                    let ring_dist = abs(length(rot_delta) - (radius * 0.85));
-                                    let angle_rot = atan2(rot_delta.y, rot_delta.x);
-                                    let dash = sin(angle_rot * 15.0);
-                                    if (ring_dist < 0.01 && dash > 0.3) {
-                                        col = mix(col, u.color * 1.5, smoothstep(0.01, 0.0, ring_dist));
-                                    }
-
-                                    // Inner holographic disc with fresnel
-                                    if (dist < radius * 0.7) {
-                                        let fresnel = pow(1.0 - (dist / (radius * 0.7)), 2.0);
-                                        col = mix(col, u.color * 0.3, 0.4 * fresnel);
-                                        
-                                        // Holographic shimmer
-                                        let shimmer = sin(dist * 100.0 - u.time * 10.0) * 0.5 + 0.5;
-                                        col += u.color * shimmer * 0.15 * fresnel;
-                                    }
-
-                                    // Value indicator needle with glow
-                                    let ang = mix(-2.4, 2.4, val) - 1.5708;
-                                    let dir = vec2f(cos(ang), sin(ang));
-                                    let proj = dot(delta, dir);
-                                    let perp_dist = length(delta - dir * proj);
-                                    
-                                    if (proj > 0.0 && proj < radius * 0.6 && perp_dist < 0.015) {
-                                        let needle_glow = 1.0 / (perp_dist * 80.0 + 1.0);
-                                        col = mix(col, vec3f(1.0, 1.0, 1.0), needle_glow * 0.8);
-                                        col += u.color * needle_glow * 0.5;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Holographic glitch effect (occasional)
-                        let glitch = step(0.97, sin(u.time * 15.0 + p.x * 50.0));
-                        if (glitch > 0.5) {
-                            col += u.color * 0.2 * (sin(u.time * 100.0) * 0.5 + 0.5);
-                        }
-
-                        return vec4f(col, 1.0);
-                    }
-                ` : `
-                    // STANDARD SHADER FOR 2D MODE
-                    struct Uniforms {
-                        time: f32, ratio: f32, pad1: f32, pad2: f32,
-                        color: vec3f, pad3: f32,
-                        vals1: vec4f, vals2: vec4f, vals3: vec4f,
-                        pad4: vec4f,
-                        pos: array<vec4f, 12>,
-                    };
-                    @group(0) @binding(0) var<uniform> u: Uniforms;
-
-                    struct VertexOutput {
-                        @builtin(position) position: vec4f,
-                        @location(0) uv: vec2f,
-                    };
-
-                    @vertex
-                    fn vs_main(@builtin(vertex_index) vIdx: u32) -> VertexOutput {
-                        var pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
-                        var output: VertexOutput;
-                        output.position = vec4f(pos[vIdx], 0.0, 1.0);
-                        output.uv = pos[vIdx];
-                        return output;
-                    }
-
-                    fn get_knob_val(idx: i32) -> f32 {
-                        if (idx < 4) { return u.vals1[idx]; }
-                        if (idx < 8) { return u.vals2[idx - 4]; }
-                        return u.vals3[idx - 8];
-                    }
-
-                    @fragment
-                    fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-                        var uv = in.uv * 0.5 + 0.5; 
-                        uv.y = 1.0 - uv.y;
-                        var p = uv; p.x = p.x * u.ratio;
-
-                        var col = vec3f(0.12, 0.14, 0.16);
-                        col += (fract(sin(dot(uv, vec2f(12.9898, 78.233))) * 43758.5453) * 0.03);
-                        col *= 0.9 + 0.1 * sin(uv.y * 200.0);
-
-                        for (var i = 0; i < 12; i++) {
-                            let k_pos_uv = u.pos[i];
-                            if (k_pos_uv.z == 0.0) { continue; }
-
-                            let center_draw = vec2f(k_pos_uv.x * u.ratio, k_pos_uv.y);
-                            let dist = length(p - center_draw);
-                            let radius = k_pos_uv.z;
-                            let val = get_knob_val(i);
-
-                            if (dist < radius) {
-                                col = mix(col, vec3f(0.05), smoothstep(radius, radius - 0.01, dist));
-                                let ring_dist = abs(dist - (radius * 0.75));
-                                if (ring_dist < 0.015) {
-                                    col = mix(col, u.color, smoothstep(0.015, 0.0, ring_dist));
-                                }
-                                if (dist < radius * 0.5) {
-                                    let shine = dot(normalize(p - center_draw), vec2f(0.5, -0.5));
-                                    col = mix(col, vec3f(0.2) + shine*0.1, smoothstep(radius*0.5, radius*0.5 - 0.01, dist));
-                                    
-                                    let ang = mix(-2.4, 2.4, val) - 1.5708;
-                                    let dir = vec2f(cos(ang), sin(ang));
-                                    let delta = p - center_draw;
-                                    let proj = dot(delta, dir);
-                                    if (proj > 0.0 && proj < radius*0.45 && length(delta - dir * proj) < 0.005) {
-                                         col = vec3f(1.0);
-                                    }
-                                }
-                            }
-                        }
-                        return vec4f(col, 1.0);
-                    }
-                `;
-
-                    const module = device.createShaderModule({ code: shaderCode });
-                    pipeline = device.createRenderPipeline({
-                        layout: 'auto',
-                        vertex: { module, entryPoint: 'vs_main' },
-                        fragment: { module, entryPoint: 'fs_main', targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }] },
-                        primitive: { topology: 'triangle-list' }
-                    });
-
-                    uniformBuffer = device.createBuffer({ size: 320, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-
-                    // Optimization: Create BindGroup once
-                    bindGroup = device.createBindGroup({
-                        layout: pipeline.getBindGroupLayout(0),
-                        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
-                    });
-
-                    // Assign render function for external calls
-                    renderRef.current = render;
-
-                    // Initial render
-                    render();
-
-                    // Start animation loop for holographic effects in 3D mode
-                    if (is3D) {
-                        const loop = () => {
-                            if (!isActive) return;
-                            render();
-                            animationFrameId = requestAnimationFrame(loop);
-                        };
-                        animationFrameId = requestAnimationFrame(loop);
-                    }
-                } catch (e) { console.error("WebGPU Init Failed", e); }
-            };
-
-            let animationFrameId: number;
-
-            const render = () => {
-                if (!isActive || !device || !pipeline || !bindGroup) return;
-
-                const buf = stagingBufferRef.current;
-                const width = canvas.width, height = canvas.height;
-
-                // Update Dynamic Data (Time/Ratio)
-                // We only update what changes every frame.
-                // Static data (Controls, Color) is updated in the useEffect above.
-                buf[0] = performance.now() / 1000;
-                buf[1] = width / height;
-
-                // PERFORMANCE: Optimized partial write
-                // Only write the full buffer if static data changed (dirtyRef)
-                // Otherwise, only write the first 8 bytes (2 floats: time, ratio)
-                if (dirtyRef.current) {
-                    device.queue.writeBuffer(uniformBuffer, 0, buf);
-                    dirtyRef.current = false;
-                } else {
-                    device.queue.writeBuffer(uniformBuffer, 0, buf, 0, 2);
-                }
-
-                const encoder = device.createCommandEncoder();
-                const pass = encoder.beginRenderPass({
-                    colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: 'clear', clearValue: { r: 0, g: 0, b: 0, a: 1 }, storeOp: 'store' }]
                 });
-                pass.setPipeline(pipeline);
-                pass.setBindGroup(0, bindGroup);
-                pass.draw(3);
-                pass.end();
-                device.queue.submit([encoder.finish()]);
-            };
+            });
+            ro.observe(container);
+            return () => ro.disconnect();
+        }, []);
 
-            init();
+        const setKnobCanvasRef = useCallback((index: number) => (el: HTMLCanvasElement | null) => {
+            const oldCanvas = knobCanvasRefs.current[index];
+            if (oldCanvas === el) return;
+            const oldHandle = knobHandlesRef.current[index];
+            if (oldHandle) {
+                KnobGPUContext.unregister(oldHandle);
+                knobHandlesRef.current[index] = null;
+            }
+            knobCanvasRefs.current[index] = el;
+            if (!el) return;
 
-            return () => {
-                isActive = false;
-                if (animationFrameId) cancelAnimationFrame(animationFrameId);
-                renderRef.current = null;
-                if (device) device.destroy(); // <--- CRITICAL FIX: Destroys GPU device on unmount
-            };
-        }, [is3D]); // Re-initialize when switching between 2D and 3D mode
+            const container = el.parentElement as HTMLDivElement | null;
+            if (container) {
+                const rect = container.getBoundingClientRect();
+                const minDim = Math.min(rect.width, rect.height);
+                const ctrl = controlsRef.current[index];
+                if (ctrl) {
+                    const sizePx = ctrl.size * minDim * 2;
+                    el.style.width = `${sizePx}px`;
+                    el.style.height = `${sizePx}px`;
+                    el.style.left = `${ctrl.x * rect.width}px`;
+                    el.style.top = `${ctrl.y * rect.height}px`;
+                    el.style.position = 'absolute';
+                    el.style.transform = 'translate(-50%, -50%)';
+                    const dpr = window.devicePixelRatio || 1;
+                    el.width = Math.max(1, Math.floor(sizePx * dpr));
+                    el.height = Math.max(1, Math.floor(sizePx * dpr));
+                }
+            }
+
+            const handle = KnobGPUContext.register(el, () => getCanvasValueAt(index));
+            knobHandlesRef.current[index] = handle;
+            if (!handle || !KnobGPUContext.isSlotActive(handle)) {
+                renderCanvasAt(index);
+            }
+        }, [getCanvasValueAt, renderCanvasAt]);
+
+        useEffect(() => {
+            return KnobGPUContext.onStatusChange(() => {
+                controlsRef.current.forEach((_, i) => {
+                    const h = knobHandlesRef.current[i];
+                    if (!h || !KnobGPUContext.isSlotActive(h)) {
+                        renderCanvasAt(i);
+                    }
+                });
+            });
+        }, [renderCanvasAt]);
+
+        const handleHeaderContextMenu = useCallback((e: React.MouseEvent) => {
+            if (!automationTarget || !onAutomationLaneAction) return;
+            e.preventDefault();
+            setAutomationMenu({ x: e.clientX, y: e.clientY, scope: 'panel' });
+        }, [automationTarget, onAutomationLaneAction]);
+
+        const showAutomationOverlay = showHardwareAutomation;
+
+        const closeAutomationMenu = useCallback(() => setAutomationMenu(null), []);
+
+        useEffect(() => {
+            if (!automationMenu) return;
+            const onDocClick = () => closeAutomationMenu();
+            document.addEventListener('click', onDocClick);
+            return () => document.removeEventListener('click', onDocClick);
+        }, [automationMenu, closeAutomationMenu]);
 
         return (
-            <div ref={containerRef} className={`relative rounded-lg shadow-xl bg-gray-900 border border-gray-700 ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: '220px' }}>
-                <canvas ref={canvasRef} width={800} height={400} className="w-full h-full block" />
+            <div ref={containerRef} className={`relative touch-none hyphon-chrome-panel hyphon-rack-surface ${children ? 'overflow-visible' : 'overflow-hidden'}`} style={{ width: '100%', height: '100%', minHeight: isCompact ? '260px' : '220px' }}>
+                <RackPanelChrome vents />
+                {automationMenu && onAutomationLaneAction && (
+                    <div
+                        className="fixed z-[100] min-w-[140px] bg-zinc-950 border border-cyan-800/50 rounded shadow-lg py-1 text-[10px] font-mono"
+                        style={{ left: automationMenu.x, top: automationMenu.y }}
+                        role="menu"
+                    >
+                        <button
+                            type="button"
+                            className="block w-full text-left px-3 py-1.5 hover:bg-cyan-950/50 text-cyan-200"
+                            onClick={() => {
+                                onAutomationLaneAction('toggle', automationMenu.paramId);
+                                closeAutomationMenu();
+                            }}
+                        >
+                            {automationMenu.scope === 'panel' ? 'Toggle all lanes' : 'Toggle lane'}
+                        </button>
+                        <button
+                            type="button"
+                            className="block w-full text-left px-3 py-1.5 hover:bg-red-950/40 text-red-300"
+                            onClick={() => {
+                                onAutomationLaneAction('clear', automationMenu.paramId);
+                                closeAutomationMenu();
+                            }}
+                        >
+                            {automationMenu.scope === 'panel' ? 'Clear all lanes' : 'Clear lane'}
+                        </button>
+                        <button
+                            type="button"
+                            className="block w-full text-left px-3 py-1.5 text-gray-500 hover:bg-zinc-900"
+                            onClick={closeAutomationMenu}
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                )}
+                <div
+                    ref={dragHudRef}
+                    className="absolute top-1 right-2 z-50 hidden text-[9px] font-mono font-bold tracking-widest px-1.5 py-0.5 rounded bg-black/85 pointer-events-none"
+                    aria-hidden="true"
+                />
+                {controls.map((c, i) => (
+                    <canvas
+                        key={c.id}
+                        ref={setKnobCanvasRef(i)}
+                        data-testid={`hardware-knob-canvas-${String(c.id).replace(KNOB_TEST_ID_SANITIZE_PATTERN, '_')}`}
+                        className="block"
+                        style={{ position: 'absolute', pointerEvents: 'none' }}
+                    />
+                ))}
                 <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-2 left-4 text-xs font-orbitron font-bold text-white/50 tracking-widest border-b border-white/20 pb-1 w-1/3">{title.toUpperCase()}</div>
+                    <PanelTitleBar
+                        title={title}
+                        badge={titleBadge}
+                        onContextMenu={handleHeaderContextMenu}
+                        actions={automationTarget ? (
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); automationStore.toggleShowHardwareAutomation(); }}
+                                className={`text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border pointer-events-auto ${
+                                    showAutomationOverlay
+                                        ? 'bg-cyan-900/80 text-cyan-200 border-cyan-500/60'
+                                        : 'bg-gray-900/80 text-gray-500 border-gray-700'
+                                }`}
+                                title="Toggle automation curve overlay on knobs"
+                                aria-pressed={showAutomationOverlay}
+                            >
+                                AUTO
+                            </button>
+                        ) : undefined}
+                    />
 
-                    {/* PERFORMANCE: Optimized Single Loop using Memoized Overlay Components */}
                     {controls.map((c, i) => (
                         <KnobOverlay
                             key={c.id}
@@ -654,14 +809,26 @@ export const HardwareModule = memo(
                             value={c.value}
                             valueDisplay={c.valueDisplay}
                             isRecording={c.isRecording}
+                            isAutomated={c.isAutomated}
+                            automatedValue={c.automatedValue}
+                            isMidiMapped={c.isMidiMapped ?? isMidiMapped?.(c.id)}
+                            isMidiActive={c.isMidiActive ?? isMidiActive?.(c.id)}
+                            automationPreview={c.automationPreview}
+                            automationDimmed={c.automationDimmed}
+                            showAutomationOverlay={showAutomationOverlay}
+                            indicatorValue={
+                                (c.isAutomated || c.isRecording)
+                                    ? (c.isAutomated && c.automatedValue !== undefined ? c.automatedValue : c.value)
+                                    : undefined
+                            }
                             colorHex={colorHex}
                             index={i}
                             onParamChange={onParamChange}
                             onRecordToggle={onRecordToggle}
                             onRegisterRef={handleRegisterRef}
+                            compact={isCompact}
                         />
                     ))}
-
                 </div>
                 {children && <div className="absolute inset-0 pointer-events-none">{children}</div>}
             </div>

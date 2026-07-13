@@ -3,10 +3,21 @@ import { tunedNoteToFrequency } from '../constants';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/waveformParser';
 import type { WasmOscillator } from './WasmOscillator';
+import type { RustOscillator } from './RustOscillator';
+import { logEngineFallback } from '../utils/engineTelemetry';
+import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
+import {
+    PYODIDE_REF_FREQ,
+    generatePyodideLoopBuffer,
+    type PyodideLike,
+} from '../utils/pyodideBuffers';
 
 export interface VoiceEngineDeps {
     wasmEngine?: WasmOscillator | null;
     wgslBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
+    rustEngine?: RustOscillator | null;
+    pyodideEngine?: PyodideLike | null;
+    pyodideBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
 }
 
 export class Voice {
@@ -37,6 +48,10 @@ export class Voice {
     private globalDelaySendGain?: GainNode;
 
     private engineDeps?: VoiceEngineDeps;
+
+    updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
+        this.engineDeps = { ...this.engineDeps, ...deps };
+    }
 
     constructor(
         context: AudioContext,
@@ -142,47 +157,133 @@ export class Voice {
 
             let createdSource: OscillatorNode | AudioBufferSourceNode | null = null;
 
+            const REF_FREQ = 261.63; // C4 — all pre-rendered buffers use this reference
+
             if (isWav) {
-                const src = this.context.createBufferSource();
-                src.buffer = (parsed.shape === 'sqr' ? this.wavSqrBuffer : this.wavSawBuffer) ?? null;
-                src.loop = true;
-                src.playbackRate.value = freq / 261.63; // C4 base
-                createdSource = src;
-            } else if (parsed.engine === 'wasm' && this.engineDeps?.wasmEngine?.isReady) {
-                // Render a ~2s buffer at C4 reference frequency, then retune via playbackRate.
-                const REF_FREQ = 261.63;
-                const float = this.engineDeps.wasmEngine.generate(
-                    REF_FREQ,
-                    2.0,
-                    this.context.sampleRate,
-                    parsed.shape,
-                    Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
-                    Math.max(0.1, params.filterResonance),
-                );
-                if (float && float.length > 0) {
-                    const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
-                    buf.getChannelData(0).set(float);
+                // PCM/WAV: use preloaded buffer. If the buffer hasn't loaded yet,
+                // warn and fall through to the JS oscillator (avoids silent note).
+                const buf = parsed.shape === 'sqr' ? this.wavSqrBuffer : this.wavSawBuffer;
+                if (buf) {
                     const src = this.context.createBufferSource();
                     src.buffer = buf;
                     src.loop = true;
                     src.playbackRate.value = freq / REF_FREQ;
                     createdSource = src;
+                } else {
+                    logEngineFallback('wav', 'pcm', `wav-${parsed.shape} buffer not loaded yet`);
+                }
+            } else if (parsed.engine === 'wam') {
+                // WAM (AssemblyScript/WASM oscillator). Bug fix: was checking 'wasm' but
+                // parseWaveform returns 'wam' for wam-* prefixes. Now checks 'wam'.
+                if (this.engineDeps?.wasmEngine?.isReady) {
+                    const float = this.engineDeps.wasmEngine.generate(
+                        REF_FREQ,
+                        2.0,
+                        this.context.sampleRate,
+                        parsed.shape,
+                        Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
+                        Math.max(0.1, params.filterResonance),
+                    );
+                    if (float && float.length > 0) {
+                        const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
+                        buf.getChannelData(0).set(float);
+                        const src = this.context.createBufferSource();
+                        src.buffer = buf;
+                        src.loop = true;
+                        src.playbackRate.value = freq / REF_FREQ;
+                        createdSource = src;
+                    } else {
+                        logEngineFallback('wam', 'wasm', `WasmOscillator.generate() returned empty for wam-${parsed.shape}`);
+                    }
+                } else {
+                    logEngineFallback('wam', 'wasm', `WasmOscillator not ready for wam-${parsed.shape}`);
+                }
+            } else if (parsed.engine === 'rust') {
+                // Rust/WASM oscillator. Supports saw and sqr only; tri/sin are not
+                // defined as valid Rust waveforms in types.ts so this is a guard.
+                if (this.engineDeps?.rustEngine?.isReady) {
+                    const rustShape = (parsed.shape === 'tri' || parsed.shape === 'sin') ? 'saw' : parsed.shape as 'saw' | 'sqr';
+                    const float = this.engineDeps.rustEngine.generate(
+                        REF_FREQ,
+                        2.0,
+                        this.context.sampleRate,
+                        rustShape,
+                        Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
+                        Math.max(0.1, params.filterResonance),
+                    );
+                    if (float && float.length > 0) {
+                        const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
+                        buf.getChannelData(0).set(float);
+                        const src = this.context.createBufferSource();
+                        src.buffer = buf;
+                        src.loop = true;
+                        src.playbackRate.value = freq / REF_FREQ;
+                        createdSource = src;
+                    } else {
+                        logEngineFallback('rust', 'wasm', `RustOscillator.generate() returned empty for rust-${parsed.shape}`);
+                    }
+                } else {
+                    logEngineFallback('rust', 'wasm', `RustOscillator not ready for rust-${parsed.shape}`);
                 }
             } else if (parsed.engine === 'wgsl') {
+                // WebGPU: use pre-rendered buffer. Buffers are only populated when
+                // gpuEngine.isSupported; when unavailable we fall through to JS.
                 const buf = this.engineDeps?.wgslBuffers?.[parsed.shape];
                 if (buf) {
                     const src = this.context.createBufferSource();
                     src.buffer = buf;
                     src.loop = true;
-                    // wgsl buffers are pre-rendered at C4 reference
-                    src.playbackRate.value = freq / 261.63;
+                    src.playbackRate.value = freq / REF_FREQ;
                     createdSource = src;
+                } else {
+                    logEngineFallback(
+                        'webgpu',
+                        'webgpu',
+                        `wgsl-${parsed.shape} buffer unavailable (GPU unsupported or pre-render pending)`,
+                    );
+                }
+            } else if (parsed.engine === 'pyodide') {
+                const pyodide = this.engineDeps?.pyodideEngine;
+                if (pyodide) {
+                    let buf =
+                        this.engineDeps?.pyodideBuffers?.[parsed.shape] ?? null;
+                    if (!buf) {
+                        buf = generatePyodideLoopBuffer(
+                            pyodide,
+                            this.context,
+                            parsed.shape,
+                            params.filterCutoff,
+                            params.filterResonance,
+                        );
+                    }
+                    if (buf) {
+                        const src = this.context.createBufferSource();
+                        src.buffer = buf;
+                        src.loop = true;
+                        src.playbackRate.value = freq / PYODIDE_REF_FREQ;
+                        createdSource = src;
+                        this.filter.frequency.setValueAtTime(
+                            Math.min(params.filterCutoff, 20000),
+                            now,
+                        );
+                    } else {
+                        logEngineFallback(
+                            'pyodide',
+                            'pyodide',
+                            `generate_loop_buffer returned empty for pyodide-${parsed.shape}`,
+                        );
+                    }
+                } else {
+                    logEngineFallback(
+                        'pyodide',
+                        'pyodide',
+                        `Pyodide not ready for pyodide-${parsed.shape}`,
+                    );
                 }
             }
 
-            // Fallback: JS oscillator using the parsed base shape so the user at
-            // least hears the right wave family for engines we haven't wired up
-            // (pyodide, wam, rust) or that failed to initialise.
+            // Final fallback: JS oscillator using the correct wave family so the
+            // user at least hears the right harmonic character while the engine is absent.
             if (!createdSource) {
                 const osc = this.context.createOscillator();
                 osc.type = shapeToOscillatorType(parsed.shape);
@@ -322,15 +423,13 @@ export class VoiceManager {
             return voice;
         }
 
-        const voice = this.voices[this.currentIndex]!;
-        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
+        const voice = this.pickVoice(time);
         voice.play(params, noteStr, time, duration, slideFromFreq);
         return voice;
     }
 
     noteOn(params: SynthParams, note: string, time: number, slideFromFreq?: number): Voice {
-        const voice = this.voices[this.currentIndex]!;
-        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
+        const voice = this.pickVoice(time);
         voice.startNote(params, note, time, slideFromFreq);
         return voice;
     }
@@ -346,5 +445,40 @@ export class VoiceManager {
 
     stopAll(time?: number): void {
         this.voices.forEach(v => v.stop(time ?? v.context.currentTime));
+    }
+
+    updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
+        for (const voice of this.voices) {
+            voice.updateEngineDeps(deps);
+        }
+    }
+
+    /** Prefer idle voices; stop and steal the round-robin victim when saturated. */
+    private pickVoice(time: number): Voice {
+        if (this.monophonic) {
+            const voice = this.voices[0]!;
+            if (voice.isActive) {
+                voice.stop(time);
+                playbackHealthMonitor.recordVoiceSteal('voiceManager-monophonic');
+            }
+            return voice;
+        }
+
+        for (let i = 0; i < this.voices.length; i++) {
+            const idx = (this.currentIndex + i) % this.voices.length;
+            const candidate = this.voices[idx]!;
+            if (!candidate.isActive) {
+                this.currentIndex = (idx + 1) % this.voices.length;
+                return candidate;
+            }
+        }
+
+        const victim = this.voices[this.currentIndex]!;
+        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
+        if (victim.isActive) {
+            victim.stop(time);
+            playbackHealthMonitor.recordVoiceSteal('voiceManager');
+        }
+        return victim;
     }
 }

@@ -13,6 +13,7 @@ const STEP_ICONS: Record<LoadingStep, string> = {
   webGpuEngine: '🎮',
   wasmEngine: '⚡',
   open303Engine: '🎸',
+  prophecyEngine: '🔮',
   wavFiles: '🎵',
   singingVoice: '🎤',
   ambianceBuffers: '🌊',
@@ -68,6 +69,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
       aria-modal="true"
       aria-labelledby="loading-title"
       aria-describedby="loading-desc"
+      tabIndex={-1}
     >
       <div className="w-full max-w-xl p-8 mx-4 bg-[#1f2937] border-2 border-cyan-500 rounded-2xl shadow-2xl">
         {/* Header */}
@@ -138,7 +140,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
 
         {/* Step details (collapsible) */}
         <div className="border-t border-gray-700 pt-4">
-          <button
+          <button type="button"
             onClick={() => setShowDetails(!showDetails)}
             className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded p-1 transition-colors font-mono text-xs w-full"
             aria-expanded={showDetails}

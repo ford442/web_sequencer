@@ -8,7 +8,7 @@
 
 ### Key Features
 - **Dual synthesizers** (Lead & Bass / Part A & Part B) with ADSR, filters, delay, and multiple waveform engines
-- **TB-303 clone** (Bass 2) via the JC-303 WASM synthesizer
+- **TB-303 engines** with per-voice `engine303` switching (`open303` or authentic `jc303`) plus Prophecy formant waveforms
 - **Drum machine** (Kick, Snare, Open/Closed Hi-Hats)
 - **Sampler with 8 independent banks** and Supertonic TTS integration
 - **Real-time voice designer** with GPU-accelerated DSP (sharpen, echo, tremolo, jitter, geometric transforms)
@@ -47,10 +47,20 @@
 |--------|----------|--------------|---------|
 | AssemblyScript | TypeScript-like | `src/wasm/*.wasm` | Oscillators, track freezer, FFT, audio export, XM export |
 | Rust/WASM | Rust | `public/rust-wasm/` | High-precision synthesis |
-| Emscripten | C++ | `public/hyphon_native.js` (+ `.wasm`, `.worker.js`) | Rubberband pitch/time stretching, Pyodide bootstrap |
-| JC-303 | C++ (JUCE) | `public/jc303.*` | TB-303 clone synthesizer |
+| Emscripten | C++ | `public/hyphon_native.js` (+ `.wasm`, `.worker.js`) | Rubberband, Open303 + JC303 dual-engine wrappers, Prophecy formant engine, Pyodide bootstrap |
+| JC-303 | C++ (JUCE) | `public/jc303.*` | Legacy standalone TB-303-compatible wasm variants |
 | WebGPU | WGSL/TypeScript | Runtime | GPU-accelerated DSP (voice designer, scope) |
 | Web Audio | TypeScript | Native | Primary audio graph, scheduling, effects |
+
+#### Emscripten dual-303 + Prophecy internals (`hyphon_native.wasm`)
+- **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp` (see `emscripten/build.sh`)
+- **Per-voice 303 switching**: `SynthParams.engine303` (`'open303' | 'jc303'`) flows through `Open303Manager.setBass1Engine/setBass2Engine/setLead303Engine` into the `open303-processor` `set-engine` message path.
+- **Current routing**:
+  - `partB` / **SYNTH B** 303 waves → `bass1`
+  - **BASS 2** 303 waves → `bass2`
+  - `partA` / **SYNTH A LEAD** 303 waves → `lead303`
+- **Prophecy formant routing**:
+  - `prophecy-*` waves route via `ProphecyManager` (`partA` + `partB`) and `prophecy-processor` worklet to `prophecy_*` exports in `hyphon_native.wasm`.
 
 ### Backend & Services
 | Component | Technology | Purpose |
@@ -285,6 +295,7 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Output**: `public/hyphon_native.js` (+ `.wasm`, `.worker.js`)
 - **Requires**: `libomp.a` in `emscripten/` directory
 - **Requires**: Emscripten SDK activated
+- **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`)
 
 ### 4. JC-303 World (`/jc303_wasm`)
 - **Build**: `bash tools/build_jc303_omp.sh debug both`
@@ -504,6 +515,20 @@ interface Note {
 
 ---
 
+## Automation + RBS Import Architecture
+
+- Parser: `src/importers/rbs/RbsParser.ts` parses fixed-offset `.rbs` binary content into `RawRbsData`.
+- Importer: `src/importers/rbs/RbsImporter.ts` converts RBS patterns/params/automation into `HyphonSong`.
+  - PCF conversion is controlled by `convertPcfToAutomation` and `importPcfAsFilter`.
+  - TB-303 automation IDs map to Hyphon targets (`synthA`, `synthB`, `master`) with normalized values.
+- Scheduler: `src/audio/automation/AutomationScheduler.ts` schedules lane/TRAK events on the audio clock and routes Open303 parameter updates via `Open303Manager.scheduleParamAtTime`.
+- Focused tests:
+  - `src/__tests__/RbsParser.test.ts`
+  - `src/__tests__/RbsImporter.test.ts`
+  - `src/__tests__/AutomationScheduler.test.ts`
+
+---
+
 ## Common Pitfalls
 
 1. **"WASM not found" errors**: Check that all build steps completed and files exist in `public/`. Run `pnpm run build:wasm` and `pnpm run build:emcc`.
@@ -524,10 +549,59 @@ interface Note {
 
 ---
 
+## Cursor Cloud specific instructions
+
+### One-time toolchain setup (not in the VM update script)
+
+WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchain install before the first dev session:
+
+1. **Emscripten 3.1.51** (matches CI): clone to `$HOME/emsdk`, run `./emsdk install 3.1.51 && ./emsdk activate 3.1.51`, then `source "$HOME/emsdk/emsdk_env.sh"` in each shell that builds WASM.
+2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (wasm-pack ships via `pnpm`; use `pnpm exec wasm-pack`).
+3. **Git submodule**: `git submodule update --init --recursive` (required for `jc303_wasm`).
+
+### First WASM build per workspace
+
+After `pnpm install`, with Emscripten sourced:
+
+```bash
+pnpm run build:wasm    # AssemblyScript + Rust + JC-303 (~1–2 min)
+pnpm run build:emcc    # hyphon_native.js + Rubberband/Open303 (~30s)
+```
+
+Re-run only after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_wasm/` sources.
+
+### Running the main DAW locally
+
+| Task | Command |
+|------|---------|
+| Dev server (fast restart) | `pnpm exec vite --host 0.0.0.0 --port 5173` |
+| Dev server (rebuilds WASM every start) | `pnpm run dev` |
+| Unit tests | `CI=true pnpm exec vitest run --pool forks` |
+| Lint | `pnpm run lint` |
+| Production build | `pnpm run build` |
+
+Only the **Vite dev server on port 5173** is required for interactive development. The FastAPI cloud API (`app.py`, port 7860) and remote storage are optional.
+
+### Hello-world smoke test
+
+1. Open http://localhost:5173
+2. Click **INITIALIZE SYSTEM** (user gesture required for Web Audio)
+3. Program a kick on step 1 in the sequencer grid
+4. Click **▶ PLAY** — playhead should advance and the kick should trigger
+
+### Gotchas
+
+- **`pnpm run dev` is slow**: it always runs `build:wasm` and `build:emcc` before Vite. Prefer `pnpm exec vite` after WASM is already built.
+- **COOP/COEP headers**: Vite sets these automatically; required for threaded WASM (`SharedArrayBuffer`).
+- **pnpm ignored build scripts**: if `wasm-pack` is missing, use `pnpm exec wasm-pack` (bundled in devDependencies).
+- **Rust audio import warning**: a console warning about `/rust-wasm/rust_audio.js` may appear in dev; core sequencer/audio still works. Use `public/rust-wasm/` paths if debugging the Rust engine.
+
+---
+
 ## Resources
 
 - **Supertonic TTS**: https://github.com/supertone-inc/supertonic
 - **Rubberband Library**: https://breakfastquay.com/rubberband/
-- **JC-303**: TB-303 clone synthesizer (git submodule)
+- **JC-303 / Open303 / Prophecy wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`
 - **Emscripten**: https://emscripten.org/
 - **AssemblyScript**: https://www.assemblyscript.org/

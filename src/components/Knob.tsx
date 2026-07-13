@@ -1,235 +1,26 @@
-import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+/**
+ * @deprecated Use `HardwareKnob` with `mode="classic"` instead.
+ */
+import React from 'react';
+import { HardwareKnob, type HardwareKnobColor } from './HardwareKnob';
 
-interface KnobProps {
+export interface KnobProps {
   label: string;
   value: number;
   onChange: (value: number) => void;
   min: number;
   max: number;
   step?: number;
-  color?: 'cyan' | 'pink' | 'yellow' | 'purple' | 'red' | 'green' | 'indigo';
+  color?: HardwareKnobColor;
   unit?: string;
   logarithmic?: boolean;
   defaultValue?: number;
+  isAutomated?: boolean;
+  detentSnap?: boolean;
+  detentFeedback?: boolean | 'audio' | 'haptic' | 'both';
+  hardwarePointer?: boolean;
 }
 
-export const Knob: React.FC<KnobProps> = memo(({ label, value, onChange, min, max, step = 1, color = 'cyan', unit = '', logarithmic = false, defaultValue }) => {
-  const knobRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Use refs for drag state to avoid stale closure race conditions (Issue 4 fix).
-  // State-based drag coords recreate callbacks on every render cycle, causing the
-  // old listener (isDragging=false) to still be attached when the first mousemove fires.
-  const isDraggingRef = useRef(false);
-  const dragStartYRef = useRef(0);
-  const dragStartValueRef = useRef(0);
-
-  // Use a ref to store the latest props to avoid redefining callbacks and re-attaching event listeners
-  const propsRef = useRef({ onChange, min, max, step, logarithmic });
-  useEffect(() => {
-    propsRef.current = { onChange, min, max, step, logarithmic };
-  }, [onChange, min, max, step, logarithmic]);
-
-  const valueToRotation = useCallback((val: number) => {
-    let percentage;
-    if (logarithmic) {
-      const logMin = Math.log(min || 0.001);
-      const logMax = Math.log(max);
-      const logVal = Math.log(val || 0.001);
-      percentage = (logVal - logMin) / (logMax - logMin);
-    } else {
-      percentage = (val - min) / (max - min);
-    }
-    return -135 + percentage * 270;
-  }, [min, max, logarithmic]);
-
-  const rotation = valueToRotation(value);
-
-  // Stable callbacks that read from refs — never need to be recreated
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDraggingRef.current) return;
-    const dy = dragStartYRef.current - e.clientY;
-    const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep, logarithmic: currentLogarithmic } = propsRef.current;
-
-    // Modifiers: Shift=Coarse(10x), Alt/Ctrl=Fine(0.1x)
-    const isCoarse = e.shiftKey;
-    const isFine = e.altKey || e.ctrlKey || e.metaKey;
-    const modifier = isCoarse ? 10 : (isFine ? 0.1 : 1);
-
-    let newValue;
-
-    if (currentLogarithmic) {
-      const effectiveMin = currentMin <= 0 ? 0.001 : currentMin;
-      const logMin = Math.log(effectiveMin);
-      const logMax = Math.log(currentMax);
-      const safeStart = dragStartValueRef.current <= 0 ? effectiveMin : dragStartValueRef.current;
-      const logStart = Math.log(safeStart);
-
-      // Full range in 200 pixels (log domain)
-      const range = logMax - logMin;
-      const sensitivity = range / 200;
-
-      const newLogValue = logStart + (dy * sensitivity * modifier);
-      newValue = Math.exp(newLogValue);
-    } else {
-      const range = currentMax - currentMin;
-      const sensitivity = range / 200; // 200px drag for full range
-      newValue = dragStartValueRef.current + (dy * sensitivity * modifier);
-    }
-    
-    newValue = Math.round(newValue / currentStep) * currentStep;
-    newValue = Math.max(currentMin, Math.min(currentMax, newValue));
-    
-    currentOnChange(newValue);
-  }, []); // stable — reads all state from refs
-
-  const handleMouseUp = useCallback(() => {
-    isDraggingRef.current = false; // stop move handler immediately (no re-render needed)
-    setIsDragging(false); // update state to re-enable CSS transition on knob rotation
-    document.body.style.cursor = 'default';
-  }, []);
-
-  // Attach listeners once on mount; they stay stable because they use refs.
-  useEffect(() => {
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [handleMouseMove, handleMouseUp]);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    knobRef.current?.focus();
-    isDraggingRef.current = true;
-    dragStartYRef.current = e.clientY;
-    dragStartValueRef.current = value;
-    setIsDragging(true);
-    document.body.style.cursor = 'ns-resize';
-  };
-
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const direction = e.deltaY > 0 ? -1 : 1; // normalize: up increases
-    const { onChange: currentOnChange, min: currentMin, max: currentMax, step: currentStep } = propsRef.current;
-
-    const isCoarse = e.shiftKey;
-    const isFine = e.altKey || e.ctrlKey || e.metaKey;
-    const modifier = isCoarse ? 10 : (isFine ? 0.1 : 1);
-
-    let newValue = value + direction * currentStep * modifier;
-    newValue = Math.round(newValue / currentStep) * currentStep;
-    newValue = Math.max(currentMin, Math.min(currentMax, newValue));
-    currentOnChange(newValue);
-  }, [value]);
-
-  const formatValue = (val: number) => {
-    if (val === undefined || val === null) return '0';
-    // Special case: milliseconds
-    if (unit === 's' && val < 1) return `${(val * 1000).toFixed(0)}ms`;
-
-    // Special case: kilohertz
-    if (unit === 'Hz' && val >= 1000) return `${(val / 1000).toFixed(1)}k`;
-
-    // Standard formatting
-    let formatted: string;
-    if (val >= 10 || val === 0) formatted = val.toFixed(0);
-    else if (val < 0.1) formatted = val.toFixed(3);
-    else formatted = val.toFixed(2);
-
-    // Append unit if it exists (always, unless handled by special cases above)
-    return `${formatted}${unit || ''}`;
-  };
-
-  const colorClasses = {
-    cyan: 'bg-cyan-500',
-    pink: 'bg-pink-500',
-    yellow: 'bg-yellow-500',
-    purple: 'bg-purple-500',
-    red: 'bg-red-500',
-    green: 'bg-green-500',
-    indigo: 'bg-indigo-500',
-  };
-
-  const focusBorderClasses = {
-    cyan: 'focus-visible:border-cyan-400 focus-visible:ring-1 focus-visible:ring-cyan-400',
-    pink: 'focus-visible:border-pink-400 focus-visible:ring-1 focus-visible:ring-pink-400',
-    yellow: 'focus-visible:border-yellow-400 focus-visible:ring-1 focus-visible:ring-yellow-400',
-    purple: 'focus-visible:border-purple-400 focus-visible:ring-1 focus-visible:ring-purple-400',
-    red: 'focus-visible:border-red-400 focus-visible:ring-1 focus-visible:ring-red-400',
-    green: 'focus-visible:border-green-400 focus-visible:ring-1 focus-visible:ring-green-400',
-    indigo: 'focus-visible:border-indigo-400 focus-visible:ring-1 focus-visible:ring-indigo-400',
-  };
-
-  return (
-    <div className="flex flex-col items-center space-y-1">
-      <div
-        ref={knobRef}
-        className={`w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center cursor-pointer select-none border-2 border-gray-600 focus:outline-none ${focusBorderClasses[color]}`}
-        tabIndex={0}
-        title={label}
-        aria-label={label}
-        onKeyDown={(e) => {
-          let newVal = value;
-          let handled = false;
-          const isShift = e.shiftKey;
-          const isFine = e.altKey || e.ctrlKey || e.metaKey;
-          const effectiveStep = step * (isShift ? 10 : (isFine ? 0.1 : 1));
-
-          if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
-            newVal += effectiveStep;
-            handled = true;
-          } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
-            newVal -= effectiveStep;
-            handled = true;
-          } else if (e.key === 'PageUp') {
-            newVal += step * 5;
-            handled = true;
-          } else if (e.key === 'PageDown') {
-            newVal -= step * 5;
-            handled = true;
-          } else if (e.key === 'Home') {
-            newVal = min;
-            handled = true;
-          } else if (e.key === 'End') {
-            newVal = max;
-            handled = true;
-          }
-
-          if (handled) {
-            e.preventDefault();
-            if (!isFine) {
-               newVal = Math.round(newVal / step) * step;
-            }
-            onChange(Math.max(min, Math.min(max, newVal)));
-          }
-        }}
-        onMouseDown={handleMouseDown}
-        onWheel={handleWheel}
-        role="slider"
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-valuenow={value}
-        aria-valuetext={formatValue(value)}
-        aria-orientation="vertical"
-        onDoubleClick={() => {
-            const { onChange: currentOnChange, min: currentMin } = propsRef.current;
-            currentOnChange(defaultValue ?? currentMin);
-        }}
-      >
-        <div
-          className="w-12 h-12 bg-gray-800 rounded-full relative shadow-inner"
-          style={{
-            transform: `rotate(${rotation}deg)`,
-            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
-          }}
-        >
-          <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full ${colorClasses[color]}`}></div>
-        </div>
-      </div>
-      <span className="text-xs text-gray-400 uppercase tracking-wider">{label}</span>
-      <span className="text-sm font-mono text-gray-300">{formatValue(value)}</span>
-    </div>
-  );
-});
+export const Knob: React.FC<KnobProps> = (props) => (
+  <HardwareKnob mode="classic" {...props} />
+);

@@ -5,7 +5,7 @@
  * and manages the version tree for AI-generated songs.
  */
 
-import type { AISongData } from './AISongImporter';
+import type { AISongData } from './types';
 
 // ============================================================================
 // VERSION TYPES

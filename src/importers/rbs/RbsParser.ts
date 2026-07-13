@@ -1,81 +1,25 @@
-/**
- * RBS File Parser
- * 
- * Parses .rbs files from ReBirth RB-338 and Roland-pattern-compatible sequencers.
- * 
- * Architecture:
- * - Implements real binary parsing based on reverse-engineered RBS format
- * - Handles all sections: HEADER, TB-303A, TB-303B, DRUMS, PCF, AUTOMATION
- * - Comprehensive error handling with detailed offset information
- */
-
-import type { 
-  RawRbsData, 
-  RbsProject, 
-  Tb303PatternA, 
-  Tb303PatternB, 
-  DrumPattern, 
-  PcfSettings, 
-  AutomationLane,
-  RbsBinaryHeader,
-  RbsRawStep,
-  RbsRawAutomationLane 
+import type {
+  RawRbsData, RbsGlobData, RbsTrakEvent, RbsTrakData, RbsSongData, RbsProject,
+  Tb303PatternA, Tb303PatternB, DrumPattern, PcfSettings, AutomationLane, HyphonAutomationLane,
+  Tb303Step, RbsBinaryHeader, RbsRawStep, RbsRawAutomationPoint, RbsRawAutomationLane
 } from './types';
-import { AUTOMATION_PARAMETER_MAP } from './types';
+import { DEFAULT_RBS_IMPORT_OPTIONS, AUTOMATION_PARAMETER_MAP } from './types';
+import { isTrakPatternSelectEvent, resolveTrakEventKind } from './trakControllers';
+import type { RbsParserResult, RbsParserError, IffChunk } from './parser-types';
+import { MIN_FILE_SIZE, OFFSETS, STEP_COUNT, STEP_SIZE, NOTE_REST, NOTE_TIE, MAX_TRAK_EVENTS, SUPPORTED_VERSIONS, isV15SubsetVersion } from './parser-types';
+import { inferDevicesPresent, isTb303PatternSilent } from './deviceInference';
+import { TICKS_PER_BAR } from './types';
+import {
+  DEVL_CHUNK_IDS,
+  parseTb303DeviceChunk,
+  parseTr808DeviceChunk,
+  parseTr909DeviceChunk,
+  parseDevlPcfChunk,
+  parseDevlMixrPcfDeviceId,
+  buildPcfSettingsFromDevl,
+  disabledPcfSettings,
+} from './devlLayout';
 
-/** Parser error types for granular error handling */
-export type RbsParserError = 
-  | { type: 'INVALID_FORMAT'; message: string }
-  | { type: 'UNSUPPORTED_VERSION'; version: string; supported: string[] }
-  | { type: 'CORRUPTED_DATA'; section: string; details?: string; offset?: number }
-  | { type: 'READ_ERROR'; message: string };
-
-/** Parser result with discriminated union for type safety */
-export type RbsParserResult = 
-  | { success: true; data: RawRbsData }
-  | { success: false; error: RbsParserError };
-
-/** Supported RBS format versions */
-const SUPPORTED_VERSIONS = ['1.0', '2.0'];
-
-/** Minimum valid RBS file size (header + minimal patterns) */
-const MIN_FILE_SIZE = 0x300; // 768 bytes minimum
-
-/** File offset constants */
-const OFFSETS = {
-  HEADER: 0x00,
-  HEADER_SIZE: 0x40,           // 64 bytes
-  TB303_A: 0x40,
-  TB303_A_SIZE: 0x100,         // 256 bytes
-  TB303_B: 0x140,
-  TB303_B_SIZE: 0x100,         // 256 bytes
-  DRUMS: 0x240,
-  DRUMS_SIZE: 0x80,            // 128 bytes
-  PCF: 0x2C0,
-  PCF_SIZE: 0x40,              // 64 bytes
-  AUTOMATION: 0x300,
-} as const;
-
-/** Step structure size in bytes */
-const STEP_SIZE = 15;
-
-/** Number of steps per pattern */
-const STEP_COUNT = 16;
-
-/**
- * RBS Parser class
- * 
- * Usage:
- * ```typescript
- * const parser = new RbsParser();
- * const result = await parser.parseRbsFile(file);
- * if (result.success) {
- *   console.log(result.data.project.name);
- * } else {
- *   console.error(result.error.message);
- * }
- * ```
- */
 export class RbsParser {
   /** Parse progress callback (0-100) */
   onProgress?: (percent: number) => void;
@@ -85,83 +29,113 @@ export class RbsParser {
   private fileSize!: number;
 
   /**
-   * Main entry point: parse an .rbs file
+   * Parse raw bytes (test / programmatic entry point).
+   * Never throws — all failures are returned as `{ success: false, error }`.
    */
-  async parseRbsFile(file: File): Promise<RbsParserResult> {
+  async parseBytes(
+    bytes: Uint8Array,
+    options: { filename?: string; requireExtension?: boolean } = {}
+  ): Promise<RbsParserResult> {
+    const filename = options.filename ?? 'input.rbs';
+    const requireExtension = options.requireExtension ?? true;
+
     this.onProgress?.(0);
 
     try {
-      // Validate file extension
-      if (!file.name.toLowerCase().endsWith('.rbs')) {
+      if (requireExtension && !filename.toLowerCase().endsWith('.rbs')) {
         return {
           success: false,
           error: {
             type: 'INVALID_FORMAT',
-            message: `File "${file.name}" does not have .rbs extension`
-          }
+            message: `File "${filename}" does not have .rbs extension`,
+          },
         };
       }
 
-      // Check file size bounds
-      this.fileSize = file.size;
+      this.fileSize = bytes.byteLength;
       if (this.fileSize < MIN_FILE_SIZE) {
         return {
           success: false,
           error: {
             type: 'CORRUPTED_DATA',
             section: 'header',
-            details: `File too small (${this.fileSize} bytes, min ${MIN_FILE_SIZE})`
-          }
+            details: `File too small (${this.fileSize} bytes, min ${MIN_FILE_SIZE})`,
+          },
         };
       }
 
-      if (this.fileSize > 10 * 1024 * 1024) { // 10MB max
+      if (this.fileSize > 10 * 1024 * 1024) {
         return {
           success: false,
           error: {
             type: 'INVALID_FORMAT',
-            message: 'File too large (max 10MB for RBS files)'
-          }
+            message: 'File too large (max 10MB for RBS files)',
+          },
         };
       }
 
-      // Read file into memory
-      const arrayBuffer = await file.arrayBuffer();
+      const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
       this.dataView = new DataView(arrayBuffer);
       this.rawBytes = new Uint8Array(arrayBuffer);
 
       this.onProgress?.(5);
 
-      // Parse header (0-10%)
+      const iffChunks = this.parseIffChunks();
+      if (iffChunks.length > 0) {
+        const truncationError = this.detectIffTruncation(iffChunks);
+        if (truncationError) {
+          return { success: false, error: truncationError };
+        }
+
+        const headChunk = iffChunks.find((c) => c.id === 'HEAD');
+        if (headChunk) {
+          const iffVersion = this.parseIffHead(headChunk);
+          const versionError = this.validateVersion(iffVersion);
+          if (versionError) {
+            return { success: false, error: versionError };
+          }
+        }
+
+        console.info(`[RbsParser] Detected full IFF CAT RB40 structure with ${iffChunks.length} top-level chunks. Attempting full song parse.`);
+        const iffResult = this.parseIffSongData(iffChunks);
+        if (iffResult) {
+          this.onProgress?.(100);
+          return { success: true, data: iffResult };
+        }
+        console.info('[RbsParser] IFF song data incomplete, falling back to legacy single-pattern extraction.');
+      }
+
       const headerResult = this.parseHeader();
       if (!headerResult.success) {
         return { success: false, error: (headerResult as { success: false; error: RbsParserError }).error };
       }
       const header = headerResult.data;
+      const versionError = this.validateVersion(header.version);
+      if (versionError) {
+        return { success: false, error: versionError };
+      }
       this.onProgress?.(10);
 
-      // Parse TB-303 Pattern A (10-40%)
       const tb303A = this.parseTb303PatternA();
       this.onProgress?.(40);
 
-      // Parse TB-303 Pattern B (40-70%)
-      const tb303B = this.parseTb303PatternB();
+      let tb303B = this.parseTb303PatternB();
+      if (isV15SubsetVersion(header.version) || isTb303PatternSilent(tb303B)) {
+        tb303B = this.generateEmptyTb303PatternB();
+      }
       this.onProgress?.(70);
 
-      // Parse Drum patterns (70-85%)
       const drums = this.parseDrumPatterns();
       this.onProgress?.(85);
 
-      // Parse PCF settings (85-95%)
       const pcf = this.parsePcfSettings();
       this.onProgress?.(95);
 
-      // Parse Automation (95-100%)
       const automation = this.parseAutomation();
       this.onProgress?.(100);
 
-      const baseName = file.name.replace(/\.rbs$/i, '');
-      
+      const baseName = filename.replace(/\.rbs$/i, '');
+
       const rawData: RawRbsData = {
         version: header.version,
         project: {
@@ -173,30 +147,36 @@ export class RbsParser {
           swing: header.swing,
           patternLength: header.patternLength,
           createdAt: new Date(),
-          sourceSoftware: 'ReBirth RB-338'
+          sourceSoftware: 'ReBirth RB-338',
         },
         tb303PatternA: tb303A,
         tb303PatternB: tb303B,
-        drums: drums,
-        pcf: pcf,
-        automation: automation,
-        rawHeader: header
+        drums,
+        pcf,
+        automation,
+        rawHeader: header,
+        parsePath: 'legacy',
       };
+      rawData.devicesPresent = inferDevicesPresent(rawData);
 
-      return {
-        success: true,
-        data: rawData
-      };
-
+      return { success: true, data: rawData };
     } catch (error) {
       return {
         success: false,
         error: {
           type: 'READ_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error reading file'
-        }
+          message: error instanceof Error ? error.message : 'Unknown error reading file',
+        },
       };
     }
+  }
+
+  /**
+   * Main entry point: parse an .rbs file
+   */
+  async parseRbsFile(file: File): Promise<RbsParserResult> {
+    const arrayBuffer = await file.arrayBuffer();
+    return this.parseBytes(new Uint8Array(arrayBuffer), { filename: file.name, requireExtension: true });
   }
 
   /**
@@ -670,6 +650,421 @@ export class RbsParser {
   }
 
   /**
+   * Detect IFF chunk payloads that extend past EOF (truncated file).
+   */
+  private detectIffTruncation(chunks: IffChunk[]): RbsParserError | null {
+    for (const chunk of chunks) {
+      const paddedSize = chunk.size + (chunk.size % 2);
+      const end = chunk.offset + paddedSize;
+      if (end > this.fileSize) {
+        return {
+          type: 'CORRUPTED_DATA',
+          section: 'iff',
+          details: `Truncated chunk "${chunk.id}" (payload ends at ${end}, file size ${this.fileSize})`,
+          offset: chunk.offset,
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Parse top-level IFF CAT container and return list of chunks (for full RB40 song files).
+   * This is the foundation for proper multi-pattern + song arrangement support (see #671).
+   * ReBirth .rbs is "CAT <size> RB40" followed by chunks (HEAD, GLOB, DEVL catalog, TRKL catalog with TRAK events).
+   * Sizes are big-endian. This method is intentionally lightweight and safe for progressive enhancement.
+   */
+  private parseIffChunks(): IffChunk[] {
+    const chunks: IffChunk[] = [];
+    if (this.fileSize < 12) return chunks;
+
+    // Check for "CAT " magic at 0
+    const magic = this.readAsciiString(0, 4);
+    if (magic !== 'CAT ') {
+      return chunks; // not IFF CAT; fall back to legacy fixed-offset path
+    }
+
+    // Root size (big-endian uint32 at 4)
+    const rootSize = this.dataView.getUint32(4, false);
+    let pos = 12; // after "CAT " + size + "RB40" (or similar form type)
+
+    // Read form type (usually "RB40" or "RB40HEAD" style)
+    const formType = this.readAsciiString(8, 4);
+    console.debug(`[RbsParser] IFF CAT form detected: ${formType}, root size ${rootSize}`);
+
+    // Walk chunks (simple safe parser; real impl will handle nested CAT DEVL/TRKL)
+    const maxPos = Math.min(this.fileSize, 8 + rootSize);
+    while (pos + 8 <= maxPos) {
+      const id = this.readAsciiString(pos, 4);
+      if (!id || id.charCodeAt(0) < 32) break;
+      const size = this.dataView.getUint32(pos + 4, false);
+      const payloadEnd = pos + 8 + size + (size % 2);
+      if (payloadEnd > this.fileSize) {
+        // Truncated — still record chunk for detectIffTruncation; stop walking.
+        chunks.push({ id, size, offset: pos + 8 });
+        break;
+      }
+      chunks.push({ id, size, offset: pos + 8 });
+      pos += 8 + size;
+      // pad to even (IFF rule)
+      if (size % 2 === 1) pos++;
+    }
+
+    return chunks;
+  }
+
+  /**
+   * Parse nested IFF chunks within a parent chunk (e.g. CAT DEVL, CAT TRKL).
+   * Nested CATs have: "CAT " + size + formType (4 bytes) + child chunks.
+   */
+  private parseNestedChunks(parentOffset: number, parentSize: number): IffChunk[] {
+    const chunks: IffChunk[] = [];
+    // Nested CAT: first 4 bytes of payload are the form type (e.g. "DEVL", "TRKL")
+    let pos = parentOffset + 4; // skip form type
+    const maxPos = parentOffset + parentSize;
+
+    while (pos + 8 <= maxPos) {
+      const id = this.readAsciiString(pos, 4);
+      if (!id || id.charCodeAt(0) < 32) break;
+      const size = this.dataView.getUint32(pos + 4, false);
+      const payloadEnd = pos + 8 + size + (size % 2);
+      if (payloadEnd > parentOffset + parentSize && payloadEnd > this.fileSize) {
+        chunks.push({ id, size, offset: pos + 8 });
+        break;
+      }
+      chunks.push({ id, size, offset: pos + 8 });
+      pos += 8 + size;
+      if (size % 2 === 1) pos++; // IFF padding
+    }
+
+    return chunks;
+  }
+
+  /**
+   * Attempt to parse full IFF CAT RB40 song data from detected chunks.
+   * Returns RawRbsData with songData populated, or null if not enough data.
+   * Ref: RBS42.txt file structure, rbs.h structs.
+   */
+  private parseIffSongData(topChunks: IffChunk[]): RawRbsData | null {
+    // Find key chunks
+    const headChunk = topChunks.find(c => c.id === 'HEAD');
+    const globChunk = topChunks.find(c => c.id === 'GLOB');
+    // Nested CAT chunks appear as "CAT " with form types DEVL, TRKL
+    const catChunks = topChunks.filter(c => c.id === 'CAT ');
+
+    // We need at minimum a HEAD chunk to proceed
+    if (!headChunk) return null;
+
+    this.onProgress?.(10);
+
+    // Parse HEAD (256 bytes: version signature, copyright)
+    const version = this.parseIffHead(headChunk);
+
+    // Parse GLOB if present (512 bytes: play mode, tempo, shuffle, loop points)
+    const glob = globChunk ? this.parseIffGlob(globChunk) : this.defaultGlob();
+
+    this.onProgress?.(20);
+
+    // Find DEVL and TRKL nested catalogs
+    let devlChunks: IffChunk[] = [];
+    let trklChunks: IffChunk[] = [];
+    for (const cat of catChunks) {
+      // Read form type from the payload start
+      const formType = this.readAsciiString(cat.offset, 4);
+      if (formType === 'DEVL') {
+        devlChunks = this.parseNestedChunks(cat.offset, cat.size);
+      } else if (formType === 'TRKL') {
+        trklChunks = this.parseNestedChunks(cat.offset, cat.size);
+      }
+    }
+
+    this.onProgress?.(40);
+
+    // Parse device patterns from DEVL (multi-pattern banks)
+    const hasDevlCatalog = devlChunks.length > 0;
+    const patternBanks = this.parseDevlPatterns(devlChunks, hasDevlCatalog);
+
+    this.onProgress?.(70);
+
+    // Parse TRAK events from TRKL (song arrangement)
+    const tracks = this.parseTrklTracks(trklChunks);
+
+    this.onProgress?.(90);
+
+    // Compute song statistics
+    let maxTick = 0;
+    const usedPatterns = new Set<number>();
+    for (const track of tracks) {
+      for (const evt of track.events) {
+        if (evt.absoluteTicks > maxTick) maxTick = evt.absoluteTicks;
+        if (isTrakPatternSelectEvent(evt.trackIndex, evt.controllerId, evt.eventKind)) {
+          usedPatterns.add(evt.value);
+        }
+      }
+    }
+    const totalLengthBars = Math.ceil(maxTick / TICKS_PER_BAR) || 1;
+
+    const songData: RbsSongData = {
+      glob,
+      patternBanks,
+      tracks,
+      totalLengthTicks: maxTick,
+      totalLengthBars,
+      usedPatternCount: usedPatterns.size || 1,
+    };
+
+    // Use pattern 0 from banks; missing devices get silent empty patterns (never mock melodies).
+    const tb303PatternA = patternBanks.tb303A[0] ?? this.generateEmptyTb303Pattern();
+    const tb303PatternB = patternBanks.tb303B[0] ?? this.generateEmptyTb303PatternB();
+    const drums = patternBanks.drums808[0] ?? patternBanks.drums909[0] ?? this.generateEmptyDrumPattern();
+
+    const pcf = hasDevlCatalog
+      ? this.parseDevlPcfSettings(devlChunks)
+      : disabledPcfSettings();
+
+    const baseName = `RBS Song (${version})`;
+    const rawData: RawRbsData = {
+      version,
+      project: {
+        name: baseName,
+        author: 'Imported from RBS',
+        tempo: glob.tempo || 120,
+        timeSignatureNum: 4,
+        timeSignatureDen: 4,
+        swing: glob.shuffle,
+        patternLength: 16,
+        createdAt: new Date(),
+        sourceSoftware: 'ReBirth RB-338',
+      },
+      tb303PatternA,
+      tb303PatternB,
+      drums,
+      pcf,
+      automation: [],
+      songData,
+      parsePath: 'iff',
+    };
+    rawData.devicesPresent = inferDevicesPresent(rawData);
+
+    return rawData;
+  }
+
+  /**
+   * Parse HEAD chunk from IFF container (256 bytes).
+   * Returns version string.
+   */
+  private parseIffHead(chunk: IffChunk): string {
+    // HEAD typically contains a version signature in first bytes
+    // Format varies but common: null-terminated string or "RB40" marker
+    const offset = chunk.offset;
+    const sig = this.readNullTerminatedString(offset, Math.min(chunk.size, 64));
+    
+    // Try to extract version from signature
+    const versionMatch = sig.match(/(\d+\.\d+(?:\.\d+)?)/);
+    if (versionMatch) return versionMatch[1];
+    
+    // Check for known patterns (rbs.h / RBS42 HEAD signatures)
+    if (sig.includes('RB40') || sig.includes('RB-338')) return '2.0';
+    if (sig.includes('RB15') || sig.includes('v1.5') || sig.includes('1.5')) return '1.5';
+    if (sig.includes('v1.0') || sig.includes('1.0')) return '1.0';
+    
+    return '2.0'; // default for IFF CAT RB40 files without explicit version string
+  }
+
+  /**
+   * Parse GLOB chunk (512 bytes: play mode, tempo, shuffle, loop points, vintage).
+   * Ref: RBS42.txt GLOB layout, rbs.h struct glob_t.
+   * Payload layout (big-endian ULONG fields per RBS42):
+   *   0x00: play_mode (uint8): 0=pattern, 1=song
+   *   0x01: loop on/off (uint8)
+   *   0x02: tempo (uint32 BE) — BPM × 1000
+   *   0x06: loop_start (uint32 BE) — bar × 768 ticks
+   *   0x0A: loop_end (uint32 BE) — bar × 768 ticks
+   *   0x0E: shuffle (uint8) — 0-127
+   *   0x1EA: vintage (uint8): 0=2.0 sound, 1=vintage
+   */
+  private parseIffGlob(chunk: IffChunk): RbsGlobData {
+    const o = chunk.offset;
+    const playMode = this.rawBytes[o] === 1 ? 1 : 0;
+    const tempoRaw = this.dataView.getUint32(o + 2, false);
+    const tempo = tempoRaw > 0 ? tempoRaw / 1000 : 120;
+    const loopStartTicks = this.dataView.getUint32(o + 6, false);
+    const loopEndTicks = this.dataView.getUint32(o + 10, false);
+    const shuffle = this.rawBytes[o + 14] ?? 64;
+    const vintage = this.rawBytes[o + 0x1ea] || 0;
+
+    return {
+      playMode,
+      tempo,
+      shuffle,
+      loopStart: Math.floor(loopStartTicks / TICKS_PER_BAR),
+      loopEnd: Math.floor(loopEndTicks / TICKS_PER_BAR),
+      vintage,
+    };
+  }
+
+  /**
+   * Default GLOB when chunk is missing (v1.5 files may lack it).
+   */
+  private defaultGlob(): RbsGlobData {
+    return { playMode: 0, tempo: 120, shuffle: 64, loopStart: 0, loopEnd: 0, vintage: 0 };
+  }
+
+  /**
+   * Parse device patterns from DEVL catalog chunks (RBS42 struct layout).
+   * DEVL order is fixed: MIXR, DELY, PCF, DIST, COMP, 303, 303, 808, 909.
+   */
+  private parseDevlPatterns(
+    devlChunks: IffChunk[],
+    hasDevlCatalog: boolean,
+  ): RbsSongData['patternBanks'] {
+    const banks: RbsSongData['patternBanks'] = {
+      tb303A: [],
+      tb303B: [],
+      drums808: [],
+      drums909: [],
+    };
+
+    let tb303DeviceIndex = 0;
+
+    for (const chunk of devlChunks) {
+      const chunkId = chunk.id;
+
+      if (chunkId === DEVL_CHUNK_IDS.TB303) {
+        const patterns = parseTb303DeviceChunk(this.rawBytes, chunk.offset, chunk.size);
+        if (tb303DeviceIndex === 0) {
+          banks.tb303A.push(...patterns);
+        } else {
+          banks.tb303B.push(...patterns);
+        }
+        tb303DeviceIndex++;
+        continue;
+      }
+
+      if (chunkId === DEVL_CHUNK_IDS.TR808) {
+        banks.drums808.push(...parseTr808DeviceChunk(this.rawBytes, chunk.offset, chunk.size));
+        continue;
+      }
+
+      if (chunkId === DEVL_CHUNK_IDS.TR909) {
+        banks.drums909.push(...parseTr909DeviceChunk(this.rawBytes, chunk.offset, chunk.size));
+      }
+    }
+
+    // Legacy alias IDs seen in some reverse-engineered dumps
+    if (banks.tb303A.length === 0) {
+      const legacyA = devlChunks.find((c) => c.id === '3031' || c.id === '303A');
+      if (legacyA) {
+        banks.tb303A.push(...parseTb303DeviceChunk(this.rawBytes, legacyA.offset, legacyA.size));
+      }
+    }
+    if (banks.tb303B.length === 0) {
+      const legacyB = devlChunks.find((c) => c.id === '3032' || c.id === '303B');
+      if (legacyB) {
+        banks.tb303B.push(...parseTb303DeviceChunk(this.rawBytes, legacyB.offset, legacyB.size));
+      }
+    }
+
+    // No mock injection — absent devices stay empty (v1.5 subset, TRKL-only fixtures).
+    return banks;
+  }
+
+  /**
+   * Parse PCF + MIXR routing from DEVL catalog chunks (RBS42).
+   */
+  private parseDevlPcfSettings(devlChunks: IffChunk[]): PcfSettings {
+    const pcfChunk = devlChunks.find((c) => c.id === DEVL_CHUNK_IDS.PCF);
+    const mixrChunk = devlChunks.find((c) => c.id === DEVL_CHUNK_IDS.MIXR);
+
+    if (!pcfChunk) {
+      return disabledPcfSettings();
+    }
+
+    const pcfData = parseDevlPcfChunk(this.rawBytes, pcfChunk.offset, pcfChunk.size);
+    const mixrPcfId = mixrChunk
+      ? parseDevlMixrPcfDeviceId(this.rawBytes, mixrChunk.offset)
+      : 0;
+
+    return buildPcfSettingsFromDevl(pcfData, mixrPcfId);
+  }
+
+  /**
+   * Parse TRKL catalog TRAK chunks into track arrangement data.
+   * Each TRAK: uint32 event_count + events (each: uint16 delta + uint8 ctrl + uint8 value = 4 bytes).
+   * Ref: RBS42.txt TRAK event format, rbs.h struct trak_t.
+   */
+  private parseTrklTracks(trklChunks: IffChunk[]): RbsTrakData[] {
+    const trackNames = [
+      'Mixer',
+      'TB-303 #1',
+      'TB-303 #2',
+      'TR-808',
+      'TR-909',
+      'Delay',
+      'Distortion',
+      'PCF',
+      'Compressor',
+    ];
+    const tracks: RbsTrakData[] = [];
+
+    for (let i = 0; i < trklChunks.length; i++) {
+      const chunk = trklChunks[i];
+      if (chunk.id !== 'TRAK') continue;
+
+      const trackIndex = tracks.length;
+      const track = this.parseSingleTrak(
+        chunk,
+        trackIndex,
+        trackNames[trackIndex] || `Track ${trackIndex}`,
+      );
+      tracks.push(track);
+    }
+
+    return tracks;
+  }
+
+  /**
+   * Parse a single TRAK chunk into RbsTrakData.
+   * Layout: uint32 event_count (LE) + event_count × (uint16 delta_ticks (LE) + uint8 controller_id + uint8 value).
+   */
+  private parseSingleTrak(chunk: IffChunk, index: number, name: string): RbsTrakData {
+    const offset = chunk.offset;
+    const events: RbsTrakEvent[] = [];
+
+    // Read event count (little-endian uint32)
+    if (chunk.size < 4) {
+      return { trackIndex: index, trackName: name, eventCount: 0, events: [] };
+    }
+
+    const eventCount = this.dataView.getUint32(offset, true);
+    let pos = offset + 4;
+    let absoluteTicks = 0;
+
+    const maxEvents = Math.min(eventCount, MAX_TRAK_EVENTS);
+    for (let e = 0; e < maxEvents; e++) {
+      if (pos + 4 > offset + chunk.size) break;
+
+      const deltaTicks = this.dataView.getUint16(pos, true);
+      const controllerId = this.rawBytes[pos + 2];
+      const value = this.rawBytes[pos + 3];
+      pos += 4;
+
+      absoluteTicks += deltaTicks;
+      const eventKind = resolveTrakEventKind(index, controllerId);
+      events.push({
+        deltaTicks,
+        absoluteTicks,
+        trackIndex: index,
+        controllerId,
+        value,
+        eventKind,
+      });
+    }
+
+    return { trackIndex: index, trackName: name, eventCount: events.length, events };
+  }
+
+  /**
    * Generate mock RBS data for UI development/testing
    * Used as fallback when actual parsing fails or for testing
    */
@@ -694,6 +1089,48 @@ export class RbsParser {
       drums: this.generateMockDrumPattern(),
       pcf: this.generateMockPcfSettings(),
       automation: this.generateMockAutomation()
+    };
+  }
+
+  private generateEmptyTb303Pattern(): Tb303PatternA {
+    const steps: Tb303PatternA['steps'] = Array.from({ length: 16 }, (_, index) => ({
+      index,
+      note: -1,
+      octave: 3,
+      accent: false,
+      slide: false,
+      tie: false,
+      gate: 100,
+    }));
+
+    return {
+      steps,
+      cutoff: 64,
+      resonance: 48,
+      envMod: 64,
+      decay: 48,
+      accent: 80,
+      waveform: 0,
+      distortion: 0,
+      delaySend: 0,
+    };
+  }
+
+  private generateEmptyTb303PatternB(): Tb303PatternB {
+    return {
+      ...this.generateEmptyTb303Pattern(),
+      transpose: 0,
+    };
+  }
+
+  private generateEmptyDrumPattern(): DrumPattern {
+    const silent = Array(16).fill(false);
+    return {
+      kick: [...silent],
+      snare: [...silent],
+      closedHat: [...silent],
+      openHat: [...silent],
+      kitType: '808',
     };
   }
 
@@ -794,6 +1231,17 @@ export class RbsParser {
   /**
    * Validate RBS version string
    */
+  private validateVersion(version: string): RbsParserError | null {
+    if (!RbsParser.isVersionSupported(version)) {
+      return {
+        type: 'UNSUPPORTED_VERSION',
+        version,
+        supported: [...SUPPORTED_VERSIONS],
+      };
+    }
+    return null;
+  }
+
   static isVersionSupported(version: string): boolean {
     return SUPPORTED_VERSIONS.includes(version);
   }

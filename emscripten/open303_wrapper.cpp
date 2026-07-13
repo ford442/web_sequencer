@@ -429,82 +429,6 @@ void open303_process(uintptr_t handle, uintptr_t outputPtr, int numFrames)
     inst->process(out, numFrames);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Single-instance backward-compat API  (jc303_* names)
-//
-// These mirror the exports expected by the existing open303-processor.ts so
-// that hyphon_native.wasm can be used as a drop-in replacement for the
-// standalone jc303-single.wasm when the worklet detects these exports.
-// ─────────────────────────────────────────────────────────────────────────────
-
-static Open303Instance* g_defaultInst   = nullptr;
-static int              g_defaultBufSz  = 128;
-
-EMSCRIPTEN_KEEPALIVE
-int jc303_init(float sampleRate, int bufferSize)
-{
-    if (!g_defaultInst) g_defaultInst = new Open303Instance();
-    if (bufferSize <= 0) bufferSize = 128;
-    g_defaultBufSz = bufferSize;
-    g_defaultInst->init(sampleRate, bufferSize);
-    return 1;
-}
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_noteOn(int midiNote, float velocity)
-{
-    if (g_defaultInst) g_defaultInst->noteOn(midiNote, velocity);
-}
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_noteOff(int midiNote)
-{
-    if (g_defaultInst) g_defaultInst->noteOff(midiNote);
-}
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_allNotesOff()
-{
-    if (g_defaultInst) g_defaultInst->allNotesOff();
-}
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_setWaveform(float v)    { if (g_defaultInst) g_defaultInst->setParam(OPEN303_WAVEFORM,      v); }
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_setCutoff(float v)      { if (g_defaultInst) g_defaultInst->setParam(OPEN303_CUTOFF,        v); }
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_setResonance(float v)   { if (g_defaultInst) g_defaultInst->setParam(OPEN303_RESONANCE,     v); }
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_setEnvMod(float v)      { if (g_defaultInst) g_defaultInst->setParam(OPEN303_ENV_MOD,       v); }
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_setDecay(float v)       { if (g_defaultInst) g_defaultInst->setParam(OPEN303_DECAY,         v); }
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_setAccent(float v)      { if (g_defaultInst) g_defaultInst->setParam(OPEN303_ACCENT,        v); }
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_setVolume(float v)      { if (g_defaultInst) g_defaultInst->setParam(OPEN303_VOLUME,        v); }
-
-EMSCRIPTEN_KEEPALIVE
-void jc303_setFilterMode(float v)  { if (g_defaultInst) g_defaultInst->setParam(OPEN303_FILTER_MODE,   v); }
-
-/**
- * Render one block into the internal buffer.
- * @return pointer to float output buffer (owned by the instance, do NOT free).
- *         Returns 0 on failure.
- */
-EMSCRIPTEN_KEEPALIVE
-uintptr_t jc303_process(int numFrames)
-{
-    if (!g_defaultInst || numFrames <= 0) return 0;
-    float* out = g_defaultInst->processInternal(std::min(numFrames, g_defaultBufSz));
-    return reinterpret_cast<uintptr_t>(out);
-}
-
 } // extern "C"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -513,7 +437,6 @@ uintptr_t jc303_process(int numFrames)
 // ─────────────────────────────────────────────────────────────────────────────
 
 EMSCRIPTEN_BINDINGS(open303_module) {
-    // Multi-instance API
     function("open303_create",        &open303_create);
     function("open303_destroy",       &open303_destroy);
     function("open303_init",          &open303_init);
@@ -522,19 +445,4 @@ EMSCRIPTEN_BINDINGS(open303_module) {
     function("open303_all_notes_off", &open303_all_notes_off);
     function("open303_set_param",     &open303_set_param);
     function("open303_process",       &open303_process);
-
-    // Single-instance backward-compat API
-    function("jc303_init",            &jc303_init);
-    function("jc303_noteOn",          &jc303_noteOn);
-    function("jc303_noteOff",         &jc303_noteOff);
-    function("jc303_allNotesOff",     &jc303_allNotesOff);
-    function("jc303_setWaveform",     &jc303_setWaveform);
-    function("jc303_setCutoff",       &jc303_setCutoff);
-    function("jc303_setResonance",    &jc303_setResonance);
-    function("jc303_setEnvMod",       &jc303_setEnvMod);
-    function("jc303_setDecay",        &jc303_setDecay);
-    function("jc303_setAccent",       &jc303_setAccent);
-    function("jc303_setVolume",       &jc303_setVolume);
-    function("jc303_setFilterMode",   &jc303_setFilterMode);
-    function("jc303_process",         &jc303_process);
 }

@@ -1,55 +1,146 @@
 # web_sequencer — Weekly Plan
 
 ## Today's focus
-**2026-05-18 (Sun) — User Idea mode.** Continuing `[in progress — 2026-05-11]`: Holographic knob GPU context unification — `KnobGPUContext.ts` singleton was not created last week; `MagicKnob.tsx` still runs per-instance `GPUDevice` + per-instance RAF. Full implementation this week: singleton with shared `GPURenderPipeline` and one RAF loop, per-knob uniform buffer slot + bind group, register/unregister API, retire the N-device anti-pattern.
+**2026-07-06 — FIX FIRST mode (escalated).** Last week's 2026-06-29 Fix First was a **planning run only** — the dispatch was generated and the plan commit merged (PR #819), but the kimi-cli swarm to execute the CI type-gate hardening **never ran**. `.swarm-state.md` is still the stale 2026-06-22 CI-restoration state; nothing from 06-29 landed. Meanwhile the merge spree kept going (#826/#828/#848/#850…), and the foundation degraded from "green CI can't see type drift" to **"the primary audio hook does not parse."**
+
+**Hard evidence gathered this run:**
+- **`src/hooks/useAudioEngine.ts` has a genuine syntax error** — `esbuild` fails with `Expected ")" but found ";"` at **line 1013** (unbalanced `(` in the `playSamplerVoice` / `playBufferSource` region above it). The file **does not compile**. PR #850 (Jules, today) confirms it independently: *"useAudioEngine.ts has a pre-existing bracket/parse issue on main which continues to cause linting errors."*
+- **CI masks it three ways:** `ci.yml` runs `lint` with **`continue-on-error: true`** (so the parse error is swallowed), still runs **no `tsc`** at all, and vitest degrades gracefully around missing WASM — so `main`'s "Lint + Test" badge is green over a non-parsing hot-path file. Perf PRs keep landing on top of it.
+- **`debug_build.yml` is RED on every main run** (confirmed 3/3 latest: runs 28778224743 / 28777879606 / 28777465392) — the **`Setup Rust` step is still mis-indented** (6-space nested under `setup-node`'s `with:`). Never fixed. A perma-red check masks any *new* red X.
+- **21 `as any` casts** now in `useAudioEngine.ts` (was 4 last week) — the type surface has been fully defeated in the audio hot path.
+- **`@babel/helper-plugin-utils`** still in `package.json` (line 38) despite `.swarm-state.md` claiming it was removed — the stale-state/reality gap.
+
+**Primary task — repair the audio-engine foundation, then install the gate that would have caught it:**
+1. **Fix the parse error in `src/hooks/useAudioEngine.ts`** (start at the `esbuild` pointer L1013 `Expected ")"`; find the unbalanced `(` above in the `playSamplerVoice`/`playBufferSource` region). The file must parse and `tsc -b` clean. **This is #1 — nothing else matters until it compiles.**
+2. **Strip the 21 `as any` casts** in that file once it parses; restore real typing against `src/types.ts` (add a genuinely-missing prop to `types.ts` only if one is actually absent — do not paper over with casts).
+3. **Add a `tsc -b` step to `ci.yml`** (after `build:wasm`) so a non-parsing / type-broken file fails the **main** gate, not just the flaky E2E build.
+4. **Flip `lint` off `continue-on-error: true`** in `ci.yml` once the file lints clean — the swallowed-error mode is what let this hide.
+5. **Fix `debug_build.yml`** — correct the `Setup Rust` indentation to a sibling step (or delete the workflow if redundant with `ci.yml`); confirm it loads and goes green.
+6. **Drop unused `@babel/helper-plugin-utils`** from `package.json` devDeps.
+7. **Verify:** `pnpm exec tsc -b` clean (0 errors), `pnpm run build` green, all three workflows (`CI`, `Playwright E2E`, `debug_build`) green on the fix branch before merge.
+
+**Why this over anything else:** `main` is shipping a non-compiling primary audio hook behind a green badge, and every perf PR this week rebased onto it. This is the definition of a cracked foundation. No new features until the hook parses, the `as any` band-aids are gone, and `ci.yml` actually type-checks + fails on lint errors.
+
+## CI toolchain log
+- **2026-07-06 — reconcile: last week's 2026-06-29 Fix First DID NOT EXECUTE.** Only the plan commit merged (PR #819); the kimi-cli CI-hardening swarm never ran. `.swarm-state.md` is still the stale 2026-06-22 state. Consequences verified live this run: (a) `ci.yml` **still has no `tsc`** and still runs `lint` with **`continue-on-error: true`**; (b) `debug_build.yml` **still perma-red** on every main run (`Setup Rust` still mis-indented — 3/3 latest runs = failure); (c) `@babel/helper-plugin-utils` **still in `package.json`**; (d) **NEW & worse — `src/hooks/useAudioEngine.ts` no longer parses** (`esbuild`: `Expected ")" but found ";"` @ L1013), independently confirmed by Jules in PR #850. The `as any` count in that file grew 4 → **21**. Escalated Fix First; see Today's focus.
+- **2026-06-29 — reconcile: last week's CI fix LANDED (different fork than logged).** The version that actually merged to `main` **pinned `vitest` back to `2.1.9`** and kept `vite ^5.4.21` (the conservative fork from `.swarm-state.md`, NOT the vitest-4/vite-6 forward migration logged below). `@babel/helper-plugin-utils` is **still present** in `package.json` and **still unused in `src/`** (grep-confirmed) — the logged "dropped" never happened; carry as a tiny cleanup. Net: main `ci.yml` install/lint/test gate is green and stable. **Gap exposed:** `ci.yml` runs `build:wasm → lint → vitest` only — **no `tsc`**. That's today's FIX FIRST.
+- **2026-06-22 — vitest 4 + vite 6 forward migration (the FIX FIRST primary task).** Chose the *migrate-forward* fork over pinning vitest back. Changes:
+  - `package.json`: `vite ^5.4.21 → ^6.3.6` (vitest 4 requires vite 6's `./module-runner` export — the root of the `ERR_PACKAGE_PATH_NOT_EXPORTED` crash), kept `vitest ^4.1.9`, **dropped `@babel/helper-plugin-utils`** (referenced nowhere in source — accidental dep from #793). Regenerated `pnpm-lock.yaml` (now resolves vite 6.4.3 / vitest 4.1.9; `--frozen-lockfile` will pass).
+  - **vitest 4 mock breakage:** vitest 4 invokes `vi.fn().mockImplementation(...)` via `Reflect.construct` when used with `new`, so arrow-function implementations throw "is not a constructor". Converted the constructable mocks to `function` expressions in `vitest.setup.ts` (`AudioContext`, `Worker`), `SingingVoiceManager.test.ts` (`SingingVoice`), `VoiceEditor.test.tsx` (`VoiceDesigner`), `Open303Config.test.ts` (`AudioWorkletNode`).
+  - **Genuine pre-existing bug surfaced & fixed:** esbuild 0.25 (pulled in by vite 6) rejected `src/hooks/audioEngine/audioPlayback.ts` with `Unexpected "}"` at line 562 — a real orphaned closing brace in `createPlayDrum` left behind when the "retrigger loop" was removed (line 428 comment). `tsc` agrees (TS1128). esbuild 0.21 under vite 5 had silently tolerated it; this was never validated because CI couldn't install. Removed the stray brace.
+  - **Result:** full suite green under vitest 4 / vite 6 — **1128 passed, 3 skipped, 104 files (1 skipped)**. Validated locally after building the 5 AssemblyScript wasm targets (`oscillators`, `trackFreezer`, `fft`, `audioExport`, `xmExport`) that suites import via `?init` (CI's `Build WASM` step does this).
+  - **Still red elsewhere (NOT this migration's scope, separate merge-spree fallout):** `tsc -b` reports pre-existing errors in untouched files — `NoteSelector.tsx` (`"vocoderMix"` not in param union), node-builtin/`global`/`Buffer` type resolution in some test files (`engineInitPaths`, `trackFreezer`, `CloudStatus`, `xmWriter`). These block `tsc -b && vite build` and need a follow-up pass.
+
+## GPU compute log
+- **2026-06-22 — WebGpuBackend GPU-resident op chaining (`runChain`).** Added `runChain(ops[], data, dims, params[])` to `src/services/WebGpuBackend.ts`. It ping-pongs between two persistent STORAGE buffers across all ops in a *single* command submission and reads back exactly **once** at the end (one `mapAsync`), eliminating the per-op `outputBuffer → readbackBuffer → mapAsync` round trip that `runOp()` pays for every op. Each op gets its own 16-byte uniform buffer (passes coexist in one submit, so they can't share a mutable uniform). `runOp()` is untouched for single-op callers.
+  - **Pooled allocator:** adopted the size-bucketed (4KB) pool pattern from `WebGpuOscillator.ts` — `storagePool` (STORAGE|COPY_SRC|COPY_DST ping-pong pair) + `readPool` (MAP_READ|COPY_DST), capped at 4/bucket, plus a `destroy()` teardown. Replaces fresh per-call STORAGE allocations on the chain path. (Full unification of both classes onto one shared pool left as a follow-up — kept this change small.)
+  - **Fallback + telemetry preserved:** returns `null` when WebGPU is unavailable (callers fall back to CPU, same contract as `runOp`); registers `webgpu-compute` resolution on init and `logEngineFallback(...)` on adapter/device/alloc/dispatch failure, mirroring the oscillator's telemetry. Stays OFFLINE/precompute — never awaited on the audio worklet thread.
+  - **Call site:** `VoiceDesigner._runGpuChain()` + new `dspMangle()` (sharpen→quantize→tremolo) demonstrate composing ops with no intermediate readback; degrades to the existing per-op CPU fallback when GPU is down or `runChain` returns null.
+  - **Tests:** `src/services/WebGpuBackend.test.ts` (6 cases) — empty/unavailable contracts, one pass per op + single readback, ping-pong wiring (op N output === op N+1 input), unknown-op error path, pool reuse across calls. Verified all 10 GPU tests green under vitest 2.1.9 (the repo's installed vitest 4.1.9 is incompatible with vite 5.4.21 — the documented red-CI mismatch above; full `tsc --noEmit` is clean: 0 errors).
 
 ## Ideas
-- [done — 2026-04-27] **Verify bug-report.md staleness** — confirmed stale: `useAudioEngine.ts` is 938 lines; the try/catch at line 1393 no longer exists. `bug-report.md` can be deleted.
-- [in progress — 2026-05-11] **Holographic knob GPU context unification** — audit findings confirmed (per-instance GPUDevice + RAF); implementing `KnobGPUContext.ts` singleton with shared pipeline and batched draw loop. Multi-day.
-- [ ] Holographic knob WGSL render pass unification — single compute-driven render path so every knob shares lighting/material, kill drift between the 2D fallback and the WebGPU canvas path. (multi-day; depends on perf audit findings)
+- [done — 2026-04-27] **Verify bug-report.md staleness** — confirmed stale; file deleted.
+- [done — 2026-05-25] **Holographic knob GPU context unification** — `KnobGPUContext.ts` singleton + `MagicKnob.tsx` ported.
+- [done — 2026-06-01] **Holographic knob WGSL/2D drift-kill** — `knobMaterial.ts` shared contract consumed by WGSL + Canvas2D; `knobMaterial.contract.test.ts` guards palette/geometry/bloom parity.
 
 ## Backlog
-- [ ] **PR #506** "Fix: Resolve TypeScript errors related to Note interface" — open (Jules, May 3), needs review/merge or feedback.
-- [ ] **PR #507** "Palette: Fix orphaned aria-describedby in GamepadDebugger" — open (Jules, May 3), needs review/merge or feedback.
-- [ ] **Open issue #330** Live Keyboard UI arrangement — CSS-grid piano-shape layout; Jules-labeled, still unimplemented. Plan draft referenced but `live-kbd-plan.md` not found at root — verify.
-- [ ] **Issue #465** Docs consolidation — Phase 1 (DOCS.md root index, zero-move) is the immediate deliverable; Phase 2 (physical migration to `docs/`) deferred. Phase 1 spec fully written in the issue.
-- [ ] **Repo hygiene** — 30+ `*.md` files at repo root; Phase 1 resolved by issue #465 DOCS.md index.
+- [in progress — 2026-07-06, carried from 06-29 (unexecuted)] **Green-CI guardrail** — now three live gaps: (1) **`src/hooks/useAudioEngine.ts` doesn't parse** (esbuild L1013) — the primary fix; (2) **`ci.yml` has no `tsc` gate** AND runs `lint` with `continue-on-error: true` (masking the parse error); (3) **`debug_build.yml` perma-red** (mis-indented `Setup Rust`). All three = today's escalated FIX FIRST. Also still worth a `pnpm install --frozen-lockfile` pre-push hook so a future stale lockfile fails before merge.
+- [ ] **vitest 4 / vite 6 forward migration (deferred deliberately)** — `main` is pinned to `vitest 2.1.9` / `vite ^5.4.21`. Track the v4/v6 bump as its own task (vitest-4 `Reflect.construct` mock breakage, `vite/module-runner` export, `@fast-check/vitest` peer compat — all documented in the 2026-06-22 toolchain log above).
+- [ ] **Drop unused `@babel/helper-plugin-utils`** from `package.json` devDeps (grep-confirmed unused in `src/`; accidental dep from #793). Tiny; fold into today's branch or a hygiene pass.
+- [ ] **Epic #773 — ReBirth RBS v1.5/2.0 song fidelity** (opened 2026-06-18 by `cursor`). 8 child issues: #774 real-fixture corpus + golden suite, #775 DEVL packed-struct parser (`rbs.h`), #776 PCF + per-pattern 303 param extraction, #777 per-track TRAK controller tables, #778 v1.5 subset support, #779 32-pattern banks beyond 8 slots, #780 RbsExporter (write `.rbs`), #781 E2E import→song-mode→automation. This is the next big theme after CI is green.
+- [ ] **Repo hygiene** — 13 root `*.md` files + 9+ one-off `fix*.py` / `patch*.py` / `update_*.py` / `replace_helpers*.py` scripts at repo root. Candidate: `DOCS.md` index + archive scripts into `tools/`. **= Today's decoupled Copilot issue (B).**
 - [ ] Rubberband phoneme-aware time-stretch + `ExpressiveVoiceProcessor.ts` pending per `RUBBERBAND_ENHANCEMENT_PLAN.md`.
-- [ ] Dozens of one-off `fix*.py` / `patch*.py` / `update_*.py` scripts at repo root — candidate for archival into `tools/`.
+- [ ] RBS import test+docs polish — expand Vitest coverage for parser/importer/scheduler + document automation architecture (now subsumed/expanded by epic #773).
 
 ## Done
-- 2026-05-18 — jc303/Open303 WASM pipeline stabilized: stub-WASM early detection, `Open303Manager` params wiring, WASM promoted to Vite content-hashed asset (PRs #569 + #572, Claude Code).
-- 2026-05-18 — Live keyboard triggers drum voices with MIDI note pitch shifting (PR #571, Copilot).
-- 2026-05-18 — Vocal Harmony Parallel Bus: dedicated parallel bus + glue compression + EQ for harmony voices; `isHarmonyVoice` routing out of main lead saturation path (PR #568, Jules).
-- 2026-05-18 — Palette: decorative UI elements hidden from screen readers (PR #567).
-- 2026-05-11 — Gesture Controls: pinch-to-zoom + scroll-wheel zoom on sequencer timeline (PR #513, Copilot).
-- 2026-05-11 — BottomBar Accessibility Enhancements (PR #511, Jules).
-- 2026-05-04 — TTS per-bank cold-start preload + onnxruntime-web cache purge devtool: `useTTSPreloader.ts` hook (idle-scheduled), `SupertonicService.purgeCache()` + `window.__devtools.purgeTTSCache()` devtools action, full test coverage landed (Jules, commit 52117f0, Apr 28).
-- 2026-05-04 — SamplerPanel `<fieldset>` conversion: BASIC and ENGINE grouping divs converted to `<fieldset>`/`<legend className="sr-only">` (PR #483 merged, followed by Palette a11y passes PR #486/487).
-- 2026-05-04 — PR #479 "feat(audio): Master Bus Compressor" — merged.
-- 2026-05-04 — PR #480 "⚡ Bolt: Optimize MainSequencer re-renders" — merged.
-- 2026-05-04 — Hybrid Audio Engine Fallback HUD: `EngineHUD.tsx` DOM overlay + `engineTelemetry` instrumentation for WebGPU/WASM/JS/WAV/Open303 backends with p50/p95 latency and error counts; Ctrl+Shift+E toggle + `?hud=1` URL param (commits d90609f + 4300794).
-- 2026-04-27 — PR #457 "feat: Custom Waveform LFO" confirmed merged (commit ed7a44b / PR #461).
-- 2026-04-27 — PR #458 / PR #475 "Palette: aria-label + title on icon-only buttons" confirmed merged.
-- 2026-04-27 — `bug-report.md` staleness confirmed: `useAudioEngine.ts` is 938 lines; referenced line 1393 does not exist. File deleted.
-- 2026-04-27 — SamplerPanel `useMemo` syntax error (`(174,6)`) confirmed resolved in current code; tsc passes cleanly.
-- 2026-04-27 — PR #476 Step-Sequenced Reverb Types — type errors fixed and merged.
-- 2026-04-27 — PR #477 AdvancedNoteSelector Escape key support merged.
-- 2026-04-27 — PR #478 DrumMachine + SynthPart memoization optimization merged.
-- 2026-04-20 — Accessible ARIA switches replace native checkboxes (PR #456 merged).
-- 2026-04-19 — Custom Sample Slicing UI with keyboard nav (PR #455 merged).
-- 2026-04-19 — Fix orphaned `aria-describedby` refs in modals (PR #454 merged).
-- 2026-04-18 — AI auto-mix assistant feature (PR #453 merged).
-- 2026-04-17 — Keyboard accessibility for custom radio groups (PR #452 merged).
-- 2026-04-16 — Step-sequenced formant shifts (PR #451 merged).
+- 2026-06-29 — **Restore green CI on `main` (2026-06-22 Fix First) — LANDED & VERIFIED.** Fix merged via the conservative fork (vitest pinned `2.1.9`, lockfile regenerated, stray brace in `audioPlayback.ts` removed, `vocoderMix` added to property-change unions). `ci.yml` (Lint + Test) green and stable across the week's merges (#793/#814/#816/#817/#818). The week's previously-unvalidated feature spree (formant vocoder #793, granular jitter #791, drum-retrigger #792, spectral morph #785, spectral resynthesis #814) is now CI-validated. Follow-up cracks (missing `tsc` gate, perma-red `debug_build.yml`, `as any` band-aids) carried into today's Fix First.
+- 2026-06-15 — **Issue #720 — Oscillator fallback audit CLOSED (completed)** by ford442. The prior Fix First lead task landed during the week; all 6 degrading engines addressed. (Routine primed it 2026-06-15; closed 13:50 same day.)
+- 2026-06-22 — _Reconciled, landed-but-UNVALIDATED this week (CI red — validation pending today's fix):_ formant-preserving vocoder phase 1 (PR #793), granular position jitter (PR #791), drum-retrigger optimization (PR #792), spectral morph automation (PR #785), audio inner-loop param hoisting (#786), + accessibility/palette batch (ScaleSelector #788, AutomationLane ARIA #787, modal close buttons #782/#784, focus rings).
+- 2026-06-15 — **Palette: aria-labels on oscillator variant buttons** (PR #760, merged — commits `6b0f753` / `9ca0e24`). Closes prior sprint target #3.
+- 2026-06-15 — **Vocal Pitch Envelope** (PR #759, Jules): `pitchAttack`, `pitchDecay`, `pitchAmount` on `Note` / `SamplerParams`; `SingingVoice.ts` setters; `ExpressiveVoiceProcessor.ts` attack/decay envelope; `rubberband-processor.ts` per-step + global routing; UI knobs in `SamplerPanel` + per-step controls in `SamplerVoicePanel` / `SamplerPitchControls` / `ContextMenuNode`.
+- 2026-06-15 — **Time-Stretch Envelope** wiring completed (PRs #756, #757): `timeStretchEnvDepth` per-step + global path through `SingingVoice` → rubberband worklet.
+- 2026-06-15 — **Palette: standardize focus rings** (PR #758).
+- 2026-06-01 — Holographic knob render-pass PLUMBING + shared `knobMaterial.ts` contract on `main`.
+- 2026-06-01 — Backlog reconcile: PRs #506 & #507 confirmed closed-unmerged; GitHub issue count reset.
+- 2026-05-25 — Holographic knob GPU context unification (PR #617 context).
+- 2026-05-18 — jc303/Open303 WASM pipeline stabilized (PRs #569 + #572).
+- 2026-05-18 — Live keyboard drum voices with MIDI pitch shifting (PR #571).
+- 2026-05-18 — Vocal Harmony Parallel Bus (PR #568).
+- 2026-05-18 — Palette: decorative UI hidden from screen readers (PR #567).
+- 2026-05-11 — Gesture Controls: pinch/scroll zoom on sequencer (PR #513).
+- 2026-05-11 — BottomBar Accessibility Enhancements (PR #511).
+- 2026-05-04 — TTS per-bank cold-start preload + onnxruntime-web cache purge devtool.
+- 2026-05-04 — SamplerPanel `<fieldset>` conversion (PR #483 + a11y passes).
+- 2026-05-04 — Master Bus Compressor (PR #479), MainSequencer re-render optimization (PR #480).
+- 2026-05-04 — Hybrid Audio Engine Fallback HUD: `EngineHUD.tsx` + `engineTelemetry` (Ctrl+Shift+E / `?hud=1`).
+- 2026-04-27 — Custom Waveform LFO, aria-label passes, step-sequenced reverb types, AdvancedNoteSelector Escape, DrumMachine memoization.
+- 2026-04-20 — Accessible ARIA switches (PR #456).
+- 2026-04-19 — Custom Sample Slicing UI (PR #455), orphaned aria-describedby fix (PR #454).
+- 2026-04-18 — AI auto-mix assistant (PR #453).
+- 2026-04-17 — Keyboard accessibility for custom radio groups (PR #452).
+- 2026-04-16 — Step-sequenced formant shifts (PR #451).
 - 2026-04-15 — Global convolution reverb effect.
-- 2026-04-14 — Palette: tabpanel roles on tabbed interfaces (PR #450).
-- 2026-04-13 — Auto-slice by transients in SamplerPanel (PR #444 merged).
-- 2026-04-13 — aria-busy on processing buttons (PR #445).
+- 2026-04-14 — Palette: tabpanel roles (PR #450).
+- 2026-04-13 — Auto-slice by transients (PR #444), aria-busy on processing buttons (PR #445).
 - 2026-04-12 — AdvancedNoteSelector + ScaleSelector (PR #443).
+- 2026-05-31 — consonantEmphasis TTS control (PR #693 merged).
+- 2026-05-30 — RBS → Hyphon importer scaffolding (PRs #685/#686 merged).
+
+## Claude Wins / Post-Run Notes
+_(Running log — fill in at end of each weekly session.)_
+
+| Date | Shipped | Notes |
+|------|---------|-------|
+| 2026-06-01 | (incomplete) | Holographic-knob drift-kill started; `knobMaterial.ts` contract landed but session ended before full verification. |
+| 2026-06-16 | _(pending)_ | Prep: plan refreshed, tests green after `pnpm run build:wasm`, issue #720 primed. |
+| 2026-06-22 | ✅ green CI restored | Fix First: main CI red since 06-21 (stale pnpm-lock.yaml — vitest 2→4 bump in #793 without lockfile regen). Fix landed via conservative fork (vitest pinned 2.1.9); `ci.yml` green & stable. |
+| 2026-06-29 | _(pending)_ | Fix First: main CI green but **never type-checks** (`ci.yml` has no `tsc`); merge-spree type drift slipped past it (vocoder formant `TS2339`, patched late w/ `as any`). Plus `debug_build.yml` perma-red (malformed YAML). Plan = add `tsc` gate + fix workflow + strip `as any`. Noah notified. **NOTE (07-06): this plan was never executed — only the plan commit merged.** |
+| 2026-07-06 | _(pending)_ | Fix First (escalated): last week's CI-hardening swarm never ran. Verified live — `useAudioEngine.ts` **does not parse** (esbuild `Expected ")"` @ L1013, confirmed by Jules PR #850); `ci.yml` still has no `tsc` + runs `lint` `continue-on-error:true`; `debug_build.yml` still perma-red (3/3 latest = failure); `as any` in the hook 4→21; babel dep still present. Plan = fix parse error → strip `as any` → add `tsc` gate → un-mask lint → fix `debug_build.yml` → drop babel dep. Noah notified. |
 
 ## Last run
-Date: 2026-05-18
-Mode: User Idea (continuing)
-Focus: Holographic knob GPU context unification — KnobGPUContext.ts singleton + MagicKnob.tsx refactor
-Outcome: (to be filled at end-of-day)
+Date: 2026-07-06
+Mode: Fix First (escalated)
+Focus: Repair the primary audio-engine foundation, then install the CI gate that would have caught it. Last week's 06-29 Fix First never executed (only the plan commit merged; `.swarm-state.md` still shows the stale 06-22 state). Verified live this run: `src/hooks/useAudioEngine.ts` **does not parse** (esbuild `Expected ")" but found ";"` @ L1013 — unbalanced `(` in the `playSamplerVoice`/`playBufferSource` region), independently confirmed by Jules PR #850. `ci.yml` still has no `tsc` and runs `lint` with `continue-on-error: true`, masking it; `debug_build.yml` still perma-red (mis-indented `Setup Rust`, 3/3 latest runs = failure); `as any` in the hook grew 4→21; `@babel/helper-plugin-utils` still in `package.json`. Primary task: (1) fix the parse error, (2) strip the 21 `as any`, (3) add `tsc -b` to `ci.yml`, (4) flip lint off `continue-on-error`, (5) fix `debug_build.yml`, (6) drop babel dep, (7) verify all three workflows green.
+Outcome: Planning run. Reconciled: 06-29 Fix First → NOT EXECUTED (nothing landed; swarm never ran). No items moved to Done. weekly_plan.md updated (Today's focus = escalated CI/parse Fix First, CI toolchain log reconcile entry, Backlog: Green-CI guardrail → three live gaps, wins table 06-29 marked unexecuted + 07-06 row, Last run). Dispatch: kimi-cli swarm = fix parse error + strip `as any` + add `tsc` gate + un-mask lint + fix `debug_build.yml` + drop babel dep (scoped to `src/hooks/useAudioEngine.ts`, `src/types.ts`, `.github/workflows/ci.yml`, `.github/workflows/debug_build.yml`, `package.json` only); decoupled Copilot issue = RBS importer/parser test-coverage + automation-architecture docs (backlog "RBS import test+docs polish", advances Epic #773 — zero file overlap with the audio hook / workflows / package.json); Claude Code = whole-stack build→deploy→smoke. Jules wrap-up template provided. Noah notified via push. **Context gap:** chat-history tools (`recent_chats`/`conversation_search`) unavailable in this environment (same as last two runs) — context from repo state + GitHub Actions MCP + plan file only; no visibility into Noah's in-week chat mentions.
+
+## Prep checklist (before each weekly Claude session)
+- [ ] Refresh this file (date + 3–4 scoped targets)
+- [ ] `pnpm install --frozen-lockfile && pnpm run build:wasm && pnpm run lint && pnpm test`
+- [ ] `main` clean and pushed; optional branch `claude-YYYY-MM-DD` for PR-based output
+- [ ] Prime the lead issue with reproduction notes
+- [ ] Point Claude at: `weekly_plan.md`, lead issue, latest feature merge, `AGENTS.md`
+
+## Issue #720 repro notes (paste as issue comment if desired)
+Diagnostics already on `main`: fallback transitions log via `logEngineFallback()` in `src/utils/engineTelemetry.ts` (console prefix `[EngineFallback]`). Runtime HUD: **Ctrl+Shift+E** or `?hud=1` (`EngineHUD.tsx`).
+
+**Repro checklist (fresh checkout / CI-like env):**
+1. `pnpm install --frozen-lockfile && pnpm run build:wasm && pnpm run build:emcc` — without WASM artifacts, engines fail at import/init.
+2. Dev server must serve COOP/COEP headers (Vite config) for threaded `hyphon_native.wasm` / JC-303 pthread variants.
+3. User gesture required to resume `AudioContext` before worklet engines initialize.
+
+**Per-engine likely failure points (code audit, 2026-06-16):**
+| Engine | Bridge | Common failure |
+|--------|--------|----------------|
+| Open303 / JC303 | `Open303Oscillator.ts`, `open303-processor` | `hyphon_native.wasm` fetch/timeout, worklet init error |
+| Prophecy | `ProphecyOscillator.ts`, `prophecy-processor` | same native wasm + worklet path |
+| Rust | `RustOscillator.ts` | `public/rust-wasm/` missing |
+| WebGPU | `WebGpuOscillator.ts` | `navigator.gpu` null, device creation fail |
+| Pyodide | `usePyodideEngine.ts` | CDN load / `window.Module` bootstrap |
+| WASM (AS) | `WasmOscillator.ts` | `src/wasm/oscillators.wasm` not built |
+
+## Context packet for 2026-06-16 run
+| Resource | Why |
+|----------|-----|
+| `weekly_plan.md` (this file) | Sprint scope + backlog state |
+| [Issue #720](https://github.com/ford442/web_sequencer/issues/720) | Oscillator fallback audit — lead task |
+| PR #759 merge (`8234a1e` / `c266138`) | Vocal pitch envelope — params + file map |
+| `AGENTS.md` | Build/test/commit conventions, Four Worlds rule |
+| [PR #760](https://github.com/ford442/web_sequencer/pull/760) | Open a11y follow-up (review or merge) |
+| `src/utils/engineTelemetry.ts` + `EngineHUD.tsx` | Fallback diagnostics tooling already on `main` |
+
+**Vocal pitch envelope file map (PR #759):**
+- Types: `src/types.ts` (`pitchAttack`, `pitchDecay`, `pitchAmount` on `Note` + `SamplerParams`)
+- Engine: `src/engines/SingingVoice.ts`, `src/engines/rubberband/ExpressiveVoiceProcessor.ts`
+- Worklet: `src/audio-worklets/rubberband-processor.ts`
+- UI: `src/components/SamplerPanel.tsx`, `SamplerVoicePanel.tsx`, `SamplerPitchControls.tsx`, `ContextMenuNode.tsx`
+- Hook wiring: `src/hooks/useAudioEngine.ts`, `src/hooks/audioEngine/sampleManagement.ts`

@@ -1,9 +1,28 @@
 import { noteToMidi, applyMicrotonalTuning } from './utils/musicTheory';
 import type { ScaleDefinition } from './utils/musicTheory';
-import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerBankParams, SamplerParams, AmbianceTrack } from './types';
+import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerBankParams, SamplerParams, AmbianceTrack, DrumKitType } from './types';
+import { DRUM_KIT_PRESETS } from './engines/DrumKitPresets';
 
 export const NUM_STEPS = 32;
 export const DEFAULT_TEMPO = 120;
+
+/** Legacy pattern-mode bank size (pre–v2 saved songs). */
+export const LEGACY_TRACK_PATTERN_SLOTS = 8;
+/** ReBirth-compatible pattern banks per track (DEVL supports 32). */
+export const MAX_TRACK_PATTERN_SLOTS = 32;
+/** SavedSongData schema: 1 = 8 slots, 2 = 32 slots. */
+export const SAVED_SONG_DATA_VERSION = 2;
+
+export const TRACK_KEYS = [
+  'partA',
+  'partB',
+  'bass2',
+  'kick',
+  'snare',
+  'closedHat',
+  'openHat',
+  'sampler',
+] as const;
 
 export const DEFAULT_SYNTH_PARAMS_A: SynthParams = {
   waveform: 'sawtooth',
@@ -49,6 +68,7 @@ export const DEFAULT_BASS2_PARAMS = {
   accent: 0.7,
   envMod: 0.5,
   volume: 0.45,
+  engine303: 'open303' as const,
 };
 
 export const DEFAULT_KICK_PARAMS: KickParams = { pitch: 60, decay: 0.4, tone: 0.9, volume: 1 };
@@ -56,6 +76,23 @@ export const DEFAULT_SNARE_PARAMS: SnareParams = { decay: 0.2, tone: 150, noise:
 export const DEFAULT_CLOSED_HAT_PARAMS: HatParams = { pitch: 9000, decay: 0.05, volume: 0.4 };
 
 export const DEFAULT_OPEN_HAT_PARAMS: HatParams = { pitch: 7000, decay: 0.4, volume: 0.4 };
+
+/** Default drum kit type */
+export const DEFAULT_DRUM_KIT: DrumKitType = '808';
+
+/**
+ * Get default drum params for a specific kit type.
+ * Use this when switching kits or loading .rbs files.
+ */
+export function getKitDrumParams(kitType: DrumKitType): { kick: KickParams; snare: SnareParams; closedHat: HatParams; openHat: HatParams } {
+  const preset = DRUM_KIT_PRESETS[kitType];
+  return {
+    kick: { ...preset.kick },
+    snare: { ...preset.snare },
+    closedHat: { ...preset.closedHat },
+    openHat: { ...preset.openHat },
+  };
+}
 
 // This is just a helper, the actual default is array of 8 of these
 export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {

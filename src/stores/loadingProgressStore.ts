@@ -12,6 +12,7 @@ export type LoadingStep =
   | 'webGpuEngine'
   | 'wasmEngine'
   | 'open303Engine'
+  | 'prophecyEngine'
   | 'wavFiles'
   | 'singingVoice'
   | 'ambianceBuffers'
@@ -34,8 +35,17 @@ export interface LoadingState {
   currentStep: LoadingStep | null;
   steps: Record<LoadingStep, LoadingStepInfo>;
   errors: string[];
+  /** Runtime degradations after boot (GPU/WASM/worklet fallbacks). */
+  runtimeDegradations: RuntimeDegradationEntry[];
   startTime: number | null;
   estimatedTimeRemaining: number | null;
+}
+
+export interface RuntimeDegradationEntry {
+  subsystem: string;
+  message: string;
+  reason: string;
+  ts: number;
 }
 
 type ProgressListener = (state: LoadingState) => void;
@@ -54,9 +64,10 @@ class LoadingProgressStore {
     masterChain: 4,         // gain/saturation/reverb/delay nodes, ~10ms
     webGpuEngine: 8,        // GPU detection / adapter request, ~100-300ms
     wasmEngine: 5,          // WASM oscillator init
-    open303Engine: 20,      // WASM fetch + worklet × 2 (now parallel)
+    open303Engine: 15,      // WASM fetch + worklet × 2 (was 20; reduced by 5 to fit prophecyEngine)
+    prophecyEngine: 10,     // Prophecy formant WASM worklet init
     wavFiles: 5,            // fetch + decodeAudioData for saw/square
-    singingVoice: 50,       // 12 SingingVoice worklets, dominant cost
+    singingVoice: 45,       // 12 SingingVoice worklets, dominant cost (was 50; reduced by 5 to fit prophecyEngine)
     ambianceBuffers: 0,     // lazy-loaded, not part of init
     ttsEngine: 0,           // Supertonic, loads after overlay closes
     complete: 5,            // final wiring
@@ -68,6 +79,7 @@ class LoadingProgressStore {
     webGpuEngine: 'Initializing WebGPU Oscillator',
     wasmEngine: 'Loading WASM Oscillator',
     open303Engine: 'Loading TB-303 Bass Engine',
+    prophecyEngine: 'Loading Prophecy Formant Engine',
     wavFiles: 'Loading Waveform Samples',
     singingVoice: 'Initializing Singing Voice Pool',
     ambianceBuffers: 'Preparing Ambiance Tracks',
@@ -97,6 +109,7 @@ class LoadingProgressStore {
       currentStep: null,
       steps,
       errors: [],
+      runtimeDegradations: [],
       startTime: null,
       estimatedTimeRemaining: null,
     };
@@ -130,6 +143,7 @@ class LoadingProgressStore {
       ...this.createInitialState(),
       isLoading: true,
       startTime: performance.now(),
+      runtimeDegradations: [],
     };
     this.logDebug('🚀 Loading sequence started');
     this.notify();
@@ -233,6 +247,29 @@ class LoadingProgressStore {
   addError(message: string): void {
     this.state.errors.push(message);
     this.logDebug(`❌ Error: ${message}`);
+    this.notify();
+  }
+
+  /** Record a post-boot runtime degradation (GPU context lost, WASM fallback, etc.). */
+  recordRuntimeDegradation(subsystem: string, message: string, reason: string): void {
+    const entry: RuntimeDegradationEntry = {
+      subsystem,
+      message,
+      reason,
+      ts: Date.now(),
+    };
+    const existingIdx = this.state.runtimeDegradations.findIndex((d) => d.subsystem === subsystem);
+    if (existingIdx >= 0) {
+      this.state.runtimeDegradations[existingIdx] = entry;
+    } else {
+      this.state.runtimeDegradations.push(entry);
+    }
+    this.logDebug(`⚠️ Runtime degradation: ${subsystem} — ${message}`);
+    this.notify();
+  }
+
+  clearRuntimeDegradation(subsystem: string): void {
+    this.state.runtimeDegradations = this.state.runtimeDegradations.filter((d) => d.subsystem !== subsystem);
     this.notify();
   }
 

@@ -7,12 +7,22 @@ For a quick-start overview see the root [README.md](../README.md).
 
 ---
 
+## Top-Level Docs (`docs/`)
+
+| File | Summary |
+|------|---------|
+| [automation.md](automation.md) | Current automation scheduler + RBS import architecture and testing touchpoints |
+
+---
+
 ## Audio Engine (`audio-engine/`)
 
 | File | Summary |
 |------|---------|
 | [HARMONIZER_IMPLEMENTATION.md](audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design and implementation details |
 | [JC303_STACK_OVERFLOW_FIX.md](audio-engine/JC303_STACK_OVERFLOW_FIX.md) | Fix for stack overflow in the JC-303 TB-303 clone WASM build |
+| [jc303-prophecy.md](audio-engine/jc303-prophecy.md) | Current per-voice Open303/JC303 switching and Prophecy integration notes |
+| [PLAYBACK_STABILITY.md](audio-engine/PLAYBACK_STABILITY.md) | Jitter thresholds, scheduler guards, and stress-test guidance for song-mode playback |
 | [MULTISAMPLE_GENERATOR_DESIGN.md](audio-engine/MULTISAMPLE_GENERATOR_DESIGN.md) | Design notes for the multisample generator |
 | [MULTISAMPLE_IMPLEMENTATION_SUMMARY.md](audio-engine/MULTISAMPLE_IMPLEMENTATION_SUMMARY.md) | Implementation summary for multisample generation |
 | [OPEN303_FALLBACK_MODES.md](audio-engine/OPEN303_FALLBACK_MODES.md) | Fallback synthesis modes for the Open303 engine |
@@ -34,6 +44,8 @@ For a quick-start overview see the root [README.md](../README.md).
 | File | Summary |
 |------|---------|
 | [HOLOGRAPHIC_COMPARISON.md](ui/HOLOGRAPHIC_COMPARISON.md) | Visual comparison of holographic vs flat knob rendering |
+| [VISUAL_STYLE_GUIDE.md](ui/VISUAL_STYLE_GUIDE.md) | Unified design tokens, bevels, LEDs, typography, and component audit |
+| [HELP_DISCOVERY.md](ui/HELP_DISCOVERY.md) | In-app help system: tooltips, command palette, what's new banner |
 | [HOLOGRAPHIC_KNOBS.md](ui/HOLOGRAPHIC_KNOBS.md) | Holographic 3D knob UI implementation documentation |
 | [HOLOGRAPHIC_USER_GUIDE.md](ui/HOLOGRAPHIC_USER_GUIDE.md) | User guide for the holographic knob interface |
 | [IMPLEMENTATION_SUMMARY_3D_KNOBS.md](ui/IMPLEMENTATION_SUMMARY_3D_KNOBS.md) | Implementation summary for 3D holographic knobs |
@@ -88,7 +100,7 @@ For a quick-start overview see the root [README.md](../README.md).
 
 ## Archive (`archive/`)
 
-Completed or historical documents kept for reference.
+Completed or historical documents kept for reference. Stale root-level planning scratch was moved here in 2026-07.
 
 | File | Summary |
 |------|---------|
@@ -97,6 +109,12 @@ Completed or historical documents kept for reference.
 | [INTEGRATION_SUMMARY.md](archive/INTEGRATION_SUMMARY.md) | Technical integration details for the TTS system (historical) |
 | [PR_SUMMARY.md](archive/PR_SUMMARY.md) | PR description for the holographic knobs feature |
 | [work_jan26.md](archive/work_jan26.md) | Work log from January 26 planning session |
+| [plan2.md](archive/plan2.md) | Formant envelope planning scratch (archived from root) |
+| [test_plan.md](archive/test_plan.md) | Formant filter test planning scratch (archived from root) |
+| [test_plan2.md](archive/test_plan2.md) | Formant envelope test planning scratch (archived from root) |
+| [lfo_sync_plan.md](archive/lfo_sync_plan.md) | LFO sync feature planning scratch (archived from root) |
+| [grok.md](archive/grok.md) | Grok assistant guide (archived; use AGENTS.md) |
+| [copilot-session-4c69e623-….md](archive/copilot-session-4c69e623-937a-417f-a6f2-f94dc628f01f.md) | Copilot session transcript |
 
 ---
 

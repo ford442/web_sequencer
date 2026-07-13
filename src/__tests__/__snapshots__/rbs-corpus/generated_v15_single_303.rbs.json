@@ -1,0 +1,18 @@
+{
+  "automationLaneCount": 3,
+  "automationTargets": [
+    "synthA.accent",
+    "synthA.filterCutoff",
+    "synthA.slide",
+  ],
+  "file": "generated_v15_single_303.rbs",
+  "hasSongData": true,
+  "partAActiveSteps": 12,
+  "playMode": 0,
+  "songLengthBars": 1,
+  "tb303APatternCount": 32,
+  "tempo": 118,
+  "trakEventCount": 0,
+  "usedPatternCount": 1,
+  "version": "1.5",
+}

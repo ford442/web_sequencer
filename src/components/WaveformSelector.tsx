@@ -70,6 +70,23 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SAW</div>;
     case '303-sqr':
       return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SQR</div>;
+    // NEW: Prophecy formant icons
+    case 'prophecy-saw':
+      return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>SAW</div>;
+    case 'prophecy-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>SQR</div>;
+    case 'prophecy-tri':
+      return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>TRI</div>;
+    case 'prophecy-pulse':
+      return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>PLS</div>;
+    case 'cpp-sin':
+      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SIN</div>;
+    case 'cpp-saw':
+      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SAW</div>;
+    case 'cpp-sqr':
+      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SQR</div>;
+    case 'cpp-rand':
+      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>RND</div>;
     default:
       // Always show at least the waveform name so unknown types are visible
       return <div className="font-bold text-[10px] leading-none text-center break-all">{type}</div>;
@@ -80,10 +97,12 @@ const OSCILLATOR_GROUPS = [
   { label: 'JavaScript', items: ['sawtooth', 'square', 'triangle', 'sine'] as Waveform[] },
   { label: 'PCM', items: ['wav-saw', 'wav-sqr'] as Waveform[] },
   { label: 'Open303', items: ['303-saw', '303-sqr'] as Waveform[] },
+  { label: 'Prophecy', items: ['prophecy-saw', 'prophecy-sqr', 'prophecy-tri', 'prophecy-pulse'] as Waveform[] },
   { label: 'Pyodide', items: ['pyodide-saw', 'pyodide-square', 'pyodide-sine'] as Waveform[] },
   { label: 'Rust', items: ['rust-saw', 'rust-sqr'] as Waveform[] },
   { label: 'WebGPU', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'] as Waveform[] },
   { label: 'Web Audio Module', items: ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
+  { label: 'CPP', items: ['cpp-sin', 'cpp-saw', 'cpp-sqr', 'cpp-rand'] as Waveform[] },
 ];
 
 // Flat list of all waveforms in display order, for cycling
@@ -169,7 +188,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
   return (
     <div className="relative inline-block" ref={containerRef}>
       {/* Compact trigger button - always visible */}
-      <button
+      <button type="button"
         ref={triggerRef}
         onClick={() => setIsExpanded(!isExpanded)}
         aria-label={`Waveform selector: ${selected}. Click to ${isExpanded ? 'collapse' : 'expand'} options. Click to cycle, Shift+click for reverse.`}
@@ -196,7 +215,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
             {/* Left side: Current waveform display and cycle button */}
             <div className="flex flex-col gap-2 border-r border-gray-700 pr-2">
               <div className="text-xs font-bold uppercase tracking-wider text-gray-400 text-center">Current</div>
-              <button
+              <button type="button"
                 onClick={handleWaveformClick}
                 aria-label={`Current waveform: ${selected}. Click to cycle, Shift+click to cycle back.`}
                 title={`Current: ${selected}. Click to cycle, Shift+click for reverse.`}
@@ -217,7 +236,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
                   {/* Waveform buttons in a row */}
                   <div className="flex flex-wrap gap-1 px-2">
                     {group.items.map((wave) => (
-                      <button
+                      <button type="button"
                         key={wave}
                         onClick={() => { onChange(wave); }}
                         aria-pressed={selected === wave}

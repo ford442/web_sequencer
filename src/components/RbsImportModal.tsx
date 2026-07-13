@@ -12,6 +12,11 @@
  * - Error handling with "Try Example" feature
  */
 
+import { ImportOptionsPanel } from './rbs-import-modal/ImportOptionsPanel';
+import { ImportReportPanel } from './rbs-import-modal/ImportReportPanel';
+import { SongMetadataPanel } from './rbs-import-modal/SongMetadataPanel';
+import { PatternVisualization } from './rbs-import-modal/PatternVisualization';
+import { ParameterSummaryPanel } from './rbs-import-modal/ParameterSummaryPanel';
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   RbsParser,
@@ -25,6 +30,7 @@ import {
   type RbsParserError,
   DEFAULT_RBS_IMPORT_OPTIONS
 } from '../importers/rbs';
+import type { ImportReport } from '../importers/rbs';
 import {
   formatFileSize,
   categorizeError,
@@ -74,6 +80,10 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
   
   // Importing state
   const [isImporting, setIsImporting] = useState(false);
+
+  // Import report state — populated after successful import
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const [importedSongName, setImportedSongName] = useState<string>('');
   
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +102,8 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
       setImportOptions(DEFAULT_RBS_IMPORT_OPTIONS);
       setShowOptions(false);
       setIsImporting(false);
+      setImportReport(null);
+      setImportedSongName('');
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -304,8 +316,17 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         
         if (result.success) {
           onImport(result.song);
-          onShowToast(`Imported "${result.song.metadata.name}" from RBS`, 'success');
-          onClose();
+          // Store report and song name to show in the success panel
+          setImportReport(result.report);
+          setImportedSongName(result.song.metadata.name);
+          setIsImporting(false);
+          // Show a brief summary in the toast
+          const warnCount = result.report.warnings.length;
+          const autoCount = result.report.automationLanesConverted;
+          const summaryParts: string[] = [`${result.report.stepsConverted} steps`];
+          if (autoCount > 0) summaryParts.push(`${autoCount} automation lane${autoCount !== 1 ? 's' : ''}`);
+          if (warnCount > 0) summaryParts.push(`${warnCount} warning${warnCount !== 1 ? 's' : ''}`);
+          onShowToast(`Imported "${result.song.metadata.name}" — ${summaryParts.join(', ')}`, 'success');
         } else {
           onShowToast('Import conversion failed', 'error');
           setIsImporting(false);
@@ -325,7 +346,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         }));
       }
     }, 300);
-  }, [parsedData, importOptions, onImport, onShowToast, onClose]);
+  }, [parsedData, importOptions, onImport, onShowToast]);
 
   // Update import option
   const updateOption = useCallback(<K extends keyof RbsImportOptions>(
@@ -390,7 +411,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         onClick={onClose}
         aria-hidden="true"
       />
-      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" aria-describedby="rbs-import-desc" className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" aria-describedby="rbs-import-desc" tabIndex={-1} className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
@@ -402,9 +423,9 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
               <p id="rbs-import-desc" className="text-xs text-gray-400">Import .rbs pattern files from ReBirth RB-338</p>
             </div>
           </div>
-          <button
+          <button type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all"
+            className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
             title="Close (Esc)"
             aria-label="Close modal"
           ><span aria-hidden="true">✕</span></button>
@@ -420,8 +441,13 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-4 space-y-4">
+          {/* Import Report */}
+          {importReport && (
+            <ImportReportPanel importReport={importReport} importedSongName={importedSongName} />
+          )}
+
           {/* File Drop Zone */}
-          {!isComplete && !hasError && (
+          {!isComplete && !hasError && !importReport && (
             <div
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
@@ -442,7 +468,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 </p>
               )}
               <p className="text-xs text-gray-500">or</p>
-              <button
+              <button type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded transition-all"
                 disabled={isParsing}
@@ -469,7 +495,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                   <span className="animate-spin">⏳</span>
                   <span className="text-sm font-medium">{parseState.stageLabel}</span>
                 </div>
-                <button
+                <button type="button"
                   onClick={handleCancel}
                   className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all"
                 >
@@ -502,7 +528,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                     {parseState.category === 'READ_ERROR' && 'Read Error'}
                   </span>
                 </div>
-                <button
+                <button type="button"
                   onClick={handleLoadExample}
                   className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded transition-all"
                 >
@@ -528,115 +554,18 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
             </div>
           )}
 
-          {/* Success / Preview */}
-          {isComplete && parsedData && (
+          {/* Success / Preview — hidden once import is done */}
+          {isComplete && parsedData && !importReport && (
             <>
               {/* Song Metadata */}
-              <div className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-amber-400">{parsedData.project.name}</h3>
-                  <span className="text-xs text-gray-500">RBS {parsedData.version}</span>
-                </div>
-                <div className="grid grid-cols-4 gap-4 text-xs">
-                  <div>
-                    <span className="text-gray-500 block">Tempo</span>
-                    <span className="text-white">{parsedData.project.tempo} BPM</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Time Signature</span>
-                    <span className="text-white">{parsedData.project.timeSignatureNum}/{parsedData.project.timeSignatureDen}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Swing</span>
-                    <span className="text-white">{parsedData.project.swing}%</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Length</span>
-                    <span className="text-white">{parsedData.project.patternLength} steps</span>
-                  </div>
-                </div>
-              </div>
+              <SongMetadataPanel project={parsedData.project} version={parsedData.version} />
 
               {/* Pattern Visualization */}
               {patternVisualization && (
                 <div className="p-4 bg-gray-900/50 rounded-lg">
                   <h3 className="text-sm font-medium text-gray-300 mb-3">Pattern Preview</h3>
                   
-                  {/* TB-303 A */}
-                  <div className="mb-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-20 text-xs text-amber-500 text-right">TB-303 A</span>
-                      <div className="flex gap-0.5">
-                        {patternVisualization.tb303A.map((step, i) => (
-                          <div
-                            key={i}
-                            className={`w-6 h-6 rounded-sm flex items-center justify-center text-[8px] font-mono ${
-                              step.note !== -1
-                                ? 'bg-amber-500/80 text-black'
-                                : i % 4 === 0
-                                  ? 'bg-gray-700'
-                                  : 'bg-gray-800'
-                            }`}
-                            title={step.note !== -1 ? noteToName(step.note, step.octave) : 'Rest'}
-                          >
-                            {step.note !== -1 ? noteToName(step.note, step.octave).slice(0, 2) : ''}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* TB-303 B */}
-                  <div className="mb-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-20 text-xs text-amber-500/70 text-right">TB-303 B</span>
-                      <div className="flex gap-0.5">
-                        {patternVisualization.tb303B.map((step, i) => (
-                          <div
-                            key={i}
-                            className={`w-6 h-6 rounded-sm flex items-center justify-center text-[8px] font-mono ${
-                              step.note !== -1
-                                ? 'bg-amber-500/60 text-black'
-                                : i % 4 === 0
-                                  ? 'bg-gray-700'
-                                  : 'bg-gray-800'
-                            }`}
-                            title={step.note !== -1 ? noteToName(step.note, step.octave) : 'Rest'}
-                          >
-                            {step.note !== -1 ? noteToName(step.note, step.octave).slice(0, 2) : ''}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Drums */}
-                  <div className="space-y-1">
-                    {useMemo(() => [
-                      { name: 'Kick', pattern: patternVisualization.drums.kick, color: 'bg-orange-500' },
-                      { name: 'Snare', pattern: patternVisualization.drums.snare, color: 'bg-green-500' },
-                      { name: 'Closed Hat', pattern: patternVisualization.drums.closedHat, color: 'bg-yellow-500' },
-                      { name: 'Open Hat', pattern: patternVisualization.drums.openHat, color: 'bg-yellow-600' }
-                    ], [patternVisualization.drums.kick, patternVisualization.drums.snare, patternVisualization.drums.closedHat, patternVisualization.drums.openHat]).map(drum => (
-                      <div key={drum.name} className="flex items-center gap-2">
-                        <span className="w-20 text-xs text-gray-500 text-right">{drum.name}</span>
-                        <div className="flex gap-0.5">
-                          {drum.pattern.map((hit, i) => (
-                            <div
-                              key={i}
-                              className={`w-6 h-4 rounded-sm ${
-                                hit
-                                  ? drum.color
-                                  : i % 4 === 0
-                                    ? 'bg-gray-700'
-                                    : 'bg-gray-800'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <PatternVisualization tb303A={patternVisualization.tb303A} tb303B={patternVisualization.tb303B} drums={patternVisualization.drums} />
 
                   {/* PCF Indicator */}
                   {patternVisualization.pcf && (
@@ -661,221 +590,15 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
               )}
 
               {/* Parameter Summary */}
-              {paramSummary && (
-                <div className="p-4 bg-gray-900/50 rounded-lg">
-                  <h3 className="text-sm font-medium text-gray-300 mb-3">Parameter Summary</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* TB-303 A */}
-                    <div className="p-3 bg-amber-950/20 border border-amber-900/30 rounded">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-amber-400">TB-303 A</span>
-                        <span className="text-[10px] text-gray-500">
-                          {paramSummary.tb303A.waveform === 'saw' ? '🔺' : '⬜'} {paramSummary.tb303A.waveform}
-                        </span>
-                      </div>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Cutoff</span>
-                          <span className="text-gray-300">{paramSummary.tb303A.cutoff}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Resonance</span>
-                          <span className="text-gray-300">{paramSummary.tb303A.resonance}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Decay</span>
-                          <span className="text-gray-300">{paramSummary.tb303A.decay}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* TB-303 B */}
-                    <div className="p-3 bg-amber-950/20 border border-amber-900/30 rounded">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-amber-400">TB-303 B</span>
-                        <span className="text-[10px] text-gray-500">
-                          {paramSummary.tb303B.waveform === 'saw' ? '🔺' : '⬜'} {paramSummary.tb303B.waveform}
-                        </span>
-                      </div>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Cutoff</span>
-                          <span className="text-gray-300">{paramSummary.tb303B.cutoff}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Resonance</span>
-                          <span className="text-gray-300">{paramSummary.tb303B.resonance}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Decay</span>
-                          <span className="text-gray-300">{paramSummary.tb303B.decay}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* PCF Badge */}
-                  {paramSummary.pcfEnabled && (
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs rounded border border-purple-500/30">
-                        PCF Enabled
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        Drum Kit: {paramSummary.kitType.toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
+              <ParameterSummaryPanel paramSummary={paramSummary} />
 
               {/* Import Options */}
-              <div className="border border-gray-800 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setShowOptions(!showOptions)}
-                  aria-expanded={showOptions}
-                  aria-controls="import-options-panel"
-                  className="w-full p-3 bg-gray-900/50 flex items-center justify-between hover:bg-gray-800/50 transition-all"
-                >
-                  <span className="text-sm font-medium text-gray-300">Import Options</span>
-                  <span className="text-gray-500">{showOptions ? '▼' : '▶'}</span>
-                </button>
-                
-                {showOptions && (
-                  <div id="import-options-panel" className="p-4 space-y-4 bg-gray-900/30">
-                    {/* Expand Steps */}
-                    <div
-                      className="flex items-center justify-between cursor-pointer"
-                      onClick={() => updateOption('expandTo32Steps', !importOptions.expandTo32Steps)}
-                    >
-                      <span id="expand-label" className="text-sm text-gray-400 select-none">Expand 16 → 32 steps</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={importOptions.expandTo32Steps}
-                        aria-labelledby="expand-label"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateOption('expandTo32Steps', !importOptions.expandTo32Steps);
-                        }}
-                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
-                          importOptions.expandTo32Steps ? 'bg-amber-600' : 'bg-gray-800'
-                        }`}
-                      >
-                        <span className="sr-only">Expand 16 to 32 steps</span>
-                        <span
-                          aria-hidden="true"
-                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            importOptions.expandTo32Steps ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Import Swing */}
-                    <div
-                      className="flex items-center justify-between cursor-pointer"
-                      onClick={() => updateOption('importSwing', !importOptions.importSwing)}
-                    >
-                      <span id="swing-label" className="text-sm text-gray-400 select-none">Import swing settings</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={importOptions.importSwing}
-                        aria-labelledby="swing-label"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateOption('importSwing', !importOptions.importSwing);
-                        }}
-                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
-                          importOptions.importSwing ? 'bg-amber-600' : 'bg-gray-800'
-                        }`}
-                      >
-                        <span className="sr-only">Import swing settings</span>
-                        <span
-                          aria-hidden="true"
-                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            importOptions.importSwing ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Convert PCF */}
-                    <div
-                      className="flex items-center justify-between cursor-pointer"
-                      onClick={() => updateOption('convertPcfToAutomation', !importOptions.convertPcfToAutomation)}
-                    >
-                      <span id="pcf-label" className="text-sm text-gray-400 select-none">Convert PCF to automation</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={importOptions.convertPcfToAutomation}
-                        aria-labelledby="pcf-label"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateOption('convertPcfToAutomation', !importOptions.convertPcfToAutomation);
-                        }}
-                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${
-                          importOptions.convertPcfToAutomation ? 'bg-amber-600' : 'bg-gray-800'
-                        }`}
-                      >
-                        <span className="sr-only">Convert PCF to automation</span>
-                        <span
-                          aria-hidden="true"
-                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            importOptions.convertPcfToAutomation ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Drum Kit */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">Drum kit</span>
-                      <select
-                        value={importOptions.drumKitMapping}
-                        onChange={(e) => updateOption('drumKitMapping', e.target.value as RbsImportOptions['drumKitMapping'])}
-                        className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
-                        aria-label="Drum Kit Mapping"
-                      >
-                        <option value="auto">Auto</option>
-                        <option value="808">808</option>
-                        <option value="909">909</option>
-                      </select>
-                    </div>
-
-                    {/* 303 A Target */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">TB-303 A target</span>
-                      <select
-                        value={importOptions.tb303ATarget}
-                        onChange={(e) => updateOption('tb303ATarget', e.target.value as RbsImportOptions['tb303ATarget'])}
-                        className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
-                        aria-label="TB-303 A Target"
-                      >
-                        <option value="partA">Part A</option>
-                        <option value="partB">Part B</option>
-                        <option value="bass2">Bass 2 (TB-303)</option>
-                      </select>
-                    </div>
-
-                    {/* 303 B Target */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">TB-303 B target</span>
-                      <select
-                        value={importOptions.tb303BTarget}
-                        onChange={(e) => updateOption('tb303BTarget', e.target.value as RbsImportOptions['tb303BTarget'])}
-                        className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
-                        aria-label="TB-303 B Target"
-                      >
-                        <option value="partB">Part B</option>
-                        <option value="partA">Part A</option>
-                        <option value="bass2">Bass 2 (TB-303)</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ImportOptionsPanel
+                importOptions={importOptions}
+                updateOption={updateOption}
+                showOptions={showOptions}
+                setShowOptions={setShowOptions}
+              />
             </>
           )}
         </div>
@@ -883,44 +606,58 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-gray-800">
           <div className="text-xs text-gray-500">
-            {parseState.stage === 'idle' && 'Drop a .rbs file to begin'}
-            {parseState.stage === 'reading' && parseState.stageLabel}
-            {parseState.stage === 'parsing' && parseState.stageLabel}
-            {parseState.stage === 'converting' && 'Converting...'}
-            {parseState.stage === 'complete' && '✓ Ready to import'}
-            {parseState.stage === 'error' && `✗ ${parseState.category?.replace(/_/g, ' ')}`}
+            {importReport && `✓ Imported "${importedSongName}"`}
+            {!importReport && parseState.stage === 'idle' && 'Drop a .rbs file to begin'}
+            {!importReport && parseState.stage === 'reading' && parseState.stageLabel}
+            {!importReport && parseState.stage === 'parsing' && parseState.stageLabel}
+            {!importReport && parseState.stage === 'converting' && 'Converting...'}
+            {!importReport && parseState.stage === 'complete' && '✓ Ready to import'}
+            {!importReport && parseState.stage === 'error' && `✗ ${parseState.category?.replace(/_/g, ' ')}`}
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              disabled={isImporting}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50"
-              aria-label="Cancel Import"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleImport}
-              disabled={!isComplete || isImporting}
-              aria-busy={isImporting}
-              className={`px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 ${
-                isComplete && !isImporting
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              {isImporting ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <span>🎵</span>
-                  Import Song
-                </>
-              )}
-            </button>
+            {importReport ? (
+              <button type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
+                aria-label="Close Import Modal"
+                data-testid="rbs-import-done"
+              >
+                ✓ Done
+              </button>
+            ) : (
+              <>
+                <button type="button"
+                  onClick={onClose}
+                  disabled={isImporting}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
+                  aria-label="Cancel Import"
+                >
+                  Cancel
+                </button>
+                <button type="button"
+                  onClick={handleImport}
+                  disabled={!isComplete || isImporting}
+                  aria-busy={isImporting}
+                  className={`px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 ${
+                    isComplete && !isImporting
+                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isImporting ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <span>🎵</span>
+                      Import Song
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

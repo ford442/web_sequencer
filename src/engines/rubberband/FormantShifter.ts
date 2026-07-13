@@ -104,6 +104,12 @@ export class FormantShifter {
     private envNode: ConstantSourceNode | null = null;
     private envGain: GainNode | null = null;
 
+    // Envelope Follower components
+    private followerWaveshaper: WaveShaperNode | null = null;
+    private followerFilter: BiquadFilterNode | null = null;
+    private followerGain: GainNode | null = null;
+    private followerDepth: number = 0;
+
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
         this.sourceFormants = config.sourceFormants ?? VOICE_FORMANTS.default;
@@ -210,6 +216,36 @@ export class FormantShifter {
             }
 
             this.envNode.start();
+        }
+
+        // Create Envelope Follower components
+        if (typeof this.audioContext.createWaveShaper === 'function') {
+            this.followerWaveshaper = this.audioContext.createWaveShaper();
+        }
+        // Create a simple absolute value curve
+        const curve = new Float32Array(4096);
+        for (let i = 0; i < 4096; i++) {
+            const x = (i * 2) / 4096 - 1;
+            curve[i] = Math.abs(x);
+        }
+        if (this.followerWaveshaper) this.followerWaveshaper.curve = curve;
+
+        if (typeof this.audioContext.createBiquadFilter === 'function') {
+            this.followerFilter = this.audioContext.createBiquadFilter();
+        }
+        if (this.followerFilter) this.followerFilter.type = 'lowpass';
+        if (this.followerFilter) this.followerFilter.frequency.value = 10; // 10 Hz smoothing
+
+        if (typeof this.audioContext.createGain === 'function') {
+            this.followerGain = this.audioContext.createGain();
+        }
+        if (this.followerGain) this.followerGain.gain.value = this.followerDepth * 100; // Map semitones to cents
+
+        if (this.followerWaveshaper && this.followerFilter) this.followerWaveshaper.connect(this.followerFilter);
+        if (this.followerFilter && this.followerGain) this.followerFilter.connect(this.followerGain);
+
+        for (let i = 0; i < formants.length; i++) {
+            if (this.followerGain) this.followerGain.connect(filters[i].detune);
         }
 
         this.filterNodes = filters;
@@ -392,7 +428,7 @@ export class FormantShifter {
      * @param shift New formant shift specification
      * @param rampTime Optional duration for interpolating to the new shift (seconds)
      */
-    updateFilterChain(shift: FormantShift, rampTime: number = 0.05): void {
+    updateFilterChain(shift: FormantShift, rampTime: number = 0.05, startTime?: number): void {
         if (this.filterNodes.length === 0) {
             this.createFilterChain(shift);
             return;
@@ -408,7 +444,8 @@ export class FormantShifter {
             formants.push({ freq: this.sourceFormants.f4, shift: shift.f4Shift });
         }
         
-        const targetTime = this.audioContext.currentTime + rampTime;
+        const now = startTime ?? this.audioContext.currentTime;
+        const targetTime = now + rampTime;
 
         // Update frequency and gain of existing filters
         for (let i = 0; i < formants.length && i < this.filterNodes.length; i++) {
@@ -416,12 +453,12 @@ export class FormantShifter {
             const freqMultiplier = Math.pow(2, semitonesShift / 12);
             const targetFreq = freq * freqMultiplier;
             
-            this.filterNodes[i].frequency.cancelScheduledValues(this.audioContext.currentTime);
-            this.filterNodes[i].frequency.setValueAtTime(this.filterNodes[i].frequency.value, this.audioContext.currentTime);
+            this.filterNodes[i].frequency.cancelScheduledValues(now);
+            this.filterNodes[i].frequency.setValueAtTime(this.filterNodes[i].frequency.value, now);
             this.filterNodes[i].frequency.linearRampToValueAtTime(targetFreq, targetTime);
 
-            this.filterNodes[i].gain.cancelScheduledValues(this.audioContext.currentTime);
-            this.filterNodes[i].gain.setValueAtTime(this.filterNodes[i].gain.value, this.audioContext.currentTime);
+            this.filterNodes[i].gain.cancelScheduledValues(now);
+            this.filterNodes[i].gain.setValueAtTime(this.filterNodes[i].gain.value, now);
             this.filterNodes[i].gain.linearRampToValueAtTime(Math.abs(semitonesShift) * 2, targetTime);
         }
         
@@ -517,6 +554,9 @@ export class FormantShifter {
         
         if (input && output) {
             source.connect(input);
+            if (this.followerWaveshaper) {
+                source.connect(this.followerWaveshaper);
+            }
             output.connect(destination);
         } else {
             // No filters, direct connection
@@ -551,10 +591,39 @@ export class FormantShifter {
             this.envGain.disconnect();
             this.envGain = null;
         }
+
+        if (this.followerWaveshaper) {
+            this.followerWaveshaper.disconnect();
+            this.followerWaveshaper = null;
+        }
+        if (this.followerFilter) {
+            this.followerFilter.disconnect();
+            this.followerFilter = null;
+        }
+        if (this.followerGain) {
+            this.followerGain.disconnect();
+            this.followerGain = null;
+        }
+    }
+
+    /**
+     * Set the envelope follower depth.
+     * @param depth Modulate formant detune amount in semitones
+     * @param time Optional time to apply the change
+     */
+    setEnvFollowerDepth(depth: number, time?: number): void {
+        this.followerDepth = depth;
+        if (this.followerGain) {
+            const t = time || this.audioContext.currentTime;
+            this.followerGain.gain.cancelScheduledValues(t);
+            this.followerGain.gain.setValueAtTime(depth * 100, t); // Map semitones to cents
+        }
     }
     
     /**
      * Trigger a formant envelope.
+
+
      * @param amount Peak shift amount in semitones
      * @param attack Attack time in seconds
      * @param decay Decay time in seconds

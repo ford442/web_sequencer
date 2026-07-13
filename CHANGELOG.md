@@ -1,0 +1,20 @@
+# Changelog
+
+## Unreleased
+
+### In-app discoverability (closes #632, #633, #634)
+- Searchable **Help** modal (`?` key): Search · Guides · Shortcuts tabs
+- Dismissible **What's New** checklist for major workflows
+- Contextual **?** tooltips on 303 engine selector, Prophecy panel, REC AUTO, RBS import, TTS, Song mode
+- First-use tips on engine selection (dismissible, stored in localStorage)
+
+### Audio engine visibility updates
+- Documented dual 303 engine support in `hyphon_native.wasm` (`open303_wrapper.cpp` + `jc303_wrapper.cpp`) including per-voice `engine303` selection.
+- Documented Prophecy formant integration (`prophecy_wrapper.cpp`, `prophecy-processor`, `ProphecyManager`) and current routing.
+- Added in-app help entry: **Engine Selection & Formant Synths**.
+
+### Caveats
+- UI discoverability for these features is still in progress; see tracking issues:
+  - [#632](https://github.com/ford442/web_sequencer/issues/632): per-voice 303 engine selection UI follow-up
+  - [#633](https://github.com/ford442/web_sequencer/issues/633): Prophecy controls/discoverability follow-up
+  - [#634](https://github.com/ford442/web_sequencer/issues/634): related engine/help visibility tracking
