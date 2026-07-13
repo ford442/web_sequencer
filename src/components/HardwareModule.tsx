@@ -16,6 +16,8 @@ import type { KnobAutomationOverlayState } from './knobAutomationOverlay';
 import { buildKnobAutomationSvgPath, knobIndicatorPosition } from './knobAutomationOverlay';
 import { PanelTitleBar } from './ui/PanelChrome';
 import { RackPanelChrome } from './ui/RackPanelChrome';
+import { ExpressionLed } from './ExpressionLed';
+import type { ExpressionLedTarget } from '../types';
 
 const KNOB_TEST_ID_SANITIZE_PATTERN = /[^A-Za-z0-9_-]/g;
 
@@ -70,6 +72,10 @@ interface HardwareModuleProps {
     onAutomationNudge?: (paramId: string, value: number, step: number) => void;
     onAutomationPunchIn?: (paramId: string) => void;
     onAutomationLaneAction?: (action: 'toggle' | 'clear', paramId?: string) => void;
+    /** Color-coded expression LED in the title bar. */
+    expressionLedTarget?: ExpressionLedTarget;
+    expressionLedAnalyser?: AnalyserNode | null;
+    expressionLedFallbackColor?: string;
 }
 
 // PERFORMANCE: Memoized Knob Overlay Component
@@ -196,7 +202,7 @@ const KnobOverlay = memo(({
                     {onRecordToggle && (
                         <button type="button"
                             onClick={(e) => { e.stopPropagation(); onRecordToggle(id); }}
-                            className="pointer-events-auto"
+                            className="pointer-events-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-full"
                             style={{ width: '16px', height: '16px' }}
                             title="Record Automation"
                             aria-label={`Record Automation for ${label}`}
@@ -222,7 +228,7 @@ const KnobOverlay = memo(({
                 aria-valuenow={Math.round(value * 100)}
                 aria-description={isAutomated ? 'This parameter is currently driven by an automation lane' : undefined}
                 tabIndex={0}
-                className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:ring-2 focus:ring-white focus:outline-none pointer-events-none"
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white pointer-events-none"
                 style={{
                     left: `${x * 100}%`,
                     top: `${y * 100}%`,
@@ -287,6 +293,9 @@ export const HardwareModule = memo(
         onAutomationNudge,
         onAutomationPunchIn,
         onAutomationLaneAction,
+        expressionLedTarget,
+        expressionLedAnalyser,
+        expressionLedFallbackColor,
     }: HardwareModuleProps) => {
         const compactLayout = useCompactLayoutOptional();
         const isCompact = compactLayout?.isCompact ?? false;
@@ -781,21 +790,34 @@ export const HardwareModule = memo(
                         title={title}
                         badge={titleBadge}
                         onContextMenu={handleHeaderContextMenu}
-                        actions={automationTarget ? (
-                            <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); automationStore.toggleShowHardwareAutomation(); }}
-                                className={`text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border pointer-events-auto ${
-                                    showAutomationOverlay
-                                        ? 'bg-cyan-900/80 text-cyan-200 border-cyan-500/60'
-                                        : 'bg-gray-900/80 text-gray-500 border-gray-700'
-                                }`}
-                                title="Toggle automation curve overlay on knobs"
-                                aria-pressed={showAutomationOverlay}
-                            >
-                                AUTO
-                            </button>
-                        ) : undefined}
+                        actions={(
+                            <>
+                                {expressionLedTarget && expressionLedFallbackColor && (
+                                    <ExpressionLed
+                                        target={expressionLedTarget}
+                                        analyserNode={expressionLedAnalyser}
+                                        fallbackColor={expressionLedFallbackColor}
+                                        className="pointer-events-auto mr-1"
+                                        aria-label={`${title} activity`}
+                                    />
+                                )}
+                                {automationTarget ? (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); automationStore.toggleShowHardwareAutomation(); }}
+                                        className={`text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border pointer-events-auto ${
+                                            showAutomationOverlay
+                                                ? 'bg-cyan-900/80 text-cyan-200 border-cyan-500/60'
+                                                : 'bg-gray-900/80 text-gray-500 border-gray-700'
+                                        }`}
+                                        title="Toggle automation curve overlay on knobs"
+                                        aria-pressed={showAutomationOverlay}
+                                    >
+                                        AUTO
+                                    </button>
+                                ) : undefined}
+                            </>
+                        )}
                     />
 
                     {controls.map((c, i) => (

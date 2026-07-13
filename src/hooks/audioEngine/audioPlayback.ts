@@ -21,8 +21,23 @@ import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import { DrumKitEngine } from '../../engines/DrumKitEngine';
 import { makeDistortionCurve } from './distortion';
 import { engineTelemetry } from '../../utils/engineTelemetry';
+import { pulseExpressionLed } from '../../audio/expressionLedPulse';
+import type { ExpressionLedTarget } from '../../types';
 
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
+
+const SYNTH_TRACK_TO_LED: Record<SynthTrack, ExpressionLedTarget> = {
+    partA: 'synthA',
+    partB: 'synthB',
+    bass2: 'bass2',
+};
+
+const DRUM_SOUND_TO_LED: Record<DrumSound, ExpressionLedTarget> = {
+    kick: 'kick',
+    snare: 'snare',
+    closedHat: 'closedHat',
+    openHat: 'openHat',
+};
 
 export interface SynthNoteParams {
     vocoderFormantShift?: number;
@@ -166,6 +181,9 @@ export function createPlaySynth(
         const noteStr = Array.isArray(note) ? note[0] : note;
         if (!noteStr) {
             return;
+        }
+        if (track) {
+            pulseExpressionLed(SYNTH_TRACK_TO_LED[track], noteStr);
         }
         const midi = noteToMidi(noteStr);
         const velocity = Math.round((noteParams?.velocity ?? 0.8) * 127);
@@ -332,10 +350,10 @@ export function createPlaySynth(
 
             let voice: Voice | null = null;
             if (track === 'partB' && refs.voiceManagerBRef.current) {
-                voice = refs.voiceManagerBRef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                voice = refs.voiceManagerBRef.current.playNote(effectiveParams, typeof note === 'string' ? note : (note as any).note, noteTime, noteDuration, effectiveSlide);
                 triggerBassEQDuck(context, refs.bassSidechainEQBusRef.current, noteTime, noteDuration);
             } else if (refs.voiceManagerARef.current) {
-                voice = refs.voiceManagerARef.current.playNote(effectiveParams, note, noteTime, noteDuration, effectiveSlide);
+                voice = refs.voiceManagerARef.current.playNote(effectiveParams, typeof note === 'string' ? note : (note as any).note, noteTime, noteDuration, effectiveSlide);
             }
 
             if (voice) {
@@ -413,6 +431,8 @@ export function createPlayDrum(
         if (!refs.masterGainRef.current) {
             return;
         }
+
+        pulseExpressionLed(DRUM_SOUND_TO_LED[sound], noteStr, noteStr ? 1 : 0.9);
 
         // Compute pitch multiplier from note relative to reference C3
         const pitchRatio = noteStr
@@ -562,6 +582,10 @@ export function createNoteOnSynth(
 ): NoteOnSynthFn {
     return (params, note, time, track) => {
         const now = time || context.currentTime;
+
+        if (track) {
+            pulseExpressionLed(SYNTH_TRACK_TO_LED[track], note);
+        }
 
         if (track === 'bass2') {
             if (refs.open303ManagerRef.current?.isBass2Ready()) {

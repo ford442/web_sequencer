@@ -52,7 +52,7 @@ const defaultBankParams = {
     rootNote: 60,
     coarseTune: 0,
     fineTune: 0,
-    quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+    stretchProfile: 'vocal' as 'vocal' | 'harmonic' | 'fast',
     stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
     lockToSequencer: false
 };

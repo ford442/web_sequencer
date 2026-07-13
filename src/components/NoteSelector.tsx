@@ -1,159 +1,15 @@
-import { PropertyToggle } from "./note-selector/PropertyToggle";
-import { PropertySlider } from "./note-selector/PropertySlider";
 import React, { memo } from "react";
-import { NOTES, getScaleNotes } from "../utils/musicTheory";
-import type { ScaleDefinition } from "../utils/musicTheory";
 import { useFocusTrap } from "../hooks/useFocusTrap";
-interface NoteSelectorProps {
-  x: number;
-  y: number;
-  trackType: "synth" | "drum" | "voice";
-  currentNote: string;
-  currentLength: number;
-  currentPan?: number;
-  currentPitchAmount?: number;
-  currentPitchAttack?: number;
-  currentPitchDecay?: number;
-  onSelect: (note: string) => void;
-  onLengthChange: (length: number) => void;
-  onClose: () => void;
-  getNoteColor: (note: string) => string;
-  currentScale?: ScaleDefinition | null;
+import { BasicNoteProperties } from "./note-selector/BasicNoteProperties";
+import {
+  SynthEffectProperties,
+  SynthGranularEffects,
+} from "./note-selector/SynthEffectProperties";
+import { EffectsSendProperties } from "./note-selector/EffectsSendProperties";
+import { NoteGrid } from "./note-selector/NoteGrid";
+import type { NoteSelectorProps } from "./note-selector/types";
 
-  // Per-step parameters
-  currentTimbre?: number;
-  currentVelocity?: number;
-  currentProbability?: number;
-  currentMicrotiming?: number;
-  currentReverse?: boolean;
-  currentRetrigger?: number;
-  currentFreeze?: number;
-  currentBitcrush?: number;
-  currentDownsample?: number;
-  currentFormantShift?: number;
-  currentSlideFormant?: boolean;
-  currentFilterCutoff?: number;
-  currentFilterResonance?: number;
-  currentEnvMod?: number;
-  currentFormantLfoSync?: boolean;
-  currentFormantLfoRate?: number;
-  currentFormantLfoDepth?: number;
-  currentFormantEnvSync?: boolean;
-  currentFormantEnvAttack?: number;
-  currentFormantEnvDecay?: number;
-  currentFormantEnvAmount?: number;
-  currentFormantEnvFollower?: number;
-  currentFreezeLfoSync?: boolean;
-  currentFreezeLfoRate?: number;
-  currentFreezeLfoDepth?: number;
-  currentVibratoDepth?: number;
-  currentTremoloDepth?: number;
-  currentTremoloRate?: number;
-  currentDrive?: number;
-  currentCharacterMorph?: number;
-  currentReverbSend?: number;
-  currentReverbType?: import("../types").ReverbType;
-  currentReverbLfoRate?: number;
-  currentReverbLfoDepth?: number;
-  currentDelayLfoRate?: number;
-  currentDelayLfoDepth?: number;
-  currentFreezeEnvDepth?: number;
-  currentGrainEnvDepth?: number;
-  currentGrainPitchEnvDepth?: number;
-  currentGrainJitter?: number;
-  currentGrainPitchQuantize?: number;
-  currentGranularPitchShift?: number;
-  currentTimeStretchEnvDepth?: number;
-  currentSpectralPanRate?: number;
-  currentSpectralPanDepth?: number;
-  currentTranceGate?: number;
-  currentDelaySend?: number;
-  currentChoir?: number;
-  currentVocoderMix?: number;
-  currentVocoderFormantShift?: number;
-  currentFormantPitchLink?: number;
-  currentVocoderPreservation?: number;
-  currentVocoderAttack?: number;
-  currentVocoderRelease?: number;
-  currentGateDepth?: number;
-  currentGateRate?: number;
-  /** Prophecy: whether the active synth uses a prophecy-* waveform */
-  isProphecy?: boolean;
-  /** Prophecy: current vowel formant 0–4 */
-  currentVowel?: number;
-  /** Prophecy: current portamento rate 0–1 */
-  currentPortamento?: number;
-  onPropertyChange?: (
-    key:
-      | "timbre"
-      | "velocity"
-      | "probability"
-      | "microtiming"
-      | "reverse"
-      | "retrigger"
-      | "freeze"
-      | "freezeEnvDepth"
-      | "grainEnvDepth"
-      | "grainPitchEnvDepth"
-      | "grainJitter"
-      | "grainPitchQuantize"
-      | "timeStretchEnvDepth"
-      | "spectralPanRate"
-      | "spectralPanDepth"
-      | "granularPitchShift"
-      | "bitcrush"
-      | "downsample"
-      | "tranceGate"
-      | "bitcrush"
-      | "downsample"
-      | "formantShift"
-      | "formantPitchLink"
-      | "filterCutoff"
-      | "filterResonance"
-      | "envMod"
-      | "slideFormant"
-      | "formantLfoSync"
-      | "formantLfoRate"
-      | "formantLfoDepth"
-      | "freezeLfoSync"
-      | "freezeLfoRate"
-      | "freezeLfoDepth"
-      | "formantEnvAttack"
-      | "formantEnvDecay"
-      | "formantEnvAmount"
-      | "formantEnvFollower"
-      | "formantEnvSync"
-      | "vibratoDepth"
-      | "tremoloDepth"
-      | "tremoloRate"
-      | "gateDepth"
-      | "gateRate"
-      | "pan"
-      | "drive"
-      | "characterMorph"
-      | "reverbSend"
-      | "reverbType"
-      | "reverbLfoRate"
-      | "reverbLfoDepth"
-      | "delayLfoRate"
-      | "delayLfoDepth"
-      | "delaySend"
-      | "choir"
-      | "vocoderMix"
-      | "vocoderFormantShift"
-      | "vocoderPreservation"
-      | "vocoderAttack"
-      | "vocoderRelease"
-      | "vowel"
-      | "portamento"
-      | "pitchAttack"
-      | "pitchDecay"
-      | "pitchAmount"
-      | "glitchChance"
-      | "probability",
-    value: number | boolean | string,
-  ) => void;
-}
+export type { NoteSelectorProps } from "./note-selector/types";
 
 export const NoteSelector: React.FC<NoteSelectorProps> = memo(
   ({
@@ -221,11 +77,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentChoir,
     currentVocoderMix,
     currentVocoderFormantShift,
-    currentFormantPitchLink,
     currentVocoderPreservation,
-    currentVocoderAttack,
-    currentVocoderRelease,
-    currentTranceGate = 0, // from jules branch
+    currentTranceGate = 0,
 
     currentGateDepth = 0,
     currentGateRate = 8,
@@ -234,10 +87,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentPortamento = 0,
     onPropertyChange,
   }) => {
-    // Determine octave range based on track type
-    const octaves = trackType === "synth" ? [2, 3, 4] : [2];
-    const scaleNotes = currentScale ? getScaleNotes(currentScale) : null;
-
     const dialogRef = useFocusTrap(true, onClose);
 
     return (
@@ -254,7 +103,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
           role="dialog"
           aria-modal="true"
           aria-labelledby="note-selector-title"
-          aria-describedby="note-selector-kbd-hint"
           tabIndex={-1}
           className="fixed z-50 bg-gray-900/80 backdrop-blur-md border border-cyan-900/50 rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.15)] p-3 grid gap-3 outline-none animate-in fade-in zoom-in-95 duration-100"
           style={{
@@ -269,7 +117,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
             >
               NOTE PROPERTIES
             </span>
-            <button type="button"
+            <button
+              type="button"
               onClick={onClose}
               aria-label="Close note properties"
               title="Close note properties (Esc)"
@@ -278,69 +127,88 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
               <span aria-hidden="true">✕</span>
             </button>
           </div>
-          <p id="note-selector-kbd-hint" className="sr-only">
-            Tab through note and property controls. Escape closes this panel.
-          </p>
 
-          {/* NEW: Duration Control */}
-          <PropertySlider
-            label="Duration"
-            id="note-duration"
-            value={currentLength || 1}
-            min={1}
-            max={16}
-            step={1}
-            onChange={(v) => onLengthChange(v)}
-            valueFormatter={(v) => `${v} Steps`}
+          <BasicNoteProperties
+            currentLength={currentLength}
+            onLengthChange={onLengthChange}
+            onPropertyChange={onPropertyChange}
+            currentVelocity={currentVelocity}
+            currentTimbre={currentTimbre}
+            currentProbability={currentProbability}
+            currentMicrotiming={currentMicrotiming}
           />
 
           {onPropertyChange && (
             <>
-              {/* Velocity Control */}
-              <PropertySlider
-                label="Velocity"
-                id="note-velocity"
-                value={currentVelocity}
-                onChange={(v) => onPropertyChange?.("velocity", v)}
-                valueFormatter={(v) => `${Math.round(v * 100)}%`}
-                ariaLabel="Velocity"
+              <SynthGranularEffects
+                trackType={trackType}
+                onPropertyChange={onPropertyChange}
+                currentFreeze={currentFreeze}
+                currentFreezeLfoSync={currentFreezeLfoSync}
+                currentFreezeLfoRate={currentFreezeLfoRate}
+                currentFreezeLfoDepth={currentFreezeLfoDepth}
+                currentFreezeEnvDepth={currentFreezeEnvDepth}
+                currentGrainEnvDepth={currentGrainEnvDepth}
+                currentGrainPitchEnvDepth={currentGrainPitchEnvDepth}
+                currentGrainJitter={currentGrainJitter}
+                currentGrainPitchQuantize={currentGrainPitchQuantize}
+                currentGranularPitchShift={currentGranularPitchShift}
+                currentVocoderMix={currentVocoderMix}
+                currentVocoderFormantShift={currentVocoderFormantShift}
+                currentVocoderPreservation={currentVocoderPreservation}
+                currentBitcrush={currentBitcrush}
+                currentDownsample={currentDownsample}
+                currentTranceGate={currentTranceGate}
               />
 
-              {/* Timbre Control */}
-              <PropertySlider
-                label="Expression"
-                id="note-timbre"
-                value={currentTimbre}
-                onChange={(v) => onPropertyChange?.("timbre", v)}
-                valueFormatter={(v) => `${Math.round(v * 100)}%`}
-                ariaLabel="Expression"
+              <EffectsSendProperties
+                trackType={trackType}
+                onPropertyChange={onPropertyChange}
+                currentPan={currentPan}
+                currentDelaySend={currentDelaySend}
+                currentGateDepth={currentGateDepth}
+                currentGateRate={currentGateRate}
+                currentReverbSend={currentReverbSend}
+                currentReverbType={currentReverbType}
+                currentReverbLfoRate={currentReverbLfoRate}
+                currentReverbLfoDepth={currentReverbLfoDepth}
+                currentDelayLfoRate={currentDelayLfoRate}
+                currentDelayLfoDepth={currentDelayLfoDepth}
+                currentChoir={currentChoir}
               />
 
-              {/* Probability Control */}
-              <PropertySlider
-                label="Probability"
-                id="note-prob"
-                value={currentProbability}
-                onChange={(v) => onPropertyChange?.("probability", v)}
-                valueFormatter={(v) => `${Math.round(v * 100)}%`}
-                ariaLabel="Probability"
-                ariaDescribedBy="note-prob-desc"
-              />
-              <p id="note-prob-desc" className="sr-only">
-                Chance this step triggers during playback. 100% always plays; lower values add random variation.
-              </p>
-
-              {/* Microtiming Control */}
-              <PropertySlider
-                label="Microtiming"
-                id="note-micro"
-                value={currentMicrotiming}
-                min={-0.5}
-                max={0.5}
-                onChange={(v) => onPropertyChange?.("microtiming", v)}
-                valueFormatter={(v) => `${Math.round(v * 100)}%`}
-                ariaLabel="Microtiming"
-                ariaDescribedBy="note-micro-desc"
+              <SynthEffectProperties
+                trackType={trackType}
+                onPropertyChange={onPropertyChange}
+                isProphecy={isProphecy}
+                currentFormantShift={currentFormantShift}
+                currentSlideFormant={currentSlideFormant}
+                currentFormantLfoSync={currentFormantLfoSync}
+                currentFormantLfoRate={currentFormantLfoRate}
+                currentFormantLfoDepth={currentFormantLfoDepth}
+                currentTremoloRate={currentTremoloRate}
+                currentTremoloDepth={currentTremoloDepth}
+                currentPitchAmount={currentPitchAmount}
+                currentPitchAttack={currentPitchAttack}
+                currentPitchDecay={currentPitchDecay}
+                currentFormantEnvSync={currentFormantEnvSync}
+                currentFormantEnvAttack={currentFormantEnvAttack}
+                currentFormantEnvDecay={currentFormantEnvDecay}
+                currentFormantEnvAmount={currentFormantEnvAmount}
+                currentFormantEnvFollower={currentFormantEnvFollower}
+                currentDrive={currentDrive}
+                currentVibratoDepth={currentVibratoDepth}
+                currentVowel={currentVowel}
+                currentPortamento={currentPortamento}
+                currentCharacterMorph={currentCharacterMorph}
+                currentFilterCutoff={currentFilterCutoff}
+                currentFilterResonance={currentFilterResonance}
+                currentEnvMod={currentEnvMod}
+                currentRetrigger={currentRetrigger}
+                currentTimeStretchEnvDepth={currentTimeStretchEnvDepth}
+                currentSpectralPanRate={currentSpectralPanRate}
+                currentSpectralPanDepth={currentSpectralPanDepth}
+                currentReverse={currentReverse}
               />
               <p id="note-micro-desc" className="sr-only">
                 Nudges the step earlier or later within the beat. Negative values play ahead; positive values delay.
@@ -1920,59 +1788,13 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
             </>
           )}
 
-          <div className="flex gap-2">
-            {octaves.map((octave) => (
-              <div key={octave} className="flex flex-col gap-1">
-                {NOTES.slice()
-                  .reverse()
-                  .map((noteName) => {
-                    const fullNote = `${noteName}${octave}`;
-                    const color = getNoteColor(fullNote);
-                    const isSelected = fullNote === currentNote;
-                    const isInScale = scaleNotes
-                      ? scaleNotes.has(noteName)
-                      : true;
-
-                    return (
-                      <button type="button"
-                        key={fullNote}
-                        onClick={() => isInScale && onSelect(fullNote)}
-                        aria-label={`Select ${fullNote}`}
-                        aria-pressed={isSelected}
-                        aria-disabled={!isInScale}
-                        className={`w-8 h-6 text-[10px] font-mono rounded flex items-center justify-center transition-all ${isInScale ? "hover:scale-110" : "cursor-not-allowed"}`}
-                        style={{
-                          backgroundColor: isSelected
-                            ? "#fff"
-                            : isInScale
-                              ? color
-                              : "#333",
-                          color: isSelected
-                            ? "#000"
-                            : !isInScale
-                              ? "#666"
-                              : ["C#", "D#", "F#", "G#", "A#"].includes(
-                                    noteName,
-                                  )
-                                ? "#ccc"
-                                : "#000",
-                          border: isSelected ? `2px solid ${color}` : "none",
-                          boxShadow: isSelected
-                            ? "0 0 8px rgba(255,255,255,0.5)"
-                            : "none",
-                          opacity: isInScale ? 1 : 0.35,
-                        }}
-                      >
-                        {noteName}
-                      </button>
-                    );
-                  })}
-                <div className="text-center text-[9px] text-cyan-800 font-bold mt-1">
-                  OCT {octave}
-                </div>
-              </div>
-            ))}
-          </div>
+          <NoteGrid
+            trackType={trackType}
+            currentNote={currentNote}
+            currentScale={currentScale}
+            getNoteColor={getNoteColor}
+            onSelect={onSelect}
+          />
         </div>
       </>
     );

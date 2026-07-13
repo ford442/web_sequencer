@@ -1,89 +1,37 @@
-import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
-    SamplerBankParams, SynthParams, AudioEngine, PartSequence, MultisampleBank, PhonemeData
+    SamplerBankParams, AudioEngine, TrackAnalysers
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
 import { Open303Manager } from '../engines/Open303Manager';
-import { SingingVoice } from '../engines/SingingVoice';
 import { SingingVoiceManager } from '../engines/SingingVoiceManager';
 import { VoiceManager } from '../engines/VoiceManager';
-import { noteToMidi, type ScaleDefinition } from '../utils/musicTheory';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { ProphecyManager } from '../engines/ProphecyManager';
-import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
+import { Harmonizer } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
+import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
+import type { MultisampleBank } from '../types';
 import {
-    createAmbianceControls,
-    createNoteOnSynth,
-    createPlayDrum,
-    createPlaySynth,
-    createStopAllNotes,
-    noteOffSynth,
-    setGlobalPan as setMasterPan,
-    setHarmonizerConfig as applyHarmonizerConfig,
-    setMasterVolume as setMasterGainVolume,
-    setMasterSaturation as setMasterGainSaturation,
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
-import { makeDistortionCurve } from './audioEngine/distortion';
 import {
     applySamplerVoiceParamUpdate,
     applyVoiceParamUpdate,
     createSampleLibraryControls,
 } from './audioEngine/sampleManagement';
-import {
-    createNoiseBuffer,
-    initializeHarmonizer,
-    initializeChoirBuses,
-    initializeMasterOutput,
-    initializeSustainProcessor,
-    loadWavBuffer,
-    createReverbImpulseResponse,
-} from './audioEngine/initialization';
-import { engineTelemetry } from '../utils/engineTelemetry';
+import { initializeAudioContextAndEngines, type EngineLifecycleRefs } from './audioEngine/engineLifecycle';
+import { createPhonemeAlignmentWrappers } from './audioEngine/phonemePoolWarming';
+import { createSamplerPlayback } from './audioEngine/samplerPlayback';
+import { buildAudioEngine } from './audioEngine/engineApiBuilder';
+
+export { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
 
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
-
-type AudioWindow = Window & typeof globalThis & {
-    webkitAudioContext?: typeof AudioContext;
-    audioContext?: AudioContext;
-};
-
-export function getSyncedSeconds(bars: number, bpm: number): number {
-    if (!bars || bars <= 0) return 0;
-    return bars * 4 * (60 / bpm);
-}
-
-export function getSyncedLfoHz(bars: number, bpm: number): number {
-    if (!bars || bars <= 0) return 0;
-    return bpm / (240 * bars);
-}
-
-type ResolvedExpressiveness = {
-    vibratoRate: number;
-    vibratoDepth: number;
-    tremoloDepth: number;
-    breathAmount: number;
-};
-
-const resolveExpressiveness = (params: SamplerBankParams): ResolvedExpressiveness => {
-    const cfg = params.expressiveness;
-    const normalizeDepth = (value: number | undefined) => {
-        if (value === undefined) return 0;
-        return value > 1 ? value / 100 : value;
-    };
-    return {
-        vibratoRate: cfg?.vibratoRate ?? 5.5,
-        vibratoDepth: normalizeDepth(cfg?.vibratoDepth ?? params.vibratoDepth),
-        tremoloDepth: normalizeDepth(cfg?.tremoloDepth ?? params.tremoloDepth),
-        breathAmount: cfg?.breathAmount ?? params.breathIntensity ?? 0,
-    };
-};
 
 export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
@@ -94,8 +42,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
     const drumKitEngineRef = useRef<DrumKitEngine | null>(null);
     const synthABusRef = useRef<GainNode | null>(null);
+    const synthBBusRef = useRef<GainNode | null>(null);
+    const samplerBusRef = useRef<GainNode | null>(null);
+    const analyserNodeRef = useRef<AnalyserNode | null>(null);
+    const trackAnalysersRef = useRef<TrackAnalysers>({});
     const prophecyManagerRef = useRef<ProphecyManager | null>(null);
-
 
     // Pre-stretched phoneme buffer pool (phoneme-aware time stretching)
     const phonemeBufferPoolRef = useRef<PhonemeBufferPool | null>(null);
@@ -134,7 +85,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const sidechainBusRef = useRef<GainNode | null>(null);
     const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});
-    const reverbNodeRef = useRef<ConvolverNode | null>(null); // Keep for backwards compatibility if needed temporarily
+    const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
     const delayNodeRef = useRef<DelayNode | null>(null);
     const delayFeedbackRef = useRef<GainNode | null>(null);
@@ -181,6 +132,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         sidechainBusRef,
         drumKitEngineRef,
         synthABusRef,
+        synthBBusRef,
+        samplerBusRef,
         prophecyManagerRef,
     }), []);
 
@@ -193,217 +146,49 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         isInitializing.current = true;
 
         try {
-            const audioWindow = window as AudioWindow;
-            const AudioContextCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
-            if (!AudioContextCtor) {
-                throw new Error('AudioContext is not available in this browser');
-            }
-            const context = new AudioContextCtor();
-            audioWindow.audioContext = context;
-
-            // --- CRITICAL FIX: Ensure AudioContext is running ---
-            if (context.state === 'suspended') {
-                await context.resume();
-                console.log("AudioContext resumed");
-            }
-
-            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef);
-
-            // Initialize Reverb Node
-            // Initialize Reverb Nodes (Room, Plate, Hall)
-            const roomNode = context.createConvolver();
-            roomNode.buffer = createReverbImpulseResponse(context, 0.5, 1.0);
-            roomNode.connect(masterBusInput);
-
-            const plateNode = context.createConvolver();
-            plateNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0);
-            plateNode.connect(masterBusInput);
-
-            const hallNode = context.createConvolver();
-            hallNode.buffer = createReverbImpulseResponse(context, 3.5, 3.0);
-            hallNode.connect(masterBusInput);
-
-            reverbNodesRef.current = { room: roomNode, plate: plateNode, hall: hallNode };
-            reverbNodeRef.current = plateNode; // Fallback
-
-            // Initialize Global Delay Node
-            const delayNode = context.createDelay(2.0);
-            delayNode.delayTime.value = 0.375; // ~1/8th note at typical tempo
-            const delayFeedback = context.createGain();
-            delayFeedback.gain.value = 0.4;
-            delayNode.connect(delayFeedback);
-            delayFeedback.connect(delayNode);
-            delayNode.connect(masterBusInput);
-            delayNodeRef.current = delayNode;
-            delayFeedbackRef.current = delayFeedback;
-
-            // Initialize Engines
-            const gpuEngine = new WebGpuOscillator();
-            await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
-            gpuEngineRef.current = gpuEngine;
-
-            const wasmEngine = new WasmOscillator();
-            await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
-            wasmEngineRef.current = wasmEngine;
-
-            // Initialize Open303 Manager
-            const open303Manager = new Open303Manager();
-            let open303Ready = false;
-
-            try {
-                open303Ready = await open303Manager.init(context, open303ProcessorUrl, {
-                    preferWorklet: true,
-                    preferThreaded: false,
-                    forceSingleThreaded: true
-                });
-                
-                if (!open303Ready) {
-                    logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
-                }
-            } catch (e) {
-                logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() threw', e);
-                open303Ready = false;
-            }
-            loadingProgressStore.completeStep('open303Engine');
-
-            // Initialize PCF (Pattern Controlled Filter) — inserted between 303 and master bus.
-            // Enables ReBirth-style pattern-driven filter automation on the 303 output.
-            {
-                const pcf = new PcfEffect(context);
-                let pcfReady = false;
-                try {
-                    await pcf.init();
-                    pcfReady = true;
-                    pcfEffectRef.current = pcf;
-                    console.log('[useAudioEngine] PcfEffect Ready');
-                } catch (e) {
-                    console.warn(
-                        '[useAudioEngine] PcfEffect failed to initialize; bypassing PCF.' +
-                        ' Possible causes: AudioWorklet registration failed (check CORS / module' +
-                        ' loading), or AudioContext was suspended at init time.',
-                        e
-                    );
-                }
-                // Connect 303 through PCF (if ready) or directly to master bus.
-                // open303ManagerRef is set here, after routing is fully established.
-
-                if (open303Ready) {
-                    open303Manager.connect(masterBusInput);
-                    open303ManagerRef.current = open303Manager;
-                    console.log('[useAudioEngine] Open303Manager Ready');
-                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
-                } else {
-                    console.warn('[useAudioEngine] Open303Manager failed to initialize');
-                    try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
-                }
-            } catch (e) {
-                console.error('[useAudioEngine] Open303Manager crashed during init:', e);
-                open303Ready = false;
-            }
-
-            if (!open303Ready) {
-                console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
-            }
-
-            const [sawBuf, sqrBuf] = await Promise.all([
-                loadWavBuffer(context, './assets/saw.wav'),
-                loadWavBuffer(context, './assets/square.wav')
-            ]);
-            wavSawBufferRef.current = sawBuf;
-            wavSqrBufferRef.current = sqrBuf;
-
-            // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
-            try {
-                let oscillatorBackend = 'js';
-                if (gpuEngine && (gpuEngine as any).isSupported) oscillatorBackend = 'webgpu';
-                else if (wasmEngine && (wasmEngine as any).isReady) oscillatorBackend = 'wasm';
-                else if (sawBuf || sqrBuf) oscillatorBackend = 'wav';
-                engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
-            } catch (e) {
-                console.warn('Engine telemetry registration failed for oscillators', e);
-            }
-
-            // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
-            voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
-
-            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
-
-            // --- Singing Voice Manager Init ---
-            try {
-                let wasmBinary: ArrayBuffer | undefined = undefined;
-                try {
-                    const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');
-                    if (response.ok) wasmBinary = await response.arrayBuffer();
-                } catch (e) {
-                    console.warn('Failed to pre-fetch rubberband.wasm', e);
-                }
-
-                const manager = new SingingVoiceManager(context, 12, {
-                    useHighQuality: false,
-                    preserveFormants: true,
-                    channels: 1,
-                    bufferSize: 16384,
-                    enablePhonemeStretching: true,
-                    enableFormantShifting: true
-                });
-
-                await manager.init(wasmBinary);
-                singingVoiceManagerRef.current = manager;
-                try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
-
-                initializeChoirBuses(
-                    context,
-                    masterGainRef,
-                    choirLeftGainRef,
-                    choirRightGainRef,
-                    choirLeftPannerRef,
-                    choirRightPannerRef,
-                );
-
-                manager.getAllVoices().forEach(voice => {
-                    voice.connectOutput(masterSaturationRef.current!);
-                });
-
-                // Initialise the phoneme buffer pool and wire it to every voice
-                const pool = new PhonemeBufferPool();
-                pool.init(context);
-                phonemeBufferPoolRef.current = pool;
-                manager.getAllVoices().forEach(voice => voice.setPool(pool));
-
-                if (pyodideRef.current) {
-                    // Pre-cache logic
-                }
-            } catch (e) {
-                try { engineTelemetry.registerResolution('singingVoice','js','failed to init: ' + String(e)); } catch (err) { /* noop */ }
-                console.warn('SingingVoiceManager failed to init:', e);
-            }
-
-            initializeHarmonizer(harmonizerRef);
-            noiseBufferRef.current = createNoiseBuffer(context);
-            multisampleGeneratorRef.current = new MultisampleGenerator(context);
-
-            // --- Helper: warm the phoneme pool for all phonemes in a bank ---
-            const warmPoolForBank = (sampleName: string, alignment: AlignmentResult, audioBuffer: AudioBuffer): void => {
-                const pool = phonemeBufferPoolRef.current;
-                if (!pool) return;
-                const monoAudio = audioBuffer.getChannelData(0);
-                const sr = audioBuffer.sampleRate;
-                for (let i = 0; i < alignment.phonemes.length; i++) {
-                    const ph = alignment.phonemes[i];
-                    const startSample = Math.floor(ph.start * sr);
-                    const endSample = Math.floor(ph.end * sr);
-                    if (endSample <= startSample) continue;
-                    const slice = monoAudio.slice(startSample, endSample);
-                    pool.warmPhoneme(`${sampleName}_${i}`, [slice], sr);
-                }
+            const lifecycleRefs: EngineLifecycleRefs = {
+                analyserNodeRef,
+                trackAnalysersRef,
+                synthABusRef,
+                synthBBusRef,
+                samplerBusRef,
+                masterGainRef,
+                masterPannerRef,
+                masterSaturationRef,
+                masterCompressorRef,
+                sidechainGainRef,
+                bassSidechainEQBusRef,
+                sidechainBusRef,
+                reverbNodesRef,
+                reverbNodeRef,
+                reverbTypeRef,
+                delayNodeRef,
+                delayFeedbackRef,
+                gpuEngineRef,
+                wasmEngineRef,
+                open303ManagerRef,
+                voiceManagerARef,
+                voiceManagerBRef,
+                sustainNodeRef,
+                singingVoiceManagerRef,
+                choirLeftGainRef,
+                choirRightGainRef,
+                choirLeftPannerRef,
+                choirRightPannerRef,
+                phonemeBufferPoolRef,
+                harmonizerRef,
+                noiseBufferRef,
+                multisampleGeneratorRef,
+                wavSawBufferRef,
+                wavSqrBufferRef,
+                pyodideRef,
             };
 
-            // --- Playback Functions Extraction ---
-            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', noteParams?: any) => {
-                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track as any, noteParams);
-            };
-            const playDrum = createPlayDrum(context, playbackRefs) as any;
+            const { context } = await initializeAudioContextAndEngines(lifecycleRefs, {
+                sustainProcessorUrl,
+                open303ProcessorUrl,
+            });
+
             const {
                 loadSampleToEngine,
                 getMultisampleBank,
@@ -419,84 +204,12 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 singingVoiceManagerRef,
             });
 
-            // Wrap prepareVocal to warm the pool once alignment is computed
-            const prepareVocal = async (bankIndex: number, text: string): Promise<void> => {
-                await prepareVocalBase(bankIndex, text);
-                const sampleName = `bank_${bankIndex}`;
-                const alignment = vocalAlignmentsRef.current.get(sampleName);
-                const audioBuffer = (multisampleBanksRef.current.get(sampleName)?.baseBuffer)
-                    ?? loadedSampleBuffersRef.current.get(sampleName);
-                if (alignment && audioBuffer) {
-                    warmPoolForBank(sampleName, alignment, audioBuffer);
-                }
-            };
-
-            // Wrap setAlignment to warm the pool when alignment is set externally
-            const setAlignment = (bankIndex: number, alignment: AlignmentResult | null): void => {
-                setAlignmentBase(bankIndex, alignment);
-                if (alignment) {
-                    const sampleName = `bank_${bankIndex}`;
-                    const audioBuffer = (multisampleBanksRef.current.get(sampleName)?.baseBuffer)
-                        ?? loadedSampleBuffersRef.current.get(sampleName);
-                    if (audioBuffer) {
-                        warmPoolForBank(sampleName, alignment, audioBuffer);
-                    }
-                }
-            };
-            const playSamplerVoice = (
-                params: SamplerBankParams,
-                note: string | string[],
-                time: number,
-                durationSteps: number = 1,
-                stepTime: number = 0.2,
-                noteParams?: {
-                    timbre?: number,
-                    microtiming?: number,
-                    reverse?: boolean,
-                    sliceIndex?: number,
-                    retrigger?: number,
-                    slideFromMidi?: number,
-                    slideType?: 'linear' | 'exponential',
-                    phonemes?: PhonemeData[],
-                    freeze?: number,
-                    filterCutoff?: number,
-                    filterResonance?: number,
-                    formantLfoRate?: number,
-                    formantLfoDepth?: number,
-                    formantLfoShape?: number[],
-                    customLfoShape?: number[],
-                    vibratoDepth?: number,
-                    reverbSend?: number,
-                    delaySend?: number,
-                    choir?: number,
-                    drive?: number,
-                    characterMorph?: number,
-                    breathIntensity?: number,
-                    formantShift?: number,
-                    grainPitchQuantize?: number,
-                    granularPitchShift?: number,
-                    bitcrush?: number,
-                    downsample?: number,
-                    tranceGate?: number,
-                    gateRate?: number,
-                    gateDepth?: number,
-                    spectralPanRate?: number,
-                    spectralPanDepth?: number,
-                    reverbLfoRate?: number,
-                    reverbLfoDepth?: number,
-                    glitchChance?: number,
-                    isHarmonyVoice?: boolean,
-                    timeStretchEnvDepth?: number,
-                    freezeEnvDepth?: number,
-                    grainEnvDepth?: number,
-                    formantEnvSync?: boolean,
-                    formantEnvAttack?: number,
-                    formantEnvDecay?: number,
-                    formantEnvAmount?: number,
-                    formantEnvFollower?: number,
-                    envMod?: number,
-                    vocoderMix?: number,
-                    spectralResynthesis?: number
+            const { prepareVocal, setAlignment } = createPhonemeAlignmentWrappers(
+                {
+                    phonemeBufferPoolRef,
+                    vocalAlignmentsRef,
+                    multisampleBanksRef,
+                    loadedSampleBuffersRef,
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -1260,44 +973,53 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
             // Re-assign to state
             setAudioEngine({
+                prepareVocalBase,
+                setAlignmentBase,
+            );
+
+            const { playSampler, noteOnSampler, noteOffSampler } = createSamplerPlayback(
                 context,
-                webGpuEngine: gpuEngineRef.current,
-                wasmEngine: wasmEngineRef.current,
-                open303Engine: open303ManagerRef.current as any,
-                singingVoice: undefined,
-                playSynth,
-                playDrum,
+                {
+                    masterSaturationRef,
+                    singingVoiceManagerRef,
+                    vocalAlignmentsRef,
+                    loadedSampleBuffersRef,
+                    multisampleBanksRef,
+                    choirLeftGainRef,
+                    choirRightGainRef,
+                    reverbNodesRef,
+                    reverbTypeRef,
+                    delayNodeRef,
+                    harmonizerRef,
+                    nextSamplerNoteId,
+                    activeSamplerNotes,
+                },
+                tempo,
+            );
+
+            setAudioEngine(buildAudioEngine(context, {
+                ...playbackRefs,
+                gpuEngineRef,
+                wasmEngineRef,
+                open303ManagerRef,
+                harmonizerRef,
+                masterGainRef,
+                masterSaturationRef,
+                masterPannerRef,
+                reverbTypeRef,
+                analyserNodeRef,
+                trackAnalysersRef,
+            }, {
                 playSampler,
                 noteOnSampler,
                 noteOffSampler,
-                noteOnSynth,
-                noteOffSynth: noteOffSynthById,
-                stopAllNotes,
                 loadSampleToEngine,
-                renderSynthPartToBuffer,
-                playBufferedPart,
-                playAmbiance,
-                stopAmbiance,
-                setAmbianceVolume,
-                setMasterVolume,
-                setMasterSaturation,
-                setGlobalPan,
-                setReverbType,
-                detectSamplePitch,
-                processSinging,
-                processSpoon,
                 prepareVocal,
                 getAlignment,
                 setAlignment,
-                setSustainMode,
-                setSustainGrainSize,
                 getMultisampleBank,
                 isMultisampleReady,
-                setHarmonizerConfig,
-                updateSamplerVoiceParams,
-                triggerTapeStop,
-                resetTapeStop
-            });
+            }));
 
             setIsReady(true);
         } catch (e) {
@@ -1305,7 +1027,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             setIsReady(true);
             isInitializing.current = false;
         }
-    }, [audioEngine, playbackRefs]);
+    }, [audioEngine, playbackRefs, tempo]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
         applyVoiceParamUpdate({

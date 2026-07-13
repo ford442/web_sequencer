@@ -41,7 +41,7 @@ export const LyricTrack: React.FC<LyricTrackProps> = React.memo(({
                     }
                 }}
             />
-            <button type="button"
+            <button
                 onClick={() => onApply(text)}
                 disabled={isGenerating || !text.trim()}
                 aria-busy={isGenerating}
@@ -49,7 +49,7 @@ export const LyricTrack: React.FC<LyricTrackProps> = React.memo(({
             >
                 {isGenerating ? 'GENERATING...' : 'APPLY TO TRACK'}
             </button>
-            <button type="button"
+            <button
                 onClick={onClose}
                 className="px-2 py-1.5 text-gray-500 hover:text-white"
                 aria-label="Close Lyric Track"

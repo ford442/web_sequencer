@@ -188,7 +188,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
   return (
     <div className="relative inline-block" ref={containerRef}>
       {/* Compact trigger button - always visible */}
-      <button type="button"
+      <button
         ref={triggerRef}
         onClick={() => setIsExpanded(!isExpanded)}
         aria-label={`Waveform selector: ${selected}. Click to ${isExpanded ? 'collapse' : 'expand'} options. Click to cycle, Shift+click for reverse.`}
@@ -215,7 +215,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
             {/* Left side: Current waveform display and cycle button */}
             <div className="flex flex-col gap-2 border-r border-gray-700 pr-2">
               <div className="text-xs font-bold uppercase tracking-wider text-gray-400 text-center">Current</div>
-              <button type="button"
+              <button
                 onClick={handleWaveformClick}
                 aria-label={`Current waveform: ${selected}. Click to cycle, Shift+click to cycle back.`}
                 title={`Current: ${selected}. Click to cycle, Shift+click for reverse.`}
@@ -236,7 +236,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
                   {/* Waveform buttons in a row */}
                   <div className="flex flex-wrap gap-1 px-2">
                     {group.items.map((wave) => (
-                      <button type="button"
+                      <button
                         key={wave}
                         onClick={() => { onChange(wave); }}
                         aria-pressed={selected === wave}
