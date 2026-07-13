@@ -15,7 +15,7 @@ describe('MelodicStep', () => {
     }
 
     render(
-      <svg aria-hidden="true">
+      <svg>
         <MelodicStep
           stepIndex={4}
           active={false}

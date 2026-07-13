@@ -885,7 +885,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 </div>
             )}
 
-            <svg aria-hidden="true" viewBox="0 0 1050 680" style={{ width: 'calc(220px + 830px * var(--zoom-level))', height: '100%', minWidth: '100%' }} preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
+            <svg viewBox="0 0 1050 680" style={{ width: 'calc(220px + 830px * var(--zoom-level))', height: '100%', minWidth: '100%' }} preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
                 <g transform="translate(100, 40)">
                     {ROWS.map((row, rIdx) => {

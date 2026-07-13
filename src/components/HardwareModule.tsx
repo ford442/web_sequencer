@@ -115,7 +115,7 @@ const KnobOverlay = memo(({
         <>
             {/* Automation ghost arc (GPU knob slots — 2D canvas draws its own overlay) */}
             {showAutomationOverlay && ghostPath && (
-                <svg aria-hidden="true"
+                <svg
                     className="absolute pointer-events-none"
                     viewBox={`0 0 ${viewSize} ${viewSize}`}
                     style={{
