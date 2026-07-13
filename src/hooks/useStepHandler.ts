@@ -355,12 +355,23 @@ export const useStepHandler = ({
             let finalNotes = rawNotes;
             const voiceParams = samplerVoiceParamsRef.current;
             if (voiceParams.lockToSequencer && typeof rawNotes === 'string') {
-                const activeSteps = seq.steps
-                    .map((s, i) => (s ? i : -1))
-                    .filter(i => i !== -1);
+                let targetStep = -1;
+                let firstActiveStep = -1;
+                for (let i = 0; i < seq.steps.length; i++) {
+                    if (seq.steps[i]) {
+                        if (firstActiveStep === -1) firstActiveStep = i;
+                        if (i >= step) {
+                            targetStep = i;
+                            break;
+                        }
+                    }
+                }
 
-                if (activeSteps.length > 0) {
-                    const targetStep = activeSteps.find(s => s >= step) ?? activeSteps[0];
+                if (targetStep === -1 && firstActiveStep !== -1) {
+                    targetStep = firstActiveStep;
+                }
+
+                if (targetStep !== -1) {
                     const targetData = seq.steps[targetStep];
                     if (targetData?.note) {
                         finalNotes = targetData.chord
