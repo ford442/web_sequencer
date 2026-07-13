@@ -62,7 +62,7 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
 
                 {/* Visual Schematic — two groups: {C D E F} and {G A B C} */}
                 <div className="flex justify-center mb-8">
-                    <svg width="400" height="150" viewBox="0 0 400 150" className="drop-shadow-2xl">
+                    <svg aria-hidden="true" width="400" height="150" viewBox="0 0 400 150" className="drop-shadow-2xl">
                         {/* Outer border */}
                         <rect x="10" y="10" width="380" height="132" rx="10" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="5,5" />
 
@@ -414,7 +414,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             {showGuide && <KeyboardGuide onClose={() => setShowGuide(false)} />}
 
             {/* Piano Keyboard SVG */}
-            <svg viewBox={`0 0 ${totalWidth} ${svgHeight}`} className="w-full drop-shadow-2xl bg-black/20 rounded-lg p-2">
+            <svg aria-hidden="true" viewBox={`0 0 ${totalWidth} ${svgHeight}`} className="w-full drop-shadow-2xl bg-black/20 rounded-lg p-2">
                 {/* White keys (bottom row) — group 1: C D E F (i=0–3), group 2: G A B C (i=4–7) */}
                 {whiteNotes.map((note, i) => (
                     <PianoKey

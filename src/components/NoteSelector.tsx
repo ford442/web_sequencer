@@ -1145,7 +1145,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                         aria-label="Toggle Formant Glide"
                         aria-pressed={currentSlideFormant}
                       >
-                        <svg
+                        <svg aria-hidden="true"
                           width="12"
                           height="12"
                           viewBox="0 0 24 24"

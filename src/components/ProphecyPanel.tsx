@@ -87,10 +87,10 @@ export const ProphecyPanel: React.FC<ProphecyPanelProps> = memo(({
                 min={0}
                 max={1}
                 step={0.01}
-                value={formantShift}
+                value={formantShift} aria-label="Formant Shift"
                 onChange={(e) => onFormantShiftChange(parseFloat(e.target.value))}
                 title={`Formant Shift: ${(formantShift * 100).toFixed(0)}%`}
-                aria-label="Formant Shift"
+
                 className={`w-full h-1.5 rounded-full appearance-none cursor-pointer bg-zinc-700 ${sliderAccent}`}
             />
 
@@ -103,10 +103,10 @@ export const ProphecyPanel: React.FC<ProphecyPanelProps> = memo(({
                 min={0}
                 max={1}
                 step={0.01}
-                value={portamento}
+                value={portamento} aria-label="Portamento"
                 onChange={(e) => onPortamentoChange(parseFloat(e.target.value))}
                 title={`Portamento: ${(portamento * 100).toFixed(0)}%`}
-                aria-label="Portamento"
+
                 className={`w-full h-1.5 rounded-full appearance-none cursor-pointer bg-zinc-700 ${sliderAccent}`}
             />
         </div>

@@ -17,7 +17,7 @@ interface AutomationStepProps {
 const TestWrapper = (props: AutomationStepProps) => {
     const refsArray = useRef<(SVGGElement | null)[]>([]);
     return (
-        <svg>
+        <svg aria-hidden="true">
             <AutomationStep {...props} refsArray={refsArray} />
         </svg>
     );
