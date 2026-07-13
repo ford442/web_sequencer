@@ -4,7 +4,9 @@ import { SingingVoiceManager } from '../SingingVoiceManager';
 // Mock SingingVoice
 vi.mock('../SingingVoice', () => {
     return {
-        SingingVoice: vi.fn().mockImplementation(() => ({
+        // vitest 4 invokes mock implementations with `new` via Reflect.construct,
+        // so the implementation must be a constructable function, not an arrow.
+        SingingVoice: vi.fn().mockImplementation(function () { return {
             initWorklet: vi.fn().mockResolvedValue(undefined),
             connectOutput: vi.fn(),
             disconnectOutput: vi.fn(),
@@ -18,8 +20,9 @@ vi.mock('../SingingVoice', () => {
             setPitch: vi.fn(),
             setPitchFromMidi: vi.fn(),
             alignPhonemes: vi.fn(),
-            triggerSlice: vi.fn()
-        }))
+            triggerSlice: vi.fn(),
+            noteOff: vi.fn()
+        }; })
     };
 });
 

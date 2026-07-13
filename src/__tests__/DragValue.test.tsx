@@ -1,4 +1,4 @@
-
+import { describe, test, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { DragValue } from '../components/DragValue';
 
@@ -8,10 +8,9 @@ describe('DragValue', () => {
     const { getByRole } = render(<DragValue value={120} onChange={onChange} min={30} max={300} step={1} label="Tempo" />);
     const slider = getByRole('slider');
 
-    // mousedown and move upward should increase the value
-    fireEvent.mouseDown(slider, { clientY: 100 });
-    fireEvent.mouseMove(window, { clientY: 60 });
-    fireEvent.mouseUp(window);
+    fireEvent.pointerDown(slider, { clientY: 100, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(document, { clientY: 60, pointerId: 1, buttons: 1 });
+    fireEvent.pointerUp(document, { pointerId: 1 });
 
     expect(onChange).toHaveBeenCalled();
   });
@@ -25,13 +24,13 @@ describe('DragValue', () => {
     expect(onChange).toHaveBeenCalled();
   });
 
-  test('focuses on mousedown', () => {
+  test('focuses on pointer down', () => {
     const onChange = vi.fn();
     const { getByRole } = render(<DragValue value={120} onChange={onChange} min={30} max={300} step={1} label="Tempo" />);
     const slider = getByRole('slider');
 
     expect(document.activeElement).not.toBe(slider);
-    fireEvent.mouseDown(slider);
+    fireEvent.pointerDown(slider, { pointerId: 1 });
     expect(document.activeElement).toBe(slider);
   });
 });

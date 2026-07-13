@@ -4,7 +4,10 @@ import './index.css'
 import './components/EngineHUD' // side-effect: register Engine HUD mount
 import App from './App'
 import { AppStateProvider } from './contexts/AppStateContext'
+import { CompactLayoutProvider } from './contexts/CompactLayoutContext'
 import { engineTelemetry } from './utils/engineTelemetry'
+import { automationStore } from './stores/automationStore'
+import { e2eTransportSnapshot } from './e2e/probe'
 
 // Register the engine-report export hook at app bootstrap (NOT on HUD/component
 // mount) so it is available regardless of view state — a user hitting an audio
@@ -22,10 +25,34 @@ if (
   }
 }
 
+// Playwright E2E hooks (?e2e=1) — read-only automation store introspection.
+if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('e2e')) {
+  const w = window as unknown as {
+    __HYPHON_E2E__?: Record<string, (...args: never[]) => unknown>
+  }
+  w.__HYPHON_E2E__ = {
+    getAutomationLaneCount: () => {
+      const snap = e2eTransportSnapshot();
+      return snap.laneCount || automationStore.getState().lanes.length;
+    },
+    getRbsAutomationLaneCount: () =>
+      automationStore.getState().lanes.filter((l) => l.source === 'rbs').length,
+    getAutomationPlaybackStep: () => e2eTransportSnapshot().step,
+    setLiveAutomatedValue: (target: string, param: string, value: number) => {
+      automationStore.setLiveValues({ [`${target}:${param}`]: value });
+    },
+    clearLiveAutomatedValues: () => {
+      automationStore.clearLiveValues();
+    },
+  }
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppStateProvider>
-      <App />
+      <CompactLayoutProvider>
+        <App />
+      </CompactLayoutProvider>
     </AppStateProvider>
   </StrictMode>,
 )

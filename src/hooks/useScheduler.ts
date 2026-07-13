@@ -111,7 +111,8 @@ export const useScheduler = (
 
         const node = new AudioWorkletNode(context, 'clock-processor', {
             numberOfInputs: 0,
-            numberOfOutputs: 0,
+            numberOfOutputs: 1,
+            outputChannelCount: [1],
         });
 
         node.port.onmessage = (e: MessageEvent) => {
@@ -126,9 +127,7 @@ export const useScheduler = (
         node.port.postMessage({ type: 'setSteps', steps });
         node.port.postMessage({ type: 'start' });
 
-        // The clock node needs to stay in the audio graph to keep its process()
-        // called. Connecting to destination with zero output channels is the
-        // idiomatic way to keep a no-output processor alive.
+        // Silent output keeps process() scheduled in headless Chromium (zero-output nodes may not render).
         node.connect(context.destination);
 
         clockNodeRef.current = node;

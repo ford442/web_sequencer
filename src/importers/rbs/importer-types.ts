@@ -30,6 +30,7 @@ import type {
   DetailedParameterMapping,
   RbsSongData,
   Tb303PatternA,
+  RbsDeviceId,
 } from './types';
 
 import { DEFAULT_RBS_IMPORT_OPTIONS, TICKS_PER_BAR, TRAK_TRACK_INDEX } from './types';
@@ -80,6 +81,15 @@ export interface ImportReport {
   automationLanesConverted: number;
   /** Whether PCF was enabled in source */
   pcfEnabled: boolean;
+  /** PCF extraction details (IFF DEVL or legacy path). */
+  pcfStats?: {
+    waveIndex: number;
+    patternMin: number;
+    patternMax: number;
+    patternVariance: number;
+    targets: string[];
+    source: 'devl' | 'legacy' | 'none';
+  };
   /** Number of slides preserved */
   slideCount: number;
   /** Number of accents preserved */
@@ -99,6 +109,12 @@ export interface ImportReport {
     /** Number of distinct patterns used in arrangement */
     usedPatternCount: number;
   };
+  /** Parsed RBS format version string (e.g. "1.5", "2.0"). */
+  formatVersion?: string;
+  /** Devices detected in source file. */
+  devicesPresent?: RbsDeviceId[];
+  /** Parser path used for this file. */
+  parsePath?: 'legacy' | 'iff';
 }
 
 /** Import error types */

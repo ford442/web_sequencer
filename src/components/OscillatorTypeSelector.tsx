@@ -73,10 +73,11 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
             rust: 'bg-gradient-to-b from-orange-500 to-orange-600 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.35)]',
             webgpu: 'bg-gradient-to-b from-fuchsia-500 to-fuchsia-600 text-white border-fuchsia-400 shadow-[0_0_10px_rgba(217,70,239,0.35)]',
             wam: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.35)]',
+            cpp: 'bg-gradient-to-b from-fuchsia-500 via-violet-500 to-indigo-600 text-white border-fuchsia-300 shadow-[0_0_12px_rgba(217,70,239,0.45)]',
           };
 
           return (
-            <button
+            <button type="button"
               key={t}
               onClick={() => onChange(t)}
               aria-pressed={isActive}

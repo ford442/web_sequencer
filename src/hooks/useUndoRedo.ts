@@ -9,6 +9,7 @@
 // trivially testable.
 
 import { useRef, useCallback } from 'react';
+import { useMemo } from "react";
 
 export interface UseUndoRedoReturn<T> {
     /** Save a snapshot before an edit. Call this every time the pattern changes. */
@@ -64,5 +65,5 @@ export function useUndoRedo<T>(maxHistory = 50): UseUndoRedoReturn<T> {
         future.current = [];
     }, []);
 
-    return { push, undo, redo, canUndo, canRedo, clear };
+    return useMemo(() => ({ push, undo, redo, canUndo, canRedo, clear }), [push, undo, redo, canUndo, canRedo, clear]);
 }

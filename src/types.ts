@@ -15,6 +15,7 @@ export type Waveform =
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
   | 'rust-saw' | 'rust-sqr'
+  | 'cpp-sin' | 'cpp-saw' | 'cpp-sqr' | 'cpp-rand'
   | '303-saw' | '303-sqr'
   | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
 
@@ -37,11 +38,16 @@ export interface SynthParams {
   /** Which DSP engine to use when waveform is '303-saw' or '303-sqr'. Defaults to 'open303'. */
   engine303?: Engine303;
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
+  pitchAttack?: number;
+  pitchDecay?: number;
+  pitchAmount?: number;
   vowel?: number;
   /** Prophecy: Portamento rate 0–1 (0=instantaneous, 1=max glide) */
   portamento?: number;
   /** Prophecy: Formant frequency shift 0–1 */
   formantShift?: number;
+  /** CPP: fine tune / shape parameter 0–1 */
+  cppFine?: number;
 }
 
 export type DrumSound = 'kick' | 'snare' | 'closedHat' | 'openHat';
@@ -73,6 +79,7 @@ export interface HatParams {
 }
 
 export interface SamplerBankParams {
+  grainJitter?: number;
   sampleName: string;
   playbackSpeed: number;
   volume: number;
@@ -99,24 +106,26 @@ export interface SamplerBankParams {
   freezeLfoDepth?: number;
   freezeEnvDepth?: number;
   timeStretchEnvDepth?: number;
+  grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
   granularPitchShift?: number;
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
+  formantLfoShape?: number[];
+  customLfoShape?: number[];
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
   downsample?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
-  formantLfoShape?: number[];
   formantEnvAttack?: number;
   formantEnvDecay?: number;
   formantEnvAmount?: number;
+  formantEnvFollower?: number;
   formantEnvSync?: boolean;
-  customLfoShape?: number[];
   characterMorph?: number;
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright';
   attack?: number;
@@ -131,18 +140,24 @@ export interface SamplerBankParams {
   rootNote?: number;
   coarseTune?: number;
   fineTune?: number;
-  quality?: 'preview' | 'good' | 'better' | 'best';
+  stretchProfile?: 'vocal' | 'harmonic' | 'fast';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
   pitchAttack?: number;
+  pitchDecay?: number;
+  pitchAmount?: number;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
-  pitchDecay?: number;
+  vocoderMix?: number;
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
+  vocoderAttack?: number;
+  vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
-    vibratoDepth: number;
+    vibratoDepth?: number;
     tremoloDepth: number;
     breathAmount: number;
   };
@@ -171,6 +186,7 @@ export type OscillatorType =
   | 'rust'         // Rust/WASM high-precision synth
   | 'webgpu'       // WGSL/WebGPU GPU oscillators
   | 'wam'          // Web Audio Modules (WAM) plugins
+  | 'cpp'          // High-precision C++ math oscillators (sinf / saw / sqr / rand)
 ;
 
 /** Visual theme applied to the oscillator panel / overlay when this type is active. */
@@ -263,6 +279,28 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     text: 'text-amber-300',
     badge: 'WAM',
   },
+  cpp: {
+    label: 'CPP',
+    accent: 'fuchsia',
+    panelBg: 'bg-gradient-to-br from-indigo-950/40 via-fuchsia-950/30 to-rose-950/40',
+    panelBorder: 'border-fuchsia-500/40',
+    text: 'text-fuchsia-200',
+    badge: 'CPP',
+  },
+};
+
+/** Hardware panel artwork in public/osc/ — one JPG per oscillator family. */
+export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
+  javascript: '/osc/js.jpg',
+  pcm: '/osc/pcm.jpg',
+  open303: '/osc/open303.jpg',
+  jc303: '/osc/jc303.jpg',
+  prophecy: '/osc/prophecy.jpg',
+  pyodide: '/osc/pyodide.jpg',
+  rust: '/osc/rust.jpg',
+  webgpu: '/osc/webgpu.jpg',
+  wam: '/osc/wam.jpg',
+  cpp: '/osc/cpp.jpg',
 };
 
 /** Derive the OscillatorType from a concrete Waveform + optional engine303 override. */
@@ -278,6 +316,7 @@ export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine3
   if (w.startsWith('rust-')) return 'rust';
   if (w.startsWith('wgsl-')) return 'webgpu';
   if (w.startsWith('wam-')) return 'wam';
+  if (w.startsWith('cpp-')) return 'cpp';
   return 'javascript';
 }
 
@@ -299,6 +338,7 @@ export function getDefaultWaveformForType(type: OscillatorType): Waveform {
     case 'rust': return 'rust-saw';
     case 'webgpu': return 'wgsl-saw';
     case 'wam': return 'wam-saw';
+    case 'cpp': return 'cpp-saw';
     default: return 'sawtooth';
   }
 }
@@ -315,6 +355,7 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     case 'rust': return ['rust-saw', 'rust-sqr'];
     case 'webgpu': return ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'];
     case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
+    case 'cpp': return ['cpp-sin', 'cpp-saw', 'cpp-sqr', 'cpp-rand'];
     default: return ['sawtooth'];
   }
 }
@@ -371,7 +412,12 @@ export interface Note {
   length?: number;
   slide?: boolean;
   slideFormant?: boolean;
+  slideFromMidi?: number;
+  slideFromFormant?: number;
+  slideType?: 'linear' | 'exponential';
   chord?: string[];
+  characterMorph?: number;
+  isHarmonyVoice?: boolean;
   timbre?: number;
   probability?: number;
   microtiming?: number;
@@ -384,10 +430,20 @@ export interface Note {
   formantLfoRate?: number;
   formantLfoDepth?: number;
   formantLfoSync?: boolean;
+  formantLfoShape?: number[];
+  customLfoShape?: number[];
   freezeLfoRate?: number;
   freezeLfoDepth?: number;
   freezeLfoSync?: boolean;
+  freezeEnvDepth?: number;
+  timeStretchEnvDepth?: number;
+  grainPitchEnvDepth?: number;
+  grainJitter?: number;
+  grainPitchQuantize?: number;
+  grainEnvDepth?: number;
   vibratoDepth?: number;
+  tremoloDepth?: number;
+  tremoloRate?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
   reverbLfoRate?: number;
@@ -402,12 +458,23 @@ export interface Note {
   drive?: number;
   tranceGate?: number;
   formantEnvSync?: boolean;
+  formantEnvAttack?: number;
+  formantEnvDecay?: number;
+  formantEnvAmount?: number;
+  formantEnvFollower?: number;
+  envMod?: number;
+  filterCutoff?: number;
+  filterResonance?: number;
   gateRate?: number;
   gateDepth?: number;
   spectralPanRate?: number;
   spectralPanDepth?: number;
+  vocoderMix?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
+  pitchAttack?: number;
+  pitchDecay?: number;
+  pitchAmount?: number;
   vowel?: number;
   /** Prophecy: Portamento rate 0–1 */
   portamento?: number;
@@ -436,6 +503,8 @@ export interface AudioEngine {
   webGpuEngine?: WebGpuOscillator | null;
   wasmEngine?: WasmOscillator | null;
   open303Engine?: Open303Oscillator | Open303Manager | null;
+  /** Prophecy formant engine manager; set after init. */
+  prophecyManager?: import('./engines/ProphecyManager').ProphecyManager | null;
   /** PcfEffect instance for PCF automation wiring; set after init. */
   pcfEffect?: import('./engines/PcfEffect').PcfEffect | null;
   singingVoice?: SingingVoice;
@@ -674,6 +743,8 @@ export interface AutomationState {
    * Updated once per step tick; used by UI controls to show animated values.
    */
   liveAutomatedValues: Record<string, number>;
+  /** Highlight automated knobs on hardware panels; dim non-automated params. */
+  showHardwareAutomation: boolean;
 }
 
 export interface SongStep {
@@ -687,6 +758,7 @@ export interface SongStructure {
 }
 
 export interface SavedSongData {
+  /** Schema version: 1 = 8 pattern slots per track, 2 = 32 slots (ReBirth-compatible). */
   version?: number;
   pattern: Pattern;
   params: {
@@ -709,6 +781,8 @@ export interface SavedSongData {
   ttsPhrases?: string[];
   /** Persisted automation lanes (from .rbs import, recordings, or AI) */
   automationLanes?: UnifiedAutomationLane[];
+  /** Per-song MIDI CC / note → control mappings */
+  midiMappings?: import('./types/midi').MidiBinding[];
 }
 export interface AmbianceTrack {
   id: string;
@@ -741,10 +815,14 @@ export interface TrakEvent {
 export interface ResolvedTrakEvent {
   /** Absolute tick position from the beginning of the arrangement. */
   tick: number;
-  /** Parameter / control ID. */
+  /** TRAK track index (0=mixer, 1=TB-303 #1, …). */
+  trackIndex: number;
+  /** Per-track parameter / control ID. */
   ctrlId: number;
   /** Raw parameter value. */
   value: number;
+  /** Pre-resolved event kind (optional — scheduler re-resolves if absent). */
+  eventKind?: import('./importers/rbs/trakControllers').TrakEventKind;
 }
 
 /**

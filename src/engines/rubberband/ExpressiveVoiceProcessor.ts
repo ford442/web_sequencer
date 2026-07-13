@@ -58,6 +58,17 @@ export interface EnvelopeConfig {
 }
 
 /** Configuration for rhythmic gate effect */
+
+/** Configuration for pitch envelope */
+export interface PitchEnvelopeConfig {
+    /** Attack time in seconds */
+    attack: number;
+    /** Decay time in seconds */
+    decay: number;
+    /** Amount of pitch modulation (-24 to 24 semitones) */
+    amount: number;
+}
+
 export interface GateConfig {
     /** Gate rate in Hz */
     rate: number;
@@ -73,6 +84,7 @@ export interface ExpressiveConfig {
     tremolo: TremoloConfig;
     breath: BreathConfig;
     envelope: EnvelopeConfig;
+    pitchEnvelope: PitchEnvelopeConfig;
     gate: GateConfig;
     /** Sample rate for processing */
     sampleRate: number;
@@ -96,6 +108,12 @@ export const DEFAULT_EXPRESSIVE_CONFIG: ExpressiveConfig = {
         amount: 0.05,
         filterCutoff: 2000,
         enabled: true
+    },
+
+    pitchEnvelope: {
+        attack: 0.0,
+        decay: 0.0,
+        amount: 0.0
     },
     envelope: {
         attack: 0.05,
@@ -175,6 +193,11 @@ export class ExpressiveVoiceProcessor {
     private sampleIndex: number = 0;
     private currentTime: number = 0;
     
+
+    // Pitch Envelope states
+    private pitchEnvelopePhase: 'idle' | 'attack' | 'decay' = 'idle';
+    private pitchEnvelopeValue: number = 0;
+
     // Envelope states
     private envelopePhase: 'idle' | 'attack' | 'decay' | 'sustain' | 'release' = 'idle';
     private envelopeValue: number = 0;
@@ -320,6 +343,35 @@ export class ExpressiveVoiceProcessor {
             }
 
             // 4. Amplitude Envelope
+
+            // 5. Pitch Envelope Processing
+            const pEnv = this.config.pitchEnvelope;
+            if (this.pitchEnvelopePhase === 'attack') {
+                if (pEnv.attack > 0) {
+                    this.pitchEnvelopeValue += dt / pEnv.attack;
+                    if (this.pitchEnvelopeValue >= 1.0) {
+                        this.pitchEnvelopeValue = 1.0;
+                        this.pitchEnvelopePhase = 'decay';
+                    }
+                } else {
+                    this.pitchEnvelopeValue = 1.0;
+                    this.pitchEnvelopePhase = 'decay';
+                }
+            } else if (this.pitchEnvelopePhase === 'decay') {
+                if (pEnv.decay > 0) {
+                    this.pitchEnvelopeValue -= dt / pEnv.decay;
+                    if (this.pitchEnvelopeValue <= 0.0) {
+                        this.pitchEnvelopeValue = 0.0;
+                        this.pitchEnvelopePhase = 'idle';
+                    }
+                } else {
+                    this.pitchEnvelopeValue = 0.0;
+                    this.pitchEnvelopePhase = 'idle';
+                }
+            } else {
+                this.pitchEnvelopeValue = 0.0;
+            }
+
             if (this.envelopePhase === 'attack') {
                 if (env.attack > 0) {
                     this.envelopeValue += dt / env.attack;
@@ -370,12 +422,16 @@ export class ExpressiveVoiceProcessor {
     /**
      * Trigger Note On envelope phase
      */
+
     noteOn(): void {
         this.envelopePhase = 'attack';
+        this.pitchEnvelopePhase = 'attack';
+        this.pitchEnvelopeValue = 0;
         this.scheduledNoteOffTime = Infinity;
         // We do not reset this.envelopeValue to 0 if it's currently releasing
         // to avoid clicking on rapid retriggers. We just start climbing from current.
     }
+
 
     /**
      * Trigger Note Off envelope phase
@@ -403,9 +459,14 @@ export class ExpressiveVoiceProcessor {
         if (newConfig.breath) {
             this.config.breath = { ...this.config.breath, ...newConfig.breath };
         }
+
         if (newConfig.envelope) {
             this.config.envelope = { ...this.config.envelope, ...newConfig.envelope };
         }
+        if (newConfig.pitchEnvelope) {
+            this.config.pitchEnvelope = { ...this.config.pitchEnvelope, ...newConfig.pitchEnvelope };
+        }
+
         if (newConfig.gate) {
             this.config.gate = { ...this.config.gate, ...newConfig.gate };
         }
@@ -421,6 +482,11 @@ export class ExpressiveVoiceProcessor {
     getCurrentEnvelopeValue(): number {
         return this.envelopeValue;
     }
+
+    getCurrentPitchEnvelopeValue(): number {
+        return this.pitchEnvelopeValue;
+    }
+
 
     /**
      * Reset internal state (phases, etc.)

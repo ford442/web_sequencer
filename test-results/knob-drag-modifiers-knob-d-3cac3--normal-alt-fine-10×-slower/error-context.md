@@ -1,0 +1,205 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - navigation "App mode" [ref=e5]:
+        - link "Physics sim WebGPU fields · latent heat · shareable" [ref=e6] [cursor=pointer]:
+          - /url: ./
+          - text: Physics sim
+          - generic [ref=e7]: WebGPU fields · latent heat · shareable
+        - link "Art playground Instant canvas · drag emitters · no GPU" [ref=e8] [cursor=pointer]:
+          - /url: prototype.html
+          - text: Art playground
+          - generic [ref=e9]: Instant canvas · drag emitters · no GPU
+      - heading "wind_manager — evaporative downdraft" [level=1] [ref=e10]
+      - paragraph [ref=e11]: Two-way coupled air ⇄ droplet ⇄ temperature solver (WebGPU). A fine spray cools the air it rises through; the cooled column sinks and spreads along the floor as an outflow gust.
+      - generic [ref=e12]:
+        - paragraph [ref=e13]:
+          - strong [ref=e14]: Art playground
+          - text: "— the legacy 2D canvas toy for quick composition: drag water/wind emitters, watch grass and trees sway instantly. No WebGPU, no build step. Sketch layouts there, then reproduce here with real physics."
+        - link "Open art playground →" [ref=e15] [cursor=pointer]:
+          - /url: prototype.html
+    - generic [ref=e16]:
+      - link "Documentation" [ref=e17] [cursor=pointer]:
+        - /url: https://github.com/ford442/wind_manager#readme
+      - text: · shared layout in
+      - code [ref=e18]: src/render/sceneData.ts
+  - generic [ref=e19]:
+    - strong [ref=e20]: WebGPU unavailable.
+    - text: No WebGPU adapter available on this machine.
+  - generic [ref=e21]:
+    - generic [ref=e22]:
+      - generic [ref=e25]:
+        - generic "Composite painterly sky, grass, trees from the art playground on top of physics overlays" [ref=e26]:
+          - checkbox [checked] [ref=e27]
+          - generic [ref=e28]:
+            - strong [ref=e29]: Stylized view
+            - text: — playground scene on physics
+        - link "Art playground ↗" [ref=e30] [cursor=pointer]:
+          - /url: prototype.html
+      - generic [ref=e31]:
+        - strong [ref=e32]: "Wide yard (32 m):"
+        - text: click for water spray, Shift+click for
+        - strong [ref=e33]: air stream
+        - text: . Drag emitters to move; drag the ring or handle to aim. Load the
+        - strong [ref=e34]: 100 ft tree shake
+        - text: preset and watch flow tracers ride the floor outflow.
+    - generic [ref=e35]:
+      - group [ref=e36]:
+        - generic "Help — controls & physics" [ref=e37] [cursor=pointer]
+      - generic [ref=e38]:
+        - generic [ref=e39]: Presets
+        - combobox "Simulation preset" [ref=e40]
+        - button "Load preset" [ref=e42] [cursor=pointer]
+      - generic [ref=e43]:
+        - generic [ref=e44]: Share / reproducibility
+        - generic [ref=e45]:
+          - button "Export JSON" [ref=e46] [cursor=pointer]
+          - button "Copy JSON" [ref=e47] [cursor=pointer]
+          - button "Copy link" [ref=e48] [cursor=pointer]
+        - generic [ref=e49]:
+          - button "Import JSON" [ref=e50] [cursor=pointer]
+          - button "From file" [ref=e51] [cursor=pointer]
+        - textbox "Paste JSON configuration here, then Import…" [ref=e52]
+      - generic [ref=e53]:
+        - generic [ref=e54]: Latent heat (evaporative cooling)
+        - generic "When ON, evaporation cools air and drives downdraft. OFF = momentum-only updraft." [ref=e55]:
+          - checkbox "Toggle evaporative cooling (latent heat)" [checked] [ref=e56]
+          - generic [ref=e57]: ON — evaporative cooling → downdraft
+      - generic [ref=e58]:
+        - generic [ref=e59]: Overlay
+        - generic [ref=e60]:
+          - button "None" [ref=e61] [cursor=pointer]
+          - button "Velocity" [ref=e62] [cursor=pointer]
+          - button "Temperature" [ref=e63] [cursor=pointer]
+          - button "Humidity" [ref=e64] [cursor=pointer]
+          - button "Moisture" [ref=e65] [cursor=pointer]
+        - generic [ref=e66]:
+          - checkbox [checked] [ref=e67]
+          - generic "Darken ground band by puddle + deposited humidity (humidity / moisture overlays)" [ref=e68]: Ground moisture layer
+        - generic [ref=e69]:
+          - generic "Small arrows showing local wind direction on the grid" [ref=e70]:
+            - checkbox "arrows" [checked] [ref=e71]
+            - text: arrows
+          - generic "Lagrangian water droplets from spray emitters" [ref=e72]:
+            - checkbox "droplets" [checked] [ref=e73]
+            - text: droplets
+        - generic [ref=e74]:
+          - generic "Passive particles advected with the flow — ride floor outflow" [ref=e75]:
+            - checkbox "flow tracers" [checked] [ref=e76]
+            - text: flow tracers
+          - generic "Draw tracer path history as streaks" [ref=e77]:
+            - checkbox "streaks" [checked] [ref=e78]
+            - text: streaks
+        - generic [ref=e79]:
+          - generic [ref=e81]: Tracer density
+          - slider [ref=e82]: "4500"
+        - generic [ref=e83]:
+          - generic [ref=e85]: Tracer lifetime
+          - slider [ref=e86]: "10"
+      - generic [ref=e87]:
+        - generic [ref=e88]: Emitters (max 8)
+        - generic [ref=e89]:
+          - button "+ Water" [ref=e90] [cursor=pointer]
+          - button "+ Air stream" [ref=e91] [cursor=pointer]
+          - button "Remove" [ref=e92] [cursor=pointer]
+        - generic [ref=e93]: Spray burst
+        - button "Burst (Space)" [ref=e95] [cursor=pointer]
+        - generic [ref=e96]:
+          - generic [ref=e98]: Burst duration
+          - slider [ref=e99]: "0.5"
+        - generic [ref=e100]:
+          - generic [ref=e102]: Burst multiplier
+          - slider [ref=e103]: "8"
+        - generic [ref=e104]:
+          - generic [ref=e106]: World position
+          - generic [ref=e107]: —
+          - generic [ref=e108]:
+            - generic [ref=e109]: X
+            - spinbutton "Emitter X (meters)" [disabled] [ref=e110]
+            - slider "Emitter X slider" [disabled] [ref=e111]: "50"
+          - generic [ref=e112]:
+            - generic [ref=e113]: "Y"
+            - spinbutton "Emitter Y (meters)" [disabled] [ref=e114]
+            - slider "Emitter Y slider" [disabled] [ref=e115]: "50"
+          - generic [ref=e116]:
+            - button "Copy position" [disabled] [ref=e117] [cursor=pointer]
+            - button "Copy all" [disabled] [ref=e118] [cursor=pointer]
+          - generic [ref=e119]: Type exact meters · ↑↓←→ nudge 0.01 m · Shift+arrows 0.1 m
+        - generic [ref=e120]:
+          - generic [ref=e122]: Speed
+          - slider [ref=e123]: "10"
+        - generic [ref=e124]:
+          - generic [ref=e126]: Angle (from up)
+          - slider [ref=e127]: "0"
+        - generic [ref=e128]:
+          - generic [ref=e130]: Cone half-angle
+          - slider [ref=e131]: "15"
+        - generic [ref=e132]:
+          - generic [ref=e134]: Emission rate
+          - slider [ref=e135]: "6000"
+        - generic [ref=e136]:
+          - generic [ref=e138]: Min droplet radius
+          - slider [ref=e139]: "50"
+        - generic [ref=e140]:
+          - generic [ref=e142]: Max droplet radius
+          - slider [ref=e143]: "800"
+      - generic [ref=e144]:
+        - generic [ref=e145]: Environment
+        - generic [ref=e146]:
+          - checkbox [checked] [ref=e147]
+          - generic [ref=e148]: Grass row (floor outflow)
+        - generic [ref=e149]:
+          - checkbox [checked] [ref=e150]
+          - generic [ref=e151]: Trees (canopy sway)
+        - generic [ref=e152]:
+          - checkbox [checked] [ref=e153]
+          - generic [ref=e154]: Houses + flags / smoke
+        - generic [ref=e155]:
+          - checkbox [checked] [ref=e156]
+          - generic [ref=e157]: Clouds (upper wind)
+        - generic [ref=e158]:
+          - checkbox [checked] [ref=e159]
+          - generic [ref=e160]: Ground mist (spray shadow)
+        - generic [ref=e161]:
+          - checkbox [checked] [ref=e162]
+          - generic [ref=e163]: Wet ground (puddle band + sheen)
+        - generic [ref=e164]:
+          - generic [ref=e166]: Grass density
+          - slider [ref=e167]: "120"
+        - generic [ref=e168]:
+          - generic [ref=e170]: Grass stiffness
+          - slider [ref=e171]: "0.72"
+      - generic [ref=e172]:
+        - generic [ref=e173]: Ambient
+        - generic [ref=e174]:
+          - generic [ref=e176]: Temperature
+          - slider [ref=e177]: "30"
+        - generic [ref=e178]:
+          - generic [ref=e180]: Relative humidity
+          - slider [ref=e181]: "20"
+      - generic [ref=e182]:
+        - generic [ref=e183]: Simulation
+        - generic [ref=e184]:
+          - button "Pause" [ref=e185] [cursor=pointer]
+          - button "Reset" [ref=e186] [cursor=pointer]
+        - group [ref=e187]:
+          - generic "Advanced — grid & solver" [ref=e188] [cursor=pointer]
+        - generic [ref=e189]:
+          - generic [ref=e190]: Status
+          - generic [ref=e191]: unavailable
+          - generic [ref=e192]: Sim time
+          - generic [ref=e193]: 0.0 s
+          - generic [ref=e194]: FPS
+          - generic [ref=e195]: —
+          - generic [ref=e196]: T range
+          - generic [ref=e197]: —
+          - generic [ref=e198]: Max speed
+          - generic [ref=e199]: —
+          - generic [ref=e200]: Emitted
+          - generic [ref=e201]: —
+          - generic [ref=e202]: Health
+          - generic [ref=e203]: —
+```

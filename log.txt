@@ -1,6 +1,0 @@
-
-> hyphon-daw@1.0.0 test /app
-> vitest run src/__tests__/App.test.tsx
-
-
- RUN  v2.1.9 /app

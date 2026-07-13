@@ -3,6 +3,11 @@ import type {
   HyphonAutomationLane, StepConversionStats, DetailedParameterMapping, RbsSongData, Tb303PatternA
 } from './types';
 import { DEFAULT_RBS_IMPORT_OPTIONS, TICKS_PER_BAR, TRAK_TRACK_INDEX } from './types';
+import { MAX_TRACK_PATTERN_SLOTS } from '../../constants';
+import { deriveActiveTrackSlotsFromStructure } from '../../utils/trackStorageUtils';
+import { isTrakParamAutomationEvent, isTrakPatternSelectEvent } from './trakControllers';
+import { isV15SubsetVersion } from './parser-types';
+import { inferDevicesPresent, drumBankHasTriggers } from './deviceInference';
 import type {
   Pattern, PartSequence, Note, SynthParams, KickParams, SnareParams, HatParams, Bass2Params, Waveform
 } from '../../types';
@@ -52,7 +57,7 @@ export class RbsImporter {
    * - Drum kit-specific parameter mapping
    */
   convertToHyphonSong(raw: RawRbsData): RbsImportResult {
-    const warnings: string[] = [];
+    const warnings: string[] = [...this.buildFormatWarnings(raw)];
     const mappings: DetailedParameterMapping[] = [];
 
     // Reset step statistics
@@ -152,6 +157,9 @@ export class RbsImporter {
     } : undefined;
 
     // Build enhanced report
+    const pcfStats = this.buildPcfReportStats(raw);
+    const devicesPresent = raw.devicesPresent ?? inferDevicesPresent(raw);
+
     return {
       success: true,
       song,
@@ -162,10 +170,14 @@ export class RbsImporter {
         mappings,
         automationLanesConverted: automation.length,
         pcfEnabled: raw.pcf.enabled,
+        pcfStats,
         slideCount: this.stepStats.slideCount,
         accentCount: this.stepStats.accentCount,
         stepStats: this.stepStats,
         songMode: songModeReport,
+        formatVersion: raw.version,
+        devicesPresent,
+        parsePath: raw.parsePath,
       }
     };
   }
@@ -285,131 +297,71 @@ export class RbsImporter {
 
   /**
    * Expand 16-step RBS pattern to 32-step Hyphon pattern
-   * 
+   *
    * Rules:
-   * - Step 0 → steps 0, 1 (step 0 has accent if original had accent)
-   * - Step 1 → steps 2, 3
-   * - Slides extend across both steps
-   * - Ties sustain the note
-   * - Accents preserved on first of each pair
+   * - Each 16th maps to two 32nd sub-steps
+   * - Slides span both sub-steps of their source 16th (length 2, second slot null)
+   * - Ties extend the previous note's length without placing new Note objects
+   *   (avoids envelope re-trigger on sustained notes)
+   * - Accents apply to the first sub-step only
    */
-  private expandPattern16To32(steps16: Tb303Step[], isBassTrack: boolean): PartSequence {
+  private expandPattern16To32(steps16: Tb303Step[], _isBassTrack: boolean): PartSequence {
     const steps32: (Note | null)[] = Array(32).fill(null);
 
     for (let i = 0; i < 16; i++) {
       const sourceStep = steps16[i];
-      const targetIndex1 = i * 2;     // First of pair
-      const targetIndex2 = i * 2 + 1; // Second of pair
-
-      if (sourceStep.note === -1) {
-        // Rest - both steps are null
-        continue;
-      }
 
       if (sourceStep.tie) {
-        // Tie - sustain from previous (handle below)
         this.stepStats.tieCount++;
         continue;
       }
 
-      // Convert note
+      if (sourceStep.note === -1) {
+        continue;
+      }
+
+      const targetIndex1 = i * 2;
+
+      let tieCount = 0;
+      while (i + 1 + tieCount < 16 && steps16[i + 1 + tieCount].tie) {
+        tieCount++;
+        this.stepStats.tieCount++;
+      }
+
       const midiNote = (sourceStep.octave + 1) * 12 + sourceStep.note;
       const noteName = midiToNote(midiNote);
 
-      // Calculate velocities based on accent
-      // Accent on first step only in expanded pattern
       const baseVelocity = 0.8;
       const accentBoost = sourceStep.accent ? this.convertAccentToBoost(127) : 0;
       const velocity1 = Math.min(1.0, baseVelocity + accentBoost);
-      const velocity2 = baseVelocity; // Second step always base velocity
 
-      // Track statistics
       if (sourceStep.slide) this.stepStats.slideCount++;
       if (sourceStep.accent) this.stepStats.accentCount++;
 
       if (sourceStep.slide) {
-        // Slide: note extends across both steps with slide flag
         steps32[targetIndex1] = {
           note: noteName,
           velocity: velocity1,
-          length: 2, // Spans both steps
+          length: 2,
           slide: true,
-          timbre: 0.5
+          timbre: 0.5,
         };
-        steps32[targetIndex2] = null; // Part of slide
-      } else {
-        // Normal note: place on first step, second step is rest
-        steps32[targetIndex1] = {
-          note: noteName,
-          velocity: velocity1,
-          length: 1,
-          slide: false,
-          timbre: 0.5
-        };
-        // Second step is null (rest) unless it's a sustained note
-        // Check if next step is a tie
-        const nextIndex = i + 1;
-        if (nextIndex < 16 && steps16[nextIndex].tie) {
-          // Next step is tied, sustain this note
-          steps32[targetIndex2] = {
-            note: noteName,
-            velocity: velocity2,
-            length: 1,
-            slide: false,
-            timbre: 0.5
-          };
-        }
+        steps32[targetIndex1 + 1] = null;
+        continue;
       }
-    }
 
-    // Handle ties (sustained notes) in the 32-step pattern
-    this.handleTiesInExpandedPattern(steps32, steps16);
+      const sustainSubSteps = tieCount > 0 ? (1 + tieCount) * 2 : 1;
+      steps32[targetIndex1] = {
+        note: noteName,
+        velocity: velocity1,
+        length: sustainSubSteps,
+        slide: false,
+        timbre: 0.5,
+      };
+    }
 
     this.stepStats.totalSteps += 32;
     return { steps: steps32 };
-  }
-
-  /**
-   * Handle tied notes in expanded pattern
-   * A tie means the note sustains through the next step
-   */
-  private handleTiesInExpandedPattern(steps32: (Note | null)[], steps16: Tb303Step[]): void {
-    for (let i = 0; i < 16; i++) {
-      const sourceStep = steps16[i];
-      if (sourceStep.tie && i > 0) {
-        // Find the previous non-tie step
-        let prevIndex = i - 1;
-        while (prevIndex >= 0 && steps16[prevIndex].tie) {
-          prevIndex--;
-        }
-        
-        if (prevIndex >= 0) {
-          const prevSourceStep = steps16[prevIndex];
-          const prevMidiNote = (prevSourceStep.octave + 1) * 12 + prevSourceStep.note;
-          const prevNoteName = midiToNote(prevMidiNote);
-          
-          // Extend the note into this step
-          const targetIndex1 = i * 2;
-          const targetIndex2 = i * 2 + 1;
-          
-          // Both sub-steps sustain the tied note
-          steps32[targetIndex1] = {
-            note: prevNoteName,
-            velocity: 0.8,
-            length: 1,
-            slide: false,
-            timbre: 0.5
-          };
-          steps32[targetIndex2] = {
-            note: prevNoteName,
-            velocity: 0.8,
-            length: 1,
-            slide: false,
-            timbre: 0.5
-          };
-        }
-      }
-    }
   }
 
   /**
@@ -578,13 +530,11 @@ export class RbsImporter {
       undefined;
 
     // Convert drum parameters based on kit type
-    const { kick, snare, closedHat, openHat } = this.convertDrumParams(raw.drums, mappings);
-
-    // Determine final kit type for downstream consumers
-    let drumKit: '808' | '909' = raw.drums.kitType;
+    let drumKit = this.resolveDrumKitType(raw);
     if (this.options.drumKitMapping !== 'auto') {
       drumKit = this.options.drumKitMapping;
     }
+    const { kick, snare, closedHat, openHat } = this.convertDrumParams(raw.drums, mappings, drumKit);
 
     return {
       synthA,
@@ -652,14 +602,9 @@ export class RbsImporter {
    */
   private convertDrumParams(
     drums: RawRbsData['drums'],
-    mappings: DetailedParameterMapping[]
+    mappings: DetailedParameterMapping[],
+    kitType: '808' | '909',
   ): { kick: KickParams; snare: SnareParams; closedHat: HatParams; openHat: HatParams } {
-    // Determine kit type
-    let kitType: '808' | '909' = drums.kitType;
-    if (this.options.drumKitMapping !== 'auto') {
-      kitType = this.options.drumKitMapping;
-    }
-
     // Kit-specific tone settings
     const kickTone = kitType === '808' ? 0.6 : 0.8;
     const snareTone = kitType === '808' ? 200 : 300;
@@ -1105,8 +1050,8 @@ export class RbsImporter {
     const numSteps = this.options.expandTo32Steps ? 32 : raw.project.patternLength;
     const isExpansion = numSteps === 32 && raw.project.patternLength === 16;
 
-    // Convert pattern banks to Hyphon track storage format (up to 8 slots)
-    const maxSlots = 8;
+    // Convert pattern banks to Hyphon track storage (up to 32 ReBirth pattern slots)
+    const maxSlots = MAX_TRACK_PATTERN_SLOTS;
     const partASlots: (Pattern['partA'] | null)[] = Array(maxSlots).fill(null);
     const partBSlots: (Pattern['partB'] | null)[] = Array(maxSlots).fill(null);
     const bass2Slots: (Pattern['bass2'] | null)[] = Array(maxSlots).fill(null);
@@ -1115,7 +1060,7 @@ export class RbsImporter {
     const closedHatSlots: (Pattern['closedHat'] | null)[] = Array(maxSlots).fill(null);
     const openHatSlots: (Pattern['openHat'] | null)[] = Array(maxSlots).fill(null);
 
-    // Map pattern banks to track storage (first 8 of up to 32)
+    // Map pattern banks to track storage (up to 32 ReBirth slots)
     const numA = Math.min(maxSlots, songData.patternBanks.tb303A.length);
     for (let i = 0; i < numA; i++) {
       const pat = songData.patternBanks.tb303A[i];
@@ -1157,9 +1102,9 @@ export class RbsImporter {
       openHatSlots[i] = this.convertDrumPattern(dp.openHat, numSteps, 'openHat');
     }
 
-    // Build songStructure from TRAK events (pattern changes over time)
+    // Build songStructure from TRAK events (one measure per bar in arrangement)
     const songStructure: Array<Record<string, number | null>> = [];
-    const totalBars = Math.min(songData.totalLengthBars, 64); // max arrangement measures
+    const totalBars = Math.max(1, songData.totalLengthBars);
 
     // Find the main track for pattern select events
     const tb303_1Track = songData.tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_1);
@@ -1188,11 +1133,16 @@ export class RbsImporter {
       });
     }
 
-    // Collect all TRAK events for sub-step automation scheduling
-    const allTrakEvents = songData.tracks.flatMap(t => t.events);
+    // Collect TRAK events: full stream + param-only subset for sub-step automation.
+    const allTrakEvents = songData.tracks.flatMap((t) => t.events);
+    const trakParamEvents = allTrakEvents.filter((ev) =>
+      isTrakParamAutomationEvent(ev.trackIndex, ev.controllerId, ev.eventKind),
+    );
 
     if (songData.usedPatternCount > maxSlots) {
-      warnings.push(`Song uses ${songData.usedPatternCount} patterns but Hyphon supports ${maxSlots} slots. Excess patterns truncated.`);
+      warnings.push(
+        `Song uses ${songData.usedPatternCount} patterns but Hyphon supports ${maxSlots} slots. Excess patterns truncated.`,
+      );
     }
 
     return {
@@ -1206,16 +1156,25 @@ export class RbsImporter {
         closedHat: closedHatSlots,
         openHat: openHatSlots,
       },
+      trackParamStorage: {
+        synthA: this.buildTrackParamSlots(songData.patternBanks.tb303A, maxSlots, false),
+        synthB: this.buildTrackParamSlots(songData.patternBanks.tb303B, maxSlots, false),
+        bass2: this.options.tb303BTarget === 'bass2'
+          ? this.buildTrackParamSlots(songData.patternBanks.tb303B, maxSlots, true)
+          : Array(maxSlots).fill(null),
+      },
       songStructure,
+      activeTrackSlots: deriveActiveTrackSlotsFromStructure(songStructure),
       loopStart: songData.glob.loopStart || undefined,
       loopEnd: songData.glob.loopEnd || undefined,
       trakEvents: allTrakEvents.length > 0 ? allTrakEvents : undefined,
+      trakParamEvents: trakParamEvents.length > 0 ? trakParamEvents : undefined,
     };
   }
 
   /**
    * Find the active pattern index at a given tick position for a track.
-   * Scans pattern-select events (controller 0) and returns the last pattern set before `tick`.
+   * Scans pattern-select events and returns the last pattern set before `tick`.
    */
   private findActivePatternAtTick(
     track: RbsSongData['tracks'][number] | undefined,
@@ -1227,13 +1186,125 @@ export class RbsImporter {
     let activePattern = 0;
     for (const evt of track.events) {
       if (evt.absoluteTicks > tick) break;
-      if (evt.controllerId === 0) { // pattern select
+      if (isTrakPatternSelectEvent(evt.trackIndex, evt.controllerId, evt.eventKind)) {
         activePattern = evt.value;
       }
     }
 
-    // Clamp to available slots
-    return activePattern < maxSlots ? activePattern : 0;
+    // Pattern indices 0–31 are valid when maxSlots is 32
+    if (activePattern >= maxSlots) {
+      return maxSlots - 1;
+    }
+    return activePattern;
+  }
+
+  /** Map TB-303 pattern device params to Hyphon synth params (no mapping report noise). */
+  private mapTb303PatternToSynthParams(
+    tb303: Tb303PatternA,
+    asBass2: boolean,
+  ): Partial<SynthParams> | Partial<Bass2Params> {
+    if (asBass2) {
+      return this.convertToBass2Params(tb303, 'tb303B', undefined);
+    }
+    const waveform: Waveform = tb303.waveform === 0 ? '303-saw' : '303-sqr';
+    const cutoffHz = this.convertCutoffToHz(tb303.cutoff);
+    const resonance = this.convertResonance(tb303.resonance);
+    const decaySeconds = this.convertDecayToSeconds(tb303.decay);
+    const filterMode = clampNormalized(tb303.envMod / 127);
+    const volume = 0.6 + this.convertAccentToBoost(tb303.accent);
+    const portamento = clampNormalized((tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME) / 127);
+    return {
+      waveform,
+      pitch: 0,
+      filterCutoff: cutoffHz,
+      filterResonance: resonance,
+      filterMode,
+      attack: 0.01,
+      decay: decaySeconds,
+      sustain: 0.5,
+      release: 0.1,
+      volume,
+      portamento,
+    };
+  }
+
+  private buildTrackParamSlots(
+    patterns: Tb303PatternA[],
+    maxSlots: number,
+    asBass2: boolean,
+  ): (Partial<SynthParams> | Partial<Bass2Params> | null)[] {
+    const slots: (Partial<SynthParams> | Partial<Bass2Params> | null)[] = Array(maxSlots).fill(null);
+    const count = Math.min(maxSlots, patterns.length);
+    for (let i = 0; i < count; i++) {
+      slots[i] = this.mapTb303PatternToSynthParams(patterns[i], asBass2);
+    }
+    return slots;
+  }
+
+  /**
+   * Resolve drum kit for import. In `auto` mode prefers TR-808 when only 808 data is present
+   * (typical v1.5 subset).
+   */
+  private resolveDrumKitType(raw: RawRbsData): '808' | '909' {
+    if (this.options.drumKitMapping !== 'auto') {
+      return this.options.drumKitMapping;
+    }
+
+    const banks = raw.songData?.patternBanks;
+    if (banks) {
+      const has808 = drumBankHasTriggers(banks.drums808);
+      const has909 = drumBankHasTriggers(banks.drums909);
+      if (has808 && !has909) return '808';
+      if (has909 && !has808) return '909';
+    }
+
+    const devices = raw.devicesPresent ?? inferDevicesPresent(raw);
+    if (devices.includes('808') && !devices.includes('909')) return '808';
+    if (devices.includes('909') && !devices.includes('808')) return '909';
+
+    return raw.drums.kitType;
+  }
+
+  /** Warnings for v1.5 subset files missing v2.0 devices/features. */
+  private buildFormatWarnings(raw: RawRbsData): string[] {
+    const warnings: string[] = [];
+    const devices = raw.devicesPresent ?? inferDevicesPresent(raw);
+
+    if (isV15SubsetVersion(raw.version)) {
+      if (!devices.includes('303-2')) {
+        warnings.push('v1.5 subset: TB-303 #2 not present — partB/synthB pattern left empty');
+      }
+      if (!devices.includes('909')) {
+        warnings.push('v1.5 subset: TR-909 not present — using TR-808 drum mapping');
+      }
+      if (raw.songData?.glob.playMode === 1 && (raw.songData.tracks.length === 0)) {
+        warnings.push('v1.5 subset: song mode requested but TRKL arrangement data is missing');
+      }
+    }
+
+    return warnings;
+  }
+
+  private buildPcfReportStats(raw: RawRbsData): ImportReport['pcfStats'] {
+    const p = raw.pcf;
+    const patternMin = p.pattern.length > 0 ? Math.min(...p.pattern) : 0;
+    const patternMax = p.pattern.length > 0 ? Math.max(...p.pattern) : 0;
+    const targets: string[] = [];
+    if (p.target.tb303A) targets.push('synthA');
+    if (p.target.tb303B) targets.push('synthB');
+    if (p.target.drums) targets.push('drums');
+
+    const source: 'devl' | 'legacy' | 'none' =
+      raw.songData ? 'devl' : (p.enabled ? 'legacy' : 'none');
+
+    return {
+      waveIndex: p.waveIndex ?? -1,
+      patternMin,
+      patternMax,
+      patternVariance: patternMax - patternMin,
+      targets,
+      source,
+    };
   }
 
   private extractTb303Params(tb303: { cutoff: number; resonance: number; envMod: number; decay: number; accent: number; waveform: 0 | 1; distortion?: number; delaySend?: number }) {

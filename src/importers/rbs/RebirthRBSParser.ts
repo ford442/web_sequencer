@@ -30,6 +30,7 @@ import type {
   Tb303Step,
 } from './types';
 import { TRAK_TRACK_INDEX, TICKS_PER_BAR } from './types';
+import { isTrakPatternSelectEvent } from './trakControllers';
 import { RbsParser } from './RbsParser';
 import type { RbsParserError } from './parser-types';
 
@@ -198,8 +199,16 @@ export class RebirthRBSParser {
       return { success: false, error: 'File must have .rbs extension' };
     }
 
-    // Delegate binary extraction to the existing robust parser
-    const engineResult = await this.engine.parseRbsFile(file);
+    const buffer = await file.arrayBuffer();
+    return this.parseBuffer(new Uint8Array(buffer), file.name);
+  }
+
+  /**
+   * Parse from raw bytes (programmatic / test entry point).
+   * Never throws — failures are returned in the result object.
+   */
+  async parseBuffer(bytes: Uint8Array, filename = 'input.rbs'): Promise<RebirthParseResult> {
+    const engineResult = await this.engine.parseBytes(bytes, { filename, requireExtension: false });
     if (!engineResult.success) {
       return { success: false, error: extractErrorMessage(engineResult.error) };
     }
@@ -216,7 +225,7 @@ export class RebirthRBSParser {
     const automationLanes = this.parseAutomation();
 
     console.log(
-      `[RebirthRBSParser] Parsed "${file.name}" – version ${header.version}, ` +
+      `[RebirthRBSParser] Parsed "${filename}" – version ${header.version}, ` +
       `${patterns.length} pattern entries, ${automationLanes.length} automation lane(s).`
     );
 
@@ -395,32 +404,30 @@ export class RebirthRBSParser {
       const { glob, tracks } = raw.songData;
       const mode: 'pattern' | 'song' = glob.playMode === 1 ? 'song' : 'pattern';
 
-      // Extract pattern slots from TRAK events (controller 0 = pattern select)
+      // Extract pattern slots from TRAK pattern-select events on TB-303 #1.
       const patternSlots: Array<{ patternIndex: number; repeats: number }> = [];
       
-      // Look at TB-303 #1 track for pattern changes (representative track)
       const mainTrack = tracks.find(t => t.trackIndex === TRAK_TRACK_INDEX.TB303_1) || tracks[0];
       if (mainTrack) {
         let lastPattern = 0;
         let lastTick = 0;
         
         for (const evt of mainTrack.events) {
-          if (evt.controllerId === 0) { // pattern select
-            // If there's a gap, the previous pattern was playing for that duration
-            if (patternSlots.length > 0 || evt.absoluteTicks > 0) {
-              const durationTicks = evt.absoluteTicks - lastTick;
-              const repeats = Math.max(1, Math.round(durationTicks / TICKS_PER_BAR));
-              if (patternSlots.length === 0 && evt.absoluteTicks > 0) {
-                // There was an initial pattern playing before first change
-                patternSlots.push({ patternIndex: lastPattern, repeats });
-              } else if (patternSlots.length > 0) {
-                patternSlots[patternSlots.length - 1].repeats = repeats;
-              }
-            }
-            lastPattern = evt.value;
-            lastTick = evt.absoluteTicks;
-            patternSlots.push({ patternIndex: evt.value, repeats: 1 });
+          if (!isTrakPatternSelectEvent(evt.trackIndex, evt.controllerId, evt.eventKind)) {
+            continue;
           }
+          if (patternSlots.length > 0 || evt.absoluteTicks > 0) {
+            const durationTicks = evt.absoluteTicks - lastTick;
+            const repeats = Math.max(1, Math.round(durationTicks / TICKS_PER_BAR));
+            if (patternSlots.length === 0 && evt.absoluteTicks > 0) {
+              patternSlots.push({ patternIndex: lastPattern, repeats });
+            } else if (patternSlots.length > 0) {
+              patternSlots[patternSlots.length - 1].repeats = repeats;
+            }
+          }
+          lastPattern = evt.value;
+          lastTick = evt.absoluteTicks;
+          patternSlots.push({ patternIndex: evt.value, repeats: 1 });
         }
 
         // If no pattern select events found, use pattern 0
