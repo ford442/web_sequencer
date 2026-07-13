@@ -17,7 +17,8 @@ vi.mock('../services/Supertonic', () => ({
 
 vi.mock('../services/VoiceDesigner', () => {
     return {
-        VoiceDesigner: vi.fn().mockImplementation(() => ({
+        // vitest 4 constructs mock implementations via Reflect.construct.
+        VoiceDesigner: vi.fn().mockImplementation(function () { return ({
             setCanvas: vi.fn(),
             loadFromStyle: vi.fn(),
             getRawData: vi.fn().mockReturnValue({ ttl: {}, dp: {}, ttlDims: {}, dpDims: {} }),
@@ -29,7 +30,7 @@ vi.mock('../services/VoiceDesigner', () => {
             dspTremolo: vi.fn().mockResolvedValue(undefined),
             dspEcho: vi.fn().mockResolvedValue(undefined),
             reset: vi.fn().mockResolvedValue(undefined),
-        }))
+        }); })
     }
 });
 

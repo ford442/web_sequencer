@@ -42,10 +42,13 @@ interface NoteSelectorProps {
   currentFormantEnvAttack?: number;
   currentFormantEnvDecay?: number;
   currentFormantEnvAmount?: number;
+  currentFormantEnvFollower?: number;
   currentFreezeLfoSync?: boolean;
   currentFreezeLfoRate?: number;
   currentFreezeLfoDepth?: number;
   currentVibratoDepth?: number;
+  currentTremoloDepth?: number;
+  currentTremoloRate?: number;
   currentDrive?: number;
   currentCharacterMorph?: number;
   currentReverbSend?: number;
@@ -57,6 +60,7 @@ interface NoteSelectorProps {
   currentFreezeEnvDepth?: number;
   currentGrainEnvDepth?: number;
   currentGrainPitchEnvDepth?: number;
+  currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;
   currentTimeStretchEnvDepth?: number;
@@ -65,6 +69,12 @@ interface NoteSelectorProps {
   currentTranceGate?: number;
   currentDelaySend?: number;
   currentChoir?: number;
+  currentVocoderMix?: number;
+  currentVocoderFormantShift?: number;
+  currentFormantPitchLink?: number;
+  currentVocoderPreservation?: number;
+  currentVocoderAttack?: number;
+  currentVocoderRelease?: number;
   currentGateDepth?: number;
   currentGateRate?: number;
   /** Prophecy: whether the active synth uses a prophecy-* waveform */
@@ -97,6 +107,7 @@ interface NoteSelectorProps {
       | "bitcrush"
       | "downsample"
       | "formantShift"
+      | "formantPitchLink"
       | "filterCutoff"
       | "filterResonance"
       | "envMod"
@@ -110,8 +121,11 @@ interface NoteSelectorProps {
       | "formantEnvAttack"
       | "formantEnvDecay"
       | "formantEnvAmount"
+      | "formantEnvFollower"
       | "formantEnvSync"
       | "vibratoDepth"
+      | "tremoloDepth"
+      | "tremoloRate"
       | "gateDepth"
       | "gateRate"
       | "pan"
@@ -125,8 +139,18 @@ interface NoteSelectorProps {
       | "delayLfoDepth"
       | "delaySend"
       | "choir"
+      | "vocoderMix"
+      | "vocoderFormantShift"
+      | "vocoderPreservation"
+      | "vocoderAttack"
+      | "vocoderRelease"
       | "vowel"
-      | "portamento",
+      | "portamento"
+      | "pitchAttack"
+      | "pitchDecay"
+      | "pitchAmount"
+      | "glitchChance"
+      | "probability",
     value: number | boolean | string,
   ) => void;
 }
@@ -167,10 +191,13 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFormantEnvAttack = 0.1,
     currentFormantEnvDecay = 0.5,
     currentFormantEnvAmount = 0,
+    currentFormantEnvFollower = 0,
     currentFreezeLfoSync = false,
     currentFreezeLfoRate = 0,
     currentFreezeLfoDepth = 0,
     currentVibratoDepth = 0,
+    currentTremoloDepth = 0,
+    currentTremoloRate = 0,
     currentDrive,
     currentCharacterMorph = 0,
     currentReverbSend,
@@ -183,6 +210,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFreezeEnvDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchEnvDepth = 0,
+    currentGrainJitter = 0,
     currentGrainPitchQuantize = 0,
     currentTimeStretchEnvDepth = 0,
     currentSpectralPanRate = 0,
@@ -191,6 +219,12 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentBitcrush = 0,
     currentDownsample = 1,
     currentChoir,
+    currentVocoderMix,
+    currentVocoderFormantShift,
+    currentFormantPitchLink,
+    currentVocoderPreservation,
+    currentVocoderAttack,
+    currentVocoderRelease,
     currentTranceGate = 0, // from jules branch
 
     currentGateDepth = 0,
@@ -220,6 +254,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
           role="dialog"
           aria-modal="true"
           aria-labelledby="note-selector-title"
+          aria-describedby="note-selector-kbd-hint"
           tabIndex={-1}
           className="fixed z-50 bg-gray-900/80 backdrop-blur-md border border-cyan-900/50 rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.15)] p-3 grid gap-3 outline-none animate-in fade-in zoom-in-95 duration-100"
           style={{
@@ -234,7 +269,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
             >
               NOTE PROPERTIES
             </span>
-            <button
+            <button type="button"
               onClick={onClose}
               aria-label="Close note properties"
               title="Close note properties (Esc)"
@@ -243,6 +278,9 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
               <span aria-hidden="true">✕</span>
             </button>
           </div>
+          <p id="note-selector-kbd-hint" className="sr-only">
+            Tab through note and property controls. Escape closes this panel.
+          </p>
 
           {/* NEW: Duration Control */}
           <PropertySlider
@@ -286,7 +324,11 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 onChange={(v) => onPropertyChange?.("probability", v)}
                 valueFormatter={(v) => `${Math.round(v * 100)}%`}
                 ariaLabel="Probability"
+                ariaDescribedBy="note-prob-desc"
               />
+              <p id="note-prob-desc" className="sr-only">
+                Chance this step triggers during playback. 100% always plays; lower values add random variation.
+              </p>
 
               {/* Microtiming Control */}
               <PropertySlider
@@ -298,7 +340,11 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 onChange={(v) => onPropertyChange?.("microtiming", v)}
                 valueFormatter={(v) => `${Math.round(v * 100)}%`}
                 ariaLabel="Microtiming"
+                ariaDescribedBy="note-micro-desc"
               />
+              <p id="note-micro-desc" className="sr-only">
+                Nudges the step earlier or later within the beat. Negative values play ahead; positive values delay.
+              </p>
 
               {/* Freeze (Spectral Smear) Control */}
               {trackType === "synth" && (
@@ -330,8 +376,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                     <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
                       <label htmlFor="note-freeze-rate">Frz LFO Rate</label>
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
+                        <button type="button"
                           role="switch"
                           aria-checked={currentFreezeLfoSync}
                           aria-label="Sync Freeze LFO Rate to BPM"
@@ -473,6 +518,32 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
 
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                      <label htmlFor="note-grain-jitter">Grain Jitter</label>
+                      <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
+                        {Math.round((currentGrainJitter + 0.0001) * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      id="note-grain-jitter"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={currentGrainJitter}
+                      onChange={(e) =>
+                        onPropertyChange?.(
+                          "grainJitter",
+                          parseFloat(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                      aria-valuetext={`\${Math.round((currentGrainJitter + 0.0001) * 100)}%`}
+                      aria-label="Envelope to Grain Jitter Amount"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
                       <label htmlFor="note-grain-pitch-env">
                         Grain Pitch Env
                       </label>
@@ -491,6 +562,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       onChange={(e) =>
                         onPropertyChange?.(
                           "grainPitchEnvDepth",
+                        "grainJitter",
                           parseFloat(e.target.value)
                         )
                       }
@@ -549,6 +621,94 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
                       aria-valuetext={`${currentGranularPitchShift ?? 0} semitones`}
                       aria-label="Granular Pitch Shift Override"
+                    />
+                  </div>
+
+                  <PropertySlider
+                    label="Vocoder Mix"
+                    id="note-vocoder-mix"
+                    ariaLabel="Vocoder Mix Override"
+                    value={currentVocoderMix ?? 0}
+                    onChange={(v) => onPropertyChange?.("vocoderMix", v)}
+                    valueFormatter={() =>
+                      `${((currentVocoderMix ?? 0) * 100).toFixed(0)}%`
+                    }
+                    accentColor="accent-indigo-400 hover:accent-indigo-300"
+                    borderColor="border-indigo-900/30"
+                  />
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px] text-indigo-200/70 font-bold uppercase">
+                      <label htmlFor="note-vocoder-formant-shift">Voc Fmt Sft</label>
+                      <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">
+                        {currentVocoderFormantShift ?? 0}
+                      </span>
+                    </div>
+                    <input
+                      id="note-vocoder-formant-shift"
+                      type="range"
+                      min="-12"
+                      max="12"
+                      step="1"
+                      value={currentVocoderFormantShift ?? 0}
+                      onChange={(e) =>
+                        onPropertyChange?.(
+                          "vocoderFormantShift",
+                          parseFloat(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all border border-indigo-900/30"
+                      aria-label="Vocoder Formant Shift Override"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px] text-indigo-200/70 font-bold uppercase">
+                      <label htmlFor="note-formant-pitch-link">Fmt Link</label>
+                      <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">
+                        {currentFormantPitchLink?.toFixed(2) ?? '0.00'}
+                      </span>
+                    </div>
+                    <input
+                      id="note-formant-pitch-link"
+                      type="range"
+                      min="-1"
+                      max="1"
+                      step="0.01"
+                      value={currentFormantPitchLink ?? 0}
+                      onChange={(e) =>
+                        onPropertyChange?.(
+                          "formantPitchLink",
+                          parseFloat(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all border border-indigo-900/30"
+                      aria-label="Formant Pitch Link Override"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px] text-indigo-200/70 font-bold uppercase">
+                      <label htmlFor="note-vocoder-preservation">Voc Preserv</label>
+                      <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">
+                        {((currentVocoderPreservation ?? 1.0) * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <input
+                      id="note-vocoder-preservation"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={currentVocoderPreservation ?? 1.0}
+                      onChange={(e) =>
+                        onPropertyChange?.(
+                          "vocoderPreservation",
+                          parseFloat(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all border border-indigo-900/30"
+                      aria-label="Vocoder Preservation Override"
                     />
                   </div>
 
@@ -977,7 +1137,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       aria-valuetext={`${currentFormantShift > 0 ? "+" : ""}${currentFormantShift} st`}
                     />
                     <div className="flex items-center gap-2 mt-1">
-                      <button
+                      <button type="button"
                         className={`w-5 h-5 rounded flex items-center justify-center border ${currentSlideFormant ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-zinc-900 border-zinc-700 text-gray-500"} hover:bg-zinc-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-cyan-500`}
                         onClick={() =>
                           onPropertyChange("slideFormant", !currentSlideFormant)
@@ -1012,8 +1172,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                   <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase items-center">
                     <label htmlFor="note-fmt-rate">Fmt LFO Rate</label>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <button type="button"
                         role="switch"
                         aria-checked={currentFormantLfoSync || false}
                         aria-label="Sync Formant LFO Rate to BPM"
@@ -1105,6 +1264,53 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 </div>
               )}
 
+              {/* ── Tremolo (Rate & Depth) ────────────────────────────────────── */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                  <label htmlFor="note-tremolo-rate">Tremolo Rate</label>
+                  <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
+                    {Math.round((currentTremoloRate + 0.0001) * 10) / 10} Hz
+                  </span>
+                </div>
+                <input
+                  id="note-tremolo-rate"
+                  type="range"
+                  min="0.1"
+                  max="20"
+                  step="0.1"
+                  value={currentTremoloRate}
+                  onChange={(e) =>
+                    onPropertyChange && onPropertyChange("tremoloRate", parseFloat(e.target.value))
+                  }
+                  className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                  aria-valuetext={`${Math.round((currentTremoloRate + 0.0001) * 10) / 10} Hz`}
+                  aria-label="Tremolo Rate"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1 mt-2">
+                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                  <label htmlFor="note-tremolo-depth">Tremolo Depth</label>
+                  <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
+                    {Math.round((currentTremoloDepth + 0.0001) * 100)}%
+                  </span>
+                </div>
+                <input
+                  id="note-tremolo-depth"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={currentTremoloDepth}
+                  onChange={(e) =>
+                    onPropertyChange && onPropertyChange("tremoloDepth", parseFloat(e.target.value))
+                  }
+                  className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                  aria-valuetext={`${Math.round((currentTremoloDepth + 0.0001) * 100)}%`}
+                  aria-label="Tremolo Depth"
+                />
+              </div>
+
               {/* Pitch Envelope Controls */}
               <fieldset className="flex flex-col gap-2 p-2 bg-gray-800/40 rounded border border-purple-900/30">
                 <legend className="sr-only">Pitch Envelope</legend>
@@ -1189,8 +1395,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 <div className="flex flex-col gap-1 mt-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30">
                   <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
                     <label>Formant Env Sync</label>
-                    <button
-                      type="button"
+                    <button type="button"
                       role="switch"
                       aria-checked={currentFormantEnvSync || false}
                       aria-label="Sync Formant Envelope to BPM"
@@ -1321,6 +1526,30 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all"
                     />
                   </div>
+                  <div className="flex flex-col gap-1 mt-2">
+                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                      <label htmlFor="note-fmt-env-fol">Env Follower</label>
+                      <span className="text-indigo-400 font-mono text-[10px]">
+                        {currentFormantEnvFollower > 0 ? "+" : ""}
+                        {currentFormantEnvFollower} st
+                      </span>
+                    </div>
+                    <input
+                      id="note-fmt-env-fol"
+                      type="range"
+                      min="-24"
+                      max="24"
+                      step="1"
+                      value={currentFormantEnvFollower}
+                      onChange={(e) =>
+                        onPropertyChange?.(
+                          "formantEnvFollower",
+                          parseFloat(e.target.value),
+                        )
+                      }
+                      className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1353,6 +1582,227 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 </div>
               )}
 
+
+                        {/* Pan Control */}
+                        <fieldset className="flex items-center justify-between group">
+                            <legend className="sr-only">Pan Control</legend>
+                            <div className="flex flex-col">
+                                <label htmlFor="note-pan" className="text-xs font-bold font-orbitron text-cyan-400 group-hover:text-cyan-300 transition-colors drop-shadow-[0_0_5px_rgba(6,182,212,0.3)]">Pan</label>
+                                <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentPan !== undefined ? Math.round(currentPan * 100) : 0}%</span>
+                            </div>
+                            <input
+                                id="note-pan"
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.05"
+                                value={currentPan !== undefined ? currentPan : 0}
+                                onChange={(e) => onPropertyChange?.('pan', parseFloat(e.target.value))}
+                                className="w-24 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]"
+                                aria-label="Pan"
+                            />
+                        </fieldset>
+
+
+                        {/* Pan Control */}
+                        <fieldset className="flex items-center justify-between group">
+                            <legend className="sr-only">Pan Control</legend>
+                            <div className="flex flex-col">
+                                <label htmlFor="note-pan" className="text-xs font-bold font-orbitron text-cyan-400 group-hover:text-cyan-300 transition-colors drop-shadow-[0_0_5px_rgba(6,182,212,0.3)]">Pan</label>
+                                <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{currentPan !== undefined ? Math.round(currentPan * 100) : 0}%</span>
+                            </div>
+                            <input
+                                id="note-pan"
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.05"
+                                value={currentPan !== undefined ? currentPan : 0}
+                                onChange={(e) => onPropertyChange?.('pan', parseFloat(e.target.value))}
+                                className="w-24 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]"
+                                aria-label="Pan"
+                            />
+                        </fieldset>
+
+                                {/* Delay Send Control */}
+                        {onPropertyChange && (
+                            <fieldset className="flex flex-col gap-1 border-none p-0 m-0">
+                                <legend className="sr-only">Delay Send Control</legend>
+                                <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase" aria-hidden="true">
+                                    <label htmlFor="note-delay-send">Delay Send</label>
+                                    <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%</span>
+                                </div>
+                                <input
+                                    id="note-delay-send"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={currentDelaySend !== undefined ? currentDelaySend : 0}
+                                    onChange={(e) => onPropertyChange('delaySend', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                    aria-valuetext={`${currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%`}
+                                    aria-label="Delay Send"
+                                />
+                            </fieldset>
+                        )}
+                        {/* Rhythmic Gate Parameters */}
+                        {trackType === 'synth' && (   // or 'sampler' if you want both
+                            <div className="flex flex-col gap-2 mb-2 p-1.5 bg-gray-800/50 rounded border border-gray-700/50">
+                                {/* Gate Depth */}
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-gate-depth">Gate Depth</label>
+                                        <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
+                                            {Math.round(((currentGateDepth ?? 0) + 0.0001) * 100)}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="note-gate-depth"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentGateDepth ?? 0}
+                                        onChange={(e) => onPropertyChange('gateDepth', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                        aria-label="Gate Depth"
+                                    />
+                                </div>
+
+                                {/* Gate Rate */}
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-gate-rate">Gate Rate</label>
+                                        <span className="text-cyan-400 font-mono text-[10px]">
+                                            {(currentGateRate ?? 8).toFixed(1)} Hz
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="note-gate-rate"
+                                        type="range"
+                                        min="0.5"
+                                        max="32"
+                                        step="0.1"
+                                        value={currentGateRate ?? 8}
+                                        onChange={(e) => onPropertyChange('gateRate', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+                                        aria-label="Gate Rate"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {/* Reverb Send Control */}
+                        {onPropertyChange && (
+                            <>
+                                <div className="flex flex-col gap-1 mt-2">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-reverbsend">Reverb Send</label>
+                                        <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentReverbSend !== undefined ? Math.round(currentReverbSend * 100) : 0}%</span>
+                                    </div>
+                                    <input
+                                        id="note-reverbsend"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentReverbSend !== undefined ? currentReverbSend : 0}
+                                        onChange={(e) => onPropertyChange?.('reverbSend', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-valuetext={`${currentReverbSend !== undefined ? Math.round(currentReverbSend * 100) : 0}%`}
+                                        aria-label="Reverb Send"
+                                    />
+                                    <div className="flex justify-between items-center mt-1 mb-2">
+                                        <span className="text-[9px] text-indigo-200/50 uppercase font-bold">Space</span>
+                                        <select
+                                            value={currentReverbType || ''}
+                                            onChange={(e) => onPropertyChange?.('reverbType', e.target.value)}
+                                            className="bg-gray-800/80 text-[10px] text-indigo-200 rounded border border-indigo-900/30 px-1 py-0.5 outline-none focus:border-indigo-500 transition-colors"
+                                            aria-label="Reverb Type Override"
+                                        >
+                                            <option value="">Global</option>
+                                            <option value="room">Room</option>
+                                            <option value="plate">Plate</option>
+                                            <option value="hall">Hall</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex justify-between mb-1">
+                                        <span className="text-[10px] text-indigo-200/70 font-medium">Reverb LFO Rate</span>
+                                        <span className="text-[10px] text-indigo-300/90 tabular-nums">
+                                            {currentReverbLfoRate !== undefined ? currentReverbLfoRate.toFixed(1) : 0} Hz
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="10"
+                                        step="0.1"
+                                        value={currentReverbLfoRate !== undefined ? currentReverbLfoRate : 0}
+                                        onChange={(e) => onPropertyChange?.('reverbLfoRate', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-valuetext={`${currentReverbLfoRate !== undefined ? currentReverbLfoRate.toFixed(1) : 0} Hz`}
+                                        aria-label="Reverb LFO Rate"
+                                    />
+                                    <div className="flex justify-between mt-2 mb-1">
+                                        <span className="text-[10px] text-indigo-200/70 font-medium">Reverb LFO Depth</span>
+                                        <span className="text-[10px] text-indigo-300/90 tabular-nums">
+                                            {currentReverbLfoDepth !== undefined ? Math.round(currentReverbLfoDepth * 100) : 0}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentReverbLfoDepth !== undefined ? currentReverbLfoDepth : 0}
+                                        onChange={(e) => onPropertyChange?.('reverbLfoDepth', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-valuetext={`${currentReverbLfoDepth !== undefined ? Math.round(currentReverbLfoDepth * 100) : 0}%`}
+                                        aria-label="Reverb LFO Depth"
+                                    />
+                                </div>
+
+
+                                {/* Delay Send Control */}
+                                <div className="flex flex-col gap-1 mt-2">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-delaysend">Delay Send</label>
+                                        <span className="text-pink-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(244,114,182,0.5)]">{currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%</span>
+                                    </div>
+                                    <input
+                                        id="note-delaysend"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentDelaySend !== undefined ? currentDelaySend : 0}
+                                        onChange={(e) => onPropertyChange('delaySend', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-400 border border-pink-900/30 hover:accent-pink-300 transition-all"
+                                        aria-valuetext={`${currentDelaySend !== undefined ? Math.round(currentDelaySend * 100) : 0}%`}
+                                        aria-label="Delay Send"
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-1 mt-2">
+                                    <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+                                        <label htmlFor="note-choir">Chorus Spread</label>
+                                        <span className="text-indigo-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(129,140,248,0.5)]">{currentChoir !== undefined ? Math.round(currentChoir * 100) : 0}%</span>
+                                    </div>
+                                    <input
+                                        id="note-choir"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={currentChoir !== undefined ? currentChoir : 0}
+                                        onChange={(e) => onPropertyChange('choir', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 border border-indigo-900/30 hover:accent-indigo-300 transition-all"
+                                        aria-valuetext={`${currentChoir !== undefined ? Math.round(currentChoir * 100) : 0}%`}
+                                        aria-label="Chorus Detune Spread"
+                                    />
+                                </div>
+                            </>
+                        )}
               {/* Vibrato Depth Control */}
               {trackType === "synth" && (
                 <div className="flex flex-col gap-1">
@@ -1397,7 +1847,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                     >
                       {(["A", "E", "I", "O", "U"] as const).map(
                         (label, idx) => (
-                          <button
+                          <button type="button"
                             key={label}
                             onClick={() => onPropertyChange("vowel", idx)}
                             aria-pressed={Math.round(currentVowel) === idx}
@@ -1544,7 +1994,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                   className="flex gap-1"
                 >
                   {[1, 2, 3, 4].map((val) => (
-                    <button
+                    <button type="button"
                       key={val}
                       onClick={() => onPropertyChange("retrigger", val)}
                       className={`flex-1 py-1 text-[10px] font-bold rounded transition-all ${currentRetrigger === val ? "bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.3)]" : "bg-gray-800/80 text-cyan-200/70 hover:bg-gray-700 hover:text-white border border-gray-700/50"}`}
@@ -1677,7 +2127,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
               {/* Reverse Control */}
               <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase py-1">
                 <label htmlFor="note-reverse">Reverse Sample</label>
-                <button
+                <button type="button"
                   id="note-reverse"
                   onClick={() => onPropertyChange("reverse", !currentReverse)}
                   className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${currentReverse ? "bg-cyan-500 justify-end shadow-[0_0_8px_rgba(6,182,212,0.4)]" : "bg-gray-700 justify-start border border-gray-600"}`}
@@ -1706,7 +2156,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                       : true;
 
                     return (
-                      <button
+                      <button type="button"
                         key={fullNote}
                         onClick={() => isInScale && onSelect(fullNote)}
                         aria-label={`Select ${fullNote}`}

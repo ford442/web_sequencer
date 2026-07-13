@@ -1094,6 +1094,18 @@ export class SingingVoice {
     }
   }
 
+
+  /**
+   * Set the amount of formant shift driven by the amplitude envelope follower.
+   * @param amount Peak shift amount in semitones (-24 to 24)
+   * @param time Optional time to apply the change
+   */
+  setFormantEnvFollower(amount: number, time?: number): void {
+    if (this.formantShifter && this.config.enableFormantShifting) {
+      this.formantShifter.setEnvFollowerDepth(amount, time);
+    }
+  }
+
   /**
    * Trigger a formant envelope.
    */
@@ -1321,6 +1333,19 @@ export class SingingVoice {
       this.workletNode.parameters
         .get("grainPitchEnvDepth")
         ?.setValueAtTime(depth, time || this.audioContext.currentTime);
+    }
+  }
+
+  /**
+   * Set granular position jitter amount.
+   * @param amount Jitter amount (0-1)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainJitter(amount: number, time?: number): void {
+    if (this.workletNode) {
+      this.workletNode.parameters
+        .get("grainJitter")
+        ?.setValueAtTime(amount, time || this.audioContext.currentTime);
     }
   }
 

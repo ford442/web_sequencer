@@ -2,6 +2,8 @@
 import React, { memo, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { AllDrumParams, DrumSound, KickParams, SnareParams, HatParams, DrumKitType } from '../types';
 import { Knob } from './Knob';
+import { DrumPads } from './DrumPads';
+import { LedIndicator } from './ui/PanelChrome';
 
 interface DrumMachineProps {
   params: AllDrumParams;
@@ -10,9 +12,11 @@ interface DrumMachineProps {
   drumKit?: DrumKitType;
   /** Callback to switch drum kits */
   onDrumKitChange?: (kit: DrumKitType) => void;
+  /** Live pad trigger callback */
+  onPlayDrum?: (sound: DrumSound, velocity?: number) => void;
 }
 
-export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange, drumKit, onDrumKitChange }) => {
+export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange, drumKit, onDrumKitChange, onPlayDrum }) => {
   // Use a ref to access latest params inside callbacks without causing them to update
   const paramsRef = useRef(params);
   useEffect(() => {
@@ -54,7 +58,7 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
   }, [handleParamChange]);
 
   return (
-    <div className="bg-gray-900/50 p-4 rounded-lg border-2 border-yellow-500 space-y-4">
+    <div className="bg-gray-900/50 p-4 rounded-lg border-2 border-yellow-500 space-y-4 hyphon-legacy-panel hyphon-legacy-panel--yellow">
       <div className="flex items-center justify-between">
         <h2 className="font-orbitron text-xl font-bold text-yellow-400">Drum Machine</h2>
         {onDrumKitChange && (
@@ -72,7 +76,12 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
               aria-label="TR-808 Kit"
               title="Switch to TR-808 Kit"
             >
-              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '808' ? 'bg-red-500 animate-pulse' : 'bg-gray-600'}`} />
+              <LedIndicator
+                color={drumKit === '808' ? 'red' : 'off'}
+                pulse={drumKit === '808'}
+                className="mr-1.5"
+                aria-label={drumKit === '808' ? '808 kit active' : '808 kit inactive'}
+              />
               808
             </button>
             <button
@@ -88,13 +97,19 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
               aria-label="TR-909 Kit"
               title="Switch to TR-909 Kit"
             >
-              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '909' ? 'bg-blue-500 animate-pulse' : 'bg-gray-600'}`} />
+              <LedIndicator
+                color={drumKit === '909' ? 'cyan' : 'off'}
+                pulse={drumKit === '909'}
+                className="mr-1.5"
+                aria-label={drumKit === '909' ? '909 kit active' : '909 kit inactive'}
+              />
               909
             </button>
           </div>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="flex flex-col xl:flex-row gap-6">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* KICK */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
           <legend className="sr-only">Kick</legend>
@@ -128,6 +143,13 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
             <Knob label="Volume" value={params.closedHat.volume} onChange={handlers.hats.volume} min={0} max={1.5} step={0.01} color="yellow" />
           </div>
         </fieldset>
+        </div>
+
+        {onPlayDrum && (
+          <div className="w-full xl:w-96 shrink-0 flex items-center justify-center">
+            <DrumPads onPlayDrum={onPlayDrum} />
+          </div>
+        )}
       </div>
     </div>
   );

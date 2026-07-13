@@ -79,6 +79,7 @@ export interface HatParams {
 }
 
 export interface SamplerBankParams {
+  grainPitchEnvDepth?: number;
   grainJitter?: number;
   sampleName: string;
   playbackSpeed: number;
@@ -113,18 +114,19 @@ export interface SamplerBankParams {
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
+  formantLfoShape?: number[];
+  customLfoShape?: number[];
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
   downsample?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
-  formantLfoShape?: number[];
   formantEnvAttack?: number;
   formantEnvDecay?: number;
   formantEnvAmount?: number;
+  formantEnvFollower?: number;
   formantEnvSync?: boolean;
-  customLfoShape?: number[];
   characterMorph?: number;
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright';
   attack?: number;
@@ -139,7 +141,7 @@ export interface SamplerBankParams {
   rootNote?: number;
   coarseTune?: number;
   fineTune?: number;
-  quality?: 'preview' | 'good' | 'better' | 'best';
+  stretchProfile?: 'vocal' | 'harmonic' | 'fast';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
   pitchAttack?: number;
@@ -150,9 +152,13 @@ export interface SamplerBankParams {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
+  vocoderAttack?: number;
+  vocoderRelease?: number;
   expressiveness?: {
     vibratoRate: number;
-    vibratoDepth: number;
+    vibratoDepth?: number;
     tremoloDepth: number;
     breathAmount: number;
   };
@@ -407,7 +413,12 @@ export interface Note {
   length?: number;
   slide?: boolean;
   slideFormant?: boolean;
+  slideFromMidi?: number;
+  slideFromFormant?: number;
+  slideType?: 'linear' | 'exponential';
   chord?: string[];
+  characterMorph?: number;
+  isHarmonyVoice?: boolean;
   timbre?: number;
   probability?: number;
   microtiming?: number;
@@ -420,6 +431,8 @@ export interface Note {
   formantLfoRate?: number;
   formantLfoDepth?: number;
   formantLfoSync?: boolean;
+  formantLfoShape?: number[];
+  customLfoShape?: number[];
   freezeLfoRate?: number;
   freezeLfoDepth?: number;
   freezeLfoSync?: boolean;
@@ -427,8 +440,11 @@ export interface Note {
   timeStretchEnvDepth?: number;
   grainPitchEnvDepth?: number;
   grainJitter?: number;
+  grainPitchQuantize?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
+  tremoloDepth?: number;
+  tremoloRate?: number;
   reverbSend?: number;
   reverbType?: ReverbType;
   reverbLfoRate?: number;
@@ -446,6 +462,7 @@ export interface Note {
   formantEnvAttack?: number;
   formantEnvDecay?: number;
   formantEnvAmount?: number;
+  formantEnvFollower?: number;
   envMod?: number;
   filterCutoff?: number;
   filterResonance?: number;
@@ -473,7 +490,6 @@ export interface PartSequence {
 export interface Pattern {
   partA: PartSequence;
   partB: PartSequence;
-  bass2: PartSequence;
   kick: PartSequence;
   snare: PartSequence;
   closedHat: PartSequence;
@@ -488,6 +504,8 @@ export interface AudioEngine {
   webGpuEngine?: WebGpuOscillator | null;
   wasmEngine?: WasmOscillator | null;
   open303Engine?: Open303Oscillator | Open303Manager | null;
+  /** Prophecy formant engine manager; set after init. */
+  prophecyManager?: import('./engines/ProphecyManager').ProphecyManager | null;
   /** PcfEffect instance for PCF automation wiring; set after init. */
   pcfEffect?: import('./engines/PcfEffect').PcfEffect | null;
   singingVoice?: SingingVoice;
@@ -726,6 +744,8 @@ export interface AutomationState {
    * Updated once per step tick; used by UI controls to show animated values.
    */
   liveAutomatedValues: Record<string, number>;
+  /** Highlight automated knobs on hardware panels; dim non-automated params. */
+  showHardwareAutomation: boolean;
 }
 
 export interface SongStep {
@@ -739,6 +759,7 @@ export interface SongStructure {
 }
 
 export interface SavedSongData {
+  /** Schema version: 1 = 8 pattern slots per track, 2 = 32 slots (ReBirth-compatible). */
   version?: number;
   pattern: Pattern;
   params: {
@@ -761,6 +782,8 @@ export interface SavedSongData {
   ttsPhrases?: string[];
   /** Persisted automation lanes (from .rbs import, recordings, or AI) */
   automationLanes?: UnifiedAutomationLane[];
+  /** Per-song MIDI CC / note → control mappings */
+  midiMappings?: import('./types/midi').MidiBinding[];
 }
 export interface AmbianceTrack {
   id: string;
@@ -793,10 +816,14 @@ export interface TrakEvent {
 export interface ResolvedTrakEvent {
   /** Absolute tick position from the beginning of the arrangement. */
   tick: number;
-  /** Parameter / control ID. */
+  /** TRAK track index (0=mixer, 1=TB-303 #1, …). */
+  trackIndex: number;
+  /** Per-track parameter / control ID. */
   ctrlId: number;
   /** Raw parameter value. */
   value: number;
+  /** Pre-resolved event kind (optional — scheduler re-resolves if absent). */
+  eventKind?: import('./importers/rbs/trakControllers').TrakEventKind;
 }
 
 /**

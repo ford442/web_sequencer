@@ -88,8 +88,9 @@ describe('Open303 Oscillator', () => {
             }
         } as any;
 
-        // Mock AudioWorkletNode constructor
-        global.AudioWorkletNode = vi.fn().mockImplementation(() => mockWorkletNode) as any;
+        // Mock AudioWorkletNode constructor (vitest 4 uses Reflect.construct,
+        // so the implementation must be a constructable function, not an arrow).
+        global.AudioWorkletNode = vi.fn().mockImplementation(function () { return mockWorkletNode; }) as any;
     });
 
     it('should initialize successfully', async () => {

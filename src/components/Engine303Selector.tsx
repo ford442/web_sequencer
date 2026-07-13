@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import type { Engine303 } from '../types';
+import { HelpIconButton, HelpTip } from './help/HelpTip';
 
 interface Engine303SelectorProps {
     /** Currently active engine for this voice. */
@@ -45,8 +46,9 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
         : 'border-pink-500/20';
 
     return (
+        <HelpTip topicId="engine-303-switch" showOnFirstUse position="right" className="w-full">
         <div
-            className={`flex flex-col gap-1 p-2 rounded-lg bg-zinc-950/80 border ${borderColorStyle}`}
+            className={`flex flex-col gap-1 p-2 rounded-lg bg-zinc-950/80 border ${borderColorStyle} w-full`}
             role="group"
             aria-label="303 engine selection"
         >
@@ -55,19 +57,22 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
                 <span className={`text-[8px] font-mono uppercase tracking-wider ${labelColorStyle}`}>
                     Engine
                 </span>
-                {isJc303 && (
-                    <span
-                        className={`text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border animate-pulse ${badgeColorStyle}`}
-                        title="Authentic rosic::Open303 engine (jc303_wasm submodule) is active for this voice"
-                        aria-label="JC303 engine active"
-                    >
-                        JC303 ✓
-                    </span>
-                )}
+                <div className="flex items-center gap-1">
+                    {isJc303 && (
+                        <span
+                            className={`text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border motion-safe:animate-pulse ${badgeColorStyle}`}
+                            title="Authentic rosic::Open303 engine (jc303_wasm submodule) is active for this voice"
+                            aria-label="JC303 engine active"
+                        >
+                            JC303 ✓
+                        </span>
+                    )}
+                    <HelpIconButton topicId="engine-303-switch" />
+                </div>
             </div>
 
             {/* Custom Open303 button */}
-            <button
+            <button type="button"
                 onClick={() => onChange('open303')}
                 title="Custom Open303 synthesizer — uses the built-in open303_* WASM API in hyphon_native.wasm"
                 aria-pressed={!isJc303}
@@ -80,7 +85,7 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
             </button>
 
             {/* Authentic JC303 button */}
-            <button
+            <button type="button"
                 onClick={() => onChange('jc303')}
                 title="Authentic rosic::Open303 — per-voice JC303 engine from the jc303_wasm submodule (rosic_Open303). Enables the accurate TB-303 DSP introduced in the May 2026 per-voice engine update."
                 aria-pressed={isJc303}
@@ -92,5 +97,6 @@ export const Engine303Selector: React.FC<Engine303SelectorProps> = memo(({
                 Authentic JC303
             </button>
         </div>
+        </HelpTip>
     );
 });

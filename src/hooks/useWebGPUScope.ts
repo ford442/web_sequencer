@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import type { SynthParams } from '../types';
 import { noteToFrequency } from '../constants';
+import { engineDegradationStore } from '../stores/engineDegradationStore';
 
 // ---------------------------------------------------------
 // 1. WGSL Shader Code
@@ -162,7 +163,19 @@ export const useWebGPUScope = (
 
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter || isCleanedUp) {
-        if (!adapter) console.warn("WebGPU not available");
+        if (!adapter) {
+          engineDegradationStore.report({
+            id: 'webgpu-scope',
+            subsystem: 'webgpu-scope',
+            category: 'gpu',
+            message: 'Oscilloscope using static fallback',
+            reason: 'requestAdapter() returned null',
+            status: 'active',
+            activeBackend: 'static',
+            requestedBackend: 'webgpu',
+            retryable: false,
+          });
+        }
         return;
       }
       const device = await adapter.requestDevice();

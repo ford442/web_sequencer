@@ -172,6 +172,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         formantEnvAttack: 0.1,
         formantEnvDecay: 0.5,
         formantEnvAmount: 0,
+        formantEnvFollower: 0,
         characterMorph: 0,
         morphTarget: 'female' as 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright',
         attack: 0.05,
@@ -183,7 +184,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
         rootNote: 60,
         coarseTune: 0,
         fineTune: 0,
-        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+        stretchProfile: 'vocal' as 'vocal' | 'harmonic' | 'fast',
         stretchMode: 'Pitch' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
     }, [params, activeBankIdx]);
@@ -205,7 +206,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             'playbackSpeed', 'volume', 'filterCutoff', 'drive',
             'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
             'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-            'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift',
+            'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'formantEnvFollower',
+            'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
             'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
             'pitchAmount', 'pitchAttack', 'pitchDecay',
             'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'downsample'
@@ -252,6 +254,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     const handleFormantEnvAttackChange = (v: number) => { updateParam('formantEnvAttack', v); };
     const handleFormantEnvDecayChange = (v: number) => { updateParam('formantEnvDecay', v); };
     const handleFormantEnvAmountChange = (v: number) => { updateParam('formantEnvAmount', v); };
+    const handleFormantEnvFollowerChange = (v: number) => { updateParam('formantEnvFollower', v); };
 
     const handlePitchAmountChange = paramHandlers.pitchAmount;
     const handlePitchAttackChange = paramHandlers.pitchAttack;
@@ -292,19 +295,12 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 case 'formantShift':
                     voice.setFormantShift(value as number);
                     break;
-                case 'quality': {
-                    // Map quality to RubberBand options
-                    const qualityMap = {
-                        'Fast': 1 | 16,      // RealTime | Faster
-                        'Standard': 1 | 32,   // RealTime | Finer
-                        'Elastic': 1 | 32 | 1048576 // RealTime | Finer | FormantPreserved
-                    };
-                    // Note: Actual quality change requires worklet reinit or message
+                case 'stretchProfile': {
                     const node = voice.getSourceNode();
                     if (node && 'port' in node) {
                         (node as AudioWorkletNode).port.postMessage({
-                            type: 'setQuality',
-                            options: qualityMap[value as keyof typeof qualityMap]
+                            type: 'setStretchProfile',
+                            profile: value
                         });
                     }
                     break;
@@ -611,7 +607,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
     return (
         <div
-            className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+            className="flex flex-col h-full hyphon-sampler-shell text-white overflow-hidden select-none relative"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -628,18 +624,18 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 </div>
             )}
             {/* --- FIXED HEADER --- */}
-            <div className="flex-none flex items-center justify-between p-2 border-b border-[#2a2d36] bg-[#141619]">
+            <div className="flex-none flex items-center justify-between p-2 hyphon-sampler-header">
                 {/* Bank Tabs - Mobile touch optimized */}
                 <div className="flex gap-1 overflow-x-auto scrollbar-none touch-pan-x" role="tablist" aria-label="Sample Banks">
                     {SAMPLE_BANKS.map((label, i) => (
-                        <button
+                        <button type="button"
                             key={i}
                             ref={(el) => { tabRefs.current[i] = el; }}
                             id={`sampler-bank-tab-${i}`}
                             role="tab"
                             aria-selected={activeBankIdx === i}
                             aria-controls="sampler-bank-panel"
-                            aria-label={`Select Bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
+                            aria-label={`Select sample bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
                             tabIndex={activeBankIdx === i ? 0 : -1}
                             onClick={() => onBankChange(i)}
                             onKeyDown={(e) => handleKeyDown(e, i)}
@@ -758,7 +754,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             {modes.map((mode, i) => {
                                 const isSelected = (currentParams.mode || 'loop') === mode;
                                 return (
-                                    <button
+                                    <button type="button"
                                         key={mode}
                                         ref={(el) => { modeRefs.current[i] = el; }}
                                         onClick={() => handleModeChange(mode)}
@@ -803,7 +799,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             </div>
                             <div className="flex gap-1 items-center">
                                 <label id="sampler-slice-label" className="text-[9px] text-gray-500 w-10">Slice:</label>
-                                <button
+                                <button type="button"
                                     aria-label="Toggle Phoneme Slice Mode"
                                     aria-pressed={currentParams.sliceMode === 'phoneme'}
                                     onClick={() => {
@@ -836,7 +832,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 <span className="text-[9px] text-gray-500">Drag steps to set pitch</span>
                             </div>
                         </div>
-                        <button
+                        <button type="button"
                             onClick={() => onMelodicModeChange?.(!melodicMode)}
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
                                 melodicMode ? 'bg-purple-600' : 'bg-gray-700'
@@ -892,7 +888,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
 
 
-                        quality: currentParams.quality ?? 'good',
+                        stretchProfile: currentParams.stretchProfile ?? 'vocal',
                         stretchMode: currentParams.stretchMode ?? 'Pitch',
                         lockToSequencer: currentParams.lockToSequencer ?? false,
                     }}
@@ -948,8 +944,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 ) : (
                                     <Knob label="Frz Rate" value={currentParams.freezeLfoRate ?? 0} onChange={handleFreezeLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                                 )}
-                                <button
-                                    type="button"
+                                <button type="button"
+
                                     role="switch"
                                     aria-checked={currentParams.freezeLfoSync}
                                     aria-label="Sync Freeze LFO Rate to BPM"
@@ -983,8 +979,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                 ) : (
                                     <Knob label="Fmt Rate" value={currentParams.formantLfoRate ?? 0} onChange={handleFormantLfoRateChange} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
                                 )}
-                                <button
-                                    type="button"
+                                <button type="button"
+
                                     role="switch"
                                     aria-checked={currentParams.formantLfoSync}
                                     aria-label="Sync Formant LFO Rate to BPM"
@@ -1024,8 +1020,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <fieldset className="flex items-start gap-1 col-span-2 border border-indigo-900/30 p-1 rounded bg-gray-800/20">
                                 <legend className="sr-only">Formant Envelope</legend>
                                 <div className="flex flex-col items-center gap-1 min-w-[3rem] justify-center mt-4 border-r border-indigo-900/50 pr-1">
-                                    <button
-                                        type="button"
+                                    <button type="button"
+
                                         role="switch"
                                         aria-checked={currentParams.formantEnvSync || false}
                                         aria-label="Sync Formant Envelope to BPM"
@@ -1077,6 +1073,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                                         <Knob label="Fmt Env Dec" value={currentParams.formantEnvDecay ?? 0.5} onChange={handleFormantEnvDecayChange} min={0.01} max={5.0} step={0.01} color="indigo" unit="s" />
                                     )}
                                     <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={handleFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
+                                    <Knob label="Fmt Follower" value={currentParams.formantEnvFollower ?? 0} onChange={handleFormantEnvFollowerChange} min={-24} max={24} step={1} color="indigo" unit="st" />
                                 </div>
                             </fieldset>
 

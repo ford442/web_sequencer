@@ -51,6 +51,15 @@ export {
   AUTOMATION_PARAMETER_MAP,
   TRAK_CONTROLLER,
   TRAK_TRACK_INDEX,
+  TRAK_TRACK_CONTROLLER_MAP,
+  TB303_TRAK_CONTROLLER,
+  MIXER_TRAK_CONTROLLER,
+  PCF_TRAK_CONTROLLER,
+  resolveTrakEventKind,
+  isTrakPatternSelectEvent,
+  isTrakParamAutomationEvent,
+  resolveTrakParamMapping,
+  normaliseTrakParamValue,
   TICKS_PER_BAR,
   TICKS_PER_STEP,
 } from './types';
@@ -74,3 +83,8 @@ export type {
 // Importer
 export { RbsImporter, convertToHyphonSong } from './RbsImporter';
 export type { RbsImportResult, ImportReport, RbsImportError } from './importer-types';
+
+// Exporter
+export { RbsExporter, exportRbsFile, hyphonSongFromSavedData } from './RbsExporter';
+export type { RbsExportOptions, RbsExportResult, RbsExportVersionTarget, RbsExportMode } from './exporter-types';
+export { DEFAULT_RBS_EXPORT_OPTIONS } from './exporter-types';

@@ -1,5 +1,7 @@
 import React, { memo } from 'react';
 import type { Engine303 } from '../types';
+import { useEngineDegradation } from '../stores/engineDegradationStore';
+import { engineDegradationStore } from '../stores/engineDegradationStore';
 
 interface EngineVoiceStatus {
     /** Short label for the voice, e.g. "A", "B", "B2" */
@@ -31,6 +33,7 @@ export const EngineStatusPill: React.FC<EngineStatusPillProps> = memo(({
     synthB,
     bass2,
 }) => {
+    const degradations = useEngineDegradation();
     const voices = [synthA, synthB, bass2];
 
     type PillEntry = { key: string; label: string; engine: string; style: string; title: string };
@@ -59,14 +62,27 @@ export const EngineStatusPill: React.FC<EngineStatusPillProps> = memo(({
         }
     }
 
-    if (pills.length === 0) return null;
+    if (pills.length === 0 && degradations.length === 0) return null;
 
     return (
         <div
-            className="flex items-center gap-1"
+            className="flex items-center gap-1 flex-wrap"
             aria-label="Active engine indicators"
             role="status"
         >
+            {degradations.map((d) => (
+                <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => d.retryable && void engineDegradationStore.retry(d.id)}
+                    disabled={!d.retryable || d.status === 'recovering'}
+                    title={`${d.message}: ${d.reason}`}
+                    aria-label={`${d.subsystem} degraded: ${d.reason}. Click to retry.`}
+                    className="text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-amber-950/90 text-amber-300 border-amber-500/60 hover:bg-amber-900/90 disabled:opacity-60 touch-manipulation"
+                >
+                    {d.status === 'recovering' ? '…' : '!'} {d.subsystem}:{d.activeBackend}
+                </button>
+            ))}
             {pills.map(pill => (
                 <span
                     key={pill.key}

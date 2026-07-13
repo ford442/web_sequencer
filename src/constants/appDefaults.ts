@@ -1,6 +1,6 @@
 import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Bass2Params } from '../types';
 import type { ScaleDefinition } from '../utils/musicTheory';
-import { INITIAL_PATTERN, NUM_STEPS } from '../constants';
+import { INITIAL_PATTERN, NUM_STEPS, MAX_TRACK_PATTERN_SLOTS } from '../constants';
 
 // --- CONSTANTS ---
 export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
@@ -56,17 +56,10 @@ export type SongSnapshot = {
     }
 };
 
+import { createEmptyTrackStorage } from '../utils/trackStorageUtils';
+
 export const getInitialTrackStorage = (initialPattern: Pattern): Record<TrackKey, (PartSequence | PartSequence[] | null)[]> => {
-    const storage: any = {
-        partA: Array(8).fill(null),
-        partB: Array(8).fill(null),
-        bass2: Array(8).fill(null),
-        kick: Array(8).fill(null),
-        snare: Array(8).fill(null),
-        closedHat: Array(8).fill(null),
-        openHat: Array(8).fill(null),
-        sampler: Array(8).fill(null),
-    };
+    const storage = createEmptyTrackStorage(MAX_TRACK_PATTERN_SLOTS);
 
     (Object.keys(storage) as TrackKey[]).forEach(key => {
         storage[key][0] = JSON.parse(JSON.stringify(initialPattern[key]));

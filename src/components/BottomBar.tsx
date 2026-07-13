@@ -1,6 +1,13 @@
 import React, { memo, useCallback } from 'react'
 import type { AiImportStage } from '../hooks/useSongStorage'
 import type { ReverbType } from '../types'
+import { registerMidiControlTouch, startMidiLearnForControl } from '../hooks/useMidi'
+import { MidiBadge } from './MidiBadge'
+import { useMidiMapStore } from '../stores/midiMapStore'
+import { automationStore, useAutomationStore } from '../stores/automationStore'
+import { useSurfaceTexture, type SurfaceTexture } from '../hooks/useSurfaceTexture'
+import { helpDiscoveryStore } from '../stores/helpDiscoveryStore'
+import { HelpTip } from './help/HelpTip'
 
 interface BottomBarProps {
     viewMode: 'notes' | 'automation'
@@ -13,6 +20,7 @@ interface BottomBarProps {
     aiImportStage: AiImportStage
     aiImportProgress: number
     exportSongToFile: () => Promise<void>
+    exportRbsToFile: () => Promise<void>
     importSongFromFile: () => void
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsAISongModalOpen: React.Dispatch<React.SetStateAction<boolean>>
@@ -54,6 +62,7 @@ export const BottomBar = memo(function BottomBar({
     aiImportStage,
     aiImportProgress,
     exportSongToFile,
+    exportRbsToFile,
     importSongFromFile,
     setIsRbsImportModalOpen,
     setIsAISongModalOpen,
@@ -83,6 +92,33 @@ export const BottomBar = memo(function BottomBar({
     setIsAutomationRecording,
     isPlaying = false,
 }: BottomBarProps) {
+    const { mappings, activeControls } = useMidiMapStore();
+    const { showHardwareAutomation } = useAutomationStore();
+    const { texture, cycleTexture } = useSurfaceTexture();
+
+    const textureLabel: Record<SurfaceTexture, string> = {
+        off: 'TX OFF',
+        grain: 'GRAIN',
+        circuit: 'PCB',
+    };
+
+    const masterMidiProps = useCallback((param: 'volume' | 'saturation' | 'pan') => {
+        const controlId = makeMidiControlId('master', param);
+        return {
+            onPointerDown: () => registerMidiControlTouch('master', param),
+            onContextMenu: (e: React.MouseEvent) => {
+                e.preventDefault();
+                startMidiLearnForControl('master', param);
+            },
+            'data-midi-control': controlId,
+        };
+    }, []);
+
+    const isMasterMapped = (param: 'volume' | 'saturation' | 'pan') =>
+        mappings.some((m) => m.controlId === makeMidiControlId('master', param));
+    const isMasterActive = (param: 'volume' | 'saturation' | 'pan') =>
+        activeControls[makeMidiControlId('master', param)] !== undefined;
+
     const handleAudioWorkletToggle = useCallback(() => {
         const newValue = !forceScriptProcessorFallback;
         setForceScriptProcessorFallback(newValue);
@@ -96,11 +132,11 @@ export const BottomBar = memo(function BottomBar({
     }, [forceScriptProcessorFallback, setForceScriptProcessorFallback, showToast]);
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 h-10 bg-gradient-to-r from-[#0a0c10] via-[#0d1014] to-[#0a0c10] backdrop-blur-md border-t border-cyan-900/30 z-40 flex items-center justify-between px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+        <div className="fixed bottom-0 left-0 right-0 h-10 hyphon-toolbar-bottom z-40 flex items-center justify-between px-4">
             {/* Left: View Controls */}
             <div className="flex items-center gap-2">
                 {/* Notes/Automation Toggle */}
-                <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 overflow-hidden" role="group" aria-label="Sequencer view mode">
+                <div className="flex items-center hyphon-inset-well overflow-hidden" role="group" aria-label="Sequencer view mode">
                     <button type="button"
                         onClick={() => setViewMode('notes')}
                         aria-pressed={viewMode === 'notes'}
@@ -141,6 +177,7 @@ export const BottomBar = memo(function BottomBar({
 
                 {/* Live Automation Record Toggle (for creating RBS songs with movement) */}
                 {setIsAutomationRecording && (
+                    <HelpTip topicId="automation-rec-auto" showOnFirstUse position="top">
                     <button type="button"
                         onClick={() => setIsAutomationRecording(!isAutomationRecording)}
                         disabled={!isPlaying}
@@ -151,7 +188,23 @@ export const BottomBar = memo(function BottomBar({
                     >
                         {isAutomationRecording ? '● REC' : 'REC AUTO'}
                     </button>
+                    </HelpTip>
                 )}
+
+                <button
+                    type="button"
+                    onClick={() => automationStore.toggleShowHardwareAutomation()}
+                    aria-pressed={showHardwareAutomation}
+                    aria-label="Toggle automation curve overlay on hardware knobs"
+                    title="Show automation curves on knobs (dims non-automated params)"
+                    className={`h-6 px-2 rounded-md font-orbitron text-[9px] font-bold tracking-wider border transition-all duration-150 ${
+                        showHardwareAutomation
+                            ? 'bg-cyan-700 text-white border-cyan-400'
+                            : 'bg-zinc-800 text-cyan-400 border-cyan-900/50'
+                    }`}
+                >
+                    AUTO VIEW
+                </button>
 
                 {/* LYRICS Button */}
                 <button type="button"
@@ -185,6 +238,7 @@ export const BottomBar = memo(function BottomBar({
                 >
                     📂 LOAD
                 </button>
+                <HelpTip topicId="rbs-import" position="top">
                 <button type="button"
                     onClick={() => setIsRbsImportModalOpen(true)}
                     disabled={isImportingAISong}
@@ -192,7 +246,17 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30 hover:scale-105 active:scale-95'}`}
                     title="Import ReBirth RB-338 file"
                 >
-                    🎹 Import .rbs File...
+                    🎹 Import .rbs
+                </button>
+                </HelpTip>
+                <button type="button"
+                    onClick={exportRbsToFile}
+                    disabled={isImportingAISong}
+                    aria-label="Export project as ReBirth RB-338 .rbs file"
+                    className={`h-6 px-2 text-[10px] font-bold text-orange-400 bg-zinc-900 border border-orange-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-950/30 hover:scale-105 active:scale-95'}`}
+                    title="Export as ReBirth RB-338 pattern file"
+                >
+                    💾 Export .rbs
                 </button>
                 <button type="button"
                     onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}
@@ -260,34 +324,46 @@ export const BottomBar = memo(function BottomBar({
                     </select>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                    <input
-                        type="range" min="0" max="1" step="0.01"
-                        value={masterSaturation} onChange={handleMasterSaturation} onKeyDown={handleMasterSaturationKeyDown} onDoubleClick={handleMasterSaturationReset}
-                        className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
-                        aria-label="Master Saturation"
-                        title={`Warmth: ${Math.round(masterSaturation * 100)}%`}
-                        aria-valuetext={`${Math.round(masterSaturation * 100)}%`}
-                    />
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="range" min="0" max="1" step="0.01"
+                            value={masterSaturation} onChange={handleMasterSaturation} onKeyDown={handleMasterSaturationKeyDown} onDoubleClick={handleMasterSaturationReset}
+                            {...masterMidiProps('saturation')}
+                            className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
+                            aria-label="Master Saturation"
+                            title={`Warmth: ${Math.round(masterSaturation * 100)}%`}
+                            aria-valuetext={`${Math.round(masterSaturation * 100)}%`}
+                        />
+                        <MidiBadge mapped={isMasterMapped('saturation')} active={isMasterActive('saturation')} />
+                    </div>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                    <input
-                        type="range" min="0" max="1.5" step="0.01"
-                        value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} onDoubleClick={handleMasterVolumeReset}
-                        className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
-                        aria-label="Master Volume"
-                        title={`Volume: ${Math.round(masterVolume * 100)}%`}
-                        aria-valuetext={`${Math.round(masterVolume * 100)}%`}
-                    />
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="range" min="0" max="1.5" step="0.01"
+                            value={masterVolume} onChange={handleMasterVolume} onKeyDown={handleMasterVolumeKeyDown} onDoubleClick={handleMasterVolumeReset}
+                            {...masterMidiProps('volume')}
+                            className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
+                            aria-label="Master Volume"
+                            title={`Volume: ${Math.round(masterVolume * 100)}%`}
+                            aria-valuetext={`${Math.round(masterVolume * 100)}%`}
+                        />
+                        <MidiBadge mapped={isMasterMapped('volume')} active={isMasterActive('volume')} />
+                    </div>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
-                    <input
-                        type="range" min="-1" max="1" step="0.01"
-                        value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} onDoubleClick={handleGlobalPanReset}
-                        className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
-                        aria-label="Global Pan"
-                        title={`Pan: ${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% L' : Math.round(globalPan * 100) + '% R'}`}
-                        aria-valuetext={`${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% Left' : Math.round(globalPan * 100) + '% Right'}`}
-                    />
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="range" min="-1" max="1" step="0.01"
+                            value={globalPan} onChange={handleGlobalPan} onKeyDown={handleGlobalPanKeyDown} onDoubleClick={handleGlobalPanReset}
+                            {...masterMidiProps('pan')}
+                            className="w-16 h-1 bg-zinc-800 appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-lg"
+                            aria-label="Global Pan"
+                            title={`Pan: ${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% L' : Math.round(globalPan * 100) + '% R'}`}
+                            aria-valuetext={`${globalPan === 0 ? 'Center' : globalPan < 0 ? Math.round(Math.abs(globalPan) * 100) + '% Left' : Math.round(globalPan * 100) + '% Right'}`}
+                        />
+                        <MidiBadge mapped={isMasterMapped('pan')} active={isMasterActive('pan')} />
+                    </div>
                 </div>
 
                 <div className="w-px h-4 bg-gray-700 mx-1" />
@@ -325,14 +401,31 @@ export const BottomBar = memo(function BottomBar({
                     {forceScriptProcessorFallback ? <><span aria-hidden="true">⚠️</span> AW</> : <><span aria-hidden="true">🔊</span> AW</>}
                 </button>
 
+                <button type="button"
+                    onClick={cycleTexture}
+                    aria-pressed={texture !== 'off'}
+                    aria-label={`Surface texture: ${textureLabel[texture]}. Click to cycle.`}
+                    title={`Surface texture (${texture}). Cycles off → film grain → circuit.`}
+                    className={`h-6 px-2 text-[9px] font-mono font-bold border transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95 ${
+                        texture !== 'off'
+                            ? 'bg-cyan-950/50 text-cyan-300 border-cyan-800/60'
+                            : 'bg-zinc-800 text-gray-500 border-zinc-700'
+                    }`}
+                >
+                    {textureLabel[texture]}
+                </button>
+
                 <div className="w-px h-4 bg-gray-700 mx-1" />
 
                 {/* Help Button */}
                 <button type="button"
-                    onClick={() => setIsShortcutsHelpOpen(true)}
+                    onClick={() => {
+                        helpDiscoveryStore.openHelp({ tab: 'search' });
+                        setIsShortcutsHelpOpen(true);
+                    }}
                     className="h-6 w-6 bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 border border-zinc-600 flex items-center justify-center font-bold text-xs transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95"
-                    aria-label="Keyboard Shortcuts"
-                    title="Keyboard Shortcuts (?)"
+                    aria-label="Help — search workflows and shortcuts (?)"
+                    title="Help (?)"
                 >
                     ?
                 </button>

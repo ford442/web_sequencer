@@ -1,7 +1,7 @@
 import { memo, forwardRef, useRef, useCallback, useImperativeHandle, useLayoutEffect, useMemo } from 'react';
 import type { TrackKey, PartSequence } from '../../types';
 import { SvgStep } from './SvgStep';
-import { TrackSlotButton } from './TrackSlotButton';
+import { TrackSlotStrip } from './TrackSlotButton';
 import { GridIndicators } from '../GridIndicators';
 
 export interface SequencerRowHandle { setHighlight: (step: number) => void; }
@@ -31,22 +31,42 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
+    const stepsRef = useRef(steps);
+    const rafRef = useRef<number | null>(null);
+
+    useLayoutEffect(() => {
+        stepsRef.current = steps;
+    }, [steps]);
 
     const updateClasses = useCallback((step: number) => {
-        let newActiveIndex = -1;
-        for (let i = step; i >= 0; i--) {
-            if (stepRefs.current[i]) {
-                const length = steps[i]?.length || 1;
-                if (i + length > step) { newActiveIndex = i; }
-                break;
+        if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+        }
+
+        rafRef.current = requestAnimationFrame(() => {
+            let newActiveIndex = -1;
+            for (let i = step; i >= 0; i--) {
+                if (stepRefs.current[i]) {
+                    const length = stepsRef.current[i]?.length || 1;
+                    if (i + length > step) { newActiveIndex = i; }
+                    break;
+                }
             }
-        }
-        if (newActiveIndex !== lastActiveIndexRef.current) {
-            if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
-            if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
-            lastActiveIndexRef.current = newActiveIndex;
-        }
-    }, [steps]);
+            if (newActiveIndex !== lastActiveIndexRef.current) {
+                if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
+                if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
+                lastActiveIndexRef.current = newActiveIndex;
+            }
+        });
+    }, []);
+
+    useLayoutEffect(() => {
+        return () => {
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+            }
+        };
+    }, []);
 
     useImperativeHandle(ref, () => ({
         setHighlight: (step: number) => {
@@ -97,7 +117,7 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
     }, [onSelectRow, rowKey]);
 
     const renderedTrackSlots = useMemo(() => (
-        [0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))
+        <TrackSlotStrip activeSlot={activeSlot} trackSlots={trackSlots} trackKey={rowKey} onSelect={onSelectSlot} />
     ), [activeSlot, trackSlots, rowKey, onSelectSlot]);
 
     return (

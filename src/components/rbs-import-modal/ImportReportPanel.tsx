@@ -9,7 +9,7 @@ interface ImportReportPanelProps {
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 export const ImportReportPanel: React.FC<ImportReportPanelProps> = React.memo(({ importReport, importedSongName }) => {
   return (
-    <div className="p-4 bg-emerald-950/30 border border-emerald-700/50 rounded-lg" aria-live="polite">
+    <div className="p-4 bg-emerald-950/30 border border-emerald-700/50 rounded-lg" aria-live="polite" data-testid="rbs-import-report">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-emerald-400 text-lg">✓</span>
         <h3 className="text-sm font-semibold text-emerald-300">
@@ -35,12 +35,19 @@ export const ImportReportPanel: React.FC<ImportReportPanelProps> = React.memo(({
           <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded border border-purple-500/30">PCF</span>
         )}
         {importReport.automationLanesConverted > 0 && (
-          <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded border border-blue-500/30">
+          <span
+            className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded border border-blue-500/30"
+            data-testid="rbs-automation-lane-count"
+            data-lane-count={importReport.automationLanesConverted}
+          >
             {importReport.automationLanesConverted} automation lane{importReport.automationLanesConverted !== 1 ? 's' : ''}
           </span>
         )}
         {importReport.songMode?.isSongMode && (
-          <span className="px-2 py-0.5 bg-green-500/20 text-green-300 rounded border border-green-500/30">
+          <span
+            className="px-2 py-0.5 bg-green-500/20 text-green-300 rounded border border-green-500/30"
+            data-testid="rbs-song-mode-badge"
+          >
             Song mode: {importReport.songMode.patternBankCount} patterns, {importReport.songMode.songLengthBars} bars, {importReport.songMode.arrangementEventCount} events
           </span>
         )}
