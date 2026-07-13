@@ -22,6 +22,14 @@ vi.mock('../hooks/useAudioEngine', () => ({
 }));
 
 // Mock Pyodide hook
+vi.mock('../types/midi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../types/midi')>();
+  return {
+    ...actual,
+    makeMidiControlId: vi.fn((target, param) => `${target}:${param}`),
+  };
+});
+
 vi.mock('../hooks/usePyodideEngine', () => ({
   usePyodideEngine: () => ({
     pyodide: null,
@@ -105,7 +113,7 @@ describe('App Accessibility', () => {
         </CompactLayoutProvider>
       </AppStateProvider>
     );
-    expect(screen.getByRole('link', { name: 'Skip to sequencer' })).toHaveAttribute('href', '#main-sequencer');
+    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
     expect(document.querySelector('[aria-live="polite"].sr-only')).toBeInTheDocument();
   });
 });

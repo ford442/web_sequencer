@@ -34,3 +34,6 @@
 ## 2026-06-25 - DragValue Component Accessibility Refinement
 **Learning:** Found that custom draggable input controls with supplementary increment/decrement buttons lack standard `type="button"` attributes, which can cause unexpected form submissions if nested within forms. Additionally, focus ring colors must be aligned with the global app theme (e.g., using cyan instead of yellow) to maintain visual consistency across reusable components.
 **Action:** Ensure all `<button>` elements in custom input components include `type="button"` explicitly, and verify that `focus-visible:ring` colors match the app's established design system tokens.
+## 2026-07-13 - [Vitest Module Mocking Destroys Siblings]
+**Learning:** When using `vi.mock()` on internal modules (like `../types/midi`), if you only return the mocked function, Vitest removes all other exports from that module. This crashes components importing those siblings.
+**Action:** Always use `await importOriginal()` and spread the `...actual` exports alongside the mocked function.

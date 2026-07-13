@@ -196,7 +196,7 @@ const KnobOverlay = memo(({
                     {onRecordToggle && (
                         <button type="button"
                             onClick={(e) => { e.stopPropagation(); onRecordToggle(id); }}
-                            className="pointer-events-auto"
+                            className="pointer-events-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-full"
                             style={{ width: '16px', height: '16px' }}
                             title="Record Automation"
                             aria-label={`Record Automation for ${label}`}
@@ -222,7 +222,7 @@ const KnobOverlay = memo(({
                 aria-valuenow={Math.round(value * 100)}
                 aria-description={isAutomated ? 'This parameter is currently driven by an automation lane' : undefined}
                 tabIndex={0}
-                className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:ring-2 focus:ring-white focus:outline-none pointer-events-none"
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white pointer-events-none"
                 style={{
                     left: `${x * 100}%`,
                     top: `${y * 100}%`,

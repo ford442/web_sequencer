@@ -1,5 +1,6 @@
 import React from 'react';
 import { LoadingButton } from './LoadingButton';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface StartOverlayProps {
     onStart: () => void;
@@ -8,8 +9,9 @@ interface StartOverlayProps {
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 export const StartOverlay: React.FC<StartOverlayProps> = React.memo(({ onStart, isReady }) => {
+    const trapRef = useFocusTrap<HTMLDivElement>(true);
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="start-overlay-title" tabIndex={-1}>
+        <div ref={trapRef} className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-95 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="start-overlay-title" tabIndex={-1}>
             <div className="text-center p-8 bg-[#1f2937] border-2 border-cyan-500 rounded-2xl shadow-2xl max-w-lg w-full">
                 <h1 id="start-overlay-title" className="text-4xl font-bold font-orbitron text-cyan-400 mb-2 tracking-widest drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]">HYPHON</h1>
                 <p className="text-gray-400 mb-8 font-mono text-sm tracking-wide">BROWSER AUDIO WORKSTATION</p>
