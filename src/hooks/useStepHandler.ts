@@ -91,7 +91,7 @@ export interface UseStepHandlerOptions {
         formantShift: number;
         attack: number;
         decay: number;
-        quality: 'preview' | 'good' | 'better' | 'best';
+        stretchProfile: 'vocal' | 'harmonic' | 'fast';
         stretchMode: 'Time' | 'Pitch' | 'Formant';
         lockToSequencer: boolean;
         pan?: number;
@@ -379,7 +379,7 @@ export const useStepHandler = ({
                 formantShift: voiceParams.formantShift,
                 attack: voiceParams.attack,
                 decay: voiceParams.decay,
-                quality: voiceParams.quality,
+                stretchProfile: voiceParams.stretchProfile,
                 stretchMode: voiceParams.stretchMode,
                 lockToSequencer: voiceParams.lockToSequencer,
             };
