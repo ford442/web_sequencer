@@ -17,7 +17,7 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
 }) => {
   return (
     <div className="border border-gray-800 rounded-lg overflow-hidden">
-      <button
+      <button type="button"
         onClick={() => setShowOptions(!showOptions)}
         aria-expanded={showOptions}
         aria-controls="import-options-panel"

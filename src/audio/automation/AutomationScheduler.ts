@@ -34,7 +34,12 @@ import type {
 } from '../../types';
 import { automationStore } from '../../stores/automationStore';
 import type { Open303Manager } from '../../engines/Open303Manager';
+import type { ProphecyManager } from '../../engines/ProphecyManager';
 import type { PcfEffect } from '../../engines/PcfEffect';
+import {
+  playbackHealthMonitor,
+  PLAYBACK_THRESHOLDS,
+} from '../playback/PlaybackHealthMonitor';
 import {
   isTrakParamAutomationEvent,
   isTrakPatternSelectEvent,
@@ -91,6 +96,8 @@ function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
 
+const PROPHECY_AUTOMATION_PARAMS = new Set(['vowel', 'portamento', 'formantShift']);
+
 /**
  * Convert a normalised MIDI value to Hz using an exponential curve that
  * spans the human-audible range: `normMidi = 0` → 20 Hz, `normMidi = 1`
@@ -129,14 +136,17 @@ export class AutomationScheduler {
    * field guard against `null` before use.
    */
   private open303Manager: Open303Manager | null;
+  private prophecyManager: ProphecyManager | null = null;
   private pcfEffect: PcfEffect | null = null;
 
   private readonly lookaheadSeconds: number;
   private readonly rampDuration: number;
   private readonly ppq: number;
 
-  /** setTimeout handles so we can cancel all pending events on stop. */
+  /** setTimeout handles for PCF params (no native AudioParam scheduling). */
   private pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
+  /** Coalesce duplicate lane/TRAK events in the same 1 ms audio-time bucket. */
+  private recentScheduleBuckets = new Map<string, number>();
 
   constructor(
     audioContext: AudioContext,
@@ -168,6 +178,11 @@ export class AutomationScheduler {
    */
   setPcfEffect(effect: PcfEffect | null): void {
     this.pcfEffect = effect;
+  }
+
+  /** Update ProphecyManager for audio-clock vowel/portamento automation. */
+  setProphecyManager(manager: ProphecyManager | null): void {
+    this.prophecyManager = manager;
   }
 
   /**
@@ -270,6 +285,7 @@ export class AutomationScheduler {
       clearTimeout(id);
     }
     this.pendingTimeouts = [];
+    this.recentScheduleBuckets.clear();
   }
 
   // --------------------------------------------------------------------------
@@ -285,6 +301,35 @@ export class AutomationScheduler {
    * For worklet-based nodes the change is dispatched via a time-aligned
    * `setTimeout` that fires just before the target audio time.
    */
+  private _effectiveAudioTime(audioTime: number, target?: string, parameter?: string): number {
+    const nowAudio = this.ctx.currentTime;
+    const lagMs = Math.max(0, (nowAudio - audioTime) * 1000);
+    if (lagMs > 0) {
+      playbackHealthMonitor.recordSchedulerLag(lagMs, target, parameter);
+    }
+    if (lagMs >= PLAYBACK_THRESHOLDS.schedulerLagDropMs) {
+      return nowAudio;
+    }
+    return audioTime;
+  }
+
+  private _shouldSkipDuplicate(target: AutomationTarget, parameter: string, audioTime: number): boolean {
+    const bucket = Math.floor(audioTime * 1000);
+    const key = `${target}:${parameter}`;
+    const prev = this.recentScheduleBuckets.get(key);
+    if (prev === bucket) return true;
+    this.recentScheduleBuckets.set(key, bucket);
+    return false;
+  }
+
+  private _isBackpressured(): boolean {
+    if (this.pendingTimeouts.length >= PLAYBACK_THRESHOLDS.maxPendingAutomation) {
+      playbackHealthMonitor.recordBackpressure('automation-pending-cap');
+      return true;
+    }
+    return false;
+  }
+
   private _scheduleParam(
     target: AutomationTarget,
     parameter: string,
@@ -292,42 +337,52 @@ export class AutomationScheduler {
     audioTime: number,
     rampDuration: number
   ): void {
+    if (this._shouldSkipDuplicate(target, parameter, audioTime)) return;
+
     const mgr = this.open303Manager;
-    const nowAudio = this.ctx.currentTime;
-    const delayMs = Math.max(0, (audioTime - nowAudio) * 1000);
+
+    if (
+      (target === 'synthA' || target === 'synthB') &&
+      PROPHECY_AUTOMATION_PARAMS.has(parameter) &&
+      this.prophecyManager
+    ) {
+      const part = target === 'synthA' ? 'partA' : 'partB';
+      const effectiveTime = this._effectiveAudioTime(audioTime, target, parameter);
+      this.prophecyManager.scheduleParamAtTime(
+        part,
+        parameter as 'vowel' | 'portamento' | 'formantShift',
+        value,
+        effectiveTime,
+      );
+      return;
+    }
 
     switch (target) {
       case 'synthA': {
-        // lead303 instance (partA / SYNTH A LEAD)
         if (!mgr || !mgr.isLead303Ready()) return;
-        const id = setTimeout(() => {
-          this._apply303Param(mgr, 'lead303', parameter, value, rampDuration);
-        }, delayMs);
-        this.pendingTimeouts.push(id);
+        this._apply303Param(mgr, 'lead303', parameter, value, audioTime, rampDuration);
         break;
       }
       case 'synthB': {
-        // bass1 instance (partB / SYNTH B)
         if (!mgr || !mgr.isBass1Ready()) return;
-        const id = setTimeout(() => {
-          this._apply303Param(mgr, 'bass1', parameter, value, rampDuration);
-        }, delayMs);
-        this.pendingTimeouts.push(id);
+        this._apply303Param(mgr, 'bass1', parameter, value, audioTime, rampDuration);
         break;
       }
       case 'bass2': {
-        // bass2 instance
         if (!mgr || !mgr.isBass2Ready()) return;
-        const id = setTimeout(() => {
-          this._apply303Param(mgr, 'bass2', parameter, value, rampDuration);
-        }, delayMs);
-        this.pendingTimeouts.push(id);
+        this._apply303Param(mgr, 'bass2', parameter, value, audioTime, rampDuration);
         break;
       }
       case 'master': {
-        // PCF and master-bus parameters.
-        if (this.pcfEffect) {
-          const pcf = this.pcfEffect;
+        if (!this.pcfEffect) return;
+        if (this._isBackpressured()) return;
+        const pcf = this.pcfEffect;
+        const effectiveTime = this._effectiveAudioTime(audioTime, target, parameter);
+        const nowAudio = this.ctx.currentTime;
+        const delayMs = Math.max(0, (effectiveTime - nowAudio) * 1000);
+        if (delayMs < 1) {
+          this._applyPcfParam(pcf, parameter, value);
+        } else {
           const id = setTimeout(() => {
             this._applyPcfParam(pcf, parameter, value);
           }, delayMs);
@@ -336,8 +391,6 @@ export class AutomationScheduler {
         break;
       }
       default:
-        // Other targets (drums, sampler) are handled by the step-handler
-        // and/or dedicated mixers — not the 303 manager or PCF.
         break;
     }
   }
@@ -355,45 +408,42 @@ export class AutomationScheduler {
     voice: 'bass1' | 'bass2' | 'lead303',
     parameter: string,
     value: number,
+    audioTime: number,
     _rampDuration: number
   ): void {
     const v = clamp01(value);
-    const now = this.ctx.currentTime;
+    const effectiveTime = this._effectiveAudioTime(audioTime, voice, parameter);
     switch (parameter) {
       case 'filterCutoff':
       case 'cutoff':
       case 'tb303Acutoff':
       case 'tb303Bcutoff':
-        mgr.scheduleParamAtTime(voice, 'setCutoff', v, now);
+        mgr.scheduleParamAtTime(voice, 'setCutoff', v, effectiveTime);
         break;
       case 'filterResonance':
       case 'resonance':
       case 'tb303Aresonance':
       case 'tb303Bresonance':
-        mgr.scheduleParamAtTime(voice, 'setResonance', v, now);
+        mgr.scheduleParamAtTime(voice, 'setResonance', v, effectiveTime);
         break;
       case 'decay':
       case 'tb303Adecay':
       case 'tb303Bdecay':
-        mgr.scheduleParamAtTime(voice, 'setDecay', v, now);
+        mgr.scheduleParamAtTime(voice, 'setDecay', v, effectiveTime);
         break;
       case 'envMod':
-        mgr.scheduleParamAtTime(voice, 'setEnvMod', v, now);
+        mgr.scheduleParamAtTime(voice, 'setEnvMod', v, effectiveTime);
         break;
       case 'accent':
-        mgr.scheduleParamAtTime(voice, 'setAccent', v, now);
+        mgr.scheduleParamAtTime(voice, 'setAccent', v, effectiveTime);
         break;
       case 'slide':
-        // Schedule per-step slide (portamento/legato) enable or disable.
-        // Delegates to Open303Manager.scheduleSlideAtTime(), which establishes
-        // the API contract; actual glide behaviour depends on engine support.
-        mgr.scheduleSlideAtTime(voice, v > 0.5, now);
+        mgr.scheduleSlideAtTime(voice, v > 0.5, effectiveTime);
         break;
       case 'volume':
-        mgr.scheduleParamAtTime(voice, 'setVolume', v, now);
+        mgr.scheduleParamAtTime(voice, 'setVolume', v, effectiveTime);
         break;
       default:
-        // Unknown parameter — no-op.
         break;
     }
   }

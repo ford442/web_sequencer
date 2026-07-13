@@ -77,6 +77,14 @@ function makeLane(overrides?: Partial<UnifiedAutomationLane>): UnifiedAutomation
   };
 }
 
+function makePcfEffect() {
+  return {
+    setAutomationCutoff: vi.fn(),
+    setAutomationResonance: vi.fn(),
+    setAutomationEnvAmount: vi.fn(),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
@@ -190,24 +198,24 @@ describe('AutomationScheduler — construction', () => {
 // ---------------------------------------------------------------------------
 
 describe('AutomationScheduler.cancelAll', () => {
-  it('cancels pending timeouts so they do not fire', () => {
+  it('cancels pending PCF timeouts so they do not fire', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
     const scheduler = new AutomationScheduler(ctx, mgr as any);
+    scheduler.setPcfEffect(pcf as any);
 
-    // Make a lane for synthA / filterCutoff — schedule at 0.1s audio time
-    const lane = makeLane({ points: [{ step: 0, value: 0.5 }] });
+    const lane = makeLane({
+      target: 'master' as any,
+      parameter: 'pcfCutoff',
+      points: [{ step: 0, value: 0.5 }],
+    });
     automationStore.addLane(lane);
 
-    // schedule 1 step ahead of audio time 0.1s (means setTimeout fires ~100ms away)
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0.1);
-
-    // cancel before timers fire
     scheduler.cancelAll();
-
-    // advance timers — no calls should have been made
     vi.runAllTimers();
-    expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
+    expect(pcf.setAutomationCutoff).not.toHaveBeenCalled();
   });
 
   it('can be called multiple times without error', () => {
@@ -246,17 +254,20 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
   });
 
-  it('schedules a synthA cutoff value via setTimeout-based worklet path', () => {
+  it('schedules a synthA cutoff value directly on the Open303 audio clock', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as any);
 
     const lane = makeLane({ target: 'synthA', parameter: 'filterCutoff', points: [{ step: 0, value: 0.75 }] });
 
-    // schedule at audio time 0 (immediate) so setTimeout fires at 0 ms delay
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
-    vi.runAllTimers();
-    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith('lead303', 'setCutoff', expect.any(Number), expect.any(Number));
+    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith(
+      'lead303',
+      'setCutoff',
+      expect.any(Number),
+      0,
+    );
   });
 
   it('schedules a synthB resonance for the bass1 voice', () => {
@@ -470,14 +481,6 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
 // ---------------------------------------------------------------------------
 // AutomationScheduler: PCF parameter automation
 // ---------------------------------------------------------------------------
-
-function makePcfEffect() {
-  return {
-    setAutomationCutoff: vi.fn(),
-    setAutomationResonance: vi.fn(),
-    setAutomationEnvAmount: vi.fn(),
-  };
-}
 
 /** Mirror of AutomationScheduler.pcfMidiNormToHz for test assertions. */
 const testPcfMidiNormToHz = (norm: number) => 20 * Math.pow(1000, norm);

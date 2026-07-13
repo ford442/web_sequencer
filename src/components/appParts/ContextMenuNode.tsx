@@ -76,7 +76,7 @@ export const ContextMenuNode = React.memo(() => {
           currentPortamento={stepData?.portamento ?? 0}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
-          onPropertyChange={handleNotePropertyChange}
+          onPropertyChange={handleNotePropertyChange as any}
           onClose={() => setContextMenu(null)}
           getNoteColor={getNoteColor}
           currentScale={currentScale}

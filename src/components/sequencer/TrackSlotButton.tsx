@@ -2,6 +2,7 @@ import { memo } from 'react';
 import type { TrackKey } from '../../types';
 import { getPatternColor } from './constants';
 import { TRACK_PATTERN_SLOT_INDICES } from '../../utils/trackStorageUtils';
+import { getTrackSlotHitRect } from './stepHitGeometry';
 
 interface TrackSlotButtonProps {
     index: number;
@@ -15,6 +16,8 @@ interface TrackSlotButtonProps {
     row?: number;
     /** Compact 14px cells for 32-slot strips. */
     compact?: boolean;
+    /** Only the selected track row exposes its active slot in tab order. */
+    isRowSelected?: boolean;
 }
 
 export const TrackSlotButton = memo(({
@@ -26,6 +29,7 @@ export const TrackSlotButton = memo(({
     column,
     row = 0,
     compact = false,
+    isRowSelected = false,
 }: TrackSlotButtonProps) => {
     const patternColor = getPatternColor(index);
     const inactiveColor = hasData ? patternColor : '#0f1812';
@@ -36,6 +40,7 @@ export const TrackSlotButton = memo(({
     const rectH = compact ? 14 : 18;
     const fontSize = compact ? 8 : 10;
     const textY = compact ? 11 : 13;
+    const hitRect = getTrackSlotHitRect(rectW, rectH);
 
     return (
         <g
@@ -44,17 +49,29 @@ export const TrackSlotButton = memo(({
             onClick={() => onSelect(trackKey, index)}
             cursor="pointer"
             role="button"
-            tabIndex={0}
+            tabIndex={isRowSelected && isActive ? 0 : -1}
             aria-label={`Pattern Slot ${index + 1}`}
-            aria-description="Left-click to select pattern. Right-click to copy/paste/clear."
+            aria-description="Left-click to select pattern. Right-click to copy/paste/clear. Arrow keys move between slots."
             aria-pressed={isActive}
             onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onSelect(trackKey, index);
+                    return;
                 }
+                if (!isRowSelected) return;
+                const SLOTS_PER_ROW = 16;
+                let next = index;
+                if (e.key === 'ArrowRight') next = Math.min(31, index + 1);
+                else if (e.key === 'ArrowLeft') next = Math.max(0, index - 1);
+                else if (e.key === 'ArrowDown') next = Math.min(31, index + SLOTS_PER_ROW);
+                else if (e.key === 'ArrowUp') next = Math.max(0, index - SLOTS_PER_ROW);
+                else return;
+                e.preventDefault();
+                onSelect(trackKey, next);
             }}
             onContextMenu={(e) => e.preventDefault()}
+            style={{ touchAction: 'manipulation' }}
         >
             <rect
                 width={rectW}
@@ -77,6 +94,14 @@ export const TrackSlotButton = memo(({
             >
                 {index + 1}
             </text>
+            <rect
+                className="track-slot-hit"
+                x={hitRect.x}
+                y={hitRect.y}
+                width={hitRect.width}
+                height={hitRect.height}
+                fill="transparent"
+            />
         </g>
     );
 });
@@ -89,11 +114,13 @@ export const TrackSlotStrip = memo(({
     trackSlots,
     trackKey,
     onSelect,
+    isRowSelected = false,
 }: {
     activeSlot: number;
     trackSlots: (unknown | null)[];
     trackKey: TrackKey;
     onSelect: (k: TrackKey, i: number) => void;
+    isRowSelected?: boolean;
 }) => (
     <>
         {TRACK_PATTERN_SLOT_INDICES.map((slot) => (
@@ -107,6 +134,7 @@ export const TrackSlotStrip = memo(({
                 hasData={!!trackSlots[slot]}
                 trackKey={trackKey}
                 onSelect={onSelect}
+                isRowSelected={isRowSelected}
             />
         ))}
     </>
