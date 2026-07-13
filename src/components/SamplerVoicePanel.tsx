@@ -35,6 +35,7 @@ interface SamplerVoicePanelProps {
     tremoloDepth?: number; // 0-1
     breathAmount?: number; // 0-1
     vocoderMix?: number; // 0-1
+    quality?: 'preview' | 'good' | 'better' | 'best';
     vocoderFormantShift?: number;
     vocoderPreservation?: number;
     vocoderAttack?: number;
@@ -363,6 +364,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     tremoloDepth = 0,
     breathAmount = 0,
     vocoderMix = 0,
+    quality = 'good',
     vocoderFormantShift = 0,
     vocoderPreservation = 1.0,
     vocoderAttack = 0.01,
@@ -420,6 +422,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'vocoderMix': setLocalVocoderMix(value as number); break;
+            case 'quality': setLocalQuality(value as typeof quality); break;
             case 'vocoderFormantShift': setLocalVocoderFormantShift(value as number); break;
             case 'vocoderPreservation': setLocalVocoderPreservation(value as number); break;
             case 'vocoderAttack': setLocalVocoderAttack(value as number); break;

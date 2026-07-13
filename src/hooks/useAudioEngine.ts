@@ -48,6 +48,11 @@ import { engineTelemetry } from '../utils/engineTelemetry';
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
+import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker&url';
+import vocalOverdriveProcessorUrl from '../audio-worklets/vocal-overdrive-processor.ts?worker&url';
+import expressiveVoiceProcessorUrl from '../audio-worklets/expressive-voice-processor.ts?worker&url';
+import expressiveVoiceProcessorWorkletUrl from '../audio-worklets/expressive-voice-processor-worklet.ts?worker&url';
+import vocoderProcessorUrl from '../audio-worklets/vocoder-processor.ts?worker&url';
 
 type AudioWindow = Window & typeof globalThis & {
     webkitAudioContext?: typeof AudioContext;
@@ -127,6 +132,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const wavSqrBufferRef = useRef<AudioBuffer | null>(null);
 
     // Master Volume & Pan
+    const synthABusRef = useRef<GainNode | null>(null);
     const masterGainRef = useRef<GainNode | null>(null);
     const masterSaturationRef = useRef<WaveShaperNode | null>(null);
     const sidechainGainRef = useRef<BiquadFilterNode | null>(null);
@@ -321,6 +327,68 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
             } catch (e) {
                 console.warn('Engine telemetry registration failed for oscillators', e);
+            }
+
+            // Pre-render WebGPU oscillator cycles at C4 reference so they can be
+            // looped synchronously per-note (gpuEngine.generate is async).
+            const wgslBuffers: Partial<Record<'saw' | 'sqr' | 'tri' | 'sin', AudioBuffer | null>> = {};
+            if (gpuEngine.isSupported) {
+                const REF_FREQ = 261.63;
+                const REF_DUR = 2.0;
+                const shapes: Array<'saw' | 'sqr' | 'tri' | 'sin'> = ['saw', 'sqr', 'tri', 'sin'];
+                await Promise.all(shapes.map(async (shape) => {
+                    try {
+                        const float = await gpuEngine.generate(REF_FREQ, REF_DUR, context.sampleRate, shape);
+                        if (float && float.length > 0) {
+                            const buf = context.createBuffer(1, float.length, context.sampleRate);
+                            buf.getChannelData(0).set(float);
+                            wgslBuffers[shape] = buf;
+                        }
+                    } catch (e) {
+                        logEngineFallback('webgpu', 'webgpu', `pre-render buffer failed for wgsl-${shape}`, e);
+                    }
+                }));
+            }
+
+            const voiceEngineDeps = {
+                wasmEngine: wasmEngineRef.current,
+                rustEngine: rustEngineRef.current,
+                wgslBuffers,
+                pyodideEngine: pyodideRef.current as PyodideLike | null,
+            };
+
+            synthABusRef.current = context.createGain();
+            synthABusRef.current.connect(masterSaturationRef.current!);
+
+            // Initialize Voice Managers
+            voiceManagerARef.current = new VoiceManager(context, synthABusRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
+            voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined, voiceEngineDeps);
+
+            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
+
+            try {
+                await context.audioWorklet.addModule(vocoderProcessorUrl);
+            } catch (error) {
+                console.error('VocoderProcessor AudioWorklet initialization failed:', error);
+            }
+
+            try {
+                await context.audioWorklet.addModule(vocalOverdriveProcessorUrl);
+            } catch (error) {
+                console.error('VocalOverdrive AudioWorklet initialization failed:', error);
+            }
+
+            try {
+                await context.audioWorklet.addModule(expressiveVoiceProcessorUrl);
+            } catch (error) {
+                console.error('ExpressiveVoiceProcessor AudioWorklet initialization failed:', error);
+            }
+            try {
+                // Thread boundary constraint: expressive DSP must stay in an AudioWorklet
+                // so the rendering thread can process per-voice audio without main-thread hops.
+                await context.audioWorklet.addModule(expressiveVoiceProcessorWorkletUrl);
+            } catch (error) {
+                console.error('ExpressiveVoice worklet initialization failed:', error);
             }
 
             // Initialize Voice Managers
@@ -687,6 +755,115 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             voice.connectOutput(finalDest);
 
+                            // Apply Vocoder if present
+                            let vocoderNodeRef: AudioWorkletNode | null = null;
+                            if (vocoderMix > 0 && synthABusRef.current) {
+                                try {
+                                    const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
+                                        numberOfInputs: 2,
+                                        parameterData: { mix: vocoderMix }
+                                    });
+                                    // Connect Synth A to carrier (input 0)
+                                    synthABusRef.current.connect(vocoderNode, 0, 0);
+
+                                    // Connect Vocoder output to next in chain
+                                    vocoderNode.connect(finalDest);
+
+                                    // We need to route the TTS source to modulator (input 1)
+                                    // Create a gain to act as the new finalDest for the TTS source
+                                    const modulatorGain = context.createGain();
+                                    modulatorGain.connect(vocoderNode, 0, 1);
+
+                                    vocoderNodeRef = vocoderNode;
+                                    finalDest = modulatorGain;
+                                } catch (e) {
+                                    console.warn("Failed to instantiate vocoder node", e);
+                                }
+                            }
+
+                            let spectralFinalDest = finalDest;
+                            let wetGain: GainNode | null = null;
+                            // Apply Spectral Panning
+                            if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
+                                const lowBand = context.createBiquadFilter();
+                                lowBand.type = "lowpass";
+                                lowBand.frequency.value = 400;
+
+                                const midBand = context.createBiquadFilter();
+                                midBand.type = "bandpass";
+                                midBand.frequency.value = 1500;
+                                midBand.Q.value = 1;
+
+                                const highBand = context.createBiquadFilter();
+                                highBand.type = "highpass";
+                                highBand.frequency.value = 4000;
+
+                                const lowPanner = context.createStereoPanner();
+                                const midPanner = context.createStereoPanner();
+                                const highPanner = context.createStereoPanner();
+
+                                const lowLfo = context.createOscillator();
+                                lowLfo.type = "sine";
+                                lowLfo.frequency.value = spectralPanLfoRate * 0.5;
+                                const lowGain = context.createGain();
+                                lowGain.gain.value = spectralPanDepth;
+                                lowLfo.connect(lowGain);
+                                lowGain.connect(lowPanner.pan);
+                                lowLfo.start(triggerTime);
+
+                                const midLfo = context.createOscillator();
+                                midLfo.type = "sine";
+                                midLfo.frequency.value = spectralPanLfoRate * 0.75;
+                                const midGain = context.createGain();
+                                midGain.gain.value = spectralPanDepth * 0.8;
+                                midLfo.connect(midGain);
+                                midGain.connect(midPanner.pan);
+                                midLfo.start(triggerTime);
+
+                                const highLfo = context.createOscillator();
+                                highLfo.type = "sine";
+                                highLfo.frequency.value = spectralPanLfoRate;
+                                const highGain = context.createGain();
+                                highGain.gain.value = spectralPanDepth * 1.2;
+                                highLfo.connect(highGain);
+                                highGain.connect(highPanner.pan);
+                                highLfo.start(triggerTime);
+
+                                lowBand.connect(lowPanner);
+                                midBand.connect(midPanner);
+                                highBand.connect(highPanner);
+
+                                lowPanner.connect(finalDest);
+                                midPanner.connect(finalDest);
+                                highPanner.connect(finalDest);
+
+                                const dryGain = context.createGain();
+                                dryGain.gain.value = 1.0 - spectralPanDepth;
+                                dryGain.connect(finalDest);
+
+                                wetGain = context.createGain();
+                                wetGain.gain.value = spectralPanDepth;
+                                wetGain.connect(lowBand);
+                                wetGain.connect(midBand);
+                                wetGain.connect(highBand);
+
+                                voice.connectOutput(dryGain);
+                                voice.connectOutput(wetGain);
+                                spectralFinalDest = dryGain;
+
+                                // Clean up LFOs when voice finishes
+                                const stopOscillators = () => {
+                                    try { lowLfo.stop(); } catch(e){}
+                                    try { midLfo.stop(); } catch(e){}
+                                    try { highLfo.stop(); } catch(e){}
+                                };
+                                // this may not be perfect teardown if stretch voice lasts longer, but it is a start
+                                setTimeout(stopOscillators, targetDuration * 1000 + 100);
+                            } else {
+                                voice.connectOutput(finalDest);
+                            }
+
+                            // Setup Reverb Send (Formant-Aware)
                             // Setup Reverb Send
                             const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
                             const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
@@ -942,9 +1119,31 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             if (delayMs > 0) {
                                 setTimeout(() => {
                                     voice.noteOff();
+                                    if (expressiveVoiceNode) {
+                                        expressiveVoiceNode.port.postMessage({ type: 'TEARDOWN' });
+                                        expressiveVoiceProcessorPoolRef.current?.release(expressiveVoiceNode);
+                                    }
+                                    if (overdriveNodeRef) {
+                                        vocalOverdrivePoolRef.current?.release(overdriveNodeRef);
+                                    }
+                                    if (vocoderNodeRef) {
+                                        synthABusRef.current?.disconnect(vocoderNodeRef);
+                                        vocoderNodeRef.disconnect();
+                                    }
                                 }, delayMs);
                             } else {
                                 voice.noteOff();
+                                if (expressiveVoiceNode) {
+                                    expressiveVoiceNode.port.postMessage({ type: 'TEARDOWN' });
+                                    expressiveVoiceProcessorPoolRef.current?.release(expressiveVoiceNode);
+                                }
+                                if (overdriveNodeRef) {
+                                    vocalOverdrivePoolRef.current?.release(overdriveNodeRef);
+                                }
+                                if (vocoderNodeRef) {
+                                    synthABusRef.current?.disconnect(vocoderNodeRef);
+                                    vocoderNodeRef.disconnect();
+                                }
                             }
                         };
 
@@ -1057,6 +1256,138 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         shaper.curve = makeDistortionCurve(driveAmount * 100);
                     } else {
                         shaper.curve = null;
+                        finalShaperDest = shaper;
+                    }
+
+                    // Insert ExpressiveVoiceProcessor before the harmony bus to correct
+                    // the formant shift introduced by playbackRate-based pitch transposition.
+                    // `parameterData` sets the initial AudioParam value per spec
+                    // (Web Audio API §AudioWorkletNodeOptions.parameterData).
+                    let finalDestination: AudioNode;
+                    if (noteParams?.isHarmonyVoice && harmonyBusGainRef.current) {
+                        try {
+                            const expressiveNode = expressiveVoiceProcessorPoolRef.current?.acquire({ pitchShift: pitchOffsetSemitones }) || new AudioWorkletNode(context, 'expressive-voice-processor', {
+                                parameterData: { pitchShift: pitchOffsetSemitones }
+                            });
+                            expressiveNode.connect(harmonyBusGainRef.current);
+                            // Tear down the processor when the source finishes playback.
+                            source.addEventListener('ended', () => {
+                                expressiveNode.port.postMessage({ type: 'TEARDOWN' });
+                                expressiveVoiceProcessorPoolRef.current?.release(expressiveNode);
+                            });
+                            finalDestination = expressiveNode;
+                        } catch (_err) {
+                            // Worklet not yet registered — fall back to direct harmony bus.
+                            finalDestination = harmonyBusGainRef.current;
+                        }
+                    } else {
+                        finalDestination = masterSaturationRef.current!;
+                    }
+
+                    // Apply Vocoder if present
+                    let vocoderNodeRef: AudioWorkletNode | null = null;
+                    if (vocoderMix > 0 && synthABusRef.current) {
+                        try {
+                            const vocoderNode = new AudioWorkletNode(context, 'vocoder-processor', {
+                                numberOfInputs: 2,
+                                parameterData: { mix: vocoderMix }
+                            });
+                            // Connect Synth A to carrier (input 0)
+                            synthABusRef.current.connect(vocoderNode, 0, 0);
+
+                            // Connect Vocoder output to next in chain
+                            vocoderNode.connect(finalDestination);
+
+                            // Create a gain to act as the new finalDestination for the TTS source
+                            const modulatorGain = context.createGain();
+                            modulatorGain.connect(vocoderNode, 0, 1);
+
+                            vocoderNodeRef = vocoderNode;
+                            finalDestination = modulatorGain;
+
+                            // Clean up
+                            source.addEventListener('ended', () => {
+                                synthABusRef.current?.disconnect(vocoderNode);
+                                vocoderNode.disconnect();
+                            });
+                        } catch (e) {
+                            console.warn("Failed to instantiate vocoder node", e);
+                        }
+                    }
+
+                    let spectralFinalDest = finalDestination;
+                    let wetGain: GainNode | null = null;
+                    if (spectralPanDepth !== undefined && spectralPanDepth > 0) {
+                        // Parallel low/band/high bands with independent LFO panners for spectral movement
+                        const lowBand = context.createBiquadFilter();
+                        lowBand.type = "lowpass";
+                        lowBand.frequency.value = 400;
+
+                        const midBand = context.createBiquadFilter();
+                        midBand.type = "bandpass";
+                        midBand.frequency.value = 1500;
+                        midBand.Q.value = 1;
+
+                        const highBand = context.createBiquadFilter();
+                        highBand.type = "highpass";
+                        highBand.frequency.value = 4000;
+
+                        const lowPanner = context.createStereoPanner();
+                        const midPanner = context.createStereoPanner();
+                        const highPanner = context.createStereoPanner();
+
+                        const lowLfo = context.createOscillator();
+                        lowLfo.type = "sine";
+                        lowLfo.frequency.value = spectralPanLfoRate * 0.5;
+                        const lowGain = context.createGain();
+                        lowGain.gain.value = spectralPanDepth;
+                        lowLfo.connect(lowGain);
+                        lowGain.connect(lowPanner.pan);
+                        lowLfo.start(startTime);
+
+                        const midLfo = context.createOscillator();
+                        midLfo.type = "sine";
+                        midLfo.frequency.value = spectralPanLfoRate * 0.75;
+                        const midGain = context.createGain();
+                        midGain.gain.value = spectralPanDepth * 0.8;
+                        midLfo.connect(midGain);
+                        midGain.connect(midPanner.pan);
+                        midLfo.start(startTime);
+
+                        const highLfo = context.createOscillator();
+                        highLfo.type = "sine";
+                        highLfo.frequency.value = spectralPanLfoRate;
+                        const highGain = context.createGain();
+                        highGain.gain.value = spectralPanDepth * 1.2;
+                        highLfo.connect(highGain);
+                        highGain.connect(highPanner.pan);
+                        highLfo.start(startTime);
+
+                        lowBand.connect(lowPanner);
+                        midBand.connect(midPanner);
+                        highBand.connect(highPanner);
+
+                        lowPanner.connect(finalDestination);
+                        midPanner.connect(finalDestination);
+                        highPanner.connect(finalDestination);
+
+                        const dryGain = context.createGain();
+                        dryGain.gain.value = 1.0 - spectralPanDepth;
+                        dryGain.connect(finalDestination);
+
+                        wetGain = context.createGain();
+                        wetGain.gain.value = spectralPanDepth;
+                        wetGain.connect(lowBand);
+                        wetGain.connect(midBand);
+                        wetGain.connect(highBand);
+
+                        spectralFinalDest = dryGain;
+
+                        source.addEventListener("ended", () => {
+                            try { lowLfo.stop(); } catch(e){}
+                            try { midLfo.stop(); } catch(e){}
+                            try { highLfo.stop(); } catch(e){}
+                        });
                     }
 
                     let finalDestination: AudioNode = masterSaturationRef.current!;

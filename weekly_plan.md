@@ -1,6 +1,15 @@
 # web_sequencer — Weekly Plan
 
 ## Today's focus
+**2026-06-22 — FIX FIRST mode.** `main` CI is RED and has been since 2026-06-21. Root cause: commit `2c36d10` (formant vocoder, PR #793) bumped `vitest` `^2.1.3 → ^4.1.9` (a MAJOR upgrade) and added `@babel/helper-plugin-utils ^7.29.7` in `package.json` **without regenerating `pnpm-lock.yaml`** (lockfile still resolves vitest 2.1.9). `pnpm install --frozen-lockfile` fails on the first CI step, so **Lint, Test, Build WASM, and Playwright E2E are all SKIPPED** across CI / Playwright E2E / debug_build. The week's entire feature merge spree (formant vocoder #793, granular position jitter #791, drum-retrigger optimization #792, spectral morph automation #785, accessibility batch) has landed on a main that cannot even install deps in CI — **none of it is validated.** Cracked foundation; no new ideas until CI is green.
+
+**Primary task — restore green CI on `main`:**
+1. Reconcile `pnpm-lock.yaml` with `package.json` (regenerate via `pnpm install`).
+2. Decision fork on the vitest major bump: prefer **regenerate → run full suite on vitest 4**; if v4 breaks too much config/API, **pin vitest back to `^2.1.3`** as the unblock and file a follow-up for the v4 migration. Decide whether `@babel/helper-plugin-utils` is a real direct dep or accidental — drop it if unused.
+3. With install fixed, run the gate that's been masked for days — `pnpm run lint`, `pnpm test`, `pnpm run build` (incl. `build:wasm` / `build:emcc`), Playwright E2E — and fix whatever the merge spree actually broke underneath.
+4. Confirm CI green on `main` (or on the fix branch before merge).
+
+**Why this over anything else:** every other audit signal is clean (#720 closed, knob work shipped). The only cracked thing is the build gate, and it's invalidating a week of merged work silently.
 **2026-07-06 — FIX FIRST mode (escalated).** Last week's 2026-06-29 Fix First was a **planning run only** — the dispatch was generated and the plan commit merged (PR #819), but the kimi-cli swarm to execute the CI type-gate hardening **never ran**. `.swarm-state.md` is still the stale 2026-06-22 CI-restoration state; nothing from 06-29 landed. Meanwhile the merge spree kept going (#826/#828/#848/#850…), and the foundation degraded from "green CI can't see type drift" to **"the primary audio hook does not parse."**
 
 **Hard evidence gathered this run:**
@@ -44,6 +53,8 @@
 - [done — 2026-06-01] **Holographic knob WGSL/2D drift-kill** — `knobMaterial.ts` shared contract consumed by WGSL + Canvas2D; `knobMaterial.contract.test.ts` guards palette/geometry/bloom parity.
 
 ## Backlog
+- [ ] **Green-CI guardrail (follow-up to today)** — add a CI step (or husky/pre-push) that runs `pnpm install --frozen-lockfile` locally so a stale lockfile fails before merge, not after. Consider a `lockfile-check` job.
+- [ ] **vitest 4 migration (if pinned back today)** — if today's fix reverts vitest to 2.x, track the deliberate v4 upgrade as its own task (config/API surface, happy-dom compat).
 - [in progress — 2026-07-06, carried from 06-29 (unexecuted)] **Green-CI guardrail** — now three live gaps: (1) **`src/hooks/useAudioEngine.ts` doesn't parse** (esbuild L1013) — the primary fix; (2) **`ci.yml` has no `tsc` gate** AND runs `lint` with `continue-on-error: true` (masking the parse error); (3) **`debug_build.yml` perma-red** (mis-indented `Setup Rust`). All three = today's escalated FIX FIRST. Also still worth a `pnpm install --frozen-lockfile` pre-push hook so a future stale lockfile fails before merge.
 - [ ] **vitest 4 / vite 6 forward migration (deferred deliberately)** — `main` is pinned to `vitest 2.1.9` / `vite ^5.4.21`. Track the v4/v6 bump as its own task (vitest-4 `Reflect.construct` mock breakage, `vite/module-runner` export, `@fast-check/vitest` peer compat — all documented in the 2026-06-22 toolchain log above).
 - [ ] **Drop unused `@babel/helper-plugin-utils`** from `package.json` devDeps (grep-confirmed unused in `src/`; accidental dep from #793). Tiny; fold into today's branch or a hygiene pass.
@@ -93,6 +104,13 @@ _(Running log — fill in at end of each weekly session.)_
 |------|---------|-------|
 | 2026-06-01 | (incomplete) | Holographic-knob drift-kill started; `knobMaterial.ts` contract landed but session ended before full verification. |
 | 2026-06-16 | _(pending)_ | Prep: plan refreshed, tests green after `pnpm run build:wasm`, issue #720 primed. |
+| 2026-06-22 | _(pending)_ | Fix First: main CI red since 06-21 (stale pnpm-lock.yaml — vitest 2→4 bump in #793 without lockfile regen). Plan set to restore green CI; Noah notified. |
+
+## Last run
+Date: 2026-06-22
+Mode: Fix First
+Focus: Restore green CI on `main`. CI/Playwright/debug_build all failing since 2026-06-21 at the `pnpm install --frozen-lockfile` step — `pnpm-lock.yaml` is stale vs `package.json` (commit `2c36d10` / PR #793 bumped vitest `^2.1.3 → ^4.1.9` major + added `@babel/helper-plugin-utils` without regenerating the lockfile). Lint/Test/Build/E2E all SKIPPED → the week's feature merges (formant vocoder #793, granular jitter #791, drum-retrigger #792, spectral morph #785) are unvalidated.
+Outcome: Planning run. #720 confirmed CLOSED (completed 2026-06-15) → prior Fix First resolved. New epic #773 (RBS fidelity, 8 children #774–#781) reconciled into Backlog. weekly_plan.md updated (Today's focus = green CI, Done reconcile, Backlog refresh). Dispatch: kimi-cli swarm = lockfile reconcile + run the masked gate + fix surfaced failures; decoupled Copilot issue = repo hygiene (root docs/scripts archival, no source/test-config overlap with kimi); Claude Code = whole-stack build→deploy→smoke (after lockfile fix); Jules wrap-up template. Noah notified via push (red CI). Chat-history tools (recent_chats/conversation_search) still unavailable — context from repo + GitHub MCP + plan file only.
 | 2026-06-22 | ✅ green CI restored | Fix First: main CI red since 06-21 (stale pnpm-lock.yaml — vitest 2→4 bump in #793 without lockfile regen). Fix landed via conservative fork (vitest pinned 2.1.9); `ci.yml` green & stable. |
 | 2026-06-29 | _(pending)_ | Fix First: main CI green but **never type-checks** (`ci.yml` has no `tsc`); merge-spree type drift slipped past it (vocoder formant `TS2339`, patched late w/ `as any`). Plus `debug_build.yml` perma-red (malformed YAML). Plan = add `tsc` gate + fix workflow + strip `as any`. Noah notified. **NOTE (07-06): this plan was never executed — only the plan commit merged.** |
 | 2026-07-06 | _(pending)_ | Fix First (escalated): last week's CI-hardening swarm never ran. Verified live — `useAudioEngine.ts` **does not parse** (esbuild `Expected ")"` @ L1013, confirmed by Jules PR #850); `ci.yml` still has no `tsc` + runs `lint` `continue-on-error:true`; `debug_build.yml` still perma-red (3/3 latest = failure); `as any` in the hook 4→21; babel dep still present. Plan = fix parse error → strip `as any` → add `tsc` gate → un-mask lint → fix `debug_build.yml` → drop babel dep. Noah notified. |
