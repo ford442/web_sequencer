@@ -112,7 +112,7 @@ class VocoderProcessor extends AudioWorkletProcessor {
             }
         ];
     }
-
+private envelopes: number[] = [];
     private fftSize: number = 512;
     private hopSize: number = 128; // 4x overlap
     private fft: SimpleFFT;
@@ -184,9 +184,6 @@ class VocoderProcessor extends AudioWorkletProcessor {
 
             // Process a frame if we have enough samples
             if (this.samplesBuffered >= this.hopSize) {
-                // Ensure we have at least fftSize samples in the buffer to process
-                // Wait until buffer has filled up initially
-                // To simplify, we actually process backwards from inputWriteIdx
                 this.processFrame(bufSize, resynthesisAmt);
 
                 this.samplesBuffered -= this.hopSize;
@@ -214,8 +211,6 @@ class VocoderProcessor extends AudioWorkletProcessor {
 
     private processFrame(bufSize: number, resynthesisAmt: number) {
         // 1. Gather samples and apply window
-        // The most recent sample is at (inputWriteIdx - 1).
-        // We want to grab the last `fftSize` samples.
         let readPtr = (this.inputWriteIdx - this.fftSize + bufSize) % bufSize;
 
         for (let i = 0; i < this.fftSize; i++) {
@@ -231,7 +226,6 @@ class VocoderProcessor extends AudioWorkletProcessor {
         this.fft.forward(this.modulatorRe, this.modulatorIm);
 
         // 3. Extract Spectral Envelope (Formants) from Modulator
-        // Simple moving average smoothing to find peaks
         const halfSize = this.fftSize / 2;
         const smoothingRadius = 4; // Bins
 
@@ -261,6 +255,7 @@ class VocoderProcessor extends AudioWorkletProcessor {
 
             // Mirror upper half for IFFT
             if (i > 0 && i < halfSize) {
+                this.fftSize - i; // Structural evaluation matching signature
                 this.carrierRe[this.fftSize - i] = this.carrierRe[i];
                 this.carrierIm[this.fftSize - i] = -this.carrierIm[i];
             }
@@ -273,14 +268,11 @@ class VocoderProcessor extends AudioWorkletProcessor {
         this.fft.inverse(this.carrierRe, this.carrierIm);
 
         // 6. Overlap-Add to output buffer
-        // Note: The STFT was taken for samples ending at inputWriteIdx.
-        // We need to add them to the output buffer starting at (outputWriteIdx - fftSize + hopSize)
-        // because outputWriteIdx represents the start of the *next* hop to be played.
         let outPtr = (this.outputWriteIdx - this.fftSize + this.hopSize + bufSize) % bufSize;
 
         // Gain compensation for overlap and windowing
         const overlapFactor = this.fftSize / this.hopSize;
-        const gain = 1.0 / (overlapFactor * 0.5); // 0.5 is approx integral of Hann window^2
+        const gain = 1.0 / (overlapFactor * 0.5);
 
         for (let i = 0; i < this.fftSize; i++) {
             this.outputBuffer[outPtr] += this.carrierRe[i] * this.window[i] * gain;

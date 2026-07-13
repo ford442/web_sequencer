@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import App from '../App';
 import { AppStateProvider } from '../contexts/AppStateContext';
+import { CompactLayoutProvider } from '../contexts/CompactLayoutContext';
 import { vi } from 'vitest';
 
 vi.mock('../services/AISongStorage', () => ({
@@ -17,7 +18,9 @@ describe('App', () => {
   it('renders HYPHON heading', () => {
     render(
       <AppStateProvider>
-        <App />
+        <CompactLayoutProvider>
+          <App />
+        </CompactLayoutProvider>
       </AppStateProvider>
     );
     // There are now multiple HYPHON headings (one in overlay, one in header)
@@ -29,7 +32,9 @@ describe('App', () => {
   it('renders volume control', () => {
     render(
       <AppStateProvider>
-        <App />
+        <CompactLayoutProvider>
+          <App />
+        </CompactLayoutProvider>
       </AppStateProvider>
     );
     expect(screen.getByLabelText(/Master Volume/i)).toBeInTheDocument();
@@ -38,7 +43,9 @@ describe('App', () => {
   it('renders song controls', () => {
     render(
       <AppStateProvider>
-        <App />
+        <CompactLayoutProvider>
+          <App />
+        </CompactLayoutProvider>
       </AppStateProvider>
     );
     // Check for multiple occurrences of "Song" related UI
@@ -56,7 +63,9 @@ describe('App', () => {
   it('renders Tape Stop button', () => {
     render(
       <AppStateProvider>
-        <App />
+        <CompactLayoutProvider>
+          <App />
+        </CompactLayoutProvider>
       </AppStateProvider>
     );
     const tapeStopButton = screen.getByRole('button', { name: /Trigger Tape Stop Effect/i });

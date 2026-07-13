@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { HelpIconButton } from './help/HelpTip';
 
 /** Vowel labels in order matching ProphecyParam.VOWEL (0=A, 1=E, 2=I, 3=O, 4=U) */
 const VOWEL_LABELS = ['A', 'E', 'I', 'O', 'U'] as const;
@@ -54,9 +55,12 @@ export const ProphecyPanel: React.FC<ProphecyPanelProps> = memo(({
             aria-label="Prophecy parameters"
         >
             {/* ── Vowel ─────────────────────────────────────────────── */}
-            <span className={`text-[8px] font-mono uppercase tracking-wider ${labelColorStyle}`}>
-                Vowel
-            </span>
+            <div className="flex items-center justify-between gap-1">
+                <span className={`text-[8px] font-mono uppercase tracking-wider ${labelColorStyle}`}>
+                    Vowel
+                </span>
+                <HelpIconButton topicId="prophecy-formants" />
+            </div>
             <div className="flex gap-1">
                 {VOWEL_LABELS.map((label, idx) => (
                     <button type="button"

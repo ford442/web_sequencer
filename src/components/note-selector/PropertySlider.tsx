@@ -12,6 +12,7 @@ export interface PropertySliderProps {
   onChange: (value: number) => void;
   ariaLabel?: string;
   id?: string;
+  ariaDescribedBy?: string;
 }
 
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
@@ -26,7 +27,8 @@ export const PropertySlider: React.FC<PropertySliderProps> = React.memo(({
   valueFormatter = (val: number) => val,
   onChange,
   ariaLabel,
-  id
+  id,
+  ariaDescribedBy,
 }) => {
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(parseFloat(e.target.value));
@@ -52,6 +54,7 @@ export const PropertySlider: React.FC<PropertySliderProps> = React.memo(({
         className={`w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer ${accentColor} border ${borderColor} transition-all`}
         aria-valuetext={String(valueFormatter(value))}
         aria-label={ariaLabel || label}
+        aria-describedby={ariaDescribedBy}
       />
     </fieldset>
   );

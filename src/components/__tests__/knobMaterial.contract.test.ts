@@ -4,7 +4,7 @@ import { buildKnobShaderCode } from '../KnobGPUContext';
 import {
     buildKnob2DDrawCalls,
     type Knob2DDrawCommand,
-} from '../HardwareModule';
+} from '../knobRender';
 import {
     KNOB_MATERIAL,
     rgbToHex,
@@ -110,6 +110,44 @@ describe('holographic knob derivation contract', () => {
                     alpha += arc_brightness * 0.85;
                 }
 
+                // 2b. Scale ticks along the value arc (hardware-style position reference)
+                let tick_angles = array<f32, 7>(-2.356194, -1.570796, -0.785398, 0.000000, 0.785398, 1.570796, 2.356194);
+                let tick_major = array<f32, 7>(1, 0, 0, 1, 0, 0, 1);
+                let tick_count = 7u;
+                for (var ti = 0u; ti < tick_count; ti++) {
+                    let ta = tick_angles[ti];
+                    let angle_diff = abs(pixel_angle - ta);
+                    let half_len = mix(0.0300, 0.0450, tick_major[ti]);
+                    let tick_inner = arc_radius - half_len;
+                    let tick_outer = arc_radius + half_len;
+                    let r = length(uv);
+                    let tick_color = mix(vec3f(0.0000, 0.7500, 0.8500), vec3f(0.2000, 1.0000, 1.0000), tick_major[ti]);
+                    if (r >= tick_inner && r <= tick_outer && angle_diff < 0.035 && pixel_angle >= -max_angle && pixel_angle <= max_angle) {
+                        let tick_brightness = smoothstep(0.035, 0.0, angle_diff) * mix(0.55, 0.95, tick_major[ti]);
+                        color = tick_color;
+                        alpha += tick_brightness;
+                    }
+                }
+
+                // 2c. Detent dimples (recessed hardware notches at major landmarks)
+                let detent_angles = array<f32, 3>(-2.356194, 0.000000, 2.356194);
+                let detent_count = 3u;
+                let detent_shadow = vec3f(0.0000, 0.1500, 0.2000);
+                for (var di = 0u; di < detent_count; di++) {
+                    let da = detent_angles[di];
+                    let detent_diff = abs(pixel_angle - da);
+                    let r = length(uv);
+                    let notch_inner = arc_radius - 0.0225;
+                    let notch_outer = arc_radius + 0.0225 * 0.65;
+                    if (detent_diff < 0.0550 && r >= notch_inner && r <= notch_outer && pixel_angle >= -max_angle && pixel_angle <= max_angle) {
+                        let dimple = smoothstep(0.0550, 0.0, detent_diff)
+                            * smoothstep(notch_outer, arc_radius, r)
+                            * smoothstep(notch_inner, arc_radius, r);
+                        color = mix(color, detent_shadow, dimple * 0.85);
+                        alpha += dimple * 0.55;
+                    }
+                }
+
                 // 3. Holographic Scanlines
                 let scanline = sin(uv.y * 150.0 + u.time * 10.0) * 0.5 + 0.5;
 
@@ -124,14 +162,30 @@ describe('holographic knob derivation contract', () => {
                 let inner_glow = smoothstep(0.0, 0.5, len);
                 alpha += circle_edge * 0.2 * scanline; // Background body
 
-                // The Needle
+                // The Needle — hardware-lit variant or legacy glow
                 let proj = dot(uv, needle_vec);
                 let perp = length(uv - needle_vec * proj);
-                // Guard against perp ≈ 0 to avoid Inf bloom
-                if (proj > 0.0 && proj < 0.5000 && perp < 0.02 && perp > 0.0005) {
-                    alpha += min(1.0 / (perp * 100.0), 8.0); // Bloom needle, clamped
-                    color = vec3f(1.0000, 1.0000, 1.0000); // White hot center
+                let needle_len = 0.5000;
+                
+                let needle_half_w = 0.018;
+                if (proj > 0.02 && proj < needle_len && perp < needle_half_w) {
+                    let along = proj / needle_len;
+                    let body = mix(vec3f(0.0500, 0.0800, 0.1200), vec3f(0.8200, 0.8600, 0.9000), smoothstep(0.0, 1.0, along));
+                    let specular = exp(-pow((along - 0.68) / 0.11, 2.0))
+                        * exp(-pow(perp / (needle_half_w * 0.35), 2.0));
+                    color = mix(body, vec3f(1.0000, 1.0000, 1.0000), specular * 0.95);
+                    alpha += smoothstep(needle_half_w, 0.0, perp) * 0.95;
                 }
+                // Cast shadow opposite the needle on the knob face
+                let shadow_vec = -needle_vec;
+                let shadow_proj = dot(uv, shadow_vec);
+                let shadow_perp = length(uv - shadow_vec * shadow_proj);
+                if (shadow_proj > 0.02 && shadow_proj < 0.14 && shadow_perp < 0.07) {
+                    let shadow_a = smoothstep(0.14, 0.02, shadow_proj) * smoothstep(0.07, 0.0, shadow_perp) * 0.35;
+                    color = mix(color, vec3f(0.0500, 0.0800, 0.1200), shadow_a);
+                    alpha += shadow_a * 0.4;
+                }
+                
 
                 // 5. Fresnel / Glitch Effect
                 let glitch = step(0.98, sin(u.time * 20.0 + uv.y * 10.0));
@@ -191,6 +245,242 @@ describe('holographic knob derivation contract', () => {
               "op": "stroke",
             },
             {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                23.483495705504463,
+                76.51650429449553,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                17.11953467482553,
+                82.88046532517446,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                11,
+                49.99999999999999,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                5,
+                49.99999999999999,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                22.422835533724648,
+                22.422835533724644,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                18.180194846605364,
+                18.18019484660536,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                12.5,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                50,
+                3.5,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                77.57716446627535,
+                22.422835533724648,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                81.81980515339464,
+                18.180194846605364,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                89,
+                50,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                95,
+                50,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                76.51650429449553,
+                76.51650429449553,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                82.88046532517447,
+                82.88046532517446,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "font",
+              "value": "bold 9px monospace",
+            },
+            {
+              "op": "textAlign",
+              "value": "center",
+            },
+            {
+              "op": "textBaseline",
+              "value": "middle",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#80e6ff",
+            },
+            {
+              "args": [
+                "0",
+                14.291107550079339,
+                85.70889244992065,
+              ],
+              "op": "fillText",
+            },
+            {
+              "args": [
+                "50",
+                50,
+                -0.5,
+              ],
+              "op": "fillText",
+            },
+            {
+              "args": [
+                "100",
+                85.70889244992065,
+                85.70889244992065,
+              ],
+              "op": "fillText",
+            },
+            {
               "args": [
                 20.301515190165,
                 79.698484809835,
@@ -245,6 +535,206 @@ describe('holographic knob derivation contract', () => {
             },
             {
               "args": [
+                21.89250544783473,
+                78.10749455216526,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                19.26737152267967,
+                80.73262847732032,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                20.301515190165,
+                79.698484809835,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                10.25,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                50,
+                6.537500000000001,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                8,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                78.10749455216526,
+                78.10749455216526,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                80.73262847732032,
+                80.73262847732032,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                79.698484809835,
+                79.698484809835,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#0d141f",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                54.242640687119284,
+                45.757359312880716,
+                4,
+                2,
+                -0.7853981633974483,
+                0,
+                6.283185307179586,
+              ],
+              "op": "ellipse",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "args": [
+                50,
+                50,
+                14.644660940672615,
+                85.35533905932738,
+              ],
+              "id": "needleBody",
+              "op": "createLinearGradient",
+            },
+            {
+              "args": [
+                0,
+                "#0d141f",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "args": [
+                0.55,
+                "#d1dbe6",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "args": [
+                1,
+                "#ffffff",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
                 50,
                 50,
               ],
@@ -258,12 +748,12 @@ describe('holographic knob derivation contract', () => {
               "op": "lineTo",
             },
             {
-              "op": "strokeStyle",
-              "value": "#ffffff",
+              "id": "needleBody",
+              "op": "strokeStyleGradient",
             },
             {
               "op": "lineWidth",
-              "value": 2,
+              "value": 3,
             },
             {
               "op": "stroke",
@@ -311,6 +801,242 @@ describe('holographic knob derivation contract', () => {
             },
             {
               "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                23.483495705504463,
+                76.51650429449553,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                17.11953467482553,
+                82.88046532517446,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                11,
+                49.99999999999999,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                5,
+                49.99999999999999,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                22.422835533724648,
+                22.422835533724644,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                18.180194846605364,
+                18.18019484660536,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                12.5,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                50,
+                3.5,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                77.57716446627535,
+                22.422835533724648,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                81.81980515339464,
+                18.180194846605364,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                89,
+                50,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                95,
+                50,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                76.51650429449553,
+                76.51650429449553,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                82.88046532517447,
+                82.88046532517446,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "font",
+              "value": "bold 9px monospace",
+            },
+            {
+              "op": "textAlign",
+              "value": "center",
+            },
+            {
+              "op": "textBaseline",
+              "value": "middle",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#80e6ff",
+            },
+            {
+              "args": [
+                "0",
+                14.291107550079339,
+                85.70889244992065,
+              ],
+              "op": "fillText",
+            },
+            {
+              "args": [
+                "50",
+                50,
+                -0.5,
+              ],
+              "op": "fillText",
+            },
+            {
+              "args": [
+                "100",
+                85.70889244992065,
+                85.70889244992065,
+              ],
+              "op": "fillText",
             },
             {
               "args": [
@@ -367,6 +1093,206 @@ describe('holographic knob derivation contract', () => {
             },
             {
               "args": [
+                21.89250544783473,
+                78.10749455216526,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                19.26737152267967,
+                80.73262847732032,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                20.301515190165,
+                79.698484809835,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                10.25,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                50,
+                6.537500000000001,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                8,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                78.10749455216526,
+                78.10749455216526,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                80.73262847732032,
+                80.73262847732032,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                79.698484809835,
+                79.698484809835,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#0d141f",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                56,
+                4,
+                2,
+                1.5707963267948966,
+                0,
+                6.283185307179586,
+              ],
+              "op": "ellipse",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "args": [
+                50,
+                50,
+                50,
+                0,
+              ],
+              "id": "needleBody",
+              "op": "createLinearGradient",
+            },
+            {
+              "args": [
+                0,
+                "#0d141f",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "args": [
+                0.55,
+                "#d1dbe6",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "args": [
+                1,
+                "#ffffff",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
                 50,
                 50,
               ],
@@ -380,12 +1306,12 @@ describe('holographic knob derivation contract', () => {
               "op": "lineTo",
             },
             {
-              "op": "strokeStyle",
-              "value": "#ffffff",
+              "id": "needleBody",
+              "op": "strokeStyleGradient",
             },
             {
               "op": "lineWidth",
-              "value": 2,
+              "value": 3,
             },
             {
               "op": "stroke",
@@ -433,6 +1359,242 @@ describe('holographic knob derivation contract', () => {
             },
             {
               "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                23.483495705504463,
+                76.51650429449553,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                17.11953467482553,
+                82.88046532517446,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                11,
+                49.99999999999999,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                5,
+                49.99999999999999,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                22.422835533724648,
+                22.422835533724644,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                18.180194846605364,
+                18.18019484660536,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                12.5,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                50,
+                3.5,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                77.57716446627535,
+                22.422835533724648,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                81.81980515339464,
+                18.180194846605364,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                89,
+                50,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                95,
+                50,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#00bfd9",
+            },
+            {
+              "op": "lineWidth",
+              "value": 1,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                76.51650429449553,
+                76.51650429449553,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                82.88046532517447,
+                82.88046532517446,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#33ffff",
+            },
+            {
+              "op": "lineWidth",
+              "value": 2,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "font",
+              "value": "bold 9px monospace",
+            },
+            {
+              "op": "textAlign",
+              "value": "center",
+            },
+            {
+              "op": "textBaseline",
+              "value": "middle",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#80e6ff",
+            },
+            {
+              "args": [
+                "0",
+                14.291107550079339,
+                85.70889244992065,
+              ],
+              "op": "fillText",
+            },
+            {
+              "args": [
+                "50",
+                50,
+                -0.5,
+              ],
+              "op": "fillText",
+            },
+            {
+              "args": [
+                "100",
+                85.70889244992065,
+                85.70889244992065,
+              ],
+              "op": "fillText",
             },
             {
               "args": [
@@ -489,6 +1651,206 @@ describe('holographic knob derivation contract', () => {
             },
             {
               "args": [
+                21.89250544783473,
+                78.10749455216526,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                19.26737152267967,
+                80.73262847732032,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                20.301515190165,
+                79.698484809835,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                10.25,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                50,
+                6.537500000000001,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                50,
+                8,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                78.10749455216526,
+                78.10749455216526,
+              ],
+              "op": "moveTo",
+            },
+            {
+              "args": [
+                80.73262847732032,
+                80.73262847732032,
+              ],
+              "op": "lineTo",
+            },
+            {
+              "op": "strokeStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "lineWidth",
+              "value": 3,
+            },
+            {
+              "op": "stroke",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#002633",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                79.698484809835,
+                79.698484809835,
+                0.7875,
+                0,
+                6.283185307179586,
+              ],
+              "op": "arc",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "op": "fillStyle",
+              "value": "#0d141f",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
+                45.757359312880716,
+                45.757359312880716,
+                4,
+                2,
+                3.9269908169872414,
+                0,
+                6.283185307179586,
+              ],
+              "op": "ellipse",
+            },
+            {
+              "op": "fill",
+            },
+            {
+              "args": [
+                50,
+                50,
+                85.35533905932738,
+                85.35533905932738,
+              ],
+              "id": "needleBody",
+              "op": "createLinearGradient",
+            },
+            {
+              "args": [
+                0,
+                "#0d141f",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "args": [
+                0.55,
+                "#d1dbe6",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "args": [
+                1,
+                "#ffffff",
+              ],
+              "id": "needleBody",
+              "op": "addColorStop",
+            },
+            {
+              "op": "beginPath",
+            },
+            {
+              "args": [
                 50,
                 50,
               ],
@@ -502,12 +1864,12 @@ describe('holographic knob derivation contract', () => {
               "op": "lineTo",
             },
             {
-              "op": "strokeStyle",
-              "value": "#ffffff",
+              "id": "needleBody",
+              "op": "strokeStyleGradient",
             },
             {
               "op": "lineWidth",
-              "value": 2,
+              "value": 3,
             },
             {
               "op": "stroke",

@@ -85,6 +85,44 @@ exports[`holographic knob derivation contract > snapshots WGSL derived from KNOB
           alpha += arc_brightness * 0.85;
       }
 
+      // 2b. Scale ticks along the value arc (hardware-style position reference)
+      let tick_angles = array<f32, 7>(-2.356194, -1.570796, -0.785398, 0.000000, 0.785398, 1.570796, 2.356194);
+      let tick_major = array<f32, 7>(1, 0, 0, 1, 0, 0, 1);
+      let tick_count = 7u;
+      for (var ti = 0u; ti < tick_count; ti++) {
+          let ta = tick_angles[ti];
+          let angle_diff = abs(pixel_angle - ta);
+          let half_len = mix(0.0300, 0.0450, tick_major[ti]);
+          let tick_inner = arc_radius - half_len;
+          let tick_outer = arc_radius + half_len;
+          let r = length(uv);
+          let tick_color = mix(vec3f(0.0000, 0.7500, 0.8500), vec3f(0.2000, 1.0000, 1.0000), tick_major[ti]);
+          if (r >= tick_inner && r <= tick_outer && angle_diff < 0.035 && pixel_angle >= -max_angle && pixel_angle <= max_angle) {
+              let tick_brightness = smoothstep(0.035, 0.0, angle_diff) * mix(0.55, 0.95, tick_major[ti]);
+              color = tick_color;
+              alpha += tick_brightness;
+          }
+      }
+
+      // 2c. Detent dimples (recessed hardware notches at major landmarks)
+      let detent_angles = array<f32, 3>(-2.356194, 0.000000, 2.356194);
+      let detent_count = 3u;
+      let detent_shadow = vec3f(0.0000, 0.1500, 0.2000);
+      for (var di = 0u; di < detent_count; di++) {
+          let da = detent_angles[di];
+          let detent_diff = abs(pixel_angle - da);
+          let r = length(uv);
+          let notch_inner = arc_radius - 0.0225;
+          let notch_outer = arc_radius + 0.0225 * 0.65;
+          if (detent_diff < 0.0550 && r >= notch_inner && r <= notch_outer && pixel_angle >= -max_angle && pixel_angle <= max_angle) {
+              let dimple = smoothstep(0.0550, 0.0, detent_diff)
+                  * smoothstep(notch_outer, arc_radius, r)
+                  * smoothstep(notch_inner, arc_radius, r);
+              color = mix(color, detent_shadow, dimple * 0.85);
+              alpha += dimple * 0.55;
+          }
+      }
+
       // 3. Holographic Scanlines
       let scanline = sin(uv.y * 150.0 + u.time * 10.0) * 0.5 + 0.5;
 
@@ -99,14 +137,30 @@ exports[`holographic knob derivation contract > snapshots WGSL derived from KNOB
       let inner_glow = smoothstep(0.0, 0.5, len);
       alpha += circle_edge * 0.2 * scanline; // Background body
 
-      // The Needle
+      // The Needle — hardware-lit variant or legacy glow
       let proj = dot(uv, needle_vec);
       let perp = length(uv - needle_vec * proj);
-      // Guard against perp ≈ 0 to avoid Inf bloom
-      if (proj > 0.0 && proj < 0.5000 && perp < 0.02 && perp > 0.0005) {
-          alpha += min(1.0 / (perp * 100.0), 8.0); // Bloom needle, clamped
-          color = vec3f(1.0000, 1.0000, 1.0000); // White hot center
+      let needle_len = 0.5000;
+      
+      let needle_half_w = 0.018;
+      if (proj > 0.02 && proj < needle_len && perp < needle_half_w) {
+          let along = proj / needle_len;
+          let body = mix(vec3f(0.0500, 0.0800, 0.1200), vec3f(0.8200, 0.8600, 0.9000), smoothstep(0.0, 1.0, along));
+          let specular = exp(-pow((along - 0.68) / 0.11, 2.0))
+              * exp(-pow(perp / (needle_half_w * 0.35), 2.0));
+          color = mix(body, vec3f(1.0000, 1.0000, 1.0000), specular * 0.95);
+          alpha += smoothstep(needle_half_w, 0.0, perp) * 0.95;
       }
+      // Cast shadow opposite the needle on the knob face
+      let shadow_vec = -needle_vec;
+      let shadow_proj = dot(uv, shadow_vec);
+      let shadow_perp = length(uv - shadow_vec * shadow_proj);
+      if (shadow_proj > 0.02 && shadow_proj < 0.14 && shadow_perp < 0.07) {
+          let shadow_a = smoothstep(0.14, 0.02, shadow_proj) * smoothstep(0.07, 0.0, shadow_perp) * 0.35;
+          color = mix(color, vec3f(0.0500, 0.0800, 0.1200), shadow_a);
+          alpha += shadow_a * 0.4;
+      }
+      
 
       // 5. Fresnel / Glitch Effect
       let glitch = step(0.98, sin(u.time * 20.0 + uv.y * 10.0));
