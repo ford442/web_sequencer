@@ -22,14 +22,6 @@ vi.mock('../hooks/useAudioEngine', () => ({
 }));
 
 // Mock Pyodide hook
-vi.mock('../types/midi', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../types/midi')>();
-  return {
-    ...actual,
-    makeMidiControlId: vi.fn((target, param) => `${target}:${param}`),
-  };
-});
-
 vi.mock('../hooks/usePyodideEngine', () => ({
   usePyodideEngine: () => ({
     pyodide: null,
