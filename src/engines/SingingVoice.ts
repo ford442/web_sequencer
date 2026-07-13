@@ -46,7 +46,6 @@ export { midiToFreq, freqToMidi };
  * - Phoneme-aware time stretching (Section 3): Selective vowel/consonant stretching
  * - Formant shifting (Section 4): Independent vocal character control
  */
-export interface SingingVoice extends SingingVoicePublic {}
 
 export class SingingVoice implements SingingVoiceHost {
   audioContext: AudioContext;
