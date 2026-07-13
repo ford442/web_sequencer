@@ -8,10 +8,26 @@ import { useAutomationStore } from '../../stores/automationStore'
 import { midiMapStore, useMidiMapStore } from '../../stores/midiMapStore'
 import { registerMidiControlTouch, startMidiLearnForControl } from '../../hooks/useMidi'
 import { makeMidiControlId } from '../../types/midi'
-import type { AutomationTarget, AutomationRecordArm, UnifiedAutomationLane } from '../../types'
+import type { AutomationTarget, ExpressionLedTarget, UnifiedAutomationLane, TrackAnalysers } from '../../types'
 import { NUM_STEPS } from '../../constants'
 import { sampleLaneArcValues } from '../../utils/knobAutomationCurve'
 import type { TrackKey } from '../../constants/appDefaults'
+
+function colorHexToCss([r, g, b]: [number, number, number]): string {
+  return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+}
+
+function makeExpressionLedProps(
+  target: ExpressionLedTarget,
+  fallback: [number, number, number],
+  trackAnalysers?: TrackAnalysers,
+) {
+  return {
+    expressionLedTarget: target,
+    expressionLedAnalyser: trackAnalysers?.[target] ?? null,
+    expressionLedFallbackColor: colorHexToCss(fallback),
+  };
+}
 
 /** Stamp each KnobConfig with isRecording and isAutomated/automatedValue flags from the store. */
 function applyControlFlags(
@@ -160,7 +176,22 @@ export const RackNode = React.memo(() => {
     handleAutomationNudge,
     handleAutomationPunchIn,
     handleAutomationLaneAction,
+    audioEngine,
   } = useAppStateContext()
+
+  const expressionLedProps = React.useMemo(() => {
+    const analysers = audioEngine?.trackAnalysers;
+    return {
+      synthA: makeExpressionLedProps('synthA', COLOR_LEAD, analysers),
+      synthB: makeExpressionLedProps('synthB', COLOR_BASS, analysers),
+      bass2: makeExpressionLedProps('bass2', COLOR_BASS2, analysers),
+      kick: makeExpressionLedProps('kick', COLOR_KICK, analysers),
+      snare: makeExpressionLedProps('snare', COLOR_SNARE, analysers),
+      closedHat: makeExpressionLedProps('closedHat', COLOR_CH, analysers),
+      openHat: makeExpressionLedProps('openHat', COLOR_OH, analysers),
+      sampler: makeExpressionLedProps('sampler', COLOR_SAMPLER, analysers),
+    };
+  }, [audioEngine?.trackAnalysers]);
 
   // Subscribe to record-arm state and live automated values for knob indicators
   const { recordArms, liveAutomatedValues, lanes, showHardwareAutomation } = useAutomationStore()
@@ -265,13 +296,13 @@ export const RackNode = React.memo(() => {
     </span>
   ), [drumKit, updateDrumKit]);
 
-  const rackModulePartA = useMemo(() => <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={armedControlsMap.synthA} onParamChange={onSynthAParamChange} onRecordToggle={onRecordToggleSynthA} is3D={is3DMode} {...makeMidiHandlers('synthA')} {...makeAutomationHandlers('synthA', patternIndexFor('synthA'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)}>{synthAChild}</HardwareModule>, [armedControlsMap.synthA, onSynthAParamChange, onRecordToggleSynthA, is3DMode, synthAChild, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction])
-  const rackModulePartB = useMemo(() => <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={armedControlsMap.synthB} onParamChange={onSynthBParamChange} onRecordToggle={onRecordToggleSynthB} is3D={is3DMode} titleBadge={synthBTitleBadge} {...makeMidiHandlers('synthB')} {...makeAutomationHandlers('synthB', patternIndexFor('synthB'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)}>{synthBChild}</HardwareModule>, [armedControlsMap.synthB, onSynthBParamChange, onRecordToggleSynthB, is3DMode, synthBChild, synthBTitleBadge, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction])
-  const rackModuleBass2 = useMemo(() => <HardwareModule title="BASS 2 // TB-303" colorHex={COLOR_BASS2} controls={armedControlsMap.bass2} onParamChange={onBass2ParamChange} onRecordToggle={onRecordToggleBass2} is3D={is3DMode} titleBadge={bass2TitleBadge} {...makeMidiHandlers('bass2')} {...makeAutomationHandlers('bass2', patternIndexFor('bass2'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)}>{bass2Child}</HardwareModule>, [armedControlsMap.bass2, onBass2ParamChange, onRecordToggleBass2, is3DMode, bass2Child, bass2TitleBadge, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction])
-  const rackModuleKick = useMemo(() => <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={armedControlsMap.kick} onParamChange={handleKickChange} onRecordToggle={onRecordToggleKick} is3D={is3DMode} titleBadge={drumKitBadge} {...makeMidiHandlers('kick')} {...makeAutomationHandlers('kick', patternIndexFor('kick'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} />, [armedControlsMap.kick, handleKickChange, onRecordToggleKick, is3DMode, drumKitBadge, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction])
-  const rackModuleSnare = useMemo(() => <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={armedControlsMap.snare} onParamChange={handleSnareChange} onRecordToggle={onRecordToggleSnare} is3D={is3DMode} {...makeMidiHandlers('snare')} {...makeAutomationHandlers('snare', patternIndexFor('snare'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} />, [armedControlsMap.snare, handleSnareChange, onRecordToggleSnare, is3DMode, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction])
-  const rackModuleClosedHat = useMemo(() => <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={armedControlsMap.closedHat} onParamChange={handleClosedHatChange} onRecordToggle={onRecordToggleClosedHat} is3D={is3DMode} {...makeMidiHandlers('closedHat')} {...makeAutomationHandlers('closedHat', patternIndexFor('closedHat'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} />, [armedControlsMap.closedHat, handleClosedHatChange, onRecordToggleClosedHat, is3DMode, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction])
-  const rackModuleOpenHat = useMemo(() => <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={armedControlsMap.openHat} onParamChange={handleOpenHatChange} onRecordToggle={onRecordToggleOpenHat} is3D={is3DMode} {...makeMidiHandlers('openHat')} {...makeAutomationHandlers('openHat', patternIndexFor('openHat'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} />, [armedControlsMap.openHat, handleOpenHatChange, onRecordToggleOpenHat, is3DMode, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction])
+  const rackModulePartA = useMemo(() => <HardwareModule title="SYNTH A // LEAD" colorHex={COLOR_LEAD} controls={armedControlsMap.synthA} onParamChange={onSynthAParamChange} onRecordToggle={onRecordToggleSynthA} is3D={is3DMode} {...makeMidiHandlers('synthA')} {...makeAutomationHandlers('synthA', patternIndexFor('synthA'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} {...expressionLedProps.synthA}>{synthAChild}</HardwareModule>, [armedControlsMap.synthA, onSynthAParamChange, onRecordToggleSynthA, is3DMode, synthAChild, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction, expressionLedProps.synthA])
+  const rackModulePartB = useMemo(() => <HardwareModule title="SYNTH B // BASS" colorHex={COLOR_BASS} controls={armedControlsMap.synthB} onParamChange={onSynthBParamChange} onRecordToggle={onRecordToggleSynthB} is3D={is3DMode} titleBadge={synthBTitleBadge} {...makeMidiHandlers('synthB')} {...makeAutomationHandlers('synthB', patternIndexFor('synthB'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} {...expressionLedProps.synthB}>{synthBChild}</HardwareModule>, [armedControlsMap.synthB, onSynthBParamChange, onRecordToggleSynthB, is3DMode, synthBChild, synthBTitleBadge, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction, expressionLedProps.synthB])
+  const rackModuleBass2 = useMemo(() => <HardwareModule title="BASS 2 // TB-303" colorHex={COLOR_BASS2} controls={armedControlsMap.bass2} onParamChange={onBass2ParamChange} onRecordToggle={onRecordToggleBass2} is3D={is3DMode} titleBadge={bass2TitleBadge} {...makeMidiHandlers('bass2')} {...makeAutomationHandlers('bass2', patternIndexFor('bass2'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} {...expressionLedProps.bass2}>{bass2Child}</HardwareModule>, [armedControlsMap.bass2, onBass2ParamChange, onRecordToggleBass2, is3DMode, bass2Child, bass2TitleBadge, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction, expressionLedProps.bass2])
+  const rackModuleKick = useMemo(() => <HardwareModule title="KICK DRUM" colorHex={COLOR_KICK} controls={armedControlsMap.kick} onParamChange={handleKickChange} onRecordToggle={onRecordToggleKick} is3D={is3DMode} titleBadge={drumKitBadge} {...makeMidiHandlers('kick')} {...makeAutomationHandlers('kick', patternIndexFor('kick'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} {...expressionLedProps.kick} />, [armedControlsMap.kick, handleKickChange, onRecordToggleKick, is3DMode, drumKitBadge, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction, expressionLedProps.kick])
+  const rackModuleSnare = useMemo(() => <HardwareModule title="SNARE DRUM" colorHex={COLOR_SNARE} controls={armedControlsMap.snare} onParamChange={handleSnareChange} onRecordToggle={onRecordToggleSnare} is3D={is3DMode} {...makeMidiHandlers('snare')} {...makeAutomationHandlers('snare', patternIndexFor('snare'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} {...expressionLedProps.snare} />, [armedControlsMap.snare, handleSnareChange, onRecordToggleSnare, is3DMode, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction, expressionLedProps.snare])
+  const rackModuleClosedHat = useMemo(() => <HardwareModule title="CLOSED HAT" colorHex={COLOR_CH} controls={armedControlsMap.closedHat} onParamChange={handleClosedHatChange} onRecordToggle={onRecordToggleClosedHat} is3D={is3DMode} {...makeMidiHandlers('closedHat')} {...makeAutomationHandlers('closedHat', patternIndexFor('closedHat'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} {...expressionLedProps.closedHat} />, [armedControlsMap.closedHat, handleClosedHatChange, onRecordToggleClosedHat, is3DMode, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction, expressionLedProps.closedHat])
+  const rackModuleOpenHat = useMemo(() => <HardwareModule title="OPEN HAT" colorHex={COLOR_OH} controls={armedControlsMap.openHat} onParamChange={handleOpenHatChange} onRecordToggle={onRecordToggleOpenHat} is3D={is3DMode} {...makeMidiHandlers('openHat')} {...makeAutomationHandlers('openHat', patternIndexFor('openHat'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)} {...expressionLedProps.openHat} />, [armedControlsMap.openHat, handleOpenHatChange, onRecordToggleOpenHat, is3DMode, patternIndexFor, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction, expressionLedProps.openHat])
   const rackModuleSampler = useMemo(() => (
     <SamplerVoicePanel
       title={`SAMPLER // BANK ${activeSamplerBank + 1}`}
@@ -282,6 +313,7 @@ export const RackNode = React.memo(() => {
       is3D={is3DMode}
       {...makeMidiHandlers('sampler')}
       {...makeAutomationHandlers('sampler', patternIndexFor('sampler'), handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction)}
+      {...expressionLedProps.sampler}
       {...samplerVoiceParams}
       onSamplerParamChange={handleSamplerVoiceChange}
       harmonizerConfig={harmonizerConfig}
@@ -290,7 +322,7 @@ export const RackNode = React.memo(() => {
     >
       {samplerChild}
     </SamplerVoicePanel>
-  ), [activeSamplerBank, armedControlsMap.sampler, handleSamplerChange, onRecordToggleSampler, is3DMode, samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig, handleHarmonizerConfigChange, isHarmonizeActive, samplerChild])
+  ), [activeSamplerBank, armedControlsMap.sampler, handleSamplerChange, onRecordToggleSampler, is3DMode, samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig, handleHarmonizerConfigChange, isHarmonizeActive, samplerChild, expressionLedProps.sampler])
 
   const rackModules = useMemo(() => ({
     partA: rackModulePartA,

@@ -7,6 +7,8 @@ import { VoiceManager } from '../../engines/VoiceManager';
 import { MultisampleGenerator } from '../../engines/MultisampleGenerator';
 import { PhonemeBufferPool } from '../../services/PhonemeBufferPool';
 import { engineTelemetry } from '../../utils/engineTelemetry';
+import { createTrackMonitor } from '../../audio/trackAnalysers';
+import type { TrackAnalysers } from '../../types';
 import {
     createNoiseBuffer,
     initializeChoirBuses,
@@ -23,6 +25,11 @@ type AudioWindow = Window & typeof globalThis & {
 };
 
 export interface EngineLifecycleRefs {
+    analyserNodeRef: MutableRefObject<AnalyserNode | null>;
+    trackAnalysersRef: MutableRefObject<TrackAnalysers>;
+    synthABusRef: MutableRefObject<GainNode | null>;
+    synthBBusRef: MutableRefObject<GainNode | null>;
+    samplerBusRef: MutableRefObject<GainNode | null>;
     masterGainRef: MutableRefObject<GainNode | null>;
     masterPannerRef: MutableRefObject<StereoPannerNode | null>;
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>;
@@ -91,7 +98,20 @@ export async function initializeAudioContextAndEngines(
         refs.masterCompressorRef,
         refs.sidechainGainRef,
         refs.bassSidechainEQBusRef,
+        refs.analyserNodeRef,
     );
+
+    const synthATap = createTrackMonitor(context, masterBusInput);
+    refs.synthABusRef.current = synthATap.bus;
+    refs.trackAnalysersRef.current.synthA = synthATap.analyser;
+
+    const synthBTap = createTrackMonitor(context, masterBusInput);
+    refs.synthBBusRef.current = synthBTap.bus;
+    refs.trackAnalysersRef.current.synthB = synthBTap.analyser;
+
+    const samplerTap = createTrackMonitor(context, masterBusInput);
+    refs.samplerBusRef.current = samplerTap.bus;
+    refs.trackAnalysersRef.current.sampler = samplerTap.analyser;
 
     // Initialize Reverb Node
     // Initialize Reverb Nodes (Room, Plate, Hall)
@@ -177,9 +197,11 @@ export async function initializeAudioContextAndEngines(
         console.warn('Engine telemetry registration failed for oscillators', e);
     }
 
-    // Initialize Voice Managers
-    refs.voiceManagerARef.current = new VoiceManager(context, refs.masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
-    refs.voiceManagerBRef.current = new VoiceManager(context, refs.masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
+    // Initialize Voice Managers (routed through per-track monitor buses for expression LEDs)
+    const synthADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
+    const synthBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
+    refs.voiceManagerARef.current = new VoiceManager(context, synthADest, 8, false, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
+    refs.voiceManagerBRef.current = new VoiceManager(context, synthBDest, 1, true, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
 
     await initializeSustainProcessor(context, urls.sustainProcessorUrl, refs.sustainNodeRef, refs.masterGainRef);
 
@@ -215,8 +237,9 @@ export async function initializeAudioContextAndEngines(
             refs.choirRightPannerRef,
         );
 
+        const samplerDest = refs.samplerBusRef.current ?? refs.masterSaturationRef.current!;
         manager.getAllVoices().forEach(voice => {
-            voice.connectOutput(refs.masterSaturationRef.current!);
+            voice.connectOutput(samplerDest);
         });
 
         // Initialise the phoneme buffer pool and wire it to every voice
