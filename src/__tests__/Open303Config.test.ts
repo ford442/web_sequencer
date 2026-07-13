@@ -11,12 +11,18 @@ vi.stubGlobal('WebAssembly', {
     },
 });
 
-// Mock fetch for WASM files
+// Mock fetch for WASM files and export map
 global.fetch = vi.fn((url: string) => {
     if (typeof url === 'string' && url.includes('hyphon_native.wasm')) {
         return Promise.resolve({
             ok: true,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(2048))
+        } as Response);
+    }
+    if (typeof url === 'string' && url.includes('hyphon_wasm_export_map.json')) {
+        return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ open303_create: 'da', open303_init: 'fa' }),
         } as Response);
     }
     return Promise.resolve({
@@ -82,8 +88,9 @@ describe('Open303 Oscillator', () => {
             }
         } as any;
 
-        // Mock AudioWorkletNode constructor
-        global.AudioWorkletNode = vi.fn().mockImplementation(() => mockWorkletNode) as any;
+        // Mock AudioWorkletNode constructor (vitest 4 uses Reflect.construct,
+        // so the implementation must be a constructable function, not an arrow).
+        global.AudioWorkletNode = vi.fn().mockImplementation(function () { return mockWorkletNode; }) as any;
     });
 
     it('should initialize successfully', async () => {

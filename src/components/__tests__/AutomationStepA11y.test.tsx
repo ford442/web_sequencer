@@ -36,7 +36,7 @@ describe('AutomationStep Accessibility', () => {
         render(<TestWrapper {...defaultProps} />);
         const slider = screen.getByRole('slider');
 
-        expect(slider).toHaveAttribute('aria-label', 'Lead automation step 1');
+        expect(slider).toHaveAttribute('aria-label', 'Lead automation step 1, Active');
         expect(slider).toHaveAttribute('aria-valuenow', '50');
         expect(slider).toHaveAttribute('aria-valuetext', '50%');
         expect(slider).toHaveAttribute('tabindex', '0');

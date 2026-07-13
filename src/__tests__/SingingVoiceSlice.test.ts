@@ -19,7 +19,8 @@ class MockAudioWorkletNode {
         ['tremoloDepth', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
         ['tremoloRate', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
         ['breathIntensity', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
-        ['grainPitchQuantize', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }]
+        ['grainPitchQuantize', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }],
+        ['granularPitchShift', { setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() }]
     ]);
 
     connect = vi.fn().mockReturnThis();
@@ -32,6 +33,34 @@ class MockAudioContext {
     audioWorklet = {
         addModule: vi.fn().mockResolvedValue(undefined)
     };
+
+
+    createGain() {
+        return {
+            gain: { value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() },
+            connect: vi.fn().mockReturnThis(),
+            disconnect: vi.fn()
+        };
+    }
+
+    createOscillator() {
+        return {
+            type: 'sine',
+            frequency: { value: 0, setValueAtTime: vi.fn() },
+            start: vi.fn(),
+            stop: vi.fn(),
+            connect: vi.fn().mockReturnThis(),
+            disconnect: vi.fn()
+        };
+    }
+
+    createStereoPanner() {
+        return {
+            pan: { value: 0, setValueAtTime: vi.fn() },
+            connect: vi.fn().mockReturnThis(),
+            disconnect: vi.fn()
+        };
+    }
 
     createBiquadFilter() {
         return {
@@ -181,6 +210,11 @@ describe('SingingVoice Slice Triggering', () => {
     it('should set grainPitchQuantize on the worklet parameter', () => {
         voice.setGrainPitchQuantize(7);
         expect(mockWorkletNode.parameters.get('grainPitchQuantize').setValueAtTime).toHaveBeenCalledWith(7, 0);
+    });
+
+    it('should set granularPitchShift on the worklet parameter', () => {
+        voice.setGranularPitchShift(-12);
+        expect(mockWorkletNode.parameters.get('granularPitchShift').setValueAtTime).toHaveBeenCalledWith(-12, 0);
     });
 });
 

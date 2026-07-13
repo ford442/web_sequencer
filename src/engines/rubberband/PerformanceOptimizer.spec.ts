@@ -7,7 +7,7 @@ import {
     type PerformanceConfig,
     type QualityLevel,
     type CpuLoadStatus
-} from './PerformanceOptimizer';
+} from './performance';
 
 describe('PerformanceOptimizer', () => {
     let optimizer: PerformanceOptimizer;

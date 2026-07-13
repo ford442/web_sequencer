@@ -91,6 +91,151 @@ export const AUTOMATION_PARAMETER_MAP: Record<number, string> = {
 };
 
 // ============================================================================
+// IFF CAT RB40 SONG DATA TYPES (per RBS42.txt + rbs.h from nsauzede/jsynth)
+// ============================================================================
+
+/**
+ * GLOB chunk data (512 bytes in v2.0 files).
+ * Contains global song settings: play mode, tempo, shuffle, loop points, vintage mode.
+ * Ref: RBS42.txt GLOB section, rbs.h struct glob_t.
+ */
+export interface RbsGlobData {
+  /** Play mode: 0 = pattern (single loop), 1 = song (arrangement) */
+  playMode: 0 | 1;
+  /** Tempo in BPM (40-250) */
+  tempo: number;
+  /** Shuffle/swing amount (0-127, 64 = no shuffle) */
+  shuffle: number;
+  /** Song loop start position (in pattern slots / bars) */
+  loopStart: number;
+  /** Song loop end position (in pattern slots / bars) */
+  loopEnd: number;
+  /** Vintage mode flag (0 = off, 1 = on) — affects sound character */
+  vintage: number;
+}
+
+/**
+ * Single TRAK event from TRKL catalog.
+ * Each event is (delta position in ticks, controller ID, value).
+ * Resolution: ~24 PPQ (768 ticks per bar for 4/4 at 32 steps).
+ * Ref: RBS42.txt TRAK section, rbs.h struct trak_event_t.
+ *
+ * Controller IDs are **per-track** — see {@link TRAK_TRACK_CONTROLLER_MAP} in
+ * `trakControllers.ts`. Do not use {@link AUTOMATION_PARAMETER_MAP} for TRAK bytes.
+ */
+export interface RbsTrakEvent {
+  /** Delta position in ticks from the last event (24 PPQ) */
+  deltaTicks: number;
+  /** Absolute tick position (computed during parsing) */
+  absoluteTicks: number;
+  /** TRAK track index (0=mixer, 1=303-A, … — see TRAK_TRACK_INDEX). */
+  trackIndex: number;
+  /** Per-track controller ID (rbs.h track-local enum). */
+  controllerId: number;
+  /** Value for this event (0-255 typically, interpretation depends on controller) */
+  value: number;
+  /** Resolved semantic category (pattern select vs knob move vs mixer routing). */
+  eventKind: import('./trakControllers').TrakEventKind;
+}
+
+/**
+ * Single TRAK chunk — one track in the song arrangement.
+ * Tracks correspond to: Mixer, TB-303 #1, TB-303 #2, TR-808, TR-909, Effects.
+ * Ref: RBS42.txt TRAK chunk layout.
+ */
+export interface RbsTrakData {
+  /** Track index (0-based, order: mixer=0, 303-1=1, 303-2=2, 808=3, 909=4, fx=5+) */
+  trackIndex: number;
+  /** Human-readable track name */
+  trackName: string;
+  /** Number of events in this track */
+  eventCount: number;
+  /** List of events for this track */
+  events: RbsTrakEvent[];
+}
+
+/**
+ * Full song data extracted from IFF CAT RB40 structure.
+ * Represents the complete multi-pattern song arrangement.
+ */
+export interface RbsSongData {
+  /** GLOB settings (play mode, tempo, loop points) */
+  glob: RbsGlobData;
+  /** All pattern banks per device (up to 32 patterns each).
+   *  Index: [deviceIndex][patternIndex] */
+  patternBanks: {
+    tb303A: Tb303PatternA[];
+    tb303B: Tb303PatternB[];
+    drums808: DrumPattern[];
+    drums909: DrumPattern[];
+  };
+  /** TRKL track arrangement data (one per track) */
+  tracks: RbsTrakData[];
+  /** Total song length in ticks (computed from max event position) */
+  totalLengthTicks: number;
+  /** Total song length in bars (assuming 768 ticks per bar) */
+  totalLengthBars: number;
+  /** Number of patterns actually used in the song arrangement */
+  usedPatternCount: number;
+}
+
+/**
+ * TRAK controller ID constants — **legacy arrangement shorthand only**.
+ * Real IFF TRAK bytes use per-track enums in `trakControllers.ts` (e.g. TB-303
+ * pattern select = 0x01, cutoff = 0x03 on track 1).
+ */
+export const TRAK_CONTROLLER = {
+  /** @deprecated Use TB303_TRAK_CONTROLLER.PATTERN_SELECT on instrument tracks */
+  PATTERN_SELECT: 0,
+  /** Mute toggle (value: 0=unmute, 1=mute) */
+  MUTE: 1,
+  /** Volume (0-127) */
+  VOLUME: 2,
+  /** Pan (0-127, 64=center) */
+  PAN: 3,
+} as const;
+
+/**
+ * TRAK track index constants (rbs.h trak_event_t ordering).
+ * Ref: RBS42.txt track ordering in TRKL catalog.
+ */
+export const TRAK_TRACK_INDEX = {
+  MIXER: 0,
+  TB303_1: 1,
+  TB303_2: 2,
+  TR808: 3,
+  TR909: 4,
+  DELAY: 5,
+  DIST: 6,
+  PCF: 7,
+  COMPRESSOR: 8,
+  /** @deprecated Alias for DELAY (track index 5). */
+  EFFECTS: 5,
+} as const;
+
+// Re-export per-track TRAK controller tables (rbs.h).
+export type { TrakEventKind, TrakParamMapping } from './trakControllers';
+export {
+  TRAK_TRACK_CONTROLLER_MAP,
+  TB303_TRAK_CONTROLLER,
+  MIXER_TRAK_CONTROLLER,
+  DRUM_TRAK_CONTROLLER,
+  PCF_TRAK_CONTROLLER,
+  DELAY_TRAK_CONTROLLER,
+  resolveTrakEventKind,
+  isTrakPatternSelectEvent,
+  isTrakParamAutomationEvent,
+  resolveTrakParamMapping,
+  normaliseTrakParamValue,
+} from './trakControllers';
+
+/** Ticks per bar in ReBirth format (768 ticks/bar in 4/4 time) */
+export const TICKS_PER_BAR = 768;
+
+/** Ticks per step (768 / 16 steps = 48 ticks per step) */
+export const TICKS_PER_STEP = 48;
+
+// ============================================================================
 // RAW RBS DATA (as read from file - closely mirrors RBS format)
 // ============================================================================
 
@@ -125,7 +270,21 @@ export interface RawRbsData {
   
   /** Original binary header for debugging */
   rawHeader?: RbsBinaryHeader;
+
+  /** Full IFF CAT RB40 song data (populated when file is a full song with GLOB + TRKL).
+   *  Contains multi-pattern banks, song arrangement tracks, and global settings.
+   *  When present, indicates the file is a full song (not just a single pattern). */
+  songData?: RbsSongData;
+
+  /** Devices present in the file (from DEVL banks or legacy layout inference). */
+  devicesPresent?: RbsDeviceId[];
+
+  /** Which parser path produced this data. */
+  parsePath?: 'legacy' | 'iff';
 }
+
+/** ReBirth device identifiers for import reporting. */
+export type RbsDeviceId = '303-1' | '303-2' | '808' | '909';
 
 /**
  * RBS Project metadata
@@ -190,6 +349,13 @@ export interface Tb303PatternA {
   
   /** Delay send (0-127, if supported) */
   delaySend?: number;
+
+  /**
+   * Slide/portamento time (0-127).
+   * Fixed at ~0x2A (42) on authentic TB-303 hardware (≈ 60 ms at nominal tempo).
+   * Only populated when the RBS file explicitly encodes a custom slide time.
+   */
+  slideTime?: number;
 }
 
 /**
@@ -226,6 +392,13 @@ export interface Tb303PatternB {
   
   /** Transpose offset in semitones (-12 to +12) */
   transpose?: number;
+
+  /**
+   * Slide/portamento time (0-127).
+   * Fixed at ~0x2A (42) on authentic TB-303 hardware (≈ 60 ms at nominal tempo).
+   * Only populated when the RBS file explicitly encodes a custom slide time.
+   */
+  slideTime?: number;
 }
 
 /**
@@ -336,7 +509,10 @@ export interface PcfSettings {
   
   /** 16 or 32 step pattern for filter modulation (0-127 per step) */
   pattern: number[];
-  
+
+  /** PCF wave preset index from IFF DEVL (0–55); legacy path derives pattern from bytes directly. */
+  waveIndex?: number;
+
   /** Target: which parts go through PCF */
   target: {
     tb303A: boolean;
@@ -350,7 +526,12 @@ export interface PcfSettings {
  */
 export interface AutomationLane {
   /** Parameter being automated */
-  parameter: 'tempo' | 'swing' | 'tb303Acutoff' | 'tb303Bcutoff' | 'pcfCutoff' | 'masterVolume';
+  parameter: 'tempo' | 'swing'
+    | 'tb303Acutoff' | 'tb303Bcutoff'
+    | 'tb303Aresonance' | 'tb303Bresonance'
+    | 'tb303Adecay' | 'tb303Bdecay'
+    | 'pcfCutoff' | 'pcfResonance' | 'pcfEnvAmount'
+    | 'masterVolume';
   
   /** Human-readable name */
   name: string;
@@ -448,6 +629,41 @@ export interface HyphonSong {
     tb303AParams: Omit<Tb303PatternA, 'steps'>;
     tb303BParams: Omit<Tb303PatternB, 'steps'>;
   };
+
+  /** Song arrangement data (populated when file contains full IFF song with GLOB + TRKL).
+   *  Contains multi-pattern banks + arrangement events for SongMode playback. */
+  songArrangement?: {
+    /** Play mode: 'pattern' (single loop) or 'song' (multi-pattern arrangement) */
+    mode: 'pattern' | 'song';
+    /** Pattern banks per track (up to 32 patterns each, mapped to Hyphon trackStorage slots) */
+    trackStorage: {
+      partA: (Pattern['partA'] | null)[];
+      partB: (Pattern['partB'] | null)[];
+      bass2: (Pattern['bass2'] | null)[];
+      kick: (Pattern['kick'] | null)[];
+      snare: (Pattern['snare'] | null)[];
+      closedHat: (Pattern['closedHat'] | null)[];
+      openHat: (Pattern['openHat'] | null)[];
+    };
+    /** Song structure (ordered pattern slot indices per track per measure) */
+    songStructure: Array<Record<string, number | null>>;
+    /** Active pattern slot per track (from measure 0 / first reference) */
+    activeTrackSlots?: Record<string, number>;
+    /** Loop start bar (0-based) */
+    loopStart?: number;
+    /** Loop end bar (0-based) */
+    loopEnd?: number;
+    /** Raw TRAK events preserved for arrangement / debugging */
+    trakEvents?: RbsTrakEvent[];
+    /** Sub-step knob automation events (paramChange only — excludes pattern select). */
+    trakParamEvents?: RbsTrakEvent[];
+    /** Per-slot TB-303 knob params from DEVL pattern banks (song-mode pattern recall). */
+    trackParamStorage?: {
+      synthA: (Partial<SynthParams> | null)[];
+      synthB: (Partial<SynthParams> | null)[];
+      bass2: (Partial<Bass2Params> | null)[];
+    };
+  };
 }
 
 /**
@@ -512,6 +728,7 @@ export interface RbsImportOptions {
 
 /** Default import options */
 export const DEFAULT_RBS_IMPORT_OPTIONS: RbsImportOptions = {
+  /** v1.5 files expose a single TB-303 — maps to partA (SYNTH A) by default. */
   tb303ATarget: 'partA',
   tb303BTarget: 'bass2',
   convertPcfToAutomation: true,
@@ -550,4 +767,37 @@ export interface DetailedParameterMapping {
   originalValue: number | string;
   convertedValue: number | string;
   formula?: string;
+}
+
+// ============================================================================
+// PARAMETER LOCKS
+// ============================================================================
+
+/**
+ * Per-step parameter lock — a one-off parameter override applied for exactly
+ * one sequencer step.
+ *
+ * Analogous to Elektron's "parameter lock" concept; in ReBirth this corresponds
+ * to per-step accent/slide flags and (when present) per-step PCF overrides.
+ *
+ * During import, `RbsImporter.generateParameterLocks()` converts these from
+ * per-step TB-303 and PCF data and stores them alongside the song.  At
+ * playback, the AutomationScheduler converts active locks into time-stamped
+ * parameter changes so each step receives the correct value independently.
+ *
+ * @see RbsImporter.generateAccentSlideAutomation
+ * @see AutomationScheduler._apply303Param
+ */
+export interface RbsParameterLock {
+  /** Target instrument/track. */
+  target: 'synthA' | 'synthB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'master';
+  /**
+   * Parameter name — matches the names used by AutomationScheduler
+   * (e.g. `'accent'`, `'slide'`, `'filterCutoff'`).
+   */
+  parameter: string;
+  /** 0-based step index within the pattern (0–31). */
+  step: number;
+  /** Locked value, normalised to the 0–1 range. */
+  value: number;
 }

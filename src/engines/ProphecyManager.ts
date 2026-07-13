@@ -10,12 +10,16 @@
  */
 
 import { ProphecyOscillator } from './ProphecyOscillator';
+import { logEngineFallback } from '../utils/engineTelemetry';
 import type { SynthParams } from '../types';
 import { PROPHECY_WAVEFORM_ID } from './ProphecyParams';
+
+export type ProphecyAutomationParam = 'vowel' | 'portamento' | 'formantShift';
 
 export class ProphecyManager {
     private partA: ProphecyOscillator | null = null;
     private partB: ProphecyOscillator | null = null;
+    private audioContext: AudioContext | null = null;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -26,6 +30,7 @@ export class ProphecyManager {
      * instances share a single worklet load.
      */
     async init(audioContext: AudioContext, workletUrl: string): Promise<boolean> {
+        this.audioContext = audioContext;
         this.partA = new ProphecyOscillator();
         this.partB = new ProphecyOscillator();
 
@@ -38,8 +43,8 @@ export class ProphecyManager {
         const aReady = aResult.status === 'fulfilled' && aResult.value;
         const bReady = bResult.status === 'fulfilled' && bResult.value;
 
-        if (!aReady) console.warn('[ProphecyManager] partA init failed');
-        if (!bReady) console.warn('[ProphecyManager] partB init failed');
+        if (!aReady) logEngineFallback('prophecy', 'wasm-worklet', 'partA (SYNTH A) init failed');
+        if (!bReady) logEngineFallback('prophecy', 'wasm-worklet', 'partB (SYNTH B) init failed');
 
         return aReady || bReady;
     }
@@ -99,6 +104,43 @@ export class ProphecyManager {
         if (this.partB) ProphecyManager.applyParams(this.partB, params, waveType);
     }
 
+    /**
+     * Schedule a Prophecy parameter at an AudioContext time (not rAF).
+     * Worklet params are dispatched via a wall-clock delay derived from the audio clock.
+     */
+    scheduleParamAtTime(
+        part: 'partA' | 'partB',
+        param: ProphecyAutomationParam,
+        value: number,
+        audioTime: number,
+    ): void {
+        const osc = part === 'partA' ? this.partA : this.partB;
+        if (!osc || !this.audioContext) return;
+
+        const nowAudio = this.audioContext.currentTime;
+        const delayMs = Math.max(0, (audioTime - nowAudio) * 1000);
+
+        const apply = () => {
+            switch (param) {
+                case 'vowel':
+                    osc.setVowel(Math.round(Math.max(0, Math.min(4, value * 4))));
+                    break;
+                case 'portamento':
+                    osc.setPortamento(Math.max(0, Math.min(1, value)));
+                    break;
+                case 'formantShift':
+                    osc.setFormantShift(Math.max(0, Math.min(1, value)));
+                    break;
+            }
+        };
+
+        if (delayMs < 1) {
+            apply();
+        } else {
+            setTimeout(apply, delayMs);
+        }
+    }
+
     // ── Note control ─────────────────────────────────────────────────────────
 
     noteOnPartA(midiNote: number, velocity: number = 100): void {
@@ -129,5 +171,6 @@ export class ProphecyManager {
         this.partB?.cleanup();
         this.partA = null;
         this.partB = null;
+        this.audioContext = null;
     }
 }

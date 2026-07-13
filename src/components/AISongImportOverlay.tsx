@@ -28,7 +28,7 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
     const currentIdx = aiImportStage ? stageOrder.indexOf(aiImportStage) : -1;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="AI Song Import Progress">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="AI Song Import Progress" tabIndex={-1}>
             <div className="bg-[#0f1115] border border-emerald-500/30 rounded-xl shadow-[0_0_60px_rgba(16,185,129,0.3)] p-8 max-w-md w-full mx-4">
                 <div className="flex items-center gap-4 mb-6">
                     <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
@@ -59,7 +59,14 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
                 </div>
                 
                 {/* Progress Bar */}
-                <div className="relative h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                    className="relative h-2 bg-gray-800 rounded-full overflow-hidden"
+                    role="progressbar"
+                    aria-valuenow={Math.round(aiImportProgress)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="AI Song Import Progress"
+                >
                     <div 
                         className={`absolute top-0 left-0 h-full rounded-full transition-all duration-300 ${
                             aiImportStage === 'error' ? 'bg-red-500' :
@@ -116,7 +123,7 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
                 
                 {/* Cancel Button (only during non-critical stages) */}
                 {aiImportStage && !['complete', 'error', 'loading'].includes(aiImportStage) && (
-                    <button
+                    <button type="button"
                         onClick={() => {
                             setIsImportingAISong(false);
                             setAiImportStage(null);

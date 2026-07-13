@@ -26,6 +26,10 @@ export const ContextMenuNode = React.memo(() => {
           trackType={track === 'sampler' ? 'voice' : (track.startsWith('part') ? 'synth' : 'drum')}
           currentNote={stepData?.note ?? ''}
           currentLength={stepData?.length ?? 1}
+          currentPan={stepData?.pan}
+          currentPitchAmount={stepData?.pitchAmount}
+          currentPitchAttack={stepData?.pitchAttack}
+          currentPitchDecay={stepData?.pitchDecay}
           currentTimbre={stepData?.timbre ?? 0}
           currentVelocity={stepData?.velocity ?? 1}
           currentProbability={stepData?.probability ?? 1}
@@ -38,9 +42,17 @@ export const ContextMenuNode = React.memo(() => {
           currentFilterCutoff={stepData?.filterCutoff}
           currentFilterResonance={stepData?.filterResonance}
           currentEnvMod={stepData?.envMod}
+          currentFormantLfoSync={stepData?.formantLfoSync}
           currentFormantLfoRate={stepData?.formantLfoRate ?? 0}
           currentFormantLfoDepth={stepData?.formantLfoDepth ?? 0}
+          currentFormantEnvSync={stepData?.formantEnvSync}
+          currentFormantEnvAttack={stepData?.formantEnvAttack}
+          currentFormantEnvDecay={stepData?.formantEnvDecay}
+          currentFormantEnvAmount={stepData?.formantEnvAmount}
+          currentFormantEnvFollower={stepData?.formantEnvFollower}
           currentVibratoDepth={stepData?.vibratoDepth ?? 0}
+          currentTremoloDepth={stepData?.tremoloDepth ?? 0}
+          currentTremoloRate={stepData?.tremoloRate ?? 0}
           currentGateDepth={stepData?.gateDepth}
           currentGateRate={stepData?.gateRate}
           currentDrive={stepData?.drive}
@@ -51,13 +63,23 @@ export const ContextMenuNode = React.memo(() => {
           currentDelayLfoDepth={stepData?.delayLfoDepth}
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
+          currentVocoderMix={stepData?.vocoderMix}
           currentTranceGate={stepData?.tranceGate}
+          currentTimeStretchEnvDepth={stepData?.timeStretchEnvDepth}
+          currentFreezeEnvDepth={stepData?.freezeEnvDepth}
+          currentGrainEnvDepth={stepData?.grainEnvDepth}
+          currentGrainPitchEnvDepth={stepData?.grainPitchEnvDepth}
+          currentGrainJitter={stepData?.grainJitter}
+          currentGrainPitchQuantize={stepData?.grainPitchQuantize}
+          currentSpectralPanRate={stepData?.spectralPanRate ?? 0}
+          currentSpectralPanDepth={stepData?.spectralPanDepth ?? 0}
+          currentGranularPitchShift={stepData?.granularPitchShift}
           isProphecy={isProphecy}
           currentVowel={stepData?.vowel ?? 0}
           currentPortamento={stepData?.portamento ?? 0}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
-          onPropertyChange={handleNotePropertyChange}
+          onPropertyChange={handleNotePropertyChange as any}
           onClose={() => setContextMenu(null)}
           getNoteColor={getNoteColor}
           currentScale={currentScale}

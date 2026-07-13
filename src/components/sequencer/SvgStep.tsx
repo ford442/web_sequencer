@@ -3,6 +3,7 @@ import type { PointerEvent, MouseEvent, MutableRefObject, CSSProperties } from '
 import type { TrackKey } from '../../types';
 import { TRACK_COLORS } from './constants';
 import { getNoteColor } from '../../utils/noteColors';
+import { getStepHitRect } from './stepHitGeometry';
 
 interface SvgStepProps {
     stepIndex: number;
@@ -32,6 +33,7 @@ export const SvgStep = memo(({
     const height = 50;
     const x = 220 + stepIndex * (baseWidth + gap);
     const totalWidth = (baseWidth * length) + (gap * (length - 1));
+    const hitRect = getStepHitRect(totalWidth, height);
     const color = note ? getNoteColor(note, rowKey) : '#06b6d4';
     const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
     const groupIndex = Math.floor(stepIndex / 4);
@@ -96,11 +98,11 @@ export const SvgStep = memo(({
             }} 
             onContextMenu={(e) => e.preventDefault()} 
             cursor="pointer" 
-            style={{ transition: 'all 0.1s ease', touchAction: 'manipulation', '--focus-color': focusColor } as CSSProperties}
+            style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as CSSProperties}
         >
-            {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
+            {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" style={{ pointerEvents: 'none' }} />}
             {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
-            <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
+            <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" style={{ pointerEvents: 'none' }} />
             {active && isSlide && <rect x={4} y={height - 8} width={totalWidth - 8} height={3} rx={1} fill="#fbbf24" fillOpacity={1} style={{ mixBlendMode: 'plus-lighter' }} />}
             <rect x={1} y={1} width={totalWidth - 2} height={height - 2} rx={2} fill={baseFill} strokeWidth={0} />
             <path d={`M 2 2 L ${totalWidth - 2} 2 L ${totalWidth - 4} 4 L 4 4 L 4 ${height - 4} L 2 ${height - 2} Z`} fill="rgba(255,255,255,0.2)" />
@@ -108,7 +110,8 @@ export const SvgStep = memo(({
             <rect className="step-cap" x={3} y={4} width={totalWidth - 6} height={height - 8} rx={1} fill={active ? color : '#1a2026'} fillOpacity={active ? 0.6 : 1} stroke={active ? color : 'none'} strokeWidth={active ? 1 : 0} />
             {length > 1 && (<g pointerEvents="none"><g opacity={0.3} fill="#000"><rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} /></g><g transform={`translate(${totalWidth - 25}, 8)`}><rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} /><text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">{length}x</text></g></g>)}
             <rect x={4} y={5} width={totalWidth - 8} height={(height - 10) / 2} rx={1} fill="url(#glassGrad)" fillOpacity={0.3} pointerEvents="none" />
-            <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} />
+            <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} style={{ pointerEvents: 'none' }} />
+            <rect className="step-hit-target" x={hitRect.x} y={hitRect.y} width={hitRect.width} height={hitRect.height} fill="transparent" />
         </g>
     )
 });

@@ -3,7 +3,7 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { LoadingButton } from './LoadingButton';
 import type { SynthParams } from '../types';
 import { Knob } from './Knob';
-import { WaveformSelector } from './WaveformSelector';
+import { OscillatorModuleSelector } from './OscillatorModuleSelector';
 
 const FILTER_MODE_18_DB = 18;
 const FILTER_MODE_24_DB = 24;
@@ -50,7 +50,7 @@ export const SynthPart: React.FC<SynthPartProps> = memo(({ title, accentColor, p
   }, [handleParamChange]);
 
   return (
-    <div className={`relative bg-gray-900/50 p-4 rounded-lg border-2 ${accentClasses[accentColor].border} space-y-4`}>
+    <div className={`relative bg-gray-900/50 p-4 rounded-lg border-2 space-y-4 hyphon-legacy-panel hyphon-legacy-panel--${accentColor}`}>
       <div className="flex justify-between items-start">
         <h2 className={`font-orbitron text-xl font-bold ${accentClasses[accentColor].text}`}>{title}</h2>
         <LoadingButton
@@ -73,27 +73,32 @@ export const SynthPart: React.FC<SynthPartProps> = memo(({ title, accentColor, p
       <div className={`relative transition-opacity duration-300 ${isDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
-            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Oscillator</legend>
-            <WaveformSelector selected={params.waveform} onChange={handlers.waveform} accentColor={accentColor} />
+            <legend className="sr-only">Oscillator</legend>
+            <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1 -mt-3 bg-gray-900 w-max" aria-hidden="true">Oscillator</div>
+            <OscillatorModuleSelector selected={params.waveform} onChange={handlers.waveform} accentColor={accentColor} />
             <Knob label="Pitch" value={params.pitch} onChange={handlers.pitch} min={-24} max={24} step={1} color={accentClasses[accentColor].knob} unit="st" />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
-            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Filter</legend>
+            <legend className="sr-only">Filter</legend>
+            <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1 -mt-3 bg-gray-900 w-max" aria-hidden="true">Filter</div>
             <Knob label="Cutoff" value={params.filterCutoff} onChange={handlers.filterCutoff} min={20} max={15000} color={accentClasses[accentColor].knob} unit="Hz" logarithmic />
             <Knob label="Resonance" value={params.filterResonance} onChange={handlers.filterResonance} min={0.1} max={30} color={accentClasses[accentColor].knob} unit="Q" />
             <Knob label="Mode" value={filterModeValue} onChange={handlers.filterMode} min={FILTER_MODE_18_DB} max={FILTER_MODE_24_DB} step={FILTER_MODE_STEP_DB} color={accentClasses[accentColor].knob} unit="dB" />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
-            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Envelope</legend>
+            <legend className="sr-only">Envelope</legend>
+            <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1 -mt-3 bg-gray-900 w-max" aria-hidden="true">Envelope</div>
             <Knob label="Attack" value={params.attack} onChange={handlers.attack} min={0.005} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
             <Knob label="Decay" value={params.decay} onChange={handlers.decay} min={0.01} max={2} step={0.001} color={accentClasses[accentColor].knob} unit="s" logarithmic />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
-            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Output</legend>
+            <legend className="sr-only">Output</legend>
+            <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1 -mt-3 bg-gray-900 w-max" aria-hidden="true">Output</div>
             <Knob label="Volume" value={params.volume} onChange={handlers.volume} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} />
           </fieldset>
           <fieldset className="space-y-2 border border-gray-800 rounded p-1">
-            <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1">Delay</legend>
+            <legend className="sr-only">Delay</legend>
+            <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-1 -mt-3 bg-gray-900 w-max" aria-hidden="true">Delay</div>
             <Knob label="Time" value={params.delayTime} onChange={handlers.delayTime} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} unit="s" />
             <Knob label="Feedback" value={params.delayFeedback} onChange={handlers.delayFeedback} min={0} max={0.95} step={0.01} color={accentClasses[accentColor].knob} />
             <Knob label="Mix" value={params.delayMix} onChange={handlers.delayMix} min={0} max={1} step={0.01} color={accentClasses[accentColor].knob} />

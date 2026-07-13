@@ -127,7 +127,7 @@ export type {
   HyphonMasterEffects,
   HyphonTrackEffects,
   HyphonSong
-} from './AISongImporter';
+} from './types';
 
 // AISongStorage for direct storage operations
 export { 
@@ -224,3 +224,5 @@ export const EXAMPLE_WITH_EFFECTS: AISongData = {
     }
   }
 };
+
+export * from './AISongImporter';

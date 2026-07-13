@@ -19,16 +19,25 @@ if (typeof window !== 'undefined') {
   }
   (window as any).AudioWorkletNode = AudioWorkletNode;
 
-  window.AudioContext = vi.fn().mockImplementation(() => ({
+  // vitest 4 constructs mock implementations via Reflect.construct, so any mock
+  // used with `new` must be a constructable function expression, not an arrow.
+  window.AudioContext = vi.fn().mockImplementation(function () { return ({
     createGain: vi.fn().mockReturnValue({
       connect: vi.fn(),
-      gain: { value: 0, setTargetAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), setValueAtTime: vi.fn() },
+      gain: {
+        value: 0,
+        setTargetAtTime: vi.fn(),
+        linearRampToValueAtTime: vi.fn(),
+        exponentialRampToValueAtTime: vi.fn(),
+        setValueAtTime: vi.fn(),
+        cancelScheduledValues: vi.fn(),
+      },
     }),
     createOscillator: vi.fn().mockReturnValue({
       connect: vi.fn(),
       start: vi.fn(),
       stop: vi.fn(),
-      frequency: { value: 0, setTargetAtTime: vi.fn(), setValueAtTime: vi.fn() },
+      frequency: { value: 0, setTargetAtTime: vi.fn(), setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
     }),
     createDynamicsCompressor: vi.fn().mockReturnValue({
       connect: vi.fn(),
@@ -99,19 +108,19 @@ if (typeof window !== 'undefined') {
       sampleRate: 44100,
       getChannelData: vi.fn().mockReturnValue(new Float32Array(44100)),
     }),
-  })) as any
+  }); }) as any
 }
 
 // Mock Worker
 if (typeof window !== 'undefined') {
-    window.Worker = vi.fn().mockImplementation(() => ({
+    window.Worker = vi.fn().mockImplementation(function () { return ({
         postMessage: vi.fn(),
         terminate: vi.fn(),
         onmessage: null,
         onerror: null,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
-    })) as any;
+    }); }) as any;
 }
 
 

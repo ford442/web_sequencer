@@ -2,6 +2,8 @@
 import React, { memo, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { AllDrumParams, DrumSound, KickParams, SnareParams, HatParams, DrumKitType } from '../types';
 import { Knob } from './Knob';
+import { DrumPads } from './DrumPads';
+import { LedIndicator } from './ui/PanelChrome';
 
 interface DrumMachineProps {
   params: AllDrumParams;
@@ -10,9 +12,11 @@ interface DrumMachineProps {
   drumKit?: DrumKitType;
   /** Callback to switch drum kits */
   onDrumKitChange?: (kit: DrumKitType) => void;
+  /** Live pad trigger callback */
+  onPlayDrum?: (sound: DrumSound, velocity?: number) => void;
 }
 
-export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange, drumKit, onDrumKitChange }) => {
+export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange, drumKit, onDrumKitChange, onPlayDrum }) => {
   // Use a ref to access latest params inside callbacks without causing them to update
   const paramsRef = useRef(params);
   useEffect(() => {
@@ -54,7 +58,7 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
   }, [handleParamChange]);
 
   return (
-    <div className="bg-gray-900/50 p-4 rounded-lg border-2 border-yellow-500 space-y-4">
+    <div className="bg-gray-900/50 p-4 rounded-lg border-2 border-yellow-500 space-y-4 hyphon-legacy-panel hyphon-legacy-panel--yellow">
       <div className="flex items-center justify-between">
         <h2 className="font-orbitron text-xl font-bold text-yellow-400">Drum Machine</h2>
         {onDrumKitChange && (
@@ -63,39 +67,53 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
               type="button"
               className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
                 drumKit === '808'
-                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)]'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
               }`}
               onClick={() => onDrumKitChange('808')}
               role="radio"
               aria-checked={drumKit === '808'}
               aria-label="TR-808 Kit"
+              title="Switch to TR-808 Kit"
             >
-              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '808' ? 'bg-red-500 animate-pulse' : 'bg-gray-600'}`} />
+              <LedIndicator
+                color={drumKit === '808' ? 'red' : 'off'}
+                pulse={drumKit === '808'}
+                className="mr-1.5"
+                aria-label={drumKit === '808' ? '808 kit active' : '808 kit inactive'}
+              />
               808
             </button>
             <button
               type="button"
               className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
                 drumKit === '909'
-                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)]'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                  ? 'bg-yellow-500 text-gray-900 shadow-[0_0_8px_rgba(234,179,8,0.6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
               }`}
               onClick={() => onDrumKitChange('909')}
               role="radio"
               aria-checked={drumKit === '909'}
               aria-label="TR-909 Kit"
+              title="Switch to TR-909 Kit"
             >
-              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '909' ? 'bg-blue-500 animate-pulse' : 'bg-gray-600'}`} />
+              <LedIndicator
+                color={drumKit === '909' ? 'cyan' : 'off'}
+                pulse={drumKit === '909'}
+                className="mr-1.5"
+                aria-label={drumKit === '909' ? '909 kit active' : '909 kit inactive'}
+              />
               909
             </button>
           </div>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="flex flex-col xl:flex-row gap-6">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* KICK */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Kick</legend>
+          <legend className="sr-only">Kick</legend>
+          <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2 -mt-2 bg-gray-900 w-max" aria-hidden="true">Kick</div>
           <div className="flex justify-around flex-wrap">
             <Knob label="Pitch" value={params.kick.pitch} onChange={handlers.kick.pitch} min={20} max={150} color="yellow" unit="Hz" />
             <Knob label="Decay" value={params.kick.decay} onChange={handlers.kick.decay} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
@@ -105,7 +123,8 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
         </fieldset>
         {/* SNARE */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Snare</legend>
+          <legend className="sr-only">Snare</legend>
+          <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2 -mt-2 bg-gray-900 w-max" aria-hidden="true">Snare</div>
           <div className="flex justify-around flex-wrap">
             <Knob label="Decay" value={params.snare.decay} onChange={handlers.snare.decay} min={0.05} max={0.5} step={0.01} color="yellow" unit="s" logarithmic />
             <Knob label="Tone" value={params.snare.tone} onChange={handlers.snare.tone} min={100} max={400} color="yellow" unit="Hz" />
@@ -115,7 +134,8 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
         </fieldset>
         {/* HATS */}
         <fieldset className="space-y-2 p-2 bg-gray-800/50 rounded">
-          <legend className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2">Hi-Hats</legend>
+          <legend className="sr-only">Hi-Hats</legend>
+          <div className="text-center text-sm uppercase tracking-wider text-gray-400 mx-auto px-2 -mt-2 bg-gray-900 w-max" aria-hidden="true">Hi-Hats</div>
           <div className="flex justify-around flex-wrap">
             <Knob label="CH Decay" value={params.closedHat.decay} onChange={handlers.hats.chDecay} min={0.01} max={0.2} step={0.001} color="yellow" unit="s" logarithmic />
             <Knob label="OH Decay" value={params.openHat.decay} onChange={handlers.hats.ohDecay} min={0.1} max={1.5} step={0.01} color="yellow" unit="s" logarithmic />
@@ -123,6 +143,13 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
             <Knob label="Volume" value={params.closedHat.volume} onChange={handlers.hats.volume} min={0} max={1.5} step={0.01} color="yellow" />
           </div>
         </fieldset>
+        </div>
+
+        {onPlayDrum && (
+          <div className="w-full xl:w-96 shrink-0 flex items-center justify-center">
+            <DrumPads onPlayDrum={onPlayDrum} />
+          </div>
+        )}
       </div>
     </div>
   );

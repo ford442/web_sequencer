@@ -25,6 +25,11 @@ import { engineTelemetry } from '../../utils/engineTelemetry';
 export type SynthTrack = 'partA' | 'partB' | 'bass2';
 
 export interface SynthNoteParams {
+    vocoderFormantShift?: number;
+    vocoderPreservation?: number;
+    vocoderAttack?: number;
+    vocoderRelease?: number;
+    pan?: number;
     timbre?: number;
     microtiming?: number;
     retrigger?: number;
@@ -40,6 +45,8 @@ export interface SynthNoteParams {
     portamento?: number;
     /** Prophecy: Formant shift override 0–1 */
     formantShift?: number;
+    /** Note velocity 0–1 (mapped to MIDI 0–127 for Open303 noteOn) */
+    velocity?: number;
 }
 
 export interface DrumNoteParams {
@@ -104,6 +111,7 @@ export interface PlaybackRefs {
     bassSidechainEQBusRef: MutableRefObject<BiquadFilterNode | null>;
     sidechainBusRef: MutableRefObject<GainNode | null>;
     drumKitEngineRef: MutableRefObject<DrumKitEngine | null>;
+    synthABusRef: MutableRefObject<GainNode | null>;
 }
 
 export function createPlaySynth(
@@ -117,7 +125,7 @@ export function createPlaySynth(
 
         const actualTime = time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
         let effectiveParams = params;
-        if (noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined
+        if (noteParams?.pan !== undefined || noteParams?.timbre !== undefined || noteParams?.envMod !== undefined || noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined
             || noteParams?.vowel !== undefined || noteParams?.portamento !== undefined || noteParams?.formantShift !== undefined) {
             effectiveParams = { ...params };
 
@@ -130,6 +138,9 @@ export function createPlaySynth(
             }
             if (noteParams?.filterResonance !== undefined) {
                 effectiveParams.filterResonance = noteParams.filterResonance * 20;
+            }
+            if (noteParams?.pan !== undefined) {
+                effectiveParams.pan = noteParams.pan;
             }
             if (noteParams?.envMod !== undefined) {
                 // @ts-expect-error envMod may not exist on SynthParams directly, but gets mapped correctly to Bass2/Open303 overrides
@@ -150,17 +161,44 @@ export function createPlaySynth(
         const subDurationSteps = durationSteps / retrigger;
         const subDuration = subDurationSteps * stepTime;
 
+        // === HOISTED NOTE PROCESSING ===
+
+        const noteStr = Array.isArray(note) ? note[0] : note;
+        if (!noteStr) {
+            return;
+        }
+        const midi = noteToMidi(noteStr);
+        const velocity = Math.round((noteParams?.velocity ?? 0.8) * 127);
+        const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
+
+        // Hoist expensive WASM parameter mappings to avoid cross-boundary calls in retrigger loop
+        if (track === 'partB' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
+            if (refs.open303ManagerRef.current?.isBass1Ready()) {
+                refs.open303ManagerRef.current.applyBass1Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+            }
+        }
+        if (track === 'partA' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
+            if (refs.open303ManagerRef.current?.isLead303Ready()) {
+                refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
+            }
+        }
+        if (track === 'partB' && prophecyWaveType !== undefined) {
+            if (refs.prophecyManagerRef?.current?.isPartBReady()) {
+                refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
+            }
+        }
+        if (track === 'partA' && prophecyWaveType !== undefined) {
+            if (refs.prophecyManagerRef?.current?.isPartAReady()) {
+                refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
+            }
+        }
+
         for (let i = 0; i < retrigger; i++) {
             const noteTime = actualTime + (i * subDuration);
 
             if (track === 'bass2') {
                 if (refs.open303ManagerRef.current?.isBass2Ready()) {
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
 
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -169,7 +207,7 @@ export function createPlaySynth(
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnBass2(midi, 100);
+                        refs.open303ManagerRef.current?.noteOnBass2(midi, velocity);
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
@@ -188,14 +226,6 @@ export function createPlaySynth(
 
             if (track === 'partB' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
                 if (refs.open303ManagerRef.current?.isBass1Ready()) {
-                    refs.open303ManagerRef.current.applyBass1Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
-
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -204,7 +234,7 @@ export function createPlaySynth(
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnBass1(midi, 100);
+                        refs.open303ManagerRef.current?.noteOnBass1(midi, velocity);
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
@@ -224,21 +254,13 @@ export function createPlaySynth(
 
             if (track === 'partA' && (params.waveform === '303-saw' || params.waveform === '303-sqr')) {
                 if (refs.open303ManagerRef.current?.isLead303Ready()) {
-                    refs.open303ManagerRef.current.applyLead303Params(effectiveParams, params.waveform === '303-sqr' ? 'sqr' : 'saw');
-
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
 
                     setTimeout(() => {
                         const t0 = performance.now();
-                        refs.open303ManagerRef.current?.noteOnLead303(midi, 100);
+                        refs.open303ManagerRef.current?.noteOnLead303(midi, velocity);
                         const t1 = performance.now();
                         try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
                     }, startDelay * 1000);
@@ -257,17 +279,8 @@ export function createPlaySynth(
             }
 
             // === Prophecy Routing ===
-            const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
             if (track === 'partB' && prophecyWaveType !== undefined) {
                 if (refs.prophecyManagerRef?.current?.isPartBReady()) {
-                    refs.prophecyManagerRef.current.applyPartBParams(effectiveParams, prophecyWaveType);
-
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -293,14 +306,6 @@ export function createPlaySynth(
 
             if (track === 'partA' && prophecyWaveType !== undefined) {
                 if (refs.prophecyManagerRef?.current?.isPartAReady()) {
-                    refs.prophecyManagerRef.current.applyPartAParams(effectiveParams, prophecyWaveType);
-
-                    const noteStr = Array.isArray(note) ? note[0] : note;
-                    if (!noteStr) {
-                        continue;
-                    }
-
-                    const midi = noteToMidi(noteStr);
                     const now = context.currentTime;
                     const startDelay = Math.max(0, noteTime - now);
                     const noteDuration = subDuration;
@@ -338,9 +343,6 @@ export function createPlaySynth(
                 voice.setDelaySend(delaySendAmount, noteTime);
 
                 const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                // Currently setReverbSend assumes global reverb on the Voice object.
-                // We'll need to use setReverbSend if it exists, or handle custom routing if Voice supports it.
-                // For now, let's just use the voice.setReverbSend interface which the AudioEngine expects.
                 if (typeof (voice as any).setReverbSend === 'function') {
                     (voice as any).setReverbSend(reverbSendAmount, noteTime);
                 }
@@ -405,53 +407,52 @@ export function createPlayDrum(
     context: AudioContext,
     refs: Pick<PlaybackRefs, 'masterGainRef' | 'noiseBufferRef' | 'reverbNodesRef' | 'reverbTypeRef' | 'sidechainGainRef' | 'drumKitEngineRef'>,
 ): AudioEngine['playDrum'] {
-    return (sound, params, time, _tuning, stepTime = 0.125, note?: string) => {
+    return (sound, params, time, _tuning, stepTime = 0.125, note?: string | { note: string, pan?: number }) => {
+        const noteStr = typeof note === 'string' ? note : note?.note;
+        const pan = typeof note === 'object' ? note.pan : undefined;
         if (!refs.masterGainRef.current) {
             return;
         }
 
         // Compute pitch multiplier from note relative to reference C3
-        const pitchRatio = note
-            ? Math.pow(2, (noteToMidi(note) - DRUM_REF_MIDI) / 12)
+        const pitchRatio = noteStr
+            ? Math.pow(2, (noteToMidi(noteStr) - DRUM_REF_MIDI) / 12)
             : 1;
 
-        const retrigger = 1;
-        const subStep = stepTime / retrigger;
+        // Hoisted adjustedParams (conditional clone only when pitch changes)
+        // Removed redundant retrigger loop (hardcoded to 1) for cleaner hot path
+        let adjustedParams = params;
+        if (pitchRatio !== 1) {
+            if (sound === 'kick') {
+                const kp = params as KickParams;
+                adjustedParams = { ...kp, pitch: kp.pitch * pitchRatio };
+            } else if (sound === 'snare') {
+                const sp = params as SnareParams;
+                adjustedParams = { ...sp, tone: sp.tone * pitchRatio };
+            } else {
+                const hp = params as HatParams;
+                adjustedParams = { ...hp, pitch: hp.pitch * pitchRatio };
+            }
+        }
 
-        for (let i = 0; i < retrigger; i++) {
-            const now = time + (i * subStep);
+        const now = time;  // single-shot for now
 
-            // Use DrumKitEngine for authentic 808/909 synthesis when available
-            const kitEngine = refs.drumKitEngineRef?.current;
-            if (kitEngine) {
-                // Apply pitch ratio to params before passing to kit engine
-                let adjustedParams = params;
-                if (pitchRatio !== 1) {
-                    if (sound === 'kick') {
-                        const kp = params as KickParams;
-                        adjustedParams = { ...kp, pitch: kp.pitch * pitchRatio };
-                    } else if (sound === 'snare') {
-                        const sp = params as SnareParams;
-                        adjustedParams = { ...sp, tone: sp.tone * pitchRatio };
-                    } else {
-                        const hp = params as HatParams;
-                        adjustedParams = { ...hp, pitch: hp.pitch * pitchRatio };
-                    }
-                }
-
-                if (sound === 'kick' && refs.sidechainGainRef.current) {
-                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
-                }
-
-                kitEngine.play(context, refs.masterGainRef.current, refs.noiseBufferRef.current, sound, adjustedParams, now);
-                continue;
+        // Use DrumKitEngine for authentic 808/909 synthesis when available
+        const kitEngine = refs.drumKitEngineRef?.current;
+        if (kitEngine) {
+            if (sound === 'kick' && refs.sidechainGainRef.current) {
+                triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
             }
 
-            // Legacy fallback (no kit engine)
-            if (sound === 'kick') {
-                if (refs.sidechainGainRef.current) {
-                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
-                }
+            kitEngine.play(context, refs.masterGainRef.current, refs.noiseBufferRef.current, sound, adjustedParams, now);
+            return;
+        }
+
+        // Legacy fallback (no kit engine)
+        if (sound === 'kick') {
+            if (refs.sidechainGainRef.current) {
+                triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+            }
 
                 const kickParams = params as KickParams;
                 const osc = context.createOscillator();
@@ -466,9 +467,10 @@ export function createPlayDrum(
                 osc.connect(gain);
 
                 let finalDest: AudioNode = gain;
-                if (kickParams.pan !== undefined && kickParams.pan !== 0) {
+                if ((pan !== undefined && pan !== 0) || (kickParams.pan !== undefined && kickParams.pan !== 0)) {
+                    const activePan = pan !== undefined ? pan : (kickParams.pan || 0);
                     const panner = context.createStereoPanner();
-                    panner.pan.value = kickParams.pan as number;
+                    panner.pan.value = activePan;
                     finalDest.connect(panner);
                     finalDest = panner;
                 }
@@ -486,9 +488,10 @@ export function createPlayDrum(
                 oscGain.gain.exponentialRampToValueAtTime(0.001, now + snareParams.decay);
 
                 let finalDestOsc: AudioNode = oscGain;
-                if (snareParams.pan !== undefined && snareParams.pan !== 0) {
+                if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
+                    const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
                     const panner = context.createStereoPanner();
-                    panner.pan.value = snareParams.pan as number;
+                    panner.pan.value = activePan;
                     finalDestOsc.connect(panner);
                     finalDestOsc = panner;
                 }
@@ -506,9 +509,10 @@ export function createPlayDrum(
                     noise.connect(noiseFilter);
                     noiseFilter.connect(noiseGain);
                     let finalDestNoise: AudioNode = noiseGain;
-                    if (snareParams.pan !== undefined && snareParams.pan !== 0) {
+                    if ((pan !== undefined && pan !== 0) || (snareParams.pan !== undefined && snareParams.pan !== 0)) {
+                        const activePan = pan !== undefined ? pan : (snareParams.pan || 0);
                         const panner = context.createStereoPanner();
-                        panner.pan.value = snareParams.pan as number;
+                        panner.pan.value = activePan;
                         finalDestNoise.connect(panner);
                         finalDestNoise = panner;
                     }
@@ -536,9 +540,10 @@ export function createPlayDrum(
                     src.connect(filter);
                     filter.connect(gain);
                     let finalDest: AudioNode = gain;
-                    if (hatParams.pan !== undefined && hatParams.pan !== 0) {
+                    if ((pan !== undefined && pan !== 0) || (hatParams.pan !== undefined && hatParams.pan !== 0)) {
+                        const activePan = pan !== undefined ? pan : (hatParams.pan || 0);
                         const panner = context.createStereoPanner();
-                        panner.pan.value = hatParams.pan as number;
+                        panner.pan.value = activePan;
                         finalDest.connect(panner);
                         finalDest = panner;
                     }
@@ -547,9 +552,9 @@ export function createPlayDrum(
                     src.stop(now + hatParams.decay);
                 }
             }
-        }
+        };
     };
-}
+
 
 export function createNoteOnSynth(
     context: AudioContext,

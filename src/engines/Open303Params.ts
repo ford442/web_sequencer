@@ -58,8 +58,8 @@ export const DEFAULT_303_CONFIG: Open303Config = {
 export const DEFAULT_303_PARAMS: Open303Params = {
     waveform: 1.0,      // Square wave
     tuning: 0.5,        // 440 Hz (centered)
-    cutoff: 0.0,        // Minimum cutoff
-    resonance: 0.92,    // 92%
+    cutoff: 0.5,        // Mid-range cutoff (0 was near-silent on jc303)
+    resonance: 0.55,    // Moderate resonance (0.92 caused harsh self-oscillation on open303)
     filterMode: 0,
     envMod: 0.0,        // No modulation
     decay: 0.29,        // 29%

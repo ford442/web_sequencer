@@ -28,14 +28,24 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .backend-js { background:#6b7280; }
   #${CONTAINER_ID} .backend-wav { background:#f59e0b; color:#000 }
   #${CONTAINER_ID} .backend-open303 { background:#7c3aed }
+  #${CONTAINER_ID} .hud-actions { display:flex; gap:8px; margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; }
+  #${CONTAINER_ID} button { background: rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
+  #${CONTAINER_ID} button:hover { background: rgba(255,255,255,0.2); }
   `;
   document.head.appendChild(style);
 
   let visible = new URLSearchParams(location.search).get('hud') === '1';
 
   function render() {
-    if (!visible) { container.style.display = 'none'; return; }
+    if (!visible) {
+      container.style.display = 'none';
+      // Keep it inert while hidden so it stays out of the a11y tree / input.
+      if ('inert' in container) { (container as HTMLElement & { inert: boolean }).inert = true; }
+      return;
+    }
     container.style.display = 'block';
+    // Clear inert while shown so the action buttons are operable (inert blocks clicks).
+    if ('inert' in container) { (container as HTMLElement & { inert: boolean }).inert = false; }
     const data = engineTelemetry.snapshot();
     const keys = Object.keys(data).sort();
     const rows = keys.map(k => {
@@ -47,8 +57,27 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       return `<div class="row"><div class="badge backend-${backend}">${backend}</div><div style="flex:1">${k}</div><div style="min-width:90px;text-align:right">${p50}/${p95} ms</div><div style="width:64px;text-align:right">${err}</div></div>`;
     }).join('');
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${rows}`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
+
+  // Event delegation: render() replaces innerHTML every 500ms, so per-render
+  // listeners would be discarded. Bind once on the persistent container instead.
+  container.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    if (target.id === 'hud-export-btn') {
+      engineTelemetry.exportReport();
+    } else if (target.id === 'hud-copy-btn') {
+      const json = engineTelemetry.generateReportJSON();
+      if (navigator.clipboard?.writeText) {
+        const orig = target.textContent;
+        navigator.clipboard.writeText(json).then(() => {
+          target.textContent = 'Copied!';
+          setTimeout(() => { target.textContent = orig; }, 1500);
+        }).catch(() => { /* clipboard denied; no-op */ });
+      }
+    }
+  });
 
   render();
   const timer = setInterval(render, 500);

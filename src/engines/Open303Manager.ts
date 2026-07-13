@@ -1,6 +1,6 @@
 import type { Bass2Params } from '../types';
 import { Open303Oscillator } from './Open303Oscillator';
-import { engineTelemetry } from '../utils/engineTelemetry';
+import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import type { Open303Config } from './Open303Params';
 
 /**
@@ -88,7 +88,13 @@ export class Open303Manager {
             this.lead303Ready = results[2].status === 'fulfilled' ? results[2].value : false;
 
             if (!this.lead303Ready) {
-                console.warn('[Open303Manager] lead303 (SYNTH A) failed to initialise — LEAD 303 waveforms will fall back to VoiceManager');
+                logEngineFallback('open303', 'wasm-worklet', 'lead303 voice failed to initialise');
+            }
+            if (!this.bass1Ready) {
+                logEngineFallback('open303', 'wasm-worklet', 'bass1 (SYNTH B) voice failed to initialise');
+            }
+            if (!this.bass2Ready) {
+                logEngineFallback('open303', 'wasm-worklet', 'bass2 voice failed to initialise');
             }
 
             if (this.bass1Ready) this.bass1.connect(this.bass1Gain);
@@ -117,7 +123,7 @@ export class Open303Manager {
             return this.isReady;
 
         } catch (e) {
-            console.error('[Open303Manager] Initialization failed:', e);
+            logEngineFallback('open303', 'wasm-worklet', 'Open303Manager initialization threw', e);
             this.isReady = false;
             return false;
         }
@@ -454,6 +460,178 @@ export class Open303Manager {
         this.lead303Ready = false;
     }
 
+    // -------------------------------------------------------------------------
+    // Scheduled parameter API (used by AutomationScheduler)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Send a parameter change to an Open303 voice instance at the given
+     * AudioContext time.
+     *
+     * Because Open303 params are driven through AudioWorklet `postMessage`
+     * rather than native AudioParams, sample-accurate scheduling is not
+     * directly available.  This method fires the postMessage at the correct
+     * wall-clock time (derived from the AudioContext clock) so that the
+     * worklet receives the update with minimal jitter.
+     *
+     * For pan/gain nodes that do have native AudioParams, this delegates to
+     * the appropriate `setValueAtTime` call instead.
+     *
+     * @param voice     Which 303 instance to target ('bass1' | 'bass2' | 'lead303').
+     * @param func      Setter name (e.g. 'setCutoff', 'setResonance', 'setDecay').
+     * @param value     Normalised 0–1 value.
+     * @param audioTime AudioContext time at which the change should take effect.
+     *                  Pass `audioContext.currentTime` for an immediate change.
+     */
+    scheduleParamAtTime(
+        voice: 'bass1' | 'bass2' | 'lead303',
+        func: string,
+        value: number,
+        audioTime: number
+    ): void {
+        // Native AudioParam setters (pan, gain) — schedule ahead of time.
+        if (func === 'setPan') {
+            const panner =
+                voice === 'bass1' ? this.bass1Panner :
+                voice === 'bass2' ? this.bass2Panner :
+                this.lead303Panner;
+            if (panner && this.audioContext) {
+                panner.pan.setValueAtTime(value, Math.max(this.audioContext.currentTime, audioTime));
+            }
+            return;
+        }
+        if (func === 'setVolume') {
+            const gain =
+                voice === 'bass1' ? this.bass1Gain :
+                voice === 'bass2' ? this.bass2Gain :
+                this.lead303Gain;
+            if (gain && this.audioContext) {
+                gain.gain.setValueAtTime(value, Math.max(this.audioContext.currentTime, audioTime));
+            }
+            // Also forward to the worklet so its internal gain state stays consistent with the GainNode.
+        }
+
+        // Worklet-routed params: schedule via wall-clock timeout.
+        const osc =
+            voice === 'bass1' ? this.bass1 :
+            voice === 'bass2' ? this.bass2 :
+            this.lead303;
+        if (!osc) return;
+
+        const nowAudio = this.audioContext?.currentTime ?? 0;
+        const delayMs = Math.max(0, (audioTime - nowAudio) * 1000);
+
+        if (delayMs < 1) {
+            // Immediate — send now to avoid setTimeout overhead.
+            osc.setParam(func, value);
+        } else {
+            setTimeout(() => osc.setParam(func, value), delayMs);
+        }
+    }
+
+    /**
+     * Schedule per-step slide (portamento/legato) enable or disable at the
+     * given AudioContext time.
+     *
+     * On authentic TB-303 hardware, when a step has the slide flag set, the
+     * oscillator glides from the previous pitch to the new one rather than
+     * re-triggering the envelope.  The Open303 / jc303 engines model this
+     * internally via a slide detector that is primed by the note-triggering
+     * sequence — a legato noteOn (without a preceding noteOff) activates the
+     * portamento path.
+     *
+     * This method establishes the API contract used by AutomationScheduler so
+     * that slide automation lanes generated from per-step RBS data can flow
+     * through the same scheduling pipeline as all other parameter changes.
+     *
+     * @param voice      Which 303 voice to target.
+     * @param enabled    `true` = slide is active for the upcoming note.
+     * @param audioTime  AudioContext time at which the change should take
+     *                   effect.  Pass `audioContext.currentTime` for immediate.
+     */
+    scheduleSlideAtTime(
+        _voice: 'bass1' | 'bass2' | 'lead303',
+        _enabled: boolean,
+        _audioTime: number
+    ): void {
+        // The open303 / jc303 wasm builds do not yet expose a dedicated slide
+        // parameter — portamento is triggered implicitly by sending a legato
+        // noteOn (without a preceding noteOff) at the step handler level.
+        // This method is intentionally a no-op today: it documents the
+        // intended API and allows AutomationScheduler callers to schedule slide
+        // state without code changes once a native setSlide API is available.
+        //
+        // When the wasm build gains setSlide / setPortamento support, replace
+        // this body with:
+        //   this.scheduleParamAtTime(_voice, 'setSlide', _enabled ? 1.0 : 0.0, _audioTime);
+    }
+
+    /**
+     * Schedule a linear ramp for an Open303 worklet parameter from `fromValue`
+     * to `toValue` between `startTime` and `endTime` (AudioContext time).
+     *
+     * Implemented as a series of evenly-spaced `scheduleParamAtTime` calls so
+     * that the worklet receives smooth parameter updates even though it cannot
+     * use native AudioParam ramp methods.
+     *
+     * @param voice      Which 303 instance to target.
+     * @param func       Setter name (e.g. 'setCutoff').
+     * @param fromValue  Starting normalised value.
+     * @param toValue    Target normalised value.
+     * @param startTime  AudioContext time for `fromValue`.
+     * @param endTime    AudioContext time for `toValue`.
+     * @param steps      Number of intermediate interpolation steps (default 8).
+     */
+    scheduleParamRamp(
+        voice: 'bass1' | 'bass2' | 'lead303',
+        func: string,
+        fromValue: number,
+        toValue: number,
+        startTime: number,
+        endTime: number,
+        steps = 8
+    ): void {
+        if (steps < 1 || startTime >= endTime) {
+            this.scheduleParamAtTime(voice, func, toValue, endTime);
+            return;
+        }
+
+        // For native AudioParams (pan, gain) use a single linearRamp — it's
+        // sample-accurate and cheaper than many setValueAtTime calls.
+        if (func === 'setPan') {
+            const panner =
+                voice === 'bass1' ? this.bass1Panner :
+                voice === 'bass2' ? this.bass2Panner :
+                this.lead303Panner;
+            if (panner && this.audioContext) {
+                panner.pan.setValueAtTime(fromValue, Math.max(this.audioContext.currentTime, startTime));
+                panner.pan.linearRampToValueAtTime(toValue, endTime);
+            }
+            return;
+        }
+        if (func === 'setVolume') {
+            const gain =
+                voice === 'bass1' ? this.bass1Gain :
+                voice === 'bass2' ? this.bass2Gain :
+                this.lead303Gain;
+            if (gain && this.audioContext) {
+                gain.gain.setValueAtTime(fromValue, Math.max(this.audioContext.currentTime, startTime));
+                gain.gain.linearRampToValueAtTime(toValue, endTime);
+            }
+            // Also send interpolated snapshots to the worklet (same as the worklet path below)
+            // so its internal gain state mirrors the GainNode ramp.
+        }
+
+        // Worklet params: send interpolated snapshots.
+        const dur = endTime - startTime;
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const v = fromValue + t * (toValue - fromValue);
+            const at = startTime + t * dur;
+            this.scheduleParamAtTime(voice, func, v, at);
+        }
+    }
+
     /**
      * Switch the DSP engine for the bass1 (SYNTH B / partB) voice.
      *
@@ -482,5 +660,19 @@ export class Open303Manager {
      */
     setLead303Engine(engine: 'open303' | 'jc303'): void {
         this.lead303?.setEngine303(engine);
+    }
+
+    /**
+     * Apply persisted per-voice engine303 settings after audio init or song load.
+     * Without this, jc303 stays inactive until the user toggles the engine selector.
+     */
+    syncEngine303Settings(settings: {
+        lead?: 'open303' | 'jc303';
+        bass1?: 'open303' | 'jc303';
+        bass2?: 'open303' | 'jc303';
+    }): void {
+        if (settings.lead) this.setLead303Engine(settings.lead);
+        if (settings.bass1) this.setBass1Engine(settings.bass1);
+        if (settings.bass2) this.setBass2Engine(settings.bass2);
     }
 }

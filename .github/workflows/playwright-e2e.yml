@@ -43,7 +43,8 @@ jobs:
         run: pnpm run build
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
+      # Using `preview` instead of `http-server` because Vite sets the required COOP/COEP headers for Pyodide's SharedArrayBuffer.
       - name: Serve dist on port 5173
-        run: pnpm dlx http-server ./dist -p 5173 & sleep 2
+        run: pnpm run preview --port 5173 & sleep 5
       - name: Run Playwright tests
         run: pnpm exec playwright test --reporter=github

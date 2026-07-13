@@ -1,4 +1,4 @@
-import React, { useMemo, memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useState } from 'react';
+import React, { useMemo, memo, useCallback, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useEffect, useState } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { noteToMidi } from '../utils/musicTheory';
 import { GridIndicators } from './GridIndicators';
@@ -8,13 +8,49 @@ import type { Pattern, PartSequence, TrackKey, PhonemeData } from '../types';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useTimelineZoom } from '../hooks/useTimelineZoom';
 import { DEFAULT_ZOOM } from './sequencer/constants';
+import { getStepHitRect } from './sequencer/stepHitGeometry';
+import { TrackSlotStrip } from './sequencer/TrackSlotButton';
 import { noop } from '../utils/noop';
+import {
+    getAdjacentSequencerCell,
+    keyToGridDirection,
+    sequencerCellKey,
+    type SequencerCellCoord,
+} from '../utils/sequencerGridKeyboard';
+import { RackPanelChrome } from './ui/RackPanelChrome';
 
 // --- PERFORMANCE STYLES ---
 const SEQUENCER_STYLES = `
-    .svg-step.is-current .step-glow { fill: rgba(255, 255, 255, 0.3) !important; }
-    .svg-step.is-current .step-cap { stroke: #ffffff !important; stroke-width: 2px !important; }
-    .svg-step.is-current .step-led { fill: #ff3333 !important; fill-opacity: 1 !important; }
+    @keyframes step-fire {
+        0%   { fill: rgba(255,255,255,0.75); }
+        40%  { fill: rgba(255,255,255,0.40); }
+        100% { fill: rgba(255,255,255,0.18); }
+    }
+    @keyframes led-fire {
+        0%   { fill: #ff6666; fill-opacity: 1; }
+        50%  { fill: #ff3333; fill-opacity: 1; }
+        100% { fill: #cc0000; fill-opacity: 1; }
+    }
+    @keyframes step-cap-pulse {
+        0%   { stroke-width: 2.5px; stroke-opacity: 1; }
+        100% { stroke-width: 2px;   stroke-opacity: 0.9; }
+    }
+
+    .svg-step.is-current .step-glow {
+        fill: rgba(255,255,255,0.18) !important;
+        animation: step-fire 120ms ease-out forwards;
+    }
+    .svg-step.is-current .step-cap {
+        stroke: #ffffff !important;
+        stroke-width: 2px !important;
+        animation: step-cap-pulse 120ms ease-out forwards;
+    }
+    .svg-step.is-current .step-led {
+        animation: led-fire 120ms ease-out forwards;
+    }
+    .svg-step[aria-pressed="true"].is-current .step-glow {
+        fill: rgba(255,255,255,0.4) !important;
+    }
     .automation-step.is-current rect { fill-opacity: 1 !important; filter: drop-shadow(0 0 4px white); }
 
     /* Focus Styles for Accessibility */
@@ -178,7 +214,7 @@ export const AutomationStep = memo(({
             ref={(el) => { refsArray.current[stepIndex] = el; }}
             className="automation-step"
             role="slider"
-            aria-label={`${rowLabel} automation step ${stepIndex + 1}`}
+            aria-label={`${rowLabel} automation step ${stepIndex + 1}, ${value > 0 ? "Active" : "Inactive"}`}
             aria-valuenow={Math.round(value * 100)}
             aria-valuetext={`${Math.round(value * 100)}%`}
             tabIndex={0}
@@ -210,7 +246,8 @@ export const AutomationStep = memo(({
 
 const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
-    onSelectionStart, onSelectionEnter, isRangeSelected, phonemeLabel, retrigger, reverse
+    onSelectionStart, onSelectionEnter, isRangeSelected, phonemeLabel, retrigger, reverse,
+    stepTabIndex = -1, onStepRef, onGridKeyDown,
 }: {
     stepIndex: number, active: boolean, note?: string | null, refsArray: React.MutableRefObject<(SVGGElement | null)[]>,
     rowLabel: string, rowKey: TrackKey, onToggle: (k: TrackKey, i: number, e: any) => void,
@@ -221,13 +258,17 @@ const SvgStep = memo(({
     isRangeSelected?: boolean,
     phonemeLabel?: string,
     retrigger?: number,
-    reverse?: boolean
+    reverse?: boolean,
+    stepTabIndex?: number,
+    onStepRef?: (el: SVGGElement | null) => void,
+    onGridKeyDown?: (e: React.KeyboardEvent) => void,
 }) => {
     const baseWidth = 18;
     const gap = 4;
     const height = 50;
     const x = 220 + stepIndex * (baseWidth + gap);
     const totalWidth = (baseWidth * length) + (gap * (length - 1));
+    const hitRect = getStepHitRect(totalWidth, height);
     const retriggerCount = retrigger || 1;
     const color = note ? getNoteColor(note, rowKey) : '#06b6d4';
     const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
@@ -281,7 +322,7 @@ const SvgStep = memo(({
 
 
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; }} className="svg-step" role="button" tabIndex={0} aria-label={`${rowLabel} step ${stepIndex + 1}`} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
+        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; onStepRef?.(el); }} className="svg-step" role="gridcell" tabIndex={0} data-testid={`step-${rowKey}-${stepIndex}`} aria-label={`${rowLabel} step ${stepIndex + 1}, ${active ? "Active" : "Inactive"}`} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } else { onGridKeyDown?.(e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
             {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
@@ -304,7 +345,8 @@ const SvgStep = memo(({
             )}
             {length > 1 && (<g pointerEvents="none"><g opacity={0.3} fill="#000"><rect x={totalWidth / 2 - 2} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 - 8} y={height / 2 - 10} width={4} height={20} rx={1} /><rect x={totalWidth / 2 + 4} y={height / 2 - 10} width={4} height={20} rx={1} /></g><g transform={`translate(${totalWidth - 25}, 8)`}><rect width={20} height={14} rx={3} fill="#000" fillOpacity={0.6} /><text x={10} y={10} textAnchor="middle" fontSize={9} fill="#fff" fontWeight="bold" fontFamily="monospace">{length}x</text></g></g>)}
             <rect x={4} y={5} width={totalWidth - 8} height={(height - 10) / 2} rx={1} fill="url(#glassGrad)" fillOpacity={0.3} pointerEvents="none" />
-            <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} />
+            <rect className="step-led" x={5} y={height - 10} width={totalWidth - 10} height={3} rx={1} fill={active ? '#ccffcc' : '#000'} fillOpacity={active ? 0.8 : 0.2} style={{ pointerEvents: 'none' }} />
+            <rect className="step-hit-target" x={hitRect.x} y={hitRect.y} width={hitRect.width} height={hitRect.height} fill="transparent" />
         </g>
     )
 }, (prev: any, next: any) => {
@@ -317,19 +359,8 @@ const SvgStep = memo(({
         prev.isRangeSelected === next.isRangeSelected &&
         prev.phonemeLabel === next.phonemeLabel &&
         prev.retrigger === next.retrigger &&
-        prev.reverse === next.reverse
-    );
-});
-
-const TrackSlotButton = memo(({ index, isActive, hasData, trackKey, onSelect }: { index: number, isActive: boolean, hasData: boolean, trackKey: TrackKey, onSelect: (k: TrackKey, i: number) => void }) => {
-    const patternColor = getPatternColor(index);
-    const inactiveColor = hasData ? patternColor : '#0f1812';
-
-    return (
-        <g transform={`translate(${index * 22}, 0)`} className="track-slot" onClick={() => onSelect(trackKey, index)} cursor="pointer" role="button" tabIndex={0} aria-label={`Pattern Slot ${index + 1}`} aria-pressed={isActive} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(trackKey, index); } }} onContextMenu={(e) => e.preventDefault()}>
-            <rect width={18} height={18} rx={2} fill={isActive ? patternColor : inactiveColor} fillOpacity={isActive ? 1 : (hasData ? 0.4 : 1)} stroke={isActive ? '#fff' : patternColor} strokeOpacity={isActive ? 1 : 0.6} strokeWidth={1} />
-            <text x={9} y={13} textAnchor="middle" fontSize={10} fill={isActive ? '#000' : patternColor} fontFamily="monospace" fontWeight="bold">{index + 1}</text>
-        </g>
+        prev.reverse === next.reverse &&
+        prev.stepTabIndex === next.stepTabIndex
     );
 });
 
@@ -348,35 +379,61 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     viewMode?: 'notes' | 'automation',
     automationParam?: string,
     onAutomationChange?: (k: TrackKey, i: number, val: number) => void,
-    alignment?: AlignmentResult | null
+    alignment?: AlignmentResult | null,
+    focusedCell?: SequencerCellCoord | null,
+    onStepRef?: (rowKey: TrackKey, step: number, el: SVGGElement | null) => void,
+    onStepGridKeyDown?: (rowKey: TrackKey, step: number, e: React.KeyboardEvent) => void,
 }>((props, ref) => {
     const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange,
-        automation, viewMode, automationParam, onAutomationChange, alignment } = props;
+        automation, viewMode, automationParam, onAutomationChange, alignment,
+        focusedCell, onStepRef, onStepGridKeyDown } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
+    const stepsRef = useRef(steps);
+    const viewModeRef = useRef(viewMode);
+    const rafRef = useRef<number | null>(null);
+
+    useLayoutEffect(() => {
+        stepsRef.current = steps;
+        viewModeRef.current = viewMode;
+    }, [steps, viewMode]);
 
     const updateClasses = useCallback((step: number) => {
-        let newActiveIndex = -1;
-        // Logic differs for automation (always step 1) vs notes (can be longer)
-        if (viewMode === 'automation') {
-             newActiveIndex = step;
-        } else {
-            for (let i = step; i >= 0; i--) {
-                if (stepRefs.current[i]) {
-                    const length = steps[i]?.length || 1;
-                    if (i + length > step) { newActiveIndex = i; }
-                    break;
-                }
-            }
+        if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
         }
 
-        if (newActiveIndex !== lastActiveIndexRef.current) {
-            if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
-            if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
-            lastActiveIndexRef.current = newActiveIndex;
-        }
-    }, [steps, viewMode]);
+        rafRef.current = requestAnimationFrame(() => {
+            let newActiveIndex = -1;
+            // Logic differs for automation (always step 1) vs notes (can be longer)
+            if (viewModeRef.current === 'automation') {
+                 newActiveIndex = step;
+            } else {
+                for (let i = step; i >= 0; i--) {
+                    if (stepRefs.current[i]) {
+                        const length = stepsRef.current[i]?.length || 1;
+                        if (i + length > step) { newActiveIndex = i; }
+                        break;
+                    }
+                }
+            }
+
+            if (newActiveIndex !== lastActiveIndexRef.current) {
+                if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
+                if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
+                lastActiveIndexRef.current = newActiveIndex;
+            }
+        });
+    }, []);
+
+    useLayoutEffect(() => {
+        return () => {
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+            }
+        };
+    }, []);
 
     useImperativeHandle(ref, () => ({
         setHighlight: (step: number) => {
@@ -395,6 +452,12 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         lastActiveIndexRef.current = -1;
         if (lastStepRef.current !== -1) { updateClasses(lastStepRef.current); } else { lastActiveIndexRef.current = currentActive; }
     }, [updateClasses]);
+
+    const stepGridProps = useCallback((i: number) => ({
+        stepTabIndex: focusedCell?.rowKey === rowKey && focusedCell.step === i ? 0 : -1,
+        onStepRef: (el: SVGGElement | null) => onStepRef?.(rowKey, i, el),
+        onGridKeyDown: (e: React.KeyboardEvent) => onStepGridKeyDown?.(rowKey, i, e),
+    }), [focusedCell, rowKey, onStepRef, onStepGridKeyDown]);
 
     const renderedSteps = useMemo(() => {
         const stepsArray = [];
@@ -415,7 +478,7 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                 if (skipCount > 0) { skipCount--; continue; }
                 const stepData = steps[i];
                 const length = stepData?.length || 1;
-                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} reverse={stepData?.reverse} />);
+                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} reverse={stepData?.reverse} {...stepGridProps(i)} />);
                 if (stepData && length > 1) { skipCount = length - 1; }
             }
         } else {
@@ -442,12 +505,12 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
                         phonemeLabel = alignment.phonemes[sliceIdx].phoneme;
                     }
                 }
-                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} />);
+                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} {...stepGridProps(i)} />);
                 if (stepData && length > 1) { skipCount = length - 1; }
             }
         }
         return stepsArray;
-    }, [viewMode, isSelected, onAutomationChange, automationParam, automation, steps, label, rowKey, onToggle, onRightMouseDown, onEditLength, onSelectionStart, onSelectionEnter, selectionRange, alignment]);
+    }, [viewMode, isSelected, onAutomationChange, automationParam, automation, steps, label, rowKey, onToggle, onRightMouseDown, onEditLength, onSelectionStart, onSelectionEnter, selectionRange, alignment, stepGridProps]);
 
 
     const handleRowClick = useCallback(() => onSelectRow(rowKey), [onSelectRow, rowKey]);
@@ -459,12 +522,12 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
     }, [onSelectRow, rowKey]);
 
     const renderedTrackSlots = useMemo(() => (
-        [0, 1, 2, 3, 4, 5, 6, 7].map(slot => (<TrackSlotButton key={slot} index={slot} isActive={activeSlot === slot} hasData={!!trackSlots[slot]} trackKey={rowKey} onSelect={onSelectSlot} />))
-    ), [activeSlot, trackSlots, rowKey, onSelectSlot]);
+        <TrackSlotStrip activeSlot={activeSlot} trackSlots={trackSlots} trackKey={rowKey} onSelect={onSelectSlot} isRowSelected={isSelected} />
+    ), [activeSlot, trackSlots, rowKey, onSelectSlot, isSelected]);
 
     return (
-        <g transform={`translate(0, ${rowIndex * 60})`}>
-            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="button" tabIndex={0} aria-label={`Select ${label} track`} aria-description="Left-click to select row. Right-click for options." aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
+        <g role="row" transform={`translate(0, ${rowIndex * 60})`}>
+            <g className="track-label" onClick={handleRowClick} cursor="pointer" role="rowheader" tabIndex={0} aria-label={`Select ${label} track, ${isSelected ? "Selected" : "Unselected"}`} aria-description="Left-click to select row. Right-click for options." aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
                 {isSelected && (
                     <rect 
                         x={-10} 
@@ -527,7 +590,9 @@ const SequencerRow = memo(forwardRef<SequencerRowHandle, {
         prev.steps === next.steps &&
         prev.automation === next.automation &&
         prev.trackSlots === next.trackSlots &&
-        prev.alignment === next.alignment
+        prev.alignment === next.alignment &&
+        prev.focusedCell?.rowKey === next.focusedCell?.rowKey &&
+        prev.focusedCell?.step === next.focusedCell?.step
     );
 });
 
@@ -572,7 +637,8 @@ const SequencerRowWrapper = memo(({
     row, rIdx, rowRefs, steps, automation, isSelected, activeSlot,
     trackSlots, handleStepPointerDown, onRightMouseDown, onEditLength, onSelectRow,
     onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange,
-    viewMode, automationParam, onAutomationChange, alignment, activeSamplerBank
+    viewMode, automationParam, onAutomationChange, alignment, activeSamplerBank,
+    focusedCell, onStepRef, onStepGridKeyDown,
 }: any) => {
     // We isolate the ref callback here so it doesn't cause constant re-renders during parent renders
     const setRef = useCallback((el: any) => {
@@ -603,6 +669,9 @@ const SequencerRowWrapper = memo(({
             automationParam={automationParam}
             onAutomationChange={onAutomationChange}
             alignment={row.key === 'sampler' ? alignment : null}
+            focusedCell={focusedCell}
+            onStepRef={onStepRef}
+            onStepGridKeyDown={onStepGridKeyDown}
         />
     );
 }, (prev: any, next: any) => {
@@ -621,7 +690,20 @@ const SequencerRowWrapper = memo(({
         prev.automation === next.automation &&
         prev.trackSlots === next.trackSlots &&
         prev.alignment === next.alignment &&
-        prev.activeSamplerBank === next.activeSamplerBank
+        prev.activeSamplerBank === next.activeSamplerBank &&
+        // ⚡ Bolt: Ensure callback props are checked to avoid stale closures inside the row.
+        prev.handleStepPointerDown === next.handleStepPointerDown &&
+        prev.onRightMouseDown === next.onRightMouseDown &&
+        prev.onEditLength === next.onEditLength &&
+        prev.onSelectRow === next.onSelectRow &&
+        prev.onSelectSlot === next.onSelectSlot &&
+        prev.onSelectionStart === next.onSelectionStart &&
+        prev.onSelectionEnter === next.onSelectionEnter &&
+        prev.onAutomationChange === next.onAutomationChange &&
+        prev.focusedCell?.rowKey === next.focusedCell?.rowKey &&
+        prev.focusedCell?.step === next.focusedCell?.step &&
+        prev.onStepRef === next.onStepRef &&
+        prev.onStepGridKeyDown === next.onStepGridKeyDown
     );
 });
 
@@ -731,24 +813,70 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
         return { [selection.trackKey]: { start: selection.startStep, end: selection.endStep } };
     }, [selection]);
 
+    const [focusedCell, setFocusedCell] = useState<SequencerCellCoord>(() => ({
+        rowKey: selectedTrack,
+        step: 0,
+    }));
+    const stepFocusRefs = useRef(new Map<string, SVGGElement>());
+    const selectionRef = useRef(selection);
+    useLayoutEffect(() => {
+        selectionRef.current = selection;
+    }, [selection]);
+
+    useEffect(() => {
+        setFocusedCell((prev) =>
+            prev.rowKey === selectedTrack ? prev : { rowKey: selectedTrack, step: prev.step },
+        );
+    }, [selectedTrack]);
+
+    const focusSequencerCell = useCallback((coord: SequencerCellCoord) => {
+        setFocusedCell(coord);
+        stepFocusRefs.current.get(sequencerCellKey(coord.rowKey, coord.step))?.focus();
+    }, []);
+
+    const handleStepRef = useCallback((rowKey: TrackKey, step: number, el: SVGGElement | null) => {
+        const key = sequencerCellKey(rowKey, step);
+        if (el) stepFocusRefs.current.set(key, el);
+        else stepFocusRefs.current.delete(key);
+    }, []);
+
+    const handleStepGridKeyDown = useCallback(
+        (rowKey: TrackKey, step: number, e: React.KeyboardEvent) => {
+            const direction = keyToGridDirection(e.key);
+            if (!direction) return;
+            e.preventDefault();
+            const next = getAdjacentSequencerCell(rowKey, step, direction);
+            if (e.shiftKey) {
+                const sel = selectionRef.current;
+                if (!sel) onSelectionStart(rowKey, step);
+                onSelectionEnter(next.rowKey, next.step);
+            }
+            focusSequencerCell(next);
+        },
+        [onSelectionStart, onSelectionEnter, focusSequencerCell],
+    );
+
 
     const baseWidth = 1050;
     const timelineWidth = 830;
 
     return (
         <div
-            className="w-full h-full p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-x-auto overflow-y-hidden scrollbar-thin"
+            id="main-sequencer"
+            className="w-full h-full p-4 hyphon-sequencer-shell relative overflow-x-auto overflow-y-hidden scrollbar-thin hyphon-sequencer-scroll touch-pan-x"
             ref={containerRef}
             onDoubleClick={handleDoubleClick}
+            role="grid"
+            aria-label="Step sequencer"
+            aria-describedby="sequencer-kbd-hint"
             style={{ '--zoom-level': zoom } as React.CSSProperties}
         >
+            <p id="sequencer-kbd-hint" className="sr-only">
+                Arrow keys move between steps and tracks. Space or Enter toggles a step. Shift plus arrow extends the selection range.
+            </p>
             <style>{SEQUENCER_STYLES}</style>
-            <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none"></div>
-            {/* Screws */}
-            <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: '0.75rem' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: 'calc(100% - 1.75rem)' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: '0.75rem' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
-            <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-gray-800 flex items-center justify-center border border-gray-600" style={{ position: 'sticky', left: 'calc(100% - 1.75rem)' }}><div className="w-2.5 h-[1.5px] bg-gray-600 rotate-45"></div></div>
+            <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none" aria-hidden="true" />
+            <RackPanelChrome stickyScrews />
 
             {/* Alt+Click hint for sampler */}
             {onPhonemeUpdate && (
@@ -810,6 +938,9 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 automationParam={automationParam}
                                 onAutomationChange={onAutomationChange}
                                 alignment={row.key === 'sampler' ? alignment : null}
+                                focusedCell={focusedCell}
+                                onStepRef={handleStepRef}
+                                onStepGridKeyDown={handleStepGridKeyDown}
                             />
                         );
                     })}

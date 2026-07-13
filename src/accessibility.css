@@ -453,3 +453,57 @@
   height: 1px;
   overflow: hidden;
 }
+
+/* ============================================
+   COMPACT / MOBILE LAYOUT (Hyphon)
+   ============================================ */
+
+.hyphon-main-scroll {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hyphon-sequencer-scroll {
+  touch-action: pan-x pinch-zoom;
+  overscroll-behavior-x: contain;
+}
+
+.hyphon-rack-surface {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.hyphon-song-mode-panel {
+  touch-action: pan-x pan-y;
+}
+
+.mobile-tap-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.hyphon-compact .transport-toolbar button {
+  min-height: 40px;
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  .song-mode-cell {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .hyphon-compact .song-mode-cell-inner {
+    font-size: 11px;
+  }
+
+  .step-hit-target,
+  .track-slot-hit {
+    touch-action: none;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 767px) {
+  .hyphon-compact main {
+    padding-bottom: 7rem;
+  }
+}

@@ -515,6 +515,20 @@ interface Note {
 
 ---
 
+## Automation + RBS Import Architecture
+
+- Parser: `src/importers/rbs/RbsParser.ts` parses fixed-offset `.rbs` binary content into `RawRbsData`.
+- Importer: `src/importers/rbs/RbsImporter.ts` converts RBS patterns/params/automation into `HyphonSong`.
+  - PCF conversion is controlled by `convertPcfToAutomation` and `importPcfAsFilter`.
+  - TB-303 automation IDs map to Hyphon targets (`synthA`, `synthB`, `master`) with normalized values.
+- Scheduler: `src/audio/automation/AutomationScheduler.ts` schedules lane/TRAK events on the audio clock and routes Open303 parameter updates via `Open303Manager.scheduleParamAtTime`.
+- Focused tests:
+  - `src/__tests__/RbsParser.test.ts`
+  - `src/__tests__/RbsImporter.test.ts`
+  - `src/__tests__/AutomationScheduler.test.ts`
+
+---
+
 ## Common Pitfalls
 
 1. **"WASM not found" errors**: Check that all build steps completed and files exist in `public/`. Run `pnpm run build:wasm` and `pnpm run build:emcc`.
@@ -532,6 +546,55 @@ interface Note {
 7. **JC-303 submodule not found**: Run `git submodule update --init jc303_wasm`
 
 8. **Stale `src/wasm/` directory**: This folder is generated during AssemblyScript builds. If it is missing, AssemblyScript modules will fail to load in dev. It is not committed to git.
+
+---
+
+## Cursor Cloud specific instructions
+
+### One-time toolchain setup (not in the VM update script)
+
+WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchain install before the first dev session:
+
+1. **Emscripten 3.1.51** (matches CI): clone to `$HOME/emsdk`, run `./emsdk install 3.1.51 && ./emsdk activate 3.1.51`, then `source "$HOME/emsdk/emsdk_env.sh"` in each shell that builds WASM.
+2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (wasm-pack ships via `pnpm`; use `pnpm exec wasm-pack`).
+3. **Git submodule**: `git submodule update --init --recursive` (required for `jc303_wasm`).
+
+### First WASM build per workspace
+
+After `pnpm install`, with Emscripten sourced:
+
+```bash
+pnpm run build:wasm    # AssemblyScript + Rust + JC-303 (~1–2 min)
+pnpm run build:emcc    # hyphon_native.js + Rubberband/Open303 (~30s)
+```
+
+Re-run only after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_wasm/` sources.
+
+### Running the main DAW locally
+
+| Task | Command |
+|------|---------|
+| Dev server (fast restart) | `pnpm exec vite --host 0.0.0.0 --port 5173` |
+| Dev server (rebuilds WASM every start) | `pnpm run dev` |
+| Unit tests | `CI=true pnpm exec vitest run --pool forks` |
+| Lint | `pnpm run lint` |
+| Production build | `pnpm run build` |
+
+Only the **Vite dev server on port 5173** is required for interactive development. The FastAPI cloud API (`app.py`, port 7860) and remote storage are optional.
+
+### Hello-world smoke test
+
+1. Open http://localhost:5173
+2. Click **INITIALIZE SYSTEM** (user gesture required for Web Audio)
+3. Program a kick on step 1 in the sequencer grid
+4. Click **▶ PLAY** — playhead should advance and the kick should trigger
+
+### Gotchas
+
+- **`pnpm run dev` is slow**: it always runs `build:wasm` and `build:emcc` before Vite. Prefer `pnpm exec vite` after WASM is already built.
+- **COOP/COEP headers**: Vite sets these automatically; required for threaded WASM (`SharedArrayBuffer`).
+- **pnpm ignored build scripts**: if `wasm-pack` is missing, use `pnpm exec wasm-pack` (bundled in devDependencies).
+- **Rust audio import warning**: a console warning about `/rust-wasm/rust_audio.js` may appear in dev; core sequencer/audio still works. Use `public/rust-wasm/` paths if debugging the Rust engine.
 
 ---
 

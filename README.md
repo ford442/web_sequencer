@@ -2,6 +2,21 @@
 
 A 32-step sequencer with dual synths, drums, sampler, and TTS voice synthesis powered by Web Audio + Pyodide.
 
+## In-app help
+
+Press **?** or click **Help** in the bottom bar to open the searchable help modal:
+
+- **Search** — natural-language queries like `automate filter`, `jc303`, `tts`, `rbs import`
+- **Guides** — step-by-step workflows for engines, automation, sampler TTS, song mode, and more
+- **Shortcuts** — keyboard reference (also covers MIDI learn)
+
+A dismissible **What's New** checklist appears on first visit after major updates. Contextual **?** icons on engine panels, transport, and sampler controls link to the same guides.
+
+See also:
+- [docs/audio-engine/jc303-prophecy.md](docs/audio-engine/jc303-prophecy.md) — 303 engine switching + Prophecy formants
+- [docs/automation.md](docs/automation.md) — automation lanes and RBS import
+- [docs/tts/TTS_DEPLOYMENT.md](docs/tts/TTS_DEPLOYMENT.md) — sampler TTS setup
+
 ## Features
 
 - 🎹 Dual synthesizers (Lead & Bass) with ADSR, filters, and waveform selection
@@ -35,6 +50,17 @@ npm run dev
 ```powershell
 npm test
 ```
+
+Knob rendering drift is guarded by contract tests that snapshot the pure derivations from
+`KNOB_MATERIAL`:
+- `buildKnobShaderCode()` (WGSL source)
+- `buildKnob2DDrawCalls()` (Canvas2D draw-command sequence)
+
+If you intentionally change `src/components/knobMaterial.ts`, run the relevant Vitest file with
+snapshot update and review the inline snapshot diff before committing.
+
+A separate Playwright smoke test (`tests/knob-canvas-smoke.spec.ts`) forces the Canvas2D fallback and
+checks that knob canvases render non-blank output (no screenshot comparisons).
 
 ## Build
 ```powershell
