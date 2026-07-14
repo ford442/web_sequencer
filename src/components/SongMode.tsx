@@ -298,7 +298,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
             const nextMeasure = Math.max(0, sIdx - 1);
             if (nextMeasure !== sIdx) {
                 setActiveCell({ track, measure: nextMeasure });
-                songModeCellRefs.current.get(`${track}-${nextMeasure}`)?.focus();
+                setTimeout(() => songModeCellRefs.current.get(`${track}-${nextMeasure}`)?.focus(), 0);
             }
         } else if (e.key === 'ArrowRight') {
             e.preventDefault();
@@ -306,7 +306,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
             const nextMeasure = Math.min(songStructure.length - 1, sIdx + 1);
             if (nextMeasure !== sIdx) {
                 setActiveCell({ track, measure: nextMeasure });
-                songModeCellRefs.current.get(`${track}-${nextMeasure}`)?.focus();
+                setTimeout(() => songModeCellRefs.current.get(`${track}-${nextMeasure}`)?.focus(), 0);
             }
         } else if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
