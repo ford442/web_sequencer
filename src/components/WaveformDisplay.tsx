@@ -663,15 +663,9 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
                 role="img"
                 aria-label={label}
                 title={label}
-                onMouseMove={handleMouseMove}
-                onMouseDown={handleMouseDown}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onDoubleClick={handleDoubleClick}
                 onKeyDown={handleKeyDown}
                 tabIndex={0}
                 aria-description="Use Left/Right arrows to move slices, Ctrl+Left/Right to select slice, Space/Enter to split slice, Delete to remove."
-                style={{ cursor: hoverState ? 'col-resize' : 'default' }}
             >
                 <canvas ref={canvasRef} className="w-full h-full block" />
             </div>
@@ -698,7 +692,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
                             />
                         </div>
                     )}
-                    <button type="button"
+                    <button
                         onClick={(e) => {
                             e.stopPropagation();
                             onAutoSlice();

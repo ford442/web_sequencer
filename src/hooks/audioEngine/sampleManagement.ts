@@ -223,6 +223,17 @@ export function applySamplerVoiceParamUpdate({
             case 'formantShift':
                 voice.setFormantShift(value as number, currentTime);
                 break;
+            case 'stretchProfile': {
+                const node = voice.getSourceNode();
+                if (node && 'port' in node) {
+                    (node as AudioWorkletNode).port.postMessage({
+                        type: 'setStretchProfile',
+                        profile: value
+                    });
+                }
+                break;
+            }
+
             case 'pitchAttack':
                 voice.setPitchAttack(value as number);
                 break;

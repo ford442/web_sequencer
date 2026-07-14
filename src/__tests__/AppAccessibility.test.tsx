@@ -105,7 +105,7 @@ describe('App Accessibility', () => {
         </CompactLayoutProvider>
       </AppStateProvider>
     );
-    expect(screen.getByRole('link', { name: 'Skip to sequencer' })).toHaveAttribute('href', '#main-sequencer');
+    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
     expect(document.querySelector('[aria-live="polite"].sr-only')).toBeInTheDocument();
   });
 });

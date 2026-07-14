@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
-    SamplerBankParams, AudioEngine
+    SamplerBankParams, AudioEngine, TrackAnalysers
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -42,6 +42,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
     const drumKitEngineRef = useRef<DrumKitEngine | null>(null);
     const synthABusRef = useRef<GainNode | null>(null);
+    const synthBBusRef = useRef<GainNode | null>(null);
+    const samplerBusRef = useRef<GainNode | null>(null);
+    const analyserNodeRef = useRef<AnalyserNode | null>(null);
+    const trackAnalysersRef = useRef<TrackAnalysers>({});
     const prophecyManagerRef = useRef<ProphecyManager | null>(null);
 
     // Pre-stretched phoneme buffer pool (phoneme-aware time stretching)
@@ -128,6 +132,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         sidechainBusRef,
         drumKitEngineRef,
         synthABusRef,
+        synthBBusRef,
+        samplerBusRef,
         prophecyManagerRef,
     }), []);
 
@@ -141,6 +147,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
         try {
             const lifecycleRefs: EngineLifecycleRefs = {
+                analyserNodeRef,
+                trackAnalysersRef,
+                synthABusRef,
+                synthBBusRef,
+                samplerBusRef,
                 masterGainRef,
                 masterPannerRef,
                 masterSaturationRef,
@@ -234,6 +245,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 masterSaturationRef,
                 masterPannerRef,
                 reverbTypeRef,
+                analyserNodeRef,
+                trackAnalysersRef,
             }, {
                 playSampler,
                 noteOnSampler,

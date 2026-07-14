@@ -6,6 +6,7 @@ import { Harmonizer } from '../../engines/Harmonizer';
 import type { MultisampleBank, PhonemeData, SamplerBankParams } from '../../types';
 import { noteToMidi, type ScaleDefinition } from '../../utils/musicTheory';
 import { makeDistortionCurve } from './distortion';
+import { pulseExpressionLed } from '../../audio/expressionLedPulse';
 import { getSyncedLfoHz, getSyncedSeconds, resolveExpressiveness } from './syncUtils';
 
 export interface SamplerNoteParams {
@@ -717,6 +718,11 @@ const playSampler = (
     stepTime: number = 0.2,
     tuning?: ScaleDefinition | null
 ) => {
+    const noteStr = Array.isArray(note) ? note[0] : note;
+    if (noteStr) {
+        pulseExpressionLed('sampler', noteStr);
+    }
+
     // Harmonize support - if harmonizer is active, generate multiple harmony voices
     const harmonizer = harmonizerRef.current;
     if (harmonizer?.getIsActive()) {
@@ -752,6 +758,7 @@ const playSampler = (
 
 const noteOnSampler = (params: SamplerBankParams, note: string, time?: number, tuning?: any): number | null => {
     const now = time || context.currentTime;
+    pulseExpressionLed('sampler', note);
 
     const multisampleBank = multisampleBanksRef.current.get(params.sampleName);
     const legacyBuffer = loadedSampleBuffersRef.current.get(params.sampleName);

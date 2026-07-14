@@ -1,63 +1,25 @@
+import React, { useRef, memo } from 'react';
 import { SamplerToolbar } from './sampler-panel/SamplerToolbar';
-import React, { useRef, useState, useEffect, memo, useCallback, useMemo } from 'react';
-import { LoadingButton } from './LoadingButton';
-import type { SamplerBankParams, SamplerParams, AudioEngine } from '../types';
-import { SupertonicService } from '../services/Supertonic';
-import { Knob } from './Knob';
-import { WaveformDisplay } from './WaveformDisplay';
-import { DrawableLFO } from './DrawableLFO';
-import { SamplerPitchControls, type PitchControlValues } from './SamplerPitchControls';
-import { PhonemeAligner } from '../engines/rubberband/PhonemeAligner';
-
-interface SamplerPanelProps {
-    params: SamplerParams; // Expecting Array[8]
-    onChange: (updates: SamplerParams) => void; // Expecting full array update
-    onLoadSample: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void>;
-    audioContext: AudioContext;
-    audioEngine?: AudioEngine; // For sustain processor controls
-    activeBankIdx: number;           // Controlled by Parent
-    onBankChange: (i: number) => void; // Controlled by Parent
-    onOpenEditor?: () => void;
-    isVoiceEditorOpen?: boolean;
-    ttsPhrases: string[];            // Array of 8 TTS phrases
-    onTtsPhraseChange: (phrases: string[]) => void; // Update TTS phrases
-    onGenerateTTS?: (text: string) => Promise<void>; // Delegate generation to parent
-    onHarmonize?: (bankIndex: number, chordType: string) => Promise<void>; // New prop
-    onParamChange?: (bankIndex: number, key: string, value: any) => void;
-    loadedBanks?: boolean[];         // Visual indicator for loaded samples
-    sampleBuffer?: AudioBuffer | null;
-    sliceHighlightRef?: React.MutableRefObject<((slice: number) => void) | null>;
-    // Phase 2: Melodic Lyric Mode
-    melodicMode?: boolean;
-    onMelodicModeChange?: (enabled: boolean) => void;
-    // Multisample Generator
-    multisampleProgress?: { bankIdx: number; progress: number; isProcessing: boolean } | null;
-    /** Which banks have multisamples ready (fully processed) */
-    multisampleReady?: boolean[];
-    /** Which banks are currently processing */
-    multisampleProcessing?: boolean[];
-    // Slicing support
-    alignment?: import('../engines/rubberband/PhonemeAligner').AlignmentResult | null;
-    onAlignmentChange?: (alignment: import('../engines/rubberband/PhonemeAligner').AlignmentResult) => void;
-}
-
-// 8 Banks
-const SAMPLE_BANKS = Array.from({ length: 8 }, (_, i) => `${i + 1}`);
-
-// Helper functions for grain size calculations
-const grainSizeToMs = (size: number) => Math.round(size / 441 * 10);
-const grainSizeToPercent = (size: number) => ((size - 441) / (22050 - 441) * 100);
+import { SamplerPitchControls } from './SamplerPitchControls';
+import { SamplerBankTabs } from './sampler-panel/SamplerBankTabs';
+import { SamplerDragOverlay } from './sampler-panel/SamplerDragOverlay';
+import { SamplerWaveformSection } from './sampler-panel/SamplerWaveformSection';
+import { SamplerModeSelector } from './sampler-panel/SamplerModeSelector';
+import { MelodicLyricModeToggle } from './sampler-panel/MelodicLyricModeToggle';
+import { SamplerKnobControls } from './sampler-panel/SamplerKnobControls';
+import { useSamplerPanelState } from './sampler-panel/useSamplerPanelState';
+import { useSamplerRecording } from './sampler-panel/useSamplerRecording';
+import { useSamplerFileLoading } from './sampler-panel/useSamplerFileLoading';
+import type { SamplerPanelProps } from './sampler-panel/types';
 
 const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
-    params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor, isVoiceEditorOpen,
-    ttsPhrases, onTtsPhraseChange, onGenerateTTS,
-    onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef,
-    melodicMode = false, onMelodicModeChange,
-    multisampleProgress,
-    multisampleReady,
-    multisampleProcessing,
-    alignment,
-    onAlignmentChange
+  params, onChange, onLoadSample, audioContext, audioEngine, activeBankIdx, onBankChange, onOpenEditor, isVoiceEditorOpen,
+  ttsPhrases, onTtsPhraseChange, onGenerateTTS,
+  onHarmonize, onParamChange, loadedBanks, sampleBuffer, sliceHighlightRef,
+  melodicMode = false, onMelodicModeChange,
+  multisampleProgress,
+  multisampleReady,
+  multisampleProcessing,
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dummyRef = useRef(null); // Fallback for sliceHighlightRef
@@ -622,7 +584,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             {isDragging && (
                 <div className="absolute inset-0 z-50 bg-purple-900/80 backdrop-blur-sm flex items-center justify-center border-2 border-purple-400 m-2 rounded-xl pointer-events-none">
                     <div className="text-center animate-pulse">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 text-purple-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 text-purple-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
                         <h3 className="text-2xl font-bold text-white font-orbitron tracking-widest">DROP AUDIO FILE</h3>
@@ -642,7 +604,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             role="tab"
                             aria-selected={activeBankIdx === i}
                             aria-controls="sampler-bank-panel"
-                            aria-label={`Select Bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
+                            aria-label={`Select sample bank ${i + 1}${loadedBanks?.[i] ? ' (Loaded)' : ''}`}
                             tabIndex={activeBankIdx === i ? 0 : -1}
                             onClick={() => onBankChange(i)}
                             onKeyDown={(e) => handleKeyDown(e, i)}
@@ -713,7 +675,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                     <div className="bg-gray-800/50 rounded p-2 border border-purple-500/30">
                         <div className="flex items-center justify-between text-[9px] text-purple-300 mb-1.5">
                             <span className="flex items-center gap-1.5">
-                                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <svg aria-hidden="true" className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
@@ -831,7 +793,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                 <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-500/30 p-2 rounded">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-400" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z" />
                             </svg>
                             <div>
@@ -1137,40 +1099,183 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             </div>
         </div>
     );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dummyRef = useRef(null);
+
+  const state = useSamplerPanelState({
+    params, onChange, onLoadSample, audioEngine, activeBankIdx,
+    onBankChange, ttsPhrases, onTtsPhraseChange, onGenerateTTS,
+    onHarmonize, onParamChange, sampleBuffer, multisampleProgress,
+  });
+
+  const { isRecording, toggleRecording } = useSamplerRecording(
+    audioContext,
+    state.loadBufferToBank,
+  );
+
+  const fileLoading = useSamplerFileLoading(audioContext, state.loadBufferToBank);
+
+  const h = state.paramHandlers;
+
+  return (
+    <div
+      className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+      onDragOver={fileLoading.handleDragOver}
+      onDragLeave={fileLoading.handleDragLeave}
+      onDrop={(e) => fileLoading.handleDrop(e, state.setStatus)}
+    >
+      <SamplerDragOverlay isDragging={fileLoading.isDragging} activeBankIdx={activeBankIdx} />
+
+      <SamplerBankTabs
+        activeBankIdx={activeBankIdx}
+        flashBankIdx={state.flashBankIdx}
+        loadedBanks={loadedBanks}
+        multisampleReady={multisampleReady}
+        multisampleProcessing={multisampleProcessing}
+        tabRefs={state.tabRefs}
+        onBankChange={onBankChange}
+        onKeyDown={state.handleBankKeyDown}
+        status={state.status}
+      />
+
+      <div
+        id="sampler-bank-panel"
+        role="tabpanel"
+        aria-labelledby={`sampler-bank-tab-${activeBankIdx}`}
+        className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700"
+      >
+        <SamplerWaveformSection
+          sampleBuffer={sampleBuffer}
+          currentAlignment={state.currentAlignment}
+          sliceHighlightRef={sliceHighlightRef || dummyRef}
+          onAlignmentChange={state.handleAlignmentChange}
+          onAutoSlice={state.handleAutoSlice}
+          autoSliceSensitivity={state.autoSliceSensitivity}
+          onAutoSliceSensitivityChange={state.setAutoSliceSensitivity}
+          activeProgress={state.activeProgress}
+          activeBankIdx={activeBankIdx}
+        />
+
+        <SamplerToolbar
+          fileInputRef={fileInputRef}
+          handleFileChange={(e) => fileLoading.handleFileChange(e, state.setStatus)}
+          isRecording={isRecording}
+          toggleRecording={() => toggleRecording(state.setStatus)}
+          currentTtsText={state.currentTtsText}
+          setCurrentTtsText={state.setCurrentTtsText}
+          ttsReady={state.ttsReady}
+          isGenerating={state.isGenerating}
+          handleTTS={state.handleTTS}
+          onOpenEditor={onOpenEditor}
+          isVoiceEditorOpen={isVoiceEditorOpen}
+          chordType={state.chordType}
+          setChordType={state.setChordType}
+          isProcessingHarmonize={state.isProcessingHarmonize}
+          handleHarmonizeClick={state.handleHarmonizeClick}
+          onHarmonize={!!onHarmonize}
+        />
+
+        <SamplerModeSelector
+          currentParams={state.currentParams}
+          modeRefs={state.modeRefs}
+          onModeChange={state.handleModeChange}
+          onModeKeyDown={state.handleModeKeyDown}
+          onGrainSizeChange={state.handleGrainSizeChange}
+          onSliceModeToggle={state.handleSliceModeToggle}
+        />
+
+        <MelodicLyricModeToggle
+          melodicMode={melodicMode}
+          onMelodicModeChange={onMelodicModeChange}
+        />
+
+        <SamplerPitchControls
+          bankId={activeBankIdx}
+          values={{
+            rootNote: state.currentParams.rootNote ?? 60,
+            coarseTune: state.currentParams.coarseTune ?? 0,
+            fineTune: state.currentParams.fineTune ?? 0,
+            formantShift: state.currentParams.formantShift ?? 0,
+            quality: state.currentParams.quality ?? 'good',
+            stretchMode: state.currentParams.stretchMode ?? 'Pitch',
+            lockToSequencer: state.currentParams.lockToSequencer ?? false,
+          }}
+          onChange={state.handlePitchControlChange}
+        />
+
+        <SamplerKnobControls
+          currentParams={state.currentParams}
+          handlers={{
+            playbackSpeed: h.playbackSpeed,
+            volume: h.volume,
+            filterCutoff: h.filterCutoff,
+            drive: h.drive,
+            timeRatio: h.timeRatio,
+            pitchScale: h.pitchScale,
+            formantShift: h.formantShift,
+            vibratoDepth: h.vibratoDepth,
+            tremoloDepth: h.tremoloDepth,
+            tremoloRate: h.tremoloRate,
+            breathIntensity: h.breathIntensity,
+            freeze: h.freeze,
+            freezeLfoSync: h.freezeLfoSync,
+            freezeLfoRate: h.freezeLfoRate,
+            freezeLfoDepth: h.freezeLfoDepth,
+            formantLfoSync: h.formantLfoSync,
+            formantLfoRate: h.formantLfoRate,
+            freezeEnvDepth: h.freezeEnvDepth,
+            timeStretchEnvDepth: h.timeStretchEnvDepth,
+            grainEnvDepth: h.grainEnvDepth,
+            grainPitchEnvDepth: h.grainPitchEnvDepth,
+            grainJitter: h.grainJitter,
+            grainPitchQuantize: h.grainPitchQuantize,
+            granularPitchShift: h.granularPitchShift,
+            bitcrush: h.bitcrush,
+            downsample: h.downsample,
+            formantLfoDepth: h.formantLfoDepth,
+            reverbLfoRate: h.reverbLfoRate,
+            reverbLfoDepth: h.reverbLfoDepth,
+            formantEnvSync: h.formantEnvSync,
+            formantLfoShape: h.formantLfoShape,
+            pitchAmount: h.pitchAmount,
+            pitchAttack: h.pitchAttack,
+            pitchDecay: h.pitchDecay,
+            characterMorph: h.characterMorph,
+            choir: h.choir,
+            glitchChance: h.glitchChance,
+            attack: h.attack,
+            decay: h.decay,
+            sustain: h.sustain,
+            release: h.release,
+          }}
+          onCustomLfoShapeChange={state.handleCustomLfoShapeChange}
+          onMorphTargetChange={state.handleMorphTargetChange}
+          onFormantEnvAttackChange={state.handleFormantEnvAttackChange}
+          onFormantEnvDecayChange={state.handleFormantEnvDecayChange}
+          onFormantEnvAmountChange={state.handleFormantEnvAmountChange}
+          onFormantEnvFollowerChange={state.handleFormantEnvFollowerChange}
+        />
+      </div>
+    </div>
+  );
 });
 
-// Custom comparison for memoization to prevent re-renders when other banks update
 export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
-    // 1. Must be looking at same bank
-    if (prev.activeBankIdx !== next.activeBankIdx) return false;
+  if (prev.activeBankIdx !== next.activeBankIdx) return false;
+  if (prev.params[prev.activeBankIdx] !== next.params[next.activeBankIdx]) return false;
 
-    // 2. Active bank params must be referentially equal
-    if (prev.params[prev.activeBankIdx] !== next.params[next.activeBankIdx]) return false;
+  const prevTTS = prev.ttsPhrases?.[prev.activeBankIdx];
+  const nextTTS = next.ttsPhrases?.[next.activeBankIdx];
+  if (prevTTS !== nextTTS) return false;
 
-    // 3. TTS phrases for active bank must be same
-    const prevTTS = prev.ttsPhrases?.[prev.activeBankIdx];
-    const nextTTS = next.ttsPhrases?.[next.activeBankIdx];
-    if (prevTTS !== nextTTS) return false;
+  if (prev.audioEngine !== next.audioEngine) return false;
+  if (prev.loadedBanks !== next.loadedBanks) return false;
+  if (prev.sampleBuffer !== next.sampleBuffer) return false;
+  if (prev.sliceHighlightRef !== next.sliceHighlightRef) return false;
+  if (prev.onGenerateTTS !== next.onGenerateTTS) return false;
+  if (prev.alignment !== next.alignment) return false;
 
-    // 4. Critical props check
-    if (prev.audioEngine !== next.audioEngine) return false;
-
-    // 5. Check if loaded banks status changed
-    // Using reference equality only. useAppState performs immutable shallow updates,
-    // so new references are created only when data actually changes.
-    if (prev.loadedBanks !== next.loadedBanks) return false;
-
-    // 6. Check sample buffer
-    if (prev.sampleBuffer !== next.sampleBuffer) return false;
-
-    // 7. Check sliceHighlightRef (should be stable, but just in case)
-    if (prev.sliceHighlightRef !== next.sliceHighlightRef) return false;
-
-    // 8. Check onGenerateTTS
-    if (prev.onGenerateTTS !== next.onGenerateTTS) return false;
-
-    // 9. Check alignment
-    if (prev.alignment !== next.alignment) return false;
-
-    return true;
+  return true;
 });
+
+export type { SamplerPanelProps } from './sampler-panel/types';

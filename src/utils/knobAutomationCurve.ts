@@ -24,14 +24,18 @@ export function interpolateLaneAtStep(
   const { points, interpolation } = lane;
   if (points.length === 0) return null;
 
-  const exact = points.find((p) => p.step === step);
-  if (exact) return exact.value;
-
   let before: AutomationLanePoint | null = null;
   let after: AutomationLanePoint | null = null;
-  for (const p of points) {
-    if (p.step <= step) before = p;
-    if (p.step > step && !after) after = p;
+
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    if (p.step === step) return p.value;
+    if (p.step < step) {
+      before = p;
+    } else if (p.step > step) {
+      after = p;
+      break; // Points are sorted, so the first point > step is the only 'after' we need
+    }
   }
 
   if (!before && !after) return null;

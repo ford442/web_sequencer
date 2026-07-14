@@ -16,6 +16,27 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
+import type { AutomationTarget } from '../types';
+
+// ⚡ Bolt: Helper to retrieve the automation store value efficiently using O(1) cache to reduce GC.
+const getAutomationValue = (target: AutomationTarget, param: string, step: number): number | undefined => {
+    const lanes = automationStore.getLanesForParam(target, param);
+    for (let i = 0; i < lanes.length; i++) {
+        const lane = lanes[i];
+        if (lane.enabled) {
+            const v = automationStore.getValueAtStep(lane, step);
+            if (v !== null) return v;
+        }
+    }
+    return undefined;
+};
+
+
+
+
+
+
+
 import { isE2eMode, setE2eTransportStep } from '../e2e/probe';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
@@ -70,7 +91,7 @@ export interface UseStepHandlerOptions {
         formantShift: number;
         attack: number;
         decay: number;
-        quality: 'preview' | 'good' | 'better' | 'best';
+        stretchProfile: 'vocal' | 'harmonic' | 'fast';
         stretchMode: 'Time' | 'Pitch' | 'Formant';
         lockToSequencer: boolean;
         pan?: number;
@@ -247,20 +268,10 @@ export const useStepHandler = ({
             // Unified automation lanes (recorded + imported RBS) for filter cutoff/resonance on this synth track
             // These override per-step; values are already 0-1 normalized (playSynth scales to Hz/Q)
             const targetForLane: 'synthA' | 'synthB' = trackKey === 'partA' ? 'synthA' : 'synthB';
-            const cutoffLanes = automationStore.getLanesForParam(targetForLane, 'filterCutoff');
-            for (const lane of cutoffLanes) {
-                if (lane.enabled) {
-                    const v = automationStore.getValueAtStep(lane, step);
-                    if (v !== null) { noteParams.filterCutoff = v; break; }
-                }
-            }
-            const resLanes = automationStore.getLanesForParam(targetForLane, 'filterResonance');
-            for (const lane of resLanes) {
-                if (lane.enabled) {
-                    const v = automationStore.getValueAtStep(lane, step);
-                    if (v !== null) { noteParams.filterResonance = v; break; }
-                }
-            }
+            const cutoffVal = getAutomationValue(targetForLane, 'filterCutoff', step);
+            if (cutoffVal !== undefined) noteParams.filterCutoff = cutoffVal;
+            const resVal = getAutomationValue(targetForLane, 'filterResonance', step);
+            if (resVal !== undefined) noteParams.filterResonance = resVal;
 
             audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
 
@@ -301,9 +312,9 @@ export const useStepHandler = ({
 
             // Bass2 filter automation from unified lanes (RBS tb303Bcutoff etc maps to bass2)
             const bass2NoteParams: any = {};
-            const b2Cutoff = automationStore.getLanesForParam('bass2', 'filterCutoff').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step);
             if (b2Cutoff !== undefined) bass2NoteParams.filterCutoff = b2Cutoff;
-            const b2Res = automationStore.getLanesForParam('bass2', 'filterResonance').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const b2Res = getAutomationValue('bass2', 'filterResonance', step);
             if (b2Res !== undefined) bass2NoteParams.filterResonance = b2Res;
 
             audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, Object.keys(bass2NoteParams).length ? bass2NoteParams : undefined);
@@ -344,12 +355,23 @@ export const useStepHandler = ({
             let finalNotes = rawNotes;
             const voiceParams = samplerVoiceParamsRef.current;
             if (voiceParams.lockToSequencer && typeof rawNotes === 'string') {
-                const activeSteps = seq.steps
-                    .map((s, i) => (s ? i : -1))
-                    .filter(i => i !== -1);
+                let targetStep = -1;
+                let firstActiveStep = -1;
+                for (let i = 0; i < seq.steps.length; i++) {
+                    if (seq.steps[i]) {
+                        if (firstActiveStep === -1) firstActiveStep = i;
+                        if (i >= step) {
+                            targetStep = i;
+                            break;
+                        }
+                    }
+                }
 
-                if (activeSteps.length > 0) {
-                    const targetStep = activeSteps.find(s => s >= step) ?? activeSteps[0];
+                if (targetStep === -1 && firstActiveStep !== -1) {
+                    targetStep = firstActiveStep;
+                }
+
+                if (targetStep !== -1) {
                     const targetData = seq.steps[targetStep];
                     if (targetData?.note) {
                         finalNotes = targetData.chord
@@ -368,17 +390,17 @@ export const useStepHandler = ({
                 formantShift: voiceParams.formantShift,
                 attack: voiceParams.attack,
                 decay: voiceParams.decay,
-                quality: voiceParams.quality,
+                stretchProfile: voiceParams.stretchProfile,
                 stretchMode: voiceParams.stretchMode,
                 lockToSequencer: voiceParams.lockToSequencer,
             };
 
             // Sampler track automation (filter, volume) from lanes - complements the Voice Designer ramping below
-            const sampCutoff = automationStore.getLanesForParam('sampler', 'filterCutoff').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step);
             if (sampCutoff !== undefined) (bankParams as any).filterCutoff = Math.max(20, sampCutoff * 20000);
-            const sampRes = automationStore.getLanesForParam('sampler', 'filterResonance').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const sampRes = getAutomationValue('sampler', 'filterResonance', step);
             if (sampRes !== undefined) (bankParams as any).filterResonance = sampRes * 20;
-            const sampVol = automationStore.getLanesForParam('sampler', 'volume').map(l => l.enabled ? automationStore.getValueAtStep(l, step) : null).find(v => v != null);
+            const sampVol = getAutomationValue('sampler', 'volume', step);
             if (sampVol !== undefined) (bankParams as any).volume = sampVol;
 
             audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
@@ -396,56 +418,34 @@ export const useStepHandler = ({
         // Apply recorded/imported RBS/AI automation lanes with interpolation.
         // High-priority: Voice Designer params (formantShift, drive, attack, decay) via ramping path.
         // This enables full expressive RBS song playback with parameter movement.
-        const playbackEnabled = automationStore.getState().playbackEnabled;
+        const autoState = automationStore.getState();
+        const playbackEnabled = autoState.playbackEnabled;
         if (playbackEnabled && audioEngine) {
             const automationPatternIndex = isSongModeActiveRef.current ? (songMeasureRef.current % 8) : 0;
-            const activeLanes = automationStore.getActiveLanesForPattern(automationPatternIndex);
+            const lanes = autoState.lanes;
             const rampDuration = Math.max(0.01, stepTime * 0.85);
 
             // Collect live values for UI display (keyed "target:parameter")
             const liveValues: Record<string, number> = {};
             let hasLiveValues = false;
 
-            // --- 303 / synth automation via AudioParam-aligned scheduler ---
-            // The AutomationScheduler sends worklet messages timed to the AudioContext
-            // clock, avoiding JS-callback jitter for continuous knob curves.
-            // Master-target PCF lanes are also routed through the scheduler so that
-            // TRAK-event precision is preserved for filter sweeps.
-            if (automationSchedulerRef?.current) {
-                const schedulerLanes = activeLanes.filter(
-                    (l) => l.target === 'synthA' || l.target === 'synthB' || l.target === 'bass2'
-                        || l.target === 'master'
-                );
-                if (schedulerLanes.length > 0) {
-                    automationSchedulerRef.current.scheduleFromLanes(
-                        schedulerLanes,
-                        step,
-                        1,          // schedule one step ahead
-                        stepTime,
-                        time
-                    );
-                    // Collect live values from these lanes for UI indicators.
-                    for (const lane of schedulerLanes) {
-                        if (!lane.enabled) continue;
-                        const normVal = automationStore.getValueAtStep(lane, step);
-                        if (normVal === null) continue;
-                        liveValues[`${lane.target}:${lane.parameter}`] = normVal;
-                        hasLiveValues = true;
-                    }
-                }
-            }
+            const schedulerLanes = [];
 
-            activeLanes.forEach((lane) => {
-                if (!lane.enabled) return;
-                // Skip 303/synth/master lanes already handled by the scheduler above.
-                if (automationSchedulerRef?.current &&
-                    (lane.target === 'synthA' || lane.target === 'synthB' || lane.target === 'bass2'
-                        || lane.target === 'master')) {
-                    return;
+            // First pass: collect scheduler lanes and evaluate active non-scheduler lanes without array methods
+            for (let i = 0; i < lanes.length; i++) {
+                const lane = lanes[i];
+                if (!lane.enabled) continue;
+                if (lane.scope === 'pattern' && lane.patternIndex !== automationPatternIndex) continue;
+
+                const isSchedulerTarget = lane.target === 'synthA' || lane.target === 'synthB' || lane.target === 'bass2' || lane.target === 'master';
+
+                if (automationSchedulerRef?.current && isSchedulerTarget) {
+                    schedulerLanes.push(lane);
+                    continue;
                 }
 
                 const normVal = automationStore.getValueAtStep(lane, step);
-                if (normVal === null) return;
+                if (normVal === null) continue;
 
                 // Track for UI automation indicators
                 liveValues[`${lane.target}:${lane.parameter}`] = normVal;
@@ -475,7 +475,26 @@ export const useStepHandler = ({
                         onParamChange(activeSamplerBankRef.current, lane.parameter as any, realVal, rampDuration);
                     } catch (e) {}
                 }
-            });
+            }
+
+            // --- 303 / synth automation via AudioParam-aligned scheduler ---
+            if (automationSchedulerRef?.current && schedulerLanes.length > 0) {
+                automationSchedulerRef.current.scheduleFromLanes(
+                    schedulerLanes,
+                    step,
+                    1,          // schedule one step ahead
+                    stepTime,
+                    time
+                );
+                // Collect live values from these lanes for UI indicators.
+                for (let i = 0; i < schedulerLanes.length; i++) {
+                    const lane = schedulerLanes[i];
+                    const normVal = automationStore.getValueAtStep(lane, step);
+                    if (normVal === null) continue;
+                    liveValues[`${lane.target}:${lane.parameter}`] = normVal;
+                    hasLiveValues = true;
+                }
+            }
 
             // Notify UI with all live values in a single batched update (one re-render per step)
             if (hasLiveValues) {

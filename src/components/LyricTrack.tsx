@@ -32,7 +32,7 @@ export const LyricTrack: React.FC<LyricTrackProps> = React.memo(({
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1 text-white font-mono text-sm focus:border-cyan-500 outline-none"
-                placeholder="Enter full phrase to automatically map syllables to Sampler notes..."
+                id="lyric-track-input" aria-label="Enter full phrase to automatically map syllables to Sampler notes" placeholder="Enter full phrase to automatically map syllables to Sampler notes..."
                 aria-label="Global Lyric Track Input"
                 disabled={isGenerating}
                 onKeyDown={(e) => {
@@ -41,7 +41,7 @@ export const LyricTrack: React.FC<LyricTrackProps> = React.memo(({
                     }
                 }}
             />
-            <button type="button"
+            <button
                 onClick={() => onApply(text)}
                 disabled={isGenerating || !text.trim()}
                 aria-busy={isGenerating}
@@ -49,7 +49,7 @@ export const LyricTrack: React.FC<LyricTrackProps> = React.memo(({
             >
                 {isGenerating ? 'GENERATING...' : 'APPLY TO TRACK'}
             </button>
-            <button type="button"
+            <button
                 onClick={onClose}
                 className="px-2 py-1.5 text-gray-500 hover:text-white"
                 aria-label="Close Lyric Track"
