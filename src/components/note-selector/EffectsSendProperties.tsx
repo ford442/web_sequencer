@@ -52,23 +52,6 @@ export const EffectsSendProperties: React.FC<EffectsSendPropertiesProps> = React
         }
         ariaLabel="Pan"
       />
-       {/* Pan Control */}
-      <PropertySlider
-        label="Pan"
-        id="note-pan"
-        value={currentPan || 0}
-        min={-1}
-        max={1}
-        onChange={(v) => onPropertyChange?.("pan", v)}
-        valueFormatter={(v) =>
-          v === 0
-            ? "C"
-            : v < 0
-              ? `L${Math.round((v + 1) * 50)}`
-              : `R${Math.round(v * 50)}`
-        }
-        ariaLabel="Pan"
-      />
        {/* Delay Send Control */}
       {onPropertyChange && (
         <PropertySlider
