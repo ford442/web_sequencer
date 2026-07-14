@@ -33,6 +33,9 @@ export interface SamplerNoteParams {
     characterMorph?: number;
     breathIntensity?: number;
     formantShift?: number;
+    formantPitchLink?: number;
+    coarseTune?: number;
+    fineTune?: number;
     grainPitchQuantize?: number;
     tranceGate?: number;
     gateRate?: number;
@@ -323,17 +326,31 @@ export function createSamplerPlayback(
                     delayGain.connect(delayNodeRef.current);
                     voice.connectOutput(delayGain);
                 }
-
                 // Apply Timbre Modulation (Formant Shift)
                 const baseShift = params.formantShift || 0;
+                let finalFormantShift = baseShift;
                 if (noteParams?.formantShift !== undefined) {
-                    voice.setFormantShift(baseShift + noteParams.formantShift, triggerTime);
+                    finalFormantShift = baseShift + noteParams.formantShift;
                 } else if (noteParams?.timbre !== undefined) {
                     const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
-                    voice.setFormantShift(baseShift + mod, triggerTime);
+                    finalFormantShift = baseShift + mod;
                 } else if (params.formantShift !== undefined) {
-                    voice.setFormantShift(params.formantShift, triggerTime);
+                    finalFormantShift = params.formantShift;
                 }
+
+                const formantLinkRatio = noteParams?.formantPitchLink ?? params.formantPitchLink ?? 0.0;
+                if (formantLinkRatio !== 0.0) {
+                    const rootNote = params.rootNote ?? 60;
+                    // Current MIDI pitch delta from the root note
+                    const coarse = (noteParams?.coarseTune ?? params.coarseTune ?? 0);
+                    const fine = (noteParams?.fineTune ?? params.fineTune ?? 0) / 100;
+                    const noteMidi = noteToMidi(noteStr) + pitchOffsetSemitones + coarse + fine;
+                    const pitchDeltaSemitones = noteMidi - rootNote;
+                    finalFormantShift += (pitchDeltaSemitones * formantLinkRatio);
+                }
+
+                voice.setFormantShift(finalFormantShift, triggerTime);
+
 
                 // Apply Character Morphing
                 const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);

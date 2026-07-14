@@ -46,6 +46,9 @@ export interface SynthParams {
   portamento?: number;
   /** Prophecy: Formant frequency shift 0–1 */
   formantShift?: number;
+  formantPitchLink?: number;
+  coarseTune?: number;
+  fineTune?: number;
   /** CPP: fine tune / shape parameter 0–1 */
   cppFine?: number;
 }
@@ -93,6 +96,9 @@ export interface SamplerBankParams {
   timeRatio?: number;
   pitchScale?: number;
   formantShift?: number;
+  formantPitchLink?: number;
+  coarseTune?: number;
+  fineTune?: number;
   vibratoDepth?: number;
   tremoloDepth?: number;
   tremoloRate?: number;
@@ -428,6 +434,9 @@ export interface Note {
   sliceIndex?: number;
   freeze?: number;
   formantShift?: number;
+  formantPitchLink?: number;
+  coarseTune?: number;
+  fineTune?: number;
   formantLfoRate?: number;
   formantLfoDepth?: number;
   formantLfoSync?: boolean;
