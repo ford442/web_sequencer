@@ -137,6 +137,19 @@ export function createSamplerPlayback(
 
     // --- GLITCH LOGIC START ---
     const shouldGlitch = retrigger === 1 && (params.glitchChance || 0) > 0 && Math.random() < (params.glitchChance || 0);
+
+    // Bolt Optimization: Hoist glitch math outside the polyphonic notes loop.
+    // 1. Prevents redundant Math.random() calls and calculations per note in a chord.
+    // 2. Ensures all notes in a polyphonic chord have the same stutter count and stay perfectly in sync.
+    let numStutters = 0;
+    let glitchStutterLenVoice = 0;
+    const glitchStutterLenBuffer = 0.06;
+    const totalDur = durationSteps * stepTime;
+
+    if (shouldGlitch) {
+        numStutters = Math.floor(Math.random() * 3) + 2;
+        glitchStutterLenVoice = Math.min(0.06, totalDur / numStutters);
+    }
     // --- GLITCH LOGIC END ---
 
     // Handle Polyphony (Chords)
@@ -605,14 +618,10 @@ export function createSamplerPlayback(
         // For each note in the chord
         notes.forEach((noteStr, _noteIndex) => {
             if (shouldGlitch) {
-                const numStutters = Math.floor(Math.random() * 3) + 2;
-                const totalDur = durationSteps * stepTime;
-                const stutterLen = Math.min(0.06, totalDur / numStutters);
-
                 for (let i = 0; i < numStutters; i++) {
-                    runVoices(noteStr, i * stutterLen, stutterLen);
+                    runVoices(noteStr, i * glitchStutterLenVoice, glitchStutterLenVoice);
                 }
-                const played = numStutters * stutterLen;
+                const played = numStutters * glitchStutterLenVoice;
                 if (totalDur > played) {
                     runVoices(noteStr, played, totalDur - played);
                 }
@@ -693,13 +702,10 @@ export function createSamplerPlayback(
         const midi = noteToMidi(noteStr);
 
         if (shouldGlitch) {
-            const numStutters = Math.floor(Math.random() * 3) + 2;
-            const stutterLen = 0.06;
-
             for (let i = 0; i < numStutters; i++) {
-                playBufferSource(actualTime + i * stutterLen, stutterLen, midi);
+                playBufferSource(actualTime + i * glitchStutterLenBuffer, glitchStutterLenBuffer, midi);
             }
-            playBufferSource(actualTime + numStutters * stutterLen, 0, midi);
+            playBufferSource(actualTime + numStutters * glitchStutterLenBuffer, 0, midi);
         } else {
             for (let r = 0; r < retrigger; r++) {
                 const offset = r * (subDurationSteps * stepTime);
