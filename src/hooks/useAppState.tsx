@@ -13,18 +13,13 @@ import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import type { PcfEffect } from '../engines/PcfEffect';
 import type { MainSequencerHandle } from '../components/MainSequencer'
-import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner'
 
 import {
     NUM_STEPS,
-    DEFAULT_TEMPO,
 } from '../constants'
-import type { Pattern, PartSequence, ReverbType, ResolvedTrakEvent } from '../types'
-import type { ScaleDefinition } from '../utils/musicTheory'
+import type { Pattern, ResolvedTrakEvent } from '../types'
 import {
     UPDATED_INITIAL_PATTERN,
-    type TrackKey, type SongSnapshot,
-    getInitialTrackStorage,
 } from '../constants/appDefaults'
 import {
     getBass2Controls, getSynthControls, getKickControls, getSnareControls,
@@ -45,35 +40,46 @@ import { useSongHandlers, useSampleHandlers } from './appState/useSongHandlers'
 import { useHardwarePanels } from './appState/useHardwarePanels'
 import { useInstrumentState } from './appState/useInstrumentState'
 import { useSamplerVoiceState } from './appState/useSamplerVoiceState'
+import { useUIModalsState } from './appState/useUIModalsState'
+import { useSongModeState } from './appState/useSongModeState'
+import { usePatternEditState } from './appState/usePatternEditState'
+import { useSamplerBanksState } from './appState/useSamplerBanksState'
+import { useTransportMixState } from './appState/useTransportMixState'
 
 export function useAppState() {
 
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
-    const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
-    const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
-    const [isAISongModalOpen, setIsAISongModalOpen] = useState(false);
-    const [isRbsImportModalOpen, setIsRbsImportModalOpen] = useState(false);
-    const [isLyricTrackVisible, setIsLyricTrackVisible] = useState(false);
-    const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
-    const [showGamepadDebug, setShowGamepadDebug] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [hasStarted, setHasStarted] = useState(false);
-    const [forceScriptProcessorFallback, setForceScriptProcessorFallback] = useState(() => {
-        return localStorage.getItem('forceScriptProcessorFallback') === 'true';
-    });
+
+    const {
+        isVoiceEditorOpen, setIsVoiceEditorOpen,
+        isCloudLibraryOpen, setIsCloudLibraryOpen,
+        isAISongModalOpen, setIsAISongModalOpen,
+        isRbsImportModalOpen, setIsRbsImportModalOpen,
+        isLyricTrackVisible, setIsLyricTrackVisible,
+        isShortcutsHelpOpen, setIsShortcutsHelpOpen,
+        showGamepadDebug, setShowGamepadDebug,
+        isGenerating, setIsGenerating,
+        hasStarted, setHasStarted,
+        forceScriptProcessorFallback, setForceScriptProcessorFallback,
+        is3DMode, setIs3DMode,
+        toast, setToast,
+        showToast,
+    } = useUIModalsState();
 
     useGamepad();
 
-    const [is3DMode, setIs3DMode] = useState(false);
+    const {
+        tempo, setTempo, tempoRef,
+        swing, setSwing,
+        lastFreqRef,
+        ambianceUrl, setAmbianceUrl,
+        backgroundImage, setBackgroundImage,
+        masterVolume, setMasterVolume,
+        masterSaturation, setMasterSaturation,
+        globalPan, setGlobalPan,
+        reverbType, setReverbType,
+    } = useTransportMixState();
 
-    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
-    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
-        setToast({ message, type });
-    }, []);
-
-    const [tempo, setTempo] = useState<number>(DEFAULT_TEMPO)
-    const [swing, setSwing] = useState<number>(0)
-    const lastFreqRef = useRef<Record<string, number>>({ partA: 0, partB: 0 });
     const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef } = useAudioEngine(pyodide, tempo)
     const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
 
@@ -84,10 +90,22 @@ export function useAppState() {
 
     const [melodicMode, setMelodicMode] = useState(false);
 
-    const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
-
-    const lastSamplerMidiRef = useRef<Record<number, number>>({});
-    const lastSamplerFormantRef = useRef<Record<number, number>>({});
+    const {
+        trackStorage, setTrackStorage, trackStorageRef,
+        activeTrackSlots, setActiveTrackSlots, activeTrackSlotsRef,
+        songStorage, setSongStorage,
+        activeSongSlot, setActiveSongSlot,
+        activeSamplerBank, setActiveSamplerBank, activeSamplerBankRef,
+        activeAlignment, setActiveAlignment,
+        sampleBuffers, setSampleBuffers,
+        loadedBanks,
+        multisampleReady,
+        multisampleProcessing,
+        ttsPhrases, setTtsPhrases,
+        lastSamplerMidiRef,
+        lastSamplerFormantRef,
+        sliceHighlightRef,
+    } = useSamplerBanksState(audioEngine);
 
     const handleStart = async () => {
         console.log("Initialization sequence started...");
@@ -110,75 +128,32 @@ export function useAppState() {
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
     const [isAutomationRecording, setIsAutomationRecording] = useState(false)
-    const [selectedTrack, setSelectedTrack] = useState<TrackKey>('partA')
-    const [ambianceUrl, setAmbianceUrl] = useState<string>('')
-    const [backgroundImage, setBackgroundImage] = useState<string>('')
-    const [masterVolume, setMasterVolume] = useState(0.8)
-    const [masterSaturation, setMasterSaturation] = useState(0)
-    const [globalPan, setGlobalPan] = useState(0)
-    const [reverbType, setReverbType] = useState<ReverbType>('plate')
 
-    const [isSongModeOpen, setIsSongModeOpen] = useState(false);
-    const [isSongModeActive, setIsSongModeActive] = useState(false);
-    const [songStructure, setSongStructure] = useState<({ [key in TrackKey]: number | null })[]>(
-        Array(16).fill(null).map(() => ({
-            partA: null, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null
-        }))
-    );
-    const [currentSongMeasure, setCurrentSongMeasure] = useState(0);
-    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: TrackKey, step: number } | null>(null);
-    const [isNoteDragging, setIsNoteDragging] = useState(false);
-    const noteDragRef = useRef<{ track: TrackKey; step: number; startY: number; startMidi: number; hasMoved: boolean; lastMidi: number; pendingSequence?: PartSequence | PartSequence[]; } | null>(null);
+    const {
+        selectedTrack, setSelectedTrack,
+        contextMenu, setContextMenu,
+        isNoteDragging, setIsNoteDragging,
+        noteDragRef,
+        currentScale, setCurrentScale,
+        currentScaleRef,
+        selection, setSelection,
+        isSelecting, setIsSelecting,
+        clipboard, setClipboard,
+        isDrawing, setIsDrawing,
+        drawMode, setDrawMode,
+        zoomLevel, setZoomLevel,
+    } = usePatternEditState();
 
-    const [currentScale, setCurrentScale] = useState<ScaleDefinition | null>(null);
-
-    const sliceHighlightRef = useRef<((slice: number) => void) | null>(null);
-
-    const [selection, setSelection] = useState<{ trackKey: TrackKey; startStep: number; endStep: number; } | null>(null);
-    const [isSelecting, setIsSelecting] = useState(false);
-    const [clipboard, setClipboard] = useState<(import('../types').Note | null)[] | null>(null);
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [drawMode, setDrawMode] = useState<'add' | 'remove' | null>(null);
-
-    const [zoomLevel, setZoomLevel] = useState(1);
-
-    const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>(
-        getInitialTrackStorage(UPDATED_INITIAL_PATTERN)
-    );
-    const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
-        partA: 0, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
-    });
-    const activeTrackSlotsRef = useRef(activeTrackSlots);
-    useEffect(() => { activeTrackSlotsRef.current = activeTrackSlots; }, [activeTrackSlots]);
-
-    const [songStorage, setSongStorage] = useState<(SongSnapshot | null)[]>([null, null, null, null]);
-    const [activeSongSlot, setActiveSongSlot] = useState<number | null>(null);
-
-    const [activeSamplerBank, setActiveSamplerBank] = useState(0);
-    const activeSamplerBankRef = useRef(activeSamplerBank);
-
-    useEffect(() => {
-        activeSamplerBankRef.current = activeSamplerBank;
-        if (audioEngine && audioEngine.getAlignment) {
-            setActiveAlignment(audioEngine.getAlignment(activeSamplerBank));
-        }
-    }, [activeSamplerBank, audioEngine]);
-
-    const [sampleBuffers, setSampleBuffers] = useState<(AudioBuffer | null)[]>(new Array(8).fill(null));
-    const loadedBanks = useMemo(() => sampleBuffers.map(b => !!b), [sampleBuffers]);
-    
-    const multisampleReady = useMemo(() => 
-        Array.from({ length: 8 }, (_, i) => audioEngine?.isMultisampleReady?.(i) ?? false),
-        [audioEngine, sampleBuffers]
-    );
-    const multisampleProcessing = useMemo(() => 
-        Array.from({ length: 8 }, (_, i) => {
-            const bank = audioEngine?.getMultisampleBank?.(i);
-            return bank?.isProcessing ?? false;
-        }),
-        [audioEngine, sampleBuffers]
-    );
-    const [ttsPhrases, setTtsPhrases] = useState<string[]>(Array(8).fill("Hello World"));
+    const {
+        isSongModeOpen, setIsSongModeOpen,
+        isSongModeActive, setIsSongModeActive,
+        songStructure, setSongStructure,
+        currentSongMeasure, setCurrentSongMeasure,
+        songStructureRef,
+        isSongModeActiveRef,
+        songMeasureRef,
+        isFirstStepRef,
+    } = useSongModeState();
 
     const {
         synthA, setSynthA, synthARef, updateSynthA,
@@ -192,19 +167,8 @@ export function useAppState() {
         sampler, setSampler, samplerRef, updateSampler,
     } = useInstrumentState(drumKitEngineRef);
 
-    const tempoRef = useRef(tempo);
-    useEffect(() => { tempoRef.current = tempo; }, [tempo]);
-
     const patternRef = useRef(pattern);
     useEffect(() => { patternRef.current = pattern; }, [pattern]);
-    const songStructureRef = useRef(songStructure);
-    useEffect(() => { songStructureRef.current = songStructure; }, [songStructure]);
-    const isSongModeActiveRef = useRef(isSongModeActive);
-    useEffect(() => { isSongModeActiveRef.current = isSongModeActive; }, [isSongModeActive]);
-    const trackStorageRef = useRef(trackStorage);
-    useEffect(() => { trackStorageRef.current = trackStorage; }, [trackStorage]);
-    const songMeasureRef = useRef(0);
-    const isFirstStepRef = useRef(true);
 
     const sequencerRef = useRef<MainSequencerHandle>(null);
     const currentStepRef = useRef(-1);
@@ -223,9 +187,6 @@ export function useAppState() {
         audioEngine, sampler, activeSamplerBank, activeSamplerBankRef,
         samplerRef, setSampler, currentStepRef,
     });
-
-    const currentScaleRef = useRef(currentScale);
-    useEffect(() => { currentScaleRef.current = currentScale; }, [currentScale]);
 
     const automationSchedulerRef = useRef<AutomationScheduler | null>(null);
     const trakEventsRef = useRef<ResolvedTrakEvent[] | null>(null);
