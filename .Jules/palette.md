@@ -58,3 +58,6 @@
 ## 2026-07-10 - [Keyboard Accessibility for Playable Audio Triggers]
 **Learning:** When adding keyboard navigation to components that trigger real-time audio (like `DrumPads.tsx`), standard `<button>` click handling is insufficient. The Spacebar key defaults to scrolling the page, and operating system key-repeat rapidly fires `onKeyDown` if the key is held, causing horrible audio stuttering.
 **Action:** Always intercept `' '` (Space) and `'Enter'` keys explicitly via `onKeyDown` and `onKeyUp`. Call `e.preventDefault()` to stop scrolling, and maintain an active state (like a `Set` of active pad IDs) to ensure the audio trigger (`handlePadDown`) only fires once per physical key press, ignoring subsequent auto-repeat events.
+## 2026-07-14 - SongMode accessibility roving tabindex
+**Learning:** The ESLint/TypeScript parse error (e.g., `',' expected` or `Expression expected`) often reported around line 214 of `src/hooks/useAudioEngine.ts` is a known environmental false positive regarding valid destructuring (from `createSampleLibraryControls`). It shouldn't block unrelated scopes.
+**Action:** Ignore it or note it in the PR description, and do not attempt to fix this syntax if it surfaces during unrelated feature work.
