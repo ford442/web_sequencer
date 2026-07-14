@@ -54,7 +54,9 @@ const SongModeCell = memo(forwardRef<HTMLDivElement, {
     val: number | null;
     onMouseDown: (e: React.MouseEvent, sIdx: number, track: TrackKey, currentVal: number | null) => void;
     onKeyDown: (e: React.KeyboardEvent, sIdx: number, track: TrackKey, currentVal: number | null) => void;
-}>(({ sIdx, rowKey, rowLabel, val, onMouseDown, onKeyDown }, ref) => {
+    isActive: boolean;
+    onFocus: () => void;
+}>(({ sIdx, rowKey, rowLabel, val, onMouseDown, onKeyDown, isActive, onFocus }, ref) => {
     const hasVal = val !== null;
     return (
         <div
@@ -64,8 +66,9 @@ const SongModeCell = memo(forwardRef<HTMLDivElement, {
             className={`song-mode-cell shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none focus:outline-none focus:ring-1 focus:ring-cyan-500 bg-transparent
                 ${hasVal ? '' : 'hover:bg-gray-800/50'}
             `}
-            role="button"
-            tabIndex={0}
+            role="gridcell"
+            tabIndex={isActive ? 0 : -1}
+            onFocus={onFocus}
             aria-label={`${rowLabel} Measure ${sIdx + 1}, ${hasVal ? 'Pattern ' + (val! + 1) : 'Empty'}`}
             onMouseDown={(e) => onMouseDown(e, sIdx, rowKey, val)}
             onKeyDown={(e) => onKeyDown(e, sIdx, rowKey, val)}
@@ -106,6 +109,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
     // Menu state
     const [menu, setMenu] = useState<{ x: number, y: number, sIdx: number, track: TrackKey, currentVal: number | null } | null>(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [activeCell, setActiveCell] = useState<{ track: TrackKey, measure: number }>({ track: 'partA', measure: 0 });
 
     const playheadLineRefs = useRef<(HTMLDivElement | null)[]>([]);
     const headerCellRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -288,7 +292,23 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
 
     // Keyboard Handler: Allows simple toggling via Enter/Space and value adjustment via Arrows
     const handleCellKeyDown = useCallback((e: React.KeyboardEvent, sIdx: number, track: TrackKey, currentVal: number | null) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            e.stopPropagation();
+            const nextMeasure = Math.max(0, sIdx - 1);
+            if (nextMeasure !== sIdx) {
+                setActiveCell({ track, measure: nextMeasure });
+                songModeCellRefs.current.get(`${track}-${nextMeasure}`)?.focus();
+            }
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            e.stopPropagation();
+            const nextMeasure = Math.min(songStructure.length - 1, sIdx + 1);
+            if (nextMeasure !== sIdx) {
+                setActiveCell({ track, measure: nextMeasure });
+                songModeCellRefs.current.get(`${track}-${nextMeasure}`)?.focus();
+            }
+        } else if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             e.stopPropagation();
             if (currentVal !== null) {
@@ -394,6 +414,8 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                                                 val={val}
                                                 onMouseDown={handleCellMouseDown}
                                                 onKeyDown={handleCellKeyDown}
+                                            isActive={activeCell.track === row.key && activeCell.measure === sIdx}
+                                            onFocus={() => setActiveCell({ track: row.key, measure: sIdx })}
                                             />
                                         );
                                     })}
@@ -546,6 +568,8 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                                             val={val}
                                             onMouseDown={handleCellMouseDown}
                                             onKeyDown={handleCellKeyDown}
+                                        isActive={activeCell.track === row.key && activeCell.measure === sIdx}
+                                        onFocus={() => setActiveCell({ track: row.key, measure: sIdx })}
                                         />
                                     );
                                 })}
