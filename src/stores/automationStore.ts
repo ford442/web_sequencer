@@ -25,6 +25,8 @@ import type {
 import type { HyphonAutomationLane } from '../importers/rbs/types';
 import { interpolateLaneAtStep } from '../utils/knobAutomationCurve';
 
+const EMPTY_LANES: UnifiedAutomationLane[] = [];
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -297,7 +299,7 @@ class AutomationStore {
       this.lanesCache = { ref: lanes, map };
     }
     const key = `${target}:${parameter}`;
-    return this.lanesCache.map.get(key) || [];
+    return this.lanesCache.map.get(key) || EMPTY_LANES;
   }
 
   /** Get lanes targeting a specific sampler bank (0–7) */
