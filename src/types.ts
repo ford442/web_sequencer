@@ -25,6 +25,7 @@ export interface SynthParams {
   filterCutoff: number; // Hz
   filterResonance: number; // Q factor
   filterMode?: number; // 0-1 (filter mode toggle)
+  drive?: number;
   attack: number;
   decay: number;
   sustain: number; // 0-1 (level)
@@ -372,6 +373,7 @@ export interface Bass2Params {
   cutoff: number;
   resonance: number;
   filterMode: number;
+  drive?: number;
   decay: number;
   accent: number;
   envMod: number;

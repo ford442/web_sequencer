@@ -32,6 +32,7 @@ const SYNTH_PARAM_KEYS = new Set(Object.keys({
   portamento: 0,
   formantShift: 0,
   cppFine: 0,
+  drive: 0,
 } satisfies Record<keyof SynthParams, unknown>));
 
 const BASS2_PARAM_KEYS = new Set(Object.keys({
@@ -47,6 +48,7 @@ const BASS2_PARAM_KEYS = new Set(Object.keys({
   pan: 0,
   engine303: 'open303',
   slideTime: 0,
+  drive: 0,
 } satisfies Record<keyof Bass2Params, unknown>));
 
 const SYNTH_AUTOMATION_EXTENSIONS = new Set(['accent', 'slide']);
