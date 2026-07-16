@@ -29,7 +29,7 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded p-1"
+            className="text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-purple-500 rounded p-1"
             aria-label="Close MIDI Map"
           >
             <span aria-hidden="true">✕</span>
@@ -51,7 +51,7 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
               type="button"
               onClick={() => midiMapStore.toggleLearnMode()}
               aria-pressed={learnMode}
-              className={`px-3 py-1 text-[10px] font-bold font-orbitron rounded border transition-all ${
+              className={`px-3 py-1 text-[10px] font-bold font-orbitron rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-purple-500 ${
                 learnMode
                   ? 'bg-purple-600 text-white border-purple-400 animate-pulse'
                   : 'bg-zinc-900 text-purple-400 border-purple-900/50 hover:bg-purple-950/40'
@@ -88,7 +88,7 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
                     <button
                       type="button"
                       onClick={() => midiMapStore.removeBinding(m.key, m.deviceId)}
-                      className="text-[10px] text-red-400 hover:text-red-300 shrink-0 px-2 py-0.5 border border-red-900/40 rounded"
+                      className="text-[10px] text-red-400 hover:text-red-300 shrink-0 px-2 py-0.5 border border-red-900/40 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-red-500"
                       aria-label={`Remove mapping for ${m.controlId}`}
                     >
                       CLEAR
@@ -105,7 +105,7 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
               onClick={() => {
                 if (window.confirm('Clear all MIDI mappings?')) midiMapStore.clearAllBindings();
               }}
-              className="w-full text-[10px] font-bold text-red-400 border border-red-900/40 rounded py-2 hover:bg-red-950/30"
+              className="w-full text-[10px] font-bold text-red-400 border border-red-900/40 rounded py-2 hover:bg-red-950/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-red-500"
             >
               CLEAR ALL MAPPINGS
             </button>
