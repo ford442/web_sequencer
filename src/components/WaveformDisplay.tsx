@@ -692,7 +692,7 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
                             />
                         </div>
                     )}
-                    <button
+                    <button type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             onAutoSlice();

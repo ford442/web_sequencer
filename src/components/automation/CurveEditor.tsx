@@ -221,7 +221,7 @@ export const CurveEditor = memo(({
   }
 
   return (
-    <svg aria-hidden="true"
+    <svg
       ref={svgRef}
       width={width}
       height={height}
