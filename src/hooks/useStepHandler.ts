@@ -256,6 +256,7 @@ export const useStepHandler = ({
             if (stepData.delaySend !== undefined) noteParams.delaySend = stepData.delaySend;
             if (stepData.vowel !== undefined) noteParams.vowel = stepData.vowel;
             if (stepData.portamento !== undefined) noteParams.portamento = stepData.portamento;
+            if (stepData.drive !== undefined) noteParams.drive = stepData.drive;
             // Apply per-lane automation overrides for prophecy params
             const automation = activePattern[trackKey]?.automation;
             const autoVowel = automation?.['vowel']?.[step];
@@ -272,6 +273,8 @@ export const useStepHandler = ({
             if (cutoffVal !== undefined) noteParams.filterCutoff = cutoffVal;
             const resVal = getAutomationValue(targetForLane, 'filterResonance', step);
             if (resVal !== undefined) noteParams.filterResonance = resVal;
+            const driveVal = getAutomationValue(targetForLane, 'drive', step);
+            if (driveVal !== undefined) noteParams.drive = driveVal;
 
             audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
 
@@ -304,6 +307,7 @@ export const useStepHandler = ({
                 delayTime: 0,
                 delayFeedback: 0,
                 delayMix: 0,
+                drive: bass2Ref.current.drive ?? 0,
             };
 
             if (audioEngine.open303Engine) {
@@ -312,10 +316,13 @@ export const useStepHandler = ({
 
             // Bass2 filter automation from unified lanes (RBS tb303Bcutoff etc maps to bass2)
             const bass2NoteParams: any = {};
+            if (stepData.drive !== undefined) bass2NoteParams.drive = stepData.drive;
             const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step);
             if (b2Cutoff !== undefined) bass2NoteParams.filterCutoff = b2Cutoff;
             const b2Res = getAutomationValue('bass2', 'filterResonance', step);
             if (b2Res !== undefined) bass2NoteParams.filterResonance = b2Res;
+            const b2Drive = getAutomationValue('bass2', 'drive', step);
+            if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
 
             audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, Object.keys(bass2NoteParams).length ? bass2NoteParams : undefined);
         };

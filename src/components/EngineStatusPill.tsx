@@ -78,7 +78,7 @@ export const EngineStatusPill: React.FC<EngineStatusPillProps> = memo(({
                     disabled={!d.retryable || d.status === 'recovering'}
                     title={`${d.message}: ${d.reason}`}
                     aria-label={`${d.subsystem} degraded: ${d.reason}. Click to retry.`}
-                    className="text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-amber-950/90 text-amber-300 border-amber-500/60 hover:bg-amber-900/90 disabled:opacity-60 touch-manipulation"
+                    className="text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-amber-950/90 text-amber-300 border-amber-500/60 hover:bg-amber-900/90 disabled:opacity-60 touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-amber-500"
                 >
                     {d.status === 'recovering' ? '…' : '!'} {d.subsystem}:{d.activeBackend}
                 </button>

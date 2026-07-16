@@ -2,6 +2,7 @@ import type { Bass2Params } from '../types';
 import { Open303Oscillator } from './Open303Oscillator';
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import type { Open303Config } from './Open303Params';
+import { makeDistortionCurve } from '../hooks/audioEngine/distortion';
 
 /**
  * Manages three Open303 (TB-303) instances for independent synth tracks
@@ -20,6 +21,9 @@ export class Open303Manager {
     private bass1Gain: GainNode | null = null;
     private bass2Gain: GainNode | null = null;
     private lead303Gain: GainNode | null = null;
+    private bass1Drive: WaveShaperNode | null = null;
+    private bass2Drive: WaveShaperNode | null = null;
+    private lead303Drive: WaveShaperNode | null = null;
     private bass1Panner: StereoPannerNode | null = null;
     private bass2Panner: StereoPannerNode | null = null;
     private lead303Panner: StereoPannerNode | null = null;
@@ -97,9 +101,21 @@ export class Open303Manager {
                 logEngineFallback('open303', 'wasm-worklet', 'bass2 voice failed to initialise');
             }
 
-            if (this.bass1Ready) this.bass1.connect(this.bass1Gain);
-            if (this.bass2Ready) this.bass2.connect(this.bass2Gain);
-            if (this.lead303Ready) this.lead303.connect(this.lead303Gain);
+            if (this.bass1Ready) {
+                this.bass1Drive = audioContext.createWaveShaper();
+                this.bass1!.connect(this.bass1Drive);
+                this.bass1Drive.connect(this.bass1Gain!);
+            }
+            if (this.bass2Ready) {
+                this.bass2Drive = audioContext.createWaveShaper();
+                this.bass2!.connect(this.bass2Drive);
+                this.bass2Drive.connect(this.bass2Gain!);
+            }
+            if (this.lead303Ready) {
+                this.lead303Drive = audioContext.createWaveShaper();
+                this.lead303!.connect(this.lead303Drive);
+                this.lead303Drive.connect(this.lead303Gain!);
+            }
 
             this.isReady = this.bass1Ready || this.bass2Ready || this.lead303Ready;
             
@@ -221,6 +237,24 @@ export class Open303Manager {
 
         if (params.pan !== undefined) {
             this.setLead303Pan(params.pan);
+        }
+    }
+
+    setBass1Drive(amount: number): void {
+        if (this.bass1Drive) {
+            this.bass1Drive.curve = amount > 0 ? makeDistortionCurve(amount * 100) : null;
+        }
+    }
+
+    setBass2Drive(amount: number): void {
+        if (this.bass2Drive) {
+            this.bass2Drive.curve = amount > 0 ? makeDistortionCurve(amount * 100) : null;
+        }
+    }
+
+    setLead303Drive(amount: number): void {
+        if (this.lead303Drive) {
+            this.lead303Drive.curve = amount > 0 ? makeDistortionCurve(amount * 100) : null;
         }
     }
 
@@ -426,6 +460,19 @@ export class Open303Manager {
         this.bass2?.cleanup();
         this.lead303?.cleanup();
         
+        if (this.bass1Drive) {
+            this.bass1Drive.disconnect();
+            this.bass1Drive = null;
+        }
+        if (this.bass2Drive) {
+            this.bass2Drive.disconnect();
+            this.bass2Drive = null;
+        }
+        if (this.lead303Drive) {
+            this.lead303Drive.disconnect();
+            this.lead303Drive = null;
+        }
+
         if (this.bass1Gain) {
             this.bass1Gain.disconnect();
             this.bass1Gain = null;
