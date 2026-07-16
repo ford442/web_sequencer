@@ -61,3 +61,6 @@
 ## 2026-07-14 - SongMode accessibility roving tabindex
 **Learning:** The ESLint/TypeScript parse error (e.g., `',' expected` or `Expression expected`) often reported around line 214 of `src/hooks/useAudioEngine.ts` is a known environmental false positive regarding valid destructuring (from `createSampleLibraryControls`). It shouldn't block unrelated scopes.
 **Action:** Ignore it or note it in the PR description, and do not attempt to fix this syntax if it surfaces during unrelated feature work.
+## 2024-07-16 - Handling blocked frontend verification
+**Learning:** If widespread, pre-existing syntax errors in unrelated files (e.g., `SamplerPanel.tsx`) prevent the local dev server from starting or the build from passing, it is impossible to run Playwright UI verification scripts.
+**Action:** When the build is fundamentally broken by external factors, document the issue, skip frontend Playwright verification (video/screenshots), and proceed directly to code review and submission, staying strictly scoped to the assigned accessibility task.
