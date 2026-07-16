@@ -76,3 +76,11 @@
 ## 2026-07-12 - Reverting from Monolithic File Corruption
 **Learning:** During optimization efforts on `useAudioEngine.ts`, pulling snippets from an outdated/broken 1800-line monolithic `main` branch into a modularized branch caused severe brace mismatching and TS compilation errors (`TS1005: 'try' expected`). The codebase has transitioned to a modular structure (using `src/hooks/audioEngine/`).
 **Action:** When a local branch becomes polluted with structural corruption, do not attempt targeted regex patches or blind brace insertions. Reset `useAudioEngine.ts` and `src/hooks/audioEngine/` to the branch's clean modular baseline (`git checkout HEAD src/hooks/useAudioEngine.ts src/hooks/audioEngine/`) rather than checking out from an outdated `origin/main`. Only port explicitly confirmed, granular fixes from `main`.
+
+## 2024-07-25 - Avoid array allocations during Cache Misses
+**Learning:** During cache lookups inside `getLanesForParam` in `automationStore.ts`, returning a brand new empty array (`|| []`) on cache misses caused continuous garbage collection pressure per step since `useStepHandler` polls this multiple times per tick.
+**Action:** Always define and return a shared `EMPTY_LANES` static array when returning empty collections in high-frequency getters.
+
+## 2024-07-25 - Hoisted Sampler Playback Closures
+**Learning:** In polyphonic granular playback (`samplerPlayback.ts`), defining closures `triggerVoice` and `runVoices` inside the `playSamplerVoice` hot path caused extreme GC thrashing since they were re-allocated per polyphonic hit/retrigger.
+**Action:** Extract nested closures into the outer scope (`createSamplerPlayback`) and pass dependencies via a unified context object (`SamplerVoiceContext`) so that the function objects are only allocated once per engine initialization.
