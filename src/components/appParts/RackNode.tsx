@@ -54,9 +54,14 @@ function applyControlFlags(
   liveValues: Record<string, number>,
 ): KnobConfig[] {
   return controls.map((c) => {
-    const armed = recordArms.some(
-      (a) => a.target === target && a.parameter === c.id && a.armed,
-    );
+    let armed = false;
+    for (let i = 0; i < recordArms.length; i++) {
+      const a = recordArms[i];
+      if (a.target === target && a.parameter === c.id && a.armed) {
+        armed = true;
+        break;
+      }
+    }
     const key = `${target}:${c.id}`;
     const automatedValue = liveValues[key];
     const isAutomated = automatedValue !== undefined;
@@ -151,13 +156,21 @@ function applyAutomationPreviewFlags(
   showHardwareAutomation: boolean,
 ): KnobConfig[] {
   return controls.map((c) => {
-    const matching = lanes.filter(
-      (l) => l.target === target && l.parameter === c.id,
-    );
-    const activeLane = matching.find(
-      (l) =>
-        l.enabled && (l.scope === "song" || l.patternIndex === patternIndex),
-    );
+    const matching: UnifiedAutomationLane[] = [];
+    for (let i = 0; i < lanes.length; i++) {
+      const l = lanes[i];
+      if (l.target === target && l.parameter === c.id) {
+        matching.push(l);
+      }
+    }
+    let activeLane: UnifiedAutomationLane | undefined;
+    for (let i = 0; i < matching.length; i++) {
+      const l = matching[i];
+      if (l.enabled && (l.scope === "song" || l.patternIndex === patternIndex)) {
+        activeLane = l;
+        break;
+      }
+    }
     const hasLane = matching.length > 0;
     const curveSamples = activeLane
       ? sampleLaneArcValues(activeLane, NUM_STEPS)
