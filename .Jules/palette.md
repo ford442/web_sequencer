@@ -64,3 +64,6 @@
 ## 2024-07-16 - Handling blocked frontend verification
 **Learning:** If widespread, pre-existing syntax errors in unrelated files (e.g., `SamplerPanel.tsx`) prevent the local dev server from starting or the build from passing, it is impossible to run Playwright UI verification scripts.
 **Action:** When the build is fundamentally broken by external factors, document the issue, skip frontend Playwright verification (video/screenshots), and proceed directly to code review and submission, staying strictly scoped to the assigned accessibility task.
+## 2026-07-20 - SongMode Add/Remove Measure Button Tooltips
+**Learning:** Quick-action control buttons in interactive sequence builders (like adding/removing measures in `SongMode.tsx`) often lack `title` tooltips, even when they have an `aria-label`. While `aria-label` provides screen reader support, visual users without screen readers rely on hover tooltips to clarify the meaning of small or abbreviated buttons (like `- BAR` or `+ BAR`).
+**Action:** When auditing quick-action panels, explicitly verify that all control buttons include a `title` tooltip alongside their `aria-label` to provide context for both sighted mouse users and assistive technology users.
