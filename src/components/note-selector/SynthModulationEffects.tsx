@@ -264,10 +264,11 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
         </div>
         <div className="flex gap-2 justify-between">
           <div className="flex flex-col items-center gap-1">
-            <label className="text-[9px] text-gray-500 font-mono">
+            <label htmlFor="note-pitch-amt" className="text-[9px] text-gray-500 font-mono">
               AMT
             </label>
             <input
+              id="note-pitch-amt"
               type="range"
               min="-24"
               max="24"
@@ -289,10 +290,11 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
             </span>
           </div>
           <div className="flex flex-col items-center gap-1">
-            <label className="text-[9px] text-gray-500 font-mono">
+            <label htmlFor="note-pitch-atk" className="text-[9px] text-gray-500 font-mono">
               ATK
             </label>
             <input
+              id="note-pitch-atk"
               type="range"
               min="0"
               max="1"
@@ -310,10 +312,11 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
             />
           </div>
           <div className="flex flex-col items-center gap-1">
-            <label className="text-[9px] text-gray-500 font-mono">
+            <label htmlFor="note-pitch-dec" className="text-[9px] text-gray-500 font-mono">
               DEC
             </label>
             <input
+              id="note-pitch-dec"
               type="range"
               min="0"
               max="1"
@@ -336,11 +339,11 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
       {trackType === "synth" && (
         <div className="flex flex-col gap-1 mt-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30">
           <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
-            <label>Formant Env Sync</label>
+            <label htmlFor="note-fmt-env-sync">Formant Env Sync</label>
             <button type="button"
               role="switch"
               aria-checked={currentFormantEnvSync || false}
-              aria-label="Sync Formant Envelope to BPM"
+              id="note-fmt-env-sync" aria-label="Sync Formant Envelope to BPM"
               onClick={() =>
                 onPropertyChange?.(
                   "formantEnvSync",
