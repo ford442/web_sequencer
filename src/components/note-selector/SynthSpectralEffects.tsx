@@ -23,6 +23,7 @@ export const SynthSpectralEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentDownsample = 1,
     currentTranceGate = 0,
     currentFormantShift,
+    currentFormantPitchLink = 0,
     currentSlideFormant = false,
     currentFormantLfoSync,
     currentFormantLfoRate = 0,
@@ -58,6 +59,31 @@ export const SynthSpectralEffects: React.FC<SynthEffectPropertiesProps> = React.
           <legend className="sr-only">
             Spectral and Time Processing
           </legend>
+
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-[10px] text-indigo-200/70 font-bold uppercase">
+              <label htmlFor="note-fmt-pitch-link">Formant Pitch Link</label>
+              <span className="text-indigo-400 font-mono text-[10px] bg-zinc-950 px-1 py-0.5 rounded border border-zinc-800">
+                {Math.round(currentFormantPitchLink * 100)}%
+              </span>
+            </div>
+            <input
+              id="note-fmt-pitch-link"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={currentFormantPitchLink}
+              onChange={(e) =>
+                onPropertyChange(
+                  "formantPitchLink",
+                  parseFloat(e.target.value),
+                )
+              }
+              className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400 transition-all"
+              aria-valuetext={`${Math.round(currentFormantPitchLink * 100)}%`}
+            />
+          </div>
           <div
             className="text-[10px] text-indigo-300/80 font-bold uppercase mb-1 tracking-wider border-b border-indigo-900/50 pb-1"
             aria-hidden="true"

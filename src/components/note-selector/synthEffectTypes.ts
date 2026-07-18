@@ -21,6 +21,7 @@ export interface SynthEffectPropertiesProps {
   currentDownsample?: number;
   currentTranceGate?: number;
   currentFormantShift?: number;
+  currentFormantPitchLink?: number;
   currentSlideFormant?: boolean;
   currentFormantLfoSync?: boolean;
   currentFormantLfoRate?: number;

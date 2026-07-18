@@ -38,6 +38,7 @@ export const ContextMenuNode = React.memo(() => {
           currentReverse={stepData?.reverse ?? false}
           currentFreeze={stepData?.freeze ?? 0}
           currentFormantShift={stepData?.formantShift}
+          currentFormantPitchLink={stepData?.formantPitchLink}
           currentSlideFormant={stepData?.slideFormant}
           currentFilterCutoff={stepData?.filterCutoff}
           currentFilterResonance={stepData?.filterResonance}
