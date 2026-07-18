@@ -79,6 +79,8 @@
 
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
 ## 🧠 Innovation Lab (The "Dream" Log)
+* **Idea:** "Macro Automation Lanes" - Extend the global macro system to allow drawing step-sequenced automation lanes specifically for the macro knobs.
+* **Idea:** "Vocal Arpeggiator" - Add an arpeggiator specifically for the TTS engine that triggers different phoneme slices in a rhythmic pattern when a chord is held.
 * [x] **Idea:** "Vocal Harmony Envelope" - Apply a dedicated ADSR envelope specifically to the generated harmony voices (synth B in choir mode) so they can fade in slowly behind the main lead vocal. (Implemented via `HarmonizerConfig` ADSR params, harmony bus envelope gain node in `useAudioEngine.ts`, and `HarmonizerPopover.tsx` UI controls!)
 * [x] **Idea:** "Dynamic Formant Pitch Link" - Option to automatically scale formant shifts proportionally to pitch shifts to create hyper-realistic vocal glides. (Implemented in `useAudioEngine.ts` with UI exposed!)
 * [x] **Idea:** "Vocal Harmony Envelope" - Apply a dedicated ADSR envelope specifically to the generated harmony voices (synth B in choir mode) so they can fade in slowly behind the main lead vocal.
@@ -158,6 +160,8 @@
 ---
 
 ## 📜 Changelog
+## 2026-07-18 - Implemented Global Macro Knobs: Added 4 global macro knobs to the `BottomBar` UI and plumbed `globalMacro1` through `globalMacro4` through `useAppState` into `useAudioEngine`. The macros map dynamically to parameters in both Synth (Cutoff, Delay Mix, Drive, Resonance) and Sampler (Formant Shift, Reverb/Delay Send, Drive/Bitcrush, Formant LFO Rate) engines, providing a unified performance control surface. Fulfills the "Global Macro Knobs" Innovation Lab idea.
+
 * [2026-08-08] - Implemented Formant Preserving Vocoder (Phase 1): Created a `vocoder-processor` AudioWorklet with an envelope-follower amplitude multiplier. Wired `synthABusRef` as a global carrier tap for Synth A and passed it into the Vocoder's carrier input within `playSamplerVoice`. Added global and per-step `vocoderMix` controls to `SamplerPanel.tsx` and `NoteSelector.tsx`. Fulfills the "Formant Preserving Vocoder" Innovation Lab idea.
 * [2026-07-08] - Implemented Per-Step Panning: Added `pan` to `Note` interface and Audio Engine parameter blocks. Exposed a Pan slider in `NoteSelector.tsx` and wired it into `ContextMenuNode.tsx`. Updated `useAppState.tsx` to handle note property overrides for 'pan'. Modified `audioPlayback.ts` and `useStepHandler.ts` to merge per-step panning overrides during playback orchestration (handling Synth, Bass2, Sampler, and Drum routes).
 * [2026-08-12] - Implemented Dynamic Formant Pitch Link: Added `dynamicFormantPitchLink` parameter to `SamplerBankParams` and UI controls in `SamplerPitchControls`. Updated `useAudioEngine.ts` to dynamically scale the formant shift amount by the pitch offset when enabled, creating highly realistic vocal glides and interval tracking. Fulfills the "Dynamic Formant Pitch Link" Innovation Lab idea. Added new idea: "Formant Preserving Resynthesis".
@@ -257,7 +261,7 @@
 * [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently.
 * **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
 * [x] **Idea:** "Step-Sequenced Overdrive" - Add the ability to step sequence overdrive or saturation specifically on the 303 bassline for acid squelches.
-* **Idea:** "Global Macro Knobs" - Implement 4 global macro knobs that can be assigned to multiple parameters across synth and sampler engines simultaneously.
+* [x] **Idea:** "Global Macro Knobs" - Implement 4 global macro knobs that can be assigned to multiple parameters across synth and sampler engines simultaneously.
 * [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently. (Implemented inline STFT and overlap-add directly in `vocoder-processor.ts`!)
 * [x] **Idea:** "Formant Preserving Vocoder" - Implement an FFT-based vocoder where synth A acts as carrier and the TTS sampler acts as modulator, preserving formants independently.
 * **Idea:** "Spectral Resynthesis Mode" - Add an FFT-based resynthesis mode to morph custom samples into synthesized tones.
