@@ -81,6 +81,7 @@
 
 * [2026-04-25] - Implemented Step-Sequenced Reverb Types: Added `reverbType` parameter to `Note` interface and updated `NoteSelector` UI to include a space dropdown (Room, Plate, Hall). Refactored `useAudioEngine.ts` to instantiate all three convolution spaces simultaneously to prevent pop artifacts on hot-swapping and updated `audioPlayback.ts` routing to send signals to the correct active `reverbNodesRef` based on the sequence step.
 ## 🧠 Innovation Lab (The "Dream" Log)
+* [x] **Idea:** "Vocal Harmony Envelope" - Apply a dedicated ADSR envelope specifically to the generated harmony voices (synth B in choir mode) so they can fade in slowly behind the main lead vocal. (Implemented `harmonyAttack` and `harmonyRelease` in Harmonizer and useAudioEngine!)
 * **Idea:** "Macro Automation Lanes" - Extend the global macro system to allow drawing step-sequenced automation lanes specifically for the macro knobs.
 * **Idea:** "Vocal Arpeggiator" - Add an arpeggiator specifically for the TTS engine that triggers different phoneme slices in a rhythmic pattern when a chord is held.
 * **Idea:** "Hardware Accelerated Automation Vis" - Move automation curve rendering from React SVGs to WebGL to prevent main-thread layout thrashing during fast playback.
@@ -279,6 +280,10 @@
 
 
 * [x] **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.
+
+## 2026-08-11 - Implemented Vocal Harmony Envelope: Added `harmonyAttack` and `harmonyRelease` to `HarmonizerConfig` and `HarmonizerPopover` UI. Updated `useAudioEngine.ts` to automatically override base envelope parameters for spawned harmony voices based on the Harmonizer config. Fulfills "Vocal Harmony Envelope" Innovation Lab idea. Added new idea: "Formant Envelope Sidechaining".
+
+* [ ] **Idea:** "Formant Envelope Sidechaining" - Allow ducking the formant shift frequency of the lead vocal when a specific instrument (like the kick drum) hits to create rhythmic voweling.
 
 ## 2026-08-09 - Implemented Spectral Resynthesis Mode: Added `spectralResynthesis` mode to `vocoder-processor.ts` which interpolates between Vocoder envelope tracking and true FFT-based magnitude cross-synthesis. Plumbed parameters through the AudioEngine and added UI controls to `NoteSelector`, `SamplerVoicePanel`, and `SamplerPanel`. Fulfills "Spectral Resynthesis Mode" Innovation Lab idea. Added new idea: "Harmonic Content Preserving Time-Stretch".
 
