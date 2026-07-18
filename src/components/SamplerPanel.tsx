@@ -40,10 +40,10 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
     const [isProcessingHarmonize, setIsProcessingHarmonize] = useState(false);
     const [chordType, setChordType] = useState('minor');
-    
+
     // Local multisample progress state
     const [localProgress, setLocalProgress] = useState<{ bankIdx: number; progress: number; isProcessing: boolean } | null>(null);
-    
+
     // Combine external and local progress
     const activeProgress = multisampleProgress || localProgress;
 
@@ -83,7 +83,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
     };
 
     // Get the TTS text for the current bank with bounds checking
-    const currentTtsText = (ttsPhrases && activeBankIdx >= 0 && activeBankIdx < 8) 
+    const currentTtsText = (ttsPhrases && activeBankIdx >= 0 && activeBankIdx < 8)
         ? (ttsPhrases[activeBankIdx] || "Hello World")
         : "Hello World";
 
@@ -240,7 +240,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             newParams[activeBankIdx] = { ...currentParams, [key]: value };
             onChange(newParams);
         }
-        
+
         // Apply to audio engine immediately for real-time feedback
         if (audioEngine?.singingVoice) {
             const voice = audioEngine.singingVoice;
@@ -297,7 +297,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             newParams[activeBankIdx] = { ...currentParams, mode };
             onChange(newParams);
         }
-        
+
         // Update audio engine immediately
         if (audioEngine?.setSustainMode) {
             audioEngine.setSustainMode(mode);
@@ -313,7 +313,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             newParams[activeBankIdx] = { ...currentParams, grainSize: size };
             onChange(newParams);
         }
-        
+
         // Update audio engine immediately
         if (audioEngine?.setSustainGrainSize) {
             audioEngine.setSustainGrainSize(size);
@@ -357,11 +357,11 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
     const loadBufferToBank = async (buffer: AudioBuffer) => {
         const bankName = `bank_${activeBankIdx}`;
-        
+
         // Start progress tracking
         setLocalProgress({ bankIdx: activeBankIdx, progress: 0, isProcessing: true });
         setStatus('Processing...');
-        
+
         try {
             await onLoadSample(bankName, buffer, (progress) => {
                 if (progress === -1) {
@@ -621,15 +621,15 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             {/* Status indicators */}
                             <div className="absolute -top-0.5 -right-0.5 flex">
                                 {multisampleProcessing?.[i] && (
-                                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse border border-black" 
+                                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse border border-black"
                                          title="Processing multisamples..." />
                                 )}
                                 {!multisampleProcessing?.[i] && multisampleReady?.[i] && (
-                                    <div className="w-2 h-2 bg-cyan-500 rounded-full shadow-[0_0_4px_rgba(6,182,212,0.8)] border border-black" 
+                                    <div className="w-2 h-2 bg-cyan-500 rounded-full shadow-[0_0_4px_rgba(6,182,212,0.8)] border border-black"
                                          title="Multisample ready" />
                                 )}
                                 {!multisampleReady?.[i] && loadedBanks?.[i] && (
-                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.8)] border border-black" 
+                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.8)] border border-black"
                                          title="Sample loaded" />
                                 )}
                             </div>
@@ -684,7 +684,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                             <span className="font-mono">{Math.round(activeProgress.progress * 100)}%</span>
                         </div>
                         <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                            <div 
+                            <div
                                 className="h-full bg-gradient-to-r from-purple-500 via-cyan-500 to-purple-500 transition-all duration-200 ease-out"
                                 style={{ width: `${activeProgress.progress * 100}%` }}
                             />
@@ -1279,4 +1279,4 @@ export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
   return true;
 });
 
-export type { SamplerPanelProps } from './sampler-panel/types';
+export { SamplerPanelComponent as SamplerPanel };
