@@ -125,6 +125,78 @@ export interface SamplerNoteParams {
     slideFromFormant?: number;
 }
 
+const playBufferSource = (
+    context: AudioContext,
+    multisampleBank: MultisampleBank | undefined,
+    masterSaturationNode: AudioNode | null,
+    startTime: number,
+    duration: number,
+    pitchSemitones: number,
+    params: SamplerBankParams,
+    noteParams?: SamplerNoteParams,
+    buffer?: AudioBuffer
+) => {
+    const source = context.createBufferSource();
+
+    const targetMidi = pitchSemitones;
+    let playbackBuffer: AudioBuffer;
+    let pitchRatio = 1.0;
+
+    if (multisampleBank?.pitchBank.has(targetMidi)) {
+        playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
+        pitchRatio = params.playbackSpeed;
+    } else {
+        playbackBuffer = multisampleBank?.baseBuffer || buffer!;
+        const rootMidi = multisampleBank?.rootNote ?? 60;
+        const speed = params.playbackSpeed;
+        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+    }
+
+    source.buffer = playbackBuffer;
+    source.playbackRate.value = pitchRatio;
+
+    const gain = context.createGain();
+    gain.gain.value = params.volume;
+
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    const cutoff = noteParams?.filterCutoff !== undefined
+        ? Math.max(20, noteParams.filterCutoff * 20000)
+        : params.filterCutoff;
+    if (cutoff !== undefined) filter.frequency.value = cutoff;
+
+    const resonance = noteParams?.filterResonance !== undefined
+        ? noteParams.filterResonance * 20
+        : params.filterResonance;
+    if (resonance !== undefined) filter.Q.value = resonance;
+
+    const shaper = context.createWaveShaper();
+    const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
+    if (driveAmount !== undefined && driveAmount > 0) {
+        shaper.curve = makeDistortionCurve(driveAmount * 100);
+    } else {
+        shaper.curve = null;
+    }
+
+    let finalDestination: AudioNode = masterSaturationNode!;
+    if (params.pan !== undefined && params.pan !== 0) {
+        const panner = context.createStereoPanner();
+        panner.pan.value = params.pan;
+        panner.connect(masterSaturationNode!);
+        finalDestination = panner;
+    }
+
+    source.connect(filter);
+    filter.connect(shaper);
+    shaper.connect(gain);
+    gain.connect(finalDestination);
+
+    source.start(startTime);
+    if (duration > 0) {
+        source.stop(startTime + duration);
+    }
+};
+
 export interface SamplerPlaybackRefs {
     masterSaturationRef: MutableRefObject<WaveShaperNode | null>;
     singingVoiceManagerRef: MutableRefObject<SingingVoiceManager | null>;
@@ -735,80 +807,18 @@ const playSamplerVoice = (
     }
 
     // Buffer playback mode (non-stretch)
-    const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
-        const source = context.createBufferSource();
-
-        const targetMidi = pitchSemitones;
-        let playbackBuffer: AudioBuffer;
-        let pitchRatio = 1.0;
-
-        if (multisampleBank?.pitchBank.has(targetMidi)) {
-            playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
-            pitchRatio = params.playbackSpeed;
-        } else {
-            playbackBuffer = multisampleBank?.baseBuffer || buffer;
-            const rootMidi = multisampleBank?.rootNote ?? 60;
-            const speed = params.playbackSpeed;
-            pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
-        }
-
-        source.buffer = playbackBuffer;
-        source.playbackRate.value = pitchRatio;
-
-        const gain = context.createGain();
-        gain.gain.value = params.volume;
-
-        const filter = context.createBiquadFilter();
-        filter.type = 'lowpass';
-        const cutoff = noteParams?.filterCutoff !== undefined
-            ? Math.max(20, noteParams.filterCutoff * 20000)
-            : params.filterCutoff;
-        filter.frequency.value = cutoff;
-
-        const resonance = noteParams?.filterResonance !== undefined
-            ? noteParams.filterResonance * 20
-            : params.filterResonance;
-        filter.Q.value = resonance;
-
-        const shaper = context.createWaveShaper();
-        const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
-        if (driveAmount > 0) {
-            shaper.curve = makeDistortionCurve(driveAmount * 100);
-        } else {
-            shaper.curve = null;
-        }
-
-        let finalDestination: AudioNode = masterSaturationRef.current!;
-        if (params.pan !== undefined && params.pan !== 0) {
-            const panner = context.createStereoPanner();
-            panner.pan.value = params.pan;
-            panner.connect(masterSaturationRef.current!);
-            finalDestination = panner;
-        }
-
-        source.connect(filter);
-        filter.connect(shaper);
-        shaper.connect(gain);
-        gain.connect(finalDestination);
-
-        source.start(startTime);
-        if (duration > 0) {
-            source.stop(startTime + duration);
-        }
-    };
-
     notes.forEach(noteStr => {
         const midi = noteToMidi(noteStr);
 
         if (shouldGlitch) {
             for (let i = 0; i < numStutters; i++) {
-                playBufferSource(actualTime + i * glitchStutterLenBuffer, glitchStutterLenBuffer, midi);
+                playBufferSource(context, multisampleBank, masterSaturationRef.current, actualTime + i * glitchStutterLenBuffer, glitchStutterLenBuffer, midi, params, noteParams, buffer);
             }
-            playBufferSource(actualTime + numStutters * glitchStutterLenBuffer, 0, midi);
+            playBufferSource(context, multisampleBank, masterSaturationRef.current, actualTime + numStutters * glitchStutterLenBuffer, 0, midi, params, noteParams, buffer);
         } else {
             for (let r = 0; r < retrigger; r++) {
                 const offset = r * (subDurationSteps * stepTime);
-                playBufferSource(actualTime + offset, subDurationSteps * stepTime, midi);
+                playBufferSource(context, multisampleBank, masterSaturationRef.current, actualTime + offset, subDurationSteps * stepTime, midi, params, noteParams, buffer);
             }
         }
     });
