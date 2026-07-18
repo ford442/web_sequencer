@@ -190,7 +190,7 @@ export function usePatternHandlers(deps: {
     }, [contextMenu, updateStorageForTrackInner, patternRef, activeSamplerBankRef, setPattern, setContextMenu]);
 
     const handleNotePropertyChange = useCallback((
-        key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' |
+        key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'formantPitchLink' |
              'filterCutoff' | 'filterResonance' | 'envMod' |
              'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
              'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' |

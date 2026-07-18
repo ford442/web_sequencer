@@ -13,6 +13,7 @@ export interface PitchControlValues {
   coarseTune: number;
   fineTune: number;
   formantShift: number;
+  formantPitchLink?: number;
   stretchProfile: 'vocal' | 'harmonic' | 'fast';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
@@ -200,6 +201,18 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
               onChange={(v) => onChange('formantShift', v)}
             />
             <span className="text-[10px] text-gray-500 mt-1">st</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <Knob
+              label="LINK %"
+              value={values.formantPitchLink ?? 0}
+              min={0}
+              max={1}
+              step={0.01}
+              color="indigo"
+              onChange={(v) => onChange('formantPitchLink', v)}
+            />
+            <span className="text-[10px] text-gray-500 mt-1">%</span>
           </div>
 
           <div className="flex flex-col gap-2">

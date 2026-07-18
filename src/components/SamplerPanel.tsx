@@ -854,7 +854,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                         coarseTune: currentParams.coarseTune ?? 0,
                         fineTune: currentParams.fineTune ?? 0,
                         formantShift: currentParams.formantShift ?? 0,
-
+                        formantPitchLink: currentParams.formantPitchLink ?? 0,
 
 
                         quality: currentParams.quality ?? 'good',
@@ -1196,6 +1196,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             coarseTune: state.currentParams.coarseTune ?? 0,
             fineTune: state.currentParams.fineTune ?? 0,
             formantShift: state.currentParams.formantShift ?? 0,
+            formantPitchLink: state.currentParams.formantPitchLink ?? 0,
             quality: state.currentParams.quality ?? 'good',
             stretchMode: state.currentParams.stretchMode ?? 'Pitch',
             lockToSequencer: state.currentParams.lockToSequencer ?? false,
