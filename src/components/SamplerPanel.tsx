@@ -854,7 +854,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
                         coarseTune: currentParams.coarseTune ?? 0,
                         fineTune: currentParams.fineTune ?? 0,
                         formantShift: currentParams.formantShift ?? 0,
-
+                        formantPitchLink: currentParams.formantPitchLink ?? 0,
 
 
                         quality: currentParams.quality ?? 'good',
@@ -1099,6 +1099,184 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
             </div>
         </div>
     );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dummyRef = useRef(null);
+
+  const state = useSamplerPanelState({
+    params, onChange, onLoadSample, audioEngine, activeBankIdx,
+    onBankChange, ttsPhrases, onTtsPhraseChange, onGenerateTTS,
+    onHarmonize, onParamChange, sampleBuffer, multisampleProgress,
+  });
+
+  const { isRecording, toggleRecording } = useSamplerRecording(
+    audioContext,
+    state.loadBufferToBank,
+  );
+
+  const fileLoading = useSamplerFileLoading(audioContext, state.loadBufferToBank);
+
+  const h = state.paramHandlers;
+
+  return (
+    <div
+      className="flex flex-col h-full bg-[#1a1d24] text-white overflow-hidden select-none relative"
+      onDragOver={fileLoading.handleDragOver}
+      onDragLeave={fileLoading.handleDragLeave}
+      onDrop={(e) => fileLoading.handleDrop(e, state.setStatus)}
+    >
+      <SamplerDragOverlay isDragging={fileLoading.isDragging} activeBankIdx={activeBankIdx} />
+
+      <SamplerBankTabs
+        activeBankIdx={activeBankIdx}
+        flashBankIdx={state.flashBankIdx}
+        loadedBanks={loadedBanks}
+        multisampleReady={multisampleReady}
+        multisampleProcessing={multisampleProcessing}
+        tabRefs={state.tabRefs}
+        onBankChange={onBankChange}
+        onKeyDown={state.handleBankKeyDown}
+        status={state.status}
+      />
+
+      <div
+        id="sampler-bank-panel"
+        role="tabpanel"
+        aria-labelledby={`sampler-bank-tab-${activeBankIdx}`}
+        className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700"
+      >
+        <SamplerWaveformSection
+          sampleBuffer={sampleBuffer}
+          currentAlignment={state.currentAlignment}
+          sliceHighlightRef={sliceHighlightRef || dummyRef}
+          onAlignmentChange={state.handleAlignmentChange}
+          onAutoSlice={state.handleAutoSlice}
+          autoSliceSensitivity={state.autoSliceSensitivity}
+          onAutoSliceSensitivityChange={state.setAutoSliceSensitivity}
+          activeProgress={state.activeProgress}
+          activeBankIdx={activeBankIdx}
+        />
+
+        <SamplerToolbar
+          fileInputRef={fileInputRef}
+          handleFileChange={(e) => fileLoading.handleFileChange(e, state.setStatus)}
+          isRecording={isRecording}
+          toggleRecording={() => toggleRecording(state.setStatus)}
+          currentTtsText={state.currentTtsText}
+          setCurrentTtsText={state.setCurrentTtsText}
+          ttsReady={state.ttsReady}
+          isGenerating={state.isGenerating}
+          handleTTS={state.handleTTS}
+          onOpenEditor={onOpenEditor}
+          isVoiceEditorOpen={isVoiceEditorOpen}
+          chordType={state.chordType}
+          setChordType={state.setChordType}
+          isProcessingHarmonize={state.isProcessingHarmonize}
+          handleHarmonizeClick={state.handleHarmonizeClick}
+          onHarmonize={!!onHarmonize}
+        />
+
+        <SamplerModeSelector
+          currentParams={state.currentParams}
+          modeRefs={state.modeRefs}
+          onModeChange={state.handleModeChange}
+          onModeKeyDown={state.handleModeKeyDown}
+          onGrainSizeChange={state.handleGrainSizeChange}
+          onSliceModeToggle={state.handleSliceModeToggle}
+        />
+
+        <MelodicLyricModeToggle
+          melodicMode={melodicMode}
+          onMelodicModeChange={onMelodicModeChange}
+        />
+
+        <SamplerPitchControls
+          bankId={activeBankIdx}
+          values={{
+            rootNote: state.currentParams.rootNote ?? 60,
+            coarseTune: state.currentParams.coarseTune ?? 0,
+            fineTune: state.currentParams.fineTune ?? 0,
+            formantShift: state.currentParams.formantShift ?? 0,
+            formantPitchLink: state.currentParams.formantPitchLink ?? 0,
+            quality: state.currentParams.quality ?? 'good',
+            stretchMode: state.currentParams.stretchMode ?? 'Pitch',
+            lockToSequencer: state.currentParams.lockToSequencer ?? false,
+          }}
+          onChange={state.handlePitchControlChange}
+        />
+
+        <SamplerKnobControls
+          currentParams={state.currentParams}
+          handlers={{
+            playbackSpeed: h.playbackSpeed,
+            volume: h.volume,
+            filterCutoff: h.filterCutoff,
+            drive: h.drive,
+            timeRatio: h.timeRatio,
+            pitchScale: h.pitchScale,
+            formantShift: h.formantShift,
+            vibratoDepth: h.vibratoDepth,
+            tremoloDepth: h.tremoloDepth,
+            tremoloRate: h.tremoloRate,
+            breathIntensity: h.breathIntensity,
+            freeze: h.freeze,
+            freezeLfoSync: h.freezeLfoSync,
+            freezeLfoRate: h.freezeLfoRate,
+            freezeLfoDepth: h.freezeLfoDepth,
+            formantLfoSync: h.formantLfoSync,
+            formantLfoRate: h.formantLfoRate,
+            freezeEnvDepth: h.freezeEnvDepth,
+            timeStretchEnvDepth: h.timeStretchEnvDepth,
+            grainEnvDepth: h.grainEnvDepth,
+            grainPitchEnvDepth: h.grainPitchEnvDepth,
+            grainJitter: h.grainJitter,
+            grainPitchQuantize: h.grainPitchQuantize,
+            granularPitchShift: h.granularPitchShift,
+            bitcrush: h.bitcrush,
+            downsample: h.downsample,
+            formantLfoDepth: h.formantLfoDepth,
+            reverbLfoRate: h.reverbLfoRate,
+            reverbLfoDepth: h.reverbLfoDepth,
+            formantEnvSync: h.formantEnvSync,
+            formantLfoShape: h.formantLfoShape,
+            pitchAmount: h.pitchAmount,
+            pitchAttack: h.pitchAttack,
+            pitchDecay: h.pitchDecay,
+            characterMorph: h.characterMorph,
+            choir: h.choir,
+            glitchChance: h.glitchChance,
+            attack: h.attack,
+            decay: h.decay,
+            sustain: h.sustain,
+            release: h.release,
+          }}
+          onCustomLfoShapeChange={state.handleCustomLfoShapeChange}
+          onMorphTargetChange={state.handleMorphTargetChange}
+          onFormantEnvAttackChange={state.handleFormantEnvAttackChange}
+          onFormantEnvDecayChange={state.handleFormantEnvDecayChange}
+          onFormantEnvAmountChange={state.handleFormantEnvAmountChange}
+          onFormantEnvFollowerChange={state.handleFormantEnvFollowerChange}
+        />
+      </div>
+    </div>
+  );
+});
+
+export const SamplerPanel = memo(SamplerPanelComponent, (prev, next) => {
+  if (prev.activeBankIdx !== next.activeBankIdx) return false;
+  if (prev.params[prev.activeBankIdx] !== next.params[next.activeBankIdx]) return false;
+
+  const prevTTS = prev.ttsPhrases?.[prev.activeBankIdx];
+  const nextTTS = next.ttsPhrases?.[next.activeBankIdx];
+  if (prevTTS !== nextTTS) return false;
+
+  if (prev.audioEngine !== next.audioEngine) return false;
+  if (prev.loadedBanks !== next.loadedBanks) return false;
+  if (prev.sampleBuffer !== next.sampleBuffer) return false;
+  if (prev.sliceHighlightRef !== next.sliceHighlightRef) return false;
+  if (prev.onGenerateTTS !== next.onGenerateTTS) return false;
+  if (prev.alignment !== next.alignment) return false;
+
+  return true;
 });
 
 export { SamplerPanelComponent as SamplerPanel };

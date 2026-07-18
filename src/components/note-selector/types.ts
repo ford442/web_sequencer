@@ -22,6 +22,7 @@ export type PropertyChangeKey =
   | "downsample"
   | "tranceGate"
   | "formantShift"
+  | "formantPitchLink"
   | "filterCutoff"
   | "filterResonance"
   | "envMod"
@@ -91,6 +92,7 @@ export interface NoteSelectorProps {
   currentBitcrush?: number;
   currentDownsample?: number;
   currentFormantShift?: number;
+  currentFormantPitchLink?: number;
   currentSlideFormant?: boolean;
   currentFilterCutoff?: number;
   currentFilterResonance?: number;
