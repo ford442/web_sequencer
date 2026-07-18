@@ -1,7 +1,6 @@
-import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
-    SamplerBankParams, SynthParams, AudioEngine, PartSequence, MultisampleBank, PhonemeData
+    SamplerBankParams, AudioEngine, TrackAnalysers
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -15,17 +14,9 @@ import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { ProphecyManager } from '../engines/ProphecyManager';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
+import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
+import type { MultisampleBank } from '../types';
 import {
-    createAmbianceControls,
-    createNoteOnSynth,
-    createPlayDrum,
-    createPlaySynth,
-    createStopAllNotes,
-    noteOffSynth,
-    setGlobalPan as setMasterPan,
-    setHarmonizerConfig as applyHarmonizerConfig,
-    setMasterVolume as setMasterGainVolume,
-    setMasterSaturation as setMasterGainSaturation,
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
 import { makeDistortionCurve } from './audioEngine/distortion';
@@ -44,6 +35,12 @@ import {
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
 import { engineTelemetry } from '../utils/engineTelemetry';
+import { initializeAudioContextAndEngines, type EngineLifecycleRefs } from './audioEngine/engineLifecycle';
+import { createPhonemeAlignmentWrappers } from './audioEngine/phonemePoolWarming';
+import { createSamplerPlayback } from './audioEngine/samplerPlayback';
+import { buildAudioEngine } from './audioEngine/engineApiBuilder';
+
+export { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
 
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
@@ -94,8 +91,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
     const drumKitEngineRef = useRef<DrumKitEngine | null>(null);
     const synthABusRef = useRef<GainNode | null>(null);
+    const synthBBusRef = useRef<GainNode | null>(null);
+    const samplerBusRef = useRef<GainNode | null>(null);
+    const analyserNodeRef = useRef<AnalyserNode | null>(null);
+    const trackAnalysersRef = useRef<TrackAnalysers>({});
     const prophecyManagerRef = useRef<ProphecyManager | null>(null);
-
 
     // Pre-stretched phoneme buffer pool (phoneme-aware time stretching)
     const phonemeBufferPoolRef = useRef<PhonemeBufferPool | null>(null);
@@ -134,7 +134,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const sidechainBusRef = useRef<GainNode | null>(null);
     const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});
-    const reverbNodeRef = useRef<ConvolverNode | null>(null); // Keep for backwards compatibility if needed temporarily
+    const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
     const delayNodeRef = useRef<DelayNode | null>(null);
     const delayFeedbackRef = useRef<GainNode | null>(null);
@@ -181,6 +181,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         sidechainBusRef,
         drumKitEngineRef,
         synthABusRef,
+        synthBBusRef,
+        samplerBusRef,
         prophecyManagerRef,
     }), []);
 
@@ -374,6 +376,49 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track as any, noteParams);
             };
             const playDrum = createPlayDrum(context, playbackRefs) as any;
+            const lifecycleRefs: EngineLifecycleRefs = {
+                analyserNodeRef,
+                trackAnalysersRef,
+                synthABusRef,
+                synthBBusRef,
+                samplerBusRef,
+                masterGainRef,
+                masterPannerRef,
+                masterSaturationRef,
+                masterCompressorRef,
+                sidechainGainRef,
+                bassSidechainEQBusRef,
+                sidechainBusRef,
+                reverbNodesRef,
+                reverbNodeRef,
+                reverbTypeRef,
+                delayNodeRef,
+                delayFeedbackRef,
+                gpuEngineRef,
+                wasmEngineRef,
+                open303ManagerRef,
+                voiceManagerARef,
+                voiceManagerBRef,
+                sustainNodeRef,
+                singingVoiceManagerRef,
+                choirLeftGainRef,
+                choirRightGainRef,
+                choirLeftPannerRef,
+                choirRightPannerRef,
+                phonemeBufferPoolRef,
+                harmonizerRef,
+                noiseBufferRef,
+                multisampleGeneratorRef,
+                wavSawBufferRef,
+                wavSqrBufferRef,
+                pyodideRef,
+            };
+
+            const { context } = await initializeAudioContextAndEngines(lifecycleRefs, {
+                sustainProcessorUrl,
+                open303ProcessorUrl,
+            });
+
             const {
                 loadSampleToEngine,
                 getMultisampleBank,
@@ -1186,12 +1231,53 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 singingVoice: undefined,
                 playSynth,
                 playDrum,
+            const { prepareVocal, setAlignment } = createPhonemeAlignmentWrappers(
+                {
+                    phonemeBufferPoolRef,
+                    vocalAlignmentsRef,
+                    multisampleBanksRef,
+                    loadedSampleBuffersRef,
+                },
+                prepareVocalBase,
+                setAlignmentBase,
+            );
+
+            const { playSampler, noteOnSampler, noteOffSampler } = createSamplerPlayback(
+                context,
+                {
+                    masterSaturationRef,
+                    singingVoiceManagerRef,
+                    vocalAlignmentsRef,
+                    loadedSampleBuffersRef,
+                    multisampleBanksRef,
+                    choirLeftGainRef,
+                    choirRightGainRef,
+                    reverbNodesRef,
+                    reverbTypeRef,
+                    delayNodeRef,
+                    harmonizerRef,
+                    nextSamplerNoteId,
+                    activeSamplerNotes,
+                },
+                tempo,
+            );
+
+            setAudioEngine(buildAudioEngine(context, {
+                ...playbackRefs,
+                gpuEngineRef,
+                wasmEngineRef,
+                open303ManagerRef,
+                harmonizerRef,
+                masterGainRef,
+                masterSaturationRef,
+                masterPannerRef,
+                reverbTypeRef,
+                analyserNodeRef,
+                trackAnalysersRef,
+            }, {
                 playSampler,
                 noteOnSampler,
                 noteOffSampler,
-                noteOnSynth,
-                noteOffSynth: noteOffSynthById,
-                stopAllNotes,
                 loadSampleToEngine,
                 renderSynthPartToBuffer,
                 playBufferedPart,
@@ -1208,15 +1294,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 prepareVocal,
                 getAlignment,
                 setAlignment,
-                setSustainMode,
-                setSustainGrainSize,
                 getMultisampleBank,
                 isMultisampleReady,
-                setHarmonizerConfig,
-                updateSamplerVoiceParams,
-                triggerTapeStop,
-                resetTapeStop
-            });
+            }));
 
             setIsReady(true);
         } catch (e) {
@@ -1224,7 +1304,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             setIsReady(true);
             isInitializing.current = false;
         }
-    }, [audioEngine, playbackRefs]);
+    }, [audioEngine, playbackRefs, tempo]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
         applyVoiceParamUpdate({

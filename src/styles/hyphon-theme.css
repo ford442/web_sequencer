@@ -1,0 +1,373 @@
+/**
+ * Hyphon visual design tokens — retro Electribe chassis + holographic accents.
+ * Import via index.css. Reference in components with var(--hyphon-*) or utility classes.
+ */
+
+:root {
+  /* ── Chassis & surfaces ── */
+  --hyphon-bg-deep: #050709;
+  --hyphon-bg-chassis: #0a0c0f;
+  --hyphon-bg-panel: #0d1014;
+  --hyphon-bg-surface: #111827;
+  --hyphon-bg-inset: #0a0d10;
+  --hyphon-bg-raised: #1a1d24;
+
+  /* ── Borders & bezels ── */
+  --hyphon-border-subtle: rgba(55, 65, 81, 0.8);       /* gray-700 */
+  --hyphon-border-chassis: rgba(6, 78, 99, 0.4);       /* cyan-900/40 */
+  --hyphon-border-glass: rgba(0, 229, 255, 0.12);      /* cyan glow rim */
+  --hyphon-border-highlight: rgba(255, 255, 255, 0.08);
+  --hyphon-border-shadow: rgba(0, 0, 0, 0.55);
+
+  /* ── Accent palette (module colors) ── */
+  --hyphon-accent-cyan: #22d3ee;    /* cyan-400 */
+  --hyphon-accent-cyan-dim: #0891b2;
+  --hyphon-accent-pink: #f472b6;
+  --hyphon-accent-yellow: #eab308;
+  --hyphon-accent-purple: #a855f7;
+  --hyphon-accent-green: #22c55e;
+  --hyphon-accent-red: #ef4444;
+
+  /* ── Typography ── */
+  --hyphon-font-display: 'Orbitron', 'Roboto Mono', monospace;
+  --hyphon-font-data: 'Roboto Mono', monospace;
+  --hyphon-tracking-wide: 0.12em;
+  --hyphon-tracking-wider: 0.18em;
+
+  /* ── Bevel / depth (metal + glass lighting model) ── */
+  --hyphon-shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --hyphon-shadow-toolbar: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --hyphon-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  --hyphon-shadow-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --hyphon-shadow-glow-cyan: 0 0 10px rgba(6, 182, 212, 0.5);
+  --hyphon-shadow-glow-active: 0 0 8px currentColor;
+
+  /* ── LED indicators ── */
+  --hyphon-led-off: #374151;
+  --hyphon-led-on-green: #4ade80;
+  --hyphon-led-on-red: #f87171;
+  --hyphon-led-on-cyan: #22d3ee;
+  --hyphon-led-on-yellow: #facc15;
+  --hyphon-led-on-purple: #c084fc;
+  --hyphon-led-glow: 0 0 6px currentColor, 0 0 12px currentColor;
+
+  /* ── Radius ── */
+  --hyphon-radius-sm: 0.375rem;
+  --hyphon-radius-md: 0.5rem;
+  --hyphon-radius-lg: 0.75rem;
+  --hyphon-radius-xl: 1rem;
+  --hyphon-radius-2xl: 1.25rem;
+
+  /* ── Knob material (mirrors knobMaterial.ts for DOM overlays) ── */
+  --hyphon-knob-ring: #00e5ff;
+  --hyphon-knob-ring-dim: rgba(0, 229, 255, 0.4);
+  --hyphon-knob-bg: #0d0f13;
+  --hyphon-knob-arc-min: #009980;
+  --hyphon-knob-arc-max: #33ffcc;
+  --hyphon-knob-needle: #ffffff;
+
+  /* ── Motion ── */
+  --hyphon-transition-fast: 150ms ease;
+  --hyphon-transition-normal: 300ms ease;
+
+  /* ── HiDPI crispness ── */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Panel shells ── */
+
+.hyphon-chrome-panel {
+  position: relative;
+  background: linear-gradient(145deg, var(--hyphon-bg-inset) 0%, var(--hyphon-bg-chassis) 55%, #080a0b 100%);
+  border: 1px solid var(--hyphon-border-subtle);
+  border-radius: var(--hyphon-radius-lg);
+  box-shadow: var(--hyphon-shadow-panel), var(--hyphon-shadow-inset-highlight);
+}
+
+.hyphon-chrome-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--hyphon-border-glass);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hyphon-rack-shell {
+  background: linear-gradient(to bottom right, #000000, var(--hyphon-bg-chassis));
+  border: 2px solid var(--hyphon-border-subtle);
+  border-radius: var(--hyphon-radius-2xl);
+  box-shadow: var(--hyphon-shadow-panel);
+  overflow: hidden;
+}
+
+.hyphon-sequencer-shell {
+  background: var(--hyphon-bg-inset);
+  border: 2px solid var(--hyphon-border-subtle);
+  border-radius: var(--hyphon-radius-xl);
+  box-shadow: var(--hyphon-shadow-panel);
+}
+
+/* ── Toolbars (transport + bottom bar share lighting) ── */
+
+.hyphon-toolbar-shell {
+  background: linear-gradient(
+    to right,
+    var(--hyphon-bg-panel) 0%,
+    #0d1014 50%,
+    var(--hyphon-bg-panel) 100%
+  );
+  border-color: var(--hyphon-border-chassis);
+  box-shadow: var(--hyphon-shadow-toolbar);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.hyphon-toolbar-bottom {
+  background: linear-gradient(
+    to right,
+    var(--hyphon-bg-panel) 0%,
+    #0d1014 50%,
+    var(--hyphon-bg-panel) 100%
+  );
+  border-top: 1px solid var(--hyphon-border-chassis);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Inset wells (song slots, tempo, segmented controls) ── */
+
+.hyphon-inset-well {
+  background: rgba(9, 9, 11, 0.85);
+  border: 1px solid rgba(39, 39, 42, 0.9);
+  border-radius: var(--hyphon-radius-md);
+  box-shadow: var(--hyphon-shadow-inset);
+}
+
+/* ── Title bars ── */
+
+.hyphon-panel-title {
+  font-family: var(--hyphon-font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: var(--hyphon-tracking-wider);
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 0.25rem;
+}
+
+.hyphon-section-label {
+  font-family: var(--hyphon-font-data);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: var(--hyphon-tracking-wide);
+  text-transform: uppercase;
+}
+
+/* ── Buttons (transport / rack selector pattern) ── */
+
+.hyphon-btn {
+  font-family: var(--hyphon-font-display);
+  font-weight: 700;
+  letter-spacing: var(--hyphon-tracking-wide);
+  border-radius: var(--hyphon-radius-md);
+  border: 1px solid transparent;
+  transition: transform var(--hyphon-transition-fast), box-shadow var(--hyphon-transition-fast), background-color var(--hyphon-transition-fast);
+}
+
+.hyphon-btn:not(:disabled):hover {
+  transform: scale(1.05);
+}
+
+.hyphon-btn:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.hyphon-btn--ghost {
+  background: #27272a;
+  color: #9ca3af;
+  border-color: #3f3f46;
+}
+
+.hyphon-btn--ghost:hover {
+  background: #3f3f46;
+  color: #d1d5db;
+}
+
+.hyphon-btn--accent-cyan {
+  background: rgba(22, 78, 99, 0.5);
+  color: var(--hyphon-accent-cyan);
+  border-color: #06b6d4;
+  box-shadow: var(--hyphon-shadow-glow-cyan);
+}
+
+.hyphon-btn--accent-active {
+  background: #0891b2;
+  color: #000;
+  border-color: #22d3ee;
+  box-shadow: var(--hyphon-shadow-glow-cyan);
+}
+
+/* ── LED ── */
+
+.hyphon-led {
+  display: inline-block;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+}
+
+.hyphon-led--sm { width: 0.375rem; height: 0.375rem; }
+.hyphon-led--md { width: 0.5rem; height: 0.5rem; }
+
+.hyphon-led--off { background: var(--hyphon-led-off); }
+.hyphon-led--cyan { background: var(--hyphon-led-on-cyan); color: var(--hyphon-led-on-cyan); box-shadow: var(--hyphon-led-glow); }
+.hyphon-led--green { background: var(--hyphon-led-on-green); color: var(--hyphon-led-on-green); box-shadow: var(--hyphon-led-glow); }
+.hyphon-led--red { background: var(--hyphon-led-on-red); color: var(--hyphon-led-on-red); box-shadow: var(--hyphon-led-glow); }
+.hyphon-led--yellow { background: var(--hyphon-led-on-yellow); color: var(--hyphon-led-on-yellow); box-shadow: var(--hyphon-led-glow); }
+.hyphon-led--purple { background: var(--hyphon-led-on-purple); color: var(--hyphon-led-on-purple); box-shadow: var(--hyphon-led-glow); }
+
+.hyphon-led--pulse {
+  animation: hyphon-led-pulse 2s ease-in-out infinite;
+}
+
+@keyframes hyphon-led-pulse {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.75; filter: brightness(1.25); }
+}
+
+/* ── Decorative hardware ── */
+
+.hyphon-screw {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  border: 1px solid #4b5563;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.hyphon-screw__slot {
+  width: 0.625rem;
+  height: 1.5px;
+  background: #4b5563;
+  transform: rotate(45deg);
+  border-radius: 1px;
+}
+
+.hyphon-vent {
+  display: flex;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.hyphon-vent__slot {
+  width: 2px;
+  height: 12px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.6));
+  border-radius: 1px;
+}
+
+/* ── Legacy grid panels (SynthPart / DrumMachine) ── */
+
+.hyphon-legacy-panel {
+  position: relative;
+  background: rgba(17, 24, 39, 0.5);
+  padding: 1rem;
+  border-radius: var(--hyphon-radius-lg);
+  border: 2px solid var(--hyphon-border-subtle);
+  box-shadow: var(--hyphon-shadow-inset-highlight);
+}
+
+.hyphon-legacy-panel--cyan { border-color: #06b6d4; }
+.hyphon-legacy-panel--pink { border-color: #ec4899; }
+.hyphon-legacy-panel--yellow { border-color: #eab308; }
+
+/* ── Sampler surface alignment ── */
+
+.hyphon-sampler-shell {
+  background: var(--hyphon-bg-raised);
+  color: #f3f4f6;
+}
+
+.hyphon-sampler-header {
+  background: var(--hyphon-bg-panel);
+  border-bottom: 1px solid #2a2d36;
+}
+
+/* ── Optional surface textures (perf: single fixed pseudo-element) ── */
+
+.hyphon-texture-grain body::after,
+body.hyphon-texture-grain::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+.hyphon-texture-circuit body::after,
+body.hyphon-texture-circuit::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.025;
+  mix-blend-mode: soft-light;
+  background-image:
+    linear-gradient(90deg, rgba(0, 229, 255, 0.15) 1px, transparent 1px),
+    linear-gradient(rgba(0, 229, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── High contrast accessibility (extends accessibility.css) ── */
+
+@media (prefers-contrast: more) {
+  :root {
+    --hyphon-border-subtle: #6b7280;
+    --hyphon-border-glass: rgba(0, 229, 255, 0.35);
+  }
+
+  .hyphon-chrome-panel::before {
+    border-color: var(--hyphon-border-glass);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hyphon-led--pulse {
+    animation: none;
+  }
+
+  .hyphon-btn:not(:disabled):hover,
+  .hyphon-btn:not(:disabled):active {
+    transform: none;
+  }
+}
+
+/* HiDPI: sharper borders on retina */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .hyphon-chrome-panel,
+  .hyphon-rack-shell,
+  .hyphon-sequencer-shell {
+    outline: 0.5px solid transparent;
+    outline-offset: -0.5px;
+  }
+
+  .hyphon-screw {
+    box-shadow: inset 0 0.5px 0.5px rgba(255, 255, 255, 0.12), 0 0.5px 1px rgba(0, 0, 0, 0.45);
+  }
+}

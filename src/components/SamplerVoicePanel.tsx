@@ -2,6 +2,8 @@ import { type HarmonizerConfig, type HarmonyType, HARMONIZE_PRESETS } from '../e
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HardwareModule, type KnobConfig } from './HardwareModule';
 import { LadderButton } from './sampler/LadderButton';
+import { VerticalKnob } from './sampler/VerticalKnob';
+import { HSlider } from './sampler/HSlider';
 import { noop } from '../utils/noop';
 
 interface SamplerVoicePanelProps {
@@ -12,6 +14,18 @@ interface SamplerVoicePanelProps {
     onRecordToggle?: (id: string) => void;
     is3D?: boolean;
     children?: React.ReactNode;
+    onMidiTouch?: (paramId: string) => void;
+    onMidiLearnStart?: (paramId: string) => void;
+    isMidiMapped?: (paramId: string) => boolean;
+    isMidiActive?: (paramId: string) => boolean;
+    automationTarget?: import('../types').AutomationTarget;
+    patternIndex?: number;
+    onAutomationNudge?: (paramId: string, value: number, step: number) => void;
+    onAutomationPunchIn?: (paramId: string) => void;
+    onAutomationLaneAction?: (action: 'toggle' | 'clear', paramId?: string) => void;
+    expressionLedTarget?: import('../types').ExpressionLedTarget;
+    expressionLedAnalyser?: AnalyserNode | null;
+    expressionLedFallbackColor?: string;
     // Sampler-specific props
     rootNote?: number; // 0-96 (C1-C8)
     coarseTune?: number; // -24 to +24
@@ -24,11 +38,12 @@ interface SamplerVoicePanelProps {
     tremoloDepth?: number; // 0-1
     breathAmount?: number; // 0-1
     vocoderMix?: number; // 0-1
+    quality?: 'preview' | 'good' | 'better' | 'best';
     vocoderFormantShift?: number;
     vocoderPreservation?: number;
     vocoderAttack?: number;
     vocoderRelease?: number;
-    quality?: 'preview' | 'good' | 'better' | 'best';
+    stretchProfile?: 'vocal' | 'harmonic' | 'fast';
     stretchMode?: 'Time' | 'Pitch' | 'Formant';
     lockToSequencer?: boolean;
     onSamplerParamChange?: (param: string, value: number | string | boolean) => void;
@@ -46,171 +61,6 @@ const midiToNote = (midi: number) => {
     return `${NOTES[noteIndex]}${octave}`;
 };
 
-
-// Vertical Knob Component (for pitch envelope)
-const VerticalKnob: React.FC<{
-    label: string;
-    value: number; // 0-1
-    onChange: (value: number) => void;
-    colorHex: [number, number, number];
-}> = ({ label, value, onChange, colorHex }) => {
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        const startY = e.clientY;
-        const startVal = value;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const dy = startY - e.clientY;
-            const newVal = Math.max(0, Math.min(1, startVal + dy * 0.01));
-            onChange(newVal);
-        };
-
-        const handleMouseUp = () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = 'default';
-        };
-
-        document.body.style.cursor = 'ns-resize';
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    }, [value, onChange]);
-
-    const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
-    const height = 40;
-    const fillHeight = value * height;
-
-    return (
-        <div className="flex flex-col items-center gap-1">
-            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">{label}</span>
-            <div
-                className="w-6 rounded-full bg-zinc-900 border-2 border-zinc-600 cursor-ns-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.05)]"
-                style={{ height: `${height}px` }}
-                onMouseDown={handleMouseDown}
-            >
-                {/* Bevel highlight */}
-                <div className="absolute inset-0 rounded-full border border-white/5 pointer-events-none" />
-                {/* Fill with gradient */}
-                <div
-                    className="absolute bottom-0 left-0 right-0 rounded-b-full transition-all"
-                    style={{
-                        height: `${fillHeight}px`,
-                        background: `linear-gradient(to top, ${color}, ${color}60 50%, ${color}30)`,
-                        boxShadow: `0 0 15px ${color}50, inset 0 -2px 4px rgba(0,0,0,0.3)`
-                    }}
-                />
-                {/* Center marker with LED style */}
-                <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent top-1/2" />
-                {/* Tick marks */}
-                {[0.25, 0.5, 0.75].map(tick => (
-                    <div 
-                        key={tick}
-                        className="absolute left-1 right-1 h-px bg-zinc-700"
-                        style={{ bottom: `${tick * 100}%` }}
-                    />
-                ))}
-            </div>
-            <span className="text-[8px] font-mono text-cyan-400/60">{Math.round(value * 100)}%</span>
-        </div>
-    );
-};
-
-// Horizontal Slider Component
-const HSlider: React.FC<{
-    label: string;
-    value: number; // -1 to 1 normalized
-    displayValue: string;
-    onChange: (value: number) => void;
-    colorHex: [number, number, number];
-}> = ({ label, value, displayValue, onChange, colorHex }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const cachedRectRef = useRef<DOMRect | null>(null);
-
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
-
-        cachedRectRef.current = container.getBoundingClientRect();
-
-        const observer = new ResizeObserver(() => {
-            cachedRectRef.current = container.getBoundingClientRect();
-        });
-
-        observer.observe(container);
-        return () => observer.disconnect();
-    }, []);
-
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        const rect = cachedRectRef.current || containerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const x = e.clientX - rect.left;
-            const normalized = Math.max(-1, Math.min(1, (x / rect.width) * 2 - 1));
-            onChange(normalized);
-        };
-
-        const handleMouseUp = () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = 'default';
-        };
-
-        document.body.style.cursor = 'ew-resize';
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-
-        // Initial set
-        const x = e.clientX - rect.left;
-        const normalized = Math.max(-1, Math.min(1, (x / rect.width) * 2 - 1));
-        onChange(normalized);
-    }, [onChange]);
-
-    const color = `rgba(${colorHex[0] * 255}, ${colorHex[1] * 255}, ${colorHex[2] * 255}, 1)`;
-    const percent = ((value + 1) / 2) * 100;
-
-    return (
-        <div className="flex flex-col gap-1.5 w-full">
-            <div className="flex justify-between items-center">
-                <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">{label}</span>
-                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950/50 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}60` }}>{displayValue}</span>
-            </div>
-            <div
-                ref={containerRef}
-                className="h-5 bg-zinc-900 rounded-md border border-zinc-700 cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)]"
-                onMouseDown={handleMouseDown}
-            >
-                {/* Track background with gradient */}
-                <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/30 to-transparent" />
-                {/* Center line with LED glow */}
-                <div className="absolute left-1/2 top-0.5 bottom-0.5 w-px bg-gradient-to-b from-transparent via-white/30 to-transparent z-10" />
-                {/* Fill from center with glow */}
-                <div
-                    className="absolute top-0.5 bottom-0.5 rounded-sm transition-all"
-                    style={{
-                        left: value < 0 ? `${percent}%` : '50%',
-                        right: value > 0 ? `${100 - percent}%` : '50%',
-                        background: `linear-gradient(to ${value < 0 ? 'left' : 'right'}, ${color}40 0%, ${color} 100%)`,
-                        boxShadow: `0 0 12px ${color}50, inset 0 1px 0 rgba(255,255,255,0.1)`
-                    }}
-                />
-                {/* Thumb with plastic look */}
-                <div
-                    className="absolute top-0.5 bottom-0.5 w-3 rounded-sm shadow-lg z-20 border border-white/20"
-                    style={{ 
-                        left: `calc(${percent}% - 6px)`,
-                        background: `linear-gradient(180deg, #3a3a3a 0%, #1a1a1a 50%, #0a0a0a 100%)`,
-                        boxShadow: `0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)`
-                    }}
-                >
-                    {/* Thumb highlight */}
-                    <div className="absolute top-0.5 left-0.5 right-0.5 h-px bg-white/30 rounded-full" />
-                </div>
-            </div>
-        </div>
-    );
-};
 
 // Harmonizer Popover Component
 const HarmonizerPopover: React.FC<{
@@ -302,7 +152,7 @@ const HarmonizerPopover: React.FC<{
                         HARMONIZER
                     </span>
                     {/* Toggle switch style ON/OFF button */}
-                    <button 
+                    <button type="button"
                         onClick={() => setLocalActive(!localActive)}
                         aria-label={localActive ? "Disable Harmonizer" : "Enable Harmonizer"}
                         aria-pressed={localActive}
@@ -326,10 +176,10 @@ const HarmonizerPopover: React.FC<{
                         <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Voices</span>
                         <div className="flex gap-2 bg-zinc-950/50 p-1 rounded-lg border border-zinc-800">
                             {[2, 3, 4].map(count => (
-                                <button
+                                <button type="button"
                                     key={count}
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
-                                    aria-label={`${count} Voices`} title={`${count} Voices`}
+                                    aria-label={`${count} Voices`}
                                     aria-pressed={localConfig.voiceCount === count}
                                     className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${
                                         localConfig.voiceCount === count
@@ -352,10 +202,10 @@ const HarmonizerPopover: React.FC<{
                         <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Type</span>
                         <div className="grid grid-cols-2 gap-1.5">
                             {harmonyTypes.map(({ value, label }) => (
-                                <button
+                                <button type="button"
                                     key={value}
                                     onClick={() => handleHarmonyTypeChange(value)}
-                                    aria-label={`${label} Harmony`} title={`${label} Harmony`}
+                                    aria-label={`${label} Harmony`}
                                     aria-pressed={localConfig.harmonyType === value}
                                     className={`py-1.5 rounded-md text-[9px] font-bold transition-all relative overflow-hidden ${
                                         localConfig.harmonyType === value
@@ -444,7 +294,7 @@ const HarmonizerPopover: React.FC<{
                                 { key: 'choir', label: 'CHR', desc: 'Choir (Thick)' },
                                 { key: 'power', label: '5TH', desc: '5th Harmony (Power)' }
                             ].map(({ key, label, desc }) => (
-                                <button
+                                <button type="button"
                                     key={key}
                                     onClick={() => setLocalConfig(HARMONIZE_PRESETS[key as keyof typeof HARMONIZE_PRESETS]())}
                                     className="flex-1 py-1.5 rounded-md text-[8px] font-bold bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border border-zinc-700 hover:text-zinc-200 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
@@ -458,7 +308,7 @@ const HarmonizerPopover: React.FC<{
                     </div>
 
                     {/* Apply Button - Animated hardware style */}
-                    <button
+                    <button type="button"
                         onClick={handleApply}
                         aria-label="Apply Harmonizer Settings"
                         title="Apply Harmonizer Settings"
@@ -497,6 +347,18 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     onRecordToggle,
     is3D = false,
     children,
+    onMidiTouch,
+    onMidiLearnStart,
+    isMidiMapped,
+    isMidiActive,
+    automationTarget,
+    patternIndex,
+    onAutomationNudge,
+    onAutomationPunchIn,
+    onAutomationLaneAction,
+    expressionLedTarget,
+    expressionLedAnalyser,
+    expressionLedFallbackColor,
     rootNote = 60, // C4 default
     coarseTune = 0,
     fineTune = 0,
@@ -508,11 +370,12 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     tremoloDepth = 0,
     breathAmount = 0,
     vocoderMix = 0,
+    quality = 'good',
     vocoderFormantShift = 0,
     vocoderPreservation = 1.0,
     vocoderAttack = 0.01,
     vocoderRelease = 0.05,
-    quality = 'good',
+    stretchProfile = 'vocal',
     stretchMode = 'Time',
     lockToSequencer = false,
     onSamplerParamChange,
@@ -535,7 +398,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [localVocoderPreservation, setLocalVocoderPreservation] = useState(vocoderPreservation);
     const [localVocoderAttack, setLocalVocoderAttack] = useState(vocoderAttack);
     const [localVocoderRelease, setLocalVocoderRelease] = useState(vocoderRelease);
-    const [localQuality, setLocalQuality] = useState<typeof quality>(quality);
+    const [localQuality, setLocalQuality] = useState<typeof stretchProfile>(stretchProfile);
     const [localStretch, setLocalStretch] = useState<typeof stretchMode>(stretchMode);
     const [localLock, setLocalLock] = useState(lockToSequencer);
     const [isHarmonizerOpen, setIsHarmonizerOpen] = useState(false);
@@ -565,11 +428,12 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'vocoderMix': setLocalVocoderMix(value as number); break;
+            case 'quality': setLocalQuality(value as typeof quality); break;
             case 'vocoderFormantShift': setLocalVocoderFormantShift(value as number); break;
             case 'vocoderPreservation': setLocalVocoderPreservation(value as number); break;
             case 'vocoderAttack': setLocalVocoderAttack(value as number); break;
             case 'vocoderRelease': setLocalVocoderRelease(value as number); break;
-            case 'quality': setLocalQuality(value as typeof quality); break;
+            case 'stretchProfile': setLocalQuality(value as typeof stretchProfile); break;
             case 'stretchMode': setLocalStretch(value as typeof stretchMode); break;
             case 'lockToSequencer': setLocalLock(value as boolean); break;
         }
@@ -644,15 +508,27 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                     onParamChange={onParamChange}
                     onRecordToggle={onRecordToggle}
                     is3D={is3D}
+                    onMidiTouch={onMidiTouch}
+                    onMidiLearnStart={onMidiLearnStart}
+                    isMidiMapped={isMidiMapped}
+                    isMidiActive={isMidiActive}
+                    automationTarget={automationTarget}
+                    patternIndex={patternIndex}
+                    onAutomationNudge={onAutomationNudge}
+                    onAutomationPunchIn={onAutomationPunchIn}
+                    onAutomationLaneAction={onAutomationLaneAction}
+                    expressionLedTarget={expressionLedTarget}
+                    expressionLedAnalyser={expressionLedAnalyser}
+                    expressionLedFallbackColor={expressionLedFallbackColor}
                 >
                     {children}
                 </HardwareModule>
             </div>
 
             {/* Sampler Voice Controls Panel */}
-            <div className="min-h-[280px] bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-t-2 border-purple-500/30 p-3 flex gap-4 shrink-0 relative overflow-y-auto overflow-x-hidden">
-                {/* Subtle grid pattern */}
-                <div className="absolute inset-0 opacity-5" style={{
+            <div className="min-h-[280px] bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-t-2 border-purple-500/30 p-3 flex gap-4 shrink-0 relative overflow-y-auto overflow-x-hidden hyphon-chrome-panel">
+                {/* Subtle grid pattern — matches theme circuit overlay at panel scale */}
+                <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{
                     backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
                     backgroundSize: '20px 20px'
                 }} />
@@ -743,14 +619,13 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             <div className="flex-1 relative">
                                 <select
                                     value={localQuality}
-                                    onChange={(e) => handleParamChange('quality', e.target.value)}
-                                    aria-label="Sample Quality"
+                                    onChange={(e) => handleParamChange('stretchProfile', e.target.value)}
+                                    aria-label="Stretch Profile"
                                     className="w-full bg-zinc-950 text-[10px] text-gray-300 border border-zinc-700 rounded-md px-2 py-1.5 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 appearance-none cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                 >
-                                    <option value="preview">Preview</option>
-                                    <option value="good">Good</option>
-                                    <option value="better">Better</option>
-                                    <option value="best">Best</option>
+                                    <option value="vocal">Vocal</option>
+                                    <option value="harmonic">Harmonic</option>
+                                    <option value="fast">Fast</option>
                                 </select>
                                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-cyan-500 text-[8px]">▼</div>
                             </div>
@@ -895,7 +770,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             
                             {/* HARMONIZE Button - Hardware style */}
                             <div className="relative">
-                                <button
+                                <button type="button"
                                     ref={harmonizeTriggerRef}
                                     onClick={() => setIsHarmonizerOpen(!isHarmonizerOpen)}
                                     aria-haspopup="dialog"

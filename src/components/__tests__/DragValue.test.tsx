@@ -91,11 +91,11 @@ describe('DragValue Keyboard Navigation', () => {
 
         // Simulate Enter key on buttons (which fires click in browsers)
         // We use detail: 0 to simulate keyboard-triggered click
-        fireEvent.click(plusBtn, { detail: 0 });
+        plusBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
         expect(onChange).toHaveBeenCalledWith(51);
 
         onChange.mockClear();
-        fireEvent.click(minusBtn, { detail: 0 });
+        minusBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
         expect(onChange).toHaveBeenCalledWith(49);
     });
 });

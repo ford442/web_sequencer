@@ -13,7 +13,8 @@ export interface PitchControlValues {
   coarseTune: number;
   fineTune: number;
   formantShift: number;
-  quality: 'preview' | 'good' | 'better' | 'best';
+  formantPitchLink?: number;
+  stretchProfile: 'vocal' | 'harmonic' | 'fast';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
   pitchAttack?: number;
@@ -92,7 +93,7 @@ const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = React.memo(({ sele
         const isSelected = note === selected;
         const isC = note % 12 === 0;
         return (
-          <button
+          <button type="button"
             key={note}
             ref={(el) => {
               if (el) buttonRefs.current.set(note, el);
@@ -125,7 +126,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
   onChange,
 }) => {
   // Generate unique IDs for form elements based on bankId
-  const qualityId = `rb-quality-${bankId}`;
+  const stretchProfileId = `rb-quality-${bankId}`;
   const modeId = `rb-mode-${bankId}`;
   const lockToSequencerId = `rb-autofollow-${bankId}`;
 
@@ -201,6 +202,18 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             />
             <span className="text-[10px] text-gray-500 mt-1">st</span>
           </div>
+          <div className="flex flex-col items-center">
+            <Knob
+              label="LINK %"
+              value={values.formantPitchLink ?? 0}
+              min={0}
+              max={1}
+              step={0.01}
+              color="indigo"
+              onChange={(v) => onChange('formantPitchLink', v)}
+            />
+            <span className="text-[10px] text-gray-500 mt-1">%</span>
+          </div>
 
           <div className="flex flex-col gap-2">
             <div className="flex flex-col items-center">
@@ -236,19 +249,19 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             RubberBand Engine
           </label>
           
-          {/* Quality Select */}
+          {/* Profile Select */}
           <div className="flex flex-col gap-1">
-            <label htmlFor={qualityId} className="text-[9px] text-gray-500">Quality</label>
+            <label htmlFor={stretchProfileId} className="text-[9px] text-gray-500">Profile</label>
             <select
-              id={qualityId}
-              value={values.quality}
-              aria-label="Sample Quality"
-              onChange={(e) => onChange('quality', e.target.value as 'preview' | 'good' | 'better' | 'best')}
+              id={stretchProfileId}
+              value={values.stretchProfile}
+              aria-label="Stretch Profile"
+              onChange={(e) => onChange('stretchProfile', e.target.value as 'vocal' | 'harmonic' | 'fast')}
               className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
             >
-              <option value="Fast">Fast</option>
-              <option value="Standard">Standard</option>
-              <option value="Elastic">Elastic</option>
+              <option value="vocal">Vocal</option>
+              <option value="harmonic">Harmonic</option>
+              <option value="fast">Fast</option>
             </select>
           </div>
 
@@ -273,8 +286,8 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
             className="flex items-center gap-2 mt-1 cursor-pointer"
             onClick={() => onChange('lockToSequencer', !values.lockToSequencer)}
           >
-            <button
-              type="button"
+            <button type="button"
+
               role="switch"
               aria-checked={values.lockToSequencer}
               id={lockToSequencerId}

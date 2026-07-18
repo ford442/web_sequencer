@@ -3,6 +3,7 @@ import React, { memo, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { AllDrumParams, DrumSound, KickParams, SnareParams, HatParams, DrumKitType } from '../types';
 import { Knob } from './Knob';
 import { DrumPads } from './DrumPads';
+import { LedIndicator } from './ui/PanelChrome';
 
 interface DrumMachineProps {
   params: AllDrumParams;
@@ -57,7 +58,7 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
   }, [handleParamChange]);
 
   return (
-    <div className="bg-gray-900/50 p-4 rounded-lg border-2 border-yellow-500 space-y-4">
+    <div className="bg-gray-900/50 p-4 rounded-lg border-2 border-yellow-500 space-y-4 hyphon-legacy-panel hyphon-legacy-panel--yellow">
       <div className="flex items-center justify-between">
         <h2 className="font-orbitron text-xl font-bold text-yellow-400">Drum Machine</h2>
         {onDrumKitChange && (
@@ -75,7 +76,12 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
               aria-label="TR-808 Kit"
               title="Switch to TR-808 Kit"
             >
-              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '808' ? 'bg-red-500 animate-pulse' : 'bg-gray-600'}`} />
+              <LedIndicator
+                color={drumKit === '808' ? 'red' : 'off'}
+                pulse={drumKit === '808'}
+                className="mr-1.5"
+                aria-label={drumKit === '808' ? '808 kit active' : '808 kit inactive'}
+              />
               808
             </button>
             <button
@@ -91,7 +97,12 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
               aria-label="TR-909 Kit"
               title="Switch to TR-909 Kit"
             >
-              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${drumKit === '909' ? 'bg-blue-500 animate-pulse' : 'bg-gray-600'}`} />
+              <LedIndicator
+                color={drumKit === '909' ? 'cyan' : 'off'}
+                pulse={drumKit === '909'}
+                className="mr-1.5"
+                aria-label={drumKit === '909' ? '909 kit active' : '909 kit inactive'}
+              />
               909
             </button>
           </div>

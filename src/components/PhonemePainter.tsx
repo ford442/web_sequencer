@@ -471,7 +471,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
             <div className="flex items-center gap-3">
               {/* Icon with glow */}
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-                <svg className="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg aria-hidden="true" className="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 19l7-7 3 3-7 7-3-3z" />
                   <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
                   <path d="M2 2l7.586 7.586" />
@@ -491,10 +491,10 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
             </div>
 
             {/* Close button - hardware style */}
-            <button
+            <button type="button"
               onClick={onClose}
               className="w-8 h-8 rounded-lg bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-              aria-label="Close Phoneme Painter" title="Close Phoneme Painter"
+              aria-label="Close Phoneme Painter"
             >
               ×
             </button>
@@ -533,7 +533,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
               </span>
               <div className="flex items-center gap-2">
                 {alignment && (
-                  <button
+                  <button type="button"
                     onClick={handleAutoAlign}
                     disabled={isAutoAligning}
                     className="px-3 py-1.5 text-[10px] font-mono bg-gradient-to-b from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white rounded-md border border-purple-500/50 shadow-[0_2px_8px_rgba(168,85,247,0.3),inset_0_1px_0_rgba(255,255,255,0.1)] disabled:opacity-50 transition-all"
@@ -542,7 +542,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                   >
                     <span className="flex items-center gap-1">
                       {isAutoAligning ? (
-                        <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg aria-hidden="true" className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -553,7 +553,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                     </span>
                   </button>
                 )}
-                <button
+                <button type="button"
                   onClick={() => setShowAddMenu(!showAddMenu)}
                   className="px-3 py-1.5 text-[10px] font-mono bg-gradient-to-b from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white rounded-md border border-cyan-500/50 shadow-[0_2px_8px_rgba(6,182,212,0.3),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all"
                   aria-expanded={showAddMenu}
@@ -603,7 +603,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                       <div className="text-[9px] text-zinc-500 font-mono uppercase mb-1.5 px-1">{group.cat}</div>
                       <div className="flex flex-wrap gap-1">
                         {group.phones.map((ph, idx) => (
-                          <button
+                          <button type="button"
                             key={ph}
                             ref={el => { phonemeButtonRefs.current[idx] = el; }}
                             onClick={() => handleAddPhoneme(ph)}
@@ -748,7 +748,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                   </div>
                   {/* Fine adjustment buttons */}
                   <div className="flex gap-1">
-                    <button
+                    <button type="button"
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend - 10)}
                       className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
                       aria-label="Decrease pitch bend"
@@ -756,7 +756,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                     >
                       -
                     </button>
-                    <button
+                    <button type="button"
                       onClick={() => handlePitchBendChange(selectedPhoneme.id, selectedPhoneme.pitchBend + 10)}
                       className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs border border-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
                       aria-label="Increase pitch bend"
@@ -810,7 +810,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
 
         {/* Footer Actions - hardware style */}
         <div className="border-t border-zinc-800 bg-zinc-950/50 px-6 py-4 flex items-center justify-between relative">
-          <button
+          <button type="button"
             onClick={handleClear}
             className="px-4 py-2 text-xs font-mono text-red-400 hover:text-red-300 rounded-md border border-red-900/30 bg-gradient-to-b from-red-950/30 to-red-950/10 hover:from-red-950/50 hover:to-red-950/20 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-red-500"
             aria-label="Clear all phonemes"
@@ -820,7 +820,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
           </button>
 
           <div className="flex items-center gap-3">
-            <button
+            <button type="button"
               onClick={onClose}
               className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-white rounded-md bg-gradient-to-b from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 border border-zinc-700 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-zinc-500"
               aria-label="Cancel changes"
@@ -828,7 +828,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
             >
               Cancel
             </button>
-            <button
+            <button type="button"
               onClick={handleSave}
               className="px-6 py-2 text-xs font-mono font-bold text-black rounded-md bg-gradient-to-b from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 border border-cyan-400 transition-all shadow-[0_4px_16px_rgba(6,182,212,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] relative overflow-hidden group focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
               aria-label="Save changes"

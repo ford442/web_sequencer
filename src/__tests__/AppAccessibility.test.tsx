@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { App } from '../App';
 import { AppStateProvider } from '../contexts/AppStateContext';
+import { CompactLayoutProvider } from '../contexts/CompactLayoutContext';
 
 const mockTriggerTapeStop = vi.fn();
 
@@ -33,7 +34,9 @@ describe('App Accessibility', () => {
   it('resets master volume when pressing Delete/Backspace', () => {
     render(
       <AppStateProvider>
-        <App />
+        <CompactLayoutProvider>
+          <App />
+        </CompactLayoutProvider>
       </AppStateProvider>
     );
     const volumeSlider = screen.getByLabelText('Master Volume');
@@ -57,7 +60,9 @@ describe('App Accessibility', () => {
   it('resets global pan when pressing Delete/Backspace', () => {
     render(
       <AppStateProvider>
-        <App />
+        <CompactLayoutProvider>
+          <App />
+        </CompactLayoutProvider>
       </AppStateProvider>
     );
     const panSlider = screen.getByLabelText('Global Pan');
@@ -81,12 +86,26 @@ describe('App Accessibility', () => {
   it('triggers tape stop on Escape key press', () => {
     render(
       <AppStateProvider>
-        <App />
+        <CompactLayoutProvider>
+          <App />
+        </CompactLayoutProvider>
       </AppStateProvider>
     );
     mockTriggerTapeStop.mockClear();
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(mockTriggerTapeStop).toHaveBeenCalledWith(2.0);
+  });
+
+  it('renders skip link and live region for screen readers', () => {
+    render(
+      <AppStateProvider>
+        <CompactLayoutProvider>
+          <App />
+        </CompactLayoutProvider>
+      </AppStateProvider>
+    );
+    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
+    expect(document.querySelector('[aria-live="polite"].sr-only')).toBeInTheDocument();
   });
 });

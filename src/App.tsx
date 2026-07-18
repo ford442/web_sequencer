@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { useAppStateContext } from './contexts/AppStateContext'
 
 import TransportHeader from './components/appParts/TransportHeader'
@@ -14,6 +14,9 @@ import { AISongModal } from './components/AISongModal'
 import { RbsImportModal } from './components/RbsImportModal'
 import { VoiceEditor } from './components/VoiceEditor'
 import { ShortcutsHelp } from './components/ShortcutsHelp'
+import { helpDiscoveryStore, useHelpDiscoveryStore } from './stores/helpDiscoveryStore'
+import { WhatsNewBanner } from './components/help/WhatsNewBanner'
+import { MidiMapPanel } from './components/MidiMapPanel'
 import { GamepadDebugger } from './components/GamepadDebugger'
 import { LyricTrack } from './components/LyricTrack'
 import { Toast } from './components/Toast'
@@ -21,6 +24,15 @@ import { StartOverlay } from './components/StartOverlay'
 import { LoadingOverlay } from './components/LoadingOverlay'
 import { SEQUENCER_STYLES } from './components/sequencer/constants'
 import { SongMode } from './components/SongMode'
+import { MobileTransportDock } from './components/MobileTransportDock'
+import { EngineDegradationBanner } from './components/EngineDegradationBanner'
+import { A11yAnnouncer } from './components/A11yAnnouncer'
+import { useCompactLayoutContext } from './contexts/CompactLayoutContext'
+import { engineDegradationStore } from './stores/engineDegradationStore'
+import { midiMapStore, useMidiMapStore } from './stores/midiMapStore'
+import { useA11yPlaybackAnnouncements } from './hooks/useA11yPlaybackAnnouncements'
+import { useSurfaceTexture } from './hooks/useSurfaceTexture'
+import { VisualStyleShowcase } from './components/ui/VisualStyleShowcase'
 
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 
@@ -37,8 +49,9 @@ export const App: React.FC = () => {
         activeAlignment, melodicMode, handlePitchChange, handlePhonemeUpdate,
         sampleBuffers, isSongModeOpen, songStructure, currentSongMeasure,
         backgroundImage, setBackgroundImage, handleSongModeToggle,
-        handleSongStructureUpdate, handleAddMeasure, handleRemoveMeasure,
+        handleSongStructureUpdate, handleEditSongStructure, handleAddMeasure, handleRemoveMeasure,
         handleExportXM, isSongModeActive, setIsSongModeActive,
+        undoSongStructure, redoSongStructure, canUndoSong, canRedoSong,
         contextMenu, setContextMenu, handleNoteSelect, handleNoteLengthChange,
         handleNotePropertyChange, currentScale,
         handleKeyboardPlay, handleKeyboardStop, handleDrumPadPlay,
@@ -78,6 +91,42 @@ export const App: React.FC = () => {
         setViewMode, setAutomationParam, exportSongToFile, exportRbsToFile, importSongFromFile,
     } = state;
 
+    const { isCompact, toggleCompact } = useCompactLayoutContext();
+    const { panelOpen: isMidiMapPanelOpen } = useMidiMapStore();
+    const { helpOpen } = useHelpDiscoveryStore();
+    const showHelpModal = isShortcutsHelpOpen || helpOpen;
+    const closeHelpModal = () => {
+        setIsShortcutsHelpOpen(false);
+        helpDiscoveryStore.closeHelp();
+    };
+
+    useA11yPlaybackAnnouncements({
+        isPlaying,
+        isAutomationRecording,
+        selectedTrack,
+        activeTrackSlots,
+        viewMode,
+        automationParam,
+        isSongModeActive,
+        currentSongMeasure,
+    });
+
+    useEffect(() => {
+        engineDegradationStore.setToastHandler((message, type) => {
+            showToast(message, type === 'error' ? 'error' : 'info');
+        });
+        return () => engineDegradationStore.setToastHandler(null);
+    }, [showToast]);
+
+    useSurfaceTexture();
+
+    const showVisualReview = typeof location !== 'undefined'
+        && new URLSearchParams(location.search).has('visual-review');
+
+    if (showVisualReview) {
+        return <VisualStyleShowcase />;
+    }
+
     if (is3DMode) {
         return (
             <Suspense fallback={<div className="flex items-center justify-center h-screen w-screen bg-black text-cyan-400 font-orbitron text-xl tracking-widest animate-pulse">LOADING 3D STUDIO...</div>}>
@@ -93,7 +142,9 @@ export const App: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center" style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}>
+        <div className={`flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center ${isCompact ? 'hyphon-compact' : ''}`} style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}>
+            <a href="#main-content" className="skip-link">Skip to main content</a>
+            <A11yAnnouncer />
             <style>{SEQUENCER_STYLES}</style>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
@@ -116,12 +167,28 @@ export const App: React.FC = () => {
             <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
             <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
-            {isShortcutsHelpOpen && (<ShortcutsHelp onClose={() => setIsShortcutsHelpOpen(false)} />)}
+            {showHelpModal && (<ShortcutsHelp onClose={closeHelpModal} />)}
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
+            {isMidiMapPanelOpen && (<MidiMapPanel onClose={() => midiMapStore.setPanelOpen(false)} />)}
 
-            <TransportHeader />
+            <TransportHeader onToggleCompact={toggleCompact} isCompactLayout={isCompact} />
 
-            <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
+            <EngineDegradationBanner />
+
+            <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onEditStructure={handleEditSongStructure} onUndoSong={undoSongStructure} onRedoSong={redoSongStructure} canUndoSong={canUndoSong()} canRedoSong={canRedoSong()} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
+
+            <MobileTransportDock
+                isPlaying={isPlaying}
+                isRecording={isRecording}
+                tempo={tempo}
+                isSongModeOpen={isSongModeOpen}
+                onPlayToggle={handlePlayToggle}
+                onRecordToggle={() => setIsRecording(!isRecording)}
+                onTempoNudgeStart={handleTempoHoldStart}
+                onTempoNudgeEnd={handleTempoHoldEnd}
+                onSongModeToggle={() => setIsSongModeOpen(!isSongModeOpen)}
+                onPanic={handlePanic}
+            />
 
             <LyricTrack
                 isVisible={isLyricTrackVisible}
@@ -131,19 +198,20 @@ export const App: React.FC = () => {
                 onClose={() => setIsLyricTrackVisible(false)}
             />
 
-            <main className="flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto pb-12">
-                <div className="w-full max-w-[1000px] mx-auto h-[440px] shrink-0 pt-6">
+            <main id="main-content" className={`flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto overscroll-y-contain ${isCompact ? 'pb-28' : 'pb-12'} hyphon-main-scroll`}>
+                <WhatsNewBanner />
+                <div className={`w-full max-w-[1000px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-0 ${isCompact ? 'h-[min(42vh,360px)] min-h-[240px]' : 'h-[440px]'}`}>
                     <SequencerNode />
                 </div>
                 <ContextMenuNode />
 
-                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-4">
-                    <div className="h-[380px] rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-cyan-500/20">
+                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
+                    <div className={`hyphon-rack-shell overflow-hidden ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px]'}`}>
                         <RackNode />
                     </div>
                 </div>
 
-                <div className="shrink-0 py-4 mt-2 max-w-[1000px] mx-auto w-full px-4">
+                <div className="shrink-0 py-3 sm:py-4 mt-2 max-w-[1000px] mx-auto w-full px-2 sm:px-4">
                     <KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} handleDrumPadPlay={handleDrumPadPlay} />
                 </div>
             </main>
