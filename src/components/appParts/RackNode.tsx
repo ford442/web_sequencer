@@ -21,6 +21,7 @@ import {
 } from "../../hooks/useMidi";
 import { makeMidiControlId } from "../../types/midi";
 import type {
+  AutomationRecordArm,
   AutomationTarget,
   ExpressionLedTarget,
   UnifiedAutomationLane,

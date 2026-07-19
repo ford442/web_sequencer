@@ -58,7 +58,7 @@ function makeMinimalSynthParams(): SynthParams {
     pitch: 0,
     filterCutoff: 8000,
     filterResonance: 1,
-    filterMode: 'lp' as const,
+    filterMode: 0,
     attack: 0.01,
     decay: 0.2,
     sustain: 0.5,

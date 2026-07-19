@@ -62,22 +62,22 @@ export const HelpTip = memo(({
   const child = React.cloneElement(children, {
     'aria-describedby': open ? tipId : undefined,
     onFocus: (e: React.FocusEvent) => {
-      children.props.onFocus?.(e);
+      (children.props as { onFocus?: (ev: React.FocusEvent) => void }).onFocus?.(e);
       setOpen(true);
     },
     onBlur: (e: React.FocusEvent) => {
-      children.props.onBlur?.(e);
+      (children.props as { onBlur?: (ev: React.FocusEvent) => void }).onBlur?.(e);
       if (!firstUsePinned) setOpen(false);
     },
     onMouseEnter: (e: React.MouseEvent) => {
-      children.props.onMouseEnter?.(e);
+      (children.props as { onMouseEnter?: (ev: React.MouseEvent) => void }).onMouseEnter?.(e);
       setOpen(true);
     },
     onMouseLeave: (e: React.MouseEvent) => {
-      children.props.onMouseLeave?.(e);
+      (children.props as { onMouseLeave?: (ev: React.MouseEvent) => void }).onMouseLeave?.(e);
       if (!firstUsePinned) setOpen(false);
     },
-  });
+  } as React.HTMLAttributes<HTMLElement>);
 
   return (
     <span

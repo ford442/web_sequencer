@@ -131,7 +131,7 @@ export function useKeyboardHandlers(deps: {
                     tremoloDepth: voiceParams.tremoloDepth,
                     breathAmount: voiceParams.breathAmount,
                 },
-                quality: voiceParams.quality,
+                stretchProfile: voiceParams.stretchProfile,
                 stretchMode: voiceParams.stretchMode,
                 lockToSequencer: voiceParams.lockToSequencer,
             };

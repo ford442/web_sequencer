@@ -77,7 +77,7 @@ export const DEFAULT_BANK_PARAMS: SamplerBankParams = {
   rootNote: 60,
   coarseTune: 0,
   fineTune: 0,
-  quality: 'good',
+  stretchProfile: 'vocal',
   stretchMode: 'Pitch',
   lockToSequencer: false,
 };

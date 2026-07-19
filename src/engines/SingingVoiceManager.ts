@@ -103,9 +103,8 @@ export class SingingVoiceManager {
     /**
      * Backward compatibility wrapper for old acquireVoice calls.
      */
-    acquireVoice(): { voice: SingingVoice; index: number } {
-        const result = this.acquireVoiceForBank('__unknown__');
-        return { voice: result.voice, index: result.index };
+    acquireVoice(): { voice: SingingVoice; index: number; isNewBank: boolean } {
+        return this.acquireVoiceForBank('__unknown__');
     }
 
     /**

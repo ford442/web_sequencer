@@ -42,6 +42,7 @@ import { useInstrumentState } from './appState/useInstrumentState'
 import { useSamplerVoiceState } from './appState/useSamplerVoiceState'
 import { useUIModalsState } from './appState/useUIModalsState'
 import { useSongModeState } from './appState/useSongModeState'
+import { useSongStructureEditor } from './useSongStructureEditor'
 import { usePatternEditState } from './appState/usePatternEditState'
 import { useSamplerBanksState } from './appState/useSamplerBanksState'
 import { useTransportMixState } from './appState/useTransportMixState'
@@ -154,6 +155,15 @@ export function useAppState() {
         songMeasureRef,
         isFirstStepRef,
     } = useSongModeState();
+
+    const {
+        editSongStructure: handleEditSongStructure,
+        undoSongStructure,
+        redoSongStructure,
+        canUndoSong,
+        canRedoSong,
+        clearSongUndo,
+    } = useSongStructureEditor(songStructureRef, setSongStructure);
 
     const {
         synthA, setSynthA, synthARef, updateSynthA,
@@ -308,7 +318,7 @@ export function useAppState() {
         activeKeyboardNotesRef,
     });
 
-    const { handleAutomationChange, handleKnobRecordToggle } = useAutomationHandlers({
+    const { handleAutomationChange, handleKnobRecordToggle, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction } = useAutomationHandlers({
         automationParam, patternRef, setPattern, activeSamplerBankRef,
         updateStorageForTrack, currentStepRef, schedPlaying,
         isAutomationRecording, isSongModeActive, activeTrackSlotsRef, isSongModeActiveRef,
@@ -588,9 +598,15 @@ export function useAppState() {
         handleEditLength,
         handleSongModeToggle,
         handleSongStructureUpdate,
+        handleEditSongStructure,
         handleAddMeasure,
         handleExportXM,
         handleRemoveMeasure,
+        undoSongStructure,
+        redoSongStructure,
+        canUndoSong,
+        canRedoSong,
+        clearSongUndo,
         handleLoadSample,
         handleSynthChange,
         handleBass2Change,
@@ -599,6 +615,9 @@ export function useAppState() {
         handleClosedHatChange,
         handleOpenHatChange,
         handleKnobRecordToggle,
+        handleAutomationNudge,
+        handleAutomationPunchIn,
+        handleAutomationLaneAction,
         handleSamplerChange,
         handleSamplerParamChange,
         handleTtsPhraseChange,
