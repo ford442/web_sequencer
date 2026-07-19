@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
-    SamplerBankParams, AudioEngine, TrackAnalysers
+    SamplerBankParams, AudioEngine, TrackAnalysers, Note, SynthParams, PartSequence
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -17,6 +17,14 @@ import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import type { MultisampleBank } from '../types';
 import {
+    createAmbianceControls,
+    createNoteOnSynth,
+    createStopAllNotes,
+    noteOffSynth,
+    setGlobalPan as setMasterPan,
+    setHarmonizerConfig as applyHarmonizerConfig,
+    setMasterVolume as setMasterGainVolume,
+    setMasterSaturation as setMasterGainSaturation,
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
 import { makeDistortionCurve } from './audioEngine/distortion';
@@ -25,39 +33,15 @@ import {
     applyVoiceParamUpdate,
     createSampleLibraryControls,
 } from './audioEngine/sampleManagement';
-import {
-    createNoiseBuffer,
-    initializeHarmonizer,
-    initializeChoirBuses,
-    initializeMasterOutput,
-    initializeSustainProcessor,
-    loadWavBuffer,
-    createReverbImpulseResponse,
-} from './audioEngine/initialization';
-import { engineTelemetry } from '../utils/engineTelemetry';
 import { initializeAudioContextAndEngines, type EngineLifecycleRefs } from './audioEngine/engineLifecycle';
 import { buildAudioEngine } from './audioEngine/engineApiBuilder';
 
 export { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
+import { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
 
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
-
-type AudioWindow = Window & typeof globalThis & {
-    webkitAudioContext?: typeof AudioContext;
-    audioContext?: AudioContext;
-};
-
-export function getSyncedSeconds(bars: number, bpm: number): number {
-    if (!bars || bars <= 0) return 0;
-    return bars * 4 * (60 / bpm);
-}
-
-export function getSyncedLfoHz(bars: number, bpm: number): number {
-    if (!bars || bars <= 0) return 0;
-    return bpm / (240 * bars);
-}
 
 type ResolvedExpressiveness = {
     vibratoRate: number;
@@ -193,187 +177,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         isInitializing.current = true;
 
         try {
-            const audioWindow = window as AudioWindow;
-            const AudioContextCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
-            if (!AudioContextCtor) {
-                throw new Error('AudioContext is not available in this browser');
-            }
-            const context = new AudioContextCtor();
-            audioWindow.audioContext = context;
-
-            // --- CRITICAL FIX: Ensure AudioContext is running ---
-            if (context.state === 'suspended') {
-                await context.resume();
-                console.log("AudioContext resumed");
-            }
-
-            const masterBusInput = initializeMasterOutput(context, masterGainRef, masterPannerRef, masterSaturationRef, masterCompressorRef, sidechainGainRef, bassSidechainEQBusRef);
-
-            // Initialize Reverb Node
-            // Initialize Reverb Nodes (Room, Plate, Hall)
-            const roomNode = context.createConvolver();
-            roomNode.buffer = createReverbImpulseResponse(context, 0.5, 1.0);
-            roomNode.connect(masterBusInput);
-
-            const plateNode = context.createConvolver();
-            plateNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0);
-            plateNode.connect(masterBusInput);
-
-            const hallNode = context.createConvolver();
-            hallNode.buffer = createReverbImpulseResponse(context, 3.5, 3.0);
-            hallNode.connect(masterBusInput);
-
-            reverbNodesRef.current = { room: roomNode, plate: plateNode, hall: hallNode };
-            reverbNodeRef.current = plateNode; // Fallback
-
-            // Initialize Global Delay Node
-            const delayNode = context.createDelay(2.0);
-            delayNode.delayTime.value = 0.375; // ~1/8th note at typical tempo
-            const delayFeedback = context.createGain();
-            delayFeedback.gain.value = 0.4;
-            delayNode.connect(delayFeedback);
-            delayFeedback.connect(delayNode);
-            delayNode.connect(masterBusInput);
-            delayNodeRef.current = delayNode;
-            delayFeedbackRef.current = delayFeedback;
-
-            // Initialize Engines
-            const gpuEngine = new WebGpuOscillator();
-            await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
-            gpuEngineRef.current = gpuEngine;
-
-            const wasmEngine = new WasmOscillator();
-            await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
-            wasmEngineRef.current = wasmEngine;
-
-            // Initialize Open303 Manager
-            const open303Manager = new Open303Manager();
-            let open303Ready = false;
-
-            try {
-                open303Ready = await open303Manager.init(context, open303ProcessorUrl, {
-                    preferWorklet: true,
-                    preferThreaded: false,
-                    forceSingleThreaded: true
-                });
-
-                if (open303Ready) {
-                    open303Manager.connect(masterBusInput);
-                    open303ManagerRef.current = open303Manager;
-                    console.log('[useAudioEngine] Open303Manager Ready');
-                    try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
-                } else {
-                    console.warn('[useAudioEngine] Open303Manager failed to initialize');
-                    try { engineTelemetry.registerResolution('jc303','fallback','notReady'); } catch (e) { /* noop */ }
-                }
-            } catch (e) {
-                console.error('[useAudioEngine] Open303Manager crashed during init:', e);
-                open303Ready = false;
-            }
-
-            if (!open303Ready) {
-                console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
-            }
-
-            const [sawBuf, sqrBuf] = await Promise.all([
-                loadWavBuffer(context, './assets/saw.wav'),
-                loadWavBuffer(context, './assets/square.wav')
-            ]);
-            wavSawBufferRef.current = sawBuf;
-            wavSqrBufferRef.current = sqrBuf;
-
-            // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
-            try {
-                let oscillatorBackend = 'js';
-                if (gpuEngine && (gpuEngine as any).isSupported) oscillatorBackend = 'webgpu';
-                else if (wasmEngine && (wasmEngine as any).isReady) oscillatorBackend = 'wasm';
-                else if (sawBuf || sqrBuf) oscillatorBackend = 'wav';
-                engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
-            } catch (e) {
-                console.warn('Engine telemetry registration failed for oscillators', e);
-            }
-
-            // Initialize Voice Managers
-            voiceManagerARef.current = new VoiceManager(context, masterSaturationRef.current!, 8, false, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
-            voiceManagerBRef.current = new VoiceManager(context, masterSaturationRef.current!, 1, true, sawBuf || undefined, sqrBuf || undefined, delayNodeRef.current || undefined);
-
-            await initializeSustainProcessor(context, sustainProcessorUrl, sustainNodeRef, masterGainRef);
-
-            // --- Singing Voice Manager Init ---
-            try {
-                let wasmBinary: ArrayBuffer | undefined = undefined;
-                try {
-                    const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');
-                    if (response.ok) wasmBinary = await response.arrayBuffer();
-                } catch (e) {
-                    console.warn('Failed to pre-fetch rubberband.wasm', e);
-                }
-
-                const manager = new SingingVoiceManager(context, 12, {
-                    useHighQuality: false,
-                    preserveFormants: true,
-                    channels: 1,
-                    bufferSize: 16384,
-                    enablePhonemeStretching: true,
-                    enableFormantShifting: true
-                });
-
-                await manager.init(wasmBinary);
-                singingVoiceManagerRef.current = manager;
-                try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
-
-                initializeChoirBuses(
-                    context,
-                    masterGainRef,
-                    choirLeftGainRef,
-                    choirRightGainRef,
-                    choirLeftPannerRef,
-                    choirRightPannerRef,
-                );
-
-                manager.getAllVoices().forEach(voice => {
-                    voice.connectOutput(masterSaturationRef.current!);
-                });
-
-                // Initialise the phoneme buffer pool and wire it to every voice
-                const pool = new PhonemeBufferPool();
-                pool.init(context);
-                phonemeBufferPoolRef.current = pool;
-                manager.getAllVoices().forEach(voice => voice.setPool(pool));
-
-                if (pyodideRef.current) {
-                    // Pre-cache logic
-                }
-            } catch (e) {
-                try { engineTelemetry.registerResolution('singingVoice','js','failed to init: ' + String(e)); } catch (err) { /* noop */ }
-                console.warn('SingingVoiceManager failed to init:', e);
-            }
-
-            initializeHarmonizer(harmonizerRef);
-            noiseBufferRef.current = createNoiseBuffer(context);
-            multisampleGeneratorRef.current = new MultisampleGenerator(context);
-
-            // --- Helper: warm the phoneme pool for all phonemes in a bank ---
-            const warmPoolForBank = (sampleName: string, alignment: AlignmentResult, audioBuffer: AudioBuffer): void => {
-                const pool = phonemeBufferPoolRef.current;
-                if (!pool) return;
-                const monoAudio = audioBuffer.getChannelData(0);
-                const sr = audioBuffer.sampleRate;
-                for (let i = 0; i < alignment.phonemes.length; i++) {
-                    const ph = alignment.phonemes[i];
-                    const startSample = Math.floor(ph.start * sr);
-                    const endSample = Math.floor(ph.end * sr);
-                    if (endSample <= startSample) continue;
-                    const slice = monoAudio.slice(startSample, endSample);
-                    pool.warmPhoneme(`${sampleName}_${i}`, [slice], sr);
-                }
-            };
-
-            // --- Playback Functions Extraction ---
-            const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', noteParams?: any) => {
-                createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track as any, noteParams);
-            };
-            const playDrum = createPlayDrum(context, playbackRefs) as any;
             const lifecycleRefs: EngineLifecycleRefs = {
                 analyserNodeRef,
                 trackAnalysersRef,
@@ -416,6 +219,22 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 sustainProcessorUrl,
                 open303ProcessorUrl,
             });
+
+            // --- Helper: warm the phoneme pool for all phonemes in a bank ---
+            const warmPoolForBank = (sampleName: string, alignment: AlignmentResult, audioBuffer: AudioBuffer): void => {
+                const pool = phonemeBufferPoolRef.current;
+                if (!pool) return;
+                const monoAudio = audioBuffer.getChannelData(0);
+                const sr = audioBuffer.sampleRate;
+                for (let i = 0; i < alignment.phonemes.length; i++) {
+                    const ph = alignment.phonemes[i];
+                    const startSample = Math.floor(ph.start * sr);
+                    const endSample = Math.floor(ph.end * sr);
+                    if (endSample <= startSample) continue;
+                    const slice = monoAudio.slice(startSample, endSample);
+                    pool.warmPhoneme(`${sampleName}_${i}`, [slice], sr);
+                }
+            };
 
             const {
                 loadSampleToEngine,
@@ -462,35 +281,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 time: number,
                 durationSteps: number = 1,
                 stepTime: number = 0.2,
-                noteParams?: {
-                    timbre?: number,
-                    microtiming?: number,
-                    reverse?: boolean,
-                    sliceIndex?: number,
-                    retrigger?: number,
-                    slideFromMidi?: number,
-                    slideType?: 'linear' | 'exponential',
-                    phonemes?: PhonemeData[],
-                    freeze?: number,
-                    filterCutoff?: number,
-                    filterResonance?: number,
-                    formantLfoRate?: number,
-                    formantLfoDepth?: number,
-                    formantLfoShape?: number[],
-                    customLfoShape?: number[],
-                    vibratoDepth?: number,
-                    reverbSend?: number,
-                    delaySend?: number,
-                    choir?: number,
-                    drive?: number,
-                    characterMorph?: number,
-                    breathIntensity?: number,
-                    formantShift?: number,
-                    grainPitchQuantize?: number,
-                    tranceGate?: number
-                    gateRate?: number,
-                    gateDepth?: number
-                },
+                noteParams?: Partial<Note>,
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
             ) => {

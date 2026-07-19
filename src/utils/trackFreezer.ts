@@ -9,7 +9,10 @@
 
 import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '../types';
 // @ts-ignore
-const initTrackFreezer = () => import('../wasm/trackFreezer.wasm?init').then(m => m.default()).catch(() => { throw new Error('WASM skip in test') });
+const initTrackFreezer = async () => {
+    const m = await import('../wasm/trackFreezer.wasm?init');
+    return m.default;
+};
 import { engineTelemetry } from './engineTelemetry';
 
 // WASM Module Loader

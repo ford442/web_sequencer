@@ -47,7 +47,10 @@ export { midiToFreq, freqToMidi };
  * - Formant shifting (Section 4): Independent vocal character control
  */
 
-export class SingingVoice implements SingingVoiceHost {
+// Mixin methods are applied via Object.assign below; this interface exposes them on the class type.
+export interface SingingVoice extends SingingVoicePublic {}
+
+export class SingingVoice implements SingingVoicePublic {
   audioContext: AudioContext;
   workletNode: AudioWorkletNode | null = null;
   config: SingingVoiceConfig;

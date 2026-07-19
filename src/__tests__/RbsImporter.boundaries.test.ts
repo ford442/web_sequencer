@@ -33,6 +33,9 @@ const SYNTH_PARAM_KEYS = new Set(Object.keys({
   formantShift: 0,
   cppFine: 0,
   drive: 0,
+  formantPitchLink: 0,
+  coarseTune: 0,
+  fineTune: 0,
 } satisfies Record<keyof SynthParams, unknown>));
 
 const BASS2_PARAM_KEYS = new Set(Object.keys({

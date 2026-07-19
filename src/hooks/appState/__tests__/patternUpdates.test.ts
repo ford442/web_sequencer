@@ -16,6 +16,7 @@ const makeNote = (overrides: Partial<Note> = {}): Note => ({
 const makePattern = (): Pattern => ({
     partA: { steps: Array.from({ length: 4 }, () => makeNote()) },
     partB: { steps: Array.from({ length: 4 }, () => makeNote()) },
+    bass2: { steps: Array.from({ length: 4 }, () => makeNote()) },
     kick: { steps: Array.from({ length: 4 }, () => makeNote()) },
     snare: { steps: Array.from({ length: 4 }, () => makeNote()) },
     closedHat: { steps: Array.from({ length: 4 }, () => makeNote()) },
@@ -31,9 +32,9 @@ describe('updateTrackStep', () => {
         const prev = makePattern();
         const next = updateTrackStep(prev, 'partA', 1, (s) => ({ ...s, velocity: 0.5 }));
 
-        expect(next.partA.steps[1].velocity).toBe(0.5);
-        expect(next.partA.steps[0].velocity).toBe(1);
-        expect(next.partA.steps[2].velocity).toBe(1);
+        expect(next.partA.steps[1]!.velocity).toBe(0.5);
+        expect(next.partA.steps[0]!.velocity).toBe(1);
+        expect(next.partA.steps[2]!.velocity).toBe(1);
         expect(next.partB).toBe(prev.partB);
         expect(next).not.toBe(prev);
     });
@@ -50,10 +51,10 @@ describe('updateTrackRange', () => {
         const prev = makePattern();
         const next = updateTrackRange(prev, 'kick', 1, 2, (s) => ({ ...s, velocity: 0.25 }));
 
-        expect(next.kick.steps[0].velocity).toBe(1);
-        expect(next.kick.steps[1].velocity).toBe(0.25);
-        expect(next.kick.steps[2].velocity).toBe(0.25);
-        expect(next.kick.steps[3].velocity).toBe(1);
+        expect(next.kick.steps[0]!.velocity).toBe(1);
+        expect(next.kick.steps[1]!.velocity).toBe(0.25);
+        expect(next.kick.steps[2]!.velocity).toBe(0.25);
+        expect(next.kick.steps[3]!.velocity).toBe(1);
     });
 });
 
@@ -62,9 +63,9 @@ describe('updateSamplerStep', () => {
         const prev = makePattern();
         const next = updateSamplerStep(prev, 1, 2, (s) => ({ ...s, note: 'D4' }));
 
-        expect(next.sampler[1].steps[2].note).toBe('D4');
+        expect(next.sampler[1].steps[2]!.note).toBe('D4');
         expect(next.sampler[0]).toBe(prev.sampler[0]);
-        expect(next.sampler[1].steps[0].note).toBe('C4');
+        expect(next.sampler[1].steps[0]!.note).toBe('C4');
     });
 });
 
@@ -73,9 +74,9 @@ describe('updateSamplerRange', () => {
         const prev = makePattern();
         const next = updateSamplerRange(prev, 0, 0, 1, (s) => ({ ...s, velocity: 0.75 }));
 
-        expect(next.sampler[0].steps[0].velocity).toBe(0.75);
-        expect(next.sampler[0].steps[1].velocity).toBe(0.75);
-        expect(next.sampler[0].steps[2].velocity).toBe(1);
+        expect(next.sampler[0].steps[0]!.velocity).toBe(0.75);
+        expect(next.sampler[0].steps[1]!.velocity).toBe(0.75);
+        expect(next.sampler[0].steps[2]!.velocity).toBe(1);
         expect(next.sampler[1]).toBe(prev.sampler[1]);
     });
 });

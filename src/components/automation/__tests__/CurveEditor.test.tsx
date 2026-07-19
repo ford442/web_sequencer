@@ -22,6 +22,9 @@ describe('CurveEditor', () => {
     parameter: 'filterCutoff',
     name: 'Synth A Cutoff',
     interpolation: 'linear',
+    source: 'manual',
+    scope: 'pattern',
+    enabled: true,
     points: [
       { step: 0, value: 0.2 },
       { step: 16, value: 0.8 },

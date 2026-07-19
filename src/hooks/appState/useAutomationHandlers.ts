@@ -105,8 +105,46 @@ export function useAutomationHandlers(deps: {
         }
     }, [isAutomationRecording, schedPlaying, isSongModeActive, activeTrackSlotsRef]);
 
+    const handleAutomationNudge = useCallback((target: AutomationTarget, paramId: string, value: number, step: number) => {
+        const patternIdx = isSongModeActiveRef.current ? 0 : (activeTrackSlotsRef.current['partA'] ?? 0);
+        const lane = automationStore.getPrimaryLaneForParam(target, paramId, patternIdx);
+        if (lane) {
+            automationStore.upsertLanePoint(lane.id, step, value);
+        }
+    }, [isSongModeActiveRef, activeTrackSlotsRef]);
+
+    const handleAutomationPunchIn = useCallback((target: AutomationTarget, paramId: string) => {
+        if (!schedPlaying) return;
+        if (!automationStore.isParameterArmed(target, paramId)) {
+            automationStore.armParameter(target, paramId);
+            automationStore.startRecording(target, paramId);
+        }
+    }, [schedPlaying]);
+
+    const handleAutomationLaneAction = useCallback((
+        target: AutomationTarget,
+        action: 'toggle' | 'clear',
+        paramId?: string,
+    ) => {
+        if (!paramId) return;
+        if (action === 'clear') {
+            automationStore.clearLanesForParam(target, paramId);
+            return;
+        }
+        const patternIdx = isSongModeActiveRef.current ? 0 : (activeTrackSlotsRef.current['partA'] ?? 0);
+        const lane = automationStore.getPrimaryLaneForParam(target, paramId, patternIdx);
+        if (lane) {
+            automationStore.toggleLaneEnabled(lane.id);
+        } else {
+            automationStore.setLanesEnabledForParam(target, paramId, true);
+        }
+    }, [isSongModeActiveRef, activeTrackSlotsRef]);
+
     return {
         handleAutomationChange,
         handleKnobRecordToggle,
+        handleAutomationNudge,
+        handleAutomationPunchIn,
+        handleAutomationLaneAction,
     };
 }

@@ -105,7 +105,7 @@ fn fs_main(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
 `;
 
 export const useWebGPUCurveEditor = (
-  canvasRef: React.RefObject<HTMLCanvasElement>,
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
   points: AutomationLanePoint[],
   interpolation: string,
   totalSteps: number,
@@ -166,7 +166,7 @@ export const useWebGPUCurveEditor = (
       }
       deviceRef.current = device;
 
-      const context = canvasRef.current.getContext('webgpu');
+      const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext | null;
       if (!context) return;
 
       const format = navigator.gpu.getPreferredCanvasFormat();
@@ -274,7 +274,7 @@ export const useWebGPUCurveEditor = (
         computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
         computePass.end();
 
-        const context = canvasRef.current!.getContext('webgpu');
+        const context = canvasRef.current!.getContext('webgpu') as GPUCanvasContext | null;
         if (context) {
             const textureView = context.getCurrentTexture().createView();
             const renderPass = commandEncoder.beginRenderPass({
