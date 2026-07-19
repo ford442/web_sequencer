@@ -60,7 +60,8 @@ def upload(archive: bytes, token: str) -> None:
         data=archive,
         method="POST",
         headers={
-            "Authorization": f"Bearer {token}",
+            # Server expects X-Deploy-Token (not Authorization: Bearer).
+            "X-Deploy-Token": token,
             "Content-Type": "application/zip",
             "Content-Length": str(len(archive)),
         },
