@@ -127,49 +127,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
 
         <SamplerKnobControls
           currentParams={state.currentParams}
-          handlers={{
-            playbackSpeed: h.playbackSpeed,
-            volume: h.volume,
-            filterCutoff: h.filterCutoff,
-            drive: h.drive,
-            timeRatio: h.timeRatio,
-            pitchScale: h.pitchScale,
-            formantShift: h.formantShift,
-            vibratoDepth: h.vibratoDepth,
-            tremoloDepth: h.tremoloDepth,
-            tremoloRate: h.tremoloRate,
-            breathIntensity: h.breathIntensity,
-            freeze: h.freeze,
-            freezeLfoSync: h.freezeLfoSync,
-            freezeLfoRate: h.freezeLfoRate,
-            freezeLfoDepth: h.freezeLfoDepth,
-            formantLfoSync: h.formantLfoSync,
-            formantLfoRate: h.formantLfoRate,
-            freezeEnvDepth: h.freezeEnvDepth,
-            timeStretchEnvDepth: h.timeStretchEnvDepth,
-            grainEnvDepth: h.grainEnvDepth,
-            grainPitchEnvDepth: h.grainPitchEnvDepth,
-            grainJitter: h.grainJitter,
-            grainPitchQuantize: h.grainPitchQuantize,
-            granularPitchShift: h.granularPitchShift,
-            bitcrush: h.bitcrush,
-            downsample: h.downsample,
-            formantLfoDepth: h.formantLfoDepth,
-            reverbLfoRate: h.reverbLfoRate,
-            reverbLfoDepth: h.reverbLfoDepth,
-            formantEnvSync: h.formantEnvSync,
-            formantLfoShape: h.formantLfoShape,
-            pitchAmount: h.pitchAmount,
-            pitchAttack: h.pitchAttack,
-            pitchDecay: h.pitchDecay,
-            characterMorph: h.characterMorph,
-            choir: h.choir,
-            glitchChance: h.glitchChance,
-            attack: h.attack,
-            decay: h.decay,
-            sustain: h.sustain,
-            release: h.release,
-          }}
+          handlers={h}
           onCustomLfoShapeChange={state.handleCustomLfoShapeChange}
           onMorphTargetChange={state.handleMorphTargetChange}
           onFormantEnvAttackChange={state.handleFormantEnvAttackChange}
