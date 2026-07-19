@@ -67,3 +67,6 @@
 ## 2026-07-20 - SongMode Add/Remove Measure Button Tooltips
 **Learning:** Quick-action control buttons in interactive sequence builders (like adding/removing measures in `SongMode.tsx`) often lack `title` tooltips, even when they have an `aria-label`. While `aria-label` provides screen reader support, visual users without screen readers rely on hover tooltips to clarify the meaning of small or abbreviated buttons (like `- BAR` or `+ BAR`).
 **Action:** When auditing quick-action panels, explicitly verify that all control buttons include a `title` tooltip alongside their `aria-label` to provide context for both sighted mouse users and assistive technology users.
+## 2026-07-24 - SongModeToolbar Title Attributes
+**Learning:** Toolbar buttons with abbreviated text labels (like "Pat+", "Ins", "Dup") rely heavily on `aria-label` for screen readers, but sighted users without assistive tech also need context to understand them. Adding `title` tooltips bridges this gap.
+**Action:** When implementing or auditing toolbars with icon-only or heavily abbreviated buttons, ensure that every button has a `title` attribute that matches its `aria-label`.
