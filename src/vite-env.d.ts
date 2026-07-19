@@ -1,4 +1,6 @@
 /// <reference types="vite/client" />
+/// <reference types="@webgpu/types" />
+/// <reference types="vitest/globals" />
 
 declare module '*.wasm?init' {
   const initWasm: (options?: WebAssembly.Imports) => Promise<WebAssembly.Instance>;

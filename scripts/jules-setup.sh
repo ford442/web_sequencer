@@ -6,7 +6,10 @@ set -euo pipefail
 
 echo "🚀 [Jules] Setting up web_sequencer / Hyphon environment..."
 
-if [ -f package-lock.json ]; then
+if command -v pnpm >/dev/null 2>&1 && [ -f pnpm-lock.yaml ]; then
+  echo "📦 Using pnpm install --frozen-lockfile..."
+  pnpm install --frozen-lockfile
+elif [ -f package-lock.json ]; then
   echo "📦 Using npm ci..."
   npm ci --no-audit --no-fund --prefer-offline || npm install --no-audit --no-fund --legacy-peer-deps --force --prefer-offline
 else
