@@ -18,12 +18,12 @@ import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
 import type { AutomationTarget } from '../types';
 
-// ⚡ Bolt: Helper to retrieve the automation store value per lane efficiently without array methods to reduce GC.
+// ⚡ Bolt: Helper to retrieve the automation store value efficiently using O(1) cache to reduce GC.
 const getAutomationValue = (target: AutomationTarget, param: string, step: number): number | undefined => {
-    const lanes = automationStore.getState().lanes;
+    const lanes = automationStore.getLanesForParam(target, param);
     for (let i = 0; i < lanes.length; i++) {
         const lane = lanes[i];
-        if (lane.target === target && lane.parameter === param && lane.enabled) {
+        if (lane.enabled) {
             const v = automationStore.getValueAtStep(lane, step);
             if (v !== null) return v;
         }
@@ -91,7 +91,7 @@ export interface UseStepHandlerOptions {
         formantShift: number;
         attack: number;
         decay: number;
-        quality: 'preview' | 'good' | 'better' | 'best';
+        stretchProfile: 'vocal' | 'harmonic' | 'fast';
         stretchMode: 'Time' | 'Pitch' | 'Formant';
         lockToSequencer: boolean;
         pan?: number;
@@ -256,6 +256,7 @@ export const useStepHandler = ({
             if (stepData.delaySend !== undefined) noteParams.delaySend = stepData.delaySend;
             if (stepData.vowel !== undefined) noteParams.vowel = stepData.vowel;
             if (stepData.portamento !== undefined) noteParams.portamento = stepData.portamento;
+            if (stepData.drive !== undefined) noteParams.drive = stepData.drive;
             // Apply per-lane automation overrides for prophecy params
             const automation = activePattern[trackKey]?.automation;
             const autoVowel = automation?.['vowel']?.[step];
@@ -272,6 +273,8 @@ export const useStepHandler = ({
             if (cutoffVal !== undefined) noteParams.filterCutoff = cutoffVal;
             const resVal = getAutomationValue(targetForLane, 'filterResonance', step);
             if (resVal !== undefined) noteParams.filterResonance = resVal;
+            const driveVal = getAutomationValue(targetForLane, 'drive', step);
+            if (driveVal !== undefined) noteParams.drive = driveVal;
 
             audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
 
@@ -304,6 +307,7 @@ export const useStepHandler = ({
                 delayTime: 0,
                 delayFeedback: 0,
                 delayMix: 0,
+                drive: bass2Ref.current.drive ?? 0,
             };
 
             if (audioEngine.open303Engine) {
@@ -312,10 +316,13 @@ export const useStepHandler = ({
 
             // Bass2 filter automation from unified lanes (RBS tb303Bcutoff etc maps to bass2)
             const bass2NoteParams: any = {};
+            if (stepData.drive !== undefined) bass2NoteParams.drive = stepData.drive;
             const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step);
             if (b2Cutoff !== undefined) bass2NoteParams.filterCutoff = b2Cutoff;
             const b2Res = getAutomationValue('bass2', 'filterResonance', step);
             if (b2Res !== undefined) bass2NoteParams.filterResonance = b2Res;
+            const b2Drive = getAutomationValue('bass2', 'drive', step);
+            if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
 
             audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, Object.keys(bass2NoteParams).length ? bass2NoteParams : undefined);
         };
@@ -355,12 +362,23 @@ export const useStepHandler = ({
             let finalNotes = rawNotes;
             const voiceParams = samplerVoiceParamsRef.current;
             if (voiceParams.lockToSequencer && typeof rawNotes === 'string') {
-                const activeSteps = seq.steps
-                    .map((s, i) => (s ? i : -1))
-                    .filter(i => i !== -1);
+                let targetStep = -1;
+                let firstActiveStep = -1;
+                for (let i = 0; i < seq.steps.length; i++) {
+                    if (seq.steps[i]) {
+                        if (firstActiveStep === -1) firstActiveStep = i;
+                        if (i >= step) {
+                            targetStep = i;
+                            break;
+                        }
+                    }
+                }
 
-                if (activeSteps.length > 0) {
-                    const targetStep = activeSteps.find(s => s >= step) ?? activeSteps[0];
+                if (targetStep === -1 && firstActiveStep !== -1) {
+                    targetStep = firstActiveStep;
+                }
+
+                if (targetStep !== -1) {
                     const targetData = seq.steps[targetStep];
                     if (targetData?.note) {
                         finalNotes = targetData.chord
@@ -379,7 +397,7 @@ export const useStepHandler = ({
                 formantShift: voiceParams.formantShift,
                 attack: voiceParams.attack,
                 decay: voiceParams.decay,
-                quality: voiceParams.quality,
+                stretchProfile: voiceParams.stretchProfile,
                 stretchMode: voiceParams.stretchMode,
                 lockToSequencer: voiceParams.lockToSequencer,
             };

@@ -1,7 +1,6 @@
-import { type AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type {
-    SamplerBankParams, SynthParams, AudioEngine, PartSequence, MultisampleBank, PhonemeData
+    SamplerBankParams, AudioEngine, TrackAnalysers
 } from '../types';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { WasmOscillator } from '../engines/WasmOscillator';
@@ -15,17 +14,9 @@ import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { ProphecyManager } from '../engines/ProphecyManager';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
+import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
+import type { MultisampleBank } from '../types';
 import {
-    createAmbianceControls,
-    createNoteOnSynth,
-    createPlayDrum,
-    createPlaySynth,
-    createStopAllNotes,
-    noteOffSynth,
-    setGlobalPan as setMasterPan,
-    setHarmonizerConfig as applyHarmonizerConfig,
-    setMasterVolume as setMasterGainVolume,
-    setMasterSaturation as setMasterGainSaturation,
     type PlaybackRefs,
 } from './audioEngine/audioPlayback';
 import { makeDistortionCurve } from './audioEngine/distortion';
@@ -44,6 +35,12 @@ import {
     createReverbImpulseResponse,
 } from './audioEngine/initialization';
 import { engineTelemetry } from '../utils/engineTelemetry';
+import { initializeAudioContextAndEngines, type EngineLifecycleRefs } from './audioEngine/engineLifecycle';
+import { createPhonemeAlignmentWrappers } from './audioEngine/phonemePoolWarming';
+import { createSamplerPlayback } from './audioEngine/samplerPlayback';
+import { buildAudioEngine } from './audioEngine/engineApiBuilder';
+
+export { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
 
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
@@ -94,8 +91,11 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
     const drumKitEngineRef = useRef<DrumKitEngine | null>(null);
     const synthABusRef = useRef<GainNode | null>(null);
+    const synthBBusRef = useRef<GainNode | null>(null);
+    const samplerBusRef = useRef<GainNode | null>(null);
+    const analyserNodeRef = useRef<AnalyserNode | null>(null);
+    const trackAnalysersRef = useRef<TrackAnalysers>({});
     const prophecyManagerRef = useRef<ProphecyManager | null>(null);
-
 
     // Pre-stretched phoneme buffer pool (phoneme-aware time stretching)
     const phonemeBufferPoolRef = useRef<PhonemeBufferPool | null>(null);
@@ -134,7 +134,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const sidechainBusRef = useRef<GainNode | null>(null);
     const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
     const reverbNodesRef = useRef<Record<string, ConvolverNode>>({});
-    const reverbNodeRef = useRef<ConvolverNode | null>(null); // Keep for backwards compatibility if needed temporarily
+    const reverbNodeRef = useRef<ConvolverNode | null>(null);
     const reverbTypeRef = useRef<'room' | 'plate' | 'hall'>('plate');
     const delayNodeRef = useRef<DelayNode | null>(null);
     const delayFeedbackRef = useRef<GainNode | null>(null);
@@ -181,6 +181,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         sidechainBusRef,
         drumKitEngineRef,
         synthABusRef,
+        synthBBusRef,
+        samplerBusRef,
         prophecyManagerRef,
     }), []);
 
@@ -256,36 +258,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     preferThreaded: false,
                     forceSingleThreaded: true
                 });
-                
-                if (!open303Ready) {
-                    logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() returned false (no voice reached ready state)');
-                }
-            } catch (e) {
-                logEngineFallback('open303', 'wasm-worklet', 'Open303Manager.init() threw', e);
-                open303Ready = false;
-            }
-            loadingProgressStore.completeStep('open303Engine');
-
-            // Initialize PCF (Pattern Controlled Filter) — inserted between 303 and master bus.
-            // Enables ReBirth-style pattern-driven filter automation on the 303 output.
-            {
-                const pcf = new PcfEffect(context);
-                let pcfReady = false;
-                try {
-                    await pcf.init();
-                    pcfReady = true;
-                    pcfEffectRef.current = pcf;
-                    console.log('[useAudioEngine] PcfEffect Ready');
-                } catch (e) {
-                    console.warn(
-                        '[useAudioEngine] PcfEffect failed to initialize; bypassing PCF.' +
-                        ' Possible causes: AudioWorklet registration failed (check CORS / module' +
-                        ' loading), or AudioContext was suspended at init time.',
-                        e
-                    );
-                }
-                // Connect 303 through PCF (if ready) or directly to master bus.
-                // open303ManagerRef is set here, after routing is fully established.
 
                 if (open303Ready) {
                     open303Manager.connect(masterBusInput);
@@ -404,6 +376,49 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 createPlaySynth(context, playbackRefs)(params, note, time, durationSteps, stepTime, slideFromFreq, track as any, noteParams);
             };
             const playDrum = createPlayDrum(context, playbackRefs) as any;
+            const lifecycleRefs: EngineLifecycleRefs = {
+                analyserNodeRef,
+                trackAnalysersRef,
+                synthABusRef,
+                synthBBusRef,
+                samplerBusRef,
+                masterGainRef,
+                masterPannerRef,
+                masterSaturationRef,
+                masterCompressorRef,
+                sidechainGainRef,
+                bassSidechainEQBusRef,
+                sidechainBusRef,
+                reverbNodesRef,
+                reverbNodeRef,
+                reverbTypeRef,
+                delayNodeRef,
+                delayFeedbackRef,
+                gpuEngineRef,
+                wasmEngineRef,
+                open303ManagerRef,
+                voiceManagerARef,
+                voiceManagerBRef,
+                sustainNodeRef,
+                singingVoiceManagerRef,
+                choirLeftGainRef,
+                choirRightGainRef,
+                choirLeftPannerRef,
+                choirRightPannerRef,
+                phonemeBufferPoolRef,
+                harmonizerRef,
+                noiseBufferRef,
+                multisampleGeneratorRef,
+                wavSawBufferRef,
+                wavSqrBufferRef,
+                pyodideRef,
+            };
+
+            const { context } = await initializeAudioContextAndEngines(lifecycleRefs, {
+                sustainProcessorUrl,
+                open303ProcessorUrl,
+            });
+
             const {
                 loadSampleToEngine,
                 getMultisampleBank,
@@ -474,29 +489,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     breathIntensity?: number,
                     formantShift?: number,
                     grainPitchQuantize?: number,
-                    granularPitchShift?: number,
-                    bitcrush?: number,
-                    downsample?: number,
-                    tranceGate?: number,
+                    tranceGate?: number
                     gateRate?: number,
-                    gateDepth?: number,
-                    spectralPanRate?: number,
-                    spectralPanDepth?: number,
-                    reverbLfoRate?: number,
-                    reverbLfoDepth?: number,
-                    glitchChance?: number,
-                    isHarmonyVoice?: boolean,
-                    timeStretchEnvDepth?: number,
-                    freezeEnvDepth?: number,
-                    grainEnvDepth?: number,
-                    formantEnvSync?: boolean,
-                    formantEnvAttack?: number,
-                    formantEnvDecay?: number,
-                    formantEnvAmount?: number,
-                    formantEnvFollower?: number,
-                    envMod?: number,
-                    vocoderMix?: number,
-                    spectralResynthesis?: number
+                    gateDepth?: number
                 },
                 pitchOffsetSemitones: number = 0,
                 tuning?: ScaleDefinition | null
@@ -554,7 +549,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                 const revLfoRate = noteParams?.reverbLfoRate !== undefined ? noteParams.reverbLfoRate : (params.reverbLfoRate || 0.1);
                 const revLfoDepth = noteParams?.reverbLfoDepth !== undefined ? noteParams.reverbLfoDepth : (params.reverbLfoDepth || 0);
-                const pFormantPitchLink = noteParams?.formantPitchLink !== undefined ? noteParams.formantPitchLink : (params.formantPitchLink || 0);
 
                 // Delay
                 const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
@@ -648,8 +642,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     const manager = singingVoiceManagerRef.current;
                     const alignment = vocalAlignmentsRef.current.get(params.sampleName);
 
-                    // For each note in the chord
-                        const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+                    const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
                             const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
                             const originalDuration = buffer.duration;
                             const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
@@ -806,21 +799,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 voice.setFormantLfoShape(params.formantLfoShape);
                             } else {
                                 voice.setFormantLfoShape(undefined);
-                            // Apply Timbre Modulation (Formant Shift)
-                            // Formant Pitch Link
-                            const targetMidiNote = noteToMidi(noteStr) + pitchOffsetSemitones;
-                            const pitchShiftForFormant = targetMidiNote - 60;
-                            const linkedTargetFormantShift = targetFormantShift + (pitchShiftForFormant * pFormantPitchLink);
-
-                            if (startFormantShift !== undefined && (noteParams?.slideFromMidi !== undefined || noteParams?.slideFromFormant !== undefined)) {
-                                const startMidiNote = (noteParams?.slideFromMidi !== undefined ? noteParams.slideFromMidi : 60) + pitchOffsetSemitones;
-                                const startPitchShiftForFormant = startMidiNote - 60;
-                                const linkedStartFormantShift = startFormantShift + (startPitchShiftForFormant * pFormantPitchLink);
-
-                                const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
-                                voice.setFormantGlide(linkedStartFormantShift, linkedTargetFormantShift, triggerTime, glideDuration);
-                            } else {
-                                voice.setFormantShift(linkedTargetFormantShift, triggerTime);
                             }
 
                             // Apply Character Morphing
@@ -864,13 +842,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             // Load buffer only if the voice doesn't already have it
                             if (isNewBank) {
                                 voice.loadBuffer(buffer.getChannelData(0));
-                            }
-                            // Formant Envelope
-                            const envAttack = (noteParams as any)?.formantEnvAttack ?? params.formantEnvAttack ?? 0;
-                            const envDecay = (noteParams as any)?.formantEnvDecay ?? params.formantEnvDecay ?? 0;
-                            const envAmount = (noteParams as any)?.formantEnvAmount ?? params.formantEnvAmount ?? 0;
-                            if (envAmount !== 0) {
-                                voice.setFormantEnvelope(envAmount, envAttack, envDecay, triggerTime);
                             }
 
                             // CHECK FOR SLICE TRIGGER MODE
@@ -990,30 +961,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 if (choirRightGainRef.current) choirRightGainRef.current.gain.setTargetAtTime(0, t, 0.02);
                             }
                         };
-                    // ⚡ Bolt: Hoist glitch variables out of the polyphonic note loop.
-                    // This prevents redundant math per chord note and ensures all notes in a chord glitch synchronously.
-                    let glitchNumStutters = 0;
-                    let glitchTotalDur = 0;
-                    let glitchStutterLen = 0;
-                    if (shouldGlitch) {
-                        glitchNumStutters = Math.floor(Math.random() * 3) + 2;
-                        glitchTotalDur = durationSteps * stepTime;
-                        glitchStutterLen = Math.min(0.06, glitchTotalDur / glitchNumStutters);
-                    }
-
-                    notes.forEach((noteStr, _noteIndex) => {
-
-
 
                     // For each note in the chord
                     notes.forEach((noteStr, _noteIndex) => {
                         if (shouldGlitch) {
-                            for (let i = 0; i < glitchNumStutters; i++) {
-                                runVoices(noteStr, i * glitchStutterLen, glitchStutterLen);
+                            const numStutters = Math.floor(Math.random() * 3) + 2;
+                            const totalDur = durationSteps * stepTime;
+                            const stutterLen = Math.min(0.06, totalDur / numStutters);
+
+                            for (let i = 0; i < numStutters; i++) {
+                                runVoices(noteStr, i * stutterLen, stutterLen);
                             }
-                            const played = glitchNumStutters * glitchStutterLen;
-                            if (glitchTotalDur > played) {
-                                runVoices(noteStr, played, glitchTotalDur - played);
+                            const played = numStutters * stutterLen;
+                            if (totalDur > played) {
+                                runVoices(noteStr, played, totalDur - played);
                             }
                         } else {
                             for (let r = 0; r < retrigger; r++) {
@@ -1088,21 +1049,17 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     }
                 };
 
-                // ⚡ Bolt: Hoist glitch variables out of the polyphonic note loop for buffer mode.
-                let bufferGlitchNumStutters = 0;
-                const bufferGlitchStutterLen = 0.06;
-                if (shouldGlitch) {
-                    bufferGlitchNumStutters = Math.floor(Math.random() * 3) + 2;
-                }
-
                 notes.forEach(noteStr => {
                     const midi = noteToMidi(noteStr);
 
                     if (shouldGlitch) {
-                        for (let i = 0; i < bufferGlitchNumStutters; i++) {
-                            playBufferSource(actualTime + i * bufferGlitchStutterLen, bufferGlitchStutterLen, midi);
+                        const numStutters = Math.floor(Math.random() * 3) + 2;
+                        const stutterLen = 0.06;
+
+                        for (let i = 0; i < numStutters; i++) {
+                            playBufferSource(actualTime + i * stutterLen, stutterLen, midi);
                         }
-                        playBufferSource(actualTime + bufferGlitchNumStutters * bufferGlitchStutterLen, 0, midi);
+                        playBufferSource(actualTime + numStutters * stutterLen, 0, midi);
                     } else {
                         for (let r = 0; r < retrigger; r++) {
                             const offset = r * (subDurationSteps * stepTime);
@@ -1134,13 +1091,20 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         if (voice.index === 0) return; // Skip base voice, already played above
 
                         // Create modified params for this harmony voice
+                        const config = harmonizer.getConfig();
                         const voiceParams: SamplerBankParams = {
                             ...params,
-                            pan: voice.pan,
+                            pan: Math.max(-1, Math.min(1, (params.pan || 0) + (voice.pan || 0))),
                             volume: params.volume * voice.gain * 0.85,
                             formantShift: (params.formantShift || 0) + voice.formantShift,
                             fineTune: (params.fineTune || 0) + voice.detuneCents
                         };
+                        if (config.harmonyAttack !== undefined) {
+                            voiceParams.attack = config.harmonyAttack;
+                        }
+                        if (config.harmonyRelease !== undefined) {
+                            voiceParams.release = config.harmonyRelease;
+                        }
 
                         // Play this voice with pitch offset and slight delay for natural ensemble effect
                         const delayMs = voice.index * 5;
@@ -1267,12 +1231,53 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 singingVoice: undefined,
                 playSynth,
                 playDrum,
+            const { prepareVocal, setAlignment } = createPhonemeAlignmentWrappers(
+                {
+                    phonemeBufferPoolRef,
+                    vocalAlignmentsRef,
+                    multisampleBanksRef,
+                    loadedSampleBuffersRef,
+                },
+                prepareVocalBase,
+                setAlignmentBase,
+            );
+
+            const { playSampler, noteOnSampler, noteOffSampler } = createSamplerPlayback(
+                context,
+                {
+                    masterSaturationRef,
+                    singingVoiceManagerRef,
+                    vocalAlignmentsRef,
+                    loadedSampleBuffersRef,
+                    multisampleBanksRef,
+                    choirLeftGainRef,
+                    choirRightGainRef,
+                    reverbNodesRef,
+                    reverbTypeRef,
+                    delayNodeRef,
+                    harmonizerRef,
+                    nextSamplerNoteId,
+                    activeSamplerNotes,
+                },
+                tempo,
+            );
+
+            setAudioEngine(buildAudioEngine(context, {
+                ...playbackRefs,
+                gpuEngineRef,
+                wasmEngineRef,
+                open303ManagerRef,
+                harmonizerRef,
+                masterGainRef,
+                masterSaturationRef,
+                masterPannerRef,
+                reverbTypeRef,
+                analyserNodeRef,
+                trackAnalysersRef,
+            }, {
                 playSampler,
                 noteOnSampler,
                 noteOffSampler,
-                noteOnSynth,
-                noteOffSynth: noteOffSynthById,
-                stopAllNotes,
                 loadSampleToEngine,
                 renderSynthPartToBuffer,
                 playBufferedPart,
@@ -1289,15 +1294,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 prepareVocal,
                 getAlignment,
                 setAlignment,
-                setSustainMode,
-                setSustainGrainSize,
                 getMultisampleBank,
                 isMultisampleReady,
-                setHarmonizerConfig,
-                updateSamplerVoiceParams,
-                triggerTapeStop,
-                resetTapeStop
-            });
+            }));
 
             setIsReady(true);
         } catch (e) {
@@ -1305,7 +1304,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             setIsReady(true);
             isInitializing.current = false;
         }
-    }, [audioEngine, playbackRefs]);
+    }, [audioEngine, playbackRefs, tempo]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
         applyVoiceParamUpdate({

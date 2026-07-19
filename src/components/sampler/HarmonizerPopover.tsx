@@ -57,6 +57,20 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
 
     const handleHarmonyReleaseChange = (value: number) => {
         setLocalConfig(prev => ({ ...prev, harmonyRelease: value }));
+    const handleEnvAttackChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, envAttack: value }));
+    };
+
+    const handleEnvDecayChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, envDecay: value }));
+    };
+
+    const handleEnvSustainChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, envSustain: value }));
+    };
+
+    const handleEnvReleaseChange = (value: number) => {
+        setLocalConfig(prev => ({ ...prev, envRelease: value }));
     };
 
     const handleApply = () => {
@@ -194,7 +208,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     {/* Detune Spread - Styled slider */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Detune</span>
+                            <label htmlFor="harmonizer-detune-spread" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Detune</label>
                             <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
                                 {localConfig.detuneSpread}¢
                             </span>
@@ -214,6 +228,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 max="50"
                                 value={localConfig.detuneSpread}
                                 onChange={(e) => handleDetuneChange(parseInt(e.target.value) / 50)}
+                                id="harmonizer-detune-spread"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 aria-label="Detune Spread"
                                 aria-valuetext={`${localConfig.detuneSpread} cents`}
@@ -224,7 +239,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     {/* Formant Spread - Styled slider */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Formant</span>
+                            <label htmlFor="harmonizer-formant-spread" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Formant</label>
                             <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
                                 {localConfig.formantSpread}st
                             </span>
@@ -244,6 +259,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 max="12"
                                 value={localConfig.formantSpread}
                                 onChange={(e) => handleFormantChange(parseInt(e.target.value) / 12)}
+                                id="harmonizer-formant-spread"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 aria-label="Formant Spread"
                                 aria-valuetext={`${localConfig.formantSpread} semitones`}
@@ -254,7 +270,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     {/* Bus Gain - Styled slider */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Bus Gain</span>
+                            <label htmlFor="harmonizer-bus-gain" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Bus Gain</label>
                             <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
                                 {Math.round((localConfig.busGain ?? 0.85) * 100)}%
                             </span>
@@ -274,6 +290,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 max="100"
                                 value={Math.round((localConfig.busGain ?? 0.85) * 100)}
                                 onChange={(e) => handleBusGainChange(parseInt(e.target.value) / 100)}
+                                id="harmonizer-bus-gain"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 aria-label="Harmony Bus Gain"
                                 aria-valuetext={`${Math.round((localConfig.busGain ?? 0.85) * 100)} percent`}
@@ -284,7 +301,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     {/* Bus Compressor Threshold - Styled slider */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Comp Thresh</span>
+                            <label htmlFor="harmonizer-bus-comp-thresh" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Comp Thresh</label>
                             <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
                                 {localConfig.busCompressorThreshold ?? -18}dB
                             </span>
@@ -304,6 +321,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 max="0"
                                 value={localConfig.busCompressorThreshold ?? -18}
                                 onChange={(e) => handleBusCompressorThresholdChange(parseInt(e.target.value))}
+                                id="harmonizer-bus-comp-thresh"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 aria-label="Bus Compressor Threshold"
                                 aria-valuetext={`${localConfig.busCompressorThreshold ?? -18} dB`}
@@ -314,7 +332,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     {/* Bus EQ Gain - Styled slider */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">EQ Low Gain</span>
+                            <label htmlFor="harmonizer-bus-eq-gain" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">EQ Low Gain</label>
                             <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
                                 {localConfig.busEqGain ?? -3.0}dB
                             </span>
@@ -335,6 +353,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 step="0.1"
                                 value={localConfig.busEqGain ?? -3.0}
                                 onChange={(e) => handleBusEqGainChange(parseFloat(e.target.value))}
+                                id="harmonizer-bus-eq-gain"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 aria-label="Bus EQ Low Gain"
                                 aria-valuetext={`${localConfig.busEqGain ?? -3.0} dB`}
@@ -345,7 +364,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     {/* Bus Widener - Styled slider */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Stereo Width</span>
+                            <label htmlFor="harmonizer-bus-widener" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Stereo Width</label>
                             <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
                                 {Math.round((localConfig.busWidener ?? 0.0) * 100)}%
                             </span>
@@ -365,6 +384,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 max="100"
                                 value={Math.round((localConfig.busWidener ?? 0.0) * 100)}
                                 onChange={(e) => handleBusWidenerChange(parseInt(e.target.value) / 100)}
+                                id="harmonizer-bus-widener"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 aria-label="Bus Stereo Width"
                                 aria-valuetext={`${Math.round((localConfig.busWidener ?? 0.0) * 100)} percent`}
@@ -372,10 +392,198 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                         </div>
                     </div>
 
+                    {/* Harmony Envelope Controls */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Attack</span>
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                {(localConfig.harmonyAttack ?? 1.5).toFixed(2)}s
+                            </span>
+                        </div>
+                        <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                            <div
+                                className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                style={{
+                                    width: `${((localConfig.harmonyAttack ?? 1.5) / 5) * 100}%`,
+                                    background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                    boxShadow: `0 0 10px ${color}40`
+                                }}
+                            />
+                            <input
+                                type="range"
+                                min="0"
+                                max="5"
+                                step="0.01"
+                                value={localConfig.harmonyAttack ?? 1.5}
+                                onChange={(e) => handleHarmonyAttackChange(parseFloat(e.target.value))}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                aria-label="Harmony Attack"
+                                aria-valuetext={`${localConfig.harmonyAttack ?? 1.5} seconds`}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Release</span>
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                {(localConfig.harmonyRelease ?? 3.0).toFixed(2)}s
+                            </span>
+                        </div>
+                        <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                            <div
+                                className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                style={{
+                                    width: `${((localConfig.harmonyRelease ?? 3.0) / 10) * 100}%`,
+                                    background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                    boxShadow: `0 0 10px ${color}40`
+                                }}
+                            />
+                            <input
+                                type="range"
+                                min="0"
+                                max="10"
+                                step="0.01"
+                                value={localConfig.harmonyRelease ?? 3.0}
+                                onChange={(e) => handleHarmonyReleaseChange(parseFloat(e.target.value))}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                aria-label="Harmony Release"
+                                aria-valuetext={`${localConfig.harmonyRelease ?? 3.0} seconds`}
+                            />
+                        </div>
+                    </div>
+                    {/* Envelope - Styled sliders */}
+                    <div className="space-y-3 pt-2 border-t border-zinc-800/50">
+                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Envelope</span>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label htmlFor="harmonizer-env-attack" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Attack</label>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                    {((localConfig.envAttack ?? 0.01) * 1000).toFixed(0)}ms
+                                </span>
+                            </div>
+                            <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                                <div
+                                    className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                    style={{
+                                        width: `${Math.min(100, ((localConfig.envAttack ?? 0.01) / 2) * 100)}%`,
+                                        background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                        boxShadow: `0 0 10px ${color}40`
+                                    }}
+                                />
+                                <input
+                                    type="range"
+                                    min="0.001"
+                                    max="2"
+                                    step="0.001"
+                                    value={localConfig.envAttack ?? 0.01}
+                                    onChange={(e) => handleEnvAttackChange(parseFloat(e.target.value))}
+                                    id="harmonizer-env-attack"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    aria-label="Harmony Envelope Attack"
+                                    aria-valuetext={`${((localConfig.envAttack ?? 0.01) * 1000).toFixed(0)} milliseconds`}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label htmlFor="harmonizer-env-decay" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Decay</label>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                    {((localConfig.envDecay ?? 0.1) * 1000).toFixed(0)}ms
+                                </span>
+                            </div>
+                            <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                                <div
+                                    className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                    style={{
+                                        width: `${Math.min(100, ((localConfig.envDecay ?? 0.1) / 2) * 100)}%`,
+                                        background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                        boxShadow: `0 0 10px ${color}40`
+                                    }}
+                                />
+                                <input
+                                    type="range"
+                                    min="0.001"
+                                    max="2"
+                                    step="0.001"
+                                    value={localConfig.envDecay ?? 0.1}
+                                    onChange={(e) => handleEnvDecayChange(parseFloat(e.target.value))}
+                                    id="harmonizer-env-decay"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    aria-label="Harmony Envelope Decay"
+                                    aria-valuetext={`${((localConfig.envDecay ?? 0.1) * 1000).toFixed(0)} milliseconds`}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label htmlFor="harmonizer-env-sustain" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Sustain</label>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                    {Math.round((localConfig.envSustain ?? 1.0) * 100)}%
+                                </span>
+                            </div>
+                            <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                                <div
+                                    className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                    style={{
+                                        width: `${(localConfig.envSustain ?? 1.0) * 100}%`,
+                                        background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                        boxShadow: `0 0 10px ${color}40`
+                                    }}
+                                />
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={localConfig.envSustain ?? 1.0}
+                                    onChange={(e) => handleEnvSustainChange(parseFloat(e.target.value))}
+                                    id="harmonizer-env-sustain"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    aria-label="Harmony Envelope Sustain"
+                                    aria-valuetext={`${Math.round((localConfig.envSustain ?? 1.0) * 100)} percent`}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label htmlFor="harmonizer-env-release" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Release</label>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
+                                    {((localConfig.envRelease ?? 0.3) * 1000).toFixed(0)}ms
+                                </span>
+                            </div>
+                            <div className="relative h-5 bg-zinc-900 rounded-md border border-zinc-700 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                                <div
+                                    className="absolute inset-y-0.5 left-0.5 rounded-sm transition-all"
+                                    style={{
+                                        width: `${Math.min(100, ((localConfig.envRelease ?? 0.3) / 2) * 100)}%`,
+                                        background: `linear-gradient(90deg, ${color}40 0%, ${color} 100%)`,
+                                        boxShadow: `0 0 10px ${color}40`
+                                    }}
+                                />
+                                <input
+                                    type="range"
+                                    min="0.001"
+                                    max="2"
+                                    step="0.001"
+                                    value={localConfig.envRelease ?? 0.3}
+                                    onChange={(e) => handleEnvReleaseChange(parseFloat(e.target.value))}
+                                    id="harmonizer-env-release"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    aria-label="Harmony Envelope Release"
+                                    aria-valuetext={`${((localConfig.envRelease ?? 0.3) * 1000).toFixed(0)} milliseconds`}
+                                />
+                            </div>
+                        </div>
+                    </div>
 {/* Harmony Attack - Styled slider */}
 <div className="space-y-2">
     <div className="flex justify-between items-center">
-        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Attack</span>
+        <label htmlFor="harmonizer-attack" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Attack</label>
         <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
             {(localConfig.harmonyAttack ?? 0.1).toFixed(2)}s
         </span>
@@ -396,6 +604,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
             step="0.01"
             value={localConfig.harmonyAttack ?? 0.1}
             onChange={(e) => handleHarmonyAttackChange(parseFloat(e.target.value))}
+            id="harmonizer-attack"
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             aria-label="Harmony Attack Time"
             aria-valuetext={`${(localConfig.harmonyAttack ?? 0.1).toFixed(2)} seconds`}
@@ -406,7 +615,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
 {/* Harmony Release - Styled slider */}
 <div className="space-y-2">
     <div className="flex justify-between items-center">
-        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Release</span>
+        <label htmlFor="harmonizer-release" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Release</label>
         <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
             {(localConfig.harmonyRelease ?? 0.3).toFixed(2)}s
         </span>
@@ -427,6 +636,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
             step="0.01"
             value={localConfig.harmonyRelease ?? 0.3}
             onChange={(e) => handleHarmonyReleaseChange(parseFloat(e.target.value))}
+            id="harmonizer-release"
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             aria-label="Harmony Release Time"
             aria-valuetext={`${(localConfig.harmonyRelease ?? 0.3).toFixed(2)} seconds`}

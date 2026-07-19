@@ -58,3 +58,15 @@
 ## 2026-07-10 - [Keyboard Accessibility for Playable Audio Triggers]
 **Learning:** When adding keyboard navigation to components that trigger real-time audio (like `DrumPads.tsx`), standard `<button>` click handling is insufficient. The Spacebar key defaults to scrolling the page, and operating system key-repeat rapidly fires `onKeyDown` if the key is held, causing horrible audio stuttering.
 **Action:** Always intercept `' '` (Space) and `'Enter'` keys explicitly via `onKeyDown` and `onKeyUp`. Call `e.preventDefault()` to stop scrolling, and maintain an active state (like a `Set` of active pad IDs) to ensure the audio trigger (`handlePadDown`) only fires once per physical key press, ignoring subsequent auto-repeat events.
+## 2026-07-14 - SongMode accessibility roving tabindex
+**Learning:** The ESLint/TypeScript parse error (e.g., `',' expected` or `Expression expected`) often reported around line 214 of `src/hooks/useAudioEngine.ts` is a known environmental false positive regarding valid destructuring (from `createSampleLibraryControls`). It shouldn't block unrelated scopes.
+**Action:** Ignore it or note it in the PR description, and do not attempt to fix this syntax if it surfaces during unrelated feature work.
+## 2024-07-16 - Handling blocked frontend verification
+**Learning:** If widespread, pre-existing syntax errors in unrelated files (e.g., `SamplerPanel.tsx`) prevent the local dev server from starting or the build from passing, it is impossible to run Playwright UI verification scripts.
+**Action:** When the build is fundamentally broken by external factors, document the issue, skip frontend Playwright verification (video/screenshots), and proceed directly to code review and submission, staying strictly scoped to the assigned accessibility task.
+## 2026-07-20 - SongMode Add/Remove Measure Button Tooltips
+**Learning:** Quick-action control buttons in interactive sequence builders (like adding/removing measures in `SongMode.tsx`) often lack `title` tooltips, even when they have an `aria-label`. While `aria-label` provides screen reader support, visual users without screen readers rely on hover tooltips to clarify the meaning of small or abbreviated buttons (like `- BAR` or `+ BAR`).
+**Action:** When auditing quick-action panels, explicitly verify that all control buttons include a `title` tooltip alongside their `aria-label` to provide context for both sighted mouse users and assistive technology users.
+## 2026-07-24 - SongModeToolbar Title Attributes
+**Learning:** Toolbar buttons with abbreviated text labels (like "Pat+", "Ins", "Dup") rely heavily on `aria-label` for screen readers, but sighted users without assistive tech also need context to understand them. Adding `title` tooltips bridges this gap.
+**Action:** When implementing or auditing toolbars with icon-only or heavily abbreviated buttons, ensure that every button has a `title` attribute that matches its `aria-label`.

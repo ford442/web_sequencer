@@ -143,7 +143,7 @@ export const App: React.FC = () => {
 
     return (
         <div className={`flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center ${isCompact ? 'hyphon-compact' : ''}`} style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}>
-            <a href="#main-sequencer" className="skip-link">Skip to sequencer</a>
+            <a href="#main-content" className="skip-link">Skip to main content</a>
             <A11yAnnouncer />
             <style>{SEQUENCER_STYLES}</style>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
