@@ -36,8 +36,6 @@ import {
 } from './audioEngine/initialization';
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { initializeAudioContextAndEngines, type EngineLifecycleRefs } from './audioEngine/engineLifecycle';
-import { createPhonemeAlignmentWrappers } from './audioEngine/phonemePoolWarming';
-import { createSamplerPlayback } from './audioEngine/samplerPlayback';
 import { buildAudioEngine } from './audioEngine/engineApiBuilder';
 
 export { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
@@ -1222,46 +1220,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             const setHarmonizerConfig = (config: HarmonizerConfig, isActive: boolean) => applyHarmonizerConfig(harmonizerRef, config, isActive);
             const updateSamplerVoiceParams = (_bankIdx: number, _key: string, _value: number | string | boolean) => {};
 
-            // Re-assign to state
-            setAudioEngine({
-                context,
-                webGpuEngine: gpuEngineRef.current,
-                wasmEngine: wasmEngineRef.current,
-                open303Engine: open303ManagerRef.current as any,
-                singingVoice: undefined,
-                playSynth,
-                playDrum,
-            const { prepareVocal, setAlignment } = createPhonemeAlignmentWrappers(
-                {
-                    phonemeBufferPoolRef,
-                    vocalAlignmentsRef,
-                    multisampleBanksRef,
-                    loadedSampleBuffersRef,
-                },
-                prepareVocalBase,
-                setAlignmentBase,
-            );
-
-            const { playSampler, noteOnSampler, noteOffSampler } = createSamplerPlayback(
-                context,
-                {
-                    masterSaturationRef,
-                    singingVoiceManagerRef,
-                    vocalAlignmentsRef,
-                    loadedSampleBuffersRef,
-                    multisampleBanksRef,
-                    choirLeftGainRef,
-                    choirRightGainRef,
-                    reverbNodesRef,
-                    reverbTypeRef,
-                    delayNodeRef,
-                    harmonizerRef,
-                    nextSamplerNoteId,
-                    activeSamplerNotes,
-                },
-                tempo,
-            );
-
             setAudioEngine(buildAudioEngine(context, {
                 ...playbackRefs,
                 gpuEngineRef,
@@ -1279,18 +1237,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 noteOnSampler,
                 noteOffSampler,
                 loadSampleToEngine,
-                renderSynthPartToBuffer,
-                playBufferedPart,
-                playAmbiance,
-                stopAmbiance,
-                setAmbianceVolume,
-                setMasterVolume,
-                setMasterSaturation,
-                setGlobalPan,
-                setReverbType,
-                detectSamplePitch,
-                processSinging,
-                processSpoon,
                 prepareVocal,
                 getAlignment,
                 setAlignment,
