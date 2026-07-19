@@ -15,6 +15,7 @@
 import React, { memo, useCallback, useRef, useState, useMemo, useEffect } from 'react';
 import type { UnifiedAutomationLane, AutomationLanePoint, AutomationInterpolation } from '../../types';
 import { automationStore } from '../../stores/automationStore';
+import { useWebGPUCurveEditor } from '../../hooks/automation/useWebGPUCurveEditor';
 
 export interface CurveEditorProps {
   /** The lane to display/edit */
@@ -102,6 +103,17 @@ export const CurveEditor = memo(({
 
   const toX = useCallback((step: number) => PAD.left + step * xScale, [xScale]);
   const toY = useCallback((value: number) => PAD.top + drawHeight * (1 - value), [drawHeight]);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useWebGPUCurveEditor(
+    canvasRef,
+    localPoints,
+    lane?.interpolation || 'linear',
+    totalSteps,
+    drawWidth,
+    drawHeight
+  );
 
   const fromSvgCoords = useCallback((clientX: number, clientY: number): { step: number; value: number } | null => {
     if (!svgRef.current) return null;
@@ -237,8 +249,13 @@ export const CurveEditor = memo(({
       {/* Grid */}
       {gridLines}
 
-      {/* Curve path */}
-      <g transform={`translate(${PAD.left}, ${PAD.top})`}>
+      {/* WebGPU Canvas for curve */}
+      <foreignObject x={PAD.left} y={PAD.top} width={drawWidth} height={drawHeight}>
+        <canvas ref={canvasRef} width={drawWidth} height={drawHeight} style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none' }} />
+      </foreignObject>
+
+      {/* Curve path for SVG fallback (hidden via CSS if WebGPU is active, but left here for graceful degradation) */}
+      <g transform={`translate(${PAD.left}, ${PAD.top})`} className="webgpu-fallback-svg">
         <path
           d={pathData}
           fill="none"
