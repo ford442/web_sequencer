@@ -194,7 +194,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── package.json
 │   └── vite.config.js
 ├── app.py                        # FastAPI cloud storage server
-├── deploy.py                     # SFTP deployment script
+├── deploy.py                     # Bundle deployment script (zip + HTTP POST)
 └── docs/                         # Project documentation by topic
 ```
 
@@ -261,9 +261,12 @@ npx playwright test
 
 ### Deployment
 ```bash
-# Deploy dist/ to the configured server via SFTP
-pnpm run deploy
-# Or: python deploy.py
+# Deploy dist/ to the configured server (requires DEPLOY_TOKEN)
+DEPLOY_TOKEN=... pnpm run deploy
+# Or: DEPLOY_TOKEN=... python deploy.py
+
+# Preview the bundle without uploading
+python deploy.py --dry-run
 ```
 
 ### Python Voice Mixer (Desktop Tool)
@@ -459,8 +462,12 @@ Located in `.github/workflows/`:
   - `FTP_DIR` — Base directory (default: `storage.1ink.us`)
 
 ### Frontend Deploy Script (`deploy.py`)
-- Uploads the `dist/` directory to a remote server via SFTP using `paramiko`
-- Hardcodes target server details (`1ink.us`, user `ford442`); edit directly if deploying elsewhere
+- Zips the contents of `dist/` and POSTs the archive to the deploy endpoint, which extracts it into the remote target folder (`hyphon`)
+- Stdlib only — no `paramiko`/`requests` install needed
+- Requires `DEPLOY_TOKEN` in the environment; **fails closed if unset**. Never hardcode it — this repository is public
+- Endpoint defaults to `https://storage.noahcohn.com/api/deploy/web-sequencer/bundle`; override with `DEPLOY_ENDPOINT`
+- Excludes `.map` files by default (~11 MB vs ~36 MB); pass `--include-sourcemaps` to ship them
+- Does **not** deploy JC-303 / wasm assets served from `wasm.noahcohn.com` — deploy those independently if they changed
 
 ---
 
@@ -474,7 +481,7 @@ Located in `.github/workflows/`:
 
 4. **Pyodide Execution**: Python code runs in a WebAssembly sandbox via Pyodide. Do not expose sensitive APIs to the Python environment.
 
-5. **Hardcoded Password in `deploy.py`**: The deployment script contains a plaintext password. Rotate credentials and move to environment variables for production use.
+5. **Deploy Token**: `deploy.py` reads `DEPLOY_TOKEN` from the environment and refuses to run without it. Earlier revisions of this script are reported to have carried a hardcoded token fallback in this public repo — that token should be treated as compromised and rotated on the VPS.
 
 ---
 

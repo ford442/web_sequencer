@@ -47,7 +47,7 @@ From `deploy.py`:
 - Flow: zip `dist/` → `POST https://storage.noahcohn.com/api/deploy/web-sequencer/bundle` (Contabo VPS) → server extracts into remote folder **`hyphon`**.
 - `deploy.py main()` prints the target as **`test.1ink.us/hyphon`**. PROJECT CONTEXT lists the live URL as `go.1ink.us/hyphon` — **discrepancy (`test` vs `go`)**; confirm which is canonical.
 - Legacy `deploy_old.py` used direct SFTP + a separate `wasm.noahcohn.com` upload for JC-303 assets; the new path drops that (per docstring, deploy those independently if needed).
-- The zip includes **everything** in `dist/` (excludes only `.git`/`node_modules`/`__pycache__`) → current upload is **~36 MB**, of which ~6 MB is source maps (see fragility #2) and 23.8 MB is the ONNX wasm.
+- The zip excludes `.git`/`node_modules`/`__pycache__` and (as of the rewrite) `.map` files → current upload is **~11 MB / 56 files**, dominated by the ONNX wasm. `--include-sourcemaps` restores the old ~36 MB behavior.
 
 ## 5. Lint & dependency audit
 
@@ -59,9 +59,9 @@ From `deploy.py`:
 
 ## Top fragilities
 
-1. **🔴 SECURITY — hardcoded deploy credential.** `deploy.py:44-47` ships a fallback `DEPLOY_TOKEN` literal as the default when the env var is unset. The repo is **public**, so this token (granting deploy access to `storage.noahcohn.com`) is exposed. **Rotate the token on the VPS and remove the in-code fallback** (fail closed if `DEPLOY_TOKEN` is unset). Highest priority.
+1. **🔴 SECURITY — deploy credential.** *In-code fallback removed:* `deploy.py` was found missing from the working tree and from git history entirely, and has been rewritten to read `DEPLOY_TOKEN` from the environment only, failing closed when unset. **The previously-reported hardcoded token must still be rotated on the VPS** — assume it is compromised. Remaining action is on the server side.
 
-2. **🟠 Build is not reproducible / source maps shipped.** (a) No pinned toolchain or Dockerfile for `emcc` + `binaryen` + `wasmedge`; the build only works because prebuilt WASM is committed. (b) `dist/` ships **~6 MB of `.map` files** (incl. `Studio3D-*.js.map` 4 MB, `index-*.js.map` 1.28 MB) which the deploy zips and uploads publicly — exposes original source and bloats every deploy. Set `build.sourcemap: false` (or `'hidden'`) for the deploy build.
+2. **🟠 Build is not reproducible / source maps shipped.** (a) No pinned toolchain or Dockerfile for `emcc` + `binaryen` + `wasmedge`; the build only works because prebuilt WASM is committed. (b) `dist/` ships **~6 MB of `.map` files** (incl. `Studio3D-*.js.map` 4 MB, `index-*.js.map` 1.28 MB) which still get generated. *Partly mitigated:* `deploy.py` now excludes `.map` files from the upload by default (bundle ~11 MB, down from ~36 MB), so they are no longer published. They are still built — set `build.sourcemap: false` (or `'hidden'`) in `vite.config.ts:43` to stop producing them.
 
 3. **🟠 protobufjs vulns via onnxruntime-web** (1 critical / 4 high) — bump `protobufjs >=7.5.8` via `pnpm.overrides`.
 
