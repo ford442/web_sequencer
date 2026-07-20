@@ -1,12 +1,7 @@
 // @mode: typescript
-// @note-for-ai: This worker runs in a separate thread for background audio rendering.
-// It duplicates types because workers have isolated scope.
-// Consider: If this becomes a bottleneck, the playSynthForRender function
-// could be migrated to use a shared WASM module loaded in the worker.
-// Currently, OfflineAudioContext provides sufficient performance.
-
-// A self-contained worker for rendering audio in the background.
-// It duplicates some types and functions because it runs in a separate scope.
+// Background audio rendering worker with cooperative cancel support.
+// Prefer `patternRenderer.ts` + `trackFreezer` on the main thread for stem export;
+// this worker remains available for simple synth pattern previews.
 
 type Waveform = 'sawtooth' | 'square' | 'triangle' | 'sine';
 
@@ -130,23 +125,56 @@ const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, n
     osc.stop(time + totalDuration + 0.05);
 };
 
-self.onmessage = async (event: MessageEvent<{ params: SynthParams, sequence: PartSequence, tempo: number, sampleRate: number, numSteps: number, currentScale?: any }>) => {
+let cancelled = false;
+
+self.onmessage = async (event: MessageEvent<{
+    type?: 'render' | 'cancel';
+    params?: SynthParams;
+    sequence?: PartSequence;
+    tempo?: number;
+    sampleRate?: number;
+    numSteps?: number;
+    currentScale?: any;
+}>) => {
+    if (event.data.type === 'cancel') {
+        cancelled = true;
+        return;
+    }
+
+    cancelled = false;
     const { params, sequence, tempo, sampleRate, numSteps, currentScale } = event.data;
+    if (!params || !sequence || tempo === undefined || sampleRate === undefined || numSteps === undefined) {
+        return;
+    }
+
+    if (cancelled) {
+        self.postMessage({ type: 'cancelled' });
+        return;
+    }
 
     const stepDuration = 60 / tempo / 4;
     const totalDuration = numSteps * stepDuration;
     const offlineContext = new OfflineAudioContext(2, Math.ceil(sampleRate * totalDuration), sampleRate);
 
     sequence.steps.forEach((note, step) => {
-        if (note) {
+        if (note && !cancelled) {
             const time = step * stepDuration;
             playSynthForRender(offlineContext, params, note.note, time, currentScale?.tuningSystem || '12-TET', currentScale?.root || 'C');
         }
     });
 
+    if (cancelled) {
+        self.postMessage({ type: 'cancelled' });
+        return;
+    }
+
     const renderedBuffer = await offlineContext.startRendering();
-    // Post the buffer back to the main thread. The buffers inside are transferable objects.
-    self.postMessage(renderedBuffer, {
+    if (cancelled) {
+        self.postMessage({ type: 'cancelled' });
+        return;
+    }
+
+    self.postMessage({ type: 'complete', buffer: renderedBuffer }, {
         transfer: [renderedBuffer.getChannelData(0).buffer, renderedBuffer.getChannelData(1).buffer]
     });
 };

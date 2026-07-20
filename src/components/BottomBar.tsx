@@ -24,6 +24,7 @@ interface BottomBarProps {
     exportRbsToFile: () => Promise<void>
     importSongFromFile: () => void
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+    setIsExportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsAISongModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsCloudLibraryOpen: React.Dispatch<React.SetStateAction<boolean>>
     handleAutoMix: () => void
@@ -66,6 +67,7 @@ export const BottomBar = memo(function BottomBar({
     exportRbsToFile,
     importSongFromFile,
     setIsRbsImportModalOpen,
+    setIsExportModalOpen,
     setIsAISongModalOpen,
     setIsCloudLibraryOpen,
     handleAutoMix,
@@ -258,6 +260,15 @@ export const BottomBar = memo(function BottomBar({
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as ReBirth RB-338 pattern file"}
                 >
                     💾 Export .rbs
+                </button>
+                <button type="button"
+                    onClick={() => setIsExportModalOpen(true)}
+                    disabled={isImportingAISong}
+                    aria-label="Export dry stems as ZIP"
+                    className={`h-6 px-2 text-[10px] font-bold text-cyan-400 bg-zinc-900 border border-cyan-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-950/30 hover:scale-105 active:scale-95'}`}
+                    title={isImportingAISong ? "Cannot export while importing AI song" : "Export dry stems (WAV ZIP)"}
+                >
+                    🎚 Export Stems
                 </button>
                 <button type="button"
                     onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}
