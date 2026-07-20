@@ -12,6 +12,7 @@ import { SupertonicService } from '../services/Supertonic'
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import type { PcfEffect } from '../engines/PcfEffect';
+import { normalizeTB303Model } from '../engines/TB303Models';
 import type { MainSequencerHandle } from '../components/MainSequencer'
 
 import {
@@ -217,13 +218,23 @@ export function useAppState() {
 
     useEffect(() => {
         const mgr = (audioEngine as any)?.open303Engine;
-        if (!mgr || typeof mgr.syncEngine303Settings !== 'function') return;
-        mgr.syncEngine303Settings({
-            lead: synthA.engine303 ?? 'open303',
-            bass1: synthB.engine303 ?? 'open303',
-            bass2: bass2.engine303 ?? 'open303',
-        });
-    }, [audioEngine, synthA.engine303, synthB.engine303, bass2.engine303]);
+        if (!mgr) return;
+        // normalizeTB303Model resolves the persisted model303, falling back to
+        // the legacy engine303 field for songs saved before the voices update.
+        if (typeof mgr.syncModel303Settings === 'function') {
+            mgr.syncModel303Settings({
+                lead: normalizeTB303Model(synthA.model303, synthA.engine303),
+                bass1: normalizeTB303Model(synthB.model303, synthB.engine303),
+                bass2: normalizeTB303Model(bass2.model303, bass2.engine303),
+            });
+        } else if (typeof mgr.syncEngine303Settings === 'function') {
+            mgr.syncEngine303Settings({
+                lead: synthA.engine303 ?? 'open303',
+                bass1: synthB.engine303 ?? 'open303',
+                bass2: bass2.engine303 ?? 'open303',
+            });
+        }
+    }, [audioEngine, synthA.engine303, synthB.engine303, bass2.engine303, synthA.model303, synthB.model303, bass2.model303]);
 
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
 

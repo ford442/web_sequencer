@@ -12,6 +12,10 @@ interface Engine303SelectorProps {
 }
 
 /**
+ * @deprecated Superseded by Voice303Selector (dynamic "303 Voice" list driven
+ * by the TB303_MODELS registry). Kept for backward compatibility only — the
+ * rack panels now render Voice303Selector.
+ *
  * Engine selector toggle for TB-303 voices (SYNTH A, SYNTH B and BASS 2).
  *
  * Lets the user switch between:

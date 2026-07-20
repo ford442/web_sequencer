@@ -79,6 +79,13 @@ class Open303Processor extends AudioWorkletProcessor {
      *  'jc303'   = authentic rosic::Open303 (jc303_* multi-instance API)
      */
     private activeEngine: 'open303' | 'jc303' = 'open303';
+
+    /** Native 303 model registry (open303_get_model_* exports), discovered at
+     *  init. null = the loaded WASM predates the voices architecture; model
+     *  selection then degrades to plain engine-family switching. */
+    private modelRegistry: Map<string, { index: number; engine: 'open303' | 'jc303' }> | null = null;
+    /** Currently selected 303 voice/model id (informational). */
+    private activeModel: string = 'stock-open303';
     private readonly perf = new WorkletPerfReporter(this.port, 'open303');
 
     // Mild makeup gain — hyphon_native 303 engines already run near full scale.
@@ -123,7 +130,7 @@ class Open303Processor extends AudioWorkletProcessor {
         }
 
         if (this.synthState !== SynthState.READY || !this.wasmInstance) {
-            if (type === 'set-engine' || type === 'param') {
+            if (type === 'set-engine' || type === 'set-303-model' || type === 'param') {
                 this.pendingMessages.push({ type, data });
             }
             return;
@@ -141,6 +148,8 @@ class Open303Processor extends AudioWorkletProcessor {
             this.handleNoteOff(data.note);
         } else if (type === 'set-engine') {
             this.handleSetEngine(data.engine as 'open303' | 'jc303');
+        } else if (type === 'set-303-model') {
+            this.handleSetModel(data.model as string, data.engine as 'open303' | 'jc303' | undefined);
         } else if (type === 'param') {
             this.applyParamMessage(exports, data);
         }
@@ -405,6 +414,8 @@ class Open303Processor extends AudioWorkletProcessor {
             // so that per-voice engine switching works without a full reinit.
             this.initializeJc303MultiInstance(exports, sampleRate);
 
+            this.discoverModelRegistry(exports);
+
             return true;
         } catch (e) {
             console.error('[Open303] Native API init failed:', e);
@@ -467,6 +478,91 @@ class Open303Processor extends AudioWorkletProcessor {
         this.activeEngine = engine;
         console.log(`[Open303] Engine switched to: ${engine}`);
         this.port.postMessage({ type: 'engine-changed', data: { engine } });
+    }
+
+    /** Read a null-terminated UTF-8 string from the WASM heap. */
+    private readWasmCString(ptr: number | bigint | null | undefined): string | null {
+        const memory =
+            (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory
+            ?? this.importedMemory;
+        const start = typeof ptr === 'bigint' ? Number(ptr) : ptr;
+        if (!memory?.buffer || !start || !Number.isFinite(start) || start <= 0) return null;
+
+        const bytes = new Uint8Array(memory.buffer);
+        let end = start;
+        const limit = Math.min(bytes.length, start + 256); // model ids are short
+        while (end < limit && bytes[end] !== 0) end++;
+        if (end === start) return null;
+
+        let str = '';
+        for (let i = start; i < end; i++) str += String.fromCharCode(bytes[i]);
+        return str;
+    }
+
+    /** Discover the native 303 model registry (open303_get_model_* exports).
+     *  Absent on WASM builds that predate the voices architecture — model
+     *  selection then falls back to plain engine-family switching. */
+    private discoverModelRegistry(exports: any): void {
+        if (typeof exports.open303_get_model_count !== 'function' ||
+            typeof exports.open303_get_model_id !== 'function' ||
+            typeof exports.open303_get_model_engine !== 'function') {
+            console.log('[Open303] Native 303 model registry not available in this WASM build');
+            return;
+        }
+        try {
+            const count = Number(exports.open303_get_model_count());
+            if (!Number.isFinite(count) || count <= 0 || count > 64) return;
+
+            const registry = new Map<string, { index: number; engine: 'open303' | 'jc303' }>();
+            for (let i = 0; i < count; i++) {
+                const id = this.readWasmCString(exports.open303_get_model_id(i));
+                if (!id) continue;
+                const engine = Number(exports.open303_get_model_engine(i)) === 1 ? 'jc303' : 'open303';
+                registry.set(id, { index: i, engine });
+            }
+            if (registry.size > 0) {
+                this.modelRegistry = registry;
+                console.log(`[Open303] Native 303 model registry: ${[...registry.keys()].join(', ')}`);
+            }
+        } catch (e) {
+            console.warn('[Open303] Failed to read native 303 model registry:', e);
+            this.modelRegistry = null;
+        }
+    }
+
+    /** Select the active 303 voice/model. Resolves the engine family from the
+     *  native registry when available, otherwise trusts the fallbackEngine hint
+     *  sent by Open303Oscillator (mirrored TS registry). */
+    private handleSetModel(model: string, fallbackEngine?: 'open303' | 'jc303'): void {
+        const entry = this.modelRegistry?.get(model);
+        const engine = entry?.engine ?? fallbackEngine ?? 'open303';
+
+        if (engine === 'jc303' && !this.hasJc303MultiApi) {
+            console.warn(`[Open303] Model "${model}" needs the JC303 engine which is unavailable — ignoring`);
+            return;
+        }
+
+        const exports = this.getExports();
+
+        // Apply the coefficient profile to the custom open303 instance.
+        if (entry && engine === 'open303' && this.isNativeApi &&
+            typeof exports.open303_set_model === 'function') {
+            try {
+                exports.open303_set_model(this.toWasmHandle(this.instanceHandle), entry.index);
+            } catch (e) {
+                console.warn(`[Open303] open303_set_model("${model}") failed:`, e);
+            }
+        }
+
+        if (engine !== this.activeEngine) {
+            // Release any held notes on the current engine before switching
+            this.clearAllNotes();
+            this.activeEngine = engine;
+        }
+
+        this.activeModel = model;
+        console.log(`[Open303] 303 model set to: ${model} (engine=${engine}, native=${entry !== undefined})`);
+        this.port.postMessage({ type: 'model-changed', data: { model, engine } });
     }
 
     private initializeLegacyApi(exports: any, sampleRate: number): boolean {
