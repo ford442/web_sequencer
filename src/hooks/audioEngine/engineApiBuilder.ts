@@ -5,6 +5,7 @@ import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
 import { Open303Manager } from '../../engines/Open303Manager';
 import { Harmonizer } from '../../engines/Harmonizer';
+import { renderSynthPattern } from '../../utils/patternRenderer';
 import {
     createAmbianceControls,
     createNoteOnSynth,
@@ -57,8 +58,16 @@ export function buildAudioEngine(
     const noteOffSynthById = (id: number) => noteOffSynth(refs.activeSynthNotes.current, id);
     const stopAllNotes = createStopAllNotes(refs);
 
-    const renderSynthPartToBuffer = (_params: SynthParams, _sequence: PartSequence, _tempo: number): Promise<AudioBuffer> => {
-         return Promise.resolve(context.createBuffer(2, context.sampleRate * 2, context.sampleRate));
+    const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {
+        return renderSynthPattern(params, {
+            sequence,
+            tempo,
+            sampleRate: context.sampleRate,
+            engines: {
+                webGpuEngine: refs.gpuEngineRef.current ?? undefined,
+                wasmEngine: refs.wasmEngineRef.current ?? undefined,
+            },
+        });
     };
 
     const playBufferedPart = (buffer: AudioBuffer, time: number) => {

@@ -5,6 +5,7 @@ export function useUIModalsState() {
     const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
     const [isAISongModalOpen, setIsAISongModalOpen] = useState(false);
     const [isRbsImportModalOpen, setIsRbsImportModalOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isLyricTrackVisible, setIsLyricTrackVisible] = useState(false);
     const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
     const [showGamepadDebug, setShowGamepadDebug] = useState(false);
@@ -25,6 +26,7 @@ export function useUIModalsState() {
         isCloudLibraryOpen, setIsCloudLibraryOpen,
         isAISongModalOpen, setIsAISongModalOpen,
         isRbsImportModalOpen, setIsRbsImportModalOpen,
+        isExportModalOpen, setIsExportModalOpen,
         isLyricTrackVisible, setIsLyricTrackVisible,
         isShortcutsHelpOpen, setIsShortcutsHelpOpen,
         showGamepadDebug, setShowGamepadDebug,
