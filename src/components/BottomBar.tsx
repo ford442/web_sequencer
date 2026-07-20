@@ -226,7 +226,7 @@ export const BottomBar = memo(function BottomBar({
                     disabled={isImportingAISong}
                     aria-label="Save project to JSON"
                     className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30 hover:scale-105 active:scale-95'}`}
-                    title="Save to JSON"
+                    title={isImportingAISong ? "Cannot save while importing AI song" : "Save to JSON"}
                 >
                     💾 SAVE
                 </button>
@@ -235,7 +235,7 @@ export const BottomBar = memo(function BottomBar({
                     disabled={isImportingAISong}
                     aria-label="Load project from JSON"
                     className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30 hover:scale-105 active:scale-95'}`}
-                    title="Load from JSON"
+                    title={isImportingAISong ? "Cannot load while importing AI song" : "Load from JSON"}
                 >
                     📂 LOAD
                 </button>
@@ -245,7 +245,7 @@ export const BottomBar = memo(function BottomBar({
                     disabled={isImportingAISong}
                     aria-label="Import ReBirth RB-338 .rbs file"
                     className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30 hover:scale-105 active:scale-95'}`}
-                    title="Import ReBirth RB-338 file"
+                    title={isImportingAISong ? "Cannot import while importing AI song" : "Import ReBirth RB-338 file"}
                 >
                     🎹 Import .rbs
                 </button>
@@ -255,7 +255,7 @@ export const BottomBar = memo(function BottomBar({
                     disabled={isImportingAISong}
                     aria-label="Export project as ReBirth RB-338 .rbs file"
                     className={`h-6 px-2 text-[10px] font-bold text-orange-400 bg-zinc-900 border border-orange-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-950/30 hover:scale-105 active:scale-95'}`}
-                    title="Export as ReBirth RB-338 pattern file"
+                    title={isImportingAISong ? "Cannot export while importing AI song" : "Export as ReBirth RB-338 pattern file"}
                 >
                     💾 Export .rbs
                 </button>
