@@ -1,6 +1,8 @@
 {
   "name": "hyphon-daw",
-  "workspaces": ["."],
+  "workspaces": [
+    "."
+  ],
   "version": "1.0.0",
   "private": true,
   "description": "Sequencer-driven Web Audio workstation inspired by the Korg Electribe EA-1 ER-1.",
@@ -22,6 +24,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "prepare": "husky",
     "deploy": "python deploy.py",
     "demo": "start svg-demo.html"
   },
@@ -62,6 +65,7 @@
     "fast-check": "^4.8.0",
     "globals": "^16.5.0",
     "happy-dom": "^15.11.7",
+    "husky": "^9.1.7",
     "tailwindcss": "^3.4.6",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
