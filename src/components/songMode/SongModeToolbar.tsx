@@ -50,7 +50,7 @@ export const SongModeToolbar = memo(function SongModeToolbar({
         onClick={onUndo}
         disabled={!canUndo}
         aria-label="Undo song edit"
-        title="Undo song edit"
+        title={!canUndo ? "Nothing to undo" : "Undo song edit"}
       >
         Undo
       </button>
@@ -60,7 +60,7 @@ export const SongModeToolbar = memo(function SongModeToolbar({
         onClick={onRedo}
         disabled={!canRedo}
         aria-label="Redo song edit"
-        title="Redo song edit"
+        title={!canRedo ? "Nothing to redo" : "Redo song edit"}
       >
         Redo
       </button>
@@ -71,7 +71,7 @@ export const SongModeToolbar = memo(function SongModeToolbar({
         onClick={onClear}
         disabled={selectionCount === 0}
         aria-label="Clear selected cells"
-        title="Clear selected cells"
+        title={selectionCount === 0 ? "Select cells to clear" : "Clear selected cells"}
       >
         Clear
       </button>
@@ -81,7 +81,7 @@ export const SongModeToolbar = memo(function SongModeToolbar({
         onClick={onCycleUp}
         disabled={selectionCount === 0}
         aria-label="Cycle pattern up in selection"
-        title="Cycle pattern up in selection"
+        title={selectionCount === 0 ? "Select cells to cycle pattern up" : "Cycle pattern up in selection"}
       >
         Pat+
       </button>
@@ -91,7 +91,7 @@ export const SongModeToolbar = memo(function SongModeToolbar({
         onClick={onCycleDown}
         disabled={selectionCount === 0}
         aria-label="Cycle pattern down in selection"
-        title="Cycle pattern down in selection"
+        title={selectionCount === 0 ? "Select cells to cycle pattern down" : "Cycle pattern down in selection"}
       >
         Pat−
       </button>
@@ -101,7 +101,7 @@ export const SongModeToolbar = memo(function SongModeToolbar({
         onClick={onCopy}
         disabled={selectionCount === 0}
         aria-label="Copy selection"
-        title="Copy selection"
+        title={selectionCount === 0 ? "Select cells to copy" : "Copy selection"}
       >
         Copy
       </button>
