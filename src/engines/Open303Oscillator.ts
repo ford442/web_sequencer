@@ -7,6 +7,7 @@ import {
     logEngineFallback,
     resolvePublicAsset,
 } from '../utils/engineTelemetry';
+import { attachWorkletPerf } from '../utils/workletPerfBridge';
 // Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
@@ -135,6 +136,7 @@ export class Open303Oscillator {
             // Connect and Listen (gainNode is always set before _initWithWasmBytes is reached)
             if (!this.gainNode) throw new Error('gainNode not initialized');
             this.workletNode.connect(this.gainNode);
+            attachWorkletPerf(this.workletNode, 'open303');
 
             // Wait for worklet to confirm initialization
             const initSuccess = await new Promise<boolean>((resolve) => {

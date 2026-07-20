@@ -1,6 +1,8 @@
 /// <reference lib="dom" />
 /// <reference types="vite/client" />
 
+import { WorkletPerfReporter } from './workletPerfReporter';
+
 declare class AudioWorkletProcessor {
     readonly port: MessagePort;
     process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
@@ -133,9 +135,16 @@ private envelopes: number[] = [];
     private modulatorRe: Float32Array;
     private modulatorIm: Float32Array;
     private smoothedEnvelope: Float32Array;
+    private stftEnabled = true;
+    private readonly perf = new WorkletPerfReporter(this.port, 'vocoder');
 
     constructor() {
         super();
+        this.port.onmessage = (e: MessageEvent) => {
+            if (e.data?.type === 'setPerfBypass') {
+                this.stftEnabled = !e.data.enabled;
+            }
+        };
         this.fft = new SimpleFFT(this.fftSize);
         this.window = new Float32Array(this.fftSize);
         // Hann window
@@ -169,6 +178,9 @@ private envelopes: number[] = [];
             return true;
         }
 
+        const blockFrames = carrierInput.length;
+        const endPerf = this.perf.beginProcess(blockFrames);
+        try {
         const mixParams = parameters.mix;
         const isMixConstant = mixParams.length === 1;
         const resynthesisParams = parameters.spectralResynthesis;
@@ -183,17 +195,23 @@ private envelopes: number[] = [];
             this.samplesBuffered++;
 
             // Process a frame if we have enough samples
-            if (this.samplesBuffered >= this.hopSize) {
+            if (this.stftEnabled && this.samplesBuffered >= this.hopSize) {
                 this.processFrame(bufSize, resynthesisAmt);
 
                 this.samplesBuffered -= this.hopSize;
                 this.outputWriteIdx = (this.outputWriteIdx + this.hopSize) % bufSize;
+            } else if (!this.stftEnabled) {
+                this.samplesBuffered = 0;
             }
 
             // Output the accumulated signal
-            const outSample = this.outputBuffer[this.outputReadIdx];
+            const outSample = this.stftEnabled
+                ? this.outputBuffer[this.outputReadIdx]
+                : carrierInput[i];
             // Clear the buffer after reading
-            this.outputBuffer[this.outputReadIdx] = 0;
+            if (this.stftEnabled) {
+                this.outputBuffer[this.outputReadIdx] = 0;
+            }
             this.outputReadIdx = (this.outputReadIdx + 1) % bufSize;
 
             // Apply mix (0 = modulator only, 1 = full vocoder)
@@ -207,6 +225,9 @@ private envelopes: number[] = [];
         }
 
         return true;
+        } finally {
+            endPerf();
+        }
     }
 
     private processFrame(bufSize: number, resynthesisAmt: number) {

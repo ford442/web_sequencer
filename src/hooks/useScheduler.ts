@@ -12,6 +12,7 @@
 // 16th-note shuffle. swing=0 is perfectly straight; swing=1 is max shuffle.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { attachWorkletPerf } from '../utils/workletPerfBridge';
 
 // Step callback receives (stepIndex, audioTime).
 // audioTime is the AudioContext timestamp at which the step fires — use it
@@ -120,6 +121,8 @@ export const useScheduler = (
                 onStepRef.current(e.data.step, e.data.audioTime);
             }
         };
+
+        attachWorkletPerf(node, 'clock');
 
         // Configure before starting.
         node.port.postMessage({ type: 'setTempo', tempo: tempoRef.current });

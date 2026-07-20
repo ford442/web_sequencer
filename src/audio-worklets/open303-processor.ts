@@ -6,6 +6,7 @@ import {
     buildHyphonWasmImports,
     normalizeWasmExports,
 } from './hyphonNativeImports';
+import { WorkletPerfReporter } from './workletPerfReporter';
 
 // Definitions for the AudioWorklet scope
 declare class AudioWorkletProcessor {
@@ -78,6 +79,7 @@ class Open303Processor extends AudioWorkletProcessor {
      *  'jc303'   = authentic rosic::Open303 (jc303_* multi-instance API)
      */
     private activeEngine: 'open303' | 'jc303' = 'open303';
+    private readonly perf = new WorkletPerfReporter(this.port, 'open303');
 
     // Mild makeup gain — hyphon_native 303 engines already run near full scale.
     private static readonly OUTPUT_GAIN = 1.0;
@@ -615,6 +617,9 @@ class Open303Processor extends AudioWorkletProcessor {
         if (!output) return true;
 
         const channelL = output[0];
+        const blockFrames = channelL ? channelL.length : 128;
+        const endPerf = this.perf.beginProcess(blockFrames);
+        try {
         const channelR = output[1];
 
         // Handle pending note (portamento fix)
@@ -717,6 +722,9 @@ class Open303Processor extends AudioWorkletProcessor {
         }
 
         return true;
+        } finally {
+            endPerf();
+        }
     }
 
     private checkStuckNotes(exports: any): void {
