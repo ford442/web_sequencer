@@ -8,6 +8,7 @@ import { noteToMidi, type ScaleDefinition } from '../../utils/musicTheory';
 import { makeDistortionCurve } from './distortion';
 import { pulseExpressionLed } from '../../audio/expressionLedPulse';
 import { getSyncedLfoHz, getSyncedSeconds, resolveExpressiveness } from './syncUtils';
+import { performanceBudget } from '../../utils/performanceBudget';
 
 
 export interface SamplerVoiceContext {
@@ -625,7 +626,8 @@ const playSamplerVoice = (
 
     // Spectral Panning
     const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
-    const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+    const spectralPanDepth = (noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth) *
+      performanceBudget.getSpectralPanMultiplier();
     const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
 
     // Reverb

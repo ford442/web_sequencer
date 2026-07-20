@@ -7,6 +7,7 @@ import { VoiceManager } from '../../engines/VoiceManager';
 import { MultisampleGenerator } from '../../engines/MultisampleGenerator';
 import { PhonemeBufferPool } from '../../services/PhonemeBufferPool';
 import { engineTelemetry } from '../../utils/engineTelemetry';
+import { startGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
 import type { TrackAnalysers } from '../../types';
 import {
@@ -80,6 +81,7 @@ export async function initializeAudioContextAndEngines(
     }
     const context = new AudioContextCtor();
     audioWindow.audioContext = context;
+    startGlitchMonitor(context);
 
     // --- CRITICAL FIX: Ensure AudioContext is running ---
     if (context.state === 'suspended') {

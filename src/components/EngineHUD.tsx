@@ -19,15 +19,19 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
 
   const style = document.createElement('style');
   style.textContent = `
-  #${CONTAINER_ID} { position: fixed; right: 12px; top: 12px; width: 360px; max-height: 60vh; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-size:12px; background: rgba(0,0,0,0.65); color:#fff; padding:8px; border-radius:8px; z-index:99999; }
+  #${CONTAINER_ID} { position: fixed; right: 12px; top: 12px; width: 380px; max-height: 70vh; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-size:12px; background: rgba(0,0,0,0.65); color:#fff; padding:8px; border-radius:8px; z-index:99999; }
   #${CONTAINER_ID} .row { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
   #${CONTAINER_ID} .header { font-weight:700; margin-bottom:6px; }
+  #${CONTAINER_ID} .subheader { font-size:11px; opacity:0.7; margin:6px 0 4px; text-transform:uppercase; letter-spacing:0.05em; }
   #${CONTAINER_ID} .badge { padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px; }
   #${CONTAINER_ID} .backend-webgpu { background:#16a34a; }
   #${CONTAINER_ID} .backend-wasm { background:#0ea5e9; }
   #${CONTAINER_ID} .backend-js { background:#6b7280; }
   #${CONTAINER_ID} .backend-wav { background:#f59e0b; color:#000 }
   #${CONTAINER_ID} .backend-open303 { background:#7c3aed }
+  #${CONTAINER_ID} .cpu-ok { color:#86efac; }
+  #${CONTAINER_ID} .cpu-warn { color:#fde047; }
+  #${CONTAINER_ID} .cpu-hot { color:#f87171; }
   #${CONTAINER_ID} .hud-actions { display:flex; gap:8px; margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; }
   #${CONTAINER_ID} button { background: rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
   #${CONTAINER_ID} button:hover { background: rgba(255,255,255,0.2); }
@@ -35,6 +39,12 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   document.head.appendChild(style);
 
   let visible = new URLSearchParams(location.search).get('hud') === '1';
+
+  function cpuClass(pct: number): string {
+    if (pct >= 80) return 'cpu-hot';
+    if (pct >= 50) return 'cpu-warn';
+    return 'cpu-ok';
+  }
 
   function render() {
     if (!visible) {
@@ -46,18 +56,42 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     container.style.display = 'block';
     // Clear inert while shown so the action buttons are operable (inert blocks clicks).
     if ('inert' in container) { (container as HTMLElement & { inert: boolean }).inert = false; }
+
     const data = engineTelemetry.snapshot();
+    const runtime = engineTelemetry.getRuntimeSnapshot();
     const keys = Object.keys(data).sort();
+
+    const budgetClass = cpuClass(runtime.masterBudgetPercent);
+    const summary = `<div class="subheader">Audio thread</div>
+      <div class="row"><div style="flex:1">Master budget</div><div class="${budgetClass}" style="min-width:72px;text-align:right">${runtime.masterBudgetPercent.toFixed(1)}%</div></div>
+      <div class="row"><div style="flex:1">Underruns</div><div style="min-width:72px;text-align:right">${runtime.totalUnderruns}</div></div>
+      <div class="row"><div style="flex:1">Output latency</div><div style="min-width:72px;text-align:right">${runtime.outputLatencyMs != null ? runtime.outputLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
+      <div class="row"><div style="flex:1">Glitches</div><div style="min-width:72px;text-align:right">${runtime.glitches.length}</div></div>`;
+
+    const workletNames = ['clock', 'open303', 'rubberband', 'vocoder'];
+    const workletRows = workletNames.map((name) => {
+      const w = runtime.worklets[name];
+      const cpu = w ? w.cpuPercent.toFixed(1) : '—';
+      const und = w ? String(w.underruns) : '—';
+      const cls = w ? cpuClass(w.cpuPercent) : '';
+      return `<div class="row"><div style="flex:1">${name}</div><div class="${cls}" style="min-width:56px;text-align:right">${cpu}%</div><div style="width:48px;text-align:right" title="underruns">${und}</div></div>`;
+    }).join('');
+
     const rows = keys.map(k => {
       const v = data[k];
       const backend = v?.resolution?.backend || 'unknown';
       const p50 = v?.p50 != null ? v.p50.toFixed(1) : '-';
       const p95 = v?.p95 != null ? v.p95.toFixed(1) : '-';
       const err = v?.errors?.count ? `${v.errors.count} err` : '';
-      return `<div class="row"><div class="badge backend-${backend}">${backend}</div><div style="flex:1">${k}</div><div style="min-width:90px;text-align:right">${p50}/${p95} ms</div><div style="width:64px;text-align:right">${err}</div></div>`;
+      const wCpu = v?.worklet?.cpuPercent != null ? `${v.worklet.cpuPercent.toFixed(0)}%` : '';
+      return `<div class="row"><div class="badge backend-${backend}">${backend}</div><div style="flex:1">${k}</div><div style="min-width:48px;text-align:right">${wCpu}</div><div style="min-width:72px;text-align:right">${p50}/${p95} ms</div><div style="width:48px;text-align:right">${err}</div></div>`;
     }).join('');
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    const degradeNote = runtime.degradations.length
+      ? `<div class="subheader">Degradations</div><div style="font-size:11px;opacity:0.85">${runtime.degradations.slice(-3).map(d => `${d.step}: ${d.active ? 'ON' : 'off'}`).join(' · ')}</div>`
+      : '';
+
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
