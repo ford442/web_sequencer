@@ -1,3 +1,7 @@
 ## 2026-07-16 - Hoist closures safely out of real-time audio hot paths
 **Learning:** Hoisting closures out of high-frequency paths like `playSamplerVoice` requires careful refactoring, specifically defining the function once at the module level. Repeated use of Python `.replace()` can inadvertently duplicate code blocks when multiple identical matches exist (e.g. `export interface`). If the file gets corrupted during patching, immediately `git checkout main -- <file>` to reset state instead of attempting iterative repairs on corrupted code.
 **Action:** In the future, explicitly define hoisted functions with clean parameter maps and use targeted diffs or surgical replacements. Always check the exact matches and count replacements in Python scripts.
+
+## 2024-05-19 - [Closure Allocations in Audio Engine]
+**Learning:** In the `src/hooks/audioEngine/samplerPlayback.ts` file, polyphonic playback and retriggering logic relied on `.forEach()` loops iterating over the chord arrays (`notes.forEach(...)`). On high-frequency execution paths like real-time sequencer tick triggers, creating a new inline arrow function on every loop iteration incurs significant closure memory allocations that add GC pressure over time.
+**Action:** Always prefer standard block-scoped `for` loops instead of `Array.prototype.forEach` inside performance-critical Web Audio API or sequencer loop routines. This maintains equivalent behavior and variable capture without the overhead of transient function allocations.
