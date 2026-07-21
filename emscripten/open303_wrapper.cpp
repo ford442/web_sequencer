@@ -141,6 +141,13 @@ static const Open303ModelProfile k303Models[] = {
     { "1ink303-v1",      "1ink303 v1",       ENGINE_OPEN303, 26.0f, 340.0f, 4.0f, 0.35f, 0.38f,  0.04f, 1.60f, 0.02f, 0.60f, 2.4f, 0.35f },
     // Scratchpad: hotter resonance feedback, snappier envelope, harder accent.
     { "experimental-01", "Experimental 01",  ENGINE_OPEN303, 20.0f, 420.0f, 4.15f, 0.55f, 0.45f, 0.03f, 1.20f, 0.008f, 0.40f, 4.5f, 0.0f },
+    // Inspired-by ReBirth RB-338 1.5 (NOT a clone): "squishier" filter — lower,
+    // darker cutoff base with hotter resonance feedback for a self-oscillation-
+    // prone squish; gooey longer slides; a touch of saw grit. Big accent lift.
+    { "rebirth-338-1.5", "ReBirth RB-338 1.5", ENGINE_OPEN303, 22.0f, 380.0f, 4.10f, 0.50f, 0.32f, 0.04f, 1.60f, 0.02f, 0.60f, 3.0f, 0.20f },
+    // Inspired-by ReBirth 2.0 (NOT a clone): cleaner/tighter filter than 1.5,
+    // punchier accent (VCA + filter), snappier envelope, slightly more drive.
+    { "rebirth-2.0",     "ReBirth 2.0",      ENGINE_OPEN303, 20.0f, 410.0f, 3.95f, 0.60f, 0.42f, 0.035f, 1.40f, 0.012f, 0.50f, 3.4f, 0.12f },
 };
 
 static constexpr int k303ModelCount = static_cast<int>(sizeof(k303Models) / sizeof(k303Models[0]));

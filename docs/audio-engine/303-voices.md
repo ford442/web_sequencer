@@ -21,13 +21,43 @@ track without touching the others.
 | `jc303` | jc303 | ✅ shipped | Authentic rosic::Open303 — identical to the old "Authentic JC303" engine setting. |
 | `1ink303-v1` | open303 | ✅ shipped | In-house: warmer filter base (26 Hz), rounder accent, slower slides, gentle saw shaping. |
 | `experimental-01` | open303 | ✅ shipped | Scratchpad: hotter resonance feedback (4.15), snappier envelope, harder accent punch, heavier square drive. |
-| `rebirth-338-1.5` | jc303 | 🚧 catalogued | ReBirth 1.5 filter/env/accent profile. |
-| `rebirth-2.0` | jc303 | 🚧 catalogued | ReBirth 2.0 profile. |
+| `rebirth-338-1.5` | open303 | ✅ shipped | Inspired by ReBirth RB-338 1.5 (not a clone): squishier, self-oscillation-prone filter, gooey slides, big accent lift. |
+| `rebirth-2.0` | open303 | ✅ shipped | Inspired by ReBirth 2.0 (not a clone): cleaner/tighter filter than 1.5, punchier accent, snappier envelope. |
 | `mb33-mkii` | open303 | 🚧 catalogued | MAM MB33 mkII profile. |
 | `raveolution` | open303 | 🚧 catalogued | Quasimidi Raveolution 309 profile. |
 
 Catalogued-but-unshipped voices are hidden from the UI and normalize to the
 stock voice of their family when loaded from a song.
+
+### ReBirth character voices (`rebirth-338-1.5`, `rebirth-2.0`)
+
+These are **inspired-by profiles, not bit-perfect or legal clones** of
+Propellerhead ReBirth RB-338 — the UI tooltips and this catalog say so. They
+ship no ReBirth samples or assets; they are coefficient profiles on the stock
+open303 DSP tuned toward the *character* of two RB-338 eras.
+
+Coefficient deltas vs `stock-open303` (see `k303Models[]` in
+`emscripten/open303_wrapper.cpp`):
+
+| Knob | stock | `rebirth-338-1.5` | `rebirth-2.0` |
+|------|-------|-------------------|---------------|
+| cutoff base Hz | 20 | 22 (darker) | 20 |
+| cutoff range × | 400 | 380 | 410 (brighter top) |
+| resonance feedback | 3.9 | 4.10 (squishy, near self-osc) | 3.95 (cleaner) |
+| accent filter boost | 0.40 | 0.50 | 0.60 (punchier) |
+| accent VCA boost | 0.30 | 0.32 | 0.42 (harder hit) |
+| decay min / range s | 0.05 / 1.95 | 0.04 / 1.60 | 0.035 / 1.40 (snappier) |
+| slide min / range s | 0.01 / 0.49 | 0.02 / 0.60 (gooey) | 0.012 / 0.50 |
+| square drive × | 3.0 | 3.0 | 3.4 |
+| saw drive | 0.0 | 0.20 (mild grit) | 0.12 |
+
+Character summary: **1.5** leans into a squishier, more resonant/self-
+oscillating filter with longer slides and a big accent lift; **2.0** is
+tighter and cleaner with a harder, punchier accent and snappier envelope.
+
+Full ReBirth *song* fidelity is out of scope here (owned by epic #876); these
+voices target instrument character only, validated by A/B render (below), not
+by matching real RB-338 recordings.
 
 ## Architecture
 
@@ -176,14 +206,19 @@ bash emscripten/tests/run_offline_voices_test.sh
 
 What it asserts:
 
-1. `experimental-01` and `1ink303-v1` are registered as open303-family models.
+1. `experimental-01`, `1ink303-v1`, `rebirth-338-1.5` and `rebirth-2.0` are
+   registered as open303-family models.
 2. The stock render is **deterministic** (bit-identical across two runs).
 3. **Stock unchanged**: stock → other voice → stock reproduces the exact stock
    buffer (a mid-session switch does not corrupt the stock path).
-4. **Audible difference**: each voice differs from stock by relative RMS > 2 %
-   and peak sample delta > 1e-3 (both currently render ~1.0 relative RMS).
+4. **Audible difference**: each shipped voice differs from stock by relative
+   RMS > 2 % and peak sample delta > 1e-3 (all currently render ~1.0 relative
+   RMS), and the two ReBirth eras are audibly distinct from each other.
 5. `open303_set_model()` rejects the jc303-family model and unknown indices.
 6. Switching the model every block mid-render stays finite — no crash, no NaN.
+
+This same fixed pattern is the **shared A/B regression pattern** for both the
+first custom voices (#898) and the ReBirth character voices (#900).
 
 ### Manual A/B checklist (in-app, after `pnpm run build:emcc`)
 
